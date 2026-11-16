@@ -249,9 +249,12 @@ pub fn on_configuration_ack(
         }
         _ => false,
     };
-    let Ok((mut state, _, _, con)) = connections.get_mut(event.entity) else {
+    let Ok((mut state, _, _, mut con)) = connections.get_mut(event.entity) else {
         return;
     };
+    if let Some(con) = con.as_mut() {
+        con.raw.configuration_acknowledged();
+    }
     if !duplicate {
         *state = ConnectionState::Game;
         return;

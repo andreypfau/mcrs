@@ -258,6 +258,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             switch_mode,
             announced_compression: None,
             awaits_login_acknowledgement: false,
+            awaits_configuration_acknowledgement: false,
             signal,
             handed_at: Instant::now(),
             inbound_switch: Some(inbound_switch),
@@ -424,6 +425,7 @@ pub struct RawConnection {
     switch_mode: SwitchMode,
     announced_compression: Option<CompressionThreshold>,
     awaits_login_acknowledgement: bool,
+    awaits_configuration_acknowledgement: bool,
     /// What was written and not yet taken by the writer, sent ahead of anything newer: a slow
     /// socket delays what it is sent and never loses it.
     queue: WriterQueue,
@@ -504,6 +506,7 @@ impl RawConnection {
             switch_mode: SwitchMode::of_own_version(),
             announced_compression: None,
             awaits_login_acknowledgement: false,
+            awaits_configuration_acknowledgement: false,
             signal: Arc::new(WriterSignal::default()),
             handed_at: Instant::now(),
             inbound_switch: Some(mpsc::unbounded_channel().0),
@@ -626,11 +629,24 @@ impl RawConnection {
     }
 
     /// Makes the reader run layer 0 of the movement checks on each play-state frame after the
-    /// next `finish_configuration` of the client. Call it as `finish_configuration` is written.
+    /// next `finish_configuration` of the client, and starts the wait for that acknowledgement.
+    /// Call it as `finish_configuration` is written.
     pub fn check_play_moves(&mut self) {
         if let Some(switches) = &self.play_switch {
             let _ = switches.send(InboundSwitch::CheckPlay);
         }
+        self.awaits_configuration_acknowledgement = true;
+    }
+
+    /// Call once the `finish_configuration` of the client that answers the server's is accepted.
+    pub fn configuration_acknowledged(&mut self) {
+        self.awaits_configuration_acknowledgement = false;
+    }
+
+    /// The time between the server's `finish_configuration` and the client's acknowledgement,
+    /// in which the client already reads play packets.
+    pub fn awaits_configuration_acknowledgement(&self) -> bool {
+        self.awaits_configuration_acknowledgement
     }
 
     /// Call once the `login_acknowledged` that answers `login_finished` is accepted.

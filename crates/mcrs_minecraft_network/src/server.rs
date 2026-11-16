@@ -361,6 +361,12 @@ impl ServerSideConnection {
         if self.raw.awaits_login_acknowledgement() {
             return Ok(());
         }
+        let state = match state {
+            ConnectionState::Configuration if self.raw.awaits_configuration_acknowledgement() => {
+                ConnectionState::Game
+            }
+            state => state,
+        };
         match state {
             ConnectionState::Login => {
                 let reason = serde_json::to_string(&reason)?;
@@ -406,5 +412,51 @@ impl WritePacket for ServerSideConnection {
 impl Drop for ServerSideConnection {
     fn drop(&mut self) {
         let _ = self.raw.flush();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn first_packet_id(frames: &[u8]) -> Option<u8> {
+        let length_bytes = frames.iter().position(|byte| byte & 0x80 == 0)? + 1;
+        frames.get(length_bytes).copied()
+    }
+
+    #[test]
+    fn a_disconnect_uses_the_protocol_the_client_decodes() {
+        let runtime = Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let cases = [
+            (
+                "configuring",
+                false,
+                configuration::clientbound::ClientboundDisconnect::ID,
+            ),
+            (
+                "after finish_configuration",
+                true,
+                game::clientbound::ClientboundDisconnect::ID,
+            ),
+        ];
+        for (name, finished, expected) in cases {
+            let (mut raw, mut outgoing, _inbound) = RawConnection::new_for_test_full(8);
+            if finished {
+                raw.check_play_moves();
+            }
+            let mut connection = ServerSideConnection { raw: Box::new(raw) };
+
+            connection
+                .disconnect(ConnectionState::Configuration, Text::text("bye"))
+                .unwrap();
+
+            let frames = outgoing.try_recv().unwrap();
+            assert_eq!(
+                first_packet_id(&frames),
+                u8::try_from(expected).ok(),
+                "{name}"
+            );
+        }
     }
 }

@@ -77,6 +77,19 @@ pub fn handle_keepalive(
                 commands.entity(entity).remove::<ServerSideConnection>();
             }
             KeepAlive::Idle { since } if now.saturating_sub(since) >= KEEPALIVE_INTERVAL => {
+                // The client reads play packets here, and play id 4 is not `keep_alive`.
+                if *conn_state == ConnectionState::Configuration
+                    && con.raw.awaits_configuration_acknowledgement()
+                {
+                    if now.saturating_sub(since) >= KEEPALIVE_INTERVAL * 2 {
+                        warn!(
+                            "No finish_configuration acknowledgement from {}",
+                            con.remote_addr()
+                        );
+                        commands.entity(entity).remove::<ServerSideConnection>();
+                    }
+                    continue;
+                }
                 let challenge = rand::random();
                 debug!(
                     "Sending keepalive to {} with payload {}",
@@ -175,6 +188,7 @@ fn handle_keepalive_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use bytes::Bytes;
     use mcrs_minecraft_network::RawConnection;
@@ -228,5 +242,69 @@ mod tests {
             measured,
             "a repeated round trip keeps the latency, so viewers get no update"
         );
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum Outcome {
+        Idle,
+        Challenged,
+        Dropped,
+    }
+
+    #[test]
+    fn no_challenge_between_finish_configuration_and_its_acknowledgement() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let cases = [
+            (
+                "in the gap",
+                false,
+                KEEPALIVE_INTERVAL + Duration::from_secs(5),
+                Outcome::Idle,
+            ),
+            (
+                "past the deadline",
+                false,
+                KEEPALIVE_INTERVAL * 2,
+                Outcome::Dropped,
+            ),
+            (
+                "acknowledged",
+                true,
+                KEEPALIVE_INTERVAL + Duration::from_secs(5),
+                Outcome::Challenged,
+            ),
+        ];
+        for (name, acknowledged, elapsed, expected) in cases {
+            let startup = Instant::now();
+            let mut world = World::new();
+            let mut time = Time::<Real>::new(startup);
+            time.update_with_instant(startup);
+            time.update_with_instant(startup + elapsed);
+            world.insert_resource(time);
+            let (mut raw, _outgoing, _inbound) = RawConnection::new_for_test_full(1);
+            raw.check_play_moves();
+            if acknowledged {
+                raw.configuration_acknowledged();
+            }
+            let connection = world
+                .spawn((
+                    ServerSideConnection { raw: Box::new(raw) },
+                    ConnectionState::Configuration,
+                    KeepAlive::Idle {
+                        since: Duration::ZERO,
+                    },
+                ))
+                .id();
+
+            world.run_system_once(handle_keepalive).unwrap();
+
+            let outcome = match world.get::<KeepAlive>(connection) {
+                _ if world.get::<ServerSideConnection>(connection).is_none() => Outcome::Dropped,
+                Some(KeepAlive::Awaiting { .. }) => Outcome::Challenged,
+                _ => Outcome::Idle,
+            };
+            assert_eq!(outcome, expected, "{name}");
+        }
     }
 }
