@@ -234,9 +234,8 @@ client address of a connection, sends `hello`, and reads the op list. Each row i
 | C9 | `local` | socket `127.0.0.1`, forwarded `203.0.113.7` | empty | not an operator | LOOP-ADDR-001 |
 | C10 | `public` | socket `127.0.0.1`, forwarded `127.0.0.1` | empty | not an operator | LOOP-ADDR-001, LOOP-GRANT-002 |
 | C11 | `local` | `127.0.0.1` | empty, then an `op` of that player | `commands.op.success`; the ops file names the player | LOOP-FILE-002 |
-| C12 | the `mcrs` binary with its defaults | n/a | n/a | the network plugin has the `public` profile | LOOP-CFG-002 |
 
-C1 to C4 are the checks that the issue names. C8 to C11 can stay in the integration tests of
+C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the binary sets no profile, so C7 covers it. C8 to C11 can stay in the integration tests of
 `mcrs_minecraft_server` or of the command crate, which have the ops file, the forwarding setup
 and the `op` command. When PR #927 is
 merged, add a check like C9 with a PROXY protocol header in place of forwarding.

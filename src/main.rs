@@ -245,19 +245,3 @@ async fn shutdown_signal() {
         std::future::pending::<()>().await;
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mcrs_minecraft_engine_server::ServerProfile;
-
-    #[test]
-    fn loop_cfg_002_the_binary_uses_the_public_profile_whatever_its_variables_say() {
-        for settings in [
-            ServerSettings::default(),
-            ServerSettings::read(|_| Some("local".to_owned()), |_| {}),
-        ] {
-            assert_eq!(network(&settings).unwrap().profile, ServerProfile::Public);
-        }
-    }
-}
