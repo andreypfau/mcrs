@@ -105,15 +105,17 @@ This permission check also runs when a client sends raw commands with stale loca
 The `targets` node uses the `players_only` (`0x02`) multi-target `minecraft:entity` parser ([argument-entity.md](argument-entity.md)).
 A selector able to match non-player entities, such as `@e`, fails parse with `argument.player.entities` and `command.context.here`.
 The selectors resolve online players under ARG-ENT-014 and ARG-ENT-018.
-World-limited selectors search the source dimension.
+A world-limited `@p`, `@a` or `@r` searches the source dimension.
+A world-limited `@s` selects the source entity if it is a player and passes all tests.
+The source entity can be in a different dimension (ARG-ENT-014 and ARG-ENT-018).
 
 Dead players whose respawn screen stays open (`immediate_respawn = false`) stay online and match `@a` or explicit name.
 If zero online players match `targets`, runtime fails with `argument.entity.notfound.player` and no `command.context.here`.
 Console execution with `@s` has no player source and fails with `argument.entity.notfound.player`, not `permissions.requires.player`.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `non-player-selector`, `offline-before-limit`). Also `black_box_confirmed` (`give-console.json`: `multiple`, `cross_dimension`, `argument_errors`, `console_precedence`, `dead_target`).
+- **Provenance**: `black_box_confirmed` (`give-client.json`: `non-player-selector`, `offline-before-limit`). Also `black_box_confirmed` (`give-console.json`: `multiple`, `cross_dimension`, `argument_errors`, `console_precedence`, `dead_target`). The world-limited `@s` case is `source_suggested`, inherited from ARG-ENT-014 and ARG-ENT-018.
 - **Kind**: `semantic`, `wire`.
-- **Confidence**: high.
+- **Confidence**: high for captured cases; medium for the inherited `@s` case.
 
 ---
 
@@ -125,11 +127,13 @@ Empty brackets (`stone[]` or `air[]`) parse as an empty component patch equal to
 Parse checks reject unknown ids (`argument.item.id.invalid`) and unknown component keys (`arguments.item.component.unknown`).
 Parse checks also reject invalid values such as `damage=-1` or `max_stack_size=100` (`arguments.item.component.malformed`).
 
-After target lookup succeeds, the server validates the stack (STK-VAL-001 and STK-CMD-006).
+After target lookup succeeds, the server validates the item components (STK-VAL-001 and STK-CMD-006).
+For a non-empty item, the checks act as if the stack has count 1, not the requested `<count>`.
+This specifies the observable result; it does not require a particular internal stack or order of parts.
 Incompatible pairs like `diamond_sword[max_stack_size=16]` fail at runtime with `arguments.item.malformed` (`"Item cannot be both damageable and stackable"`).
 Runtime strict errors send one `system_chat` packet with no `command.context.here`.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `malformed-component`, `empty-brackets`, `unknown-item`, `malformed-strict`). Also `black_box_confirmed` (`give-console.json`: `empty_brackets`, `invalid_component`, `console_precedence`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..004`).
+- **Provenance**: `black_box_confirmed` (`give-client.json`: `malformed-component`, `empty-brackets`, `unknown-item`, `malformed-strict`). Also `black_box_confirmed` (`give-console.json`: `empty_brackets`, `invalid_component`, `console_precedence`, `per_target_limit`, `limit_inclusive`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..006`, `STK-VAL-001`).
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -142,7 +146,10 @@ Let `S` denote the stack size (`1..99` from `minecraft:max_stack_size`, or `1` w
 When the item id is `minecraft:air`, `S` stays `1` even when a `max_stack_size` patch appears.
 
 The inclusive limit is `100 * S` items per target, compared against `count` per individual target.
-For two targets, `/give @a stone[max_stack_size=1] 60` succeeds, and `/give @s stone[max_stack_size=4] 400` succeeds.
+A requested count larger than `S` does not by itself cause validation to fail (CMD-GIVE-004).
+The number of targets does not multiply the count for either check.
+For two targets, `/give @a stone[max_stack_size=1] 60` succeeds.
+The captured `/give GiveProbeA stone[max_stack_size=4] 400` also succeeds.
 If `count > 100 * S`, execution fails at runtime with `commands.give.failed.toomanyitems` (`(100 * S, item_text)`).
 On limit failure, no inventory changes, no item entities spawn, no sounds play, `#result = 0`, and `#success = 0`.
 
@@ -161,6 +168,9 @@ Parse errors follow `CMDP-EXEC-003` and runtime errors follow `CMD-ERR-001` and 
 2. **Target resolution**: Runs first at runtime; fails with `argument.entity.notfound.player` before strict checks or count limits.
 3. **Strict stack validation**: Runs before the `100 * S` limit; `diamond_sword[max_stack_size=16] 1601` fails with `arguments.item.malformed`.
 4. **Per-target count limit**: Fails with `commands.give.failed.toomanyitems` when `count > 100 * S`.
+
+The captured `/give` cases do not report `arguments.item.overstacked` for a requested count larger than `S`.
+Whether another component patch can produce that error is unresolved (U8).
 
 All runtime errors (steps 2 to 4) send one red `system_chat` packet with no `command.context.here`.
 Runtime errors also omit `<--[HERE]` from console output.
@@ -321,7 +331,9 @@ particular arrangement of text nodes when the same visible content and hover dat
 
 - **Rule**: `CMD-GIVE-008`; the shared item-entity rule is `IEN-SPN-004`.
 - **Reference**: For a creative target with no room, vanilla destroys the items and shows a display item.
+- **Reason**: Uninserted items remain available instead of being destroyed.
 - **Visible to the client**: Yes. In vanilla the player gets no item; under `D6`, uninserted items drop on the ground. Command feedback follows `CMD-GIVE-012`.
+- **Bug reference**: none.
 - **Test**: A differential test skips `give` to a creative player with a full inventory, as specified for `IEN-SPN-004` in [item-entity.md](item-entity.md).
 
 Under `D6`, `mcrs` uses the uniform survival overflow rule. See `Q6` in [item-entity.md](item-entity.md) for the interaction between `D6` and `IEN-PCK-006`.
@@ -359,3 +371,4 @@ Key files in the probe suite are:
 - **U5**: Confirm which item and component suggestions need the server.
 - **U6**: Confirm overflow for a dead target with a full inventory.
 - **U7**: Confirm the statistic and advancement effects for items and cases outside the capture.
+- **U8**: Can a `/give` item patch produce `arguments.item.overstacked` for another cause?
