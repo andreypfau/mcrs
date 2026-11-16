@@ -14,8 +14,7 @@ a loopback address. So the server gives the automatic grant only on the local pr
 public profile, only the op list makes a player an operator.
 
 This document extends `login.md` and `command-permissions.md`. It uses the client address of
-`proxy-forwarding.md` and of `proxy-protocol.md`. The document `proxy-protocol.md` comes with
-PR #927, which is not merged.
+`proxy-forwarding.md` and of `proxy-protocol.md`.
 
 ## 0. Conventions
 
@@ -118,9 +117,7 @@ Examples:
 | `::ffff:127.0.0.1` | yes |
 | `192.168.1.2`, `10.0.0.1`, `0.0.0.0`, `::`, `::ffff:10.0.0.1`, `fe80::1` | no |
 
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high. Dependency: the PROXY
-protocol and PXP-USE-001 come with PR #927, which is not merged. Until it is merged, the client
-address has only the change of FWD-USE-002.
+Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
 
 ## 3. The result per profile
 
@@ -239,8 +236,8 @@ client address of a connection, sends `hello`, and reads the op list. Each row i
 
 C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the binary sets no profile, so C7 covers it. C8 to C11 can stay in the integration tests of
 `mcrs_minecraft_server` or of the command crate, which have the ops file, the forwarding setup
-and the `op` command. When PR #927 is
-merged, add a check like C9 with a PROXY protocol header in place of forwarding.
+and the `op` command. A PROXY protocol header sets the client address
+before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a header.
 
 ## 7. Intentional deviations
 
