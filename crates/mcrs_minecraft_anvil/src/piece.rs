@@ -1,8 +1,10 @@
 use mcrs_minecraft_core::{Mirror, Rotation, mirror, rotation};
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{nbt_byte_array, nbt_flag, nbt_int_array};
 use mcrs_minecraft_registries::dispatch;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::Error as _;
+use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -94,18 +96,79 @@ fn registry_id<'de, D: Deserializer<'de>>(
         }
 
         fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<RegistryId, E> {
-            ResourceLocationBuf::read(text)
-                .map(RegistryId)
-                .map_err(|_| {
-                    E::custom(format!("`{}`: `{text}` is not a resource location", self.0))
-                })
+            read_registry_id(self.0, text)
         }
     }
     deserializer.deserialize_any(Id(key))
 }
 
-fn processors_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RegistryId, D::Error> {
-    registry_id(deserializer, "processors")
+fn read_registry_id<E: serde::de::Error>(key: &str, text: &str) -> Result<RegistryId, E> {
+    ResourceLocationBuf::read(text)
+        .map(RegistryId)
+        .map_err(|_| E::custom(format!("`{key}`: `{text}` is not a resource location")))
+}
+
+/// The processor list of a saved single pool element. An inline list reads from the compound
+/// with the list `processors` or from the bare list, and writes as the compound.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SavedProcessors {
+    /// The id of a `worldgen/processor_list` entry.
+    Reference(RegistryId),
+    /// The processors of an inline list, each in its data pack form.
+    // chisle: anvil cannot depend on the processor model in mcrs_minecraft_worldgen_feature; a type
+    // parameter for the payload lifts this.
+    Inline(Vec<NbtCompound>),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WrappedProcessors<P> {
+    processors: P,
+}
+
+impl Serialize for SavedProcessors {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Reference(id) => id.serialize(serializer),
+            Self::Inline(processors) => WrappedProcessors { processors }.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SavedProcessors {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Processors;
+        impl<'de> serde::de::Visitor<'de> for Processors {
+            type Value = SavedProcessors;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("`processors` as a registry id, a compound with the list `processors` or a list")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<SavedProcessors, E> {
+                read_registry_id("processors", text).map(SavedProcessors::Reference)
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                seq: A,
+            ) -> Result<SavedProcessors, A::Error> {
+                let processors: Vec<NbtCompound> =
+                    Deserialize::deserialize(SeqAccessDeserializer::new(seq))?;
+                Ok(SavedProcessors::Inline(processors))
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                map: A,
+            ) -> Result<SavedProcessors, A::Error> {
+                let wrapped: WrappedProcessors<Vec<NbtCompound>> =
+                    Deserialize::deserialize(MapAccessDeserializer::new(map))?;
+                Ok(SavedProcessors::Inline(wrapped.processors))
+            }
+        }
+        deserializer.deserialize_any(Processors)
+    }
 }
 
 fn feature_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RegistryId, D::Error> {
@@ -116,8 +179,7 @@ fn feature_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RegistryId, 
 #[serde(deny_unknown_fields)]
 pub struct SavedSingleElement {
     pub location: ResourceLocationBuf,
-    #[serde(deserialize_with = "processors_id")]
-    pub processors: RegistryId,
+    pub processors: SavedProcessors,
     pub projection: Projection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub override_liquid_settings: Option<LiquidSettings>,
@@ -763,7 +825,6 @@ pub struct GridTag {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_nbt::tag::NbtTag;
 
     fn piece(id: &str, keys: Vec<(&str, NbtTag)>) -> NbtCompound {
@@ -839,8 +900,61 @@ mod tests {
         assert_eq!(out.get("Template"), Some(&NbtTag::String(String::new())));
     }
 
+    fn jigsaw(element: NbtCompound) -> NbtCompound {
+        piece(
+            "minecraft:jigsaw",
+            vec![
+                ("PosX", NbtTag::Int(0)),
+                ("PosY", NbtTag::Int(0)),
+                ("PosZ", NbtTag::Int(0)),
+                ("ground_level_delta", NbtTag::Int(1)),
+                ("rotation", NbtTag::String("NONE".into())),
+                ("pool_element", NbtTag::Compound(element)),
+            ],
+        )
+    }
+
     #[test]
-    fn an_inline_processor_list_or_feature_fails_the_load_naming_its_key() {
+    fn a_saved_processor_list_round_trips_as_an_id_or_a_wrapped_inline_list() {
+        let mut processor = NbtCompound::new();
+        processor.put_string("processor_type", "minecraft:gravity".to_owned());
+        processor.put_string("heightmap", "WORLD_SURFACE_WG".to_owned());
+        processor.put_int("offset", -1);
+        let entries = vec![NbtTag::Compound(processor)];
+        let mut wrapped = NbtCompound::new();
+        wrapped.put_list("processors", entries.clone());
+        let mut empty = NbtCompound::new();
+        empty.put_list("processors", vec![]);
+        for (saved, expected) in [
+            (
+                NbtTag::String("minecraft:mossify_10_percent".into()),
+                NbtTag::String("minecraft:mossify_10_percent".into()),
+            ),
+            (
+                NbtTag::Compound(wrapped.clone()),
+                NbtTag::Compound(wrapped.clone()),
+            ),
+            (NbtTag::List(entries), NbtTag::Compound(wrapped.clone())),
+            (NbtTag::List(vec![]), NbtTag::Compound(empty)),
+        ] {
+            let mut element = NbtCompound::new();
+            element.put_string(
+                "element_type",
+                "minecraft:legacy_single_pool_element".to_owned(),
+            );
+            element.put_string("location", "minecraft:a".to_owned());
+            element.put_string("projection", "rigid".to_owned());
+            element.put("processors", saved.clone());
+            let out = written(&read(jigsaw(element)));
+            let Some(NbtTag::Compound(element)) = out.get("pool_element") else {
+                panic!("{out:?}");
+            };
+            assert_eq!(element.get("processors"), Some(&expected), "{saved:?}");
+        }
+    }
+
+    #[test]
+    fn an_inline_feature_or_a_processor_compound_without_its_list_fails_the_load_naming_its_key() {
         let element = |key: &str, element_type: &str| {
             let mut element = NbtCompound::new();
             element.put_string("element_type", element_type.to_owned());
@@ -855,19 +969,10 @@ mod tests {
             ("processors", "minecraft:single_pool_element"),
             ("feature", "minecraft:feature_pool_element"),
         ] {
-            let jigsaw = piece(
-                "minecraft:jigsaw",
-                vec![
-                    ("PosX", NbtTag::Int(0)),
-                    ("PosY", NbtTag::Int(0)),
-                    ("PosZ", NbtTag::Int(0)),
-                    ("ground_level_delta", NbtTag::Int(1)),
-                    ("rotation", NbtTag::String("NONE".into())),
-                    ("pool_element", NbtTag::Compound(element(key, element_type))),
-                ],
-            );
-            let error =
-                mcrs_minecraft_nbt::from_tag::<SavedPiece>(NbtTag::Compound(jigsaw)).unwrap_err();
+            let error = mcrs_minecraft_nbt::from_tag::<SavedPiece>(NbtTag::Compound(jigsaw(
+                element(key, element_type),
+            )))
+            .unwrap_err();
             assert!(error.to_string().contains(key), "{error}");
         }
     }

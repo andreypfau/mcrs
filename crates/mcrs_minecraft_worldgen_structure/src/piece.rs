@@ -3,8 +3,9 @@ pub use mcrs_minecraft_anvil::piece::{
 };
 use mcrs_minecraft_anvil::piece::{
     MonumentBuildingTag, MonumentChildTag, MonumentRoomTag, RegistryId, SavedPoolElement,
-    SavedSingleElement,
+    SavedProcessors, SavedSingleElement,
 };
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
@@ -23,8 +24,93 @@ use crate::orient::{Boxed, Orientation, union_of};
 use crate::{MineshaftType, OceanTemperature, PortalPlacement, TerrainAdaptation};
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
+use mcrs_minecraft_worldgen_feature::proto::{
+    StructureProcessor, StructureProcessorList, processor_list,
+};
 
 pub const TERRAIN_MARGIN: i32 = 12;
+
+enum WantedProcessors<'a> {
+    Reference(&'a RegistryId),
+    Inline(Vec<StructureProcessor>),
+}
+
+enum WantedElement<'a> {
+    Single {
+        saved: &'a SavedSingleElement,
+        legacy: bool,
+        processors: WantedProcessors<'a>,
+    },
+    List {
+        elements: Vec<WantedElement<'a>>,
+        projection: Projection,
+    },
+    Feature {
+        feature: &'a RegistryId,
+        projection: Projection,
+    },
+    Empty,
+}
+
+impl<'a> WantedElement<'a> {
+    fn parse<E: serde::de::Error>(saved: &'a SavedPoolElement) -> Result<Self, E> {
+        Ok(match saved {
+            SavedPoolElement::Single(single) | SavedPoolElement::LegacySingle(single) => {
+                let processors = match &single.processors {
+                    SavedProcessors::Reference(id) => WantedProcessors::Reference(id),
+                    SavedProcessors::Inline(compounds) => {
+                        let mut parsed = Vec::with_capacity(compounds.len());
+                        for compound in compounds {
+                            parsed.push(
+                                mcrs_minecraft_nbt::from_tag::<StructureProcessor>(
+                                    NbtTag::Compound(compound.clone()),
+                                )
+                                .map_err(E::custom)?,
+                            );
+                        }
+                        WantedProcessors::Inline(parsed)
+                    }
+                };
+                WantedElement::Single {
+                    saved: single,
+                    legacy: matches!(saved, SavedPoolElement::LegacySingle(_)),
+                    processors,
+                }
+            }
+            SavedPoolElement::List {
+                elements,
+                projection,
+            } => WantedElement::List {
+                elements: elements.iter().map(Self::parse).collect::<Result<_, E>>()?,
+                projection: *projection,
+            },
+            SavedPoolElement::Feature {
+                feature,
+                projection,
+            } => WantedElement::Feature {
+                feature,
+                projection: *projection,
+            },
+            SavedPoolElement::Empty {} => WantedElement::Empty,
+        })
+    }
+}
+
+fn processors_match(loaded: &Holder<StructureProcessorList>, wanted: &WantedProcessors) -> bool {
+    match (loaded, wanted) {
+        (Holder::Reference(id), WantedProcessors::Reference(wanted)) => *id == wanted.0,
+        (Holder::Inline(list), WantedProcessors::Inline(wanted)) => {
+            let loaded = processor_list(list);
+            loaded.len() == wanted.len()
+                && loaded
+                    .iter()
+                    .zip(wanted)
+                    .all(|(processor, wanted)| wanted == processor)
+        }
+        (Holder::Reference(_), WantedProcessors::Inline(_))
+        | (Holder::Inline(_), WantedProcessors::Reference(_)) => false,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JigsawPiece {
@@ -652,12 +738,18 @@ impl PieceContext<'_> {
                 projection,
                 liquid_settings,
             } => {
-                let Holder::Reference(processors) = processors else {
-                    return None;
+                let processors = match processors {
+                    Holder::Reference(id) => SavedProcessors::Reference(RegistryId(id.clone())),
+                    Holder::Inline(list) => SavedProcessors::Inline(
+                        processor_list(list)
+                            .iter()
+                            .map(|processor| mcrs_minecraft_nbt::to_nbt_compound(processor).ok())
+                            .collect::<Option<_>>()?,
+                    ),
                 };
                 let single = SavedSingleElement {
                     location: self.template_name(*template)?,
-                    processors: RegistryId(processors.clone()),
+                    processors,
                     projection: *projection,
                     override_liquid_settings: *liquid_settings,
                 };
@@ -693,20 +785,23 @@ impl PieceContext<'_> {
         })
     }
 
+    // chisle: SAVE-POOL-003 says a saved element needs no equal element in a loaded pool, but this
+    // search fails the load for one; a piece that owns its saved element lifts this.
     fn element_id<E: serde::de::Error>(
         &self,
-        wanted: &SavedPoolElement,
+        saved: &SavedPoolElement,
     ) -> Result<(ElementId, &FrozenElement), E> {
+        let wanted = WantedElement::parse::<E>(saved)?;
         self.frozen
             .elements
             .iter()
             .enumerate()
-            .find(|(_, element)| self.element_matches(element, wanted))
+            .find(|(_, element)| self.element_matches(element, &wanted))
             .map(|(index, element)| (ElementId(index as u32), element))
             .ok_or_else(|| E::custom("the pool element is not one any loaded pool holds"))
     }
 
-    fn element_matches(&self, element: &FrozenElement, wanted: &SavedPoolElement) -> bool {
+    fn element_matches(&self, element: &FrozenElement, wanted: &WantedElement) -> bool {
         match (element, wanted) {
             (
                 FrozenElement::Single {
@@ -716,20 +811,24 @@ impl PieceContext<'_> {
                     projection,
                     liquid_settings,
                 },
-                SavedPoolElement::Single(single) | SavedPoolElement::LegacySingle(single),
+                WantedElement::Single {
+                    saved,
+                    legacy: wanted_legacy,
+                    processors: wanted_processors,
+                },
             ) => {
-                self.frozen.template_ids.get(&single.location) == Some(template)
-                    && *legacy == matches!(wanted, SavedPoolElement::LegacySingle(_))
-                    && matches!(processors, Holder::Reference(id) if *id == single.processors.0)
-                    && *projection == single.projection
-                    && *liquid_settings == single.override_liquid_settings
+                self.frozen.template_ids.get(&saved.location) == Some(template)
+                    && legacy == wanted_legacy
+                    && processors_match(processors, wanted_processors)
+                    && *projection == saved.projection
+                    && *liquid_settings == saved.override_liquid_settings
             }
             (
                 FrozenElement::List {
                     elements,
                     projection,
                 },
-                SavedPoolElement::List {
+                WantedElement::List {
                     elements: wanted,
                     projection: wanted_projection,
                 },
@@ -747,7 +846,7 @@ impl PieceContext<'_> {
                     feature,
                     projection,
                 },
-                SavedPoolElement::Feature {
+                WantedElement::Feature {
                     feature: wanted,
                     projection: wanted_projection,
                 },
@@ -755,7 +854,7 @@ impl PieceContext<'_> {
                 matches!(feature, Holder::Reference(id) if *id == wanted.0)
                     && *projection == *wanted_projection
             }
-            (FrozenElement::Empty, SavedPoolElement::Empty {}) => true,
+            (FrozenElement::Empty, WantedElement::Empty) => true,
             _ => false,
         }
     }
