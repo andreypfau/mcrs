@@ -1502,7 +1502,9 @@ For example, the partial profile with only the UUID of the ints `1, 2, 3, 4` has
 each of these conditions is true:
 
 - They have the same form: full profile or partial profile.
-- They have the same name, or no name. The comparison does not ignore case.
+- They have the same name, or no name. The comparison does not ignore case. The inherited
+  requirement "Name case" of `README.md` applies to a lookup of a player, not to the equality of
+  this component: equality decides the hash and the merge of two stacks.
 - They have the same UUID, or no UUID.
 - Their lists of properties have the same names. For each name, the two groups have equal
   properties in the same order. Two properties are equal when their values are equal and their
@@ -1594,9 +1596,6 @@ gray, for a dynamic profile.
   `map_decorations` and `profile`.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
-- **Q11**: STK-SHP-027. The comparison of the name of a profile does not ignore case, as in the
-  reference. The inherited requirement "Name case" of `README.md` asks that a comparison of player
-  names ignore ASCII case. Does the owner keep the comparison with case for this component?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
 - **U3**: the command form with the item `minecraft:air`.
 
