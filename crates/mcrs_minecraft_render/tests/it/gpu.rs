@@ -15,7 +15,9 @@ use wgpu::{
     TextureFormat, TextureUsages, TextureView, VertexState,
 };
 
-use crate::world_shaders::{cull_defs, wgsl};
+use mcrs_minecraft_render::CUBE_FACES;
+
+use crate::world_shaders::{cull_defs, wgsl, wgsl_at};
 
 const SECTION_SLOTS: u32 = 64;
 const CAVE_WORDS: usize = 2;
@@ -709,4 +711,210 @@ fn a_blended_draw_mixes_image_values_and_the_present_pass_keeps_them() {
         "white at half alpha over black shows {red}; the over blend of image values gives 128, \
          a blend in linear light 188"
     );
+}
+
+const PANORAMA_SIDE: u32 = 2;
+
+fn panorama_texel(face: usize, column: u32, row: u32) -> [u8; 4] {
+    [
+        32 * face as u8 + 16,
+        64 + 128 * column as u8,
+        64 + 128 * row as u8,
+        255,
+    ]
+}
+
+impl Gpu {
+    fn panorama_pixels(&self, [right, up, ahead]: [[f32; 3]; 3]) -> Vec<[u8; 4]> {
+        let side = PANORAMA_SIDE;
+        let vertex = self.module(HALF_WHITE.to_owned());
+        let fragment = self.module(wgsl_at(&["shaders", "panorama"], Vec::new()));
+        let pipeline = self.fullscreen_pipeline(
+            &vertex,
+            &fragment,
+            "panorama",
+            ColorTargetState {
+                format: TextureFormat::Rgba8Unorm,
+                blend: None,
+                write_mask: ColorWrites::ALL,
+            },
+        );
+        let texels: Vec<u8> = CUBE_FACES
+            .iter()
+            .flat_map(|&face| {
+                (0..side).flat_map(move |row| {
+                    (0..side).flat_map(move |column| panorama_texel(face, column, row))
+                })
+            })
+            .collect();
+        let cube = self.square_texture(6, side, &texels, TextureUsages::TEXTURE_BINDING);
+        let overlay = self.square_texture(1, 1, &[0; 4], TextureUsages::TEXTURE_BINDING);
+        let column = |[x, y, z]: [f32; 3], scale: f32| [x * scale, y * scale, z * scale, 0.0];
+        let ray = [
+            column(right, 0.5),
+            column(up, 0.5),
+            column(ahead, 1.0),
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        let ray = self.buffer(bytemuck::cast_slice(&ray), BufferUsages::UNIFORM);
+        let cube_view = cube.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        });
+        let overlay_view = overlay.create_view(&Default::default());
+        let nearest = self.device.create_sampler(&Default::default());
+        let group = self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: ray.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::TextureView(&cube_view),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::TextureView(&overlay_view),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::Sampler(&nearest),
+                },
+            ],
+        });
+        let target = self.square_texture(
+            1,
+            side,
+            &[],
+            TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+        );
+        let target_view = target.create_view(&Default::default());
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &target_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        self.queue.submit([encoder.finish()]);
+        self.read_pixels(&target)
+    }
+
+    fn square_texture(
+        &self,
+        layers: u32,
+        side: u32,
+        texels: &[u8],
+        usage: TextureUsages,
+    ) -> wgpu::Texture {
+        let texture = self.device.create_texture(&TextureDescriptor {
+            label: None,
+            size: Extent3d {
+                width: side,
+                height: side,
+                depth_or_array_layers: layers,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: TextureFormat::Rgba8Unorm,
+            usage: usage | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        if !texels.is_empty() {
+            self.queue.write_texture(
+                texture.as_image_copy(),
+                texels,
+                TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * side),
+                    rows_per_image: Some(side),
+                },
+                texture.size(),
+            );
+        }
+        texture
+    }
+
+    fn read_pixels(&self, target: &wgpu::Texture) -> Vec<[u8; 4]> {
+        let size = target.size();
+        let read = self.device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: u64::from(COPY_ROW * size.height),
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            target.as_image_copy(),
+            TexelCopyBufferInfo {
+                buffer: &read,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(COPY_ROW),
+                    rows_per_image: None,
+                },
+            },
+            size,
+        );
+        self.queue.submit([encoder.finish()]);
+        read.slice(..).map_async(MapMode::Read, |_| {});
+        self.device.poll(PollType::wait_indefinitely()).unwrap();
+        let bytes = read.slice(..).get_mapped_range().unwrap().to_vec();
+        read.unmap();
+        (0..size.height as usize)
+            .flat_map(|row| {
+                let bytes = &bytes;
+                (0..size.width as usize).map(move |column| {
+                    let at = row * COPY_ROW as usize + column * 4;
+                    [bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]
+                })
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn the_panorama_shows_each_face_upright_and_unmirrored_in_the_direction_it_looks() {
+    let Some(gpu) = Gpu::new() else {
+        panic!("no adapter");
+    };
+    let (x, y, z) = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+    let neg = |[a, b, c]: [f32; 3]| [-a, -b, -c];
+    let cases = [
+        ([x, y, neg(z)], 0),
+        ([z, y, x], 1),
+        ([neg(x), y, z], 2),
+        ([neg(z), y, neg(x)], 3),
+        ([x, z, y], 4),
+        ([x, neg(z), neg(y)], 5),
+    ];
+    for (frame, face) in cases {
+        let pixels = gpu.panorama_pixels(frame);
+        for (index, pixel) in pixels.iter().enumerate() {
+            let (row, column) = (index as u32 / PANORAMA_SIDE, index as u32 % PANORAMA_SIDE);
+            let expected = panorama_texel(face, column, row);
+            assert!(
+                pixel
+                    .iter()
+                    .zip(expected)
+                    .all(|(&got, want)| got.abs_diff(want) <= 2),
+                "face {face}, pixel {column}, {row}: {pixel:?}, expected {expected:?}"
+            );
+        }
+    }
 }

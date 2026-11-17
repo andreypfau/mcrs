@@ -12,7 +12,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 const DESCRIPTOR: &str = "src/release.json";
-const OBJECTS: &str = "src/font_objects.json";
+const OBJECTS: &str = "src/index_objects.json";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -75,5 +75,5 @@ fn main() {
         })
         .collect();
     let code = format!("[{}]", rows.join(", "));
-    std::fs::write(Path::new(&out).join("font_objects.rs"), code).expect("OUT_DIR is writable");
+    std::fs::write(Path::new(&out).join("index_objects.rs"), code).expect("OUT_DIR is writable");
 }

@@ -23,6 +23,7 @@ The label `design` marks a rule that states a choice of mcrs where the game stat
 A save uses these paths:
 
 ```text
+<save>/session.lock
 <save>/level.dat
 <save>/data/minecraft/weather.dat
 <save>/data/minecraft/game_rules.dat
@@ -40,9 +41,9 @@ form with hyphens.
 
 The vanilla game uses these paths too, except `data/mcrs/` and `quarantine/`. The game ignores
 `data/mcrs/birth_clock.dat`, because the game has no saved data with that name. The game creates
-the files that the server does not write, for example `players/stats/`, `players/advancements/`,
-`session.lock` and the directories `entities` and `poi` of a dimension. The server writes none of
-these (SAVE-LIMITS-001).
+the files that the server does not write, for example `players/stats/`, `players/advancements/`
+and the directories `entities` and `poi` of a dimension. The server writes none of these
+(SAVE-LIMITS-001). `session.lock` is the lock of the save directory (SAVE-LOCK-001).
 
 A dimension key whose path is empty or leaves the dimension directory is refused. The server does
 not map it to a path outside the save.
@@ -166,12 +167,294 @@ set of each file is in SAVE-LEVEL-001, SAVE-DATA-001, SAVE-CHUNK-001 and SAVE-PL
 
 A file that exists and does not read back is not replaced with defaults. In the list `attributes` of
 a player file, only an unknown key is such a failure; the other rows of ATR-SAV-002 of `attributes.md`
-give their stated results. A `level.dat` that is missing is
-created with the default level name and the current game time.
+give their stated results. A save directory with no `level.dat` is a new world (SAVE-NEW-003).
 
 Provenance: `design`. Kind: durability. Confidence: high. The reason: a field that the server
 drops in silence loses the data of the player at the next save. The game also keeps a backup file
 with the suffix `_old`. The server does not.
+
+## SAVE-LOCK-001: The lock of a save directory in the game
+
+The file `<save>/session.lock` marks a save directory that a process has open. While the game has
+the world open, it holds an exclusive lock of the operating system on the whole file. The lock is
+the file lock of the Java platform: a POSIX record lock (`fcntl`) on Linux and macOS, and a lock of
+`LockFileEx` on Windows. The game does not see a lock of another kind, for example a `flock` lock
+on Linux.
+
+To take the lock, the game does these steps:
+
+1. It makes the save directory when the directory does not exist.
+2. It opens `session.lock` for write. It makes the file when the file does not exist.
+3. It writes the three bytes `E2 98 83` at offset 0, with no truncation. The bytes are the
+   character U+2603 in UTF-8. It flushes the file to the disk.
+4. It tries the lock with no wait. When another process holds the lock, the attempt fails at once.
+
+The content has no meaning. The game never reads it.
+
+| Process | The game takes the lock | The game releases the lock |
+| --- | --- | --- |
+| vanilla client | at "Play Selected World", before it reads `level.dat` | when the local server stops, after its last save |
+| vanilla client | at "Create New World", when it makes the world folder. `session.lock` is the first file of the folder. | when the local server stops, after its last save |
+| vanilla client | at "Delete", before it removes a file | just before it removes `session.lock`, the last file |
+| vanilla client | at "Edit", before it reads `level.dat` | when "Edit World" closes |
+| vanilla server | at its start, before it reads `level.dat` | at the end of its stop, after its last save |
+
+A release keeps the file. Only a delete of the world removes it. When the process ends in another
+way, for example in a crash, the operating system releases the lock. Thus each save directory that
+the game opened holds a `session.lock` of 3 bytes.
+
+The world list tests the lock (`client-world-screens.md`, WORLD-DIR-002, step 5). The test opens
+the file for write, with no create, and tries the lock. A file that does not exist is not locked. A
+file that the process cannot open for write is locked. Another error removes the world from the
+list. The test does not change the file, and it releases the lock that it got at once.
+
+A second process observes a save directory that another process holds:
+
+- The vanilla world list shows the entry as a locked world (`client-world-screens.md`,
+  WORLD-ENTRY-002). The player cannot start it from the list.
+- When a vanilla client cannot take the lock at "Play Selected World", the toast
+  `selectWorld.access_failure`, "Failed to access world", shows and the title screen opens.
+- A "Delete" of the vanilla client removes no file. The toast `selectWorld.delete_failure`,
+  "Failed to delete world", shows.
+- The vanilla server does not start. Its log shows a fatal error that names the path of
+  `session.lock`. It changes no other file of the save directory.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts by
+`assets/minecraft/lang/en_us.json` of the client jar. `source_suggested_black_box_confirmed` for
+the content, the release that keeps the file, the conflict between two processes and the test of
+the lock by `crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `lock` (section Experiments, E1 to E4). Kind: file format for the file, its content
+and the kind of lock; semantic for the rest. Confidence: medium.
+
+## SAVE-LOCK-002: The lock of a save directory in mcrs
+
+1. The server takes the lock of SAVE-LOCK-001 when it opens a save directory, before it reads or
+   writes another file of it. It writes the content of SAVE-LOCK-001 and tries the lock with no
+   wait. When the host gives the server a lock that the host holds on that save directory, the
+   server keeps that lock and takes no second lock. Steps 4 and 5 then apply to the given lock.
+2. When another process holds the lock, the server does not start. It writes no other file of the
+   save directory. The start returns an error of its own type. A caller can tell this error from
+   another I/O error, and the error names the save directory.
+3. The lock is an exclusive lock on the whole of `session.lock`, which the game sees as locked,
+   and which sees the lock of the game. The kind for each system is:
+   - Linux: an open file description lock (`F_OFD_SETLK`). It conflicts with the POSIX record
+     lock of the game, and the game does not see a `flock` lock on Linux;
+   - macOS: a `flock` lock. On macOS, a `flock` lock and a POSIX record lock of another process
+     conflict;
+   - Windows: a `LockFileEx` lock, the same kind as the lock of the game.
+   Thus the game sees the save directory as locked while mcrs holds it, and mcrs sees it as
+   locked while the game holds it.
+4. The lock belongs to the open file of step 1, not to the process. While a process of mcrs holds
+   the lock, a close of another handle of `session.lock` does not release it, and a test of the
+   lock in that process reports the save directory as locked. A POSIX record lock does not have
+   these properties, so mcrs does not use it for its own lock.
+5. The server holds the lock until the shutdown of SAVE-SHUTDOWN-001 has made its last write. Then
+   it releases the lock. It does not remove `session.lock`.
+6. A server with no save directory takes no lock.
+7. The world list of the mcrs client tests the lock as SAVE-LOCK-001 states.
+8. A delete of the mcrs client takes the lock before it removes a file. When another process holds
+   the lock, the delete removes no file (`client-world-screens.md`, WORLD-DEL-003).
+9. When the local server of the client does not start because of the error of step 2, the client
+   shows the screen of a failed start (`client-title-screen.md`, TITLE-LOAD-006, edge cases).
+   The reason is `selectWorld.locked`, "Locked by another running instance of Minecraft."
+   (`client-world-screens.md`, WORLD-PLAY-002, step 6).
+10. A create of the mcrs client takes the lock of the new folder at once after it makes the
+    folder, before it writes another file (`client-world-screens.md`, WORLD-WRITE-002, step 3).
+    The client holds the lock while it writes the files. Then it gives the lock to its local
+    server, as step 1 states. Thus the lock has no gap from the create to the stop of the server.
+    When the create fails, the client releases the lock.
+
+Provenance: `design` for the typed error of step 2 and for the screen of step 9. `design` for the
+hand-over of steps 1 and 10: no other process can take a new world between the create and the
+start. `source_suggested` for the claim that the vanilla client does the same: it takes the lock
+when it makes the folder and gives the same lock to its local server (SAVE-NEW-001, step 1). No
+tool can drive the create of the vanilla client yet, so no experiment confirms it (issue #973).
+`source_suggested` for the content of step 1 and for the lock of the game that step 3 must meet.
+`design` for the kind of lock of mcrs in steps 3 and 4. On macOS, two processes show that a
+`flock` lock and a POSIX record lock conflict in both directions. In one process, a second handle
+sees a `flock` lock as held. Kind: file format for steps 1 and 3; semantic for the rest.
+Confidence: medium.
+
+## SAVE-NEW-001: A new world in the game
+
+"Create New World" of the vanilla client makes a world folder. `client-world-screens.md`,
+WORLD-WRITE-001, step 4, and WORLD-GAME-002, step 2, state the values of the widgets. This rule
+adds the order of the writes, and the keys and files that those rules do not state.
+
+1. The client takes the lock of the new folder (SAVE-LOCK-001).
+2. Before the local server starts, the client writes `level.dat` one time, with the keys of the
+   column "Before the start" of the table below.
+3. At the first start of a world whose `initialized` is 0, the local server chooses the world
+   spawn. It places the bonus chest when `bonus_chest` is 1. Then it sets `initialized` to 1.
+4. The first save of the local server writes `level.dat` again, with the keys of the column
+   "After the first save". The previous `level.dat` becomes `level.dat_old`.
+5. The first save also writes the saved data files of SAVE-DATA-001 (`weather.dat`,
+   `game_rules.dat`, `world_clocks.dat` and `world_gen_settings.dat`), the player file of the
+   host, the region files, and the other files of the game (SAVE-LIMITS-001).
+
+| Key of `level.dat` | Before the start | After the first save |
+| --- | --- | --- |
+| `LevelName` | the name box (WORLD-WRITE-001) | the same |
+| `GameType` | "Game Mode" (WORLD-GAME-002) | the same |
+| `difficulty_settings` | `difficulty` of "Difficulty", `hard` for "Hardcore"; `hardcore` 1 for "Hardcore", else 0; `locked` 0 | the same |
+| `allowCommands` | "Allow Cheats", 0 for "Hardcore" | the same |
+| `initialized` | 0 | 1 |
+| `spawn` | the default of SAVE-LEVEL-001: the overworld, `0 0 0`, yaw 0, pitch 0 | the spawn that the server chose |
+| `Time` | 0 | the game time of the save |
+| `LastPlayed` | the time of the write | the time of the save |
+| `DataVersion`, `Version` | the game version of this document | the same |
+| `version_history` | `[5127]` | the same |
+| `version` | 19133 | the same |
+| `DataPacks`, `enabled_features` | the data packs and the feature flags of the tab "More" | the same |
+| `singleplayer_uuid` | absent | the UUID of the host |
+
+In this version, `level.dat` holds no world generation settings. They are in
+`data/minecraft/world_gen_settings.dat` (SAVE-DATA-001), and the first save writes that file.
+Before the first save, the folder has no `world_gen_settings.dat`.
+
+| Key of `world_gen_settings.dat` | Value |
+| --- | --- |
+| `seed` | the seed of the seed box (WORLD-SEED-001) |
+| `generate_structures` | "Generate Structures" |
+| `bonus_chest` | "Bonus Chest"; 0 for "Hardcore" |
+| `dimensions` | the dimensions of the world preset of "World Type", as the data pack defines them |
+| `legacy_custom_options` | absent |
+
+The save keeps no id of the world preset. A reader knows the world type of a saved world only when
+its `dimensions` equal the dimensions of one world preset.
+
+Provenance: `source_suggested`. Kind: file format. Confidence: medium.
+
+## SAVE-NEW-002: The first start of a world in mcrs
+
+A world has its first start when its `initialized` is 0. A new world of SAVE-NEW-003 also has its
+first start.
+
+1. At the first start, before the first player joins, the server sets `spawn` and sets
+   `initialized` to 1. The spawn is the default of SAVE-LEVEL-001: the overworld, `0 0 0`, yaw 0
+   and pitch 0 (SAVE-DEV-002). A join then places a new player as SAVE-PLAYER-001, "Default
+   position", states.
+2. Each write of `level.dat` after the first start writes `initialized` 1.
+3. In a local world, the client plugin gives the UUID of the host to the server. The server then
+   writes that UUID as `singleplayer_uuid` at each write of `level.dat`. The player file of the
+   host is `players/data/<uuid>.dat` of that UUID (SAVE-PLAYER-001).
+4. A server with no host writes the `singleplayer_uuid` that it read, or no key when it read none.
+5. The server keeps the keys that the client wrote (`client-world-screens.md`, WORLD-WRITE-002,
+   step 3). `GameType` is the default game mode of the world. A player with no player file
+   enters the world in that game mode.
+
+- **Postconditions:** after the first save of a world that the mcrs client created, the save
+  directory holds these files, and no `level.dat_old`:
+
+```text
+<save>/session.lock
+<save>/level.dat
+<save>/data/minecraft/weather.dat
+<save>/data/minecraft/game_rules.dat
+<save>/data/minecraft/world_clocks.dat
+<save>/data/minecraft/world_gen_settings.dat
+<save>/data/mcrs/birth_clock.dat
+<save>/players/data/<uuid of the host>.dat
+<save>/dimensions/<namespace>/<path>/region/r.<x>.<z>.mca
+```
+
+Provenance: `design` for step 1 and for the absence of `level.dat_old` (SAVE-FILE-002).
+`source_suggested` for steps 2 to 5: the game writes `initialized` 1 after the first start and
+the UUID of the host at each save of a local world. Kind: file format. Confidence: medium.
+
+## SAVE-NEW-003: A save directory with missing files
+
+The server opens a save directory by the state of `level.dat` and `world_gen_settings.dat`:
+
+SAVE-LEVEL-002 applies first when `level.dat` is missing and `level.dat_old` exists. The table
+then uses the `level.dat` that SAVE-LEVEL-002 restores.
+
+| `level.dat` | `world_gen_settings.dat` | The server |
+| --- | --- | --- |
+| present | present | opens the world. |
+| present | missing | does not start. The start returns an error that names the missing file (SAVE-DEV-001). |
+| missing | present | makes a new world. It reads the seed and the dimensions from the file. |
+| missing | missing | makes a new world. It first writes `world_gen_settings.dat`. |
+
+For a new world, the server writes these files before its first tick:
+
+1. When `world_gen_settings.dat` is missing, the server writes it with the seed of its plugin
+   configuration, the dimensions that the plugin gives or the dimensions of the world preset of
+   the plugin, `generate_structures` 1 and `bonus_chest` 0. A configuration with no seed gives a
+   random `i64`.
+2. Then the server writes `level.dat` with these keys:
+   - `LevelName`: the folder id of the save directory;
+   - `GameType`: the default game mode of the plugin configuration;
+   - `difficulty_settings`: `difficulty` `normal`, `hardcore` 0, `locked` 0;
+   - `allowCommands` 0;
+   - `initialized` 0. The first start of SAVE-NEW-002 then sets the spawn;
+   - `Time` 0, `LastPlayed`, and the version keys of SAVE-LEVEL-001.
+
+The order makes a stop between the two writes harmless: the next start finds a new world with its
+seed, not a world with a missing file.
+
+The default game mode of the plugin configuration applies only to a new world. A world with a
+`level.dat` uses its `GameType`.
+
+Provenance: `design`. The reason for the refusal: a world with a `level.dat` and no seed is a
+damaged world, and a random seed changes its terrain at each column that the world generates
+again. `source_suggested` for the keys of a new world: the vanilla server writes the name of the
+world folder, the game mode of its configuration and commands off. Kind: semantic. Confidence:
+medium.
+
+## SAVE-LEVEL-002: The backup `level.dat_old`
+
+The game writes `level.dat` with a backup: the previous `level.dat` becomes `level.dat_old`
+(SAVE-NEW-001, step 4). A crash of the game between the two renames can leave a save directory
+with `level.dat_old` and no `level.dat`. The server opens such a save directory as the vanilla
+server does:
+
+1. When `level.dat` does not exist and `level.dat_old` is a regular file, the server applies the
+   check of `Data.DataVersion` of SAVE-VERSION-002, step 2, to `level.dat_old`. When the check
+   passes, it reads `level.dat_old` as SAVE-LEVEL-001 states. The check and the read occur before
+   the server renames a file.
+2. When the check and the read succeed, the server renames `level.dat_old` to `level.dat`. Then
+   it opens the world from that file, as SAVE-NEW-003, rows 1 and 2, state.
+3. When the read fails, the server does not start. The start returns an error that names
+   `level.dat_old`. The server changes no file of the save directory.
+4. When the check fails, the server does not start. The start returns the error of
+   SAVE-VERSION-002, step 2. The server changes no file of the save directory: `level.dat_old`
+   keeps its name (SAVE-DEV-005).
+5. A `level.dat` that exists and does not read is a loud error (SAVE-FILE-002). The server does
+   not read `level.dat_old` in its place (SAVE-DEV-003).
+
+- **Postconditions:** after a start on a save directory with only `level.dat_old`, the save
+  directory holds `level.dat` with the content of the backup, and no `level.dat_old`. The world
+  keeps its name, its time and its spawn. The server never makes a new world over the backup.
+
+The world list of the client does not read `level.dat_old`. Such a folder shows as an unreadable
+world (`client-world-screens.md`, WORLD-DIR-002, step 1).
+
+Provenance: `source_suggested_black_box_confirmed` for the read and the rename of steps 1 and 2
+and the postconditions by
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `backup` (section Experiments, E5).
+`design` for the order of step 1 and for step 4: the game renames `level.dat_old` when the read
+succeeds, before it reads the version (SAVE-DEV-005). `source_suggested` for step 3. `design` for
+step 5. Kind: semantic.
+Confidence: medium.
+
+## SAVE-VERSION-002: The version of `level.dat`
+
+1. The server reads `Data.DataVersion` of `level.dat` before it reads another file of the world.
+   When only `level.dat_old` exists, the server reads it from that file before it reads or
+   renames another file (SAVE-LEVEL-002, step 1).
+2. When `Data.DataVersion` is missing or is not `5127`, the server does not start. The start
+   returns an error of its own type. The error names the save directory, the `DataVersion` that
+   it found and `5127`. A caller can tell this error from another failed start.
+3. The server changes no file of the save directory for such a world, except the content of
+   `session.lock` of SAVE-LOCK-002, step 1. A `level.dat_old` keeps its name. The server releases
+   the lock that it took.
+4. A local world of the client shows the screen of a failed start with that error
+   (`client-title-screen.md`, TITLE-LOAD-006, edge cases). The world list disables such a world
+   before this (`client-world-screens.md`, WORLD-DIR-004, step 7), so a player meets the error
+   only when the file changes after the list read it.
+
+Provenance: `design` (SAVE-DEV-004). Kind: version policy. Confidence: high. The reason: mcrs
+has no datafixer, and a `DataVersion` mismatch is a loud error.
 
 ## SAVE-VERSION-001: Exact version, no datafixer
 
@@ -712,11 +995,12 @@ A shutdown request does these steps:
 2. It asks the dimension coordinator for a save-all.
 3. It waits until no connection and no player that departs is left, and until the data layer has
    flushed every dimension.
-4. It writes `level.dat`, the weather, the game rules and the world clocks. Then it exits.
+4. It writes `level.dat`, the weather, the game rules and the world clocks. Then it releases the
+   lock of the save directory (SAVE-LOCK-002) and exits.
 
 The chunk save happens before the write of the host state. A player that departs writes its player
 file before the shutdown completes. The server waits for each player that departs. The embedder handles a second signal. The server then exits
-at once with no other save.
+at once with no other save, and the operating system releases the lock.
 
 The exit status is success only when every write of steps 2 to 4 and every player file succeeded.
 A write error is logged, does not block the exit, and makes the exit status an error. Provenance:
@@ -944,8 +1228,8 @@ Provenance: `design`. Kind: architecture. Confidence: high.
 ## SAVE-LIMITS-001: Not covered
 
 The server does not persist the activity mask of a chunk. It does not write the entities of a
-column, the points of interest (the `poi` directory), the statistics and advancements of a player or `session.lock`. It
-does not write the other saved data files of the game, for example the scoreboard, the raids and
+column, the points of interest (the `poi` directory), or the statistics and advancements of a
+player. It does not write the other saved data files of the game, for example the scoreboard, the raids and
 the world border.
 Thus the game starts such a world with no saved entity and with no saved scoreboard. The server
 does not read the entities of a column either: a column record with a non-empty `entities` list is
@@ -957,8 +1241,96 @@ The server neither reads nor writes the `poi` directory (see U3).
 
 Provenance: `design`. Kind: scope. Confidence: high. Test: none; this is a stated limit.
 
+## Experiments
+
+The task `dumpLocalWorlds` of `tools/vanilla-oracle` runs E1, E3, E4 and E5 and the game part of
+E2 with the game version of `assets/minecraft/version.json`. It writes
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json` (fixture `local_worlds` of `tools/fixtures.json`). The
+second process of the task is a Java process of the game. The capture ran on macOS. The `fcntl`
+and `flock` attempts of E2 ran by hand with a script, and the fixture does not hold them.
+
+| Experiment | Rules | Steps | Result |
+|------------|-------|-------|--------|
+| E1 | SAVE-LOCK-001 | Let the game take the lock of a new directory. Read `session.lock`. Release the lock and read the file again. | The file holds `E2 98 83` before and after the release. The release keeps the file. |
+| E2 | SAVE-LOCK-001, SAVE-LOCK-002 step 3 | Let the game hold the lock. In a second process, test the lock as the game does. By hand, also try a POSIX record lock and a `flock` lock with no wait. Then hold the lock of the game in the second process, and let the game test the lock and take it. Release it and let the game take it. By hand, also hold each kind in the second process. | The second process sees the lock, and its attempts fail at once. The game tests the directory as locked for each kind, and its attempt to take the lock fails. After the release, the game takes the lock. |
+| E3 | SAVE-LOCK-001 | Let the game test a directory with no `session.lock`, and a directory whose `session.lock` the process cannot open for write. | The first directory is not locked. The second directory is locked. |
+| E4 | SAVE-LOCK-001 | Let the game hold the lock. In the same process, read `session.lock` through a second handle and close it. Then try the lock from a second process. | The second process sees no lock. The close of the second handle released the POSIX record lock of the game (SAVE-LOCK-002, step 4). |
+| E5 | SAVE-LEVEL-002 | Make a save directory with only `level.dat_old`. Let the game open it and read the world data. | The game reads the values of `level.dat_old`. Then the directory holds `level.dat` and `session.lock`, and no `level.dat_old`. |
+
 ## Unresolved
 
 - **U3.** The game probably builds the points of interest again from the blocks that it loads when
   the `poi` directory is missing. No experiment confirms it. No rule exists yet. SAVE-LIMITS-001 states that the server
   neither reads nor writes `poi`.
+
+- **U4.** The game chooses the spawn of a new world at its first start (SAVE-NEW-001, step 3).
+  mcrs keeps the default spawn (SAVE-NEW-002, step 1, and SAVE-DEV-002). No rule states the
+  spawn search of the game. The search reads the biomes and the surface.
+
+## Intentional deviations
+
+### SAVE-DEV-001: A world with no seed does not open
+
+- **Rule:** SAVE-NEW-003, row 2.
+- **Reference:** a save directory with `level.dat` and no `world_gen_settings.dat` opens with a
+  random seed (SAVE-DATA-001).
+- **Reason:** a world with a `level.dat` and no seed is a damaged world. A random seed changes its
+  terrain at each column that the world generates again.
+- **Visible to the client:** yes. The server does not start, and a local world shows the screen
+  of a failed start. The game opens the same save, and new columns have other terrain.
+- **Bug reference:** `none`.
+- **Test:** a differential test uses no save with this damage.
+
+### SAVE-DEV-002: The first start keeps the default spawn
+
+- **Rule:** SAVE-NEW-002, step 1.
+- **Reference:** at the first start, the game searches for a spawn on the surface near the
+  origin, and it places the bonus chest when `bonus_chest` is 1.
+- **Reason:** mcrs has no spawn search yet. Item U4 of the section "Unresolved" holds the open
+  point.
+- **Visible to the client:** yes. A new player of a new world enters at the default position of
+  SAVE-PLAYER-001, not on the surface that the game chooses. mcrs places no bonus chest. U4
+  holds the open point.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not compare the spawn of a new world.
+
+### SAVE-DEV-003: A damaged `level.dat` does not fall back to the backup
+
+- **Rule:** SAVE-LEVEL-002, step 5.
+- **Reference:** when `level.dat` does not read, the vanilla server reads `level.dat_old`. It
+  renames the damaged `level.dat` to `level.dat_corrupted_<date and time>` and renames
+  `level.dat_old` to `level.dat`. Then it opens the world from the backup.
+- **Reason:** the server never reads a damaged file in silence (SAVE-FILE-002). The backup can be
+  older than the regions, so a silent open can lose the data of the player. The server writes
+  `level.dat` atomically and keeps no backup, so it does not make such a file itself.
+- **Visible to the client:** only for a save directory whose `level.dat` is damaged. The server
+  does not start, and the error names `level.dat`.
+- **Bug reference:** `none`.
+- **Test:** a differential test uses no save with a damaged `level.dat`.
+
+### SAVE-DEV-004: A `level.dat` of another version does not open
+
+- **Rule:** SAVE-VERSION-002.
+- **Reference:** the vanilla server converts a `level.dat` of an older version with its
+  datafixer and opens the world. It opens a world of a newer version of the same version series
+  with no conversion. It refuses a world of another version series.
+- **Reason:** mcrs has no datafixer, and a `DataVersion` mismatch is a loud error. A world of a
+  newer version can hold data that this version cannot read, and a save can lose it.
+- **Visible to the client:** yes, for a world of another version. The server does not start, and
+  the error names the two versions.
+- **Bug reference:** `none`.
+- **Test:** a differential test uses only saves of `DataVersion` `5127`.
+
+### SAVE-DEV-005: A backup of another version keeps its name
+
+- **Rule:** SAVE-LEVEL-002, steps 1 and 4.
+- **Reference:** when `level.dat` is missing and `level.dat_old` reads, the vanilla server renames
+  `level.dat_old` to `level.dat` before it reads the version. A world of a version that it cannot
+  open then does not open, and the save directory keeps the renamed file.
+- **Reason:** mcrs does not open a world of another version (SAVE-DEV-004). A world that does not
+  open keeps its files as they are, so the game of the version of the world can open its backup
+  as before.
+- **Visible to the client:** only for a save directory with `level.dat_old`, no `level.dat`, and a
+  `DataVersion` that is not `5127`. The save directory keeps `level.dat_old`.
+- **Bug reference:** `none`.
+- **Test:** a differential test uses only saves of `DataVersion` `5127`.

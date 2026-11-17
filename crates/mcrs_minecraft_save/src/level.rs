@@ -20,6 +20,8 @@ use mcrs_minecraft_environment::ClockTime;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
+    #[error("{dir}: the world is open in another process")]
+    Locked { dir: PathBuf },
     #[error("{path}: no such file")]
     Missing { path: PathBuf },
     #[error("{path}: {source}")]
@@ -47,6 +49,8 @@ pub enum SaveError {
     },
     #[error("{path}: {source}")]
     Resolve { path: PathBuf, source: ResolveError },
+    #[error("no world preset {preset}")]
+    UnknownWorldPreset { preset: ResourceLocationBuf },
     #[error("{path}: `{field}` has {found} elements, expected {expected}")]
     WrongLength {
         path: PathBuf,
@@ -348,6 +352,41 @@ pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockTime>;
 pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     let path = world.join("level.dat");
     parse_level_dat(&read_bytes(&path)?, &path)
+}
+
+pub fn restore_level_dat_backup(world: &Path) -> Result<(), SaveError> {
+    let Some(backup) = only_backup(world) else {
+        return Ok(());
+    };
+    parse_level_dat(&read_bytes(&backup)?, &backup)?;
+    let path = world.join("level.dat");
+    fs::rename(&backup, &path).map_err(|source| SaveError::Io { path, source })
+}
+
+fn only_backup(world: &Path) -> Option<PathBuf> {
+    let level_missing = matches!(
+        fs::metadata(world.join("level.dat")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    );
+    let backup = world.join("level.dat_old");
+    (level_missing && fs::metadata(&backup).is_ok_and(|metadata| metadata.is_file()))
+        .then_some(backup)
+}
+
+pub fn read_level_data_version(world: &Path) -> Result<Option<i32>, SaveError> {
+    #[derive(Deserialize)]
+    struct File {
+        #[serde(rename = "Data")]
+        data: Data,
+    }
+    #[derive(Deserialize)]
+    struct Data {
+        #[serde(rename = "DataVersion")]
+        data_version: Option<i32>,
+    }
+    let path = only_backup(world).unwrap_or_else(|| world.join("level.dat"));
+    let file: File = decode(&read_bytes(&path)?, &path)?;
+    Ok(file.data.data_version)
 }
 
 pub fn write_level_dat(world: &Path, level: &LevelDat) -> Result<(), SaveError> {

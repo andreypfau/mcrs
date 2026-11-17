@@ -554,5 +554,15 @@
         "to": "crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla"
       }
     ]
+  },
+  {
+    "name": "local_worlds",
+    "task": "dumpLocalWorlds",
+    "outputs": [
+      {
+        "file": "local_worlds.json",
+        "to": "crates/mcrs_minecraft_save/tests/fixtures/vanilla"
+      }
+    ]
   }
 ]

@@ -74,8 +74,8 @@ The steps, in order:
 4. Write `crates/mcrs_minecraft_client_jar/src/release.json`, the descriptor of
    the jar, its central directory and the package descriptor,
    `crates/mcrs_minecraft_client_jar/src/font_hint.json` and
-   `crates/mcrs_minecraft_client_jar/src/font_objects.json`, the font folder of
-   the asset index the package descriptor names.
+   `crates/mcrs_minecraft_client_jar/src/index_objects.json`, the font and
+   title background folders of the asset index the package descriptor names.
 5. Run the game's data generator through the `dumpReports` task of
    `tools/vanilla-oracle` and the `dumpDefinitions` task, both into temporary
    directories.

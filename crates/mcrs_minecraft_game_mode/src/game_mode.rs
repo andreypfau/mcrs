@@ -25,6 +25,22 @@ impl GameMode {
         GameMode::Spectator,
     ];
 
+    #[must_use]
+    pub const fn from_id(id: i32) -> Option<Self> {
+        match id {
+            0 => Some(GameMode::Survival),
+            1 => Some(GameMode::Creative),
+            2 => Some(GameMode::Adventure),
+            3 => Some(GameMode::Spectator),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(self) -> i32 {
+        self as i32
+    }
+
     pub const fn name(self) -> &'static str {
         match self {
             GameMode::Survival => "survival",

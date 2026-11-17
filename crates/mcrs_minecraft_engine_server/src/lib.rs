@@ -10,8 +10,10 @@ mod require;
 pub mod runner;
 mod server_core_plugin;
 mod server_network_plugin;
+mod server_thread;
 mod shutdown;
 mod status;
+mod world_open_error;
 pub mod world_options;
 
 pub use data_pack::{DataPack, DataPackError};
@@ -29,4 +31,6 @@ pub use mcrs_minecraft_network::{BoundAddress, EmptyForwardingSecret, Forwarding
 pub use runner::{DEFAULT_TPS, run_server_loop, run_server_loop_with};
 pub use server_core_plugin::ServerCorePlugin;
 pub use server_network_plugin::ServerNetworkPlugin;
+pub use server_thread::{ServerThread, ServerThreadError};
 pub use shutdown::{ShutdownPlugin, ShutdownRequest};
+pub use world_open_error::WorldOpenError;

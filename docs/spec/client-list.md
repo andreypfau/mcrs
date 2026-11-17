@@ -363,7 +363,8 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Inputs:** a list with the rows `0` to `n − 1`, the height of each row, and the width `RW` of
   the rows.
 - **Behavior:**
-  1. `RW` is 220 unless the kind of list states another width. An option list has 310.
+  1. `RW` is 220 unless the kind of list states another width. An option list has 310. The
+     world list has 270 (`client-world-screens.md`, WORLD-LIST-001).
   2. `RL = x + floor(w / 2) − floor(RW / 2)`. `RR = RL + RW`.
   3. Each row has its own height. A row has the default row height of the list unless the
      screen gives another height.

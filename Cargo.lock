@@ -5265,6 +5265,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -6601,6 +6602,8 @@ dependencies = [
 name = "mcrs_minecraft_save"
 version = "0.5.8"
 dependencies = [
+ "icu_properties",
+ "libc",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
@@ -6612,6 +6615,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "uuid",
 ]

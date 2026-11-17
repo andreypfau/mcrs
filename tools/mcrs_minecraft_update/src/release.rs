@@ -8,7 +8,10 @@ use mcrs_minecraft_client_jar::{
 use mcrs_minecraft_core::Version;
 use serde::{Deserialize, Serialize};
 
-const FONT_FOLDER: &str = "minecraft/font/";
+const OBJECT_FOLDERS: [&str; 2] = [
+    "minecraft/font/",
+    "minecraft/textures/gui/title/background/",
+];
 pub const MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
 #[derive(Deserialize)]
@@ -79,22 +82,30 @@ struct IndexObject {
     size: u64,
 }
 
-pub fn font_objects(index: &[u8]) -> Result<String, String> {
+pub fn index_objects(index: &[u8]) -> Result<String, String> {
     let index: Index = serde_json::from_slice(index)
         .map_err(|error| format!("the asset index is not an index: {error}"))?;
-    let objects: Vec<AssetObject> = index
-        .objects
+    let below = |folder: &'static str| {
+        index
+            .objects
+            .iter()
+            .filter(move |(path, _)| path.starts_with(folder))
+            .map(|(path, object)| AssetObject {
+                path,
+                sha1: &object.hash,
+                size: object.size,
+            })
+    };
+    if let Some(folder) = OBJECT_FOLDERS
         .iter()
-        .filter(|(path, _)| path.starts_with(FONT_FOLDER))
-        .map(|(path, object)| AssetObject {
-            path,
-            sha1: &object.hash,
-            size: object.size,
-        })
-        .collect();
-    if objects.is_empty() {
-        return Err(format!("the asset index has no object below {FONT_FOLDER}"));
+        .find(|folder| below(folder).next().is_none())
+    {
+        return Err(format!("the asset index has no object below {folder}"));
     }
+    let objects: Vec<AssetObject> = OBJECT_FOLDERS
+        .iter()
+        .flat_map(|folder| below(folder))
+        .collect();
     pretty(&objects)
 }
 
@@ -237,13 +248,14 @@ mod tests {
     }"#;
 
     #[test]
-    fn the_font_objects_are_the_font_folder_of_the_index() {
+    fn the_index_objects_are_the_font_and_title_background_folders() {
         let index = br#"{"objects":{
             "minecraft/lang/en_us.json": {"hash": "aa", "size": 1},
+            "minecraft/textures/gui/title/background/panorama_0.png": {"hash": "dd", "size": 4},
             "minecraft/font/unifont.zip": {"hash": "bb", "size": 2},
             "minecraft/font/include/unifont.json": {"hash": "cc", "size": 3}
         }}"#;
-        let text = font_objects(index).unwrap();
+        let text = index_objects(index).unwrap();
         let listed: Vec<(String, String, u64)> =
             serde_json::from_str::<Vec<serde_json::Value>>(&text)
                 .unwrap()
@@ -265,9 +277,18 @@ mod tests {
                     3
                 ),
                 ("minecraft/font/unifont.zip".to_owned(), "bb".to_owned(), 2),
+                (
+                    "minecraft/textures/gui/title/background/panorama_0.png".to_owned(),
+                    "dd".to_owned(),
+                    4
+                ),
             ]
         );
-        assert!(font_objects(br#"{"objects":{}}"#).is_err());
+        assert!(index_objects(br#"{"objects":{}}"#).is_err());
+        assert!(
+            index_objects(br#"{"objects":{"minecraft/font/a.zip":{"hash":"bb","size":2}}}"#)
+                .is_err()
+        );
     }
 
     fn sample_jar() -> Vec<u8> {

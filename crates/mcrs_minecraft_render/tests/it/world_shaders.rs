@@ -76,7 +76,7 @@ pub(crate) fn wgsl(shader: &str, defs: Vec<ShaderDefVal>) -> String {
     wgsl_at(&["shaders", "core", shader], defs)
 }
 
-fn wgsl_at(components: &[&str], defs: Vec<ShaderDefVal>) -> String {
+pub(crate) fn wgsl_at(components: &[&str], defs: Vec<ShaderDefVal>) -> String {
     let shader = components.join("/");
     let mut options = CompileOptions {
         imports: true,
@@ -211,28 +211,41 @@ fn fragment_textures(module: &naga::Module, info: &naga::valid::ModuleInfo) -> u
         .unwrap_or(0)
 }
 
+const OWN_SHADERS: [(&str, &[&str]); 2] = [
+    (
+        "sky",
+        &[
+            "vertex_occluder",
+            "fragment_occluder",
+            "vertex_disc",
+            "fragment_disc",
+            "fragment_clouds",
+            "fragment_cloud_image",
+        ],
+    ),
+    (
+        "panorama",
+        &["panorama", "blur_horizontal", "blur_vertical"],
+    ),
+];
+
 #[test]
-fn the_sky_shader_compiles_with_each_entry_point_for_webgl2() {
-    let source = wgsl_at(&["shaders", "sky"], Vec::new());
-    let module =
-        naga::front::wgsl::parse_str(&source).unwrap_or_else(|error| panic!("sky: {error}"));
-    let info = Validator::new(ValidationFlags::all(), Capabilities::default())
-        .validate(&module)
-        .unwrap_or_else(|error| panic!("sky: {error:?}"));
-    for name in [
-        "vertex_occluder",
-        "fragment_occluder",
-        "vertex_disc",
-        "fragment_disc",
-        "fragment_clouds",
-        "fragment_cloud_image",
-    ] {
-        assert!(
-            module.entry_points.iter().any(|entry| entry.name == name),
-            "the sky shader has no entry point {name}"
-        );
+fn the_sky_and_panorama_shaders_compile_with_each_entry_point_for_webgl2() {
+    for (shader, entries) in OWN_SHADERS {
+        let source = wgsl_at(&["shaders", shader], Vec::new());
+        let module = naga::front::wgsl::parse_str(&source)
+            .unwrap_or_else(|error| panic!("{shader}: {error}"));
+        let info = Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&module)
+            .unwrap_or_else(|error| panic!("{shader}: {error:?}"));
+        for name in entries {
+            assert!(
+                module.entry_points.iter().any(|entry| entry.name == *name),
+                "the {shader} shader has no entry point {name}"
+            );
+        }
+        assert_writes_for_webgl2(shader, &module, &info);
     }
-    assert_writes_for_webgl2("sky", &module, &info);
 }
 
 fn assert_writes_for_webgl2(label: &str, module: &naga::Module, info: &naga::valid::ModuleInfo) {
