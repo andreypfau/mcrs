@@ -6582,6 +6582,8 @@ dependencies = [
 name = "mcrs_minecraft_save"
 version = "0.5.8"
 dependencies = [
+ "icu_properties",
+ "libc",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",

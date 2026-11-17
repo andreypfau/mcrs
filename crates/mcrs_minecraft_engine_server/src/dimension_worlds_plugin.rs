@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use bevy_app::{App, Plugin, Startup};
+use bevy_app::{App, AppExit, Plugin, Startup};
 use mcrs_minecraft_engine::EnginePlugin;
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
@@ -11,10 +11,15 @@ use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::dimension::Dimensions;
+use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_save::SaveLock;
+use tracing::error;
 
 use crate::require::require;
 use crate::server_core_plugin::ServerCorePlugin;
-use crate::world_options::{PluginDimensions, WorldPresetName, bake_dimensions};
+use crate::world_options::{
+    PluginDimensions, WorldHost, WorldLock, WorldPresetName, bake_dimensions,
+};
 
 pub struct DimensionWorldsPlugin {
     pub world: Option<PathBuf>,
@@ -25,6 +30,7 @@ pub struct DimensionWorldsPlugin {
     pub ops: OpList,
     pub default_op_level: u8,
     pub default_game_mode: GameMode,
+    pub host: Option<Uuid>,
 }
 
 impl Default for DimensionWorldsPlugin {
@@ -38,6 +44,7 @@ impl Default for DimensionWorldsPlugin {
             ops: OpList::default(),
             default_op_level: 0,
             default_game_mode: GameMode::Creative,
+            host: None,
         }
     }
 }
@@ -48,7 +55,28 @@ impl Plugin for DimensionWorldsPlugin {
         app.insert_resource(WorldSeed(self.seed));
         app.insert_resource(WorldPresetName(self.preset.clone()));
         if let Some(world) = &self.world {
-            app.insert_resource(WorldSave(world.clone()));
+            let handed_in = app
+                .world()
+                .get_resource::<WorldLock>()
+                .is_some_and(|lock| lock.0.dir() == world);
+            let locked = handed_in
+                || match SaveLock::take(world) {
+                    Ok(lock) => {
+                        app.insert_resource(WorldLock(lock));
+                        true
+                    }
+                    Err(error) => {
+                        error!("the world does not open:\n{error}");
+                        app.world_mut().write_message(AppExit::error());
+                        false
+                    }
+                };
+            if locked {
+                app.insert_resource(WorldSave(world.clone()));
+            }
+        }
+        if let Some(host) = self.host {
+            app.insert_resource(WorldHost(host));
         }
         if let Some(dimensions) = &self.dimensions {
             app.insert_resource(PluginDimensions(dimensions.clone()));

@@ -139,7 +139,7 @@ Out of scope, with the document that states it:
 - the scroll area, the scroll bar, the lists and the tab bar: `client-list.md`;
 - the pause screen, the options screens and the other menus: `client-menu.md`;
 - the narrator and the other accessibility features;
-- the title screen and the panorama;
+- the title screen and the panorama: `client-title-screen.md`;
 - the toasts and the HUD;
 - a button that shows a load animation in place of its caption.
 
@@ -203,7 +203,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   1. An in-game screen fills (0, 0, W, H) with a vertical gradient. The top colour is
      `C0101010` and the bottom colour is `D0101010`.
   2. Each other screen draws these parts, in this order:
-     1. with no world, the panorama (out of scope);
+     1. with no world, the panorama (`client-title-screen.md`, TITLE-PAN-002);
      2. the blur, when WID-SCR-005 asks for it;
      3. the menu background texture over (0, 0, W, H).
   3. The menu background texture is `minecraft:textures/gui/menu_background.png` with no world,
@@ -221,24 +221,51 @@ each `40000000`). Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
 
 ### WID-SCR-005: Blur behind a screen
 
-- **Inputs:** the option "Menu Background Blur"
-  (`options.accessibility.menu_background_blurriness`). It is an integer from 0 to 10. The
-  default is 5.
+- **Inputs:** the blur radius `r`, an integer from 0 to 10. In the game, `r` is the option
+  "Menu Background Blur" (`options.accessibility.menu_background_blurriness`). Its default is 5.
+  The image `P` is the content that the client drew before the menu background texture, in
+  pixels of the window. `P` has the size of the window framebuffer.
 - **Behavior:**
-  1. When the option is 0, there is no blur.
-  2. When the option is ≥ 1, the client blurs all that it drew before the menu background
-     texture, for example the world or the panorama. The texture and the widgets do not blur.
-  3. The blur is the post effect `minecraft:blur` of the resource pack. It has three pairs of
-     passes of the shader `minecraft:post/box_blur`: a horizontal pass, then a vertical pass.
-  4. The radius of each pass is the option value, in pixels of the window. It does not change
-     with the GUI scale.
-- **Postconditions:** the shader `box_blur.fsh` of the resource pack states the samples and
-  their weights.
+  1. When `r` is 0, there is no blur.
+  2. When `r` is 1 or more, the client blurs `P`, for example the world or the panorama. The
+     menu background texture and the widgets do not blur.
+  3. The blur is six passes, in this order: horizontal, vertical, horizontal, vertical,
+     horizontal, vertical. Each pass reads the result of the previous pass. The first pass reads
+     `P`. The result of the sixth pass replaces `P`.
+  4. Each pass uses the same radius `r`. The radius is in pixels of the window. It does not
+     change with the GUI scale or the size of the GUI.
+  5. One pass sets each pixel `x` to the mean of the `2r + 1` pixels from `x − r` to `x + r`
+     along its direction. Each of these pixels has the weight `1 / (2r + 1)`. The pass does this
+     for each of the four channels, alpha included.
+  6. A pixel outside the image has the value of the nearest pixel on the edge of the image, in
+     the same row or column. Thus a pass near the edge counts the edge pixel more than one time.
+- **Postconditions:**
+  - one pass is a box filter of width `2r + 1`. Three passes along one axis give the
+    convolution of three such boxes. Its width is `6r + 1` pixels, and its weights sum to 1. For
+    `r` = 5, one box is 11 pixels and the result of the three passes is 31 pixels wide;
+  - the horizontal and the vertical passes act on separate axes. Thus the full blur is the
+    product of the two results of one axis;
+  - an image of one colour does not change.
+- **Edge cases:**
+  - the game reads `2r + 1` pixels with `r + 1` samples. Each sample at the offset
+    `−r + 0.5 + 2k`, for `k` from 0 to `r − 1`, falls between two pixels. The linear filter of
+    the texture gives the mean of the two pixels. The last sample is at the offset `r`, on the
+    centre of one pixel, with the weight 1/2. The sum is divided by `r + 0.5`. The result is the
+    mean of step 5. An implementation can read the `2r + 1` pixels in a different way, if the
+    result is the same;
+  - a pass of the vanilla post effect has its own radius value 0. A value of 0.5 or more replaces
+    `r` for that pass, rounded to the nearest integer. A resource pack can set it. The vanilla
+    pack does not.
+- **mcrs:** mcrs has no option "Menu Background Blur". `r` is 5, the default of the game
+  (WID-DEV-001).
 
-Provenance: `source_suggested`; `black_box_confirmed` for the passes of
-`assets/minecraft/post_effect/blur.json` and the samples of
-`assets/minecraft/shaders/post/box_blur.fsh` of the client jar. Kind: layout. Confidence:
-medium. Experiment: WID-EXP-03.
+Provenance: `black_box_confirmed` for the six passes, their order and their directions, by
+`assets/minecraft/post_effect/blur.json` of the client jar. `black_box_confirmed` for the sample
+offsets, the weights, the division and the linear filter of each input, by
+`assets/minecraft/shaders/post/box_blur.fsh` and `blur.json` of the client jar. The mean of step
+5 is the arithmetic of these samples. `source_suggested` for the option as the source of `r`, for
+the size of the image in pixels of the window and for the edge of step 6. `design` for the radius
+of mcrs. Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
 
 ### WID-SCR-006: Separators of a screen with no list
 
@@ -820,6 +847,10 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   5. The default size is 150 × 20. The sprites and the caption position are as for a button
      (WID-BTN-002, WID-BTN-004).
 - **Postconditions:** a Boolean cycle button with the name "Cape" shows `Cape: ON` in English.
+- **Edge cases:** a cycle button can use a second list of values while Alt is down. The vanilla
+  "World Type" uses it (`client-world-screens.md`, WORLD-GEN-002), and so does the mode button
+  of the structure block screen. No screen of mcrs uses it (WORLD-GEN-003), so this document
+  does not state it.
 
 Provenance: `source_suggested_black_box_confirmed`: the keys and the English texts are in
 `assets/minecraft/lang/en_us.json` of the client jar. Kind: layout. Confidence: medium.
@@ -1318,8 +1349,15 @@ Decides: WID-SCR-003.
 4. Do step 3 on the "Video Settings" screen, which shows a list. Record that each separator
    row has the same pixels as in step 3.
 5. Open the inventory. Record the gradient at the top and the bottom rows.
+6. Add a resource pack whose two menu background textures are transparent. In a superflat world,
+   look at a wall of white concrete with a vertical edge against black concrete, at the blur
+   option 5. Open the pause screen. Record one row of pixels across the edge, and the first and
+   the last 20 pixels of that row.
+7. Do step 6 at the window sizes 854 × 480 and 1708 × 960, at the same GUI scale.
 
-Decides: WID-SCR-004, WID-SCR-005, WID-SCR-006.
+Decides: WID-SCR-004, WID-SCR-005, WID-SCR-006. Expected for steps 6 and 7: the row across the
+edge is the edge convolved with three boxes of 11 pixels, 31 pixels wide at each window size.
+The edge of the image shows no dark border.
 
 ### WID-EXP-04: Press, bounds and state
 
@@ -1431,7 +1469,15 @@ Decides: WID-LAY-011, WID-LAY-012.
 
 ## 15. Intentional deviations
 
-No deviation is recorded.
+### WID-DEV-001: The blur has the default radius
+
+- **Rule:** WID-SCR-005, the paragraph "mcrs". `design`, as `client-title-screen.md`,
+  TITLE-DEV-006, does for the panorama speed.
+- **Reference:** the radius follows "Menu Background Blur", from 0 to 10. The value 0 shows no
+  blur. A graphics preset can change the value, for example to 2.
+- **Visible to the client:** only for a player who changed that option or chose such a preset
+  in the vanilla client.
+- **Test:** a differential test sets the vanilla option to 5.
 
 ---
 
@@ -1444,8 +1490,8 @@ No deviation is recorded.
    defect?
 3. An inactive checkbox has the same sprite and a white label (WID-CHK-002). Is that the
    intent?
-4. A cycle button can use a second list of values while Alt is down. This document does not
-   state it. Does a menu of mcrs need it?
+4. Closed: a cycle button can use a second list of values while Alt is down. WID-CYC-001
+   states which screens use it.
 5. The list of in-game screens, of screens with their own background, and of option sliders
    that wait 600 ms belongs to `client-menu.md`.
 6. The tab order groups that the vanilla screens use are not stated. Each widget of this

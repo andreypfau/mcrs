@@ -12,8 +12,8 @@ pub struct AssetObject<'a> {
     pub size: u64,
 }
 
-pub const FONT_OBJECTS: &[AssetObject<'static>] =
-    &include!(concat!(env!("OUT_DIR"), "/font_objects.rs"));
+pub const INDEX_OBJECTS: &[AssetObject<'static>] =
+    &include!(concat!(env!("OUT_DIR"), "/index_objects.rs"));
 
 impl AssetObject<'_> {
     pub fn url(&self, objects: &str) -> String {
@@ -53,10 +53,33 @@ mod tests {
     }
 
     #[test]
-    fn the_pinned_objects_are_font_files() {
-        assert!(!FONT_OBJECTS.is_empty());
-        for object in FONT_OBJECTS {
-            assert!(object.path.starts_with("minecraft/font/"), "{object:?}");
+    fn the_pinned_objects_are_fonts_and_the_title_background() {
+        assert!(
+            INDEX_OBJECTS
+                .iter()
+                .any(|object| object.path.starts_with("minecraft/font/"))
+        );
+        let background = "minecraft/textures/gui/title/background/";
+        for name in [
+            "panorama_0.png",
+            "panorama_1.png",
+            "panorama_2.png",
+            "panorama_3.png",
+            "panorama_4.png",
+            "panorama_5.png",
+            "panorama_overlay.png",
+        ] {
+            let path = format!("{background}{name}");
+            assert!(
+                INDEX_OBJECTS.iter().any(|object| object.path == path),
+                "{path}"
+            );
+        }
+        for object in INDEX_OBJECTS {
+            assert!(
+                object.path.starts_with("minecraft/font/") || object.path.starts_with(background),
+                "{object:?}"
+            );
             assert_eq!(object.sha1.len(), 40, "{object:?}");
         }
     }

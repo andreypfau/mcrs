@@ -2,6 +2,7 @@ use bevy_app::{App, AppExit, Plugin, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::query::With;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Local, Query, ResMut};
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
@@ -9,6 +10,7 @@ use mcrs_minecraft_engine::{WorldStateSources, WorldStateWriter};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::ConnectionState;
 use mcrs_minecraft_text::Text;
+use tokio::sync::oneshot;
 
 use crate::login::LoginState;
 
@@ -23,6 +25,24 @@ impl Plugin for ShutdownPlugin {
         app.init_resource::<WorldStateWriter>();
         app.add_systems(Update, shutdown_system);
     }
+}
+
+#[derive(Resource)]
+pub(crate) struct ShutdownSignal(pub(crate) oneshot::Receiver<()>);
+
+pub(crate) fn forward_shutdown(
+    mut signal: ResMut<ShutdownSignal>,
+    mut commands: Commands,
+    mut requests: MessageWriter<ShutdownRequest>,
+) {
+    if matches!(
+        signal.0.try_recv(),
+        Err(oneshot::error::TryRecvError::Empty)
+    ) {
+        return;
+    }
+    requests.write(ShutdownRequest);
+    commands.remove_resource::<ShutdownSignal>();
 }
 
 #[derive(Default)]

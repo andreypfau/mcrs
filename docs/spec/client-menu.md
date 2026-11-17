@@ -31,11 +31,12 @@ architecture.
   **option list**, **section label row**, **widget list** and **Ctrl**.
 - **Option**: one value of the options of the user, for example the field of view. A widget of
   an options screen shows one option and changes it.
-- **Options file**: the file in which the client keeps the options between two starts. Its form
-  is out of scope.
+- **Options file**: the file in which the client keeps the options between two starts. It is in
+  the game directory, the same directory that holds the saves folder (`client-world-screens.md`,
+  WORLD-DIR-004, step 1). Its form is out of scope.
 - **Stop of the client**: the end of the client on a request of the player. The player closes
-  the window, or activates a button that closes the client (MENU-PAUSE-006, step 5). A crash and
-  a kill of the process are not a stop of the client.
+  the window, or activates "Quit Game" on the title screen (`client-title-screen.md`,
+  TITLE-QUIT-001). A crash and a kill of the process are not a stop of the client.
 - **Options screen**: the screen with the title "Options" (section 2).
 - **Option sub-screen**: a screen that the options screen or an option sub-screen opens, and
   that shows an option list (section 3). For example, "Mouse Settings" opens from "Controls"
@@ -118,7 +119,7 @@ Out of scope:
 
 - whether the game pauses while the pause screen is open;
 - the pause screen with no menu (F3 + Escape), and the pause on a loss of the window focus;
-- the title screen;
+- the title screen, and the screens between it and a world (`client-title-screen.md`);
 - the form of the options file;
 - the other vanilla options. This document names them only where an order needs them;
 - the frame limits of "Reduce FPS When", and the frame limit outside a world;
@@ -295,8 +296,9 @@ Confidence: medium. Experiment: MENU-EXP-01.
      screen (MENU-OPT-001).
   4. The caption of the last button keeps the condition of MENU-PAUSE-005, step 1: "Save and
      Quit to Title" in a local world, else "Disconnect".
-  5. An activation of the last button makes it inactive. Then the client closes, as when the
-     player closes the window. This is the same for both captions.
+  5. An activation of the last button makes it inactive. Then the client leaves the world and
+     opens the title screen (`client-title-screen.md`, TITLE-LEAVE-002). This is the same for
+     both captions.
 - **Postconditions:** at W = 427 and H = 240:
   - WID-LAY-005 puts "Back to Game" in row 0, "Options..." in row 1 at column 0, and the last
     button in row 2. The right half of row 1 is empty.
@@ -306,9 +308,10 @@ Confidence: medium. Experiment: MENU-EXP-01.
     button is at (111, 128, 204, 20).
 
 Provenance: `design` for the set of widgets and the action of the last button. The owner
-decided that a screen shows only the widgets whose function mcrs has. The owner also decided
-that the last button closes the client. `source_suggested` for the positions. Kind: layout for the positions,
-semantic for the actions. Confidence: medium. Experiment: MENU-EXP-01.
+decided that a screen shows only the widgets whose function mcrs has. The owner decided on
+2026-11-14 that the last button returns to the title screen in release 1, also after a server.
+`source_suggested` for the positions. Kind: layout for the positions, semantic for the actions.
+Confidence: medium. Experiment: MENU-EXP-01.
 
 ---
 
@@ -316,10 +319,11 @@ semantic for the actions. Confidence: medium. Experiment: MENU-EXP-01.
 
 ### MENU-OPT-001: Open and close the options screen
 
-- **Inputs:** an activation of "Options..." on the pause screen, then Escape or an activation of
-  "Done".
+- **Inputs:** an activation of "Options..." on the pause screen or the title screen, then
+  Escape or an activation of "Done".
 - **Behavior:**
-  1. "Options..." opens the options screen. The pause screen is its parent screen.
+  1. "Options..." opens the options screen. The pause screen, or the title screen
+     (`client-title-screen.md`, TITLE-SCR-006), is its parent screen.
   2. Escape and "Done" close the options screen. The parent screen opens (WID-SCR-002,
      step 2).
   3. The options screen keeps its widgets when it re-arranges (WID-SCR-003, the first kind).
@@ -1164,8 +1168,9 @@ MENU-DEV-012.
     options with the content of the file.
   - With the options screen or an option sub-screen open, the file gets each change that waits
     for MENU-SAVE-001, step 2. Examples: a change of a slider, and a change by the Ctrl wheel.
-  - With no such screen open, the stop writes nothing. The pause screen is not such a screen.
-    Thus the last button of the pause screen (MENU-PAUSE-006, step 5) writes nothing.
+  - With no such screen open, the stop writes nothing. The title screen is not such a screen.
+    Thus "Quit Game" (`client-title-screen.md`, TITLE-QUIT-001) writes nothing. The last button
+    of the pause screen (MENU-PAUSE-006, step 5) is not a stop of the client and writes nothing.
   - After a stop of the client, the file holds the last value of each option of section 4.
     MENU-SAVE-003 states the exception.
 - **Edge cases:** the client removes only the screen that is open. When an option sub-screen is
@@ -1461,14 +1466,15 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
 ## 9. Intentional deviations
 
-### MENU-DEV-001: The last button of the pause screen closes the client
+### MENU-DEV-001: The last button of the pause screen opens the title screen after a server
 
 - **Rule:** MENU-PAUSE-006, step 5.
-- **Reference:** the client leaves the world. Then it shows the title screen or the list of
-  multiplayer servers (MENU-PAUSE-005).
-- **Visible to the client:** yes. The window closes in place of a menu. mcrs has no title
-  screen.
-- **Test:** a differential test does not compare the screen after the activation.
+- **Reference:** the client leaves the world. After a local world it shows the title screen.
+  After a server it shows the list of multiplayer servers (MENU-PAUSE-005).
+- **Visible to the client:** yes, after "Disconnect" only. mcrs release 1 has no server list
+  (`client-title-screen.md`, TITLE-DEV-004).
+- **Test:** a differential test compares the screen after "Save and Quit to Title". It does not
+  compare the screen after "Disconnect".
 
 ### MENU-DEV-002: The screens show only the widgets of mcrs
 

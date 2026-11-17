@@ -20,6 +20,8 @@ use mcrs_minecraft_environment::ClockTime;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
+    #[error("{dir}: the world is open in another process")]
+    Locked { dir: PathBuf },
     #[error("{path}: no such file")]
     Missing { path: PathBuf },
     #[error("{path}: {source}")]
@@ -47,6 +49,8 @@ pub enum SaveError {
     },
     #[error("{path}: {source}")]
     Resolve { path: PathBuf, source: ResolveError },
+    #[error("no world preset {preset}")]
+    UnknownWorldPreset { preset: ResourceLocationBuf },
     #[error("{path}: `{field}` has {found} elements, expected {expected}")]
     WrongLength {
         path: PathBuf,

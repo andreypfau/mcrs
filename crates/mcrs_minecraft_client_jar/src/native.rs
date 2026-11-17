@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{
-    Artifact, AssetObject, Directory, FONT_OBJECTS, Files, Progress, RELEASE, Release,
+    Artifact, AssetObject, Directory, Files, INDEX_OBJECTS, Progress, RELEASE, Release,
     VanillaDataError, font_files, lock, verify,
 };
 
@@ -134,16 +134,16 @@ pub fn resolve(
     }
 }
 
-pub fn font_assets(objects: &str) -> Result<Files, String> {
+pub fn index_assets(objects: &str) -> Result<Files, String> {
     let store = official_dir().map(|dir| dir.join("assets").join("objects"));
     std::thread::scope(|scope| {
-        let tasks: Vec<_> = FONT_OBJECTS
+        let tasks: Vec<_> = INDEX_OBJECTS
             .iter()
             .map(|object| scope.spawn(|| font_object(object, objects, store.as_deref())))
             .collect();
         tasks
             .into_iter()
-            .zip(FONT_OBJECTS)
+            .zip(INDEX_OBJECTS)
             .map(|(task, object)| {
                 let bytes = task
                     .join()

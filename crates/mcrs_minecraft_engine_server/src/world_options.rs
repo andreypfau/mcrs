@@ -2,17 +2,30 @@ use bevy_app::AppExit;
 use bevy_ecs::prelude::{Commands, MessageWriter, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
-use mcrs_minecraft_save::read_world_gen_settings;
+use mcrs_minecraft_save::{
+    LevelDat, LevelVersion, RespawnData, SaveError, SaveLock, WorldGenSettings, read_level_dat,
+    read_world_gen_settings, write_level_dat, write_world_gen_settings,
+};
 use tracing::{error, info};
+
+#[derive(Resource)]
+pub struct WorldLock(pub SaveLock);
 
 #[derive(Resource, Clone)]
 pub(crate) struct PluginDimensions(pub Dimensions);
@@ -20,13 +33,22 @@ pub(crate) struct PluginDimensions(pub Dimensions);
 #[derive(Resource)]
 pub(crate) struct WorldPresetName(pub String);
 
+#[derive(Resource, Clone, Copy)]
+pub(crate) struct WorldHost(pub Uuid);
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource it reads or sets is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn bake_dimensions(
     mut commands: Commands,
     registries: Res<CurrentRegistries>,
     save: Option<Res<WorldSave>>,
     given: Option<Res<PluginDimensions>>,
     preset: Res<WorldPresetName>,
+    host: Option<Res<WorldHost>>,
     mut seed: ResMut<WorldSeed>,
+    mut game_mode: ResMut<DefaultGameMode>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let baked = dimension_list(
@@ -34,7 +56,9 @@ pub(crate) fn bake_dimensions(
         save.as_deref(),
         given.as_deref(),
         &preset.0,
+        host.map(|host| host.0),
         &mut seed,
+        &mut game_mode,
     );
     match baked {
         Ok((source, list)) => {
@@ -48,7 +72,7 @@ pub(crate) fn bake_dimensions(
             ));
         }
         Err(error) => {
-            error!("the registries are unusable:\n{error}");
+            error!("the world does not open:\n{error}");
             exit.write(AppExit::error());
         }
     }
@@ -59,14 +83,24 @@ fn dimension_list(
     save: Option<&WorldSave>,
     given: Option<&PluginDimensions>,
     preset: &str,
+    host: Option<Uuid>,
     seed: &mut WorldSeed,
+    game_mode: &mut DefaultGameMode,
 ) -> Result<(String, Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>), String> {
     let saved = match save {
         Some(save) => {
-            let settings =
-                read_world_gen_settings(&save.0, registries).map_err(|error| error.to_string())?;
-            seed.0 = settings.seed as u64;
-            Some(settings.dimensions)
+            let new_world = NewWorld {
+                dimensions: given.map(|given| &given.0),
+                preset,
+                seed: seed.0.cast_signed(),
+                game_mode: game_mode.0,
+            };
+            let opened = open_world(&save.0, registries, &new_world, host)?;
+            seed.0 = opened.seed.cast_unsigned();
+            if let Some(mode) = opened.game_mode {
+                game_mode.0 = mode;
+            }
+            Some(opened.dimensions)
         }
         None => None,
     };
@@ -75,17 +109,130 @@ fn dimension_list(
     } else if let Some(saved) = saved {
         Ok(("save".to_owned(), bake(&saved, registries)?))
     } else {
-        let named = registries
-            .registry::<WorldPreset>()
-            .and_then(|presets| {
-                presets.get(presets.by_name(&ResourceLocationBuf::read(preset).ok()?)?)
-            })
-            .ok_or_else(|| {
-                format!(
-                    "{}: no world preset is named {preset}",
-                    mcrs_minecraft_game_registries::registry_keys::WORLD_PRESET
-                )
-            })?;
-        Ok((preset.to_owned(), bake(&named.dimensions, registries)?))
+        Ok((
+            preset.to_owned(),
+            bake(preset_dimensions(registries, preset)?, registries)?,
+        ))
+    }
+}
+
+fn preset_dimensions<'r>(
+    registries: &'r Registries,
+    preset: &str,
+) -> Result<&'r Dimensions, String> {
+    registries
+        .registry::<WorldPreset>()
+        .and_then(|presets| presets.get(presets.by_name(&ResourceLocationBuf::read(preset).ok()?)?))
+        .map(|named| &named.dimensions)
+        .ok_or_else(|| {
+            format!(
+                "{}: no world preset is named {preset}",
+                mcrs_minecraft_game_registries::registry_keys::WORLD_PRESET
+            )
+        })
+}
+
+struct NewWorld<'a> {
+    dimensions: Option<&'a Dimensions>,
+    preset: &'a str,
+    seed: i64,
+    game_mode: GameMode,
+}
+
+struct OpenedWorld {
+    seed: i64,
+    dimensions: Dimensions,
+    game_mode: Option<GameMode>,
+}
+
+fn open_world(
+    dir: &Path,
+    registries: &Registries,
+    new_world: &NewWorld,
+    host: Option<Uuid>,
+) -> Result<OpenedWorld, String> {
+    let level = match read_level_dat(dir) {
+        Ok(level) => Level::Present(Box::new(level)),
+        Err(SaveError::Missing { .. }) => Level::Missing,
+        Err(error) => {
+            error!("level.dat unreadable and left alone: {error}");
+            Level::Unreadable
+        }
+    };
+    let settings = match read_world_gen_settings(dir, registries) {
+        Ok(settings) => settings,
+        Err(SaveError::Missing { .. }) if matches!(level, Level::Missing) => {
+            let dimensions = match new_world.dimensions {
+                Some(given) => given.clone(),
+                None => preset_dimensions(registries, new_world.preset)?.clone(),
+            };
+            let settings = WorldGenSettings {
+                seed: new_world.seed,
+                dimensions,
+                bonus_chest: false,
+                generate_structures: true,
+                legacy_custom_options: None,
+            };
+            write_world_gen_settings(dir, &settings, registries).map_err(|e| e.to_string())?;
+            settings
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+    let level = match level {
+        Level::Present(level) => Some(*level),
+        Level::Missing => {
+            let level = new_level(dir, new_world.game_mode);
+            write_level_dat(dir, &level).map_err(|e| e.to_string())?;
+            Some(level)
+        }
+        Level::Unreadable => None,
+    };
+    let game_mode = level.map(|mut level| {
+        let first_start = !level.initialized;
+        if first_start {
+            level.spawn = RespawnData::default();
+            level.initialized = true;
+        }
+        let new_host = host.filter(|&host| level.singleplayer_uuid != Some(host));
+        level.singleplayer_uuid = new_host.or(level.singleplayer_uuid);
+        if first_start || new_host.is_some() {
+            write_level_dat(dir, &level).map_err(|e| e.to_string())?;
+        }
+        Ok::<_, String>(GameMode::from_id(level.game_type))
+    });
+    Ok(OpenedWorld {
+        seed: settings.seed,
+        dimensions: settings.dimensions,
+        game_mode: game_mode.transpose()?.flatten(),
+    })
+}
+
+enum Level {
+    Missing,
+    Present(Box<LevelDat>),
+    Unreadable,
+}
+
+fn new_level(dir: &Path, game_mode: GameMode) -> LevelDat {
+    let last_played = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|since| i64::try_from(since.as_millis()).ok())
+        .unwrap_or_default();
+    LevelDat {
+        version: Some(LevelVersion {
+            name: VERSION.name.to_owned(),
+            id: VERSION.world_version,
+            snapshot: !VERSION.stable,
+            series: VERSION.series_id.to_owned(),
+        }),
+        level_name: dir
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        game_type: game_mode.id(),
+        last_played,
+        initialized: false,
+        ..LevelDat::default()
     }
 }

@@ -10,6 +10,7 @@ mod gbuffer;
 mod hiz;
 mod improved_transparency;
 mod layer;
+mod panorama;
 mod pass;
 mod pipeline;
 mod present;
@@ -62,6 +63,9 @@ pub use frame_view::{FrameView, SIDE_PLANES};
 pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use improved_transparency::ImprovedTransparency;
 pub use layer::LayerGroup;
+pub use panorama::{
+    CUBE_FACES, PanoramaDraw, PanoramaImages, PanoramaPass, PanoramaPlugin, PanoramaView,
+};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, terrain_slot};
 pub use render_path::RenderPath;

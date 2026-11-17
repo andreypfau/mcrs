@@ -35,7 +35,7 @@ pub fn resource_files() -> &'static Files {
                 .unwrap()
                 .0;
         let layer =
-            mcrs_minecraft_client_jar::font_assets(mcrs_minecraft_client_jar::OBJECTS).unwrap();
+            mcrs_minecraft_client_jar::index_assets(mcrs_minecraft_client_jar::OBJECTS).unwrap();
         files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));
         files.extend(layer);
         files

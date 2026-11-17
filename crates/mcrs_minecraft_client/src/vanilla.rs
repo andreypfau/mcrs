@@ -93,7 +93,7 @@ fn spawn(
         .spawn(move || {
             let (sender, font_layer) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
-                let _ = sender.send(client_jar::font_assets(&objects));
+                let _ = sender.send(client_jar::index_assets(&objects));
             });
             let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
@@ -147,7 +147,7 @@ fn spawn_web(
             client_jar::fetch(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             }),
-            client_jar::font_assets(&objects),
+            client_jar::index_assets(&objects),
         )
         .await;
         fill(&root, files);

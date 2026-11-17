@@ -25,14 +25,14 @@ mod schedule;
 #[cfg(target_family = "wasm")]
 mod web;
 
-pub use asset_object::{AssetObject, FONT_OBJECTS, OBJECTS};
+pub use asset_object::{AssetObject, INDEX_OBJECTS, OBJECTS};
 #[cfg(not(target_family = "wasm"))]
 pub use data::{ClientJar, VanillaDataError, vanilla_data};
 pub use fonts::{FontHint, font_files};
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
 #[cfg(target_family = "wasm")]
-pub use web::{fetch, font_assets};
+pub use web::{fetch, index_assets};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Artifact<'a> {

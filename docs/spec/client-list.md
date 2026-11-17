@@ -393,7 +393,8 @@ from 480 to 360 pixels. Take a screenshot. The selected row is fully visible.
 - **Inputs:** a list with the rows `0` to `n − 1`, the height of each row, and the width `RW` of
   the rows.
 - **Behavior:**
-  1. `RW` is 220 unless the kind of list states another width. An option list has 310.
+  1. `RW` is 220 unless the kind of list states another width. An option list has 310. The
+     world list has 270 (`client-world-screens.md`, WORLD-LIST-001).
   2. `RL = x + floor(w / 2) − floor(RW / 2)`. `RR = RL + RW`.
   3. Each row has its own height. A row has the default row height of the list unless the
      screen gives another height.
@@ -410,8 +411,8 @@ from 480 to 360 pixels. Take a screenshot. The selected row is fully visible.
 - **Example:** W = 427 and `RW = 220` give `RL = 103` and `RR = 323`.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-list at W = 427 with one world. Take a screenshot. The selected row outline covers x from 103
-to 322, and its top is 2 GUI units below the header separator.
+list at W = 427 with one world. Take a screenshot. The selected row outline covers x from 78
+to 347, and its top is 2 GUI units below the header separator.
 
 ### LIST-BG-001: The background of a list
 
