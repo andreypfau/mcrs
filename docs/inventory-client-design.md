@@ -120,7 +120,6 @@ resources of a world that loads stacks without `ItemPlugin`. It registers no cod
 ```rust
 pub struct PlayerHoldersPlugin;
 #[derive(Component)] pub struct PlayerHolders { pub cursor: Entity, pub craft_grid: Entity, pub craft_result: Entity }
-#[derive(EntityEvent)] pub struct PlayerItemsRestored { pub entity: Entity }
 pub fn restore_holders(In<(Entity, PlayerItems)>, Commands, Query<Option<&PlayerHolders>>);
 pub fn restore_carried(In<(Entity, PlayerItems)>, Commands, Query<Option<&PlayerHolders>>);
 ```
@@ -129,7 +128,6 @@ pub fn restore_carried(In<(Entity, PlayerItems)>, Commands, Query<Option<&Player
 |-|-|
 | `PlayerHoldersPlugin` | Gives each new player its holders and their `SlotPolicy`, and opens the inventory menu. It adds `MenuPlugin` when the app has no `MenuPlugin`. |
 | `PlayerHolders` | The three child holders of a player. The player entity is the fourth holder. |
-| `PlayerItemsRestored` | Triggers after the holders of a player get the stacks of a restore. |
 | `restore_holders` | Replaces the stacks of the four player holders and sets `Selected`. |
 | `restore_carried` | Replaces the stacks of the cursor and the craft grid. |
 

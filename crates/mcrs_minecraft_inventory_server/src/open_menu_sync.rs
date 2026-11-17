@@ -3,6 +3,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
+use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
@@ -19,7 +20,9 @@ use mcrs_minecraft_protocol_game::text::RawText;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::MenuSync;
+use crate::creative_drops::CreativeDrops;
 use crate::cursor_slot::cursor_slot;
+use crate::full_sends::FullSends;
 use crate::last_container_id::LastContainerId;
 use crate::menu_content::menu_content;
 use crate::menu_slots::MenuSlots;
@@ -42,6 +45,7 @@ pub(crate) fn open_menu_sync(
     wire_names: WireNames,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut bytes: Local<Vec<u8>>,
+    mut sends: ResMut<FullSends>,
     mut commands: Commands,
 ) {
     let MenuOpened { viewer, menu } = *opened;
@@ -55,6 +59,12 @@ pub(crate) fn open_menu_sync(
         if viewer_menus.iter().next() == Some(menu) {
             let sync = MenuSync::new(INVENTORY_CONTAINER_ID, layout.len());
             commands.entity(menu).insert(sync);
+            commands
+                .entity(viewer)
+                .insert_if_new((CreativeDrops::default(), LastContainerId::default()));
+            if !sends.0.contains(&viewer) {
+                sends.0.push(viewer);
+            }
         }
         return;
     };

@@ -18,7 +18,6 @@ use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::Holder;
 
 use crate::PlayerHolders;
-use crate::PlayerItemsRestored;
 use crate::player_policy::player_policy;
 
 pub fn restore_holders(
@@ -43,7 +42,6 @@ pub fn restore_holders(
     commands
         .entity(holders.craft_result)
         .load_inventory(vec![None]);
-    commands.trigger(PlayerItemsRestored { entity: player });
 }
 
 pub fn restore_carried(
@@ -61,7 +59,6 @@ pub fn restore_carried(
     commands
         .entity(holders.craft_grid)
         .load_inventory(stacks.craft_grid.into());
-    commands.trigger(PlayerItemsRestored { entity: player });
 }
 
 pub(crate) fn hold_new_player(
