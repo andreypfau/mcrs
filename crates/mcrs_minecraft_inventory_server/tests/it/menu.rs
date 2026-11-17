@@ -21,6 +21,7 @@ use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Encode;
 
+use crate::click::HOTBAR_0;
 use crate::click::Packet;
 use crate::click::claim;
 use crate::click::click;
@@ -245,4 +246,38 @@ fn inv_mnu_007_011_a_menu_over_a_chest_closes_it_first_and_one_over_the_inventor
         "the close of the chest empties the cursor before the new menu exists"
     );
     assert_eq!(stacks(world, player), [(0, STONE, 7)]);
+}
+
+#[test]
+fn itx_jav_014_a_drag_open_in_the_previous_menu_does_not_reach_the_new_menu() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let chest = world.spawn(Slots::new(27)).id();
+    put(world, chest, 13, STONE, 3);
+    click(
+        world,
+        player,
+        Packet::pick_up(1, HOTBAR_0).claiming(vec![(HOTBAR_0, None)], claim(STONE, 5)),
+    );
+    click(
+        world,
+        player,
+        Packet::drag_start(1).claiming(vec![], claim(STONE, 5)),
+    );
+    world.run_schedule(FixedUpdate);
+    open_chest(world, player, chest, MenuButtons::default());
+    let _ = sent(world);
+
+    click(
+        world,
+        player,
+        Packet::pick_up(1, 13)
+            .in_container(1)
+            .claiming(vec![(13, claim(STONE, 8))], None),
+    );
+    world.run_schedule(FixedUpdate);
+
+    assert_eq!(stacks(world, chest), [(13, STONE, 8)]);
+    assert_eq!(stacks(world, holders(world, player).cursor), []);
 }

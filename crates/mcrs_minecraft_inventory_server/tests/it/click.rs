@@ -114,6 +114,14 @@ impl Packet {
         }
     }
 
+    pub(crate) fn drag_start(state_id: i32) -> Self {
+        Self {
+            slot: -999,
+            input: ContainerInput::QuickCraft,
+            ..Self::pick_up(state_id, 0)
+        }
+    }
+
     pub(crate) fn pick_up_all(state_id: i32, slot: u16) -> Self {
         Self {
             input: ContainerInput::PickupAll,
