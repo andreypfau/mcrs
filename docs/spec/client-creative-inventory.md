@@ -17,18 +17,29 @@ not prescribe an architecture.
   form**: as `item-stack.md`, section 0.1, defines them.
 - **Cursor**, **drag**: as `inventory-transactions.md`, section 0.1, defines them. The click
   kinds are those of ITX-JAV-006. The drag kind is that of ITX-JAV-015.
-- **Inventory menu**, **player inventory**, **infinite materials**: as `inventory.md`, section
-  0.1, defines them. `M[i]` is the entry with the menu index `i` of the inventory menu
-  (INV-MNU-001). `P[i]` is the slot `i` of the player inventory.
+- **Menu**, **inventory menu**, **player inventory**, **infinite materials**: as `inventory.md`,
+  section 0.1, defines them. Each element of a menu is an **entry**, with its menu index. `M[i]`
+  is the entry with the menu index `i` of the inventory menu (INV-MNU-001). `P[i]` is the slot
+  `i` of the player inventory.
 - **Static registry**, **data-pack registry**, **tag**: as `registry.md`, section 0.1, defines
   them.
 - **Screen**, **in a world**: as `client-widget.md`, section 0.1, defines them.
-- **Local player**, **tick**: as `client-camera.md`, section 0.1, defines them. A tick of the
-  client is a **client tick**.
+- **Local player**: as `client-camera.md`, section 0.1, defines it.
+- **Tick**: as `client-entities.md`, section 0.1, defines it. A tick of the client is a **client
+  tick**.
 - **GUI unit**, **W**, **H**: as `client-chat.md`, section 0.1, defines them.
 - **Mouse position**: as `client-tooltip.md`, section 0.1, defines it.
 - **Wheel event**, **notch**: as `entity-physics.md`, section 0.1, defines them.
 - **Creative flag**: as `client-block-breaking.md`, section 0.1, defines it.
+- **Hotbar keys**, **toolbar activators**: as `client-hotbar.md`, section 0.1, defines them. A
+  **hotbar key** is one of the hotbar keys.
+- **Off-hand key**: the key binding `key.swapOffhand`.
+- **Window area**, **entry area**, **empty area**, **target entry**, **pointer index**, **cursor
+  stack**: as `client-inventory.md`, section 0.1, defines them. They apply to each menu screen,
+  as `client-container-screen.md`, section 0.1, states.
+- **Menu screen**, **item tooltip**, **creative tooltip**, **part**: as
+  `client-container-screen.md`, section 0.1, defines them. CCI-TIP-001 states the parts that a
+  creative tooltip adds.
 - **Creative screen**: the screen of this document.
 - **Enabled features**: the set of feature flag ids that the last `update_enabled_features`
   packet gave (`registry.md`, REG-NET-001).
@@ -61,12 +72,11 @@ not prescribe an architecture.
   slot `c` of the hotbar row shows `P[c]`.
 - **Destroy slot**: the slot of the survival inventory tab that deletes stacks (CCI-CLK-007).
 - **Row count**: `R = ceil(n / 9) − 5`. `n` is the number of stacks of the content.
-- **Scroll offset**: a number `s` in `0..1` that selects the first row of the content that the
-  grid shows (CCI-SCR-001).
+- **Scroll offset**: a real number `s` from 0 to 1 that selects the first row of the content
+  that the grid shows (CCI-SCR-001).
 - **Search text**: the text of the search box (CCI-SRH-001).
-- **Search lines**: the lines of text of a stack that the name match reads (CCI-SRH-002).
-- **Item tooltip**, **creative tooltip**: as `client-container-screen.md` defines them.
-  CCI-TIP-001 states the parts that a creative tooltip adds.
+- **Search parts**: the parts of the creative tooltip of a stack that the name match reads, as
+  plain text (CCI-SRH-002).
 - **Saved hotbar**: one of the 9 lists of 9 stacks that the client stores outside a world.
 - **Creative drop**: a `set_creative_mode_slot` packet with the slot number −1 (CCI-SYN-003).
 - **Entry change packet**: a `set_creative_mode_slot` packet with a slot number in `0..45`
@@ -97,7 +107,7 @@ the label `design`, and section 11 records the reference behaviour.
 | `CCI-CLK` | the result of each click kind and key on the stacks and on the cursor |
 | `CCI-SYN` | the `set_creative_mode_slot` packets and the clientbound packets during the screen |
 | `CCI-HOT` | the saved hotbars tab and the load of a saved hotbar |
-| `CCI-TIP` | the lines that the creative screen adds to a tooltip |
+| `CCI-TIP` | the parts that the creative screen adds to a tooltip |
 | `CCI-LAY` | the layout: sizes, positions, textures and sprites |
 | `CCI-EXP` | the experiments that have not run (section 12) |
 | `CCI-DEV` | intentional deviations |
@@ -156,7 +166,13 @@ Out of scope:
   4. The search text is empty.
   5. The scroll offset is 0.
   6. The client sends no packet (CCI-DEV-001).
-- **Postconditions:** the cursor holds the empty stack (CCI-OPEN-002).
+- **Postconditions:**
+  - The open does not change the cursor stack. After a close of the creative screen, the cursor
+    holds the empty stack (CCI-OPEN-002, step 2).
+  - After a close of the survival inventory screen, the cursor can hold the stack that
+    `client-inventory.md`, CINV-CLS-002, keeps. This occurs when the `set_cursor_item` of the
+    server did not arrive before the open. CCI-SYN-004, step 1, then ignores that packet. The
+    stack stays on the cursor until the close of the creative screen.
 
 Provenance: `source_suggested`; `design` for step 6. Kind: semantic; deviation for step 6.
 Confidence: medium. Experiment: CCI-EXP-001.
@@ -167,9 +183,7 @@ Confidence: medium. Experiment: CCI-EXP-001.
   - a press of the key Escape;
   - a press of the key binding `key.inventory` while the search tab is not selected;
   - each other event of `client-inventory.md`, CINV-CLS-001, with the creative screen in the
-    place of the inventory screen. These events are a tick in which the local player is dead or
-    is removed from the world. A tick in a portal that shows the portal effect is also such an
-    event.
+    place of the inventory screen.
 - **Behavior:**
   1. The client sends `container_close` with the container id 0.
   2. The cursor of the client becomes the empty stack. The client sends no packet for the cursor.
@@ -201,6 +215,9 @@ Confidence: medium. Experiment: CCI-EXP-001.
 |---|-----------|--------|
 | 1 | The creative screen shows, and the creative flag is off. | The survival inventory screen replaces the creative screen. |
 | 2 | The survival inventory screen shows, and the creative flag is on. | The creative screen replaces the survival inventory screen, as CCI-OPEN-001 opens it. |
+
+- **Postconditions:** in row 2, the cursor of the creative screen keeps the cursor stack of the
+  survival inventory screen.
 
 Provenance: `source_suggested`; `design` for step 3. Kind: semantic; deviation for step 3.
 Confidence: medium. Experiment: CCI-EXP-001.
@@ -373,8 +390,10 @@ is fixed for the version, and CCI-TAB-001 states it.
 
 ### CCI-CNT-002: The tab list and the search list of an items tab
 
-- **Inputs:** the `tab_list` and the `search_list` of the tab in the creative report, the enabled
-  features, the operator condition, and the registries and the tags that the server sent.
+- **Inputs:**
+  - the `tab_list` and the `search_list` of the tab in the creative report;
+  - the enabled features and the operator condition;
+  - the registries and the tags that the server sent.
 - **Behavior:** the client builds the tab list of an items tab from its `tab_list`, and the
   search list from its `search_list`. For each of the two lists, it does these steps:
   1. The client replaces the span of each group of the list by the stacks of that group for the
@@ -404,8 +423,8 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
   3. The stacks of a group for the world are one stack or more for each element `e` of the
      registry `Q` of the group. The column "Elements" selects the elements. The column "Order"
      gives their order.
-  4. Each stack of a group has the count 1, the item of the group, and the component of the group
-     with the value of the second table below.
+  4. Each stack of a group has the count 1 and the item of the group. It also has the component
+     of the group, with the value of the second table below.
   5. When the registry `Q` or the tag does not exist in the world, the group gives no stack.
 
 | # | Tab | List | Item | `Q` | Elements | Order |
@@ -426,15 +445,15 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
 | 2 | `minecraft:instrument` | `e` | 1 |
 | 3 to 6 | `minecraft:potion_contents` | `{"potion": e}` | 1 |
 | 7 | `minecraft:stored_enchantments` | `{e: L}` | one, with `L` the `max_level` of `e` |
-| 8 | `minecraft:stored_enchantments` | `{e: L}` | one for each `L` from 1 to the `max_level` of `e`, in ascending order of `L` |
+| 8 | `minecraft:stored_enchantments` | `{e: L}` | one for each `L` from 1 to the `max_level` of `e`, in the order from the smallest `L` |
 
 - **Definitions:** the values of the column "Order":
   - registry: the order of the numeric ids of `Q`. For a data-pack registry, this is the order of
     the `registry_data` packet. For a static registry, this is the order of the protocol ids in
     `registries.json`.
   - tag: the order of the entries of the tag in the last `update_tags` packet.
-  - size: the ascending order of the area `width × height` of the painting variant. Two variants
-    with the same area are in the ascending order of their `width`. Two variants with the same
+  - size: the order from the smallest area `width × height` of the painting variant. Two variants
+    with the same area are in the order from the smallest `width`. Two variants with the same
     area and the same `width` keep the order registry.
 - **Postconditions:**
   - A data pack that adds a painting variant to the tag `minecraft:placeable` adds a painting to
@@ -465,9 +484,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   2. the operator condition;
   3. the registries that a configuration phase gave (`registry.md`, REG-NET-001);
   4. the tags that the last `update_tags` packet gave;
-  5. the language of the client, for the search lines of CCI-SRH-002 only.
+  5. the language of the client, for the search parts of CCI-SRH-002 only.
 - **Behavior:** when one of these inputs changes, the client builds the tab lists, the search
-  lists and the search lines of each stack again. While the creative screen shows, the new lists
+  lists and the search parts of each stack again. While the creative screen shows, the new lists
   show at the latest in the next client tick. Then:
   1. When the selected tab is an items tab with an empty tab list, `minecraft:building_blocks`
      becomes the selected tab (CCI-TAB-004). It becomes the selected tab also when it is not
@@ -555,15 +574,21 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   1. The search box shows only while the search tab is selected. It has the options of the row
      "search of the creative inventory" of `client-edit-box.md`, EDIT-OPT-002.
   2. While the search tab is selected, the search box has the focus and keeps it.
-  3. A key goes to the search box, except Escape and the swap key of step 4.
-  4. A hotbar key does the swap click of CCI-CLK-005 when the mouse position is over a slot. A
-     grid slot with the empty stack is the exception: the key then goes to the search box.
+  3. A key goes to the search box, except Escape and the keys of step 4.
+  4. A hotbar key or the off-hand key does the swap click of CCI-CLK-005 only when its key is a
+     digit key. The digit keys are 0 to 9 of the main keys and of the numeric keypad. The
+     conditions of `client-inventory.md`, CINV-GES-003, also apply: the cursor stack is empty,
+     and a target entry exists. A grid slot with the empty stack is the exception: the key then
+     goes to the search box.
   5. A click on a grid slot selects all the search text. The next typed character thus replaces
      it.
   6. When a key or a character changes the search text, the content becomes the result of
      CCI-SRH-002.
-- **Postconditions:** while the search tab is selected, the drop key, `key.inventory` and the
-  other key bindings of the screen type their characters.
+- **Postconditions:**
+  - While the search tab is selected, the drop key, `key.inventory` and the other key bindings of
+    the screen type their characters.
+  - With the default keys, the keys 1 to 9 do the swap click over a slot. The off-hand key F types
+    `f` into the search box.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CCI-EXP-005.
 
@@ -575,10 +600,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   2. When `q` starts with `#`, the client removes the `#` and does the tag match of step 4. Else
      it does the name match of step 3.
   3. The name match. `q` becomes lower case. When `q` has no `:`, a stack matches when one of
-     its search lines contains `q`. When `q` has a `:`, `a` is the text before the first `:`, and
+     its search parts contains `q`. When `q` has a `:`, `a` is the text before the first `:`, and
      `b` is the text after it. The client removes the spaces at the ends of `a` and of `b`. A
      stack matches when the namespace of its item id contains `a`, and its item id path or one of
-     its search lines contains `b`.
+     its search parts contains `b`.
   4. The tag match. `q` becomes lower case. When `q` has no `:`, a stack matches when the path of
      an item tag of its item contains `q`. When `q` has a `:`, `a` and `b` are as in step 3. A
      stack matches when one item tag of its item has a namespace that contains `a` and a path
@@ -588,11 +613,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - "Contains" is a substring test. Each text contains the empty text.
   - "Lower case" is the Unicode lower case map of each character. It does not depend on the
     language of the client.
-  - The search lines of a stack are the lines of its creative tooltip, with the advanced
-    tooltips off. They include the lines of CCI-TIP-001, steps 2 and 3, and not the lines of its
-    step 6. The client takes each line as plain text and removes each format code (`§` and the
-    next character). It removes the spaces at the ends and drops each empty line. Then each line
-    becomes lower case.
+  - The search parts of a stack are the parts of its creative tooltip, with the advanced
+    tooltips off. They include the parts of CCI-TIP-001, steps 2 and 3, and not the parts of its
+    step 6. A part is not divided into wrapped lines. The client takes each part as plain text and
+    removes each format code (`§` and the next character). It removes the spaces at the ends and
+    drops each empty part. Then each part becomes lower case.
   - The client uses the language at the time of the build (CCI-CNT-005).
   - The item tags are those of the last `update_tags` packet.
 - **Postconditions:**
@@ -629,8 +654,7 @@ states the result of each click kind in the creative screen.
      count of the drop is 1 for button 0, and the maximum stack size of `S` for each other button.
      `C` does not change.
   5. The click kind is quick craft: no result. A grid slot is never a slot of a drag.
-  6. The click kind is pick up, quick move or pick up all: the first true row of this table gives
-     the result.
+  6. The click kind is pick up or quick move: the first true row of this table gives the result.
 
 | # | Condition | Result on `C` |
 |---|-----------|---------------|
@@ -660,10 +684,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   1. The click kind is quick move: `P[c]` becomes the empty stack.
   2. The click kind is throw: the client removes 1 item (button 0), or the full stack (each other
      button), from `P[c]`. The removed stack is a creative drop.
-  3. Each other click kind: the client applies the click to a menu of the 9 slots `P[0]` to
-     `P[8]`. The rules of `inventory-transactions.md`, section 6, apply, for a player with
-     infinite materials. Pick up all collects only from these 9 slots. A drag uses only these 9
-     slots.
+  3. Each other click kind: the client applies the click to the entries `M[36]` to `M[44]`. The
+     rules of `inventory-transactions.md`, section 6, apply, for a player with infinite
+     materials. Pick up all and the drag use only these entries.
   4. The client sends the changed entries `M[36]` to `M[44]` (CCI-SYN-002).
 - **Postconditions:**
   - Shift and a left click on a stack of the hotbar row deletes that stack.
@@ -702,7 +725,7 @@ Confidence: medium. Experiment: CCI-EXP-008.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CCI-EXP-007.
 
-### CCI-CLK-005: A hotbar key over a slot
+### CCI-CLK-005: The hotbar keys and the off-hand key over a slot
 
 - **Inputs:** the swap click with the button `k` (INV-MNU-003) over a slot of the creative screen.
 - **Behavior:**
@@ -710,11 +733,13 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      its maximum stack size. The stack that `P[k]` held is gone.
   2. Over a grid slot with the empty stack: no result.
   3. Over the hotbar row: CCI-CLK-002, step 3.
-  4. Over a slot of the survival inventory tab: CCI-CLK-004.
-  5. The client sends the changed entries (CCI-SYN-002).
+  4. Over a slot of the survival inventory tab that is not the destroy slot: CCI-CLK-004.
+  5. Over the destroy slot: CCI-CLK-007.
+  6. The client sends the changed entries (CCI-SYN-002).
 - **Postconditions:** with the default keys, the key 3 over a stone of a tab puts 64 stone into
-  `P[2]`, and the client sends the entry `M[38]`. The key F puts the stack into `P[40]`, and the
-  client sends `M[45]`.
+  `P[2]`, and the client sends the entry `M[38]`. Outside the search tab, the off-hand key F puts
+  the stack into `P[40]`, and the client sends `M[45]`. In the search tab, CCI-SRH-001, step 4,
+  states which keys give the swap click.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CCI-EXP-007.
 
@@ -817,8 +842,8 @@ Confidence: medium. Experiment: CCI-EXP-009.
 ### CCI-HOT-001: The content of the saved hotbars tab
 
 - **Inputs:** the 9 saved hotbars, at the selection of the tab.
-- **Behavior:** the content is 81 stacks: the 9 stacks of the saved hotbar 0, then the 9 stacks of
-  the saved hotbar 1, up to the saved hotbar 8.
+- **Behavior:** the content is 81 stacks, 9 for each saved hotbar. The stacks of the saved hotbar
+  `k` have the indices `9k` to `9k + 8` of the content.
   1. The client decodes each stack with the registries of the world. A stack that does not decode
      is the empty stack.
   2. A saved hotbar `k` with only empty stacks gives a row of empty stacks, with one exception.
@@ -841,8 +866,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      `key.saveToolbarActivator` is down, the client saves. The load wins when both are down.
   2. A load does these steps for `j` from 0 to 8:
      - The client decodes the stack `j` of the saved hotbar `k`.
-     - When the stack is not empty and the enabled features do not contain all its feature
-       flags, `P[j]` does not change, and no packet goes for `j` (CCI-DEV-008).
+     - A stack that is not empty can need a feature flag that the enabled features do not
+       contain. Then `P[j]` does not change, and no packet goes for `j` (CCI-DEV-008).
      - Else `P[j]` becomes the stack, and the client sends one `set_creative_mode_slot` with the
        slot number `36 + j` and the stack.
   3. A save stores `P[0]` to `P[8]` in the saved hotbar `k`. It sends no packet. The HUD shows the
@@ -857,7 +882,7 @@ Confidence: medium. Experiment: CCI-EXP-010.
 
 ## 9. Tooltips and layout
 
-### CCI-TIP-001: The lines that the creative screen adds to an item tooltip
+### CCI-TIP-001: The parts that the creative screen adds to an item tooltip
 
 - **Inputs:** the stack `S` of a slot under the mouse position, and its item tooltip of
   `client-container-screen.md`.
@@ -865,30 +890,31 @@ Confidence: medium. Experiment: CCI-EXP-010.
   1. The tooltip of a grid slot is a creative tooltip. The tooltip of each other slot is an item
      tooltip that is not a creative tooltip.
   2. In a creative tooltip, a stack of `minecraft:painting` with no component
-     `minecraft:painting_variant` has one more line: the text of the key `painting.random`, with
-     the colour `FFAAAAAA`. This line is a part that the item adds for itself, in the order of
-     `client-container-screen.md`. The line is absent when the `hidden_components` of the
+     `minecraft:painting_variant` has one more part: the text of the key `painting.random`, with
+     the colour `FFAAAAAA`. It is a part that the item adds for itself, in the order of
+     `client-container-screen.md`. The part is absent when the `hidden_components` of the
      `tooltip_display` of the stack hold `minecraft:painting_variant`.
-  3. In a creative tooltip, the component `minecraft:suspicious_stew_effects` gives the lines of
+  3. In a creative tooltip, the component `minecraft:suspicious_stew_effects` gives the parts of
      its effects, at the place of that component in the order of `client-container-screen.md`.
-     These lines are the effect lines that the component `minecraft:potion_contents` gives for the
+     These parts are the effect parts that the component `minecraft:potion_contents` gives for the
      same effects, with the duration factor 1. An item tooltip that is not a creative tooltip has
-     no such line.
-  4. A tooltip with no line gets no added line.
-  5. On a grid slot of an items tab, the client adds no line.
-  6. On each other slot, the client adds these lines after the first line, in this order:
-     - the tab lines. There is one tab line for each visible items tab whose search list holds
-       the same stack as `S`. A tab line is the title of that tab, with the colour `FF5555FF`.
-       The tab lines are in the order of CCI-TAB-001;
-     - the tag lines, only on a grid slot of the search tab while the search text starts with
-       `#`. There is one tag line for each item tag of `S` that the tag match of CCI-SRH-002
-       accepts. A tag line is the text `#` and the tag id, with the colour `FFAA00AA`. The order
-       of the tag lines is unspecified.
+     no such part.
+  4. A tooltip with no part gets no added part.
+  5. On a grid slot of an items tab, the client adds no part.
+  6. On each other slot, the client adds these parts after the first part of the tooltip and
+     before its second part, in this order:
+     - the tab parts. There is one tab part for each visible items tab whose search list holds
+       the same stack as `S`. A tab part is the title of that tab, with the colour `FF5555FF`.
+       The tab parts are in the order of CCI-TAB-001;
+     - the tag parts, only on a grid slot of the search tab while the search text starts with
+       `#`. There is one tag part for each item tag of `S` that the tag match of CCI-SRH-002
+       accepts. A tag part is the text `#` and the tag id, with the colour `FFAA00AA`. The order
+       of the tag parts is unspecified.
 - **Postconditions:** in the search tab, the tooltip of an oak log shows "Building Blocks" in the
   colour `FF5555FF` below its name.
 
-Provenance: `source_suggested`; `design` for the tag lines of step 6. Kind: layout; semantic for
-steps 2 and 3; deviation for the tag lines of step 6. Confidence: medium. Experiment: CCI-EXP-011
+Provenance: `source_suggested`; `design` for the tag parts of step 6. Kind: layout; semantic for
+steps 2 and 3; deviation for the tag parts of step 6. Confidence: medium. Experiment: CCI-EXP-011
 for steps 2 and 3, CCI-EXP-005 for the other steps.
 
 ### CCI-LAY-001: The rectangle and the background
@@ -938,6 +964,9 @@ tabs in step 3. Confidence: medium. Experiment: CCI-EXP-002.
   3. While the mouse position is in the hover rectangle of a visible tab, the screen shows a
      tooltip with the title of that tab. The first such tab in the order of CCI-TAB-001 gives the
      tooltip.
+  4. The click rectangle of a visible tab and the rectangle of the creative screen overlap, for
+     example in the row y = 0 of a top tab. There, the tab gets the left button: the press has no
+     other result, and the release selects the tab (CCI-TAB-004).
 - **Postconditions:** the x positions are 0, 27, 54, 81 and 108 for the columns 0 to 4, 142 for
   the column 5 and 169 for the column 6.
 
@@ -1020,14 +1049,12 @@ None.
 
 - **Rule:** CCI-OPEN-001, step 6; CCI-SYN-002, step 1; CCI-SYN-004, step 2; CCI-HOT-002, step 2;
   CCI-CLK-007, step 2.
-- **Reference:** the vanilla client keeps a copy of each entry of the inventory menu. It updates
-  the copy only when it sends. It compares each entry with the copy at the open of the creative
-  screen and after each click. It also compares them after each `container_set_slot` while the
-  screen shows. For each entry that differs from the copy, it sends an entry change packet. Thus
-  it sends back the stacks that the server changed since the last send, for example a picked up
-  item. After the load of a saved hotbar, it sends a second packet for each slot that changed.
-  After a quick move on the destroy slot, it sends 46 entry change packets with the empty stack,
-  for the slot numbers 0 to 45 in this order.
+- **Reference:** the vanilla client sends entry change packets at the open of the creative screen
+  and after each click. It also sends them after each `container_set_slot` while the screen shows.
+  Each such packet repeats a stack that the server changed since the last send of the client, for
+  example a picked up item. After the load of a saved hotbar, it sends a second packet for each
+  slot that changed. After a quick move on the destroy slot, it sends 46 entry change packets
+  with the empty stack, for the slot numbers 0 to 45 in this order.
 - **Reason:** these packets repeat a stack that the server holds already. When the server changes a
   slot two times in a short time, the repeat of the first stack can come after the second change.
 - **Visible to the client:** no. The stacks on the server are the same after the packets.
@@ -1086,11 +1113,11 @@ None.
 
 ### CCI-DEV-006: One item tag matches both parts of a tag search
 
-- **Rule:** CCI-SRH-002, step 4, and the tag lines of CCI-TIP-001, step 6.
+- **Rule:** CCI-SRH-002, step 4, and the tag parts of CCI-TIP-001, step 6.
 - **Reference:** for `#a:b`, a stack matches when one of its tags has a namespace that contains
-  `a`, and one of its tags, also another tag, has a path that contains `b`. For the tag lines of
-  the tooltip, the reference compares the text before the lower case map. Thus an upper case
-  letter after `#` gives no tag line.
+  `a`. One of its tags must also have a path that contains `b`, and this tag can be another tag.
+  For the tag parts of the tooltip, the reference compares the text before the lower case map.
+  Thus an upper case letter after `#` gives no tag part.
 - **Reason:** a player who types `#a:b` asks for one tag. The tooltip must show the tags that the
   match found.
 - **Visible to the client:** yes, with tags in two namespaces, and with upper case letters after
@@ -1239,7 +1266,7 @@ These experiments have not run.
   Expected result: step 1 sends no packet. Step 2 sends `set_creative_mode_slot` for the slot
   numbers 36 to 44, and the packet 36 holds the stone. Step 3 shows the stone in row 0, and the
   paper "Save hotbar with C + 2" in row 1 at the column 1.
-- **CCI-EXP-011** (`tools/mcrs_minecraft_client_recorder` with `tools/vanilla-server`). The lines
+- **CCI-EXP-011** (`tools/mcrs_minecraft_client_recorder` with `tools/vanilla-server`). The parts
   of a creative tooltip. Rule: CCI-TIP-001, steps 2 and 3.
   1. Open the creative screen on the tab `minecraft:functional_blocks`. Move the mouse over the
      painting with no variant.
@@ -1248,14 +1275,14 @@ These experiments have not run.
      `P[0]`.
 
   Expected result: in step 1, the tooltip shows the text of the key `painting.random` in the
-  colour `FFAAAAAA` below the name. In step 2, the tooltip shows the effect lines of the stew. In
-  step 3, the tooltip shows no effect line.
+  colour `FFAAAAAA` below the name. In step 2, the tooltip shows the effect parts of the stew. In
+  step 3, the tooltip shows no effect part.
 
 The tools cannot run some of these experiments yet.
 
 - The input agent of `tools/vanilla-client` sets only the movement keys, the use key and the
   rotation. It cannot press another key, turn the wheel, or click or type in a screen.
-  CCI-EXP-001, CCI-EXP-002, CCI-EXP-004, CCI-EXP-005 and CCI-EXP-007 to CCI-EXP-011 need such
-  input.
+  CCI-EXP-001, CCI-EXP-002 and CCI-EXP-004 to CCI-EXP-011 need such input. CCI-EXP-006 needs
+  the wheel and a drag of the thumb of the scroll bar.
 - `tools/mcrs_minecraft_client_recorder` records packets. It does not take a frame of the client
   window, and CCI-EXP-002 needs frames.
