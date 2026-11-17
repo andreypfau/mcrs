@@ -5,14 +5,15 @@ no render crate, no GUI crate and no model crate. The inventory comes from
 `ClientRegistriesPlugin`, which adds the holders of the local player and the inventory
 edge of the client (`mcrs_minecraft_inventory_client`).
 
-- `HeadlessClientPlugin`: the connection, the session registries and the game mode.
+- `HeadlessClientPlugin`: the connection, the session registries, the game mode and the
+  abilities.
 - `JoinServerPlugin`: joins one server as an offline player at startup.
 - `ClickScriptPlugin`: when the `ClickScript` resource exists and the inventory menu has
   a state id from the server, the bot sends one mouse gesture each frame until it has
   done each step of `ClickScript::STEPS`. Each step is a press and a release of one mouse
   button over one menu entry. The bot turns each gesture into a `Click` through
   `Click::from_input`, the same function that a GUI uses, and writes a `MenuInput` with
-  `MenuAction::Click`. The game mode of the local player gives the creative flag. The
+  `MenuAction::Click`. The abilities of the local player give the creative flag. The
   client predicts the click and sends its packet in the same frame.
 
 A press with an empty cursor clicks, and the bot then drops the release that follows, as a

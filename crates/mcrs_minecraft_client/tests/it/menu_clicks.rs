@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_client::test_support::ServerAnswers;
+use mcrs_minecraft_client::test_support::connection;
 use mcrs_minecraft_client::test_support::count_server_answers;
 use mcrs_minecraft_client::test_support::creative_player;
 use mcrs_minecraft_client::test_support::give;
@@ -14,12 +15,18 @@ use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_game_mode::Abilities;
+use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_player_holders::PlayerHolders;
+use mcrs_minecraft_protocol::Bounded;
+use mcrs_minecraft_protocol::WritePacket;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_save::SaveLock;
 
 use crate::local_world::client;
@@ -45,6 +52,7 @@ struct Entry {
 
 struct Row {
     name: &'static str,
+    game_mode: GameMode,
     given: &'static [Entry],
     local: &'static [Entry],
     clicks: &'static [Click],
@@ -92,6 +100,7 @@ const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
 const ROWS: &[Row] = &[
     Row {
         name: "pick up",
+        game_mode: GameMode::Creative,
         given: &[at(9, Item::Stone, 10)],
         local: &[],
         clicks: &[on(ClickKind::PickUp, 0, 9)],
@@ -101,6 +110,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "place",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::PickUp, 0, 10)],
@@ -110,6 +120,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "split with a right click",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::PickUp, 1, 10)],
@@ -119,6 +130,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "swap with a cursor stack",
+        game_mode: GameMode::Creative,
         given: &[at(11, Item::Dirt, 3)],
         local: &[],
         clicks: &[on(ClickKind::PickUp, 0, 11)],
@@ -128,6 +140,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "drag of three slots",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[
@@ -147,6 +160,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "quick move",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::QuickMove, 0, 10)],
@@ -156,6 +170,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "number key",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::Swap, 2, 11)],
@@ -165,6 +180,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "off-hand key",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::Swap, 40, 38)],
@@ -174,6 +190,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "clone in creative",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::Clone, 2, 45)],
@@ -183,6 +200,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "outside the window drops the cursor",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[click(ClickKind::PickUp, 0, Clicked::Outside)],
@@ -192,6 +210,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "throw one",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::Throw, 0, 36)],
@@ -201,6 +220,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "throw the stack",
+        game_mode: GameMode::Creative,
         given: &[],
         local: &[],
         clicks: &[on(ClickKind::Throw, 1, 36)],
@@ -210,6 +230,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         name: "a wrong prediction is repaired slot by slot",
+        game_mode: GameMode::Creative,
         given: &[at(20, Item::Stone, 8)],
         local: &[at(20, Item::Stone, 3)],
         clicks: &[on(ClickKind::PickUp, 1, 20)],
@@ -220,6 +241,28 @@ const ROWS: &[Row] = &[
             cursors: 1,
             ..AGREED
         },
+    },
+    Row {
+        name: "split, quick move and a clone that gives nothing in survival",
+        game_mode: GameMode::Survival,
+        given: &[at(25, Item::Stone, 6), at(26, Item::Dirt, 2)],
+        local: &[],
+        clicks: &[
+            on(ClickKind::PickUp, 0, 27),
+            on(ClickKind::PickUp, 1, 25),
+            on(ClickKind::PickUp, 0, 28),
+            on(ClickKind::QuickMove, 0, 26),
+            on(ClickKind::Clone, 2, 45),
+        ],
+        entries: &[
+            at(25, Item::Stone, 3),
+            empty(26),
+            at(27, Item::Stone, 4),
+            at(28, Item::Stone, 3),
+            at(36, Item::Dirt, 2),
+        ],
+        cursor: None,
+        answers: AGREED,
     },
 ];
 
@@ -249,6 +292,7 @@ fn each_click_leaves_the_client_and_the_server_with_the_same_stacks() {
             let value = value(app.world(), local.stack);
             put_local(app.world_mut(), viewer, local.entry, value);
         }
+        switch_game_mode(&mut app, viewer, row.game_mode);
         *app.world_mut().resource_mut::<ServerAnswers>() = ServerAnswers::default();
         for &click in row.clicks {
             app.world_mut().write_message(MenuInput {
@@ -285,6 +329,30 @@ fn each_click_leaves_the_client_and_the_server_with_the_same_stacks() {
     let lock = SaveLock::take(&folder).expect("the server released the world");
     drop(lock);
     std::fs::remove_dir_all(&folder).ok();
+}
+
+fn switch_game_mode(app: &mut App, viewer: Entity, game_mode: GameMode) {
+    if app.world().get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode)) {
+        return;
+    }
+    round_trip(app);
+    let command = match game_mode {
+        GameMode::Survival => "gamemode survival",
+        GameMode::Creative => "gamemode creative",
+        GameMode::Adventure => "gamemode adventure",
+        GameMode::Spectator => "gamemode spectator",
+    };
+    connection(app.world_mut()).write_packet(&ServerboundChatCommand {
+        command: Bounded(command),
+    });
+    let creative = game_mode == GameMode::Creative;
+    update_until(app, command, |app| {
+        let world = app.world();
+        world.get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode))
+            && world
+                .get::<Abilities>(viewer)
+                .is_some_and(|abilities| abilities.instant_build == creative)
+    });
 }
 
 fn kind(world: &World, item: Item) -> Kind {

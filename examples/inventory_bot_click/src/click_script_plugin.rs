@@ -12,8 +12,7 @@ use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_game_mode::PlayerGameMode;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::InventoryClientSet;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
@@ -46,12 +45,12 @@ fn script_running(script: Res<ClickScript>) -> bool {
 
 fn click_next_step(
     mut script: ResMut<ClickScript>,
-    player: Single<(Entity, &PlayerHolders, &Menus, Option<&PlayerGameMode>), With<Player>>,
+    player: Single<(Entity, &PlayerHolders, &Menus, Option<&Abilities>), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts), With<RemoteMenu>>,
     slots: Query<&Slots>,
     mut inputs: MessageWriter<MenuInput>,
 ) {
-    let (viewer, holders, player_menus, game_mode) = *player;
+    let (viewer, holders, player_menus, abilities) = *player;
     // The inventory menu is the first menu; the bot clicks only while it is the open one.
     let Some(menu) = player_menus
         .open()
@@ -91,7 +90,7 @@ fn click_next_step(
         gesture,
         shift: step.shift,
         control: false,
-        creative: game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative),
+        creative: abilities.is_some_and(|abilities| abilities.instant_build),
         cursor: presence(Some(SlotRef {
             holder: holders.cursor,
             index: 0,

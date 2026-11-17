@@ -1,3 +1,4 @@
+use crate::abilities;
 use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
@@ -61,6 +62,10 @@ impl Plugin for GameModePlugin {
         app.add_observer(on_respawn);
         app.add_observer(on_game_event);
         app.add_observer(on_entity_event);
+        app.add_observer(abilities::on_login);
+        app.add_observer(abilities::on_respawn);
+        app.add_observer(abilities::on_game_event);
+        app.add_observer(abilities::on_player_abilities);
         app.add_systems(
             FixedUpdate,
             project_player_game_mode.before(InventoryClientSet::Predict),

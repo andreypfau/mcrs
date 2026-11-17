@@ -20,6 +20,7 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_registries::write_packet_hashed;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_click::ClickPlayer;
@@ -117,6 +118,7 @@ fn plan_click(
             &PlayerHolders,
             Option<&Selected>,
             Option<&PlayerGameMode>,
+            Option<&Abilities>,
             &Menus,
         ),
         With<Slots>,
@@ -130,7 +132,8 @@ fn plan_click(
 ) -> Option<PlannedClick> {
     scratch.touched.clear();
     scratch.before.clear();
-    let (player_holders, selected, game_mode, player_menus) = players.get(viewer).ok()?;
+    let (player_holders, selected, game_mode, abilities, player_menus) =
+        players.get(viewer).ok()?;
     let menu = player_menus.open()?;
     let (layout, parts, remote) = menus.get(menu).ok()?;
     let mut planned = PlannedClick {
@@ -138,10 +141,13 @@ fn plan_click(
         state_id: remote.map_or(0, RemoteMenu::state_id),
         request: None,
     };
-    let mode = match game_mode.map_or(GameMode::Survival, |game_mode| game_mode.0) {
-        GameMode::Spectator => return Some(planned),
-        GameMode::Creative => PlayerMode::Creative,
-        GameMode::Survival | GameMode::Adventure => PlayerMode::NotCreative,
+    if game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Spectator) {
+        return Some(planned);
+    }
+    let mode = if abilities.is_some_and(|abilities| abilities.instant_build) {
+        PlayerMode::Creative
+    } else {
+        PlayerMode::NotCreative
     };
     let Some(source) = source else {
         return Some(planned);

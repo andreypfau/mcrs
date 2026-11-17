@@ -15,8 +15,8 @@ use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
-/// The client without a window: the connection, the session registries and the game
-/// mode. `ClientRegistriesPlugin` adds the holders and the inventory edge of the local
+/// The client without a window: the connection, the session registries, the game mode
+/// and the abilities. `ClientRegistriesPlugin` adds the holders and the inventory edge of the local
 /// player.
 pub struct HeadlessClientPlugin {
     pub packs: PackRoots,

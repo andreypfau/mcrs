@@ -80,6 +80,7 @@ impl PluginGroup for ClientPlugins {
             .add(vanilla::VanillaAssetsPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
+            .add(mcrs_minecraft_client_world::game_mode::GameModePlugin)
             .add(block_breaking::BlockBreakingPlugin)
             .add(mcrs_minecraft_client_world::hotbar_sync::HotbarSyncPlugin)
             .add(options::ClientOptionsPlugin {

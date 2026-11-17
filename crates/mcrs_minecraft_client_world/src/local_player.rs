@@ -20,7 +20,6 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundPlayerInput,
 };
 
-use crate::abilities;
 use crate::attribute_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
@@ -100,10 +99,6 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(attribute_packets::on_login)
             .add_observer(attribute_packets::on_respawn)
             .add_observer(attribute_packets::on_update_attributes)
-            .add_observer(abilities::on_login)
-            .add_observer(abilities::on_respawn)
-            .add_observer(abilities::on_game_event)
-            .add_observer(abilities::on_player_abilities)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)
             .add_observer(local_motion::on_set_entity_data)

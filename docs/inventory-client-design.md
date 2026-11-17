@@ -66,7 +66,8 @@ specification.
 | `Slots`, `InSlot`, `SlotPolicy` on the client | as `docs/inventory-design.md` section 2 | the client edge; `PlayerHoldersPlugin` for the policy |
 | `PlayerHolders` on the client | authoritative truth: the three child holders of the local player | `PlayerHoldersPlugin` |
 | `Selected` on the client | materialized derived state: a projection of `SelectedHotbarSlot`. The client derives it from the hotbar slot until the GUI half removes the old value. | one projection system of the client world |
-| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. The take filter (INV-SLT-004), the spectator check and the creative mode of a predicted click read it. | one projection system of the client world, in the fixed tick and in each frame |
+| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. The take filter (INV-SLT-004) and the spectator check read it. | one projection system of the client world, in the fixed tick and in each frame |
+| `Abilities` on the client | authoritative truth: the abilities of the last `player_abilities` packet or game mode change. Its `instant_build` is the creative flag, which gives infinite materials to a predicted click (CINV-PRD-001) and the creative flag of a gesture. | the observers of `GameModePlugin` in the client world |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
 | `MenuInput` | temporal fact: one click or one close of a viewer, in the order of the inputs | a bot, a GUI or a screen |
 | `HandInput` | temporal fact: one press of the drop key or the swap key outside a screen | a bot or the key input of the client |

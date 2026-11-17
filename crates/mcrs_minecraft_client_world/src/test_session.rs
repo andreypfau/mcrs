@@ -42,6 +42,7 @@ use std::time::Duration;
 
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::{AIR, Column, ColumnStore, Extent, Section};
+use crate::game_mode::GameModePlugin;
 use crate::game_packets::GAME_CLIENTBOUND;
 use crate::joined_game::JoinedGame;
 use crate::local_motion::LocalMotion;
@@ -113,7 +114,7 @@ pub(crate) struct TestSession {
 impl TestSession {
     pub(crate) fn new(position: DVec3) -> Self {
         let mut app = App::new();
-        app.add_plugins(LocalPlayerPlugin);
+        app.add_plugins((GameModePlugin, LocalPlayerPlugin));
         let blocks = TestBlocks::new();
         app.insert_resource(stone_floor(&blocks))
             .insert_resource(ClientPhysicsTables(Tables::new(blocks.table)));
