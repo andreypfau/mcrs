@@ -153,11 +153,15 @@ Out of scope:
 - **Behavior:**
   1. When the saves folder does not exist, the client makes it.
   2. When the client cannot make the saves folder, when the saves path exists and is not a
-     folder, or when the client cannot list it, the list does not load. The error screen of
-     WORLD-LIST-007 opens.
-  3. A world folder is a folder directly in the saves folder that holds a regular file
+     folder, or when the client cannot open it to list it, the list does not load. The error
+     screen of WORLD-LIST-007 opens.
+  3. When the client cannot read the next name of the saves folder after it opened the folder,
+     the vanilla client stops with a crash report.
+  4. A world folder is a folder directly in the saves folder that holds a regular file
      `level.dat` or a regular file `level.dat_old`.
-  4. The client ignores each other folder and each file of the saves folder.
+  5. The client ignores each other folder and each file of the saves folder. An entry whose kind
+     the client cannot read, for example because of its permissions, is not a folder. The client
+     ignores it with no message.
 - **Postconditions:** a folder with only `region/` and no `level.dat` is not in the list.
 - **Edge cases:** a world folder that is a symbolic link gets the warning of the symbolic links,
   which is out of scope.
@@ -170,8 +174,9 @@ Kind: semantic. Confidence: medium.
 - **Observer:** a player, and the save file.
 - **Inputs:** a world folder.
 - **Behavior:**
-  1. The client reads `level.dat`. When that file does not exist, it reads `level.dat_old`.
-     The file is a gzip NBT file. The client reads the compound `Data`.
+  1. The client reads only `level.dat`. It never reads `level.dat_old`. When `level.dat` does
+     not exist, the world is an unreadable world (WORLD-DIR-003), also when `level.dat_old`
+     exists. The file is a gzip NBT file. The client reads the compound `Data`.
   2. The client reads these values. A missing value takes its default.
 
 | Value | NBT path in `level.dat` | Type | Default | Use |
@@ -183,9 +188,9 @@ Kind: semantic. Confidence: medium.
 | version series | `Data.Version.Series` | string | `main` | compatibility |
 | snapshot | `Data.Version.Snapshot` | byte | 0 | none on the list |
 | world name | `Data.LevelName` | string | `""` | first line |
-| game mode | `Data.GameType` | int: 0 survival, 1 creative, 2 adventure, 3 spectator; another value reads as 0 | 0 | info line |
+| game mode | `Data.GameType` | int: 0 survival, 1 creative, 2 adventure, 3 spectator. A value that is not a number reads as 0. Then each value outside 0 to 3, for example 7 or −1, reads as 0. | 0 | info line |
 | hardcore | `Data.difficulty_settings.hardcore` | byte | 0 | info line |
-| commands | `Data.allowCommands` | byte | 1 when `GameType` is 1, else 0 | info line |
+| commands | `Data.allowCommands` | byte | 1 when the game mode after its read is 1, else 0. Thus `GameType` 7 gives 0. | info line |
 | feature flags | `Data.enabled_features` | list of strings | `["minecraft:vanilla"]` | experimental |
 | icon | the file `icon.png` of the world folder | PNG of 64 × 64 pixels | none | icon |
 
@@ -203,8 +208,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-003: Unreadable world in the vanilla client
 
-- **Inputs:** a world folder whose `level.dat` is not valid gzip NBT, has no `Data`, or has a
-  storage version that is not 19132 or 19133.
+- **Inputs:** a world folder with no `level.dat`, or whose `level.dat` is not valid gzip NBT, has
+  no `Data`, or has a storage version that is not 19132 or 19133.
 - **Behavior:**
   1. The entry stays in the list. Its world name is the folder id.
   2. Its last played time is the modification time of `level.dat`, else of `level.dat_old`.
@@ -229,7 +234,9 @@ file. Kind: semantic. Confidence: medium.
   2. The default game directory is the data folder of the platform for mcrs. The client
      application computes it as the table below states. A setting of the client application
      can name another game directory.
-  3. WORLD-DIR-001 applies, with the saves folder of step 1.
+  3. WORLD-DIR-001 applies, with the saves folder of step 1, except its step 3. When the client
+     cannot read the next name of the saves folder, the list does not load, and the error screen
+     of WORLD-LIST-007 opens (WORLD-DEV-014). The list shows no part of the folder.
   4. WORLD-DIR-002 applies, step 5 included. The test of the lock is that of
      `persistence.md`, SAVE-LOCK-002.
   5. The client ignores each field of `level.dat` that the table of WORLD-DIR-002 does not name.
@@ -405,7 +412,8 @@ Confidence: medium.
 
 ### WORLD-LIST-007: Error screen of a saves folder that the client cannot read
 
-- **Inputs:** a load of the list that fails as WORLD-DIR-001, step 2, states.
+- **Inputs:** a load of the list that fails as WORLD-DIR-001, step 2, or WORLD-DIR-004, step 3,
+  states.
 - **Behavior:**
   1. An error screen replaces "Select World". Its title is `selectWorld.unable_to_load`,
      "Unable to load worlds". Its reason is `selectWorld.load_folder_access`, "Unable to read or
@@ -1009,8 +1017,10 @@ Provenance: `design` (`client-menu.md`, MENU-DEV-002). Kind: layout. Confidence:
      `b (n)` for each other `n`: `b`, a space, `(`, the decimal `n`, `)`.
   5. The folder id is the first candidate that the file system can make as a new folder in the
      saves folder. The client makes it as a test and removes it again.
-  6. When the file system refuses a candidate for another reason, steps 4 and 5 run again with
-     `b` = `World`.
+  6. When the file system refuses a candidate for a reason other than an existing folder, steps 4
+     and 5 run one time again with `b` = `World`. They run again also when `b` is `World`. When
+     that second run also meets such a refusal, the client has no folder id. The vanilla client
+     then stops with a crash report.
   7. The client computes the folder id again at each change of the name box.
 - **Postconditions:**
 
@@ -1035,7 +1045,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 - **Behavior:**
   1. Remove from both ends of `t` each character with a code of U+0020 or less.
   2. When the result is empty, the seed is a random `i64`. The client chooses it at the open of
-     the screen, and again at each change of the seed box to an empty text.
+     the screen, and again at each change of the seed box that gives an empty result in step 1.
+     For example, a change from ` ` to `  ` chooses a new seed.
   3. When the result is an optional `+` or `-` followed by one or more decimal digits, and its
      value fits in `i64`, the seed is that value. A decimal digit is each character of the
      Unicode category Nd, with its digit value.
@@ -1051,6 +1062,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 | `abc` | 96354 |
 | `9223372036854775808` | the hash of the text, because the value does not fit in `i64` |
 | `0x10` | the hash of the text |
+| `+5` | 5 |
+| `-` | 45, the hash of the text |
+| `١٢٣` | 123 |
+| U+00A0 followed by `12` | the hash of the text, because step 1 does not remove U+00A0 |
+| `-9223372036854775808` | −9223372036854775808 |
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -1098,23 +1114,29 @@ semantic. Confidence: medium.
      activation, before the client handles the next input. Thus no second activation and no
      confirmation key reaches "Create New World", and the client makes one world for one
      activation.
-  3. Before the local server starts, the world folder with the folder id of WORLD-NAME-001 holds
-     these files:
-     - `level.dat` with `Data.LevelName` (as WORLD-WRITE-001, step 4), the values of the table
-       below for the value of "Game Mode", `Data.initialized` 0, `Data.DataVersion` and
-       `Data.Version` (`Id`, `Name`, `Series` and `Snapshot`) from the fields
-       `world_version`, `name`, `series_id` and `stable` of `assets/minecraft/version.json`,
-       `Data.version` 19133 and `Data.LastPlayed`;
-     - `data/minecraft/world_gen_settings.dat` with the seed of WORLD-SEED-001, the
-       `dimensions` of the world preset of "World Type" as the data pack defines them,
-       `generate_structures` 1 and `bonus_chest` 0.
-  4. The world opens as WORLD-PLAY-002, steps 3 to 5, state. It is a world that the player
-     created in this session (TITLE-LOAD-003). The local server then completes the world as
-     `persistence.md`, SAVE-NEW-002, states.
-  5. When the client cannot make the folder or write a file, no world opens. The disconnected
-     screen of `client-title-screen.md`, TITLE-DISC-003, shows the reason, with the title of
-     TITLE-DISC-004 for a local world. Its button opens a title screen with no fade
-     (WORLD-DEV-013).
+  3. Before the local server starts, the client makes the world folder and writes its files in
+     this order:
+     - The client makes the folder with the folder id of WORLD-NAME-001 as a new folder, and it
+       takes the lock of the folder at once (`persistence.md`, SAVE-LOCK-002, step 10). When a
+       folder with that id exists at this time, the client writes nothing in it, and step 5
+       applies.
+     - The client writes `data/minecraft/world_gen_settings.dat` with the seed of
+       WORLD-SEED-001, the `dimensions` of the world preset of "World Type" as the data pack
+       defines them, `generate_structures` 1 and `bonus_chest` 0.
+     - The client writes `level.dat` last. It holds `Data.LevelName` (as WORLD-WRITE-001, step 4),
+       the values of the table below for the value of "Game Mode", `Data.initialized` 0,
+       `Data.DataVersion` and `Data.Version` (`Id`, `Name`, `Series` and `Snapshot`) from the
+       fields `world_version`, `name`, `series_id` and `stable` of
+       `assets/minecraft/version.json`, `Data.version` 19133 and `Data.LastPlayed`.
+  4. The client gives the lock to its local server, and the world opens as WORLD-PLAY-002, steps 3
+     to 5, state. No other process can take the lock between the create and the start. It is a
+     world that the player created in this session (TITLE-LOAD-003). The local server then
+     completes the world as `persistence.md`, SAVE-NEW-002, states.
+  5. When the client has no folder id (WORLD-NAME-001, step 6), cannot make the folder, cannot
+     take the lock or cannot write a file, no world opens. The client releases the lock that it
+     holds, and it removes no file. The disconnected screen of `client-title-screen.md`,
+     TITLE-DISC-003, shows the reason, with the title of TITLE-DISC-004 for a local world. Its
+     button opens a title screen with no fade (WORLD-DEV-013).
 
 | Game Mode | `GameType` | `difficulty_settings` | `allowCommands` |
 |-----------|------------|-----------------------|-----------------|
@@ -1123,6 +1145,11 @@ semantic. Confidence: medium.
 | Creative | 1 | `difficulty` `normal`, `hardcore` 0, `locked` 0 | 1 |
 
 - **Postconditions:**
+  - A stop of the client during step 3 leaves no `level.dat` with no `world_gen_settings.dat`.
+    A folder with no `level.dat` is not a world folder (WORLD-DIR-001). Its next start as a
+    server makes a new world with the seed of the file (`persistence.md`, SAVE-NEW-003).
+  - While the client makes the world, another process sees the folder as a locked folder or
+    does not see it as a world folder. Thus another client cannot delete or open it.
   - The new world is in "Select World" the next time it opens. Its info line shows the game
     mode, "Commands" for a world that is not a hardcore world, and the version name of the
     client version.
@@ -1134,7 +1161,11 @@ world in mcrs is always an operator (WORLD-DEV-005). The row "Hardcore" is the v
 WORLD-GAME-002 (WORLD-DEV-008). `initialized` is 0 because
 a missing `initialized` reads as 1, and the server then does not complete a new world. The server
 reads the seed and the dimensions from `world_gen_settings.dat` (`persistence.md`, SAVE-NEW-003),
-so the client writes that file. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
+so the client writes that file. `design` for the order of step 3: the game writes only `level.dat`
+before the start, and an interrupted create of the game opens later with a random seed
+(`persistence.md`, SAVE-DEV-001). The lock of steps 3 and 4 is the behaviour of the game
+(`persistence.md`, SAVE-NEW-001, step 1). `source_suggested` for the rest. Kind: semantic.
+Confidence: medium.
 
 ---
 
@@ -1183,11 +1214,15 @@ The other documents state these points of this document:
 
 ### WORLD-DEV-001: A world of another DataVersion does not start
 
-- **Rule:** WORLD-DIR-004, step 7, and WORLD-ENTRY-005.
+- **Rule:** WORLD-DIR-004, step 7, and WORLD-ENTRY-005. `persistence.md`, SAVE-VERSION-002,
+  states the start of such a world.
 - **Reference:** a world of the same version series starts. An older world gets the backup
   question and an upgrade. A newer world gets the backup question of a downgrade.
+- **Reason:** mcrs has no datafixer, and a `DataVersion` mismatch is a loud error. A world of
+  another version that mcrs opens and saves can lose data.
 - **Visible to the client:** yes. Such a world shows "Incompatible version: %s" in red, and "Play
   Selected World" is not active.
+- **Bug reference:** `none`.
 - **Test:** a differential test uses only worlds of the pinned `DataVersion`.
 
 ### WORLD-DEV-002: The screens show only the widgets of mcrs
@@ -1195,9 +1230,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-LIST-006, WORLD-GAME-003, WORLD-GEN-003, WORLD-MORE-002, WORLD-CREATE-002.
 - **Reference:** the screens show all the widgets of WORLD-LIST-001, WORLD-GAME-001,
   WORLD-GEN-001 and WORLD-MORE-001.
+- **Reason:** the screens and the options behind the other widgets are not in the subset.
 - **Visible to the client:** yes. "Edit", "Re-Create", "Difficulty", "Allow Cheats",
   "Experiments", "Customize", the two switches and the tab "More" do not show. Their cells stay
   empty, and the other widgets keep their vanilla bounds.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the bounds of each widget of mcrs with the rules of the
   mcrs subset.
 
@@ -1205,7 +1242,9 @@ The other documents state these points of this document:
 
 - **Rule:** WORLD-DIR-004, step 6, and WORLD-LIST-006, step 4.
 - **Reference:** "Play Selected World" shows "Attempt to Recover" and opens the recovery screen.
+- **Reason:** mcrs has no recovery screen (section 0.5).
 - **Visible to the client:** yes, for an unreadable world only. The button is not active.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare an unreadable world.
 
 ### WORLD-DEV-004: A delete does not stop the frames
@@ -1213,7 +1252,9 @@ The other documents state these points of this document:
 - **Rule:** WORLD-DEL-003.
 - **Reference:** the delete runs in the frame. The window stops to draw until the folder is gone
   or the last attempt fails. A failure shows a toast.
+- **Reason:** the client never waits on the disk in a frame, and mcrs has no toasts.
 - **Visible to the client:** yes. The loading entry shows during the delete, and no toast shows.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the list after the delete, not the frames during it.
 
 ### WORLD-DEV-005: A new world has commands on
@@ -1221,8 +1262,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-WRITE-002, step 3.
 - **Reference:** `allowCommands` follows "Allow Cheats": OFF for "Survival" unless the player
   changes it.
+- **Reason:** the host of a local world in mcrs is always an operator, and the subset has no switch
+  "Allow Cheats".
 - **Visible to the client:** yes. Each new world that is not a hardcore world shows "Commands"
   in its info line.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare `allowCommands` of a new world.
 
 ### WORLD-DEV-006: An experimental world does not start
@@ -1230,9 +1274,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-DIR-004, step 8.
 - **Reference:** the entry shows "Experimental" in yellow, and the world starts after a
   question.
+- **Reason:** mcrs has no experimental feature, so it cannot run such a world as the game does.
 - **Visible to the client:** yes, for a world with a feature flag that is not
   `minecraft:vanilla`. The entry shows "Incompatible version: %s", and "Play Selected World"
   is not active. mcrs has no experimental feature.
+- **Bug reference:** `none`.
 - **Test:** a differential test uses no experimental world.
 
 ### WORLD-DEV-007: The date of an entry has one form
@@ -1240,8 +1286,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-ENTRY-005, step 2.
 - **Reference:** the date has the short form of the locale of the system. The runtime of the
   game puts U+202F before "AM" or "PM" in the English form.
+- **Reason:** the mcrs client has no date forms of the locales. One form with a normal space gives
+  the same text on each system.
 - **Visible to the client:** yes. A player whose system locale is not en-US sees the en-US
   form. Each player sees a normal space before "AM" or "PM".
+- **Bug reference:** `none`.
 - **Test:** a differential test runs with the locale en-US and compares the date with U+202F
   and U+0020 as equal.
 
@@ -1251,10 +1300,13 @@ The other documents state these points of this document:
   and 4. "Hardcore" is in the subset as a value, and mcrs does not have its rules. This is a stated exception to `client-menu.md`, MENU-DEV-002.
 - **Reference:** in a hardcore world, a death ends the world for the player, the difficulty
   stays hard and locked in play, and the hearts have the hardcore form.
+- **Reason:** the subset keeps the value "Hardcore" so that a world keeps its vanilla files. mcrs
+  does not have the rules of a hardcore world yet.
 - **Visible to the client:** yes, in play. mcrs stores `hardcore` 1, `difficulty` `hard` and
   `allowCommands` 0, and the list shows "Hardcore Mode". These values have no effect in
   play: a death acts as in a world that is not hardcore, the difficulty has no effect, the hearts
   have the normal form, and the host stays an operator.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the files and the list for a hardcore world. It does
   not compare the play in a hardcore world.
 
@@ -1263,9 +1315,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-PLAY-002, step 6.
 - **Reference:** when the client cannot take the lock at "Play Selected World", the toast
   `selectWorld.access_failure`, "Failed to access world", shows, and the title screen opens.
+- **Reason:** mcrs has no toasts. The disconnected screen shows the same failure with its reason.
 - **Visible to the client:** yes, only when another process takes the world after the list read
   the summaries. The disconnected screen shows the title "Failed to access world", as the vanilla
   toast does, and the reason "Locked by another running instance of Minecraft.".
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare this race.
 
 ### WORLD-DEV-010: An entry has no overlay and no icon of its own
@@ -1275,9 +1329,11 @@ The other documents state these points of this document:
   of WORLD-ENTRY-003 with its sprites and tooltips, and the pointer is the hand over the icon of
   a world that can start. A press in the icon square starts the world. A cut text has a tooltip
   with the full text.
+- **Reason:** the mcrs client reads no `icon.png` and has no overlay of an entry.
 - **Visible to the client:** yes. Each entry shows the icon of an unknown server. The icon square
   shows no sprite and no tooltip, and one press on it only selects the entry. A cut world name
   shows no tooltip.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the texts of an entry and their bounds. It does not
   compare the icon square, the tooltips or a press on the icon.
 
@@ -1285,8 +1341,10 @@ The other documents state these points of this document:
 
 - **Rule:** WORLD-LIST-006, step 6.
 - **Reference:** the hint "Search..." is grey and italic (`client-edit-box.md`, EDIT-HINT-001).
+- **Reason:** the mcrs client draws no italic text (`client-font.md`, FONT-DRAW-002).
 - **Visible to the client:** yes, while the search box is empty. The mcrs client draws no italic
   text (`client-font.md`, FONT-DRAW-002).
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the text and the colour of the hint, not its shear.
 
 ### WORLD-DEV-012: The name box has no "Save folder" tooltip
@@ -1294,8 +1352,11 @@ The other documents state these points of this document:
 - **Rule:** WORLD-GAME-003, step 5.
 - **Reference:** the name box has the tooltip "Save folder: %s" with the folder id of
   WORLD-NAME-001 in italic. The client computes it again at each change of the name box.
+- **Reason:** without the tooltip, the client computes the folder id only at the create
+  (WORLD-GAME-003, step 5), and it does not test the saves folder at each change of the name box.
 - **Visible to the client:** yes, while the mouse is on the name box or the box has the focus.
   No tooltip shows. The folder id needs a test of the saves folder at each change of the name.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the tooltip of the name box. It compares the
   folder id of the world that the create makes.
 
@@ -1304,12 +1365,39 @@ The other documents state these points of this document:
 - **Rule:** WORLD-WRITE-002, step 5.
 - **Reference:** the toast "Failed to copy packs" shows with the folder id, and the parent screen
   of "Create New World" opens (WORLD-WRITE-001, step 6).
+- **Reason:** mcrs has no toasts. The disconnected screen shows the reason of the failure.
 - **Visible to the client:** yes, only when the client cannot make the world folder or write its
   files. The disconnected screen shows the title "Failed to access world" and the reason. Its
   button opens the title screen. mcrs has no toasts.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare a create that fails.
 
+### WORLD-DEV-014: A saves folder that stops to list shows the error screen
+
+- **Rule:** WORLD-DIR-004, step 3.
+- **Reference:** when the client cannot read the next name of the saves folder after it opened
+  the folder, the client stops with a crash report (WORLD-DIR-001, step 3).
+- **Reason:** a crash of the client is a defect for mcrs. A part of the list can hide a world
+  that exists, and the player can then make a second world with the same name.
+- **Visible to the client:** only when the file system fails while the client lists the saves
+  folder. The player sees "Unable to load worlds" and can go back to the title screen.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not compare a saves folder that fails to list.
+
 ---
+
+## 14. Experiments
+
+Use `tools/vanilla-oracle` with the game version of `assets/minecraft/version.json`, on macOS.
+The oracle calls the game in one process, with no client screen. A tracked fixture does not hold
+the output yet, so the rules keep their labels.
+
+| Experiment | Rules | Steps | Result |
+|------------|-------|-------|--------|
+| E1 | WORLD-NAME-001 | For each row of the table of WORLD-NAME-001, and for `COM1`, `Map (0)`, `World` and `` x/y\z*?"<>\|` ``, make the folders that exist and ask the game for the folder id. Ask again in a saves folder that the process cannot write. | Each row of the table gives its folder id. `COM1` gives `_COM1_`, `Map (0)` and `World` stay, and the last name gives `x_y_z_______`. `new world` beside `New World` gives `new world (1)`. The saves folder that the process cannot write gives an access error. |
+| E2 | WORLD-SEED-001 | Ask the game for the seed of each text of the table of WORLD-SEED-001, and of the empty text, two spaces, `+5`, `-`, `١٢٣`, U+00A0 followed by `12`, and `-9223372036854775808`. | The table holds. The empty text and two spaces give no seed. The other results are in the table. |
+| E3 | WORLD-DIR-001, WORLD-DIR-002, WORLD-DIR-003 | Make a saves folder with these entries: worlds with `GameType` 1, 7, −1 and none; a world with only `level.dat_old`; a world with storage version 19134; a world with storage version 19132; a world with an empty `LevelName`; a folder with only `region/`; a regular file. Ask the game for the list. | The folder with only `region/` and the regular file are not in the list. `GameType` 1 gives creative with commands. 7, −1 and none give survival with no commands. The world with only `level.dat_old` and the world with storage version 19134 are unreadable worlds, with the info "Failed to load world summary" and the modification time of their file. The world with 19132 is disabled with "Must be converted!". The empty name shows the folder id. |
+| E4 | WORLD-DEL-002, WORLD-DEL-003 | Hold the lock of a world in a second process. Ask the game to delete the world. Release the lock and ask again. | The first delete fails on the lock and removes no file. The second delete removes the world folder with `session.lock`. |
 
 ## 15. Unresolved
 

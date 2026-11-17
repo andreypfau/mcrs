@@ -1312,8 +1312,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
   TITLE-DEV-006, does for the panorama speed.
 - **Reference:** the radius follows "Menu Background Blur", from 0 to 10. The value 0 shows no
   blur. A graphics preset can change the value, for example to 2.
+- **Reason:** mcrs has no option "Menu Background Blur" and no graphics preset. The default radius
+  is the value that a player sees when the player changes nothing.
 - **Visible to the client:** only for a player who changed that option or chose such a preset
   in the vanilla client.
+- **Bug reference:** `none`.
 - **Test:** a differential test sets the vanilla option to 5.
 
 ---

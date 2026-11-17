@@ -2,11 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Protocol version | `1073742169` |
 | Packets | LOGIN, clientbound: `login_disconnect` 0, `key` 1, `login_finished` 2, `custom_query` 4. CONFIGURATION, clientbound: `disconnect` 2. PLAY, clientbound: `disconnect` 32, `game_event` 39, `login` 50 |
 
-Source of these values: `assets/minecraft/version.json`, and `assets/mcrs/reports/packets.json`
-for the packet ids.
+Source of the packet ids: `assets/mcrs/reports/packets.json`.
 
 This document states the title screen of the vanilla client, its panorama and its fade-in. It
 also states the screens that the client shows between the title screen and a world, in both
@@ -380,11 +378,13 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
   3. A title screen after a world, after a disconnected screen, or after a close of TITLE-SCR-005,
      step 6, has no fade.
   4. The widgets take input during the fade, as TITLE-FADE-001, step 6, states.
-  5. Each draw of the title screen takes the alpha `α`, also the tooltip of a widget
+  5. Each draw in front of the panorama takes the alpha `α`: the widgets, the mcrs notice, the
+     version text, the logo and the edition. The tooltip of a widget also takes `α`
      (TITLE-DEV-009).
+  6. The panorama and its overlay do not fade, as TITLE-FADE-001, step 5, states.
 
-Provenance: `source_suggested`; `design` for steps 2 and 5. Step 4 is the rule of the game: a
-player who knows the screen can click before the widgets show.
+Provenance: `source_suggested`; `design` for steps 2 and 5. Steps 4 and 6 are the rules of the
+game: a player who knows the screen can click before the widgets show.
 Kind: layout. Confidence: medium.
 
 ---
@@ -419,7 +419,8 @@ medium for steps 2 to 4, high for the files.
 - **Behavior:**
   1. The client draws the six faces as a cube around a camera at the centre of the cube.
   2. The projection is a perspective with the vertical field of view 85° and the aspect
-     `pw / ph`. The GUI scale does not change the picture.
+     `pw / ph`. This quotient is the real quotient, not the integer quotient of section 0.3. The
+     GUI scale does not change the picture.
   3. The camera looks 10° down from the horizontal. Its yaw is `−a`: an increase of `a` turns
      the view from `panorama_0` toward `panorama_1`.
   4. At `a` = 0 the faces are:
@@ -583,9 +584,12 @@ file. Kind: layout. Confidence: medium.
   1. The client has received the PLAY `login` packet.
   2. After it, the client has received `game_event` with the event 13 (level chunks load
      start).
-  3. The client can draw the section of the camera. This is true also when the camera is above
-     or below the build height, when the player is a spectator or dead (TITLE-DEV-010), or 30 s
-     after the `login` packet.
+  3. One of these conditions is true:
+     - the client can draw the section of the camera;
+     - the camera is above or below the build height;
+     - the player is a spectator;
+     - the player is dead;
+     - 30 s have passed since the `login` packet.
   4. A delay has passed: 500 ms for a world that the player created in this session, else 0.
 - **Postconditions:**
   - The screen closes and the world shows with no screen open (WID-SCR-001). The last input
@@ -649,14 +653,21 @@ file. Kind: semantic for the order, layout for the positions. Confidence: medium
   2. The client starts its local server on the world.
   3. When the client starts the connection to that server, the level loading screen opens. It
      has no map and no progress bar, so its text is at `H / 2 − 50`.
-  4. The level loading screen closes as TITLE-LOAD-003 states.
+  4. The level loading screen closes as TITLE-LOAD-003 states, with one difference in step 3.
+     The mcrs client does not test whether the player is dead (TITLE-DEV-010). Step 3 is true
+     only when one of these conditions is true:
+     - the client can draw the section of the camera;
+     - the camera is above or below the build height;
+     - the player is a spectator;
+     - 30 s have passed since the `login` packet.
 - **Postconditions:** the player sees the message screens, then "Loading terrain...", then the
   world. Each screen shows for at least one frame.
 - **Edge cases:** when the local server cannot start, the client shows the disconnected screen
   of TITLE-DISC-003 with the reason of the failure and the title of TITLE-DISC-004
   (TITLE-DEV-013).
 
-Provenance: `source_suggested`; `design` for step 1 (TITLE-DEV-011) and step 3 (TITLE-DEV-003). Kind: semantic.
+Provenance: `source_suggested`; `design` for step 1 (TITLE-DEV-011), step 3 (TITLE-DEV-003) and
+the test of a dead player in step 4 (TITLE-DEV-010). Kind: semantic.
 Confidence: medium.
 
 ---
@@ -826,8 +837,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-SCR-006, step 7, and TITLE-SCR-007.
 - **Reference:** the text button "Copyright Mojang AB. Do not distribute!" at the bottom right.
   It opens "Credits & Attribution" (TITLE-SCR-001, widget 9).
+- **Reason:** mcrs is not the game of Mojang, so the copyright text of the game does not apply to
+  it. mcrs has no screen "Credits & Attribution".
 - **Visible to the client:** yes. Five lines of plain text show in place of one line. A click
   there opens no screen, and Tab does not reach it.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the bottom right of the title screen. A
   conformance test of mcrs compares the bounds of TITLE-SCR-007 at W = 427 and W = 320.
 
@@ -835,7 +849,10 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 - **Rule:** TITLE-SCR-006.
 - **Reference:** the title screen shows the widgets of TITLE-SCR-001 and the splash.
+- **Reason:** mcrs has no multiplayer screens, no Realms, no friends list and no language screen.
+  The splash texts are not in the subset.
 - **Visible to the client:** yes. The screen has four widgets, and the rows move up.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the bounds of each widget of mcrs with TITLE-SCR-006.
   It does not compare them with a vanilla capture.
 
@@ -844,14 +861,19 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-LOAD-006, step 3.
 - **Reference:** for a local world, the screen shows the map of the chunk statuses and the text
   above it (TITLE-LOAD-002).
+- **Reason:** the mcrs client gets no chunk statuses from its local server. Item 1 of section 12
+  holds the question to the owner.
 - **Visible to the client:** yes. The text is at `H / 2 − 50` and no map shows.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the screen with the vanilla form for a server.
 
 ### TITLE-DEV-004: The last button returns to the title screen after a server
 
 - **Rule:** TITLE-LEAVE-002, step 2.
 - **Reference:** after a server, the server list opens (TITLE-LEAVE-001, step 5).
+- **Reason:** mcrs has no server list.
 - **Visible to the client:** yes, after "Disconnect" only. mcrs has no server list.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the screen after "Disconnect".
 
 ### TITLE-DEV-005: The disconnected screen leads to the title screen
@@ -859,7 +881,9 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-DISC-003.
 - **Reference:** the button is "Back to Server List" and opens the server list, or a title
   screen after a local world (TITLE-DISC-001).
+- **Reason:** mcrs has no server list.
 - **Visible to the client:** yes. The caption is "Back to Title Screen".
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the title, the reason and the bounds. It does not
   compare the caption of the button.
 
@@ -867,15 +891,20 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 - **Rule:** TITLE-PAN-005, step 2.
 - **Reference:** the speed follows "Panorama Scroll Speed".
+- **Reason:** mcrs has no option "Panorama Scroll Speed" (`client-menu.md`, MENU-ACC-002).
 - **Visible to the client:** only for a player who changed that option in the vanilla client.
+- **Bug reference:** `none`.
 - **Test:** a differential test sets the vanilla option to 1.
 
 ### TITLE-DEV-007: Faces of different sizes show no panorama
 
 - **Rule:** TITLE-PAN-005, step 4.
 - **Reference:** each face shows the missing texture (TITLE-PAN-001, step 3).
+- **Reason:** mcrs has no resource packs, so only a broken asset set has faces of different sizes.
+  The warning in the log names that defect, and a checker picture helps no player.
 - **Visible to the client:** only with a broken asset set. mcrs has no resource packs, and the
   faces of the asset index have one size.
+- **Bug reference:** `none`.
 - **Test:** none. The vanilla asset set has faces of one size.
 
 ### TITLE-DEV-008: The rare logo is picked once for each start
@@ -883,8 +912,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-SCR-006, step 9.
 - **Reference:** each title screen picks the logo when the client makes it (TITLE-SCR-002,
   step 2).
+- **Reason:** one pick for each start needs no state in each title screen. With the chance 0.0001,
+  a player sees no difference in practice.
 - **Visible to the client:** in effect no. A player sees the other logo with the chance 0.0001
   in each start, in place of each title screen.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the logo texture.
 
 ### TITLE-DEV-009: A tooltip fades with the title screen
@@ -892,17 +924,24 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-FADE-002, step 5.
 - **Reference:** the tooltip of a widget draws at full strength during the fade
   (TITLE-FADE-001, step 3).
+- **Reason:** the mcrs client draws all of the title screen in front of the panorama with one
+  alpha. A tooltip at full strength over a widget that does not show yet points to nothing.
 - **Visible to the client:** only when the player holds the mouse on a widget with a tooltip
   during the first 2 s of the first title screen.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the tooltips during the fade.
 
 ### TITLE-DEV-010: The level loading screen does not test a dead player
 
-- **Rule:** TITLE-LOAD-003, step 3.
+- **Rule:** TITLE-LOAD-006, step 4.
 - **Reference:** the screen closes when the player is dead, also when the client cannot draw
-  the section of the camera.
+  the section of the camera (TITLE-LOAD-003, step 3).
+- **Reason:** the mcrs client has no death screen. The vanilla client closes the screen early for a
+  dead player because its death screen covers the world. Without that screen, the player sees the
+  hole at the camera.
 - **Visible to the client:** only when the player joins a world as a dead player and the chunks
   are slow. The screen then closes at the timeout of 30 s.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not join a world as a dead player.
 
 ### TITLE-DEV-011: No "Preparing Resources..." screen
@@ -910,8 +949,10 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-LOAD-006, step 1.
 - **Reference:** after "Reading world data...", "Preparing Resources..." shows while the client
   loads the data packs of the world (TITLE-LOAD-004, step 1).
+- **Reason:** the mcrs client loads no data pack of a world. The local server reads the data packs.
 - **Visible to the client:** yes, for a short time. The mcrs client loads no data pack of a
   world. The local server reads the data packs.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the order of the message screens and ignores
   "Preparing Resources...".
 
@@ -920,7 +961,9 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-LEAVE-002, step 2.
 - **Reference:** a screen with only the background shows for one frame before the next screen
   (TITLE-LEAVE-001, step 3).
+- **Reason:** the frame has no text and no widget, so it has no use for a player.
 - **Visible to the client:** no. The screen shows for one frame and has no text or widget.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare the frames between the pause screen and the
   next screen.
 
@@ -930,9 +973,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Reference:** for a world that another process holds, a toast shows "Failed to access world"
   and the title screen opens (`client-world-screens.md`, WORLD-DEV-009). For the other failures of a local start, the client stops with a
   crash report.
+- **Reason:** mcrs has no toasts, and a crash of the client is a defect for mcrs.
 - **Visible to the client:** only when a local world cannot start. The player sees the
   disconnected screen and can go back to the title screen. mcrs has no toasts, and a crash of
   the client is a defect for mcrs.
+- **Bug reference:** `none`.
 - **Test:** a differential test does not compare a local start that fails.
 
 ### TITLE-DEV-014: The reason of the disconnected screen has no style
@@ -940,8 +985,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-DISC-003, step 1.
 - **Reference:** the reason keeps the colours and the styles of its text component
   (TITLE-DISC-002, step 3).
+- **Reason:** the mcrs client shows the reason as plain text. A reason with a colour or a style is
+  rare, and its text stays complete without them.
 - **Visible to the client:** only when the server sends a reason with a colour or a style. The
   reason of mcrs is plain text.
+- **Bug reference:** `none`.
 - **Test:** a differential test compares the plain text of the reason.
 
 ---
