@@ -18,8 +18,8 @@ sources:
   - issue:285
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import Status from '~/components/Status.astro';
@@ -44,7 +44,7 @@ The test below builds an `echo` command with one integer argument:
 
 The builder gets a `CommandRegistrar`. Starting from `NodeId::ROOT`, it adds a literal node with `literal` or an argument node with `arg` under a parent node. A node that ends a command line calls `runs(...)`. The builder returns the handles of the arguments, and the handler uses them later to read the values.
 
-The same file registers the command with `app.add_command(echo_at("echo"), run_echo).unwrap();`. The call returns a `Result`, because a node can clash with the tree. When that happens you get an error and nothing of the command is added, as the test at the end of the file shows.
+The same file registers the command with `app.add_command(echo_at("echo"), run_echo).unwrap();`. The call returns a `Result`, because a node can clash with the tree. When that happens you get an error and nothing of the command is added, as the test `a_command_whose_nodes_clash_is_not_registered_at_all` shows.
 
 ## A node can require a permission level
 

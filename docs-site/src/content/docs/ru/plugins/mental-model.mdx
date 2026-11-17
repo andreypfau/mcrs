@@ -3,7 +3,7 @@ title: От объектов к данным
 description: "Три сдвига, которые нужны Java-разработчику до первого плагина mcrs: данные вместо объектов, нет глобального сервера, параллельность по доступу к данным."
 sidebar:
   order: 2
-translated_from: 51d45c26a
+translated_from: 19bc615fa
 ---
 
 import Status from '~/components/Status.astro';
@@ -111,9 +111,9 @@ Bevy сравнивает сигнатуры ваших систем. Если �
 
 Для плагина из этого следует одно правило. Если одна ваша система должна выполняться раньше другой, задайте это через `.before()` или `.after()` и не полагайтесь на порядок, который случайно увидели при запуске. CI запускает расписания симуляции так, что неоднозначный порядок считается ошибкой, поэтому неупорядоченный конфликт роняет тест.[^323] Тесты лежат в [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) и [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
 
-## Паника не останавливает сервер
+## Ошибка не останавливает сервер
 
-Сервер ставит запасной обработчик ошибок в [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). Когда система паникует, обработчик пишет панику в лог, а сервер работает дальше. Это похоже на непойманное исключение в обработчике событий Bukkit.
+Сервер ставит запасной обработчик ошибок в [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). Если система или команда завершается ошибкой, на которой Bevy запаниковал бы, например команда для сущности, которая уже ушла из мира, обработчик пишет ошибку в лог, а сервер продолжает тикать. Это похоже на непойманное исключение в обработчике событий Bukkit.
 
 Дальше: [Rust для Java-разработчика](/docs/ru/plugins/rust-for-java/).
 

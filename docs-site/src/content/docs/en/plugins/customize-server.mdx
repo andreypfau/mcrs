@@ -12,14 +12,15 @@ sources:
   - src/main.rs
   - crates/mcrs_minecraft_server/tests/it/client_join.rs
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_engine_server/src/require.rs
   - issue:278
   - issue:279
   - issue:281
   - issue:282
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import Status from '~/components/Status.astro';
@@ -36,13 +37,13 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.[^279]
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, entity attributes, the sprint attribute, the reach of creative mode, item entities, falling blocks, the drops and support of blocks, mob brains, item and inventory saving, block placement, world generation, lighting and the network.[^279]
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
 You can disable or replace each member without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You get the error at start, so you do not have to trace a missing resource at the first tick.
 
-The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin`.[^282]
+The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and most of them reach every dimension world through `add_dimension_plugin`.[^282]
 
 ## Disable a member with disable
 
@@ -66,7 +67,7 @@ The binary reads its settings from the environment and turns them into plugin fi
 
 Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it.[^278]
 
-The environment variables of the binary are the fields of `ServerSettings`. Each variable has the name of its field with the prefix `MCRS_`. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+The environment variables of the binary are the fields of `ServerSettings`. Most variables carry the name of their field in upper case with the prefix `MCRS_`, such as `MCRS_MOB_AI` for `mob_ai`. [Environment variables](/docs/en/reference/env-vars/) has the list with the defaults.
 
 In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
 

@@ -5,24 +5,27 @@ sidebar:
   order: 10
 kind: how-to
 audience: [jvm]
-stability: changing
-tracking: [158]
+stability: stable
 sources:
   - crates/mcrs_minecraft_engine/src/ability.rs
   - crates/mcrs_minecraft_engine/src/game_profile.rs
   - crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs
   - crates/mcrs_minecraft_engine_world/src/session/sessions.rs
   - crates/mcrs_minecraft_server/tests/it/host_app/mod.rs
+  - crates/mcrs_minecraft_engine/src/network_id.rs
+  - crates/mcrs_minecraft_engine_world/src/entity_ids.rs
+  - crates/mcrs_minecraft_server/tests/it/entity_ids.rs
+  - crates/mcrs_minecraft_engine/src/persisted_registry.rs
   - issue:158
+  - issue:159
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
-import { Aside } from '@astrojs/starlight/components';
 
 This page shows how a plugin finds players, reads their data, tells their ids apart and changes them. In Paper a `Player` is an object with methods. In mcrs a player is an entity inside the world of a dimension, and its state is a set of components, so you write a query where Paper code would hold on to the object.
 
@@ -64,9 +67,7 @@ You cannot use one of these ids in place of another.
 
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
-<Aside type="caution" title="WIP: the id on the wire">
-The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults.[^158] Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. Two dimension worlds also allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The plan is a `NetId` component for every networked entity, with ids that are leased to each world, never reused, and kept when an entity is handed to another node.[^158] Until that plan is done, do not store the wire id of an entity and do not assume it stays the same.
-</Aside>
+The client sees one more number, the entity id in packets, and it does not depend on the world. A player gets an odd id made from its `PlayerSession`, so the id stays the same through a change of dimension. Other entities get even ids from ranges that the host hands to each dimension world, and an entity taken into another dimension keeps its id. While the server runs, no two entities share an id.[^158]
 
 ## Change a player inside its own world
 
@@ -80,9 +81,9 @@ mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 
-Saving player data is not done either.[^78] The [Status](/docs/en/start/status/) page shows the state of saving.
+The server saves player data to the player files of the world folder, as [Worlds and saves](/docs/en/server/worlds/) describes. A component of your plugin goes into the player file only when the plugin registers it with `PersistScope::Persisted`, as [Dimensions](/docs/en/plugins/dimensions/) explains.[^159]
 
 Next: [Test a plugin without a client](/docs/en/plugins/testing/), where a test joins a fake player and reads these components.
 
-[^158]: <Status issue={158} /> Plans wire entity ids that do not depend on the owning world.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^158]: <Status issue={158} /> Makes the entity ids on the wire independent of the owning world.
+[^159]: <Status issue={159} /> One registry of persisted components for saving, handover and dimension travel.
