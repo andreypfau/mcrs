@@ -338,8 +338,7 @@ fn a_request_on_a_despawned_holder_does_nothing() {
 }
 
 #[test]
-fn a_set_puts_an_unplaced_stack_copies_a_placed_one_with_its_count_and_ends_the_stacks_it_replaces()
-{
+fn set_places_or_copies_a_stack_and_ends_the_stacks_it_replaces() {
     let mut app = app();
     let world = app.world_mut();
     let player = world.spawn(Slots::new(4)).id();

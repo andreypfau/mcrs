@@ -83,7 +83,7 @@ fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCav
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context and block ids that one chunk's carving reads"
+    reason = "independent inputs of one chunk's carving"
 )]
 pub fn apply_beta_carvers(
     column: &ColumnBlocks,

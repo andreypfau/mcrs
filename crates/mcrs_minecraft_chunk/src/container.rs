@@ -246,7 +246,7 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "walks the box in y, z, x order with the palette and count bookkeeping of each changed cell inline, so the fill and its palette order read in one place"
+        reason = "the palette bookkeeping of each cell stays inline"
     )]
     pub fn fill_box(
         &mut self,

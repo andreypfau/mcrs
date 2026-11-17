@@ -35,16 +35,10 @@ Stop only for:
 ## 2. Commits
 
 - One logical step is one commit. Do the work in the tree, run the checks, commit at the end.
-- Messages follow Conventional Commits 1.0.0: `<type>(<scope>): <description>`.
-  - `type`: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`.
-  - `scope`: a crate or a domain area (`registry`, `protocol`, `network`, `worldgen`, `client`).
-  - The description is lowercase, imperative, and states the outcome in domain terms.
-- The commit that completes an issue carries `Closes #N`, one line for each issue. A commit
-  that does a part of an issue carries `Refs #N`.
+- Commit messages follow `AGENTS.md`. The commit that completes an issue carries `Closes #N`; a partial one carries `Refs #N`.
 - Add files by name. Read `git status` before each commit.
 - A fix for a review finding or a failed check is folded into the commit it belongs to:
   `git commit --fixup=<commit>`, then `git rebase --autosquash origin/main`.
-- No name of the reference code in a message (`docs/clean-room.md`).
 
 ## 3. Checks before the push
 
@@ -76,8 +70,8 @@ One pass, in a new agent, before the pull request exists: the skill `review-pr`.
   `sleep` loop, and never with a turn for each poll.
 - The runs of a pull request from a fork wait in `action_required` until a maintainer approves
   them. Read the code of the pull request first. Then approve each run:
-  `gh api --method POST repos/<repo>/actions/runs/<id>/approve`, or give `pr-land` the head
-  that you read: `pr-land <pr> <sha>`.
+  `gh api --method POST repos/<repo>/actions/runs/<id>/approve`, or give `scripts/agent/pr-land` the head
+  that you read: `scripts/agent/pr-land <pr> <sha>`.
 - A red check: read the log, decide whether the change caused it. If it did, fix and fold. If
   it did not (a flaky test, a moved `main`), say so with the log line; rerun once.
 - When `main` moves and the branch conflicts or a required check wants a current branch, bring
@@ -99,8 +93,8 @@ One pass, in a new agent, before the pull request exists: the skill `review-pr`.
 - Land with `scripts/agent/pr-land <pr>` in one background command. It approves the fork
   runs of the head you name, updates a branch that is behind, waits for the checks and the bot,
   requires zero unresolved review threads of any reviewer, and merges. Without `pr-review` on
-  PATH it skips the bot wait. `pr-land --help` lists its exit codes; act on the code it returns.
-- `pr-land` is the only way to merge. It squash merges, and the body repeats each `Closes #N`
+  PATH it skips the bot wait. `scripts/agent/pr-land --help` lists its exit codes; act on the code it returns.
+- `scripts/agent/pr-land` is the only way to merge. It squash merges, and the body repeats each `Closes #N`
   and `Refs #N` of the commits.
 - After the merge, report the merge commit and stop.
 

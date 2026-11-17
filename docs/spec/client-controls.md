@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states the "Controls" screen and the "Mouse Settings" screen of the vanilla client,
 and the mcrs subset of each screen. It states the option Sensitivity, and the rule that turns a
 mouse motion into a change of the yaw and the pitch of the local player. It uses the terms of
 `client-menu.md`, `client-widget.md`, `client-list.md` and `client-camera.md`, and cites their
-rules. The document does not prescribe an architecture.
+rules.
 
 ## 0. Conventions
 
@@ -45,7 +42,7 @@ rules. The document does not prescribe an architecture.
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The language keys and their English texts are in
 `assets/minecraft/lang/en_us.json` of the client jar. The width of a title comes from the glyphs
-of `assets/minecraft/textures/font/ascii.png` of the client jar. No experiment of section 7 ran.
+of `assets/minecraft/textures/font/ascii.png` of the client jar.
 
 The observer of each rule is a player in normal play who sees the screen or the view, unless the
 rule names another observer.
@@ -67,27 +64,6 @@ W = 427 and H = 240.
 | `CTRL-PROP` | the properties of these screens that `client-widget.md` leaves open |
 | `CTRL-EXP` | experiments |
 | `CTRL-DEV` | intentional deviations |
-
-### 0.5 Scope
-
-In scope:
-
-- the "Controls" screen and the "Mouse Settings" screen, and their mcrs subsets;
-- the option Sensitivity;
-- the turn of the local player by the mouse motion, in first person.
-
-Out of scope:
-
-- the key binds and the "Key Binds" screen;
-- the options Sneak, Sprint, Attack/Destroy and Use Item/Place Block (hold or toggle), Auto-Jump,
-  Sprint Window, Quit Shortcuts, Right-Click Emulation and Operator Items Tab. This document names
-  them only where an order needs them;
-- the options Scroll Sensitivity, Discrete Scrolling, Invert Mouse X, Invert Mouse Y and Allow
-  Cursor Changes. This document names them only where an order needs them;
-- raw input and touchscreen mode;
-- the turn while the player looks through a spyglass, and the cinematic camera;
-- the turn of a vehicle by its passenger;
-- the movement packets that carry the yaw and the pitch to the server.
 
 ### 0.6 Constants
 
@@ -318,7 +294,7 @@ Confidence: medium. Experiment: CTRL-EXP-03. mcrs deviates from the edge case: C
   relative mouse mode. Section 9, item 1, asks whether mcrs has the same motion unit.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the library list of the version
-manifest of `26.4-snapshot-7`. Kind: semantic. Confidence: medium. Experiment: CTRL-EXP-04.
+manifest. Kind: semantic. Confidence: medium. Experiment: CTRL-EXP-04.
 
 ### CTRL-TURN-002: Change of the yaw and the pitch
 
@@ -406,14 +382,9 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CT
 
 ## 7. Experiments
 
-None of these experiments ran. No game window started for this document. Each experiment uses
-the setup of `client-widget.md`, section 14: window pixels of 854 × 480 and the GUI scale 2.
+Each experiment uses a window of 854 × 480 pixels and the GUI scale 2.
 "Record the file time" means: record the time of the last change of `options.txt` in the game
 directory.
-
-The input agent of `tools/vanilla-client` sends no GUI input and no mouse motion, and its window
-never takes the focus. Each experiment of this section needs an agent that sends these inputs to
-a window with the focus, or a person at the window.
 
 ### CTRL-EXP-01: "Controls"
 

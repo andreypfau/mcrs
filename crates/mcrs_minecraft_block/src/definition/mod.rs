@@ -626,10 +626,7 @@ impl Builder {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "checks one definition file's ids, state space, defaults, conditions and components in turn and registers its states in the same pass, so each error reads against its check"
-    )]
+    #[expect(clippy::too_many_lines, reason = "each error reads against its check")]
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
         let description = file.block.description;
         let id = *self

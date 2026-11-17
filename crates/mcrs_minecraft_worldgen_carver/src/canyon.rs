@@ -12,7 +12,7 @@ use crate::modern::RANGE;
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the carver's configuration, the chunk and source positions, the water mask, the carving mask and the random source of one canyon carving pass"
+    reason = "independent inputs of one canyon carving pass"
 )]
 pub fn carve_canyon<R: Random>(
     config: &CarverConfig,
@@ -78,7 +78,7 @@ pub fn carve_canyon_into<T: CarveTarget, R: Random>(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the position, shape, thickness, angles, distance, vertical scale and random source of one step of a canyon walk, each fed to the reference's arithmetic in order"
+    reason = "independent inputs of one canyon step"
 )]
 fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,

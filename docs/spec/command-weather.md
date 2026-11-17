@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `minecraft:time` 43 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states `weather clear`, the weather state that it writes, and how the rain strength
 then changes. The forms `rain` and `thunder` are out of scope, except in the tree. It does not
@@ -22,8 +20,7 @@ prescribe an architecture.
   darkness reads them (`environment-attributes.md`).
 - **Weather dimension**: a dimension whose type has sky light and no ceiling, for example the
   overworld. Only a weather dimension has rain.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-W`. None of the experiments has
-  been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-W`.
 
 ---
 
@@ -76,11 +73,3 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: ru
   `game_event` packet of that strength to the players of the dimension.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
-
----
-
-## 1. Use in a benchmark
-
-To fix clear weather, run `gamerule advance_weather false` and `weather clear`. Start the measure
-at least 100 ticks after these commands. Then the rain strength is 0, and the sky darkness does not
-depend on the weather (`mob-goals.md`, GOAL-POS-006).

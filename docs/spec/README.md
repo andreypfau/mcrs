@@ -84,11 +84,10 @@ extends it.
 
 ## Experiments
 
-An experiment is a sequence of steps that a tool or a script runs with no person. When a tool for
-the domain takes an input file, the experiment is such a file. Run each experiment that a tool can run
-before the implementation starts. The report of the author lists each experiment that did not run.
-A rule whose experiment did not run keeps the label `source_suggested`, and the specification
-stays a draft.
+An experiment is a short description of a run against the game. It is the provenance of a rule. Write
+the steps in the imperative and the observed result in the present tense. Raw output goes to
+a test fixture, never into the specification.
+
 These tools run an experiment against the game:
 
 - `tools/vanilla-oracle` calls the game with no server and writes its output as a fixture.
@@ -96,47 +95,21 @@ These tools run an experiment against the game:
   `tools/vanilla-client` plays.
 - `tools/vanilla-server` starts the vanilla server for a script.
 
-A capture records the game version. A capture of a different version than
-`assets/minecraft/version.json` does not confirm a rule.
-
-## Review of a specification
-
-A specification gets one review. A second review needs the word of the owner. The reviewer asks
-these questions for each rule:
-
-- Which observer sees the result?
-- Which artefact or experiment decides the rule?
-- Does the implementation become wrong for an observer when the rule is removed?
-
-The reviewer removes a rule that has no observer. The reviewer does not search the reference for
-behaviour that the specification does not state. An omission becomes known as a question of an
-implementer or as a failed experiment. The answer goes into the specification.
+## Unresolved
 
 A point that is not decided goes into the section "Unresolved" of the document. The label
-`unresolved` refers to that section.
+`unresolved` refers to that section. Do not list an open item in another section.
+A specification is ready when "Unresolved" is empty and no rule carries `source_suggested`.
 
-## Status of a specification
+## Forbidden in a specification
 
-The header table of a specification has the row `Status`. Its value is `draft` or `ready`. A
-specification without this row is a draft.
-
-An open question is an entry of the section "Unresolved". The section lists each open question,
-and the section is empty when no open question remains.
-
-A specification is `ready` when both of these conditions are true:
-
-- No rule has the provenance label `source_suggested` or `unresolved` (`docs/spec/registry.md`,
-  section 0.3). An experiment that ran or a fixture confirms each rule that comes only from the
-  reference.
-- The section "Unresolved" is empty.
-
-An implementer does not start on a draft. An implementation brief cites a specification only
-when its status is `ready`.
-
-A gap that an implementer finds in a specification is an open question. The implementer stops
-and reports the gap. The implementer does not resolve the gap in code. The gap goes back to the
-specification author, and the status of the specification changes to `draft`. The specification
-author writes the answer into the specification.
+- A captured result, transcript or run log.
+- An experiment that has not run.
+- A "Milestone" field.
+- Text about our code: a crate, a type or a file name, an implementation plan, a hook,
+  parallelism, cost, "this server" or a plan for a parity test.
+- A status record, an issue row or a history.
+- A snapshot or protocol header row. The version is in `assets/minecraft/version.json`.
 
 ## Semantics, not accidents
 
@@ -224,33 +197,6 @@ differs from one of them cites the issue in which the owner decided the differen
 - **Configuration**: a user must configure a behaviour through the plugin that adds the
   behaviour. The behaviour must not read its configuration from an environment variable or from
   a file in the working directory.
-
-## Loot documents
-
-The loot rules are in seven documents. This table gives the document of each prefix. A rule
-that moves to another document keeps its id.
-
-| Prefix | Numbers | Document |
-|--------|---------|----------|
-| `LOOT-SRC` | all | `block-loot.md` |
-| `LOOT-CTX` | 001 | `block-loot.md` |
-| `LOOT-CTX` | 010 and up | `loot.md` |
-| `LOOT-EVL` | all | `loot.md` |
-| `LOOT-OUT` | 001 | `loot.md` |
-| `LOOT-OUT` | 002 to 004 | `block-loot.md` |
-| `LOOT-RND` | 001, 003 | `block-loot.md` |
-| `LOOT-RND` | 002, 004 and up | `loot.md` |
-| `LOOT-CTR` | all | `loot.md` |
-| `LOOT-DEV` | 001 to 099 | `block-loot.md` |
-| `LOOT-DEV` | 100 to 199 | `loot.md` |
-| `LOOT-CND` | all | `loot-conditions.md` |
-| `LOOT-NUM` | all | `loot-conditions.md` |
-| `LOOT-CDV` | all | `loot-conditions.md` |
-| `LOOT-MOD` | all | `loot-functions.md` |
-| `LOOT-MDV` | all | `loot-functions.md` |
-| `PRED` | all | `predicates.md` |
-| `CTL` | all | `container-loot.md` |
-| `BDR` | all | `block-drops.md` |
 
 ## Where these rules do not apply
 

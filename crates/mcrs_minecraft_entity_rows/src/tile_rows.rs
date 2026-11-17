@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn each_row_keeps_its_id_and_its_mob_column_after_despawns_from_the_middle_and_the_end() {
+    fn rows_keep_id_and_mob_column_after_despawns_mid_and_end() {
         let mut rows: TileRows<u64> = TileRows::default();
         for index in 0_u32..6 {
             let key = EntityKey(u128::from(index));

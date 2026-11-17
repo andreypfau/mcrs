@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn each_world_gets_its_input_and_outputs_come_in_cell_order_whatever_world_finishes_first() {
+    fn outputs_keep_cell_order_whatever_world_finishes_first() {
         let (signal, gate) = mpsc::channel();
         let mut cells = Cells::new();
         let first = cells.add(

@@ -288,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn a_late_older_put_does_not_replace_a_version_that_a_failed_flush_left_with_the_disk() {
+    fn late_older_put_keeps_the_version_a_failed_flush_left() {
         let disk = MapDisk {
             flush_fails: true,
             ..MapDisk::default()

@@ -54,7 +54,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 #[expect(
     clippy::too_many_lines,
-    reason = "a dimension's sub-app is assembled in the order its schedules and plugins require, and each step relies on the previous one"
+    reason = "each step relies on the previous one"
 )]
 fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, DimSpawnError> {
     let unknown = || UnknownDimensionType {

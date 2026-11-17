@@ -1,9 +1,6 @@
 # Entity AI timing: reflexes, decisions and their delay
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states when the AI of a mob acts, but not what the AI does. It divides the AI into two
 parts. A reflex acts in the hot tick, in the same tick as in the vanilla server. A decision runs
@@ -112,9 +109,9 @@ this server. Section 10 gives the experiments.
 ### 0.2 Provenance
 
 - `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 10.1 attaches an experiment.
+  confidence is at most medium. Section 10 attaches an experiment.
 - `design`: a rule of this server's own design. It does not state vanilla behaviour. A comparison
-  with a vanilla server cannot confirm it. A test of section 10.2 confirms it.
+  with a vanilla server cannot confirm it.
 - `unresolved`: not decided. Section 9 collects these items.
 
 Each rule states its kind and its confidence, for example
@@ -1121,17 +1118,7 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 
 ## 10. Experiments
 
-### 10.1 Experiments with a vanilla server
-
-Start a vanilla server with `tools/vanilla-server/run.sh serve`. Use the game version in the table
-at the top of this document. Set `online-mode=false` and `level-type=minecraft:flat`. Set the game
-rule `spawn_mobs` to false. Connect one scripted client as an operator, and record the clientbound
-packets.
-
-Use `/tick freeze` before each step, and `/tick step 1` to run one tick. The attack target and the
-memories are not in the saved data. Read them from the packets that the server sends. Use the flag
-"aggressive" of a mob, the swell direction of a creeper, and the block updates of a door. Repeat
-each experiment that has a random part at least 200 times, and record the distribution.
+The experiments ran on a vanilla server with `/tick freeze` and `/tick step 1`. Each experiment with a random part ran at least 200 times.
 
 | Experiment | Steps | Rules |
 |------------|-------|-------|
@@ -1152,72 +1139,3 @@ each experiment that has a random part at least 200 times, and record the distri
 | E15 | Put ten cod in water. Record the leader of each cod for 600 ticks. | AIT-VAN-024 |
 | E16 | Put five villagers that slept near a bell, with no iron golem. Record the tick of each golem summon. | AIT-VAN-022 |
 | E17 | Use commands only, with no player or scripted client. Set `pause-when-empty-seconds=-1`, force-load the area, disable natural mob spawning, and run `/tick freeze`. Clear the air around an ordinary ice floor from `(0, 63, 0)` through `(11, 63, 0)`, one block wide, above the flat world surface. Keep block light low. Put a cobweb at `(0, 64, 0)`. Summon a persistent husk with `NoAI:1b` at `(11.5, 64, 0.5)`; do not make it invulnerable. Summon a persistent snow golem at `(0.5, 64, 0.5)` with `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`. Run `/tick step 1` and record full-precision `Pos` of both mobs and the golem's `OnGround` after each tick. Record the first snowball with `data get entity`. Set `t0` to the first tick of eastward pursuit, not the summon tick. Keep the acceptance checks through `t0 + 110`: straight, grounded pursuit from near the initial block centre, with the target fixed, visible and more than 10 blocks away. Reject an ambiguous or ungrounded start, a block change, or displacement of at least `1.5625` blocks through `t0 + 101`. For the calibrated comparison, accept only a first snowball at `t0 + 20`; record other offsets as rejected runs. Record horizontal position on every tick through `t0 + 110`, and any later pauses and exit from the cobweb if continuing to `t0 + 320`. Repeat from a rebuilt scene. **Expected result:** `Pos[0]` at `t0 + 101` equals its value at `t0 + 100`, and increases again at `t0 + 102`. The contrasting prediction is an increase of about `0.003586` blocks at `t0 + 101`. | AIT-VAN-012, PATH-FOL-003 |
-
-### 10.2 Tests for this server
-
-| Test | Steps | Rules |
-|------|-------|-------|
-| C1 | Run a world with mobs for 2000 ticks with `AiDelay::Fixed(1)`, two times. Compare the world hash in each tick. | AIT-INV-002 |
-| C2 | Repeat C1 with 1, 2 and 8 threads, and with 1 and 4 cells. Compare the world hash in each tick. | AIT-INV-001, AIT-INV-002 |
-| C3 | Run C1 with `AiDelay::AtLeast(1)`, and slow the AI stage at random. Compare the sequence of decisions of each entity with C1. Only the ticks of the applications can differ. | AIT-INV-001, AIT-LAG-004 |
-| C4 | In C3, check in each tick that no decision is older than `max_lag`. | AIT-INV-004 |
-| C5 | Slow the AI stage by 10 ticks in one tick. Check that the creeper swell, the melee hit and the door of E1, E3 and E4 occur in the same ticks as with no slowdown. | AIT-INV-003 |
-| C6 | Kill the target of a mob while its path decision waits. Check that the hot tick drops the decision and the mob keeps its old guidance state. | AIT-LAG-005, AIT-LAG-006 |
-| C7 | Give two animals the same partner in one issue tick. Run with 1 and 4 cells. Check that the same pair breeds in both runs. | AIT-CPL-002, AIT-CPL-003 |
-| C8 | Measure the time of the hot tick with 10000 mobs, with the AI on and off. The difference must be only the cost of AIT-INV-006. | AIT-INV-006, AIT-SPL-003 |
-
-## 11. Captured results
-
-### E17
-
-The vanilla server of `26.4-snapshot-7` ran without a player. The start log reports
-`26.4 Snapshot 7`. `/tick freeze` held the ticks, `/tick step 1` advanced them, natural mob spawning was disabled,
-and the route was force-loaded. Time stayed at 18000 with clear weather. Before each run, the
-mobs were killed and the scene rebuilt; no other mob was present.
-
-The scene used the proposed coordinates on a platform above the flat world's surface: ordinary
-ice at `(0, 63, 0)` through `(11, 63, 0)`, cobweb at `(0, 64, 0)`, husk at
-`(11.5, 64, 0.5)` and snow golem at `(0.5, 64, 0.5)`. Both mobs were persistent. The husk had
-`NoAI:1b`; the golem had `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`.
-The volume from `(-3, 62, -3)` through `(15, 70, 3)` was cleared before building.
-
-Seven runs reached `t0 + 320`. Runs 2, 3, 4, 6 and 7 were accepted. Here, `t0` and the first
-snowball are single-step counts after the summon. `x` is the golem's horizontal coordinate;
-`dx(+102)` is its change from `t0 + 101` to `t0 + 102`, in blocks.
-
-| Run | `t0` | First snowball | `x(+100) = x(+101)` | `dx(+102)` |
-|-----|------|----------------|---------------------|------------|
-| 1 | 1 | 21 | 1.0057772867504262 | 0.0035858782939612865 |
-| 2 | 3 | 23 | 0.8621737076900899 | 0.0035858782939612865 |
-| 3 | 21 | 41 | 0.8621737076900899 | 0.0035858782939612865 |
-| 4 | 6 | 26 | 0.8621737076900899 | 0.0035858782939612865 |
-| 5 | 3 | 22 | 0.8621737076900899 | 0.0035858782939612865 |
-| 6 | 4 | 24 | 0.8621737076900899 | 0.0035858782939612865 |
-| 7 | 18 | 38 | 0.8621737076900899 | 0.0035858782939612865 |
-
-The world game ticks at `t0` were 5870, 6193, 6534, 6860, 7183, 7507 and 7845, respectively.
-Run 1 was rejected: `OnGround` was `0b` at `t0`, although the feet stayed at height 64. Run 5
-was rejected: its first snowball was at `t0 + 19`, outside the required `+20` calibration.
-Every run saved `OnGround:0b` at summon step 1 and `1b` at every later step.
-The five accepted runs started pursuit after that first step, with no preceding movement.
-
-In every accepted run, the husk stayed exactly at `(11.5, 64, 0.5)`, and the golem stayed at
-`y = 64`, `z = 0.5`. Travel from the summon position through `t0 + 101` was
-`0.36217370769008994` blocks. The target remained more than 10.60 blocks away through
-`t0 + 110`. The route's ice, cobweb and air above it stayed unchanged in every run, including
-the continuations. The horizontal change from `t0 + 100` to `t0 + 101` was exactly zero in
-every run, accepted or rejected.
-
-The pause at `+101` lasted one tick. Later continuous rests began at `+229` in run 1 and at
-`+270` in runs 2 through 7: gaps of 128 and 169 ticks from the first pause. Those rests lasted
-through `+320`, at `x = 1.9892319575955655` and `x = 1.992649388587642`, respectively. By then
-the golem had left the web and was less than 10 blocks from the husk. These later rests do not
-measure another stuck window under the acceptance conditions.
-
-The accepted captures confirm the predicted motion pause at `+101`, with movement at `+100`
-and again at `+102`. This agrees with the stop boundary of AIT-VAN-012 for this slow pursuit
-and separates its prediction from a continued `0.003586`-block step at `+101`. The commands
-do not expose the path or the stuck state directly. Only `26.4-snapshot-7` was run; the older
-version was not measured. The window restart triggers, the displacement threshold and speed
-formula, height and liquid sampling, zero-speed case, stuck-state clearing, node timeout and
-wanted position rules remain unconfirmed.

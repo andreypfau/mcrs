@@ -2,18 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states what the vanilla client does when its player breaks a block. The subjects are
 the target of the player, the attack input, the packets that the client sends, the sequence, the
 prediction of the client and the effects that the client shows. `block-breaking.md` states what the
 server does with these packets. This document uses the terms and the packet facts of that document,
-and refers to its rules by their IDs. The document does not prescribe an architecture.
-
-Scope: creative mode first. Section 8 states survival mode at the level of packets and ticks.
+and refers to its rules by their IDs.
 
 ## 0. Conventions
 
@@ -23,7 +18,7 @@ Scope: creative mode first. Section 8 states survival mode at the level of packe
   `login.md`, section 0.1, defines them.
 - **Action**, **start action**, **sequence**, **acknowledgement**, **block cube**, **break**,
   **refusal**, **observer**: as `block-breaking.md`, section 0.1, defines them.
-- **Vanilla client**: the client of the game version in the table at the top of this document.
+- **Vanilla client**: the client of the game version of `assets/minecraft/version.json`.
 - **Player**: the player that the client controls.
 - **Tick**: one tick of the client. At the normal tick rate, a tick is 50 ms.
 - **Attack input**: the input that the key binding "Attack/Destroy" controls. The default is the
@@ -64,7 +59,7 @@ Scope: creative mode first. Section 8 states survival mode at the level of packe
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". Each rule states its label and its kind. All rules in this
 document have the label `source_suggested`, except those of section 10.5, which have the label
-`design`. Nobody has run the experiments of section 12.
+`design`.
 
 ### 0.3 ID prefixes
 
@@ -777,8 +772,7 @@ client changes no light, and the meshes of the world become complete.
 ## 11. Unresolved
 
 - **CU1**: the sequence after 2147483647 (CBK-SEQ-004). The vanilla client sends a negative sequence,
-  and the vanilla server closes the connection. A player cannot reach this value in normal use. The
-  mcrs client can select a behaviour, but a parity test must not compare it.
+  and the vanilla server closes the connection. A player cannot reach this value in normal use.
 - **CU2**: a record that outlives its chunk (CBK-PRD-011). The old server state can overwrite a
   newer chunk. This can be a defect of the reference. No experiment shows it yet.
 - **CU3**: the entity test of the ray, and the effect of the component `minecraft:attack_range` on
@@ -823,17 +817,3 @@ and the server. The proxy logs each packet with the time, and it can hold or cha
 | X17 | Break a block that a torch lights. Let the proxy hold the `light_update` for 2 s, and then send it with the light of before the break. | CBK-LGT-008, CBK-LGT-009 |
 | X18 | Let the proxy send 50 `light_update` packets in one burst. Count the frames until the last one shows. | CBK-LGT-007 |
 | X19 | Record the screen at a high frame rate while you break a block next to a torch, with each value of `options.prioritizeChunkUpdates`. Compare the frame of the block with the frame of the light. | CBK-LGT-011, CBK-LGT-012 |
-
-## Not in this document
-
-- The outline shape of each block state. The ray needs it (CBK-TGT-005).
-- The propagation rules of light (CBK-LGT-004), and the light properties of each block state. No
-  document under `docs/spec/` states them yet.
-- The entity test of the ray, and the attack on an entity.
-- The hit reactions of blocks at the start of a survival break, for example a note block.
-- The speed of an item for a block, the correct tool for a block, and the effects of enchantments
-  on the break speed.
-- The particles, the sounds and the crack textures as graphics and audio.
-- The animation of the arm swing.
-- Block placement with `use_item_on`, and the use of an item with `use_item`. They share the
-  sequence of section 5.

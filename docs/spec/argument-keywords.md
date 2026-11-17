@@ -2,16 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `entity_anchor` 38, `gamemode` 42, `heightmap` 51 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
-`assets/mcrs/reports/registries.json`, through `commands-packet.md`, CMDP-ARG-001.
 
 This document states three argument types that read one word from a fixed set:
 `minecraft:gamemode`, `minecraft:entity_anchor` and `minecraft:heightmap`. Each has no properties
-on the wire. It does not prescribe an architecture.
+on the wire.
 
 ## 0. Conventions
 
@@ -23,7 +19,7 @@ on the wire. It does not prescribe an architecture.
 
 ### 0.2 Provenance and confidence
 
-The labels of `registry.md`, section 0.3, apply. None of the experiments has been run.
+The labels of `registry.md`, section 0.3, apply.
 
 ### 0.3 ID prefixes
 

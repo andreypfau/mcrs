@@ -144,7 +144,7 @@ mod tests {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "floods the section's border one axis and one neighbour at a time, so the unrestricted flood reads against the directional one it bounds"
+        reason = "floods the section's border one axis and one neighbour at a time"
     )]
     fn undirected(occludes: &[bool; BORDER_VOLUME]) -> u64 {
         let mut seen = [false; BORDER_VOLUME];

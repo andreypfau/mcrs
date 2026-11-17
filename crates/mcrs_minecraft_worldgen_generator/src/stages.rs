@@ -113,7 +113,7 @@ impl ColumnProgram {
 impl FillContext {
     #[expect(
         clippy::too_many_arguments,
-        reason = "the router, material rules, blocks, sections and biome source of one dimension and each optional table its column stages are built from, every one its own input"
+        reason = "each stage input is independent and optional"
     )]
     pub fn build(
         setup: GeneratorSetup,
@@ -296,7 +296,7 @@ fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeigh
 
 #[expect(
     clippy::too_many_lines,
-    reason = "loads a saved column or runs the column's stages in order, so the order its neighbours rely on reads in one place"
+    reason = "loads a saved column or runs the column's stages in order"
 )]
 pub fn fill_column(
     ctx: &FillContext,
@@ -1254,7 +1254,7 @@ mod tests {
         #[test]
         #[expect(
             clippy::excessive_nesting,
-            reason = "compares the terrain maps and the final maps of each column of the chunk with a loop per axis, so a mismatch names its cell"
+            reason = "loop per axis so a mismatch names its cell"
         )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
             use crate::tests::beta_carver_table;

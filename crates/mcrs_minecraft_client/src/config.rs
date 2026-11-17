@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_default_options_file_gives_the_defaults_and_a_knob_wins_over_a_written_one() {
+    fn missing_options_file_gives_defaults_and_a_knob_wins() {
         let path =
             std::env::temp_dir().join(format!("mcrs-default-options-{}.json", std::process::id()));
         let _ = std::fs::remove_file(&path);

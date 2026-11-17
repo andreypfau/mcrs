@@ -1,20 +1,12 @@
 # Environment damage: fire, lava, air, freezing, contact, void and border
 
-| Field | Value |
-| --- | --- |
-| Game version | `26.4-snapshot-7` |
-| World version (`DataVersion`) | `5127` |
-| Protocol version | `1073742169` |
-| Data pack format | `126.0` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the damage that an entity takes from its surroundings. It states fire, lava,
 drowning and the air supply, freezing in powder snow, contact with blocks, suffocation, the void
 and the world border. Each source uses the hit procedure of `entity-damage.md` with its own damage
 type. Fall damage and the damage of a magma block are in `entity-damage.md` (DMG-FALL-001 to
 DMG-FALL-005, DMG-HOT-001). This document does not repeat them.
-
-The rules come from the reference implementation. No experiment has run yet. Section 13 lists the
-experiments that decide the open points.
 
 ## 0. Conventions
 
@@ -54,7 +46,7 @@ experiments that decide the open points.
 
 The labels are those of `entity-physics.md`, section 0.2. Each rule states its kind and its
 confidence, for example `(source_suggested, semantic, confidence: medium)`. The kinds are those of
-`docs/spec/README.md`. No rule has a confirmed label yet.
+`docs/spec/README.md`.
 
 ### 0.3 ID prefix
 
@@ -583,7 +575,7 @@ normal play, and the document keeps it.
   and the number of steps in one tick, are not specified. PHY-GRV-014 has the same open point as
   its U7.
 - **U3.** PHY-INP-021 defines the blocks that cause suffocation for the client push-out. ENV-WAL-001
-  uses the same definition for the server hit. Experiment E7 must confirm that both agree.
+  uses the same definition for the server hit. Both must agree.
 - **U4.** The set of the types that the air rule of ENV-AIR-006 covers comes from the reference.
   No artefact lists it. The mob documents can extend it.
 - **U5.** The maximum air supply of a type is data of the entity type. No artefact gives it. The
@@ -594,22 +586,3 @@ normal play, and the document keeps it.
   player, a respawn or a change of dimension also resets it.
 - **U8.** The rule of spawn protection can stop a player from clearing `powder_snow` in
   ENV-FIR-009. No specification states that rule.
-
-## 13. Experiments
-
-None of these experiments has run. Each runs on a vanilla dedicated server of `26.4-snapshot-7`
-through its console, as the experiments of `entity-damage.md`, section 15. The world is flat, with
-`difficulty hard`, `spawn_mobs false` and `tick freeze` with `tick step 1`.
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| E1 | Put a pig in a cell of `fire`, and another in a cell of `soul_fire`. Step 200 ticks. Read `Health`, `Fire` and `HurtTime` after each tick. | ENV-FIR-002, ENV-FIR-004, ENV-FIR-010 |
-| E2 | Join with an offline client. Walk the player through a `fire` cell for 5 ticks, then stay in it for 40 ticks. Record `Fire` and the clientbound entity data. | ENV-FIR-004, ENV-FIR-005 |
-| E3 | Put a zombified piglin, a pig with `fire_resistance` and a pig in lava. Read `Fire` and `Health` for 100 ticks. Record the sound packets. | ENV-FIR-006, ENV-FIR-008, ENV-NET-002 |
-| E4 | Burn a pig for 160 ticks on land. Read `Fire` in each tick. Repeat with water, with a `water_cauldron`, with rain, and with `powder_snow` with `mob_griefing` true and false. | ENV-FIR-002, ENV-FIR-007, ENV-FIR-009 |
-| E5 | Put a pig, a cod, a dolphin, an axolotl and a player in a water column. Read `Air` in each tick for 400 ticks. Repeat out of water. Record entity data and the packets with the event 67. | ENV-AIR-001 to ENV-AIR-006 |
-| E6 | Put a pig, a `husk`, a `blaze` and a player with `leather_boots` in powder snow for 300 ticks. Read `TicksFrozen`, `Health` and the attribute `movement_speed` in each tick. | ENV-FRZ-001 to ENV-FRZ-005 |
-| E7 | Put a pig in a `stone` block with `/data merge entity`. Read `Health` for 40 ticks. Put a player in the same block and record the packets. | ENV-WAL-001, U3 |
-| E8 | Put a pig, an item and a player in creative mode at y -140 in the overworld, and at y -70 in the nether. Read `Health` for 40 ticks. | ENV-VOID-001 |
-| E9 | Set the border to 20 blocks. Set `damage buffer` to 0, 5 and 20, and `damage amount` to 0.2 and 2. Put a player and a pig at 3, 10 and 30 blocks outside the limit. Read `Health` for 60 ticks. | ENV-BRD-001, ENV-BRD-002 |
-| E10 | Walk a pig, an idle pig and a fox through a `sweet_berry_bush` with `age` 0 and 3, and a pig next to a `cactus` side. Read `Health` in each tick. | ENV-CTC-001, ENV-CTC-003 |

@@ -15,8 +15,6 @@ Target load: 10,000 players and 100,000 to 1,000,000 server-simulated entities i
 Where this note names a technique of other servers, it cites it as "technique" and states only
 the technique and its numbers.
 
-Section 14 is the implementation plan.
-
 ## 0. Decisions
 
 | Question | Decision | Section |
@@ -44,7 +42,7 @@ them:
 - freezing far mobs (an activation range), and AI or goal throttling by distance by default (the
   reduced cadence of AIT-CDN-003 exists only as an operator's recorded deviation, §5.5);
 - a push cap that bumps a counter on both entities of a pair: it depends on the order and breaks
-  the Jacobi pass (the cap of §12.6 is the replacement);
+  the Jacobi pass (the push cap of PHY-CMP-019 is the replacement);
 - faster experience orbs, an item merge at a fixed long interval, a smaller search radius for
   villager points of interest;
 - deleting projectiles after a number of chunk loads (§5.1 defers instead);
@@ -68,8 +66,7 @@ them:
 | kernel cost of one awake entity | 0.75 µs | 0.75 µs | 0.6 µs physics + 0.1 µs push over ~3 neighbours + 0.05 µs steering |
 | hot columns | ~850k | ~850k | 10k players, simulation distance 6 (169 columns), half of them shared |
 
-All numbers are estimates from these assumptions and the kernel targets of §12.4. Benchmarks
-replace them (§10.6).
+All numbers are estimates from these assumptions and the kernel targets of the benchmarks (§10.6).
 
 ## 2. Policies this design relies on
 
@@ -85,7 +82,7 @@ replace them (§10.6).
 | Writes to other entities | start of the next tick, in key order | PHY-CMP-015, PHY-DEV-005 | binned merge point (§3.7) |
 | Claims | once per tick after the block domain; `command < entity < block`; several grants to one winner in the order of the target keys | PHY-CMP-017 | binned arbitration (§3.7) |
 | Item phase | an offset 0–3 from the UUID | PHY-CMP-016, PHY-DEV-007 | §6.6 |
-| Push cap | mutual top-`K`, only with `max_entity_cramming` 0 | PHY-CMP-019, PHY-DEV-008 | §12.6 |
+| Push cap | mutual top-`K`, only with `max_entity_cramming` 0 | PHY-CMP-019, PHY-DEV-008 | §3.3 |
 | Explosions | sequential groups in UUID order; rays of one explosion in parallel with keyed random values; opt-in wave mode for groups larger than `N`; other exploders as writes at `T + 1` | PHY-EXP-001..003, PHY-CMP-020, PHY-CMP-022, PHY-DEV-009..011 | §3.5 |
 | Block domain on entities | same tick, after the entity pass, in block order | PHY-BLK-001/002 | §3.7 |
 | Riding player | the vehicle writes its position; the client gives only the rotation | PHY-SRV-011 | §3.6 |
@@ -94,7 +91,7 @@ replace them (§10.6).
 | Mount trees | one unit, root first | PHY-ORD-014 | §3.6 |
 | Rest | exact skip with the push and input rules | PHY-SKIP-001..007, PHY-INP-020 | rest per tile (§6.6) |
 | Layout independence | | PHY-INV-014, PHY-INV-015 | same result for any thread count, task split or cell layout |
-| Exact-parity mode | one world, sequential, live | ARCH Decision 20, PHY-ORD-010/011, PHY-PSH-006, AIT-LAG-011 | §3.8 |
+| Exact-parity mode | one world, sequential, live | PHY-ORD-010/011, PHY-PSH-006, AIT-LAG-011 | §3.8 |
 | AI timing | reflexes, delay, `max_lag` | AIT | §5 |
 | Push on the own player | bounded input, superset of pushers, kept positions | MVC-UNC-004..007, MVC-PRED-019 | §8.4 |
 | Block work | semantic level; chains whole in one partition; footprint bounds of Tables 1–7 | SIM-MODEL-006, 009, 102(a), 106, SIM-RND-001 | §7.4, §7.5 |
@@ -305,7 +302,7 @@ reference, with the block of the copy. The damage of the step and fall actions i
 
 ### 3.8 Exact-parity mode
 
-Exact-parity mode is one world with every link `Inline` (ARCH Decision 20). It uses none of
+Exact-parity mode is one world with every link `Inline`. It uses none of
 PHY-CMP-008, 009, 012, 014, 015, 017, 018 or 020. One sequential driver runs the dimension tick in the
 order of PHY-ORD-010:
 
@@ -328,7 +325,7 @@ The kernel functions and the decision functions are the same as in the sharded m
 Bevy schedules the systems of the `TickSet` phases. Inside one system, the work units are tiles,
 and a tile task starts when its dependency counter reaches zero: each task that it reads from
 decrements the counter when it ends. The counters live in the system for one tick, on the Bevy
-compute pool. This is the only scheduling below Bevy (ARCH Decision 10, revised).
+compute pool. This is the only scheduling below Bevy.
 
 ```text
 DomainInput:  commands (write-through); stage results (light, generation; columns land in
@@ -491,7 +488,7 @@ The decisions of AIT-DEC-001 run in the AI stage, a kernel without Bevy on a lin
 With `max_lag` = 2, the stage must finish one tick of AI work for each tick. When it needs more core
 time than it gets in 50 ms, the AI cost is on the critical path and the tick waits at
 `T + max_lag`. "Beside the tick" means only that AI work overlaps the tick on other cores, and that
-a burst shorter than two ticks hides in the lag. §12.3 sizes the stage.
+a burst shorter than two ticks hides in the lag.
 
 When AI work exceeds the cores of the stage, the operator can, in this order: accept the slower tick
 (the wait is a metric); lower the mob caps or the entity-ticking range; enable the reduced cadence
@@ -519,55 +516,9 @@ L0/L1. It waits for the AI stage only at `T + max_lag`, or always in `AiDelay::F
 
 ### 6.1 Options
 
-The bench `motion_pass` of `mcrs_minecraft_engine_physics` measures both options on the
-items of `TestScene`, with the same kernel, the same blocks and the same task pool. The component
-side is the production `EntityMotionPlugin`; the rows side is `TestScene::step`. Neither side holds
-a mob. `PERF.md`, section "Moving entities: rows against components", gives the machine, the
-method, the load and the work that is not equal.
+The moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components (§6.3). They push nothing, so their pass reads no body grid. A kind from a vanilla plugin or a third-party plugin is a set of components with no store of its own (§6.9). Each hot field has one home.
 
-| Case | Rows | Components | Components / rows |
-|------|------|------------|-------------------|
-| 100k items at rest | 0.608 ms | 0.972 ms | 1.60 |
-| 100k items in flight | 2.38 ms | 3.42 ms | 1.44 |
-| 1M items, 25% awake, median tick | 15.7 ms | 16.5 ms | 1.05 |
-| spawn of 10k items | 1.25 ms (`RowStore::spawn`) | 0.356 ms (`spawn_batch`) | 0.28 |
-
-The measurement refutes three claims of the first estimate:
-
-| Claim | Result |
-|-------|--------|
-| a quiet tile costs zero | refuted: the rows pass visits each row; 100k items at rest cost 0.608 ms with rows and 0.972 ms with components |
-| only rows can cache block reads | refuted: the component pass reads the blocks through a section window of 8 slots for each entity, and at 1M it costs 16.5 ms against 15.7 ms with rows |
-| an ECS spawn per item is serial and slow | refuted: `spawn_batch` spawns 10k items in 0.356 ms, against 1.25 ms for the rows |
-
-The estimate of 1–2 ms for each `Changed<T>` scan is also too high: an earlier bench, on a copy
-of the pass, measured 0.10 to 0.23 ms for a scan over 100k. The pass does not scan: each thread
-queues the movers, and one system sorts them.
-
-Decision: the moving entities that are not living are ECS entities with components (§6.3). They
-push nothing, so their pass reads no body grid. A kind from a vanilla plugin or a third-party
-plugin is then a set of components, with no store of its own (§6.9). At 100k the components cost
-1.44 to 1.60 times the rows pass; at 1M with a quarter awake, they cost 5% more (16.5 ms against
-15.7 ms). Each hot field has one home.
-
-**Mob rows are abandoned (2026-11-15).** An earlier decision of this section kept mobs on rows,
-because the body grid, the push groups and the AI link read rows. That decision is not current.
-The bench above is the first data point (#797). It shows that plain Bevy ECS components give almost
-the same result as rows for much less code:
-
-- 1M items, 25% awake: 16.5 ms with components against 15.7 ms with rows, 1.05 times.
-- 100k items: 1.60 times the rows at rest (0.972 ms against 0.608 ms), 1.44 times in flight
-  (3.42 ms against 2.38 ms).
-- A spawn of 10k items: 0.356 ms with `spawn_batch` against 1.25 ms with rows, 0.28 times.
-
-The bench holds items, not mobs. These rules apply now:
-
-- Nothing new is built on mob rows.
-- The move of mobs to components is a separate track.
-- The pull request that moves mobs to components deletes the crate
-  `mcrs_minecraft_engine_mob_attributes` and `RowAttributes`.
-
-Other parts of this note name the rows of mobs. They describe the abandoned layout: `EntityRows` (§6.2), `TileRows` and the row life cycle (§6.3), the rows of mobs in §6.4, and the row life cycle in §9.
+Mobs are not on rows. Nothing new is built on mob rows. The move of mobs to components is a separate track. The pull request that moves mobs deletes the crate `mcrs_minecraft_engine_mob_attributes` and `RowAttributes`.
 
 ### 6.2 Resources
 
@@ -793,7 +744,7 @@ Open points:
 | Halo sections | ~6% more sections; halo changes applied again | none |
 | Crossings | ~250 per tick × 2 µs | ~1.2k tile moves × 50 ns |
 | Boundary exceptions | C2, C3, C5, C6 | none |
-| Serial parts of the schedule | in parallel across cells | once per world; §12.1 removes them |
+| Serial parts of the schedule | in parallel across cells | once per world |
 
 Decision: one world per dimension in a process. Cells are for placement across processes.
 
@@ -809,7 +760,7 @@ Decision: one world per dimension in a process. Cells are for placement across p
 | Split and merge | starting numbers (technique): one ring of buffer sections; merge within one section; split only when the area holds at least 8 sections of 16 × 16 chunks and at least one sixth of it is dead |
 
 Conflicts in a layout of many cells: **C1** halo changes must apply in `DomainInput` (engine fix
-E1, §14); **C2** a zone past the halo, bounded by the teleport rule; **C3** a block action in another
+E1); **C2** a zone past the halo, bounded by the teleport rule; **C3** a block action in another
 cell's column is one tick later (PHY-INV-014); **C5** a claim from another cell joins the
 arbitration one tick later; **C6** a death in the halo counts in the crowd fix-up (DMG-CRW-002) one
 tick later; a block chain that leaves the cell is a cross-cell effect, allowed only
@@ -903,68 +854,11 @@ one colour are disjoint and cover the plane.
   Decision for random ticks: the colours use global barriers. A commit of an overlay needs
   exclusive access to the world, and a start by dependency needs in-place writes or layered
   overlays. Change to dependency-driven phases only when a profile shows that the barriers cost
-  more than ~0.5 ms (S10).
+  more than the cost of the barriers.
 - **Determinism.** Whether a pick overflows depends only on its region and the bounds; the serial
   order is a stable key.
 - Each task has its own chain state, scratch and `StepOutput`; scheduled ticks take a calculated
   sequence (P-SEQ: tile key, then task sequence).
-
-**Cost model.** `S × k × c_draw + H × c_handler + P × c_rain + undo`, at 10k players: 2.1M listed
-sections × 3 × 3 ns ≈ 19 core-ms; ~185k handler runs × ~0.3 µs ≈ 55 core-ms (range 37–185); ~53k
-precipitation runs × 0.2 µs ≈ 11 core-ms; marks and log ≈ 7 core-ms. Total ~92 core-ms parallel, plus
-re-runs: only picks whose chain reaches a tripwire line, a structure or command block, an
-unmeasured tree or a long chain re-run; ≤ 0.1% of picks, an assumption to measure (≤ 0.3 ms, mostly
-in parallel with a doubled region). Decision: an overflowed pick goes directly to the serial
-re-run, with no pass with a doubled region. Add that pass only when a measured re-run rate on a
-real save is more than 0.1% of picks.
-
-Measured on real saves (Hermitcraft S10, Meterstick FarmWorld and LagMachine, upgraded to the
-corpus version): 119–145 ticking positions per listed section, and 2.9–3.5% of picks run a handler.
-This agrees with the density of the model. The bench `random_ticks_save` steps Hermitcraft S10
-through the section index and the cell volume of the engine: 2.2M loaded sections, 91k columns,
-258k listed sections, 22.7k handler runs in each step. Each step draws the picks of the index, then
-runs precipitation and the hits.
-
-| Handler of the bench | One step, one core: old / picks in the walk / blocks in the index | At 10k players (× 8.13), now |
-|----------------------|--------------------------------------------------------------------|------------------------------|
-| reads one block | 26.1–27.9 ms / 14.0–14.7 ms / 10.9–11.0 ms | ~89 core-ms |
-| reads its footprint of Table 1 | 45.3–45.8 ms / 33.2–35.0 ms / 29.3–32.0 ms | ~250 core-ms |
-
-The numbers of a row come from back-to-back runs of the three builds at a load average of 5–15
-on 16 cores. The step that reads one block is within the budget of 11.3 ms (~92 core-ms).
-
-The cost of a pick is a chain of cache misses, not computation. In the old step, each listed
-section cost ~19 ns of list and plan, and each hit cost ~1 µs: the lookup of its ticking positions
-in the index (three misses: tile, section entry, list), the access check (section index, entity),
-then the read of the block (section index, entity, row of the component, shared palette, boxed
-palette data, boxed cube). These changes are kept:
-- The index draws the picks while it walks its own sections. The entry of a section is in the
-  cache then, so a hit costs one miss for its position, and a section with no hit costs no lookup.
-  The kernel gets the hits, not the sections, so it keeps no touched set and no copy of the
-  ticking positions of its writes. Step: −44%.
-- The index gives the columns of precipitation and filters the columns that the cell owns. The
-  kernel checks no access for each column or hit. Alone this change moved the step by less than 2%;
-  with the hits drawn in the walk, its access checks were the part of the hit that was left.
-- The cube of a section is inline in its palette data: one miss less for each read. Step: −8%.
-- A tile task reads a section of its region without the access check of the world: the world
-  answers a section it cannot read with the same error.
-- The section index of a dimension owns the blocks of its sections; they are no longer a component
-  of the section entity. A read finds the blocks with one lookup of the index, without the entity
-  and the row of its component: two misses less for each hit. Step: −17%.
-- The walk reads the ticking positions of the hits of a tile after all draws of the tile, so the
-  misses of the hits of one tile overlap. Step: −4%.
-
-Earlier changes stay: a block tile finds a section through a table of the first slot of each column,
-and a tile task keeps the world section of its last read, so a read of a footprint costs ~10 ns.
-
-These changes moved the number by less than 2% and are not kept: one stream for each block tile in
-place of one for each section, and one pass over the listed slots of a tile in place of two.
-
-Before the last two changes, the walk and the draws were ~35% of the step and the hits ~52%; then
-the walk was ~44% and the hits ~42%. A hit now costs the lookup of the section index, the shared
-palette and the palette data, then the read of the handler. The shared palette is one more miss:
-palette data that the index holds without the shared box would remove it, but every user of the
-palette type would change.
 
 **Walk on threads.** The walk runs in batches of 32 block tiles on the threads of the tile tasks
 (`Spread`). Each section has its own stream, so the hits and their order do not depend on the
@@ -973,41 +867,17 @@ in the order of the tiles. A tile checks its listed sections in a pass of its ow
 draw, so the cache misses of the sections overlap: with one pass, the walk is ~40% slower. After
 the walk, the calling thread removes the slots of sections that are no longer listed.
 
-The bench `random_ticks_save` gives the wall time of a step on 1, 4, 8 and 16 threads of a task
-pool. It also gives the wall time of the walk and of each colour phase, and their idle time: the
-wall time of a call less its busy time over the threads. The "serial rest" is the precipitation
-step, the plan of the tile tasks and the commits.
-
-| Bench handler, threads | M4 Max, load 12–17: step | EPYC 9454, 16 CPUs, load 10–15: step |
-|------------------------|--------------------------|--------------------------|
-| reads one block, 1 | 12.3 ms (before: 11.9–12.1 ms) | 24.5–24.7 ms (before: 24.0–25.0 ms) |
-| reads one block, 4 | 3.9 ms | 6.8–7.1 ms |
-| reads one block, 8 | 3.2–3.3 ms | 5.7–6.1 ms |
-| reads one block, 16 | 3.2–3.3 ms | 6.0–6.1 ms |
-| reads its footprint, 1 | 31.5–31.9 ms | 48.9–49.2 ms (before: 49.2–49.7 ms) |
-| reads its footprint, 16 | 4.5 ms | 8.3–8.5 ms |
-
-At 16 threads on the M4 Max, a step that reads one block costs: walk 0.63 ms, four phases
-0.44 ms each, serial rest 0.92 ms. The idle time of the walk and the four phases is 0.88 ms in
-all. On the EPYC, the walk is 9.3–9.6 ms of the one-thread step and
-1.05–1.14 ms at 16 threads, and each phase is ~0.6 ms. The serial rest grows from 1.25 ms on one
-thread to 2.0–2.6 ms on 4 to 16 threads, and the idle time is 1.6–1.8 ms in all. The EPYC host is
-shared, so its wall times are an upper bound.
-
-The walk is no longer the serial part. The serial rest is: ~28% of the wall time on the M4 Max and
-~40% on the EPYC. The idle time of the barriers is more than the ~0.5 ms of the decision above, on
-both hosts.
 
 ### 7.5 Block shards as a whole
 
-| Domain | Global items (A.2) | Plan | Step (§14) |
-|--------|--------------------|------|------------|
-| Random ticks, precipitation | streams, section order: free | §7.4 | D1–D3 |
-| Block entities | claims (PHY-CMP-017); bounds not stated yet (SIM OQ-13) | per block tile once SIM states their bounds; until then one serial step per phase | D4 |
-| Scheduled block and fluid ticks | sequence, budget, collect order | per block tile; each tile collects due ticks by the global key; when the budget binds, a merge of the sorted keys finds the cut; calculated sequence | D5 |
-| Neighbour and shape updates | the chain | inside the phase that causes them; bounds checked per item; undo and re-run | with each |
-| Block events | one FIFO per dimension | per tile FIFO; undo and re-run | D6 |
-| Redstone mechanisms, flying machines, long tripwires, structure blocks | chains and ticks that cross regions every tick | causal groups (SIM-MODEL-102(a), second way; ARCH §8, §9): a group whose items overflowed in recent ticks becomes its own partition, the union of the regions it touched, **started first** in each phase; a per-tick split by footprints (union-find over SIM-MODEL-009 bounds) separates parts that no longer touch | D7 |
+| Domain | Global items (A.2) | Plan |
+|--------|--------------------|------|
+| Random ticks, precipitation | streams, section order: free | §7.4 |
+| Block entities | claims (PHY-CMP-017); bounds not stated yet (SIM OQ-13) | per block tile once SIM states their bounds; until then one serial step per phase |
+| Scheduled block and fluid ticks | sequence, budget, collect order | per block tile; each tile collects due ticks by the global key; when the budget binds, a merge of the sorted keys finds the cut; calculated sequence |
+| Neighbour and shape updates | the chain | inside the phase that causes them; bounds checked per item; undo and re-run |
+| Block events | one FIFO per dimension | per tile FIFO; undo and re-run |
+| Redstone mechanisms, flying machines, long tripwires, structure blocks | chains and ticks that cross regions every tick | causal groups (SIM-MODEL-102(a), second way; ARCH §9): a group whose items overflowed in recent ticks becomes its own partition, the union of the regions it touched, **started first** in each phase; a per-tick split by footprints (union-find over SIM-MODEL-009 bounds) separates parts that no longer touch |
 
 The phases keep their order (A.4): scheduled block ticks, fluid ticks, random ticks and
 precipitation, the broadcast cut, block events, block entities. Raids run in `DomainInput`
@@ -1300,7 +1170,7 @@ query returns a `SourcedCollider` in place of a tuple. A function with more than
 takes a struct (`Probe`, `Mover`). The behaviour is the same; the change keeps each signature
 short.
 
-**Boundaries that must be fixed now**, because the serial proposals depend on them (§14, step B0):
+**Boundaries that must be fixed now**, because the serial proposals depend on them:
 
 | Boundary | Why now |
 |----------|---------|
@@ -1367,299 +1237,14 @@ creaking whose home block is in another cell; block-break progress reaches every
 
 ### 10.5 Vanilla parity
 
-- Server entities: PHY E1–E8, E15–E20, E28–E41 within 1e-6, flags exact; push and writes within
-  PHY-DEV-004/005.
+- Server entities: PHY E1–E8, E15–E20, E28–E41 within 1e-6, flags exact; push and writes within PHY-DEV-004/005.
 - Own player: PHY E9–E14, E21–E23, MVC C1–C7, bit for bit, no violation; they need the recorder of a
-  vanilla client (U10, step T1).
+  vanilla client (U10).
 
 ### 10.6 Benchmarks
 
-- `crates/mcrs_minecraft_physics/benches/`: every row of §12.4; CI fails at 1.5× the target.
-- `tick_load` and `bot_load`: 10k players with 100k and 1M entities; they measure every row of
-  §12.1, the serial inventory of §11, the AI lag and the host time between ticks.
-
-## 11. Serial paths and the critical path
-
-At 1M on 32 cores, the parallel work of the tick is ~509 core-ms, so its floor is
-509 / (32 × 0.8) ≈ 20 ms. The serial paths add to that floor. Values are wall time per tick.
-
-| # | Serial path | Before (design as first written, or code today) | After | How |
-|---|-------------|------------------------------------------------|-------|-----|
-| S1 | L0/L1 in `bridge_inbound` | 5 ms (today) | 0 | network threads (§8.1) |
-| S2 | stage results landing; sections are ECS entities | 1–4 ms | ~0.3 ms | columns land in parallel; one batched structural change |
-| S3 | merge point, AI apply, proposals, ECS spawn and despawn | ~1.5 ms (2 in a mob farm) | ~0.3 ms | bins per target tile; decisions per tile; proposal components; `spawn_batch` for the entities that are not living (§6.1); batched mob spawns |
-| S4 | freeze grid rebuild | ~0.7 ms | ~0.1 ms | grid in the pass, patch at the freeze |
-| S5 | finding the groups | < 0.5 ms (1k TNT ~2) | < 0.5 ms | unchanged; hidden behind the patch per tile |
-| S6 | commands; raid tick | 0.1–0.3 ms | 0.1–0.3 ms | serial by nature (command order, raid order) |
-| S7 | collider groups | 5 ms for a pile of 5k boats, before the pass | hidden while it does not touch the busiest tiles; waves for sparse groups | start at once, per-tile counters |
-| S8 | mount trees | small | small | one task item each |
-| S9 | explosion groups | ~30 ms for 1k TNT, after the pass | hidden behind the pass up to its length; with the opt-in wave mode (PHY-CMP-022) ~1 ms | start at once, overlay, counters |
-| S10 | block colour phases: 5 phases × (4 colours + serial step) ≈ 25 barriers, and imbalance | ~2.3 ms | ~0.5 ms | dependency-driven phases |
-| S11 | serial re-runs of overflowed picks | 1–3 ms (most block-setting picks, while shape bounds were unknown) | ~0.1 ms | Tables 4–7 keep grass and crop chains within ~3 blocks; re-run first with a doubled region; only tripwire lines, structure and command blocks, unmeasured trees and long chains re-run serially |
-| S12 | large redstone machines as serial groups | 5–15 ms | 5–15 ms of one task, started first, overlapping the other tiles | causal groups started first; per-tick split |
-| S13 | scheduled-tick budget cut | 0.5–2 ms when it binds | 0.5–2 ms when it binds | the merge of sorted keys; rare |
-| S15 | claim arbitration | ~2 ms (5 in a hopper farm) | ~0.2 ms | bins per target tile |
-| S16 | the wait at `max_lag` | 0 when the AI stage keeps up | same | sizing (§12.3) |
-| S18 | `predict` before the main pass (PHY-CMP-021) | 0 (it ran beside the pass) | ~0.3 ms on the critical path: tiles near players wait ~1.1 ms, others start at once | per-tile counters on the players near each tile |
-| S17 | tier-0 positions for L2 | a dependency between ticks near 40 ms ticks | same | the muxer publishes tier 0 first (later) |
-| S19 | Bevy barriers; `Changed<T>` scans | 0.5–1 ms; 1–2 ms per scan | 0.5 ms; none | change lists instead of scans |
-| | **Typical serial total** | **~13 ms** | **~1.8 ms** | |
-| | **Tick at 1M, 32 cores** | **~33 ms** | **~21.5 ms** | floor 20 ms |
-| | **Worst case** (1k TNT, 5k boats, 15 ms redstone) | **~83 ms** | **~34 ms** | floor (509 + 300) / 25.6 ≈ 32 ms |
-
-**Amdahl.** The serial fraction of the tick's work goes from 13 / (13 + 509) ≈ 2.5% to
-1.8 / (1.8 + 509) ≈ 0.35%. The bound on the speedup goes from ~40× to ~300×, so the tick keeps
-scaling with cores well past 32.
-
-**The critical path after the changes**, at 1M on 32 cores, typical:
-
-```text
-commands + landing + merge point + raids + life cycle  ~0.7 ms   (serial parts, per tile where possible)
-freeze patch, group finding                        ~0.5 ms
-entity_tick (predict, main pass, groups overlapped) ~9 ms    (~238 core-ms / 25.6; tiles near
-                                                              players start ~1 ms later)
-WorldWrite block phases, dependency-driven         ~9 ms     (~230 core-ms / 25.6), plus re-runs
-claim arbitration per target tile                  ~0.2 ms
-Project, Output                                    ~1.5 ms   (mostly parallel)
-                                                   ≈ 21.5 ms
-```
-
-The worst case stays bound by a single long chain: an explosion group of 1,000 TNT or a redstone
-machine of 15 ms. The opt-in wave mode of PHY-CMP-022 removes the first; Block-STM style
-speculation for redstone is a later option.
-
-## 12. Budget
-
-### 12.1 Whole tick
-
-Core-ms per tick. "In tick" rows share the compute pool inside the 50 ms tick. "Beside" rows run on
-their own threads.
-
-| Work | Where | 100k | 1M | Note |
-|------|-------|------|----|------|
-| entity pass, awake | in tick | 30 | 187.5 | 0.75 µs × awake |
-| grid back buffer in the pass, freeze patch | in tick | 0.5 | 5 | |
-| collider groups | in tick | 0.4 | 3 | |
-| rest checks, due events, decisions per tile, life cycle, merge point | in tick | 1 | 9 | |
-| claim arbitration | in tick | 0.2 | 2 | |
-| position table, section lookups, mover lists | in tick | 1.5 | 12 | |
-| game events and their listeners | in tick | 0.5 | 5 | |
-| tile events | in tick | 2 | 12.5 | |
-| `predict`, push input, server part of players | in tick | 28 | 28 | 10k players |
-| random ticks and precipitation | in tick | 92 | 92 | §7.4; range 77–222 |
-| scheduled ticks, neighbour updates, block events | in tick | 50 | 50 | assumption |
-| block entities | in tick | 40 | 40 | assumption |
-| explosion groups | in tick | 3 | 3 | 10 explosions per tick |
-| reflexes and the issue of decisions | in tick | 6 | 60 | ~0.1 µs per living mob |
-| **In-tick total** | | **~255** | **~509** | |
-| serial paths (§11) | in tick, serial | ~1 ms | ~1.8 ms | wall time |
-| muxer, parallel per tile group | beside | 57 | 95 | |
-| encryption (CFB8, ~125 MB/s per core) | network threads | 10–40 | 10–40 | 125–205 with all players in one crowd |
-| L0 + L1 | network threads | 5 | 5 | |
-| AI stage, decisions | AI pool, pipelined | 144 | 1,440 | 5% at 10 µs, 95% at 2 µs per mob per tick |
-| AI stage, path search | AI pool, pipelined | 30 | 300 | 0.5% of living per tick × 100 µs |
-
-The AI cost is calibrated on one data point of another server: about 23–31 µs per villager per tick.
-At that cost (×3), the AI rows become ~520 core-ms at 100k and ~5.2 core-s at 1M.
-
-### 12.2 Wall time in the tick
-
-At 80% parallel efficiency, with the serial paths of §11 after the changes:
-
-| Cores on the compute pool | 100k | 1M |
-|---------------------------|------|----|
-| 16 | ~21 ms | ~42 ms |
-| 32 | ~11 ms | ~21.5 ms |
-| 48 | ~8 ms | ~15 ms |
-
-Without block shards, the block rows (~175 core-ms) run on one core: three and a half ticks, also
-at 100k.
-
-### 12.3 Machine fit
-
-`max_lag` = 2 makes the AI stage a pipeline (§5.5). Cores that it needs for 20 ticks per second, at
-40 core-ms of work per core per tick:
-
-| AI cost | 100k | 1M |
-|---------|------|----|
-| target | 174 core-ms → **5 cores** | 1,740 core-ms → **44 cores** |
-| observed on another server (×3) | 522 core-ms → **13 cores** | 5,220 core-ms → **131 cores** |
-
-| Case | Dedicated pools | Shared (AI at low priority fills idle compute cores) | Fits one machine |
-|------|-----------------|------------------------------------------------------|------------------|
-| 100k, AI at target | 16 + 5 + 3 = 24 | (255 + 102 + 174) / 40 → 16 | yes |
-| 100k, AI observed | 16 + 13 + 3 = 32 | (255 + 102 + 522) / 40 → 24 | yes |
-| 1M, AI at target | 32 + 44 + 4 = 80 | (509 + 140 + 1,740) / 40 → 64, little margin | barely |
-| 1M, AI observed | 32 + 131 + 4 = 167 | 147 | no |
-
-### 12.4 Kernel targets (median, one core, warm cache)
-
-| Benchmark | Target |
-|-----------|--------|
-| `resolve`, inert air / flat ground / step-up onto a slab | ≤ 60 ns / ≤ 300 ns / ≤ 1.2 µs |
-| `tick_entity`, walker on ground, no neighbour | ≤ 600 ns |
-| push gather, 3 / 24 neighbours | ≤ 100 ns / ≤ 600 ns |
-| item in air, scalar / f64 batch | ≤ 80 ns / ≤ 30 ns |
-| grid write per body in the pass; rest check in a changed tile | ≤ 15 ns; ≤ 10 ns |
-| claim and write per entry in a bin | ≤ 100 ns |
-| `tick_player`, one candidate; `predict`, fast path | ≤ 1.5 µs; ≤ 2.5 µs |
-| L0 / L1 per packet | ≤ 30 ns / ≤ 100 ns |
-| random tick draw | ≤ 3 ns |
-| AI step, simple mob / villager-class | ≤ 2 µs / ≤ 10 µs |
-
-### 12.5 Memory at 1M
-
-| Part | Size |
-|------|------|
-| rows (~150 B) | ~150 MB |
-| grid (80 B × 600k, two buffers) and position table (32 B × 1M) | ~130 MB |
-| pusher history | ~56 MB |
-| random-tick lists | ~0.5 GB |
-| AI replica with versions, brains, navigation projection | ~120 + 120 + 400 MB |
-
-### 12.6 Crowds and the push cap
-
-The push costs `k²` pair tests in a crowd of `k`. With crowd damage on, the damage bounds a stable
-crowd to about `n` (576 pairs at 24, ~6 µs). With crowd damage off, the mutual top-`K` cap of
-PHY-CMP-019 applies (PHY-DEV-008). Jacobi also spreads the rows of a heavy tile over several tasks.
-
-### 12.7 Preconditions for 1M
-
-1. Block shards (§7.4, §7.5); block entities wait for their bounds (SIM OQ-13).
-2. A parallel muxer per tile group, encryption and L0/L1 on the network threads.
-3. AI throughput: 44 cores of AI work at the target cost.
-4. No `Changed<T>` scan over a cold population larger than ~10k.
-5. The serial-path changes of §11.
-6. Correctness: the UUID order key and the claim arbitration before any determinism or dupe test.
-
-## 13. Spec requests
-
-Resolved earlier: R1 (PHY-CMP-013 order key), R2 (PHY-CMP-017 cross-cell claims), R3 (PHY-CMP-020
-step 4), R4 (PHY-EXP-003, PHY-DEV-010), R5 (MVC-VEH-001..014), R6 (AIT-CPL-005), R7 (AIT U1, U6),
-R8 (AIT U2), R9 (SIM-MODEL-009), R10 (SIM-MODEL-102(a)), R11 (SIM-RND-004), and the earlier PHY,
-MVC, REPL and AIT requests.
-
-The requests of this revision:
-
-| # | Rule | Change | Status |
-|---|------|--------|--------|
-| R12 | SIM-MODEL-009, SIM OQ-13 | Footprint bounds of shape functions and of the side effects of placement and removal | Resolved: SIM-MODEL-009 Tables 4–7 (shape functions, side effects, scheduled-tick handlers, block-event handlers). Open part: the bounds of block entities (SIM OQ-13) |
-| R13 | PHY-CMP-008 | The moves of a player and the entity pass | Resolved: PHY-CMP-021 (moves before the pass conform); PHY-DEV-012 is the alternative, not used |
-| R14 | PHY-CMP-017 | The order of several grants to one winner | Resolved: PHY-CMP-017 step 5 (target UUIDs) |
-| R15 | SIM-RND-001, SIM-MODEL-102(a) | A re-run uses the drawn position; picks of sections interleave | Resolved: SIM-RND-001 |
-| R16 | PHY-CMP-020 | Opt-in wave mode | Resolved: PHY-CMP-022, PHY-DEV-011 |
-| R17 | AIT-LAG-002 | Decisions at the start of the tile task | Resolved: AIT-LAG-002 |
-| R18 | PHY-ORD-013 / MVC-MODE-003 | Coarse triggers as data | Resolved: MVC-MODE-003 (off-grid coordinates, potent sulfur up to 25 blocks below) |
-| R19 | PHY-CMP-020 step 1 | A creeper that reaches its fuse seeds a group | Resolved: AIT-RFX-002 |
-| R20 | REPL §7.4, MVC-UNC-007 | An entity in the near zone of a viewer is always tier 0 | Resolved in REPL §7.4 (this design's own document) |
-| R21 | PHY-CMP-024 | The order of two equal keys | Resolved: PHY-CMP-024 (the UUID is the key, and a duplicate UUID is refused) |
-| R22 | AIT-CPL-006 | The place of the raid tick | Resolved: AIT-CPL-006 (after the merge point, before the pass) |
-
-No request of this note is open. The open spec question that this design depends on is SIM OQ-13
-(block entities).
-
-## 14. Implementation plan
-
-Each step ships alone: it builds, passes its tests and the existing tests, and leaves the server
-working. Steps in one track run in sequence; tracks marked ∥ run in parallel with each other.
-
-### Track K — kernel (∥ with E, T, B1)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| K0 | this note | §9 amended: `PlayerState`, raw yaw, sine table, `Side`, the three functions, the boundaries of B0 | PHY-ORD-007, PHY-NUM-005/007, PHY-SHP-012, PHY-SRV-008/010 | review | done in this revision |
-| K1 | `mcrs_minecraft_physics` | numbers (f64 with the f32 list), sine table, f64 boxes, shapes with grid lines, scan order, the collision algorithm, step-up, the move procedure, flags, bounce, `query_colliders`, `resolve`, `intersects` | PHY-NUM-001..007, PHY-BOX-001..006, PHY-SHP-001..013, PHY-COL-001..005, PHY-STP-001..005, PHY-MOV-001..004, PHY-FLG-001..005, PHY-RST-001..004 | property PHY-INV-001..013 (10^6 cases each); kernel PHY-COL-005, PHY-STP-005, PHY-NUM-005 entries, slab and carpet grid lines, scan order; `HashMap` test world | all tests pass; benches within 1.5× of §12.4 |
-| K2 | `mcrs_minecraft_collision_table` | build `CollisionTable` from the block definitions: f32 → f64 on the pixel grid, shape classes, grid lines, flags, coarse triggers, the motion rows | PHY-SHP-002, PHY-SHP-005, PHY-GRV-017, PHY-ORD-013 | every corpus state round-trips; the 440,436 corpus coordinates widen exactly; carpet lines 0 and `1/16` on `y`; default friction 0.6F | table built at startup in < 100 ms |
-| K3 | `mcrs_minecraft_physics` | `tick_entity` for walker, item, primed TNT, falling block, orb; rest; in-air batch | PHY-ORD-002, 004, 005, 009, PHY-GRV-001..020, PHY-INP-003, 020, PHY-SKIP-001..007, PHY-RCH-001..005, PHY-FALL-001..003 | parity E1–E8, E15–E20, E28, E32 from `tools/vanilla-oracle` within 1e-6; property: rest equals no rest; batch equals scalar | parity fixtures pass |
-| K4 | `mcrs_minecraft_physics` | push and crowd count; the cap | PHY-PSH-001..007, PHY-CMP-012, 014, 019 | kernel PSH-004/005 bit for bit; property: any row order and task split give equal velocities | E35 within PHY-DEV-004 |
-| K5 | `mcrs_minecraft_physics` | `PlayerState`, `tick_player` with `Side`, `observed_velocity`, `apply_teleport`, the server part in the order of PHY-CMP-023 | PHY-ORD-001, 007, PHY-INP-001..019, PHY-SRV-003, 004, 008, 010, PHY-GRV-009, PHY-CMP-023, PHY-BOX-006 | kernel tests per rule; parity E9–E14, E21–E23 once T1 records them | bit-exact on the recorded ticks |
-
-### Track T — tools (∥)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| T1 | `tools/` | recorder of a vanilla client's serverbound moves behind a proxy | PHY U10 | records E9–E14 | fixtures checked in |
-
-### Track E — engine fixes (each ∥ with every other step)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| E1 | `mcrs_minecraft_engine` | apply halo changes in `DomainInput`, not in the block step (`block_simulation.rs`) | PHY-INV-014, PHY-CMP-009 | a change at `T` in one cell is in the copy of every cell at `T + 1`; one cell against four | test passes |
-| E2 | `mcrs_minecraft_engine` | teleport ids start at 1; an accept checks the id and the position; a move during a pending teleport resends it (`teleport.rs`, `movement.rs`) | TP-CONFIRM-ID-001, ACC-001..003, RES-002, MVC-LAT-008 | unit tests per rule; fix the test that expects id 0 | tests pass |
-| E3 | `mcrs_minecraft_network`, `mcrs_minecraft_engine` | the inbound rate rule; no disconnect on a burst of 100 packets or a stall of 3 s (`inbound_rate.rs`, `bridge.rs`) | MVC-INV-008/009 | burst and stall tests | tests pass |
-| E4 | `mcrs_minecraft_engine`, `mcrs_minecraft_engine_world` | L0 before `raise_arrived`; NaN or infinite disconnects; raw yaw in `Rotation`; `player_position` with relative flags and real rotation | MVC-CHK-023, PHY-NUM-005, MVC-RSP-001, PHY-SRV-010 | L0 fuzz; a yaw of 720 survives; setback packet fields | tests pass |
-| E5 | `mcrs_minecraft_engine` | broadcast cut after random ticks; at most one block packet per section per broadcast; block events to players within 64 blocks | SIM-MODEL-107(a), SIM-TICK-002, SIM-SET-005, SIM-BEV-004 | packet order and count tests | tests pass |
-| E6 | `mcrs_minecraft_block` | default friction 0.6F | PHY-GRV-017 | definition test | test passes |
-| E7 | `mcrs_minecraft_simulation` | precipitation picks with the group draw | SIM-RND-004 | distribution test (binomial tolerance) | test passes |
-| E8 | `mcrs_minecraft_engine` | probes at write time; no packet dropped | MVC-LAT-001, MVC-TICK-002 | wire-order test of a burst | test passes |
-
-B0 (the row life cycle of mobs), B2 (`EntityRows`), B5 and B7 build on mob rows. The parts of these steps that build on mob rows do not start. The track that moves
-mobs to components plans their replacement. That track also sets the new order of the steps that
-depend on them.
-
-### Track B — store, keys and the pass (B1 ∥ with K; B2 after K3)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `BlockOverlay`, `ColliderEnds` per tile, grid back buffer, row life cycle of mobs, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
-| B1 | `mcrs_minecraft_engine`, save | the UUID as the order key, the new UUID from the birth inputs, the phase offset, persistence | PHY-CMP-013, 016, 024 | save and load equality; one cell against four give equal keys | before any determinism test |
-| B2 | `mcrs_minecraft_engine_physics` | `EntityRows`, `BodyGrid` (grid in the pass, patch at the freeze), `entity_tick` over tiles with counters, rest per tile, bins, merge point per target tile; items and orbs as ECS entities in the motion pass of `mcrs_minecraft_engine_entity_motion` (§6.3) | PHY-CMP-008, 009, 012, 015, PHY-INV-015 | tick determinism for 1, 2, 8 threads and task splits; grid patch equals rebuild | 100k items and walkers at ≤ 5 ms on 16 cores |
-| B3 | `mcrs_minecraft_engine_physics` | claims per target tile; pickups, hoppers, merges, command kills | PHY-CMP-017 | property: one winner, lowest key, any thread count | dupe tests pass |
-| B4 | `mcrs_minecraft_engine_physics` | collider groups with waves; explosion groups with the overlay, creeper seeds, the opt-in wave mode; counters | PHY-CMP-018, 020, 022, PHY-EXP-001..003, AIT-RFX-002 | boats do not tunnel; TNT cannon; group finding determinism | E29–E31 within PHY-DEV-002 |
-| B5 | `mcrs_minecraft_engine_physics` | block-domain writes to rows; pistons; entity block actions | PHY-BLK-001/002, PHY-RCH-002, PHY-CMP-010 | piston moves a mob in the same tick | test passes |
-| B6 | `mcrs_minecraft_engine`, `mcrs_minecraft_engine_physics` | players as rows; `Transform` no longer truth; `predict` before the main pass with per-tile counters; player layer of the front grid; server copy | PHY-CMP-021, 023, PHY-SRV-004, PHY-GRV-009, PHY-PSH-008, MVC-PRED-012 | an entity sees a player move in the same tick; the view, crossing and replication read the accepted state | existing tests pass |
-| B7 | `mcrs_minecraft_engine_physics` | mobs with batched spawns; mount trees; the riding player; the raid tick in `DomainInput` | PHY-ORD-014, PHY-SRV-011, AIT-CPL-006 | passenger follows vehicle in the same tick | E30 within policy |
-
-### Track C — movement checks (after K5, E2, E4, E8)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| C1 | `mcrs_minecraft_move_validate` | L0 on the network threads | MVC-CHK-023, MVC-LAY-002 | fuzz; value table | ≤ 30 ns per packet |
-| C2 | `mcrs_minecraft_move_validate` | L1 per connection, in stream order; probe planning | MVC-LAY-003, MVC-TICK-*, MVC-LAT-001..005, MVC-CHK-010 | MVC-INV-001..009 property tests | ≤ 100 ns per packet |
-| C3 | `mcrs_minecraft_move_predict` | L2: candidates, fast path, replay, `BlockOverlay` client view, `KeptChanges`, push input, `Pusher` list, setbacks | MVC-PRED-001..019, MVC-LAT-004..008, MVC-UNC-001..007, MVC-RSP-001..004 | parity C1–C7 with zero violations; replay sees the original blocks | 10k scripted players at ≤ 28 core-ms |
-
-### Track D — block shards (D1 ∥ with B)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| D1 | `mcrs_minecraft_simulation`, `mcrs_minecraft_engine` | ticking list, index per block tile, picks without misses, one task | SIM-RND-001..003, SIM-MODEL-106 | list equals palette scan; mean 7.32 ticks over 10,000 steps | random ticks at 10k players ≤ 92 core-ms |
-| D2 | same | colour phases with barriers (§7.4), region-only access, bounds of Tables 1–7, undo and re-run with the same pick | SIM-MODEL-009, 102(a), SIM-RND-001 | 1 and N threads equal; equal to the serial order | re-runs ≤ 0.1% of picks |
-| D3 | same | precipitation per block tile | SIM-RND-004 | distribution | — |
-| D4 | same | block entities: one serial step per phase now; per block tile once SIM OQ-13 gives their bounds | SIM-TICK-002 step 12, PHY-CMP-017 | hopper claims | — |
-| D5 | same | scheduled ticks per block tile, budget cut, calculated sequence | SIM-SCH-001..012 | budget cut equals the global order | — |
-| D6 | same | block events per tile | SIM-BEV-001..004 | event order tests | — |
-| D7 | same | causal groups started first; per-tick split | SIM-MODEL-102(a) | redstone fixtures equal to one task | 15 ms machine does not delay other tiles |
-
-### Track A — AI (after B2)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| A1 | `mcrs_minecraft_brain` | stage skeleton: versioned replica, issue at vanilla periods, delay modes, `max_lag` | AIT-LAG-001..004, 008, AIT-CDN-001/002 | AIT-INV-001, 002, 004 | `Fixed(1)` runs equal |
-| A2 | `mcrs_minecraft_engine_physics` | reflexes in the pass | AIT-RFX-001..008, AIT-SPL-002/003 | AIT-INV-003, 006 | — |
-| A3 | both | per-tile application, revalidation, proposals per component | AIT-LAG-002, 005..007, 009, 010, AIT-CPL-001..005 | AIT-INV-005; breed atomic | — |
-| A4 | `mcrs_minecraft_brain` | decisions of the vanilla mobs, as their specs land | AIT-DEC-*, AIT-VAN-* | parity per mob | AI cost near target |
-
-### Track N — replication (∥ after B2)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| N1 | `mcrs_minecraft_replication` | codec for entities that are not players; update rule of client-simulated categories | REPL §7.11, PHY-CMP-001/002 | client model decodes; items at rest cost 0 bytes | — |
-| N2 | `mcrs_engine_muxer` | parallel muxer per tile group; tier 0 for the near zone | REPL §7.4, §7.12 | 250k movers ≤ 10 ms wall | — |
-
-### Track X — exact parity (after B7, A1)
-
-| Step | Crate | Scope | Rules | Tests | Exit |
-|------|-------|-------|-------|-------|------|
-| X1 | `mcrs_minecraft_engine_physics` | sequential driver of §3.8 with `AiDelay::Inline` | PHY-ORD-010/011, PHY-PSH-006, AIT-LAG-011 | vanilla fixtures bit for bit, batch off | all PHY E-fixtures pass |
-
-### Order
-
-```text
-K0 ─ K1 ─ K2 ─ K3 ─ K4 ─ K5 ─────────── C1 ─ C2 ─ C3
- └ B0 ┘          └ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7 ─ X1
-B1 ───────────────┘   └ A1 ─ A2 ─ A3 ─ A4    N1 ─ N2
-E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
-```
+- `crates/mcrs_minecraft_physics/benches/`: one benchmark for each kernel entry point.
+- `tick_load` and `bot_load`: 10k players with 100k and 1M entities; they measure the AI lag and the host time between ticks.
 
 ## 15. Open questions
 
@@ -1673,130 +1258,15 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
    now states that a box off the `1/8` grid on one axis keeps only its faces on all three axes.
 6. Projectiles: the ray move and the hit detection read the grid; their spec will state the reach.
    Still open (no spec yet).
-7. Resolved: PHY-SHP-005, PHY-SHP-006. The reference tries `n` from 0 to 3, so a carpet has the
-   lines 0 and `1/16` on `y`. When one axis has no `n`, all three axes keep only the faces of the
-   box; §6.7, §10.1 and K2 now say so.
-8. Resolved: PHY-SHP-005. The union sorts the values and keeps the lowest of a group; a value `w`
-   joins the last kept value `k` when `w - 1.0E-7 ≤ k`.
-9. Resolved: PHY-FLG-004. With the on-ground flag false, the flag changes to false; it keeps its
-   value only when PHY-FLG-002 does not change the vertical flags.
-10. Resolved: PHY-BLK-002. MOV-002 is right: a `piston` move skips only the product and still
-    clears the multiplier and the velocity, unless the limit stops the move.
-11. Resolved: PHY-COL-002. A zero component gives `+0.0`, also for `-0.0`; the empty-collider and
-    `|d|² = 0` cases return `d` with its signs.
-12. Resolved: PHY-FLG-003. The kernel choice is the reference: `acos(a·b / sqrt(qa × qb))` in f64,
-    strict `<` against the widened `0.13962634F`; NaN gives false.
-13. Resolved: PHY-SHP-010. The distance is signed (negative outside), the `2m` test is strict, and
-    the grown border is half-open: `x ≥ xmin - m` and `x < xmax + m`, the same on `z`.
-14. Resolved: PHY-RCH-007, PHY-RCH-002. A new table lists every block with an inside action, with
-    the entities on which it acts; the tag `fall_damage_resetting` also counts. `crops` and
-    `cauldrons` are wrong as tags: the stems and the empty `cauldron` have no inside action.
-15. Resolved: PHY-STP-001, PHY-ORD-005. The base of `step_height` is type data; 0.6 is only the
-    default. `armor_stand` has 0, so the E4 and E5 fixtures are right.
-16. Resolved: PHY-ORD-001 step 14 stays as written; PHY-FALL-004 is new, and U1 of the spec notes
-    the fixtures. The fixtures are of `26.4-snapshot-4`, which adds the fall in the move. Snapshot 7
-    adds it after the blocks inside the box, so an armor stand ends the cobweb tick with that
-    tick's fall. The E7, E8 and E17 fixtures must be recorded again.
-17. Resolved: PHY-FALL-004, PHY-GRV-014. The reset for the tag applies to each entity that blocks
-    affect, an item too. Snapshot 4 reset it only in a move of 1 block or more; that explains E7.
-18. Resolved: PHY-ORD-005, item. A rest tick skips `M`, `D` and the bounce, applies `G`, and runs
-    `E` with the path of the last tick that moved.
-19. Resolved: PHY-GRV-002, PHY-SRV-008 step 4. `v.y` is the velocity after the move procedure,
-    before the climb rule sets 0.2, not the value at the start of the travel step.
-20. Resolved: PHY-INP-002. The components are divided by `sqrt(|i|²)`.
-21. Resolved: PHY-CMP-016. A test can fit the offset from four rest ticks in a row.
-22. Resolved: PHY-ORD-007, PHY-INP-018. `S` gains `jump0`; `K` gains the auto-jump flag; a new
-    argument `F` holds the spectator, passenger, sleep, food and sprint window facts. §9 adds `jump0`.
-23. Resolved: PHY-INP-015. It is the jump of PHY-INP-005, immediately in step 6, without the jump delay;
-    the impulse of PHY-INP-013 follows in step 7.
-24. Resolved: PHY-INP-021. The tag `causes_suffocation` and a full-cube collision shape, with a
-    table of blocks that never or always cause it, shulker boxes and pistons.
-25. Resolved: PHY-INP-001. The components are divided by `f32(sqrt(l² + f²))`. For the key values
-    0 and ±1, the product with `f32(1 / length)` gives the same bits.
-26. Resolved: PHY-CMP-005. SRV-008 is exact for its input; the checker compares positions with
-    `offset_threshold` and never compares candidate velocities bit for bit.
-27. Resolved: PHY-ORD-007, PHY-SRV-010 step 7. Step 1 of PHY-ORD-001 overwrites the old position
-    and rotation before any rule reads them, so they stay outside `PlayerState`.
-28. Resolved: PHY-PSH-008, PHY-ORD-007. The push is part of `v` before step 1, so the zero cutoff,
-    the jump and the input see it.
-29. Resolved: TP-CONFIRM-ACC-009, MVC D8. The reference snaps to the destination and then handles
-    the accept as a move with the vanilla checks. A server without the checks uses that; with the
-    checks, MVC-LAT-008 wins.
-30. Resolved: TP-CONFIRM-RES-006, TP-CONFIRM-ID-003. A resend needs more than 20 ticks (21), and
-    every `move_player_*` packet and `move_vehicle` count.
-31. Resolved: SIM-BEV-004, SIM DEV-06. Sending only to players that hold the column is an allowed
-    deviation; a client without the column ignores the event.
-32. Resolved: SIM-SET-005, SIM DEV-07. Dropping the marks is allowed when the complete column goes
-    to the client later.
-33. Resolved: MVC-PKT-031. Of the entity packets, only `set_entity_motion`, `set_entity_data` and
-    `update_attributes` go to the viewer about itself; they count as predicted changes.
-34. Decided: the player spawn info of `login` and `respawn` has one world flag in
-    `26.4-snapshot-7`, not two. We keep the flat world flag and remove the debug world flag.
-    Evidence: snapshot 7 makes debug worlds ordinary editable worlds, and the world of the game
-    also lost its debug flag. The bytes on the wire do not depend on this choice. Experiment:
-    record the `login` packet of a vanilla server with `level-type=flat`; the flag must be true.
 35. Open: the density functions `upscale` and `domain_warp` of `26.4-snapshot-7`. We read
     `upscale` and evaluate it only when each axis is `interpolate_linear` and the X and Z cell
     sizes are equal. The vanilla data uses only this form. The other modes and `domain_warp`
     need a specification.
-36. PHY-FALL-004 against PHY-FALL-002, the point of the fall reset. Resolved: the fall reset
-    tests the path of the bottom-centre position against the inside shape (PHY-FALL-002/004).
-37. PHY-FALL-004, the inside shapes of the blocks. Resolved: PHY-RCH-008 gives the inside shape
-    per block; the default is the full cube.
-38. PHY-INP-021, the shulker box. Resolved: PHY-SHP-014; an unknown open state means coarse,
-    never closed. The engine does not give the open progress to the kernel yet.
-39. PHY-INP-011, the order and the precision of the push out. Resolved: PHY-INP-011 states the
-    f64 offset and the overwrite per axis.
-40. PHY-CMP-013, the key of a player. Resolved: PHY-CMP-013. A player keeps the UUID of its
-    profile at each login and at a respawn, and the UUID is its order key.
-41. PHY-CMP-024, a tie of two keys. Resolved: PHY-CMP-024. The UUID is the key, and a spawn with
-    a UUID of the world is refused, so no tie exists.
-42. PHY-CMP-013, the birth tick across a restart. Resolved: PHY-CMP-013. The birth tick is a birth
-    clock of the world: it advances in every server tick, also a frozen one, the save keeps it, and
-    no command changes it. The game time is saved and no command sets it, but it stops while the
-    tick rate is frozen, so it is not the birth tick. A save without the clock starts it at the game
-    time of the save.
-43. MVC-CHK-010, the default `tick_drift`. Resolved: MVC-CHK-010 and the table of section 10. The
-    default is `10 × D` (500 ms at 20 ticks each second): the client answers the probes of a frame
-    before it runs the ticks of that frame, at most 10.
-44. MVC-TICK-004, the count of silent ticks after the 20th. Resolved: MVC-TICK-004. Each silent
-    tick from the 20th on is a violation, until the next position packet; a legit client never
-    gets one.
-45. MVC-LAT-012 against MVC-INV-008. Resolved: MVC-LAT-012 and the new deviation D9. The
-    disconnect stays: a client that does not answer a probe for 60 s also does not answer
-    `keep_alive`, which a vanilla server disconnects after 15 to 30 s.
 46. MVC-LAY-003 and §8.1, the thread of layer 1. Open (design). The order of the clientbound
     packets is final only when `dispatch_encode` writes them, and both directions must meet in
     one state without a lock. Layer 1 therefore runs in `bridge_inbound` and in the write of the
     queues; layer 0 runs on the reader of each connection. Moving layer 1 to the network threads
     needs the writer to pass the probe plan to the reader in the order of the wire.
-47. MVC-UNC-005, the ends of the push interval. Resolved: MVC-UNC-005. Each end is the extreme of
-    `f` at the nearest `|Δz|`, at `0.01F` and at the farthest `|Δz|`; this is the exact range.
-48. MVC-LAT-007, the candidate of a client that moves itself back. Resolved: MVC-LAT-007. The move
-    changes only the position, so each run that first applies the ack and meets a kept state also
-    runs from the recorded position, with its own velocity.
-49. MVC-LAT-006 and MVC-LAT-005, uncertain blocks. Resolved: MVC-LAT-006, MVC-PRED-016. One run for
-    each prefix replaces the two runs; the tick is no longer coarse for uncertain blocks.
-50. An item that a block drops, its start position and velocity. Resolved: PHY-CMP-025, PHY-DEV-013; E54
-    confirms it.
-51. The entity data of an item entity. Resolved: PHY-CMP-026. Index 8, serializer 7, the stack.
-52. PHY-SKIP-003 and §1, the rest of an item. Resolved: PHY-ORD-005 "Item, stop", PHY-DEV-014. The
-    40% of §1 stays: an item on stone rests within about 100 ticks (E53).
-53. MVC-LAT-006 and MVC-LAT-007, the state of an edited block before its `block_changed_ack`.
-    Resolved: MVC-LAT-006, MVC-LAT-007. The own edit enters the world view at the request, with no
-    window; until the ack, a prefix gives the state of the edit, and from the ack the kept state.
-54. The column record of a save, a record without `yPos`. Resolved: SIM-SCH-018. The load does not
-    read `yPos`; each section has its place from its own `Y`, and the dimension gives the lowest
-    section. A record without `yPos` loads.
-55. MVC-LAT-008 against MVC-MODE-001, a relative teleport while the client moves. Resolved:
-    MVC-LAT-008, MVC-MODE-002, MVC-RSP-003. The server predicts the ticks before the accept with
-    no violation, for each teleport; the accept applies the teleport to the candidates at that time,
-    which keep their flags and fall distance; unknown values make the next tick a resync tick.
-56. `entity-tracking.md` TRK-LIFE-001, the cold state of a mob. Decided: the cold state of a mob
-    lives in a side table keyed by `EntityId`, not in an ECS entity as §6.3 states. The table holds only the entity type; each other entity data value is a function
-    of the type. The health and the dying state live in the row (DMG-DTH-005). Reason: no system queries the cold state of
-    mobs yet, and a side table keeps the spawn a row operation of its tile. A mob gets an ECS
-    entity when a system of the AI or the damage needs a query over the cold state.
 57. `entity-tracking.md` TRK-RNG-001, TRK-RNG-003, the radius of the subscriptions. Decided for
     G1: `VIEW_RADIUS` becomes 4 tiles, which covers 128 blocks from any point of the own tile;
     TRK-DEV-004 records the square. Still open (design): with 3 tiles a subject can be outside the
@@ -1804,14 +1274,6 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     128 blocks, and of a player 160 blocks at the view distance 10. The radius must cover the
     largest tracking range of the dimension, capped by the view distance of the viewer, and the
     codec must pair each subject by the range of its type.
-58. `entity-tracking.md` TRK-UPD-009, TRK-CLI-001, the tiers of a living subject. Decided: a
-    living subject that is not a player sends its updates at the update interval of its type at
-    every tier. Reason: the client plays all steps of a path within the update interval of the
-    type (3 ticks for a zombified piglin), so a path of 10 or 20 ticks moves the mob in 3 ticks and
-    then stops it. The claim C5 of `replication.md` §5 thus does not hold for these subjects. The
-    budget of REPL §7.4 removes such a subject from the visible set; it never lowers its rate. The
-    muxer calls `blob` only for due tiles and tiers, so the codec runs one tracker for each such
-    subject and writes its updates in `finish_tick` to each viewer that holds it (TRK-UPD-009).
 59. SIM-FIRE-012 and SIM-SCH-005, the loaded footprint of a scheduled tick. Open (design). A fire
     tick reads and sets positions up to 2 blocks to the side and from 2 below to 5 above its
     position. Vanilla runs scheduled ticks in a column only when its eight neighbour columns are
@@ -1820,12 +1282,9 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     Does the engine load each section within one column and the footprint height of a section
     that runs scheduled ticks? If not, which rule holds: the section does not run ticks, or the
     tick waits?
-60. DMG-CRW-002, crowd deaths in one tick. Resolved: DMG-CRW-002 states the crowd fix-up in
-    `Simulate` after the main pass (§3.7). Across cells, C6.
-61. The hits of the own block actions and of the crowd. Resolved: DMG-ORD-002 and §3.7.
 65. PATH-PRF-002, PATH-DET-001, the version of the path type table for each snapshot. Deferred to
     track A1. The type of a state reads the `pathfinding/*` tags and `fire`, `campfires`, `fences`,
-    `walls` and `fence_gates`, so a data-pack reload changes it. In step G4, `build_tables` builds
+    `walls` and `fence_gates`, so a data-pack reload changes it. `build_tables` builds
     the tables again in `DomainInput` when `CurrentRegistries` changes, before `Simulate`, and the
     inline runner of PATH-DET-004 reads the table of the same tick, so no version is necessary. The
     AI stage of A1 runs a search after its issue tick; then the snapshot of each tick must name the

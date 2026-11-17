@@ -98,7 +98,7 @@ fn scene_dir(_: &Knobs) -> Option<PathBuf> {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "the client's entry point builds the whole app, and its plugins, resources and systems read top to bottom in the order they are added"
+    reason = "app setup reads top to bottom in the order added"
 )]
 pub fn run() -> AppExit {
     #[cfg(target_os = "macos")]

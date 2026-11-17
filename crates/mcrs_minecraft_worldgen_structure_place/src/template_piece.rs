@@ -61,7 +61,7 @@ fn shipwreck_loot(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the processor chain, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+    reason = "independent inputs of one column's paint"
 )]
 pub fn paint_shipwreck<W: WorldGenVolume>(
     chain: &CompiledChain,
@@ -128,7 +128,7 @@ impl IglooBlocks {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the igloo's blocks, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+    reason = "independent inputs of one column's paint"
 )]
 pub fn paint_igloo<W: WorldGenVolume>(
     b: &IglooBlocks,

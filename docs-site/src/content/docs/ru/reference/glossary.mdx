@@ -81,9 +81,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 | Термин | Значение | Ближайшее в Paper или Minestom |
 |---|---|---|
-| Реестр, датапак (registry, data pack) | Реестры, например блоки, биомы и измерения, загружаются из датапака. Сервер загружает {fact('registries')} реестров, это число взято из раздела "Server start" в PERF.md. | `Registry` в Bukkit, `DynamicRegistry` в Minestom. |
-| Resource location, key | Resource location, или key, - это имя вроде `minecraft:stone`. Оно живет на границах, то есть в датапаке, протоколе и командах, а внутри код использует числовые id, как объясняет [`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md). | `NamespacedKey`, `Key` в Minestom. |
+| Реестр, датапак (registry, data pack) | Реестры, например блоки, биомы и измерения, загружаются из датапака. | `Registry` в Bukkit, `DynamicRegistry` в Minestom. |
+| Resource location, key | Resource location, или key, - это имя вроде `minecraft:stone`. Оно живет на границах, то есть в датапаке, протоколе и командах, а внутри код использует числовые id. | `NamespacedKey`, `Key` в Minestom. |
 | Molang | Molang - это язык выражений Bedrock для анимаций и условий. У компилятора `mcrs_molang` есть пакетный бэкенд и бэкенд WGSL. | - |
 | Impostor | Impostor - это далекий моб, который нарисован запеченным спрайтом. | - |
-| Arena, group table, GPU cull, depth pyramid | Эти термины рендерера взяты из PERF.md и DECISIONS.md. Arena - это арена памяти для квадов, моделей или граней, group table - таблица групп секций, GPU cull - отсечение на GPU, а depth pyramid - пирамида глубины для двухпроходной окклюзии. | - |
+| Arena, group table, GPU cull, depth pyramid | Arena - это арена памяти для квадов, моделей или граней, group table - таблица групп секций, GPU cull - отсечение на GPU, а depth pyramid - пирамида глубины для двухпроходной окклюзии. | - |
 | Hot | Hot - это параметр замеров клиента `MCRS_HOT`, который не дает быстрым ядрам CPU уйти в простой. Это не то же самое, что hot space. | - |

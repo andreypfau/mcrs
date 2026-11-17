@@ -147,7 +147,7 @@ impl ColumnHeightmapSet {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the four heightmaps one block write updates, the block's position, the kinds it touches, the predicates and the reader of the column below"
+    reason = "independent inputs of one block write"
 )]
 pub fn apply_write(
     surface: &mut ColumnHeights,
@@ -320,7 +320,7 @@ fn close(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the heightmap an edit moves and its kind, the block's position, the kinds the write touches, the floor, the predicates and the reader of the column"
+    reason = "independent inputs of one block write"
 )]
 fn apply_edit(
     map: &mut ColumnHeights,

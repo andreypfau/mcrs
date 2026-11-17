@@ -53,7 +53,7 @@ fn cell_span(cell: usize) -> Range<usize> {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "fills the upscaled cells of each quart cell in y, z, x order, so the corner blend reads beside the loops that place it"
+    reason = "fills the upscaled cells of each quart cell in y, z, x order"
 )]
 pub fn upscale_biomes(
     grid: &BiomeGrid,

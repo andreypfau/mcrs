@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn a_viewer_that_is_behind_misses_the_moves_and_then_gets_the_state_the_others_hold() {
+    fn lagging_viewer_misses_moves_then_gets_the_held_state() {
         let mut world = World::spawned(at(0.5));
         for viewer in [KEEPS_UP, BEHIND] {
             world.gain(viewer, 0);

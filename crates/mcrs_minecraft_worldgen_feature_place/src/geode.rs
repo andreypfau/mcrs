@@ -79,7 +79,7 @@ fn inv_sqrt(value: f64) -> f64 {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "shells the distance field in four layers, cracks it and studs it with crystals in the reference's order, so the random draws match it"
+    reason = "layers in the reference's order so the random draws match"
 )]
 pub fn place_geode<W: WorldGenVolume>(
     config: &CompiledGeode,

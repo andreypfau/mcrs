@@ -96,7 +96,7 @@ pub(super) struct Dump {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "reads the oracle's dump section by section in the order it was written, so each read follows the layout"
+    reason = "reads the oracle's dump section by section in the order it was written"
 )]
 fn read_dump() -> Dump {
     let source = fixture("template_placement");
@@ -351,10 +351,7 @@ struct Outcome {
     rng: [i64; 2],
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "compares one placement's flag, blocks, entities and random state with the oracle's and reports every difference as a line"
-)]
+#[expect(clippy::too_many_lines, reason = "reports every difference as a line")]
 fn compare(label: &str, expected: &DumpPlacement, got: &Outcome) -> Vec<String> {
     let mut faults = Vec::new();
     let fault = |faults: &mut Vec<String>, what: String| faults.push(format!("{label}: {what}"));

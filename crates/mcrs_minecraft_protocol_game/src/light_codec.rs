@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol::wire::{Context, bail, ensure};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(
     clippy::large_enum_variant,
-    reason = "a filled row holds its whole light layer in line, and boxing it would add a pointer to every row of a column"
+    reason = "boxing the row would add a pointer to every row"
 )]
 pub enum RowLight {
     Unchanged,

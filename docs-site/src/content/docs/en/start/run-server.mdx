@@ -11,7 +11,6 @@ sources:
   - README.md
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
   - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
-  - PERF.md
   - issue:82
 verified:
   snapshot: 26.4-snapshot-7
@@ -41,8 +40,6 @@ cargo run --release -- "<path to a world folder>"
 ```
 
 The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot ({fact('snapshot')}). Saves of other versions do not load, and there are no datafixers.[^388]
-
-On the reference machine, an Apple M4 Max with macOS, a release build with no world folder reaches the Playing state in 0.77 s, the median of three runs. This is the start time of a binary that is already built, so it does not include the build. The measurement is in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start).
 
 ## Join with a vanilla client
 

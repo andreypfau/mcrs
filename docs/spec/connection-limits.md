@@ -1,10 +1,6 @@
 # Connection limits: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Status | `ready` |
-| Issue | #915 |
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
+Version: see `assets/minecraft/version.json`.
 
 This document states four limits of a server that a public network can reach:
 
@@ -112,7 +108,7 @@ refusal with its reason. A login that passes all checks continues with step 2 of
 - **Behavior:** the checks of rows 2 to 4 apply also to a login with the transfer intent.
 
 Provenance: `black_box_confirmed` for the whitelist before the player limit (`whitelist.md`,
-WL-JOIN-006, result R12). `design` for the address ban before the player limit: a ban reason tells
+WL-JOIN-006). `design` for the address ban before the player limit: a ban reason tells
 the player more than a full server. `design` for rows 3 and 4: a limit that protects the server
 comes after the checks that tell the player why the player cannot join. Kind: semantic.
 Confidence: high.
@@ -137,8 +133,7 @@ Confidence: high.
 - **Postconditions:** the number of joined connections is never more than `M` after the check.
   Two logins that the server verifies in the same tick count in the order of their verification.
 
-Provenance: `black_box_confirmed` for the key and the packet (`whitelist.md`, results R8 and R12)
-and for the English text (`assets/minecraft/lang/en_us.json` in the client jar). `design` for the
+Provenance: `black_box_confirmed` for the key and the packet and for the English text (`assets/minecraft/lang/en_us.json` in the client jar). `design` for the
 count of joined connections and for the exception of the same profile id: see section 7. Kind:
 semantic. Confidence: high.
 
@@ -278,78 +273,7 @@ Provenance: `black_box_confirmed` for the English text (`assets/minecraft/lang/e
 client jar). `design` for the use of the key: the vanilla client translates it. Kind: semantic.
 Confidence: high.
 
-## 7. Test vectors
-
-The address `127.0.0.1` gets no check of LIM-IP-001 and LIM-RATE-001. A test thus sets a client
-address that is not loopback. These are two methods:
-
-- Turn Velocity forwarding on, and send a forwarding answer with the address of the row
-  (`proxy-forwarding.md`, section 6). The per-IP accept limit is then off (LIM-RATE-002).
-- Add `127.0.0.1` to the trusted upstreams, and send a v1 header with the address of the row
-  before each handshake (`proxy-protocol.md`, section 5, row V1-1). The per-IP accept limit then
-  charges the address of the row. A row with more than five connections from one address in two
-  seconds thus needs the first method.
-
-Each login in these vectors is an offline login with a new name, unless the row states a name. In
-the rows `I`, the join rate is off.
-
-| Row | Setup | Input | Result |
-|-----|-------|-------|--------|
-| F-1 | player limit `1`; player `a` in PLAY | login `b` | `b` gets the refusal of LIM-FULL-001 |
-| F-2 | player limit `1`; login `a` in CONFIGURATION | login `b` | `b` gets the refusal of LIM-FULL-001 |
-| F-3 | player limit `1`; player `a` in PLAY | login `a` again | the old `a` is disconnected (LOGIN-SEQ-002, step 3); the new `a` gets `login_finished` |
-| F-4 | player limit `1`; player `a` in PLAY, then `a` disconnects | login `b` | `b` gets `login_finished` |
-| F-5 | player limit `0` | login `a` | `a` gets the refusal of LIM-FULL-001 |
-| I-1 | cap `5`; five joined connections from `203.0.113.7` | login from `203.0.113.7` | refusal of LIM-IP-001 |
-| I-2 | as I-1 | login from `203.0.113.8` | `login_finished` |
-| I-3 | as I-1; one of the five disconnects | login from `203.0.113.7` | `login_finished` |
-| I-4 | cap `5`; five joined connections from `203.0.113.7`, one of them is `a` | login `a` from `203.0.113.7` | `login_finished`; the old `a` is disconnected |
-| I-5 | cap `1`; six logins from `127.0.0.1` with no header | — | all six get `login_finished` |
-| R-1 | join rate `3`, `4` s; cap off | four logins from `203.0.113.7` in one second | three get `login_finished`; the fourth gets the refusal of LIM-RATE-001 |
-| R-2 | as R-1, after the four logins | wait `4` s, then one login from `203.0.113.7` | `login_finished` |
-| R-3 | as R-1 | the fourth login comes from `203.0.113.8` | `login_finished` |
-| R-4 | join rate `3`, `4` s; player limit `1`; player `x` in PLAY | five logins from `203.0.113.7` in one second, then `x` disconnects, then one login | five refusals of LIM-FULL-001; the last login gets `login_finished` |
-| P-1 | packet rate limit `50` | `100` packets in each second, spread evenly | the first packet of second `3` gives LIM-PKT-002; the averages after seconds 0, 1 and 2 are 25, 43.75 and 57.8125 |
-| P-2 | packet rate limit `50` | `50` packets in each second for 20 seconds | no disconnect |
-| P-3 | packet rate limit `50` | `200` packets in second 0, then one packet in second 1 | no disconnect: the average is 50 |
-| P-4 | packet rate limit `50` | `201` packets in second 0, then one packet in second 1 | the packet in second 1 gives LIM-PKT-002; it is not handled |
-| P-5 | packet rate limit `0` | `10000` packets in one second, then one packet | no disconnect |
-
-## 8. Defaults for the owner to confirm
-
-Each entry is a `design` rule with a default. The default applies until the owner decides. An
-entry is not an open question for an implementer.
-
-1. **Slots in CONFIGURATION** (LIM-FULL-001, LIM-FULL-002). Default: a joined connection in
-   CONFIGURATION holds a slot. The other choice: count only the players in PLAY, and check the limit
-   again at the end of CONFIGURATION.
-2. **A rejoin to a full server** (LIM-FULL-001, LIM-IP-001). Default: a joined connection with
-   the profile id of the login does not count.
-3. **A player that can pass the player limit.** Default: none. mcrs has no operator file, so no
-   operator flag can give this right.
-4. **The per-IP join cap** (LIM-IP-001). Default: `5`, exact addresses. The other choice for IPv6:
-   one count for each `/64` network.
-5. **A global join rate.** Default: none. Only the bucket of each address applies. A global limit
-   also refuses real players during a flood from many addresses.
-6. **The texts of LIM-IP-001 and LIM-RATE-001.** Default: English plain text. The other choice:
-   translation keys of mcrs, as in `proxy-forwarding.md`, FU-03.
-7. **The packet rate limit** (LIM-PKT-001). Default: `500`.
-
-## 9. Experiments
-
-No rule depends on an experiment. The proposal below confirms that a real player sees the texts.
-It has not been run.
-
-**E1: the texts on the client.**
-
-1. Start mcrs on a LAN address with the player limit `1`, the per-IP join cap `1` and the join
-   rate `1`, `60` s.
-2. On a second machine, let the input agent of `tools/vanilla-client` join as `a`.
-3. On the same machine, let a second client join as `b`. Record the text on its screen.
-4. Set the player limit to `5`, and restart mcrs. Do steps 2 and 3 again. Record the text.
-5. Let `a` leave. Let `b` join again at once. Record the text.
-
-## 10. Intentional deviations
+## 7. Intentional deviations
 
 - **Rule:** LIM-FULL-001, the count of joined connections.
   - **Reference:** the vanilla server counts only the players in PLAY. It checks the limit again
@@ -368,16 +292,34 @@ It has not been run.
     the same slot again.
   - **Visible to the client:** yes. The player joins in place of the refusal.
   - **Bug reference:** none.
-  - **Test:** a differential test skips row F-3.
+  - **Test:** a differential test skips a login with the profile id of a joined connection.
 - **Rule:** LIM-IP-001, LIM-RATE-001 and the default of LIM-PKT-001.
   - **Reference:** the vanilla server has no per-IP join cap and no join rate. Its packet rate
     limit is off by default (`rate-limit=0`).
-  - **Reason:** a public server must slow down a flood of connections (issue #915).
+  - **Reason:** a public server must slow down a flood of connections .
   - **Visible to the client:** yes, only for a client past a limit. It gets the refusal or the
     disconnect of the rule.
   - **Bug reference:** none.
   - **Test:** a differential test turns these limits off.
 
-## 11. Unresolved
+## 8. Unresolved
 
-None.
+Each entry has a default. The default applies until the owner decides.
+
+Each entry is a `design` rule with a default. The default applies until the owner decides. An
+entry is not an open question for an implementer.
+
+1. **Slots in CONFIGURATION** (LIM-FULL-001, LIM-FULL-002). Default: a joined connection in
+   CONFIGURATION holds a slot. The other choice: count only the players in PLAY, and check the limit
+   again at the end of CONFIGURATION.
+2. **A rejoin to a full server** (LIM-FULL-001, LIM-IP-001). Default: a joined connection with
+   the profile id of the login does not count.
+3. **A player that can pass the player limit.** Default: none. mcrs has no operator file, so no
+   operator flag can give this right.
+4. **The per-IP join cap** (LIM-IP-001). Default: `5`, exact addresses. The other choice for IPv6:
+   one count for each `/64` network.
+5. **A global join rate.** Default: none. Only the bucket of each address applies. A global limit
+   also refuses real players during a flood from many addresses.
+6. **The texts of LIM-IP-001 and LIM-RATE-001.** Default: English plain text. The other choice:
+   translation keys of mcrs, as in `proxy-forwarding.md`, FU-03.
+7. **The packet rate limit** (LIM-PKT-001). Default: `500`.

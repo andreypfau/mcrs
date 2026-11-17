@@ -24,7 +24,7 @@ fn passes(state_json: &str, block: &str, properties: &[(&str, &str)]) -> bool {
 
 #[test]
 #[expect(clippy::too_many_lines, reason = "one table of cases")]
-fn a_state_entry_follows_the_names_and_the_value_order_of_its_property_pred_blk_007_009() {
+fn state_entry_follows_property_names_and_order_pred_blk_007_009() {
     let wheat = "minecraft:wheat";
     let furnace = "minecraft:furnace";
     let cluster = "minecraft:amethyst_cluster";

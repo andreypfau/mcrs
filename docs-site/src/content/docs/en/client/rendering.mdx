@@ -8,8 +8,6 @@ audience: [contributor, rust]
 stability: changing
 tracking: [16, 330, 337, 344, 506]
 sources:
-  - DECISIONS.md
-  - PERF.md
   - docs/entity-render.md
   - docs/entity-render-budget.md
   - crates/mcrs_minecraft_render/src/arenas.rs
@@ -37,21 +35,21 @@ Two crates do the drawing. `mcrs_minecraft_render` draws the terrain and the sky
 
 ## Terrain lives in a few large GPU buffers
 
-The renderer does not give each chunk its own buffer. It writes the meshes into a few large GPU buffers called arenas. There are three of them, and they hold quads, models and faces. An allocator packs blocks toward offset zero, and an arena grows in steps only as far as the highest byte in use. At 96 columns the arenas hold about 50% of 4.3 GB, which is 768 MB of quads, 2.5 GB of models and 1 GB of faces, and the whole terrain takes 7 draws. These numbers are from the Render distance section of PERF.md, measured on an M4 Max.
+The renderer does not give each chunk its own buffer. It writes the meshes into a few large GPU buffers called arenas. There are three of them, and they hold quads, models and faces. An allocator packs blocks toward offset zero, and an arena grows in steps only as far as the highest byte in use.
 
-One render system builds the whole frame. It does the uploads, resolves the timestamps, dispatches the cull, and runs a single render pass that holds the sky, the opaque terrain, the clouds and the blended terrain. DECISIONS.md records that this design took the frame from five encoders and six command buffers down to one encoder and two command buffers.
+One render system builds the whole frame. It does the uploads, resolves the timestamps, dispatches the cull, and runs a single render pass that holds the sky, the opaque terrain, the clouds and the blended terrain.
 
 ## The GPU chooses what to draw
 
-Culling means leaving out geometry that the camera cannot see. In mcrs a compute pass on the GPU does this work, and the CPU does not. The pass tests each group of quads against the view and writes the draw arguments itself. At 96 columns the cull costs 0.46 to 0.49 ms on the GPU in the PERF.md scenarios, which run on an M4 Max with macOS at 2560x1440, with the GPU held at clock by `MCRS_GPU_HOT=16384`.
+Culling means leaving out geometry that the camera cannot see. In mcrs a compute pass on the GPU does this work, and the CPU does not. The pass tests each group of quads against the view and writes the draw arguments itself.
 
 ## Occlusion is tested against the depth of the last frame
 
-A group can be inside the view and still hidden behind a hill. DECISIONS.md measured how often that happens: at 96 columns, 7.96 M of 15.3 M drawn triangles were behind the terrain of the last frame. The occlusion test removes those triangles. It works against a depth pyramid built from the last frame, and it runs in two passes.
+A group can be inside the view and still hidden behind a hill. The occlusion test removes the triangles that are behind the terrain. It works against a depth pyramid built from the last frame, and it runs in two passes.
 
 The first cull hides what the old pyramid hides, and it keeps the groups that only this test hides as candidates. The renderer then rebuilds the pyramid from the depth of the current frame, and a second cull brings back the candidates that are visible after all, in a second set of draws. Because of the second pass, nothing appears one frame late.
 
-The occlusion pass costs time even when there is nothing to draw, so it runs only when groups are resident. You can turn it off with `MCRS_OCCLUSION=0` to see what it buys. At 96 columns it takes the GPU frame from 6.0 ms down to 3.7 ms.
+The occlusion pass costs time even when there is nothing to draw, so it runs only when groups are resident. You can turn it off with `MCRS_OCCLUSION=0` to see what it buys.
 
 ## Mobs are posed and drawn on the GPU
 
@@ -75,12 +73,10 @@ A mob that is far away does not need its full rig, the set of bones that poses t
 
 A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. A program with no server, such as a world viewer, adds a player with `host_living_entity`, moves it with `move_entity` and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
 
-## Where the rules and the numbers are
+## Where the rules are
 
 | Topic | File |
 |---|---|
-| Why the renderer works as it does, with numbers | [`DECISIONS.md`](https://github.com/andreypfau/mcrs/blob/main/DECISIONS.md) |
-| Frame times, memory and the method | [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md) |
 | Entity rendering design | [`docs/entity-render.md`](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md) |
 | Workload model and budget of entities | [`docs/entity-render-budget.md`](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render-budget.md) |
 | What the client can do today | [The client today](/docs/en/client/overview/) |

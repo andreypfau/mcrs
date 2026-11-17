@@ -11,14 +11,6 @@ the world, chat text, the player movement in both directions, the time, one bloc
 the chunk column. It also states the order of the packets from the end of the handshake to the
 spawn of the player.
 
-This document does not state these items. A later specification states each one:
-
-- the layout of the sub-chunk data and of the biome data in the chunk column payload;
-- the block palette and the runtime ids of the block states;
-- the item table and the user data of an item;
-- the meaning of each item stack request and the answer of the server;
-- the movement correction of the server (server authoritative movement).
-
 ## 0. Conventions
 
 ### 0.1 Terms
@@ -282,7 +274,7 @@ Provenance: `documentation`, `source_suggested`. Kind: wire. Confidence: high. E
   - The table gives the item network ids for the connection.
   - The table holds each item that the client knows, and each custom item.
 - **Edge cases:**
-  - An item that is not in the table shows as an unknown item in the client. Open question Q2
+  - An item that is not in the table shows as an unknown item in the client. Unresolved item Q2
     states the source of the vanilla table.
 
 Provenance: `documentation`, `source_suggested`. Kind: wire, semantic. Confidence: high (layout),
@@ -571,7 +563,7 @@ Provenance: `documentation`, `source_suggested`. Kind: wire. Confidence: high. E
   - The trigger type is 1 when the input starts in this tick. It is 2 when the player holds the
     input from an earlier tick.
 - **Edge cases:**
-  - Open question Q3 states a conflict about the condition of the legacy slots.
+  - Unresolved item Q3 states a conflict about the condition of the legacy slots.
 
 Provenance: `documentation`, `source_suggested`. Kind: wire. Confidence: high (layout), medium
 (condition of the legacy slots). Edition: bedrock. Experiment: place a block with a vanilla
@@ -681,7 +673,7 @@ connected to BDS 1.21.30, use the recipe book (type 13), a loom (type 17), a gri
   - Other action values are possible. They carry no position and no face.
 - **Edge cases:**
   - A negative count is a decode error.
-  - Open question Q5 states a conflict about action 2.
+  - Unresolved item Q5 states a conflict about action 2.
 
 Provenance: `documentation`, `source_suggested`. Kind: wire. Confidence: high (actions 0, 1, 18,
 26, 27), low (action 2). Edition: bedrock. Experiment: break a block in survival with a vanilla
@@ -873,7 +865,7 @@ response 4 to the packet `0x71`. Record the order and the count of the chunk col
 - **Prediction risk**: none.
 - **Parity list**: none.
 
-## 12. Open questions
+## 12. Unresolved
 
 - **Q1.** The type of an integer game rule value in `StartGame` is `varuint32` in the sources.
   It is not known how the client reads a negative rule value. Experiment: BEG-SG-003.

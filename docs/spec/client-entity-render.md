@@ -2,17 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`. The rules were read against the
-behaviour of `26.4-snapshot-7`. No difference between the two versions is known for this domain.
+| Version | see `assets/minecraft/version.json` |
 
 This document states how the client places, shades and tints a living entity in the world. It
 uses the values of one frame from `client-entities.md` (CENTS-FRAME-001) and the bone
 transforms from `entity-geometry.md` and `entity-animation.md`. The mob documents give the
-geometry, the textures and the constants of each type. The document does not prescribe an
-architecture.
+geometry, the textures and the constants of each type.
 
 ## 0. Conventions
 
@@ -36,9 +31,6 @@ architecture.
   right-hand rule.
 
 ### 0.2 Provenance and confidence
-
-Each rule has a line `Milestone`: `1` is the pig, `2` is the frog, and `later` is a rule that
-milestones 1 and 2 do not use.
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". No artefact of the game confirms a rule of this document
@@ -65,16 +57,6 @@ normalised value `c / 255`.
 | `CEREN-NAME` | the name tag |
 | `CEREN-DEV` | intentional deviations |
 
-### 0.5 Scope
-
-In scope: living entities that are not the local player, in the default view of the world.
-
-Out of scope: sleeping entities, riding, the spin attack, the leash, the fire overlay, the
-outline of a glowing entity, items in hands, armour, and entities in a GUI. The shadow
-(section 6) and the name tag (section 7) are in scope, but a later milestone implements them.
-
----
-
 ## 1. Numbers
 
 ### CEREN-MATH-001: Trigonometry
@@ -87,7 +69,6 @@ outline of a glowing entity, items in hands, armour, and entities in a GUI. The 
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Deviation: CEREN-DEV-001.
 Experiment: none. The difference is less than one pixel.
-Milestone: 1.
 
 ---
 
@@ -103,7 +84,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: go to
 X = 1 000 000. Look at a pig that walks. The pig moves smoothly.
-Milestone: 1.
 
 ### CEREN-PLACE-002: The entity transform
 
@@ -132,7 +112,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: summon a pig
 with `Rotation:[0f,0f]` and the tag `NoAI`. Its snout points south (+Z). Summon it with yaw 90.
 Its snout points west (−X).
-Milestone: 1.
 
 ### CEREN-PLACE-003: Death tilt
 
@@ -148,7 +127,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: kill a pig that
 faces south. Seen from the north, behind the pig, the pig falls to its left (east, +X of
 world space).
-Milestone: 1.
 
 ### CEREN-PLACE-004: Shake of a frozen entity
 
@@ -160,7 +138,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put a pig in
 powder snow for 7 seconds. The pig shakes left and right.
-Milestone: later.
 
 ### CEREN-PLACE-005: Upside-down names
 
@@ -176,7 +153,6 @@ Milestone: later.
 Provenance: `documentation`; `source_suggested` for the offset and the negation. Kind: semantic.
 Confidence: medium. Experiment: name a pig `Dinnerbone`. The pig is upside down with its feet
 at 0.1 block above the top of its entity box. It looks up when the player stands above it.
-Milestone: later.
 
 ---
 
@@ -207,7 +183,6 @@ Milestone: later.
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: look at the feet of
 a frog from above and from below. Compare each foot with the two texture regions of the foot
 cube. From both sides, the foot shows the region of the face that item 4 selects.
-Milestone: 1.
 
 ### CEREN-SURF-002: Shading by the face direction
 
@@ -227,7 +202,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: take a
 screenshot of a pig at full light. Compare the colour of the top and the side of the body with
 the texture. The ratios match the factor.
-Milestone: 1.
 
 ### CEREN-SURF-003: Light of an entity
 
@@ -247,7 +221,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put a pig with
 its head in a lit block and its feet in a dark block. The pig has the light of its head block.
-Milestone: 1.
 
 ### CEREN-SURF-004: Red overlay
 
@@ -266,7 +239,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: hit a sheep in
 full light. Measure a texel of the wool on a face that points up. For 10 ticks, the red channel
 is `c · 178/255 + 77` and the green and blue channels are `c · 178/255`, within the tolerance.
-Milestone: 1.
 
 ### CEREN-SURF-005: White flash
 
@@ -281,7 +253,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: ignite a creeper
 with flint and steel. The creeper flashes white. Compare the brightest colour with the formula.
-Milestone: 1.
 
 ### CEREN-SURF-006: Order of the colour operations
 
@@ -302,7 +273,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: hit a pig in a
 dark cave. The red tint is dark, not bright. In full light, the red part is equal on the top
 and on the side of the body.
-Milestone: 1.
 
 ---
 
@@ -328,7 +298,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: give a pig the
 invisibility effect. In survival mode the pig disappears. In spectator mode it shows as a ghost.
-Milestone: later.
 
 ### CEREN-VIS-002: Culling box
 
@@ -353,7 +322,6 @@ only the snout of a pig is at the edge of the screen. The snout shows. Item 5 al
 sphere with its centre at the centre of the block of the entity position, when its radius is
 the largest distance of the culling volume from the entity position plus `√3 / 2` block. That
 sphere contains the culling volume (`docs/entity-render-budget.md`, section 4.11).
-Milestone: 1.
 
 ### CEREN-VIS-003: Reduced detail of a small entity
 
@@ -392,7 +360,7 @@ sections 4.1 and 4.2. A face below 12 px of entity height covers less than 4 px�
 phase and the head angle are not visible at that size). Kind: semantic. Confidence: medium.
 Test: render one pig and one frog of each variant at `h_px` of 11, 8 and 4 at 16 yaw angles,
 once as an impostor and once as a full rig. The mean FLIP error of the entity pixels must be at
-most 0.1. Milestone: later. Until the impostor exists, an entity of item 2 draws as a full rig.
+most 0.1. Until the impostor exists, an entity of item 2 draws as a full rig.
 
 ---
 
@@ -411,11 +379,10 @@ most 0.1. Milestone: later. Until the impostor exists, an entity of item 2 draws
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put a saddle on
 a pig. Hit the pig. The saddle turns red with the pig.
-Milestone: 1.
 
 ---
 
-## 6. Shadow (later milestone)
+## 6. Shadow
 
 ### CEREN-SHADOW-001: Radius and strength
 
@@ -431,7 +398,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: walk away from a
 pig. The shadow fades and disappears at 16 blocks.
-Milestone: later.
 
 ### CEREN-SHADOW-002: Shadow pieces
 
@@ -453,7 +419,6 @@ Milestone: later.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: lead a pig over
 a slab. The shadow disappears over the slab.
-Milestone: later.
 
 ### CEREN-SHADOW-003: Drawing of a shadow piece
 
@@ -468,11 +433,10 @@ Milestone: later.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: take a
 screenshot from above of a pig on grass. The shadow is a disc with its centre under the pig.
-Milestone: later.
 
 ---
 
-## 7. Name tag (later milestone)
+## 7. Name tag
 
 ### CEREN-NAME-001: When the name tag shows
 
@@ -491,7 +455,6 @@ Milestone: later.
 Provenance: `documentation`; `source_suggested` for the distances. Kind: semantic. Confidence:
 medium. Experiment: name a pig. Walk away. The name tag disappears at 64 blocks when you aim at
 the pig.
-Milestone: later.
 
 ### CEREN-NAME-002: Placement and colours of the name tag
 
@@ -513,7 +476,6 @@ Milestone: later.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: name a pig. Put a
 wall between you and the pig. The name shows faintly through the wall.
-Milestone: later.
 
 ---
 

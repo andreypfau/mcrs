@@ -37,10 +37,6 @@ let decoded = LoginCompression::decode(&mut &frame.body[..]).unwrap();
 assert_eq!(decoded.threshold, packet.threshold);
 ```
 
-## Supported Minecraft Versions
-
-`mcrs_minecraft_protocol` targets exactly one game version, the one read from `mcrs_minecraft_core::VERSION`. There is no support for any other version, and a new game version often entails a major version bump, since breaking changes to packet definitions are frequent.
-
 ## Differences from the game
 
 A frame is compressed when its packet is at or above the compression threshold, a length prefix has at most three bytes, a zero length is refused, and an uncompressed frame may be longer than the threshold. These rules are shared with the game. Where MCRS differs, it differs on purpose:

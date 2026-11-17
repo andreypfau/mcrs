@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn ien_net_001_004_an_item_spawns_with_its_stack_and_a_pickup_takes_it_before_the_removal() {
+    fn ien_net_001_004_item_spawns_with_stack_and_pickup_precedes_removal() {
         let mut codec = EntityCodec::default();
         let state = MobState {
             position: DVec3::new(0.5, -60.0, 0.5),

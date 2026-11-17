@@ -144,7 +144,7 @@ macro_rules! for_each_data_component {
 
 #[expect(
     non_upper_case_globals,
-    reason = "each data_components! row names its flags in lower case and the macro splices them in as identifiers"
+    reason = "the macro splices lower-case flag names as identifiers"
 )]
 mod flag {
     pub(super) const persistent: u8 = 1;

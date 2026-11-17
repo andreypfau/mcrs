@@ -169,7 +169,7 @@ fn an_event_with_a_stamp_older_than_the_tail_is_delivered_first() {
 }
 
 #[test]
-fn absorbing_another_queue_merges_by_stamp_and_keeps_the_earlier_of_two_equal_events() {
+fn absorb_merges_by_stamp_and_keeps_the_earlier_of_equal_events() {
     let mut left = Shard::new();
     let mut right = Shard::new();
     for a in [1, 2, 3, 5] {

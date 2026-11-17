@@ -1,11 +1,6 @@
 # Scroll areas, lists and tab bars of the client GUI: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client shows a part of a tall content in a scroll area.
 It states how the client draws and moves a scrollbar. It states how a list of rows looks, and
@@ -85,8 +80,7 @@ Tab bars:
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The pixel values of sprites and textures come from the
-resource pack of the client jar of the version above. They are `black_box_confirmed`. None of
-the experiments in this document has been run. Each one is a proposal.
+resource pack of the client jar of the version above. They are `black_box_confirmed`.
 
 ### 0.3 Colours, rectangles and numbers
 
@@ -177,10 +171,7 @@ Out of scope:
   bottom of the content shows at the bottom of the area.
 - **Edge cases:** when `C ≤ h`, `M = 0` and `s = 0`. The area is not scrollable.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings at GUI scale 2 in a window of 854 × 480 pixels. Turn the wheel down by 50 notches.
-Take a screenshot. The last option row shows at the bottom of the list. Turn the wheel down
-by 5 more notches. The next screenshot is the same.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### SCRL-AREA-002: The mouse wheel
 
@@ -203,9 +194,7 @@ by 5 more notches. The next screenshot is the same.
 - **Edge cases:** a scroll area that is not scrollable also keeps the event. Its content does
   not move.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings with "Discrete Scrolling" on. Take a screenshot. Turn the wheel down by one notch and
-take a second screenshot. The option rows are 12 GUI units higher in the second screenshot.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### SCRL-AREA-003: The clip
 
@@ -223,9 +212,7 @@ take a second screenshot. The option rows are 12 GUI units higher in the second 
 - **Postconditions:** a row never covers the header or the footer of the screen. A widget of
   the area is hovered only inside the area.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-list with more worlds than fit. Turn the wheel until a row is half under the header. Take a
-screenshot. The row shows below the header separator only.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### SCRL-AREA-004: A change of the content or of the size
 
@@ -240,10 +227,7 @@ screenshot. The row shows below the header separator only.
 - **Postconditions:** the scroll offset is valid after each change.
 - **Edge cases:** when `C` becomes less than `h`, `s` becomes 0.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings in a window of 854 × 480 pixels at GUI scale 2. Scroll to the bottom. Change the
-window height to 600 pixels. Take a screenshot. The last option row is at the bottom of the
-list, and no empty space shows below it.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -273,9 +257,7 @@ list, and no empty space shows below it.
 - **Edge cases:** when the area is not scrollable, no track and no thumb draw.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the sprite data. Kind: layout.
-Confidence: medium. Experiment: open the video settings at W = 427 and H = 240. Take a
-screenshot. The scrollbar covers x from 376 to 381. The track is black and the thumb is light
-gray with a dark gray right column and bottom row.
+Confidence: medium.
 
 ### SCRL-BAR-002: The size and the position of the thumb
 
@@ -288,9 +270,7 @@ gray with a dark gray right column and bottom row.
 - **Example:** `t = 33`, `h = 168`, `C = 340`. Then `th = 83` and `M = 172`. At `s = 86`,
   `y0 = 33 + floor(86 · 85 / 172) = 75`.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the video
-settings at W = 427 and H = 240. Turn the wheel down by one notch. Take a screenshot. Measure
-the thumb top and height. Compare them with the formula and the list rectangle.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### SCRL-BAR-003: A press on the scrollbar, and the scrollbar drag
 
@@ -316,10 +296,7 @@ the thumb top and height. Compare them with the formula and the list rectangle.
 - **Postconditions:** during a scrollbar drag, the thumb follows the mouse. The scrollbar drag
   continues when the mouse leaves the scrollbar to the left or to the right.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings at W = 427 and H = 240. Press the left button on the track below the thumb. Take a
-screenshot: the list does not move. Move the mouse down by 20 GUI units and take a screenshot.
-The thumb moved down by 20 GUI units.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -344,9 +321,7 @@ The thumb moved down by 20 GUI units.
   6. The scrollbar draws after the widgets (SCRL-BAR-001).
 - **Postconditions:** the scroll panel has no background and no separators.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: show a dialog
-from a server with a body taller than the screen. Take a screenshot. The scrollbar is at the
-right edge of the body, 4 GUI units from the widest widget.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### SCRL-PANEL-002: Scroll to a focused widget of a scroll panel
 
@@ -360,10 +335,7 @@ right edge of the body, 4 GUI units from the widest widget.
   of the panel, when the content lets it.
 - **Edge cases:** when the last input device is mouse or none, the panel does not scroll.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: on a server,
-show a dialog with 20 `boolean` inputs in a window of 854 × 480 pixels at GUI scale 2. Press
-Tab until the focus reaches an input below the visible part. Take a screenshot. The input
-shows with 10 GUI units between it and the bottom of the body.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -384,9 +356,7 @@ shows with 10 GUI units between it and the bottom of the body.
      selected row, it scrolls to that row (LIST-SEL-003). Then SCRL-AREA-004 applies.
 - **Postconditions:** the list does not overlap the header or the footer.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the
-language list at W = 427 and H = 240. Select a row near the bottom. Change the window height
-from 480 to 360 pixels. Take a screenshot. The selected row is fully visible.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### LIST-GEO-002: The rows of a list
 
@@ -409,9 +379,7 @@ from 480 to 360 pixels. Take a screenshot. The selected row is fully visible.
   (LIST-OPT-002).
 - **Example:** W = 427 and `RW = 220` give `RL = 103` and `RR = 323`.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-list at W = 427 with one world. Take a screenshot. The selected row outline covers x from 103
-to 322, and its top is 2 GUI units below the header separator.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### LIST-BG-001: The background of a list
 
@@ -429,9 +397,7 @@ to 322, and its top is 2 GUI units below the header separator.
 - **Postconditions:** the background moves up with the rows when `s` increases.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the image data. Kind: layout.
-Confidence: medium. Experiment: make a resource pack with a striped
-`menu_list_background.png`. Open the world list with more worlds than fit. Turn the wheel by
-one notch. The stripes move with the rows.
+Confidence: medium.
 
 ### LIST-BG-002: The separators of a list
 
@@ -455,8 +421,7 @@ one notch. The stripes move with the rows.
   screen have none.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the image data. Kind: layout.
-Confidence: medium. Experiment: open the world list from the title screen. Take a screenshot.
-Read the two GUI rows above `t` and the two GUI rows from `b`.
+Confidence: medium.
 
 ### LIST-BG-003: The order of draw of a list
 
@@ -468,8 +433,7 @@ Read the two GUI rows above `t` and the two GUI rows from `b`.
 - **Postconditions:** a row draws only when its bottom is not above `t` and its top is not
   below `b`. The separators draw over the rows.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: see
-SCRL-AREA-003. The separator line shows over the half row.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### LIST-HOVER-001: The hovered row
 
@@ -482,8 +446,7 @@ SCRL-AREA-003. The separator line shows over the half row.
 - **Postconditions:** the space left of `RL` and right of `RR` has no row. A row of a screen
   can use the hovered state to draw its content, for example an icon.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: see
-LIST-SEL-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -505,10 +468,7 @@ LIST-SEL-001.
 - **Example:** a selected row at top 40 with height 36, `RL = 103` and `RR = 323` fills
   (103, 40, 323, 76) and then (104, 41, 322, 75).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-list with two worlds. Press on the first world. Move the mouse onto the second world. Take a
-screenshot. The first row has a white outline and the second row has a gray outline. Press
-Tab until the focus leaves the list. The outline of the first row becomes gray.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### LIST-SEL-002: A press on a row, and the double click
 
@@ -527,9 +487,7 @@ Tab until the focus leaves the list. The outline of the first row becomes gray.
 - **Postconditions:** a press in the list that hits no row does not change the selected row.
 - **Edge cases:** the double click has no test of the distance. U-2 records this.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the
-world list with one world. Press twice on the row with 100 ms between the presses. The world
-opens. Repeat with 400 ms between the presses. The world does not open.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-SEL-003: Scroll to a row
 
@@ -549,9 +507,7 @@ opens. Repeat with 400 ms between the presses. The world does not open.
 - **Edge cases:** a mouse press on a row whose inner box is fully visible does not scroll the
   list.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the
-language list. Press on a row that is half under the footer separator. Take a screenshot. The
-row shows fully, with 2 GUI units between its bottom and the footer separator.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-SEL-004: Keys in a selection list
 
@@ -565,9 +521,7 @@ row shows fully, with 2 GUI units between its bottom and the footer separator.
      (WID-FOC-003, LIST-SEL-005).
 - **Postconditions:** the keys of a list move the selection one row at a time.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the
-language list. Press on a row. Press Page Down. Take a screenshot. The selected row did not
-change.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-SEL-005: Focus navigation in a selection list
 
@@ -593,10 +547,7 @@ change.
   focus of the screen, with no focused row and no selected row. The next Down gives the first
   row, and the next Up gives the last row.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the
-world list with three worlds. Press on the second world. Press Down. Take a screenshot. The
-third world is selected with a white outline. Press Up three times. Take a screenshot. No row
-is selected, and the focus is on the search box above the list.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-SEL-006: A change of the rows
 
@@ -607,9 +558,7 @@ is selected, and the focus is on the search box above the list.
   3. SCRL-AREA-004 applies to the new content height.
 - **Postconditions:** the selected row is always a row of the list.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the world
-list with two worlds. Select a world and type a search text that hides it. Take a screenshot.
-No row is selected.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -635,10 +584,7 @@ No row is selected.
 - **Postconditions:** a part of a widget outside the list cannot get a press and shows no
   tooltip.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings. Turn the wheel until a button is half under the footer separator. Move the mouse
-onto the hidden half of that button. Take a screenshot. The button is not highlighted and
-shows no tooltip.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-WID-002: Focus navigation in a widget list
 
@@ -671,10 +617,7 @@ shows no tooltip.
 - **Postconditions:** Up and Down keep the column of the focus where the rows let them. A row
   of a widget list does not move the focus by the position of its widgets for Up and Down.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the video
-settings. Press on the left widget of a row with two widgets. Press Right, then Down. Take a
-screenshot. When the next row has two widgets, its right widget has the focus. When it has one
-widget, that widget has the focus.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LIST-OPT-001: The rows of an option list
 
@@ -690,9 +633,7 @@ widget, that widget has the focus.
 - **Example:** at W = 427, the two widgets of a row cover x from 58 to 207 and from 218 to
   367. `RL = 58`, `RR = 368` and `SX = 376`.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the video
-settings at W = 427. Take a screenshot. The buttons of the first two columns start at x 58
-and x 218.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### LIST-OPT-002: The section label row
 
@@ -714,9 +655,7 @@ and x 218.
 - **Postconditions:** a section label row after other rows has 18 GUI units of space above
   its label.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the video
-settings. Press on a section label. Take a screenshot. The label shows on a black box with a
-white outline.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -735,8 +674,7 @@ white outline.
   5. When the screen opens, the screen sets the first current tab. This makes no sound.
 - **Postconditions:** each tab bar has one current tab.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: see
-TAB-MENU-001.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### TAB-MENU-001: The layout of a menu tab bar
 
@@ -757,9 +695,7 @@ TAB-MENU-001.
 | 427 | 3 | 372 | 124 | 28, 152, 276 | 400 |
 | 320 | 3 | 292 | 98 | 14, 112, 210 | 308 |
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-creation screen at GUI scale 2 in a window of 854 × 480 pixels. Take a screenshot. The three
-tabs start at x 28, 152 and 276, and each is 124 wide.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TAB-MENU-002: The sprites of the tabs
 
@@ -788,9 +724,7 @@ tabs start at x 28, 152 and 276, and each is 124 wide.
   current tab.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the sprite data. Kind: layout.
-Confidence: medium. Experiment: open the world creation screen. Move the mouse onto the
-second tab. Take a screenshot. The second tab has a white inner frame. The first tab is open at
-the bottom.
+Confidence: medium.
 
 ### TAB-MENU-003: The background and the line of the current tab
 
@@ -807,8 +741,7 @@ the bottom.
 - **Postconditions:** a line the width of the label shows under the label of the current tab.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the image data. Kind: layout.
-Confidence: medium. Experiment: open the world creation screen at W = 427. Take a screenshot.
-Under the label "Game", a white line of the label width shows at y = 22.
+Confidence: medium.
 
 ### TAB-MENU-004: The label of a tab
 
@@ -827,9 +760,7 @@ Under the label "Game", a white line of the label width shows at y = 22.
 - **Postconditions:** the text top is 8 for the current tab and 10 for another tab. The label
   of the current tab is 2 GUI units higher than the labels of the other tabs.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: open the world
-creation screen at W = 427. Take a screenshot. Measure the text top of the current tab and of
-the other tabs.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TAB-MENU-005: The line under a menu tab bar
 
@@ -846,8 +777,7 @@ the other tabs.
   rows of each tab that is not current. It is open under the current tab.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the image data. Kind: layout.
-Confidence: medium. Experiment: open the world creation screen at W = 427. Take a screenshot.
-Read the GUI rows 22 and 23 from x = 0 to 426.
+Confidence: medium.
 
 ### TAB-AREA-001: The tab content area and a change of the current tab
 
@@ -874,9 +804,7 @@ Read the GUI rows 22 and 23 from x = 0 to 426.
 - **Postconditions:** only the widgets of the current tab take a press, a key or the focus.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the image data. Kind: layout.
-Confidence: medium. Experiment: open the world creation screen at W = 427 and H = 240. Press
-on the second tab. Take a screenshot. The widgets of the first tab are gone, and the widgets of
-the second tab show in the tab content area.
+Confidence: medium.
 
 ### TAB-CLICK-001: A press on a tab, and the sound
 
@@ -893,9 +821,7 @@ the second tab show in the tab content area.
   6. An inactive tab does not use the press.
 - **Postconditions:** each change of the current tab by the player plays one click sound.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the world
-creation screen and record the sounds. Press on the first tab, then on the second tab. The
-record has one `minecraft:ui.button.click`, for the second press.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### TAB-KEY-001: The keys of a tab bar
 
@@ -915,9 +841,7 @@ record has one `minecraft:ui.button.click`, for the second press.
   the bar has fewer than 10 tabs. Ctrl+Tab does not move the focus of the screen.
 - **Edge cases:** when no other tab is active, Ctrl+Tab keeps the current tab.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the world
-creation screen. Press on the world name box. Press Ctrl+3. Take a screenshot. The third tab
-is current. Press Ctrl+Tab. The first tab is current.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### TAB-FOCUS-001: Focus navigation with a tab bar
 
@@ -938,15 +862,13 @@ is current. Press Ctrl+Tab. The first tab is current.
 - **Postconditions:** in the world creation screen, Tab visits the bar, then the widgets of
   the current tab, then the buttons of the footer.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open the world
-creation screen. Press Tab once. Take a screenshot: the first tab has a white inner frame.
-Press Right. Take a screenshot: the second tab is current and has the white inner frame.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
 ## 8. Intentional deviations
 
-No deviation is recorded.
+None.
 
 ---
 

@@ -530,7 +530,7 @@ impl Loader {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "marks every section around an arrived column for relighting across the three axes, so the diagonal neighbours stay beside the arrival that makes them stale"
+        reason = "diagonal neighbours stay beside the arrival that stales them"
     )]
     fn adopt(
         &mut self,

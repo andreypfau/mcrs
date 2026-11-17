@@ -1142,7 +1142,7 @@ fn taiga_tannery_1(c: &mut Canvas) {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "lays the temple's blocks as one run of canvas calls in the order of the reference's template, so it reads against it"
+    reason = "one run of canvas calls in the template's order"
 )]
 fn temple_1(c: &mut Canvas) {
     let ground = [

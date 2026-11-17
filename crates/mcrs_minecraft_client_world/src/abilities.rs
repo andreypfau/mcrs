@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn login_game_mode_changes_and_player_abilities_set_the_abilities_and_the_flight_state() {
+    fn login_and_mode_changes_set_abilities_and_flight_state() {
         let flying_creative = ClientboundPlayerAbilities {
             invulnerable: true,
             flying: true,

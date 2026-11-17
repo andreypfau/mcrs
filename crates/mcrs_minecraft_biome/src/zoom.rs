@@ -277,7 +277,7 @@ mod tests {
         #[test]
         #[expect(
             clippy::excessive_nesting,
-            reason = "sweeps both axes of two begun boxes and compares each cell with the plain zoom, so a stale cache entry fails at the cell it answered wrongly"
+            reason = "sweeps both axes of two begun boxes and compares each cell with the plain zoom"
         )]
         fn the_fiddle_cache_answers_as_the_plain_zoom_does() {
             let seed = obfuscate_seed(777);

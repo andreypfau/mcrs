@@ -272,7 +272,7 @@ impl GradientNoise {
     #[inline(always)]
     #[expect(
         clippy::too_many_arguments,
-        reason = "the three section coordinates, the three local coordinates and the first fade of one lattice-cell sample"
+        reason = "independent inputs of one lattice-cell sample"
     )]
     pub(crate) fn sample_and_lerp(
         &self,
@@ -659,7 +659,7 @@ mod modern {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares the column sampler with the per-position sampler with the plain and smeared cases inline, bit for bit"
+        reason = "plain and smeared cases inline, compared bit for bit"
     )]
     fn column_matches_per_position_bit_for_bit() {
         let lattice = GradientNoise::from_random(&mut LegacyRandom::new(845));

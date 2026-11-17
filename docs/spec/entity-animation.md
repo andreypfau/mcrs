@@ -1,12 +1,8 @@
 # Entity animation: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Format reference | Bedrock resource pack, `Mojang/bedrock-samples` `1.26.60.5` |
+Format reference: Bedrock resource pack, `Mojang/bedrock-samples` `1.26.60.5`.
 
-Source of the game values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the client reads animation files and animation controller files, and
 how it computes the pose of a geometry from them in each frame. The file formats are those of
@@ -39,7 +35,7 @@ The terms of `entity-geometry.md`, section 0.1, apply. These terms are added:
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply, including the label `design`. The kinds of rule are those of `README.md`, section "Semantics, not
-accidents". The milestones are those of `entity-geometry.md`, section 0.2.
+accidents".
 
 ### 0.3 ID prefixes
 
@@ -80,7 +76,7 @@ transform (`entity-geometry.md`, EGEO-POSE-001).
 - **Postconditions:** each clip is a separate definition (`entity-geometry.md`,
   EGEO-PACK-002).
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-CLIP-002: Fields of a clip
 
@@ -102,9 +98,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
   An expression is a string or a number. A number is a constant expression.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1 for `loop`,
-`animation_length`, `anim_time_update`, `blend_weight` and `bones`; 2 for
-`override_previous_animation`; later for the delays.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -123,8 +117,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1 for 
   4. The client compares the bone name without regard to letter case.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1; later for
-`relative_to`.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-KEY-002: Forms of a value
 
@@ -137,7 +130,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1; lat
   5. Another form is a content error. The client ignores the channel.
 - **Postconditions:** each value is a vector of three expressions.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-KEY-003: Keyframes
 
@@ -155,7 +148,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
      content error, and the client uses `"linear"`.
 - **Postconditions:** each keyframe has a time, `pre`, `post` and a lerp mode.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-KEY-004: The sample of a channel
 
@@ -174,7 +167,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** a step is a keyframe with `pre` equal to the previous value and `post`
   equal to the new value.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-KEY-005: Catmull-Rom
 
@@ -193,7 +186,7 @@ Provenance: `unresolved` for 2, 3 and 5. The format reference does not state the
 the parameter. Blockbench makes a shorter curve at the ends, and uses a parameter over the
 times of all keyframes. Kind: semantic. Confidence: low. Experiment: export a clip with three
 uneven Catmull-Rom keyframes from Blockbench. Sample it at 20 times with this rule and with
-Blockbench. Record the largest difference. Milestone: 2.
+Blockbench. Record the largest difference.
 
 ### EANIM-KEY-006: Expressions in a keyframe
 
@@ -208,7 +201,7 @@ Blockbench. Record the largest difference. Milestone: 2.
      the neighbours for Catmull-Rom.
 - **Postconditions:** none.
 
-Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -235,7 +228,7 @@ Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: medium.
   frame as in a later frame with the same inputs.
 
 Provenance: `documentation` for 1 and 2; `design` for 3, 4 and 5. Kind: semantic.
-Confidence: medium. Milestone: 1.
+Confidence: medium.
 
 ### EANIM-TIME-002: Loop modes and the sample time
 
@@ -257,7 +250,7 @@ Confidence: medium. Milestone: 1.
 - **Postconditions:** a clip with `L = 0` and time driven by distance never wraps.
 
 Provenance: `documentation`; `design` for the row with `L = 0`. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### EANIM-TIME-003: Delays
 
@@ -276,7 +269,7 @@ medium. Milestone: 1.
 
 Provenance: `documentation` for 1; `unresolved` for 2 and 3; `design` for 4 and 5 (the
 documentation states no unit for the countdown; the time step of the entity stops with the
-entity clock). Kind: semantic. Confidence: low. Milestone: later.
+entity clock). Kind: semantic. Confidence: low.
 
 ### EANIM-TIME-004: Start and restart
 
@@ -297,7 +290,7 @@ that fades out by its own weight keeps its phase). The format reference does not
 clip in the `animate` list starts again after its weight was 0. Kind: semantic. Confidence: low.
 Experiment: make a client entity that plays a clip of 2 s with `loop: false` and the weight
 `query.is_sneaking`. Sneak for 0.5 s, stand, and sneak again. Record if the clip plays from
-its start. Milestone: 1 for 1; 2 for 2 to 4.
+its start.
 
 ---
 
@@ -327,7 +320,7 @@ its start. Milestone: 1 for 1; 2 for 2 to 4.
 
 Provenance: `documentation` for 1 to 4 (the format reference adds rotation and position per
 axis, and starts from the rest pose); `design` for the scale and for 5 (EANIM-DEV-001).
-Kind: semantic. Confidence: medium. Milestone: 1.
+Kind: semantic. Confidence: medium.
 
 ### EANIM-BLEND-002: The play list and the weights
 
@@ -346,8 +339,7 @@ Kind: semantic. Confidence: medium. Milestone: 1.
   6. An instance with a weight of 0 is not in the play list. Its channels are not evaluated.
 - **Postconditions:** each instance in the play list has a weight that is not 0.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1 for the `animate`
-list of clips; 2 for controllers.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-BLEND-003: Override of the previous pose
 
@@ -361,7 +353,7 @@ list of clips; 2 for controllers.
 - **Postconditions:** the instances before this one have no effect on these bones.
 
 Provenance: `documentation` for 1; `documentation` (Blockbench) for 2 and 3. Kind: semantic.
-Confidence: medium. Milestone: 2.
+Confidence: medium.
 
 ### EANIM-BLEND-004: Rotation relative to the entity
 
@@ -375,7 +367,6 @@ Confidence: medium. Milestone: 2.
   bone turns.
 
 Provenance: `documentation` for 1; `design` for 2 and 3. Kind: semantic. Confidence: low.
-Milestone: later.
 
 ---
 
@@ -408,7 +399,7 @@ Milestone: later.
      transition.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 2.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EANIM-CTRL-002: A frame of a controller
 
@@ -434,7 +425,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 2.
   frame.
 
 Provenance: `documentation` for 1, 3 and 5; `design` for the order of 2, 3 and 6. Kind:
-semantic. Confidence: medium. Milestone: 2.
+semantic. Confidence: medium.
 
 ### EANIM-CTRL-003: Cross-fade
 
@@ -451,7 +442,7 @@ semantic. Confidence: medium. Milestone: 2.
 - **Postconditions:** the pose changes without a jump when `B > 0`.
 
 Provenance: `documentation` for 1, 2 and 4; `design` for 3, 5 and 6. Kind: semantic.
-Confidence: low. Milestone: 2; later for `blend_via_shortest_path`.
+Confidence: low.
 
 ### EANIM-CTRL-004: Variables of a state
 
@@ -467,7 +458,6 @@ Confidence: low. Milestone: 2; later for `blend_via_shortest_path`.
 - **Postconditions:** none.
 
 Provenance: `documentation`; `design` for 3 and 4. Kind: semantic. Confidence: medium.
-Milestone: later.
 
 ### EANIM-CTRL-005: Finished animations
 
@@ -483,7 +473,7 @@ Milestone: later.
 - **Postconditions:** none.
 
 Provenance: `documentation` for 1 to 3 and 5; `unresolved` for 4. Kind: semantic. Confidence:
-medium. Milestone: 2.
+medium.
 
 ---
 
@@ -499,8 +489,7 @@ medium. Milestone: 2.
   3. The client does not evaluate the expressions of `timeline` and of `pre_effect_script`.
 - **Postconditions:** an effect does not change the pose.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1. A later milestone replaces
-this rule.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -557,7 +546,7 @@ Provenance: `design` (the accuracy of the trigonometric functions of WGSL is abo
 A vanilla walk clip multiplies a cosine by about 80°, which gives about `7e-4` radian. The
 relative term of item 1 and item 7 come from the GPU fuzz of `mcrs_molang_wgsl`: above the
 absolute limits one `f32` step is too large, and at a discontinuity no tolerance holds). Kind:
-semantic. Confidence: medium. Milestone: 1.
+semantic. Confidence: medium.
 
 ---
 

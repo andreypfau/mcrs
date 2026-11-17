@@ -1,10 +1,5 @@
 # PROXY protocol: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Status | `ready` |
-| Issue | #920 |
-
 This document states how the TCP listener of the server reads a PROXY protocol header. A load
 balancer or a TCP proxy in front of the server sends the header before the first Minecraft
 byte. The header carries the address of the player. The server then uses that address for the
@@ -108,7 +103,7 @@ one ban match for each client. Kind: semantic. Confidence: high.
   connection. This is the behaviour without this feature.
 
 Provenance: `documentation` (PP 2: the receiver must not guess whether a header is present).
-Kind: semantic. Confidence: high. Test vectors: section 5, row U-1.
+Kind: semantic. Confidence: high.
 
 ### PXP-CON-002: Connection from a trusted upstream
 
@@ -319,104 +314,6 @@ Provenance: `design`. One upstream carries the connections of many players, so a
 upstream throttles all of them. A LOCAL or `UNKNOWN` connection comes from the upstream itself,
 for example a health check. A trusted address gets no protection from a charge, and a refused
 health check marks the server as down. Kind: semantic. Confidence: high.
-
-## 5. Test vectors
-
-Each vector arrives from a trusted upstream with the socket address `198.51.100.1:40000`,
-unless the row states another address. In the hex blocks, the bytes of the header are the
-complete input before the Minecraft stream.
-
-| Row | Input | Result |
-|-----|-------|--------|
-| V1-1 | `PROXY TCP4 203.0.113.7 192.0.2.10 51234 25565` CR LF (47 bytes) | client address `203.0.113.7:51234` |
-| V1-2 | `PROXY TCP6 2001:db8::7 2001:db8::1 51234 25565` CR LF (48 bytes) | client address `[2001:db8::7]:51234` |
-| V1-3 | `PROXY TCP6 ::ffff:203.0.113.7 ::ffff:192.0.2.10 51234 25565` CR LF (61 bytes) | client address `203.0.113.7:51234` |
-| V1-4 | `PROXY UNKNOWN` CR LF (15 bytes) | client address `198.51.100.1:40000` |
-| V1-5 | `PROXY UNKNOWN ffff:f:: ffff:f:: 1 2` CR LF (37 bytes) | client address `198.51.100.1:40000` |
-| V1-6 | `PROXY UNKNOWN `, 91 bytes `a`, CR LF (107 bytes) | client address `198.51.100.1:40000` |
-| V1-9 | `PROXY UNKNOWN a  b` CR LF (20 bytes, two spaces) | client address `198.51.100.1:40000` |
-| V1-7 | V1-1, then the bytes of a handshake frame, in one segment | V1-1; the handshake frame is read |
-| V1-8 | V1-1, sent one byte at a time | V1-1 |
-| V2-1 | hex block A (35 bytes) | client address `203.0.113.7:51234` |
-| V2-2 | hex block B (16 bytes) | client address `198.51.100.1:40000` |
-| M-1 | `PROXZ TCP4 203.0.113.7 192.0.2.10 51234 25565` CR LF | close |
-| M-2 | `proxy TCP4 203.0.113.7 192.0.2.10 51234 25565` CR LF | close |
-| M-3 | hex block A with byte 12 changed to `0b` | close |
-| M-4 | `PROXY UNKNOWN `, 92 bytes `a`, CR LF (108 bytes) | close after 107 bytes |
-| M-5 | `PROXY TCP4 203.0.113.07 192.0.2.10 51234 25565` CR LF | close |
-| M-6 | `PROXY TCP4 203.0.113.7 192.0.2.10 51234 025565` CR LF | close |
-| M-7 | `PROXY TCP4 203.0.113.7  192.0.2.10 51234 25565` CR LF (two spaces) | close |
-| M-8 | `PROXY TCP4 203.0.113.7 192.0.2.10 51234 25565` LF | close |
-| M-9 | `PROXY TCP6 203.0.113.7 192.0.2.10 51234 25565` CR LF | close |
-| M-10 | hex block C (v2 version `1`) | close |
-| M-11 | hex block D (v2 length `8` for family `11`) | close |
-| M-12 | a handshake frame with no header | close |
-| U-1 | V1-1 from the socket address `192.0.2.99:40000`, which is not trusted | close as a malformed handshake |
-
-Hex block A: v2 PROXY, TCP over IPv4, length `19`, then a CRC32C TLV with a wrong value. The
-TLV shows that the server skips it (PXP-V2-004).
-
-```text
-0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a 21 11 00 13
-cb 00 71 07 c0 00 02 0a c8 22 63 dd 03 00 04 00
-00 00 00
-```
-
-Hex block B: v2 LOCAL, UNSPEC, length `0`.
-
-```text
-0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a 20 00 00 00
-```
-
-Hex block C: version `1`, else as block A without the TLV.
-
-```text
-0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a 11 11 00 0c
-cb 00 71 07 c0 00 02 0a c8 22 63 dd
-```
-
-Hex block D: family `11` with length `8`.
-
-```text
-0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a 21 11 00 08
-cb 00 71 07 c0 00 02 0a
-```
-
-With the per-IP accept limit on and the default bucket of 5 tokens:
-
-- Six V1-1 connections in one second give five connections that reach the handshake and one
-  close. A V1-1 connection with the source address `203.0.113.8` in the same second reaches the
-  handshake.
-- Twenty V2-2 connections in one second all reach the handshake.
-- Twenty connections with the source address `127.0.0.1` in one second all reach the
-  handshake.
-
-The vectors come from PXP-V1-001 to PXP-V2-004. No upstream produced them. E1 and E2 compare
-them with real upstreams.
-
-## 6. Experiments
-
-No tool of `docs/spec/README.md`, section "Experiments", starts an upstream. None of these
-experiments has been run. The rules do not depend on them. They confirm that real senders write
-headers that the rules accept.
-
-**E1: HAProxy.**
-
-1. Add `127.0.0.1` to the trusted upstreams of mcrs.
-2. Start mcrs.
-3. Start HAProxy in TCP mode with mcrs as the server and `send-proxy` on the server line.
-4. Let a vanilla client join through HAProxy over IPv4, and then over IPv6.
-5. Record the client address that mcrs reports. Expect the address of the client.
-6. Do steps 3 to 5 again with `send-proxy-v2`.
-7. Add `check` and `check-send-proxy` to the server line.
-8. Record that HAProxy marks mcrs as up for 60 seconds.
-
-**E2: nginx.**
-
-1. Add `127.0.0.1` to the trusted upstreams of mcrs.
-2. Start nginx with a `stream` server, `proxy_pass` to mcrs and `proxy_protocol on`.
-3. Let a vanilla client join through nginx over IPv4 to a listener on `[::]`.
-4. Record the client address that mcrs reports. Expect the IPv4 form (PXP-CFG-002).
 
 ## 7. Intentional deviations
 

@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn cmp_013_024_two_summons_of_one_tick_differ_and_keep_their_uuids_across_cell_layouts() {
+    fn cmp_013_024_summons_of_one_tick_keep_uuids_across_layouts() {
         let one_cell = summon(&mut world(None), &SUMMONS);
         assert_ne!(one_cell[0], one_cell[1], "two spawn points give two UUIDs");
         let two_cells: Vec<EntityKey> = [0, 1]

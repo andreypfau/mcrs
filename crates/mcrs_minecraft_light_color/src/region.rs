@@ -49,7 +49,7 @@ impl Region {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "copies the cells of each overlapping section into the region across the three axes, so the index arithmetic of the source reads once"
+        reason = "index arithmetic of the source reads once"
     )]
     pub fn covering(
         min: BlockPos,
@@ -119,7 +119,7 @@ pub struct EdgeCosts {
 impl EdgeCosts {
     #[expect(
         clippy::excessive_nesting,
-        reason = "visits the three forward faces of each cell and records the cost both ways in one pass over the region, so the two directions stay together"
+        reason = "both directions stay together in one pass"
     )]
     pub fn new(region: &Region, registry: &LightRegistry) -> EdgeCosts {
         let cells = region.cell_count();

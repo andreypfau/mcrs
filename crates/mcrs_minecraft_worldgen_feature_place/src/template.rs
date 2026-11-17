@@ -681,7 +681,7 @@ impl CompiledProcessor {
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "applies the property-copying processor inside its arm of the processor match, so each kind reads against the reference"
+        reason = "applies the property-copying processor inside its arm of the processor match"
     )]
     fn process<W: WorldGenVolume, R: Random>(
         &self,
@@ -861,7 +861,7 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 
 #[expect(
     clippy::too_many_lines,
-    reason = "runs the processor chain over every block of the palette and then writes the blocks and their block entities, in the reference's order"
+    reason = "processor chain then writes, in the reference's order"
 )]
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,

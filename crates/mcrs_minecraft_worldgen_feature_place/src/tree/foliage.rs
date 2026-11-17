@@ -62,7 +62,7 @@ impl Foliage {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per foliage placer kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per foliage placer kind, in the reference's declaration order"
     )]
     pub fn create_foliage<W: WorldGenVolume>(
         &self,
@@ -386,7 +386,7 @@ impl Foliage {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the row's origin, radius, height and trunk width, and the hanging-leaves chance and its extension chance"
+        reason = "independent inputs of one foliage row"
     )]
     fn place_leaves_row_with_hanging_leaves_below<W: WorldGenVolume>(
         &self,
@@ -562,7 +562,7 @@ impl Foliage {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the side-hole chance, the row's origin, radius, height and trunk width, and the foliage height and rhombus flip its skip test needs"
+        reason = "independent inputs of one foliage row"
     )]
     fn poplar_row<W: WorldGenVolume>(
         &self,
@@ -612,7 +612,7 @@ impl Foliage {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the row's origin, radius, height and trunk width, and the foliage height and rhombus flip of the poplar's log pass"
+        reason = "independent inputs of one foliage row"
     )]
     fn replace_leaves_with_log<W: WorldGenVolume>(
         &self,

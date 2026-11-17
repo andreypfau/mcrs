@@ -53,7 +53,7 @@ fn pen(pigs: u32, side: i32, idle: IdleRule) -> Result<PigPen, ConfigError> {
 }
 
 #[test]
-fn a_hurt_pig_panics_at_its_next_evaluation_and_starts_paths_only_while_the_record_is_fresh() {
+fn hurt_pig_panics_at_next_evaluation_and_paths_while_fresh() {
     let pigs = 1_000;
     let mut pen = pen(pigs, 512, IdleRule::AlwaysFar).unwrap();
     while pen.tick() < 20 {
@@ -161,7 +161,7 @@ mod exhaustive {
     use super::*;
 
     #[test]
-    fn the_stroll_starts_after_a_geometric_count_of_evaluations_with_the_chance_one_in_sixty() {
+    fn stroll_starts_after_geometric_count_with_chance_one_in_sixty() {
         let gaps = stroll_gaps(800, 3_000);
         let count = gaps.len() as f64;
         let mean = gap_mean(&gaps);

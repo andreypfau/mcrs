@@ -1,11 +1,6 @@
 # The command protocol: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states what a server and a client exchange about commands in the PLAY state.
 The subjects are the command tree that a player can see and the suggestions that the client
@@ -465,7 +460,7 @@ argument `creativ`. The second message has `...` and `de creativ`, then the key
     of the source and the message, in gray and italic.
   - When the broadcast flag is set and a player is the source, the server log receives the same
     text when `log_admin_commands` is true. The value of `send_command_feedback` does not change
-    this. `whitelist.md`, R25, shows this.
+    this.
   - A command fails with an error with no position. The player receives the error text in red.
   - A command that fails in an unexpected way gives the player the translation
     `command.failed` in red. The hover text of that message is unspecified.
@@ -531,9 +526,7 @@ such a redirect: each target has the check of the node that redirects to it, or 
 
 ---
 
-## 7. Open questions
+## 7. Unresolved
 
-- The repository does not store `commands.json`. The update tool can write it next to the
-  other reports. The permission table of `command-permissions.md` then gets a cited path.
 - The chat specification must state the command spam limit and the chat visibility rules for
   system messages.

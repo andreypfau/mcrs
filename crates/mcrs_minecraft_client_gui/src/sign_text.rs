@@ -623,7 +623,7 @@ mod tests {
         }
 
         #[test]
-        fn a_style_colour_replaces_the_default_and_a_key_with_no_translation_shows_as_the_key() {
+        fn style_colour_replaces_default_and_untranslated_key_shows_as_key() {
             let font = corpus_font();
             let mut compound = mcrs_minecraft_nbt::compound::NbtCompound::new();
             compound.put_string("text", "red".to_owned());

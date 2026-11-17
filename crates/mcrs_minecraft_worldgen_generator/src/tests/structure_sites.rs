@@ -322,7 +322,7 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares each structure's site with the oracle's site and verdict, with the pairing inline, so a mismatch names the structure"
+        reason = "pairing inline so a mismatch names the structure"
     )]
     fn structure_sites_match_the_oracle() {
         let dump = read_dump();
@@ -364,7 +364,7 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares each hardcoded structure's site with the oracle's site and verdict, with the pairing inline, so a mismatch names the structure"
+        reason = "pairing inline so a mismatch names the structure"
     )]
     fn hardcoded_sites_match_the_oracle() {
         let dump = read_dump();

@@ -467,7 +467,7 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
 }
 
 #[test]
-fn frames_behind_a_configuration_acknowledgement_are_read_against_the_configuration_table() {
+fn frames_after_configuration_ack_use_the_configuration_table() {
     let mut world = build_inbound_world();
     world.init_resource::<DeliveredIds>();
     world.add_observer(

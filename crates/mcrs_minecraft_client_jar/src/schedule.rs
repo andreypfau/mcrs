@@ -221,7 +221,7 @@ fn unpack(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "fetches the asset half in its fixed priority order, fonts then directory then textures then the rest, so the order reads top to bottom"
+    reason = "fixed priority order reads top to bottom"
 )]
 pub(crate) async fn assets(
     source: &impl Source,

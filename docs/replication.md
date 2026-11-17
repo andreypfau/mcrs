@@ -104,35 +104,7 @@ Two limits do not change with any design:
 - The draw cost on the client. The client draws each player that the server spawns. Near 1,000
   visible players, the frame rate of the client falls before the network fails.
 
-Thus the server must cap the visible set. All large games do this (section 3).
-
----
-
-# 3. What other games do
-
-- **EVE Online** serializes an update one time for each group of ships, and copies it to each
-  observer. The cost fell from O(n·m) to about O(n + m). Time dilation slows a node to 10% as the
-  last guard. One battle held 6,739 pilots in one system.
-- **Improbable** sends 10 updates per second for about 500 players of high priority, and 2 for
-  the other 9,500. Their own estimate: 10 times the players give 100 times the data.
-- **Unreal Engine** (Replication Graph, Iris) keeps prebuilt lists for each cell of a spatial
-  grid. It uses a priority accumulator, a budget for each connection and shared serialization.
-- **Glenn Fiedler** puts the top 64 objects by accumulated priority into each packet, under a
-  fixed bandwidth.
-- **Hyperion**, a Minecraft server in Rust, sends one message for each broadcast to its proxies.
-  The proxies find the players of the region with a BVH and do the encryption. Hyperion limits the
-  draw to 400–700 players.
-- **Minestom** keeps one buffer of framed packets for each chunk in a tick. Each viewer gets
-  slices of that buffer. The buffer keeps the byte ranges of each player, so a player never gets
-  its own packets.
-- **Folia, MultiPaper and server meshing** divide the simulation work. They do not reduce the
-  bytes to the clients. In Folia, a dense crowd becomes one region on one thread.
-
-These techniques do not transfer:
-
-- Level of detail and impostors on the client. They need client code.
-- Snapshot deltas with acknowledgement, as in Quake 3 and Source. They need datagrams.
-- Layers of a world, as in World of Warcraft. Players on different layers do not see each other.
+Thus the server must cap the visible set.
 
 ---
 
@@ -173,27 +145,6 @@ that has no rule.
 | C10 | The client turns the head of an entity over a short fixed time. At a low rate, the head turns in jumps. | Far tiers send head rotation at a low rate only. |
 | C11 | The ticking state packet changes the tick rate of the client. | Time dilation (section 7.9). This assumption has no confirmation. |
 | C12 | The protocol compresses each packet alone. Packets below the threshold go without compression. | Compression gives nothing for moves. It matters for chunks. |
-
----
-
-# 6. Where the code is today
-
-| Place | Cost |
-|---|---|
-| Tile deltas, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | O(players that change) each tick. |
-| Muxer, `crates/mcrs_engine_muxer` (`Muxers`, `Muxer`, `planner.rs`), on the one muxer link of the host (`crates/mcrs_minecraft_engine/src/muxer/muxer_stage.rs`) | One encode for each tile and tier that is due, has events to send and has viewers. All viewers of a tier share the bytes, cut by layer. The planner costs O(tiles in view) for a viewer whose position, view tiles or budget changed. With 300 bots together, a session gets 1.4 KB of muxer bytes in each tick (27 KB/s). With about 750 bots, it gets 1.7 KB. |
-| Codec, `crates/mcrs_minecraft_replication/src/player_codec.rs` | One encode of a spawn for each subject, tier and move, and one profile entry for each viewer that does not have it. |
-| Remove packets, `crates/mcrs_minecraft_replication/src/player_codec.rs` | A maximum of two remove packets for each viewer and tick. |
-| The host, `crates/mcrs_minecraft_engine/src/muxer/entity_replication.rs`, `muxer_link.rs` | The muxer thread works while the host does the rest of the time between ticks. |
-| Flush, `crates/mcrs_minecraft_engine/src/muxer/bridge.rs` | With 300 bots together, 0.28 to 0.30 ms in each tick. With 300 bots apart, 0.62 ms. With 720 to 760 bots together, 0.80 to 0.84 ms. |
-| Writer, `crates/mcrs_minecraft_network/src/outbound.rs` | One deflate for each chunk version in a flush, on the server thread: 0.25 ms in each tick with 300 bots apart, 0.03 ms with 300 bots together. One task on the runtime wakes the writers of a flush. |
-| Profile entries, `crates/mcrs_minecraft_replication/src/player_list.rs` | O(N) for each viewer that the policy checks. The roster is built only in a tick in which a viewer reads it. |
-| Chat, `crates/mcrs_minecraft_chat_server/src/chat_plugin.rs`, `crates/mcrs_minecraft_engine/src/publish_player_tiles.rs` | One encode for each message. |
-| Entity ids, `crates/mcrs_minecraft_engine/src/network_id.rs`, `crates/mcrs_minecraft_engine/src/entity_ids.rs` | No cost when no entity spawns. One range of ids for each 4,096 entities that spawn. |
-| Encryption | None. The server runs in offline mode only. |
-
-A parallel flush with groups of 64 connections on the compute pool does not decrease the time of
-the flush.
 
 ---
 
@@ -415,8 +366,7 @@ The implementation today has these limits:
 The Muxer runs as M processes, the edges. A load balancer gives each new connection to an edge.
 The PROXY protocol v2 keeps the address of the client.
 
-- Each edge subscribes to the union of the tiles that its viewers need. It uses a link with
-  `Placement::Remote`.
+- Each edge subscribes to the union of the tiles that its viewers need.
 - A cell sends each tile delta to each edge that subscribes: O(active tiles × M).
 - An edge encodes O(subscribed tiles × tiers × layers) blobs. It copies
   O(local viewers × subscriptions) references.
@@ -429,7 +379,7 @@ The PROXY protocol v2 keeps the address of the client.
 Encryption runs on the edge, in the writer of each connection:
 
 - CFB8 encrypts one block of AES for each byte, and each stream is serial. The throughput is
-  50–300 MB/s for each core. This is an assumption. Measure it before step 9.
+  50–300 MB/s for each core. This is an assumption. Measure it before use.
 - At 500 MB/s of egress, the edges need about 2 to 10 cores for encryption. The reference
   traffic of 19.3 GB/s would need 64 to 400 cores.
 - A possible gain: encrypt many connections at one time in wide AES instructions. Each stream
@@ -538,59 +488,8 @@ connection gets at most one flush per tick, and none when it has nothing to send
 
 ---
 
-# 8. Steps
-
-Each step leaves a working server and passes the determinism test. The second column shows where
-the step goes in the migration of `cells.md`, section 12.
-
-| Step | `cells.md` §12 | Work | Check |
-|---|---|---|---|
-| 1 | before step 2 | Add a crowd mode to the `tick_load` example and the `bot_load` bench, with bots together and apart. Count encode calls, shared appends, packets by kind and bytes for each session. | A baseline at 100, 300 and 1,000 bots. |
-| 2 | before step 2 | Replace the two trackers with one tracker on a grid of sections, with hash sets and one radius. Send relative moves instead of absolute syncs. Send the profile entry before the spawn of a player. Send one remove packet with a list. | Work per tick grows with N × visible, not with the view distance. The client model sees the other players. |
-| 3 | before step 2 | Share bytes on the bus. Add the `Framed` part. Compress each chunk version one time. Remove the deep clone for each recipient. Send one channel message for each drain. | Encode calls per tick are equal to distinct packets. One deflate for each chunk version. |
-| 4 | before step 2 | The player list (section 7.5) and chat (section 7.6). | 1,000 bots that do not move cost about 0 bytes for each viewer. |
-| 5 | with step 2 | Add `mcrs_engine_muxer` (tiles, subscriptions, fan out, a `Stage` on a `Link`). Add `mcrs_minecraft_replication` (the codec, delta bases, spawn bundles). The dimension publishes tile deltas. The tracker leaves the tick. | Encode calls per tick are about active tiles × tiers. Bytes for each viewer against step 3. |
-| 6 | after step 5 here, before step 3 | Tiers, layers, the cap, the budget, the accumulator, spawn bundles by distance. | 2,000 bots in one place: bytes for each viewer stay in the budget. No tile starves for more than 2 seconds. The frame rate of the vanilla client at 200, 500 and 1,000 visible players. |
-| 7 | before step 4 | A global `EntityId` from the Coordinator. | A subject that changes its owner cell causes no despawn and spawn on the client. |
-| 8 | before step 4 | A parallel flush: groups of connections on many threads. | CPU time for each 1,000 viewers. |
-| 8a | before 100k entities | The rule for subjects that the client simulates (section 7.11). The parallel Muxer per tile group, and encryption on the network threads (section 7.12). | A field of items at rest costs zero bytes. 250k moving subjects per tick take less than 10 ms of wall time beside the tick. |
-| 9 | after step 7 | M edges through `Placement::Remote`. Encryption on the edges. | The egress of a cell is the sum of tiles × M. 10,000 bots at M = 8. |
-| 10 | after step 9 here | Density control (section 7.9). | Tick time and bytes with 2,000 players in one tile. |
-
----
-
-# 9. Open questions
-
-- C1 to C12 need rules in `docs/spec/`, from a specification author.
-- The sharding document, section 2, needs a row for entity replication with the policy
-  `semantic`.
-- Keyframe storm: many viewers change their tier in the same tick.
-- The encode can run on each edge (M encodes for each tile delta, and the cell stays free of the
-  protocol) or in a stage beside the cell (one encode). Start on the edge and measure.
-- The flush now wakes the writers from one task on the runtime, and the flush costs half as much
-  as before. A writer that collects its batches at a fixed interval was not tried: it adds latency,
-  and the wake does not cost much more now. The next cost of the flush is the allocation of the
-  parts of each batch and of the shared frames.
-- The tile size.
-- The default K and the default budget. Measure the frame rate of the vanilla client first.
-- The encryption throughput for each core, and the gain of many streams in wide instructions.
-- The wire id of a player wraps after 2³¹ sessions. The wire id of an entity that is not a player
-  wraps after 2³¹ granted ids, because a range never returns to the Coordinator.
-
----
-
 # 10. Sources
 
-- EVE Online, serialization for each group of ships: https://www.eveonline.com/news/view/fixing-lag-drakes-of-destiny-part-2-1
-- EVE Online, time dilation: https://wiki.eveuniversity.org/Time_dilation
-- EVE Online, 6,739 pilots in one system: https://www.eveonline.com/news/view/the-second-timer-in-m2-xfe
-- Improbable, tiers for 10,000 players: https://ims.improbable.io/insights/intimacy-at-scale-building-an-architecture-for-density/
-- Unreal Engine, Replication Graph: https://dev.epicgames.com/documentation/en-us/unreal-engine/replication-graph-in-unreal-engine
-- Unreal Engine, Iris prioritization: https://dev.epicgames.com/documentation/en-us/unreal-engine/iris-prioritization-in-unreal-engine
-- Glenn Fiedler, state synchronization: https://gafferongames.com/post/state_synchronization/
-- Hyperion, proxy architecture: https://github.com/hyperion-mc/hyperion/blob/85abe336514e507b72a38e351b5df5a641a4bf30/docs/architecture/proxy.md
-- Minestom, shared packet buffers: https://github.com/Minestom/Minestom/blob/704be783b63cfb0666f38f527f90f5d118cffae3/src/main/java/net/minestom/server/utils/PacketViewableUtils.java
-- Folia, test with 1,000 players: https://cubxity.dev/blog/folia-test-june-2023
 - Second Life, client cost of many avatars: https://community.secondlife.com/forums/topic/500570-the-era-of-150-avatars-in-a-region-is-here-we-have-a-performance-problem-viewer-side/
 - Protocol packet formats: https://minecraft.wiki/w/Java_Edition_protocol/Packets
 - Protocol encryption: https://minecraft.wiki/w/Java_Edition_protocol/Encryption

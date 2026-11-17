@@ -140,7 +140,7 @@ fn a_block_placed_under_a_resting_item_wakes_it() {
 }
 
 #[test]
-fn an_entity_in_a_section_that_is_not_loaded_is_not_stepped_and_its_outcome_says_so() {
+fn entity_in_unloaded_section_is_not_stepped_and_outcome_says_so() {
     let mut app = app(|blocks| blocks.stone);
     let start = DVec3::new(100.5, 3.0, 0.5);
     let unloaded = spawn(app.world_mut(), MotionRow::falling_block(), start);

@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `brigadier:float` 1, `minecraft:time` 43 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states the forms `tick query`, `tick sprint <time>` and `tick sprint stop`: the tick
 time samples, the text of the query, the run of a sprint and its report. The forms `rate`, `step`,
@@ -29,8 +27,7 @@ architecture.
 - **Sprint**: a run of a fixed number of ticks with no wait between them.
 - **Millisecond text**: a number of nanoseconds divided by `10^6` in f32, with one digit after the
   decimal point and `.` as the decimal mark, for example `12.3`.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-TICK`. None of the experiments
-  has been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-TICK`.
 
 ---
 
@@ -135,19 +132,3 @@ Confidence: high.
 - **Edge cases:** with no sprint, fail with `commands.tick.sprint.stop.fail`.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high.
-
----
-
-## 1. Use as a probe of equal work
-
-A benchmark can compare two servers with `tick sprint <n>`. Each server runs the same `n` ticks of
-the same scene, with no wait, and reports the ticks in one second. For a fair comparison:
-
-- The tick work of this server must contain the same work as the vanilla tick. The AI stage of
-  `entity-ai-timing.md` runs beside the hot tick. Its work counts in the sprint time only when the
-  hot tick waits for it. Thus the report of this server measures the wall time of the ticks, not
-  the sum of the work of all threads.
-- The sprint time contains the handling of packets and console commands. A script must not send
-  commands during the sprint.
-- The sample table of `tick query` measures a shorter span than the sprint time: it does not
-  contain the packets that the server handles before the tick work. The two numbers are not equal.

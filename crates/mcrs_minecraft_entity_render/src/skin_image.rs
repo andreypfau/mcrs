@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn a_legacy_skin_gives_the_left_limbs_the_mirrored_right_limbs_and_an_opaque_first_layer() {
+    fn legacy_skin_mirrors_left_limbs_and_opaques_first_layer() {
         let mut rgba = vec![0u8; ROW * 32];
         let mut put = |x: usize, y: usize, value: [u8; 4]| {
             rgba[y * ROW + x * 4..y * ROW + x * 4 + 4].copy_from_slice(&value);

@@ -338,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn the_render_distance_and_the_far_plane_follow_the_option_capped_by_the_server_radius() {
+    fn render_distance_and_far_plane_follow_option_capped_by_server() {
         enum Change {
             Requested(u8),
             ServerRadius(i32),
@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn the_zoom_of_a_player_that_starts_to_sprint_while_flying_halves_its_way_to_the_target() {
+    fn zoom_halves_its_way_to_target_when_sprint_starts_while_flying() {
         let options = FovOptions::default();
         let flying = Motion {
             flying: true,

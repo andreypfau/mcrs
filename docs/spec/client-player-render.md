@@ -1,11 +1,6 @@
 # Rendering of a player by the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the client draws a player that is not the local player: the model, the
 skin and the pose. It also states the figure of the local player in the inventory screen
@@ -40,9 +35,8 @@ This document gives only what is particular to a player. It does not prescribe a
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The skin layout is public documentation of the game. No
-artefact of the game confirms the pose numbers yet. Each pose rule has the label `design` and an
-experiment. The rules of section 5 come from the reference and have the label
-`source_suggested`. No experiment of section 5 has run (section 7).
+artefact of the game confirms the pose numbers yet. Each pose rule has the label `design`. The rules of section 5 come from the reference and have
+the label `source_suggested`.
 
 ### 0.3 ID prefixes
 
@@ -54,7 +48,6 @@ experiment. The rules of section 5 come from the reference and have the label
 | `CPR-HOST` | players that a host adds |
 | `CPR-FIG` | the figure in the inventory screen |
 | `CPR-DEV` | intentional deviations |
-| `CPR-TEST` | experiments |
 
 ### 0.4 Scope
 
@@ -92,9 +85,6 @@ and the other parts of the inventory screen are out of scope.
 
   2. Each box of the second layer has the box of its part, grown by `0.5` on each side for the
      head and by `0.25` for the other parts.
-  3. `assets/mcrs/entity/geometry/player.json` is generated. The boxes come from the model
-     artefact `entity_models.json`, layers `minecraft:player` / `main` and
-     `minecraft:player_slim` / `main`. The bones and their parents come from CPR-MODEL-002.
 - **Postconditions:** the top of the head is 2 blocks above the feet. A slim model is 1 texel
   narrower at each arm.
 
@@ -208,7 +198,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
 - **Postconditions:** a left limb of a legacy skin looks like the mirror image of the right limb.
   A legacy skin that fills the hat area with one opaque colour shows no hat.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Experiment: CPR-TEST-001.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### CPR-SKIN-003: Opaque first layer
 
@@ -219,7 +209,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Experiment: CPR-T
 - **Postconditions:** a player has no hole in the first layer. A texel of the second layer with
   an alpha under the cutout limit of `client-entity-render.md`, CEREN-SURF-001, is not drawn.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-001.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### CPR-SKIN-004: Default skin
 
@@ -288,7 +278,7 @@ Provenance: `design`. Kind: semantic. Confidence: high.
   has straight arms and legs.
 
 Provenance: `design` (the leg swing is the one of the pig, `mob-pig.md`). Kind: semantic.
-Confidence: medium. Experiment: CPR-TEST-002.
+Confidence: medium.
 
 ### CPR-POSE-003: Crouch
 
@@ -305,7 +295,7 @@ Confidence: medium. Experiment: CPR-TEST-002.
 
 - **Postconditions:** the body leans forward and the legs stay below it.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-002.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ## 4. Players of a host
 
@@ -348,7 +338,7 @@ screen axes: +X to the right, +Y to the top of the screen and +Z toward the view
 - **Postconditions:** the figure rectangle is between the armour slots and the crafting grid. The
   figure never covers a slot.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CPR-FIG-002: Size and position of the figure
 
@@ -372,8 +362,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CP
 | `standing` | 1.8 | 1.62 | `iy + 71.875` | `iy + 23.275` |
 | `crouching` | 1.5 | 1.27 | `iy + 67.375` | `iy + 29.275` |
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003.
-Deviation: CPR-DEV-006. See also "Unresolved", item 1.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CPR-FIG-003: The figure turns to the mouse
 
@@ -399,7 +388,7 @@ Deviation: CPR-DEV-006. See also "Unresolved", item 1.
   - The figure turns to the mouse at each position in the window, also outside the inventory
     image.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-003.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CPR-FIG-004: State of the local player in the figure
 
@@ -423,7 +412,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** an invisible local player with no team sees no model in the figure. In a
   team that can see friendly invisible members, the figure is translucent.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-004.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CPR-FIG-005: Light of the figure
 
@@ -438,7 +427,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** the face factor is 0.8201 for a face that points to the viewer, 1 for a face
   that points up, 0.4840 to the right, 0.5177 to the left and 0.4 down.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-005.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CPR-FIG-006: Draw order of the figure
 
@@ -447,8 +436,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CP
   in front of the figure.
 - **Postconditions:** a tooltip or the cursor stack over the figure rectangle covers the figure.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003,
-steps 5 and 6.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ## 6. Intentional deviations
 
@@ -507,81 +495,7 @@ steps 5 and 6.
   more than 20 frames each second.
 - **Test:** a screenshot test against the reference uses a local player that stands still.
 
-## 7. Experiments
-
-### CPR-TEST-001: Skin images
-
-Join a server with a vanilla client and a player with a legacy skin that has a transparent
-texel in the face and a different colour on each face of the right arm. Take a screenshot of the
-player from the front, the back and each side. The left arm shows the right arm mirrored, and the
-face shows no hole.
-
-### CPR-TEST-002: Walk and crouch
-
-Record a vanilla client that watches a player walk 10 blocks and then crouch
-(`tools/mcrs_minecraft_client_recorder`). Compare each bone angle of the frames with the rules
-of section 3.
-
-### CPR-TEST-003: Rectangle, size and turn of the figure
-
-The experiments CPR-TEST-003 to CPR-TEST-005 did not run. The input agent of
-`tools/vanilla-client` does not open a screen, set the mouse position or take a screenshot.
-
-1. Start a vanilla client with a window of 854 by 480 window pixels and the GUI scale 2. Then
-   `W` is 427 and `H` is 240.
-2. Join a flat world in creative mode with a skin that has a different colour on each face of
-   the head. Stand still.
-3. Open the inventory screen with the recipe book closed. The image origin is (125, 37). The
-   figure rectangle is from (151, 45) to (200, 115). The eye point is (175.5, 60.275).
-4. Put the mouse at each position of the table. Take a screenshot at each position.
-5. Pick up a stack and hold it over the figure. Take a screenshot.
-6. Put the stack in the left slot of the top row of the main inventory. Hover over it, so that
-   its tooltip covers a part of the figure rectangle. Take a screenshot.
-
-| Mouse position | `a` | `t` |
-|----------------|-----|-----|
-| (175, 60) | −0.25 | 0.14 |
-| (215, 60) | 15.58 | 0.14 |
-| (135, 60) | −15.83 | 0.14 |
-| (175, 20) | −0.25 | 15.78 |
-| (175, 100) | −0.25 | −15.64 |
-| (426, 0) | 28.25 | 19.70 |
-
-Record these values from each screenshot:
-
-- the lowest window pixel of the feet. CPR-FIG-002 gives the `y` of 217.75 window pixels;
-- the highest window pixel of the hat;
-- the columns where the front face and the side faces of the head and of the body start and end;
-- each window pixel outside the figure rectangle that differs from the inventory image.
-
-Compare each screenshot with an mcrs screenshot at the same mouse position. The difference of a
-position is at most 0.5 window pixel.
-
-### CPR-TEST-004: State of the local player in the figure
-
-Use the setup of CPR-TEST-003, steps 1 to 3, with the mouse at (175, 60). Take a screenshot in
-each of these states:
-
-1. The local player crouches.
-2. The local player walks forward. Take a screenshot in 10 frames that follow each other.
-3. A zombie hits the local player in survival mode. Take a screenshot in the next frame.
-4. The local player stands in fire.
-5. The local player has the effect `minecraft:invisibility`, first with no team, then in a team
-   that has the option `seeFriendlyInvisibles` set to `true` (`/team modify`).
-6. The scale attribute of the local player is 2 (`/attribute @s minecraft:scale base set 2`).
-   Move the mouse up and down. Record the mouse `y` at which the head looks straight ahead.
-
-Compare each screenshot with the rows of the table of CPR-FIG-004. For step 6, compare the
-result with CPR-DEV-006.
-
-### CPR-TEST-005: Light of the figure
-
-Use the setup of CPR-TEST-003, steps 1 to 3. Take a screenshot with the mouse at (175, 60) and
-at (175, 100), at noon and at midnight, in the overworld and in the nether. Compare the colour of
-a texel of the front face and of the top face of the head with the skin. The ratios agree with
-the face factors of CPR-FIG-005 in each dimension. Record the colour at noon and at midnight.
-
-## 8. Unresolved
+## 7. Unresolved
 
 1. The reference draws each player at 15/16 of the size of the model, in the world and in the
    figure. While a player crouches, it also draws the model 2/16 block lower. CPR-MODEL-001 and
