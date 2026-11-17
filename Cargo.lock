@@ -5121,6 +5121,7 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]
@@ -5712,6 +5713,7 @@ dependencies = [
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_inventory",
 ]
 

@@ -9,6 +9,7 @@ use crate::MenuClosed;
 use crate::MenuOf;
 use crate::MenuOpened;
 use crate::MenuParts;
+use crate::MenuTitle;
 use crate::Menus;
 
 pub trait MenuCommandsExt {
@@ -17,6 +18,13 @@ pub trait MenuCommandsExt {
         layout: MenuLayout,
         parts: MenuParts,
         buttons: MenuButtons,
+    ) -> &mut Self;
+    fn open_titled_menu(
+        &mut self,
+        layout: MenuLayout,
+        parts: MenuParts,
+        buttons: MenuButtons,
+        title: MenuTitle,
     ) -> &mut Self;
     fn close_menu(&mut self) -> &mut Self;
 }
@@ -30,7 +38,27 @@ impl MenuCommandsExt for EntityCommands<'_> {
     ) -> &mut Self {
         self.queue_silenced(move |viewer: EntityWorldMut| {
             let id = viewer.id();
-            open(viewer.into_world_mut(), id, layout, parts, buttons);
+            open(viewer.into_world_mut(), id, layout, parts, buttons, None);
+        })
+    }
+
+    fn open_titled_menu(
+        &mut self,
+        layout: MenuLayout,
+        parts: MenuParts,
+        buttons: MenuButtons,
+        title: MenuTitle,
+    ) -> &mut Self {
+        self.queue_silenced(move |viewer: EntityWorldMut| {
+            let id = viewer.id();
+            open(
+                viewer.into_world_mut(),
+                id,
+                layout,
+                parts,
+                buttons,
+                Some(title),
+            );
         })
     }
 
@@ -48,6 +76,7 @@ fn open(
     layout: MenuLayout,
     parts: MenuParts,
     buttons: MenuButtons,
+    title: Option<MenuTitle>,
 ) {
     let above_first = world
         .get::<Menus>(viewer)
@@ -58,7 +87,11 @@ fn open(
             return;
         }
     }
-    let menu = world.spawn((layout, parts, buttons, MenuOf(viewer))).id();
+    let mut menu = world.spawn((layout, parts, buttons, MenuOf(viewer)));
+    if let Some(title) = title {
+        menu.insert(title);
+    }
+    let menu = menu.id();
     let opened = MenuOpened { viewer, menu };
     world.write_message(opened);
     world.trigger(opened);

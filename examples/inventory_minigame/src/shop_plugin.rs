@@ -18,6 +18,7 @@ use mcrs_minecraft_engine_inventory_menu::MenuClosed;
 use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
 use mcrs_minecraft_engine_inventory_menu::MenuOpened;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::SlotPolicy;
@@ -33,6 +34,7 @@ use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_text::Text;
 
 use crate::OpenShop;
 
@@ -134,9 +136,12 @@ fn open_shop(open: On<OpenShop>, shop: Res<Shop>, mut commands: Commands) {
     let Some(parts) = MenuParts::new([holder, player]) else {
         return;
     };
-    commands
-        .entity(player)
-        .open_menu(shop.layout.clone(), parts, buttons);
+    commands.entity(player).open_titled_menu(
+        shop.layout.clone(),
+        parts,
+        buttons,
+        MenuTitle(Text::text("Shop")),
+    );
 }
 
 fn mark_shop_menu(

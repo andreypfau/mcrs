@@ -15,3 +15,4 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_inventory_menu = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_text.workspace = true

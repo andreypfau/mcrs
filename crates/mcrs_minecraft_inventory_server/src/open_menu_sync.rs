@@ -8,6 +8,7 @@ use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine_inventory_menu::MenuOpened;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
@@ -15,7 +16,6 @@ use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_protocol_game::text::RawText;
-use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::MenuSync;
@@ -34,9 +34,9 @@ const INVENTORY_CONTAINER_ID: u8 = 0;
 )]
 pub(crate) fn open_menu_sync(
     opened: On<MenuOpened>,
-    mut viewers: Query<(&Menus, Option<&Owner>, Option<&PlayerHolders>)>,
+    viewers: Query<(&Menus, Option<&Owner>, Option<&PlayerHolders>)>,
     mut counters: Query<&mut LastContainerId>,
-    menus: Query<(&MenuLayout, &MenuParts)>,
+    menus: Query<(&MenuLayout, &MenuParts, Option<&MenuTitle>)>,
     holders: Query<&Slots>,
     mut stacks: Stacks,
     wire_names: WireNames,
@@ -45,10 +45,10 @@ pub(crate) fn open_menu_sync(
     mut commands: Commands,
 ) {
     let MenuOpened { viewer, menu } = *opened;
-    let Ok((viewer_menus, owner, player_holders)) = viewers.get_mut(viewer) else {
+    let Ok((viewer_menus, owner, player_holders)) = viewers.get(viewer) else {
         return;
     };
-    let Ok((layout, parts)) = menus.get(menu) else {
+    let Ok((layout, parts, title)) = menus.get(menu) else {
         return;
     };
     let Some(kind) = layout.kind() else {
@@ -64,7 +64,9 @@ pub(crate) fn open_menu_sync(
     let container_id = last.advance();
     let mut sync = MenuSync::new(container_id, layout.len());
     if let Some(&Owner(session)) = owner
-        && let Ok(title) = RawText::from_text(&Text::text(""))
+        && let Some(title) = title
+            .and_then(|MenuTitle(text)| RawText::from_text(text).ok())
+            .or_else(|| RawText::from_text(&MenuTitle::default().0).ok())
     {
         let screen = ClientboundOpenScreen {
             container_id: VarInt(i32::from(container_id)),

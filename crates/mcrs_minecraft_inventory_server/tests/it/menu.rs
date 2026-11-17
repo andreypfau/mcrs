@@ -2,10 +2,13 @@ use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine_inventory_menu::EntryPressed;
 use mcrs_minecraft_engine_inventory_menu::MenuButtons;
 use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_inventory_menu::MenuEntry;
@@ -15,12 +18,15 @@ use mcrs_minecraft_inventory_menu::MenuRange;
 use mcrs_minecraft_inventory_menu::Route;
 use mcrs_minecraft_inventory_menu::RouteWhen;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::Encode;
 
 use crate::click::Packet;
 use crate::click::claim;
 use crate::click::click;
 use crate::click::joined;
 use crate::click::sent;
+use crate::click::summary;
 use crate::close::close;
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
@@ -148,4 +154,95 @@ fn inv_syn_007_a_close_hands_the_shared_client_views_to_the_inventory_menu() {
     world.commands().entity(player).close_menu();
     world.flush();
     assert_eq!(sent(world), ["close 2"]);
+}
+
+#[test]
+fn inv_mnu_009_010_open_screen_carries_the_title_of_the_opener_or_the_empty_text() {
+    let cases: [(Option<MenuTitle>, &[u8]); 2] = [
+        (
+            Some(MenuTitle(Text::text("Shop"))),
+            &[0x08, 0x00, 0x04, b'S', b'h', b'o', b'p'],
+        ),
+        (None, &[0x08, 0x00, 0x00]),
+    ];
+    for (title, expected) in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        let chest = world.spawn(Slots::new(27)).id();
+        let parts = MenuParts::new([chest, player]).expect("two parts");
+        let mut viewer = world.commands();
+        let mut viewer = viewer.entity(player);
+        match title {
+            Some(title) => {
+                viewer.open_titled_menu(chest_layout(), parts, MenuButtons::default(), title)
+            }
+            None => viewer.open_menu(chest_layout(), parts, MenuButtons::default()),
+        };
+        world.flush();
+
+        let packets: Vec<OutboundPlayerPacket> = world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .collect();
+        let mut sent_title = Vec::new();
+        for packet in &packets {
+            if let PacketPayload::OpenScreen(screen) = &packet.data {
+                screen
+                    .title
+                    .encode(&mut sent_title)
+                    .expect("a title encodes");
+            }
+        }
+        assert_eq!(sent_title, expected);
+    }
+}
+
+fn screens(world: &mut World) -> Vec<String> {
+    let packets: Vec<OutboundPlayerPacket> = world
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .collect();
+    packets
+        .iter()
+        .filter_map(|packet| match &packet.data {
+            PacketPayload::ContainerClose(close) => Some(format!("close {}", close.container_id.0)),
+            PacketPayload::OpenScreen(screen) => Some(format!("open {}", screen.container_id.0)),
+            PacketPayload::ContainerSetContent(content) => Some(format!(
+                "content {} state {} cursor {}",
+                content.container_id.0,
+                content.state_seqno.0,
+                summary(&content.carried_item)
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn inv_mnu_007_011_a_menu_over_a_chest_closes_it_first_and_one_over_the_inventory_keeps_the_cursor()
+{
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let cursor = holders(world, player).cursor;
+    put(world, cursor, 0, STONE, 2);
+    world.run_schedule(FixedUpdate);
+    assert_eq!(sent(world), ["cursor 1x2"]);
+    let chest = world.spawn(Slots::new(27)).id();
+
+    open_chest(world, player, chest, MenuButtons::default());
+    assert_eq!(
+        screens(world),
+        ["open 1", "content 1 state 1 cursor 1x2"],
+        "over the inventory menu the cursor stack stays on the cursor"
+    );
+
+    open_chest(world, player, chest, MenuButtons::default());
+    assert_eq!(
+        screens(world),
+        ["close 1", "open 2", "content 2 state 1 cursor empty"],
+        "the close of the chest empties the cursor before the new menu exists"
+    );
+    assert_eq!(stacks(world, player), [(0, STONE, 7)]);
 }

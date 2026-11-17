@@ -156,7 +156,7 @@ pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     world.flush();
 }
 
-fn summary(stack: &ProtoStack<Wire>) -> String {
+pub(crate) fn summary(stack: &ProtoStack<Wire>) -> String {
     if stack.is_empty() {
         "empty".to_owned()
     } else {
