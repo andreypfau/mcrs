@@ -12,11 +12,11 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::texture::GpuImage;
-use bevy::render::view::{ExtractedView, ViewTarget};
+use bevy::render::view::{ExtractedView, Msaa, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::WorldPass;
-use crate::pipeline::common;
+use crate::pipeline::descriptor;
 use crate::uniform_buffer;
 
 const FIELD_OF_VIEW_DEGREES: f32 = 85.0;
@@ -55,6 +55,7 @@ pub struct PanoramaPlugin;
 impl Plugin for PanoramaPlugin {
     fn build(&self, app: &mut App) {
         embedded_asset!(app, "shaders/panorama.wesl");
+        bevy::shader::load_shader_library!(app, "shaders/include/finish.wesl");
         app.init_resource::<PanoramaView>()
             .add_plugins(ExtractResourcePlugin::<PanoramaView>::default())
             .add_plugins(ExtractResourcePlugin::<PanoramaImages>::default());
@@ -63,6 +64,7 @@ impl Plugin for PanoramaPlugin {
             return;
         };
         render_app
+            .init_resource::<SpecializedRenderPipelines<Panorama>>()
             .add_systems(RenderStartup, init_panorama)
             .add_systems(
                 Render,
@@ -115,10 +117,9 @@ struct Panorama {
     layout: BindGroupLayoutDescriptor,
     blur_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
+    fullscreen: VertexState,
     ray: Buffer,
     sampler: Sampler,
-    pipeline: Option<CachedRenderPipelineId>,
-    blur_pipelines: Option<[CachedRenderPipelineId; 2]>,
     bind_group: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
 }
 
@@ -126,6 +127,7 @@ fn init_panorama(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     device: Res<RenderDevice>,
+    fullscreen: Res<FullscreenShader>,
 ) {
     commands.insert_resource(Panorama {
         layout: BindGroupLayoutDescriptor::new(
@@ -151,6 +153,7 @@ fn init_panorama(
             ),
         ),
         shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/panorama.wesl"),
+        fullscreen: fullscreen.to_vertex_state(),
         ray: uniform_buffer("panorama", size_of::<Mat4>() as u64, &device),
         sampler: device.create_sampler(&SamplerDescriptor {
             label: Some("panorama"),
@@ -158,45 +161,94 @@ fn init_panorama(
             min_filter: FilterMode::Linear,
             ..default()
         }),
-        pipeline: None,
-        blur_pipelines: None,
         bind_group: None,
     });
 }
 
-fn queue_pipelines(
-    panorama: Option<ResMut<Panorama>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
-    fullscreen: Res<FullscreenShader>,
-    cache: Res<PipelineCache>,
-) {
-    let (Some(mut panorama), Some(view)) = (panorama, views.iter().next()) else {
-        return;
-    };
-    if panorama.pipeline.is_some() {
-        return;
-    }
-    let queue = |layout: &BindGroupLayoutDescriptor, entry: &str| {
-        cache.queue_render_pipeline(RenderPipelineDescriptor {
-            vertex: fullscreen.to_vertex_state(),
-            ..common(
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum PanoramaEntry {
+    Panorama,
+    BlurHorizontal,
+    BlurVertical,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct PanoramaKey {
+    entry: PanoramaEntry,
+    format: TextureFormat,
+    samples: u32,
+}
+
+impl SpecializedRenderPipeline for Panorama {
+    type Key = PanoramaKey;
+
+    fn specialize(&self, key: PanoramaKey) -> RenderPipelineDescriptor {
+        let (layout, entry) = match key.entry {
+            PanoramaEntry::Panorama => (&self.layout, "panorama"),
+            PanoramaEntry::BlurHorizontal => (&self.blur_layout, "blur_horizontal"),
+            PanoramaEntry::BlurVertical => (&self.blur_layout, "blur_vertical"),
+        };
+        let mut descriptor = RenderPipelineDescriptor {
+            vertex: self.fullscreen.clone(),
+            ..descriptor(
                 format!("panorama {entry}"),
                 vec![layout.clone()],
-                &panorama.shader,
+                &self.shader,
                 String::new(),
                 entry.into(),
-                view,
+                key.format,
                 None,
             )
-        })
+        };
+        descriptor.multisample.count = key.samples;
+        descriptor
+    }
+}
+
+#[derive(Component, Clone, Copy, PartialEq)]
+struct ViewPanorama {
+    pipeline: CachedRenderPipelineId,
+    blur: [CachedRenderPipelineId; 2],
+}
+
+fn queue_pipelines(
+    mut commands: Commands,
+    panorama: Option<Res<Panorama>>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<Panorama>>,
+    mut views: Query<(Entity, &ExtractedView, &Msaa, Option<&mut ViewPanorama>), With<Camera3d>>,
+    cache: Res<PipelineCache>,
+) {
+    let Some(panorama) = panorama else {
+        return;
     };
-    let pipeline = queue(&panorama.layout, "panorama");
-    let blur = [
-        queue(&panorama.blur_layout, "blur_horizontal"),
-        queue(&panorama.blur_layout, "blur_vertical"),
-    ];
-    panorama.pipeline = Some(pipeline);
-    panorama.blur_pipelines = Some(blur);
+    for (entity, view, msaa, current) in &mut views {
+        let mut specialize = |entry, samples| {
+            pipelines.specialize(
+                &cache,
+                &panorama,
+                PanoramaKey {
+                    entry,
+                    format: view.target_format,
+                    samples,
+                },
+            )
+        };
+        let wanted = ViewPanorama {
+            pipeline: specialize(PanoramaEntry::Panorama, msaa.samples()),
+            blur: [
+                specialize(PanoramaEntry::BlurHorizontal, 1),
+                specialize(PanoramaEntry::BlurVertical, 1),
+            ],
+        };
+        match current {
+            Some(mut current) => {
+                current.set_if_neq(wanted);
+            }
+            None => {
+                commands.entity(entity).insert(wanted);
+            }
+        }
+    }
 }
 
 fn write_ray(
@@ -255,7 +307,7 @@ fn prepare_bind_group(
 }
 
 fn draw_panorama(
-    view: ViewQuery<&ViewTarget>,
+    view: ViewQuery<(&ViewTarget, &ViewPanorama)>,
     panorama: Option<Res<Panorama>>,
     cache: Res<PipelineCache>,
     mut ctx: RenderContext,
@@ -263,15 +315,13 @@ fn draw_panorama(
     let Some(panorama) = panorama.as_deref() else {
         return;
     };
+    let (target, pipelines) = view.into_inner();
     let (Some(pipeline), Some((.., bind_group))) = (
-        panorama
-            .pipeline
-            .and_then(|id| cache.get_render_pipeline(id)),
+        cache.get_render_pipeline(pipelines.pipeline),
         panorama.bind_group.as_ref(),
     ) else {
         return;
     };
-    let target = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("panorama"),
@@ -287,7 +337,7 @@ fn draw_panorama(
 }
 
 fn blur_view_target(
-    view: ViewQuery<&ViewTarget>,
+    view: ViewQuery<(&ViewTarget, &ViewPanorama)>,
     panorama: Option<Res<Panorama>>,
     cache: Res<PipelineCache>,
     device: Res<RenderDevice>,
@@ -297,16 +347,11 @@ fn blur_view_target(
     let Some(panorama) = panorama.as_deref() else {
         return;
     };
-    let Some([horizontal, vertical]) = panorama
-        .blur_pipelines
-        .map(|ids| ids.map(|id| cache.get_render_pipeline(id)))
+    let (target, pipelines) = view.into_inner();
+    let [Some(horizontal), Some(vertical)] = pipelines.blur.map(|id| cache.get_render_pipeline(id))
     else {
         return;
     };
-    let (Some(horizontal), Some(vertical)) = (horizontal, vertical) else {
-        return;
-    };
-    let target = view.into_inner();
     for pipeline in (0..BLUR_PAIRS).flat_map(|_| [horizontal, vertical]) {
         let write = target.post_process_write();
         let bind_group = match sources.iter().find(|(id, _)| *id == write.source.id()) {
