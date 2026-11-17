@@ -67,8 +67,8 @@ refers to its rules by id.
   A vanilla client plays each step with the input agent of `tools/vanilla-client`, against the
   vanilla server. A recording gives an event for each serverbound packet, with the hashed stacks
   of each click. It also marks each serverbound packet that the proxy removed. It gives the
-  clientbound packets of the step, with each slot packet of the server. A rule cites a recording
-  by its file name without the extension `.txt`.
+  clientbound packets of the step that the recorder decodes, with each slot packet of the
+  server. A rule cites a recording by its file name without the extension `.txt`.
 
 ### 0.4 ID prefixes
 
@@ -507,8 +507,9 @@ Deviation D4 applies to the place filter in step 1. A `split` with `n` of 0 or l
 destination order of each menu, and the repeat of a quick move, are not in this document.
 
 **ITX-JAV-010** (`source_suggested`, semantic). Swap with a hotbar key uses the slot `H` of the
-player that the button names. The click gives the operations of the first row whose condition is
-true.
+player that the button names. When `S` is the slot `H`, the click gives no operation. Thus no
+slot changes, and the edge makes no `swap` that ITX-OP-011 rejects (ITX-JAV-003). In each other
+case, the click gives the operations of the first row whose condition is true.
 
 | # | Condition | Operations |
 |---|-----------|------------|
@@ -536,7 +537,9 @@ each condition of the list below is true, the edge adds `split(X, C, n)`. `n` is
 
 - `same(X, C)` is true, and `count(X)` is not larger than `max(C)`.
 - `take(X)` is true.
-- The menu permits pick up all from `X`. A later specification states this condition.
+- The menu permits pick up all from `X`. `inventory.md` (INV-MNU-005) and
+  `client-container-screen.md` (CCS-MNU-004) state this condition for their menus. A later
+  specification states it for each other menu.
 - In the first visit only: `count(X)` is not equal to `max(X)`.
 - `n` is equal to `count(X)`, or `place(X, X)` is true.
 
@@ -594,7 +597,9 @@ conditions is true:
 - `S` holds the empty stack, or `same(S, C)` is true and `count(S)` is not larger than `max(C)`;
 - `place(S, C)` is true;
 - the drag kind is 2, or `count(C)` is larger than the number of slots in the set;
-- the menu permits a drag to `S`. A later specification states this condition.
+- the menu permits a drag to `S`. `inventory.md` (INV-MNU-005) and `client-container-screen.md`
+  (CCS-MNU-004) state this condition for their menus. A later specification states it for each
+  other menu.
 
 A slot that is in the set does not enter it again. A stage 1 packet with a negative slot index
 adds no slot (deviation D1).
