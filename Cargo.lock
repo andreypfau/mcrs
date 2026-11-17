@@ -4410,6 +4410,7 @@ dependencies = [
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_network",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -4461,6 +4462,7 @@ dependencies = [
  "mcrs_minecraft_network",
  "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
@@ -5200,6 +5202,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5400,6 +5403,7 @@ dependencies = [
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_pack_file",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_controller",
@@ -5439,6 +5443,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_numeric",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
@@ -5955,6 +5960,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_nbt_path",
  "mcrs_minecraft_numeric",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -5988,6 +5994,7 @@ dependencies = [
  "mcrs_minecraft_loot_condition",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_nbt_path",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
@@ -6240,6 +6247,7 @@ dependencies = [
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
@@ -6254,6 +6262,14 @@ dependencies = [
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_save",
+]
+
+[[package]]
+name = "mcrs_minecraft_pose"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_pose",
+ "mcrs_minecraft_wire",
 ]
 
 [[package]]
@@ -6285,6 +6301,7 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_value_provider",
@@ -6384,6 +6401,7 @@ dependencies = [
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_recipe",
@@ -6554,6 +6572,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
@@ -6675,6 +6694,7 @@ dependencies = [
  "mcrs_minecraft_nbt_path",
  "mcrs_minecraft_network",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_probe",
  "mcrs_minecraft_protocol",

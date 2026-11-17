@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_asset",

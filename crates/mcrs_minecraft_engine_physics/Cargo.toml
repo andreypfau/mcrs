@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true

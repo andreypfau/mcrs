@@ -9,7 +9,6 @@ use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_mob_attributes::{AttributeEdit, AttributeTarget, RowAttributes};
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
@@ -18,6 +17,7 @@ use mcrs_minecraft_entity_attribute::{
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::packets::table::Decoded;
 use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePacket as BasePacket;
 use mcrs_minecraft_protocol::uuid::Uuid;

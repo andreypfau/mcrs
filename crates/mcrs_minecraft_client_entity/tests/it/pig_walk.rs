@@ -1,10 +1,10 @@
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::FrameValues;
 use mcrs_minecraft_entity_visual::walk::{self, Walk};
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::{

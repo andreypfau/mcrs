@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use bevy::prelude::*;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_entity_render::{RecordedClip, RecordedClips, pose_from_name};
@@ -13,6 +12,7 @@ use mcrs_minecraft_game_registries::variant::{FrogVariantFile, PigVariantFile};
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::definition::Items;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use serde::Deserialize;

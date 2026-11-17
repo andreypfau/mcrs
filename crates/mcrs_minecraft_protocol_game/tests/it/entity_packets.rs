@@ -1,6 +1,5 @@
 use crate::item::harness::wire_form;
 use glam::DVec3;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_entity::villager_profession_keys::VillagerProfession;
@@ -10,6 +9,7 @@ use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{

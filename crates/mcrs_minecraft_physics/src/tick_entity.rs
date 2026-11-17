@@ -8,7 +8,6 @@ use crate::Body;
 use crate::BodyView;
 use crate::Category;
 use crate::CollisionWorld;
-use crate::Dimensions;
 use crate::EntityState;
 use crate::Living;
 use crate::MotionRow;
@@ -37,6 +36,7 @@ use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 use crate::travel;
 use crate::travel::TravelInput;
+use mcrs_minecraft_pose::Dimensions;
 
 const DRAG: f32 = 0.98;
 const GROUND_BOUNCE: DVec3 = DVec3::new(0.7, -0.5, 0.7);

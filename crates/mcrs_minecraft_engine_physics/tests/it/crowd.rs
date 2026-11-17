@@ -11,7 +11,6 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
-use mcrs_minecraft_physics::Dimensions;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
@@ -19,6 +18,7 @@ use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestRng;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_voxel::BlockPos;
 

@@ -7,7 +7,6 @@ use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Collider;
-use mcrs_minecraft_physics::Dimensions;
 use mcrs_minecraft_physics::MoveFlags;
 use mcrs_minecraft_physics::Mover;
 use mcrs_minecraft_physics::MoverKind;
@@ -27,6 +26,7 @@ use mcrs_minecraft_physics::collide;
 use mcrs_minecraft_physics::move_body;
 use mcrs_minecraft_physics::query_colliders;
 use mcrs_minecraft_physics::resolve;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_voxel::BlockPos;
 
 const CASES: u32 = if cfg!(debug_assertions) {
