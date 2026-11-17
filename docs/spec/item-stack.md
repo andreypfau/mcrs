@@ -6,7 +6,7 @@ This document states the item stack as data: its parts, its component patch, its
 format that carries it. It states the meaning of four component types, and it lists each component
 type of this game version.
 
-Sections 8.1 to 8.3 state the shape of 19 component types. For
+Sections 8.1 to 8.4 state the shape of 30 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -60,6 +60,11 @@ section 8.
   sound event (STK-SHP-029).
 - **Entity type set**: a tag or a list of entries of the registry `minecraft:entity_type`
   (STK-SHP-030).
+- **Colour**: an int with an alpha, a red, a green and a blue channel (STK-SHP-032).
+- **Referenced value**: a reference to an entry of a registry, or an inline value of that registry
+  (STK-SHP-033).
+- **Effect instance**: a status effect with its amplifier, its duration and its flags
+  (STK-SHP-034).
 
 ### 0.2 Provenance
 
@@ -78,8 +83,8 @@ section 8.
 - `assets/mcrs/reports/packets.json`: the packet id report of the game.
 - `assets/mcrs/item_definition/`: one file for each item, which the game writes through
   `tools/vanilla-oracle`. STK-PRO-002 states the keys.
-- The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records`, `item_registry_refs` and
-  `inventory_packets` of `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
+- The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records`, `item_holders`,
+  `item_registry_refs` and `inventory_packets` of `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
 
 ### 0.4 ID prefixes
 
@@ -99,7 +104,7 @@ section 8.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
-| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.3 |
+| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.4 |
 
 ### 0.5 Notation
 
@@ -1029,7 +1034,7 @@ This section states the shape of 15 component types. The counts of prototypes co
 files of `assets/mcrs/item_definition/`.
 
 **STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
-STK-SHP-020, and each rule of sections 8.2 and 8.3, states one component type in a table. The
+STK-SHP-020, and each rule of sections 8.2 to 8.4 that names a component type, states it in a table. The
 columns are:
 
 - "Field": the key of the field in the saved form. `(value)` means that the component is one
@@ -1122,8 +1127,8 @@ decode error for an NBT that is larger than a quota of 2097152 bytes. The exact 
 size is not specified. Two texts are equal when their content, their style and their children are
 equal (STK-PAT-007).
 
-**STK-SHP-005** (`design`, unspecified). A server must not send a component of section 8.1, 8.2 or
-8.3 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
+**STK-SHP-005** (`design`, unspecified). A server must not send a component of sections 8.1 to
+8.4 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
 For an id that is not in a list of names, the reference reader of the wire form gives the name
 with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
 writes such an id.
@@ -1700,6 +1705,348 @@ result of the test. The vanilla client makes the same test with the tags of the 
 When a component of `minecraft:equippable` has no `allowed_entities`, each entity type can equip
 the item. The empty list is different: no entity type can equip the item.
 
+### 8.4 Shapes of the colour, effect, trim, potion, instrument and data types
+
+This section states the shape of 11 more component types. STK-SHP-001 to STK-SHP-005 apply to each
+rule of this section. STK-SHP-032 to STK-SHP-034 state the forms that more than one rule uses. The
+fixture `item_holders` has the cases `trim_*` and `instrument_*`. The fixture `item_records` has the
+cases `cmd_*`, `block_state_*` and `lodestone_*`. The fixture `item_registry_refs` has samples of
+`minecraft:potion_contents` and `minecraft:suspicious_stew_effects`. The fixture `item_plain` has
+the cases of experiment E28. Each case has the JSON, the NBT, the wire form and the hash that the
+game wrote.
+
+**STK-SHP-032** (`source_suggested_black_box_confirmed`, wire). The rules of this section use these
+forms in addition to the forms of STK-SHP-002:
+
+| Form | Saved form in NBT | Saved form in JSON | Hash node | Wire form |
+|------|-------------------|--------------------|-----------|-----------|
+| string | String tag | string | string | String (32767) of `login.md`, section 0.2 |
+| int of 4 bytes | as int | as int | int | 4 bytes, two's complement, big-endian |
+| colour | Int tag | number | int | 4 bytes, two's complement, big-endian |
+| list of X | List tag of the NBT of X | array | list | VarInt: the number of elements, then each element in the wire form of X |
+
+A string has no limit in the saved form. A server must not send a string that is longer than
+32767 UTF-16 code units (STK-SHP-005). An int of 4 bytes and a colour have the range of an int. In
+JSON, an integer number out of the int range gives the low 32 bits of the number. Thus `2147483648`
+gives `-2147483648`. A number with a fraction loses its fraction, as STK-SHP-002 states.
+
+A colour is an int with 4 channels of 8 bits. Alpha is in the bits 24 to 31, and red is in the
+bits 16 to 23. Green is in the bits 8 to 15, and blue is in the bits 0 to 7. The reader of the saved form also
+accepts a list of exactly 3 numbers: red, green and blue. It reads each number as a float
+(STK-SHP-002). It then makes the colour as follows:
+
+1. Multiply each float by 255 in float arithmetic.
+2. Round each product down to an int. A product out of the int range gives the nearest limit. A
+   NaN gives 0.
+3. Keep the low 8 bits of each int as the channel.
+4. Set the alpha channel to 255.
+
+A list with more or fewer than 3 elements is an error. A map is an error. The writer always writes
+the int. For example, `[1.0,0.5,0.0]` gives `-33024` (`FFFF7F00`), and `[2.0,-0.1,0.5]` gives
+`-72065` (`FFFEE67F`). Equality: two colours are equal when the two ints are equal.
+
+**STK-SHP-033** (`source_suggested_black_box_confirmed`, wire). A referenced value of a registry is
+a reference to an entry of that registry, or an inline value. The rule of a component states the
+registry and the fields of the inline value. The two kinds have these forms:
+
+| Kind | Saved form | Hash node | Wire form |
+|------|------------|-----------|-----------|
+| a reference | the identifier of the entry, as a string | string | VarInt: the numeric id of the entry plus 1 |
+| an inline value | a map with the fields of the inline value | map | VarInt 0, then the fields of the inline value |
+
+The numeric id of an entry of a data-pack registry is the id that the server sent for this
+connection (`registry.md`). The readers, the writer and the equality of a referenced value follow the
+statements of STK-SHP-029 for a sound event. A sound event is the referenced value of the registry
+`minecraft:sound_event`. For example, the reader of the saved form reads a string as a reference.
+A string that names no entry is an error.
+
+**STK-SHP-034** (`source_suggested_black_box_confirmed`, wire). An effect instance is a status
+effect with its details. `status-effects.md` defines the effect kinds, the amplifier and the
+duration. An effect instance has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `id` | entry of the registry `minecraft:mob_effect` | each entry | necessary | VarInt: the numeric id |
+| `amplifier` | unsigned byte (below) | each int | 0 | VarInt |
+| `duration` | int | each int | 0 | VarInt |
+| `ambient` | boolean | `false`, `true` | `false` | one byte |
+| `show_particles` | boolean | `false`, `true` | `true` | one byte |
+| `show_icon` | boolean | `false`, `true` | the value of `show_particles` | one byte |
+| `hidden_effect` | a hidden effect (below) | below | no value | one boolean byte, then the hidden effect when the byte is `01` |
+
+`minecraft:mob_effect` is a static registry. `assets/mcrs/reports/registries.json` gives the
+numeric ids. The duration `-1` is an infinite duration.
+
+The unsigned byte has these forms:
+
+- The reader of the saved form reads an int (STK-SHP-002). It keeps the low 8 bits as a number in
+  `0..255`. Thus `256` gives 0, `300` gives 44 and `-1` gives 255. No int is an error.
+- The writer of NBT writes a Byte tag with the same 8 bits. The writer of JSON writes the signed
+  value of that byte. Thus 255 is `-1b` in NBT and `-1` in JSON.
+- The hash node is a byte node with the same 8 bits.
+- The writer of the wire form writes the number in `0..255`. The reference reader of the wire form
+  changes a number out of `0..255` to the nearest limit. This statement has the provenance
+  `source_suggested`.
+
+The writer of the saved form always writes `show_icon`. This is an exception to STK-SHP-001. It
+omits each other field whose value is equal to its default.
+
+A hidden effect has the fields of the table without `id`. Its effect kind is the `id` of the
+effect instance that holds it. A hidden effect can hold a hidden effect. The rules put no limit on
+the depth.
+
+Equality: two effect instances are equal when each field is equal. The reference does not compare
+`hidden_effect`. Deviation D8 records that behaviour.
+
+**STK-SHP-035** (`source_suggested_black_box_confirmed`, wire). `minecraft:dyed_color`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | colour (STK-SHP-032) | each int | necessary | 4 bytes |
+
+For example, 16711680 has the wire form `00FF0000`. Limits: none. Equality: as STK-SHP-032.
+Prototypes: no prototype has this component.
+
+**STK-SHP-036** (`source_suggested_black_box_confirmed`, wire). `minecraft:custom_model_data`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `floats` | list of float | each float | the empty list | list of 4 bytes |
+| `flags` | list of boolean | `false`, `true` | the empty list | list of one byte |
+| `strings` | list of string | each string | the empty list | list of String (32767) |
+| `colors` | list of colour (STK-SHP-032) | each int | the empty list | list of 4 bytes |
+
+Each element of `colors` can be an int or a list of 3 numbers in the saved form. The writer
+writes each colour as an int. Limits: none on the number of elements. Equality: the four lists are
+equal, element by element, in order. Floats are equal as STK-EQ-005 states. Prototypes: no
+prototype has this component.
+
+**STK-SHP-037** (`source_suggested_black_box_confirmed`, wire). `minecraft:enchantment_glint_override`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | boolean | `false`, `true` | necessary | one byte |
+
+Limits: none. Equality: the two values are equal. Prototypes: 7 prototypes have this component,
+each with `true`. The other 1679 prototypes do not have it.
+
+**STK-SHP-038** (`source_suggested_black_box_confirmed`, wire). `minecraft:block_state` is a map
+from the name of a block state property to a value:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | a map | no limit on the number of keys | necessary | VarInt: the number of entries, then the entries |
+| each key | string | each string | | String (32767) |
+| each value | string | each string | | String (32767) |
+
+No reader checks that a block has the property or the value. Thus `{"no_such_property":"any
+text"}` is valid. A value must be a string in the saved form. Thus `{"level":1}` and
+`{"level":true}` are errors. The order of the entries in the wire form is the choice of the
+writer. Thus a parity test of the wire form must compare the entries as a set. The reference
+reader of the wire form accepts one key two times, and the value of the last entry wins. This
+statement has the provenance `source_suggested`.
+
+Limits: none on the number of entries. Equality: the two maps have the same keys, and each key
+has the same value. The order has no effect. Prototypes: 12 prototypes have this component, each
+with one key. The map `{"copper_golem_pose":"standing"}` occurs 8 times, `{"honey_level":"0"}` 2
+times, `{"level":"15"}` 1 time and `{"mode":"start"}` 1 time.
+
+**STK-SHP-039** (`source_suggested_black_box_confirmed`, wire). `minecraft:lodestone_tracker`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `target` | a global position (below) | below | no value | one boolean byte, then the global position when the byte is `01` |
+| `tracked` | boolean | `false`, `true` | `true` | one byte |
+
+A global position has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `dimension` | identifier | each identifier | necessary | String (32767) |
+| `pos` | block position (below) | 3 ints | necessary | a long of 8 bytes, big-endian (below) |
+
+No reader checks that the dimension exists. A block position is 3 ints `x`, `y` and `z`, in this
+order. Its saved form in NBT is an Int Array tag with 3 elements. In JSON, it is a list of 3
+numbers. Its hash node is an int array. The reader of the saved form in NBT also accepts a List
+tag, a Byte Array tag or a Long Array tag of 3 numbers. STK-SHP-024 states the same for a UUID. A list
+with more or fewer than 3 elements is an error.
+
+The wire form of a block position is one long, as `client-block-breaking.md`, CBK-PKT-001, states:
+`x` in the bits 38 to 63, `z` in the bits 12 to 37 and `y` in the bits 0 to 11. The reference
+writer keeps only the low bits of each coordinate. Thus `y` = 4096 gives 0 on the wire, and the
+client gets another position. A server must not send a block position with `x` or `z` out of
+`-33554432..33554431`, or `y` out of `-2048..2047` (STK-SHP-005).
+
+For example, the position `[1,-2,3]` has the wire form `0000004000003FFE`. The value
+`{"tracked":false}` has the wire form `00 00`. Limits: none. Equality: each field is equal. Two
+targets with no value are equal. Prototypes: no prototype has this component.
+
+**STK-SHP-040** (`source_suggested_black_box_confirmed`, wire). `minecraft:trim`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `material` | referenced value of the registry `minecraft:trim_material` (STK-SHP-033) | STK-SHP-033 | necessary | STK-SHP-033 |
+| `pattern` | referenced value of the registry `minecraft:trim_pattern` (STK-SHP-033) | STK-SHP-033 | necessary | STK-SHP-033 |
+
+`minecraft:trim_material` and `minecraft:trim_pattern` are data-pack registries. An inline trim
+material has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `palette_id` | identifier | each identifier | necessary | String (32767) |
+| `description` | text (STK-SHP-004) | each text | necessary | one network NBT |
+
+An inline trim pattern has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `asset_id` | identifier | each identifier | necessary | String (32767) |
+| `description` | text (STK-SHP-004) | each text | necessary | one network NBT |
+| `decal` | boolean | `false`, `true` | `false` | one byte |
+
+The writer of the saved form always writes `decal`, also when its value is `false`. This is an
+exception to STK-SHP-001. `palette_id` and `asset_id` name assets of a resource pack. No reader
+checks that the asset exists.
+
+For example, the trim with the reference `minecraft:amethyst` (id 0) and the reference
+`minecraft:coast` (id 1) has the wire form `01 02`. The inline material
+`{"palette_id":"mcrs:pal","description":"Pal"}` has the wire form
+`00 08 6D6372733A70616C 08 0003 50616C`. Limits: those of STK-SHP-004 only. Equality: each field is
+equal (STK-SHP-033). Prototypes: no prototype has this component.
+
+**STK-SHP-041** (`source_suggested_black_box_confirmed`, wire). `minecraft:potion_contents`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `potion` | entry of the registry `minecraft:potion` | each entry | no value | one boolean byte, then VarInt: the numeric id when the byte is `01` |
+| `custom_color` | int of 4 bytes (STK-SHP-032) | each int | no value | one boolean byte, then 4 bytes when the byte is `01` |
+| `custom_effects` | list of effect instance (STK-SHP-034) | STK-SHP-034 and STK-SHP-042 | the empty list | list of effect instance |
+| `custom_name` | string | each string | no value | one boolean byte, then String (32767) when the byte is `01` |
+
+`minecraft:potion` is a static registry. `assets/mcrs/reports/registries.json` gives the numeric
+ids. The wire form of `potion` is the numeric id, not the numeric id plus 1. `custom_color` is not
+a colour: a list of 3 numbers is an error.
+
+The reader of the saved form also accepts a string. It reads the string as the value with that
+`potion` and with each other field absent. The writer always writes the map. For example,
+`"minecraft:water"` gives `{"potion":"minecraft:water"}` and the wire form `01 00 00 00 00`.
+
+Limits: none on the number of effects. Equality: each field is equal. The order of
+`custom_effects` has an effect. Prototypes: 4 prototypes have this component with the empty map
+`{}`. The other 1682 prototypes do not have it.
+
+**STK-SHP-042** (`black_box_confirmed`, wire). The reader of the saved form of
+`minecraft:potion_contents` ignores `hidden_effect` in each element of `custom_effects`. Thus the
+saved form, the hash and the wire form of the value have no hidden effect. The reader of an effect
+instance in `minecraft:consumable` keeps `hidden_effect`. Experiment E28 shows the two results for
+one effect instance.
+
+A writer of the wire form of `minecraft:potion_contents` must write `00` for `hidden_effect`. The
+reader of the wire form reads a hidden effect, and this project then drops it. Reason: a value must
+have the same saved form after a read from each format. The provenance of this paragraph is
+`design`. What the vanilla client does with a hidden effect on the wire is not known (U4).
+
+**STK-SHP-043** (`source_suggested_black_box_confirmed`, wire). `minecraft:custom_data` is free
+NBT. The game gives it no meaning:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | an NBT compound | each compound | necessary | one network NBT of the compound |
+
+The value is a tree of NBT tags. A list of the tree can hold elements of different tag kinds
+(`snbt.md`, SNBT-GR-003). The binary NBT of such a list follows `text-component.md`, TXT-NBT-002.
+The saved form in NBT is the Compound tag. The reader of the saved form also accepts a string. It
+reads the string as SNBT (`snbt.md`, SNBT-ARG-004). The result must be a compound. Thus `"{}"` gives
+the empty compound, and `"[1,2]"` and `"{a:"` are errors. A number and a list are errors. The
+writer always writes the compound, never the string.
+
+The saved form in JSON has no tag kinds. The writer of JSON writes each number tag as a number and a
+String tag as a string. It writes an array tag or a List tag as an array. The reader of JSON makes these
+tags:
+
+| JSON value | Tag |
+|------------|-----|
+| an integer number in the range of a long | the first of Byte, Short, Int and Long that holds the value |
+| another number | Float, when a float holds the value exactly; else Double |
+| `true`, `false` | Byte tag 1 or 0 |
+| a string | String tag |
+| an array | List tag |
+| an object | Compound tag |
+
+A number with a zero fraction, for example `1.0`, is an integer number. Thus a JSON round trip can
+change the tag kinds. For example, `{"n":true}` gives `{n:1b}`. The statements on JSON have the
+provenance `source_suggested`, except the cases of experiment E28.
+
+The hash node of each tag kind is the node of STK-HSH-005 with the same name. A Compound tag is a
+map node, and a List tag is a list node. A list node holds the elements without the wrapper of
+TXT-NBT-002. For example, `{mixed:[1b,"a",{}]}` has the hash 767856123. The wire form is the
+network NBT of the compound, with the limits of STK-SHP-004.
+
+Equality: two values are equal when their trees are equal, with the tag kinds. Thus `1b` and `1`
+are not equal. Float tags and Double tags are equal as STK-EQ-005 states. Prototypes: no prototype
+has this component.
+
+**STK-SHP-044** (`source_suggested_black_box_confirmed`, wire). `minecraft:suspicious_stew_effects`
+is a list of entries:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | list of entry (below) | each list | necessary | list of entry |
+
+An entry has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `id` | entry of the registry `minecraft:mob_effect` | each entry | necessary | VarInt: the numeric id |
+| `duration` | int | each int | 160 | VarInt |
+
+The reader of the saved form reads a `duration` that is not a valid int as 160. The entry stays
+valid. For example, a string, `true` and `null` give 160. This is an exception to STK-SHP-001. A
+negative duration and the duration 0 are valid, and the writer writes them. The writer omits the
+duration 160.
+
+For example, the list of `speed` with the duration 160 and `slowness` with the duration 200 has the
+wire form `02 00 A001 01 C801`. Limits: none on the number of entries. Equality: the two lists have
+equal entries in the same order. Prototypes: 1 prototype has this component with the empty list
+`[]`.
+
+**STK-SHP-045** (`source_suggested_black_box_confirmed`, wire). `minecraft:ominous_bottle_amplifier`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | `0..4` | necessary | VarInt |
+
+Limits: none. Equality: the two values are equal. Prototypes: 1 prototype has this component with
+the value 0.
+
+**STK-SHP-046** (`source_suggested_black_box_confirmed`, wire). `minecraft:instrument`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | referenced value of the registry `minecraft:instrument` (STK-SHP-033) | STK-SHP-033 | necessary | STK-SHP-033 |
+
+`minecraft:instrument` is a data-pack registry. An inline instrument has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `sound_event` | a sound event (STK-SHP-029) | STK-SHP-029 | necessary | STK-SHP-029 |
+| `use_duration` | float | `+0.0` to `3.4028235E38` | necessary | 4 bytes |
+| `range` | float | larger than `+0.0`, up to `3.4028235E38` | necessary | 4 bytes |
+| `durability_damage` | int | `0..2147483647` | 0 | VarInt |
+| `description` | text (STK-SHP-004) | each text | necessary | one network NBT |
+
+The ranges of `use_duration` and `range` use a total order of floats. In that order, `-0.0` is
+smaller than `+0.0`, and a NaN is larger than each other float. Thus `-0.0` is an error for
+`use_duration`, and `+0.0` is an error for `range`. A NaN and an infinity are errors. The smallest
+positive float is valid for `range`. `use_duration` is in seconds, and `range` is in blocks.
+Another document states how a holder uses an instrument.
+
+For example, the reference `minecraft:ponder_goat_horn` (id 4) has the wire form `05`. The inline
+instrument `{"sound_event":"minecraft:entity.item.break","use_duration":7.0,"range":256.0,
+"description":"Horn"}` has the wire form `00 8E05 40E00000 43800000 00 08 0004 486F726E`. Limits:
+those of STK-SHP-004 only. Equality: as STK-SHP-033. Floats are equal as STK-EQ-005 states.
+Prototypes: 1 prototype has this component with the reference `minecraft:ponder_goat_horn`.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -1780,6 +2127,21 @@ the item. The empty list is different: no entity type can equip the item.
   form and the hash of the first. A differential test compares only the wire form of such a
   profile.
 
+**D8.**
+
+- **Rule**: STK-SHP-034 and STK-PAT-007.
+- **Reference**: the reference finds two effect instances equal when only `hidden_effect` is
+  different. The reference keeps the saved form and the hash of `minecraft:potion_contents` and
+  `minecraft:consumable` in a cache, as D7 states for a profile. Thus an effect instance can get
+  the saved form and the hash of an earlier instance with another hidden effect.
+- **mcrs**: two effect instances are equal only when their `hidden_effect` values are also equal.
+  The saved form and the hash come only from the value. Reason: STK-PAT-007 compares saved forms,
+  and `hidden_effect` is a field of the saved form.
+- **Visible to the client**: only for two effect instances that differ only in `hidden_effect`.
+  A value of `minecraft:potion_contents` has no hidden effect (STK-SHP-042).
+- **Bug reference**: none.
+- **Test**: a differential test does not compare two such values in one process.
+
 ## 10. Unresolved
 
 - **Q1**: STK-SAV-006. Which callers keep a stack whose patch has a bad key, and which drop the
@@ -1792,12 +2154,14 @@ the item. The empty list is different: no entity type can equip the item.
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types? Sections 8.1 to 8.3 state 19 types, with `map_id`,
-  `map_decorations`, `profile` and `equippable`.
+  document owns each group of types? Sections 8.1 to 8.4 state 30 types, with `map_id`,
+  `map_decorations`, `profile`, `equippable` and the 11 types of section 8.4.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
 - **U3**: the command form with the item `minecraft:air`.
+- **U4**: STK-SHP-042. What the vanilla client does with a hidden effect in the wire form of
+  `minecraft:potion_contents`: it keeps the effect, drops it or fails.
 
 ## 11. Experiments
 
@@ -1911,3 +2275,101 @@ Results:
   `sound_id` of the input and no `range`.
 - The wire form of the sound event is `00`, then `sound_id` as String (32767), then `00` for no
   range.
+
+**E28.** Rules: STK-SHP-032 to STK-SHP-044 and STK-SHP-046.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of `tools/fixtures.json`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For a case of the kind "value", read the JSON, the NBT, the wire form and the hash.
+4. For a case of the kind "error", read the rejection.
+5. For a case of the kind "decode", give the wire form to the reader. Read the JSON of the result.
+
+The fixture keeps the cases of the three kinds in its lists `values`, `errors` and `decodes`. The
+field `kind` of a case gives the component type.
+
+| Component type | Kind | Input | Rule |
+|----------------|------|-------|------|
+| `dyed_color` | value | `[2.0,-0.1,0.5]` | STK-SHP-032 |
+| `custom_model_data` | value | `{}` | STK-SHP-036 |
+| `custom_model_data` | value | `{"floats":[1,-0.5],"flags":[false],"strings":["","a b"],"colors":[[1.0,0.0,0.0],255]}` | STK-SHP-036 |
+| `block_state` | value | `{"facing":"north","half":"top","waterlogged":"false"}` | STK-SHP-038 |
+| `block_state` | value | `{"no_such_property":"any text"}` | STK-SHP-038 |
+| `lodestone_tracker` | value | `{"target":{"dimension":"overworld","pos":[33554431,2047,-33554432]},"tracked":true}` | STK-SHP-039 |
+| `lodestone_tracker` | value | `{"target":{"dimension":"mcrs:custom","pos":[0,4096,-1]}}` | STK-SHP-039 |
+| `lodestone_tracker` | value | `{"tracked":false}` | STK-SHP-039 |
+| `trim` | value | `{"material":{"palette_id":"mcrs:pal","description":"Pal","extra":1},"pattern":"coast"}` | STK-SHP-040 |
+| `potion_contents` | value | `"minecraft:water"` | STK-SHP-041 |
+| `potion_contents` | value | `{"custom_effects":[{"id":"minecraft:speed"}]}` | STK-SHP-041 |
+| `potion_contents` | value | `{"custom_effects":[{"id":"minecraft:speed","amplifier":3,"duration":40,"hidden_effect":{"amplifier":1,"duration":200,"hidden_effect":{"duration":600}}}]}` | STK-SHP-042 |
+| `potion_contents` | value | `{"custom_effects":[{"id":"minecraft:speed","show_particles":false}]}` | STK-SHP-041 |
+| `potion_contents` | value | `{"custom_effects":[{"id":"minecraft:speed","amplifier":255},{"id":"minecraft:speed","amplifier":256},{"id":"minecraft:speed","amplifier":300},{"id":"minecraft:speed","amplifier":-1}]}` | STK-SHP-034 |
+| `potion_contents` | value | `{"custom_name":""}` | STK-SHP-041 |
+| `suspicious_stew_effects` | value | `[{"id":"minecraft:speed","duration":-5},{"id":"minecraft:speed","duration":0}]` | STK-SHP-044 |
+| `instrument` | value | `{"sound_event":"minecraft:entity.item.break","use_duration":0.0,"range":3.4028235E38,"durability_damage":0,"description":""}` | STK-SHP-046 |
+| `custom_data` | value | `{}` | STK-SHP-043 |
+| `custom_data` | value | `"{}"` | STK-SHP-043 |
+| `custom_data` | value | `"{a:1b,b:2s,c:3,d:4L,e:5.0f,f:6.0d,g:\"x\",h:[I;1,2],i:[B;1b],j:[L;1L],k:[],l:{m:[1,2]},n:true}"` | STK-SHP-043 |
+| `custom_data` | value | `{"a":1,"b":1.5,"c":true,"d":"x","e":[1,2],"f":{},"g":300,"h":3000000000}` | STK-SHP-043 |
+| `custom_data` | value | `"{mixed:[1b,\"a\",{}]}"` | STK-SHP-043 |
+| `consumable` | value | `{"on_consume_effects":[{"type":"apply_effects","effects":[{"id":"minecraft:haste","amplifier":7,"duration":77,"hidden_effect":{"amplifier":1,"duration":200}}]}]}` | STK-SHP-042 |
+| `potion_contents` | value | `{"custom_effects":[{"id":"minecraft:haste","amplifier":7,"duration":77,"hidden_effect":{"amplifier":1,"duration":200}}]}` | STK-SHP-042 |
+| `dyed_color` | error | `{"rgb":16711680}` | STK-SHP-032 |
+| `dyed_color` | error | `[1.0,1.0,1.0,1.0]` | STK-SHP-032 |
+| `custom_model_data` | error | `{"floats":["x"]}` | STK-SHP-036 |
+| `custom_model_data` | error | `{"colors":["#FF0000"]}` | STK-SHP-036 |
+| `block_state` | error | `{"level":1}` | STK-SHP-038 |
+| `block_state` | error | `{"level":true}` | STK-SHP-038 |
+| `lodestone_tracker` | error | `{"target":{"pos":[0,0,0]}}` | STK-SHP-039 |
+| `lodestone_tracker` | error | `{"target":{"dimension":"overworld","pos":[0,0,0]},"tracked":"yes"}` | STK-SHP-039 |
+| `trim` | error | `{"material":"minecraft:amethyst","pattern":"minecraft:no_such_pattern"}` | STK-SHP-040 |
+| `trim` | error | `{"material":{"palette_id":"mcrs:pal"},"pattern":"minecraft:coast"}` | STK-SHP-040 |
+| `trim` | error | `{"material":"minecraft:amethyst"}` | STK-SHP-040 |
+| `potion_contents` | error | `"minecraft:no_such_potion"` | STK-SHP-041 |
+| `potion_contents` | error | `{"custom_effects":[{"amplifier":1}]}` | STK-SHP-041 |
+| `potion_contents` | error | `{"custom_effects":[{"id":"minecraft:speed","duration":"long"}]}` | STK-SHP-041 |
+| `potion_contents` | error | `{"custom_name":5}` | STK-SHP-041 |
+| `suspicious_stew_effects` | error | `[{"duration":5}]` | STK-SHP-044 |
+| `suspicious_stew_effects` | error | `{"id":"minecraft:speed"}` | STK-SHP-044 |
+| `instrument` | error | `"minecraft:no_such_horn"` | STK-SHP-046 |
+| `instrument` | error | `{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":0.0,"description":"x"}` | STK-SHP-046 |
+| `instrument` | error | `{"sound_event":"minecraft:entity.item.break","use_duration":-0.0,"range":1.0,"description":"x"}` | STK-SHP-046 |
+| `instrument` | error | `{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":1.0,"durability_damage":-1,"description":"x"}` | STK-SHP-046 |
+| `instrument` | error | `{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":1.0}` | STK-SHP-046 |
+| `custom_data` | error | `"[1,2]"` | STK-SHP-043 |
+| `custom_data` | error | `"{a:"` | STK-SHP-043 |
+| `custom_data` | error | `5` | STK-SHP-043 |
+| `custom_data` | error | `[]` | STK-SHP-043 |
+| `potion_contents` | error | `{"custom_color":[1.0,0.0,0.0]}` | STK-SHP-041 |
+| `potion_contents` | decode | `0000010003280001010101c8010001010000` | STK-SHP-042 |
+
+Results:
+
+- The game accepts each case of the kind "value" and rejects each case of the kind "error".
+- The colour `[2.0,-0.1,0.5]` gives `-72065`. In `custom_model_data`, the colour `[1.0,0.0,0.0]`
+  gives `-65536`. `custom_color` of `potion_contents` rejects the list `[1.0,0.0,0.0]`.
+- The position `[33554431,2047,-33554432]` has the wire form `7FFFFFE0000007FF`. The position
+  `[0,4096,-1]` keeps `4096` in the saved form, and its wire form is `0000003FFFFFF000`. Thus the
+  wire form has `y` = 0.
+- The value with `"tracked":true` has no key `tracked` in the saved form.
+- The inline trim material with the key `extra` loses that key. The pattern `coast` is written as
+  `minecraft:coast`.
+- The amplifiers 255, 256, 300 and -1 give `-1`, no key, `44` and `-1` in JSON. On the wire, they
+  are `FF 01`, `00`, `2C` and `FF 01`.
+- The effect with `"show_particles":false` gets `"show_icon":false` in the saved form.
+- The two values of `potion_contents` with `hidden_effect` have no hidden effect in the JSON, the
+  NBT and the wire form. The value of `consumable` with the same effect instance keeps
+  `hidden_effect`. Its wire form has `01 01 C801 00 01 01 00` for the hidden effect.
+- The case of the kind "decode" has a hidden effect on the wire. The JSON of the result has no
+  hidden effect. The cache of D8 can give this JSON, so this case does not show what the reader of
+  the wire form keeps.
+- The durations `-5` and `0` of `suspicious_stew_effects` stay in the saved form.
+- `instrument` accepts `use_duration` `0.0` and `range` `3.4028235E38`, and omits
+  `durability_damage` `0`. It rejects `range` `0.0`, `use_duration` `-0.0` and
+  `durability_damage` `-1`.
+- The SNBT case of `custom_data` keeps each tag kind. In the JSON case, `1` and `true` give Byte
+  tags, and `1.5` gives a Float tag. `300` gives a Short tag, `3000000000` gives a Long tag, and
+  `[1,2]` gives a list of Byte tags.
+- The list `[1b,"a",{}]` has the NBT `0A 00000003 | 01 0000 01 00 | 08 0000 0001 61 00 | 00`.
+  Its hash is the hash of the list without the wrappers.

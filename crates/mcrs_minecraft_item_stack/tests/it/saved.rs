@@ -13,6 +13,7 @@ use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::DimensionPos;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
 use mcrs_minecraft_item_stack::Enchantments;
@@ -24,6 +25,7 @@ use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::InlineSoundEvent;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::LodestoneTracker;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
@@ -60,6 +62,7 @@ use mcrs_minecraft_snbt::parse_compound;
 use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_snbt::write_compound;
 use mcrs_minecraft_text::Text;
+use mcrs_voxel::BlockPos;
 use serde::Deserialize;
 
 use crate::common::same;
@@ -89,13 +92,21 @@ impl Names {
             NameTable::Attribute => &["attack_damage"],
             NameTable::Block => &["stone", "dirt"],
             NameTable::BlockTag => &["mineable/pickaxe"],
-            NameTable::ComponentType => {
-                &["max_stack_size", "damage", "bundle_contents", "custom_data"]
-            }
+            NameTable::ComponentType => &[
+                "max_stack_size",
+                "damage",
+                "bundle_contents",
+                "charged_projectiles",
+            ],
             NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
-            NameTable::SoundEvent => &["item.armor.equip_iron"],
+            NameTable::SoundEvent => &["item.armor.equip_iron", "entity.item.break"],
             NameTable::EntityType => &["pig", "zombie"],
             NameTable::EntityTypeTag => &["skeletons"],
+            NameTable::MobEffect => &["speed", "slowness", "haste"],
+            NameTable::Potion => &["water"],
+            NameTable::TrimMaterial => &["amethyst"],
+            NameTable::TrimPattern => &["bolt", "coast"],
+            NameTable::Instrument => &["ponder_goat_horn"],
             _ => &[],
         }
     }
@@ -333,10 +344,10 @@ fn an_equippable_takes_its_defaults_and_keeps_an_empty_entity_list_apart_from_no
 #[test]
 fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
     let forward = with_components(
-        r#""minecraft:bundle_contents":[],"!minecraft:custom_data":{},"minecraft:repair_cost":2,"!minecraft:damage":{},"minecraft:custom_name":"named""#,
+        r#""minecraft:bundle_contents":[],"!minecraft:charged_projectiles":{},"minecraft:repair_cost":2,"!minecraft:damage":{},"minecraft:custom_name":"named""#,
     );
     let backward = with_components(
-        r#""minecraft:custom_name":"named","!minecraft:damage":{},"minecraft:repair_cost":2,"!minecraft:custom_data":{},"minecraft:bundle_contents":[]"#,
+        r#""minecraft:custom_name":"named","!minecraft:damage":{},"minecraft:repair_cost":2,"!minecraft:charged_projectiles":{},"minecraft:bundle_contents":[]"#,
     );
 
     let stack = read_saved(&forward, &Names).expect("each key is valid");
@@ -368,7 +379,7 @@ fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
             "minecraft:custom_name",
             "minecraft:repair_cost",
             "minecraft:bundle_contents",
-            "!minecraft:custom_data",
+            "!minecraft:charged_projectiles",
         ]
     );
 }
@@ -503,6 +514,38 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
     for (components, expected) in patches {
         let nbt = with_components(components);
         assert_eq!(read_saved(&nbt, &Names), Err(expected), "{components}");
+    }
+}
+
+#[test]
+fn a_lodestone_target_reads_from_each_array_form_and_a_long_keeps_its_low_32_bits() {
+    let target = |x: i32, y: i32, z: i32| LodestoneTracker {
+        target: Some(DimensionPos::new(
+            ResourceLocationBuf::new("minecraft", "overworld").expect("a valid dimension"),
+            BlockPos::new(x, y, z),
+        )),
+        tracked: true,
+    };
+    let cases: [(&str, Result<LodestoneTracker, SavedError>); 6] = [
+        ("[I;1,-2,3]", Ok(target(1, -2, 3))),
+        ("[B;1b,-2b,3b]", Ok(target(1, -2, 3))),
+        ("[L;1L,-2L,3L]", Ok(target(1, -2, 3))),
+        (
+            "[L;4294967297L,2147483649L,-1L]",
+            Ok(target(1, -2147483647, -1)),
+        ),
+        ("[1,-2,3]", Ok(target(1, -2, 3))),
+        (
+            "[1,2]",
+            Err(SavedError::BadValue(BuiltinKey::LodestoneTracker)),
+        ),
+    ];
+    for (pos, expected) in cases {
+        let nbt = with_components(&format!(
+            r#""minecraft:lodestone_tracker":{{target:{{dimension:"minecraft:overworld",pos:{pos}}}}}"#
+        ));
+        let expected = expected.map(|tracker| stack(STONE, 1).set(tracker));
+        assert_eq!(read_saved(&nbt, &Names), expected, "{pos}");
     }
 }
 
@@ -703,9 +746,10 @@ struct PlainValue {
 struct PlainError {
     kind: String,
     input: String,
+    error: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 9] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 20] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
@@ -715,6 +759,23 @@ const PLAIN_KINDS: [(&str, BuiltinKey); 9] = [
     ("map_id", BuiltinKey::MapId),
     ("map_decorations", BuiltinKey::MapDecorations),
     ("profile", BuiltinKey::Profile),
+    ("dyed_color", BuiltinKey::DyedColor),
+    ("custom_model_data", BuiltinKey::CustomModelData),
+    (
+        "enchantment_glint_override",
+        BuiltinKey::EnchantmentGlintOverride,
+    ),
+    ("block_state", BuiltinKey::BlockState),
+    ("lodestone_tracker", BuiltinKey::LodestoneTracker),
+    ("trim", BuiltinKey::Trim),
+    ("potion_contents", BuiltinKey::PotionContents),
+    ("custom_data", BuiltinKey::CustomData),
+    ("suspicious_stew_effects", BuiltinKey::SuspiciousStewEffects),
+    (
+        "ominous_bottle_amplifier",
+        BuiltinKey::OminousBottleAmplifier,
+    ),
+    ("instrument", BuiltinKey::Instrument),
 ];
 
 fn plain_kind(kind: &str) -> Option<BuiltinKey> {
@@ -722,6 +783,23 @@ fn plain_kind(kind: &str) -> Option<BuiltinKey> {
         .iter()
         .find(|(name, _)| *name == kind)
         .map(|(_, component)| *component)
+}
+
+const JSON_ONLY_ERRORS: [(&str, &str); 2] = [
+    ("enchantment_glint_override", "1"),
+    (
+        "instrument",
+        r#"{"sound_event":"minecraft:entity.item.break","use_duration":-0.0,"range":1.0,"description":"x"}"#,
+    ),
+];
+
+fn registry_of(component: BuiltinKey) -> Option<NameTable> {
+    match component {
+        BuiltinKey::Trim => Some(NameTable::TrimPattern),
+        BuiltinKey::PotionContents => Some(NameTable::Potion),
+        BuiltinKey::Instrument => Some(NameTable::Instrument),
+        _ => None,
+    }
 }
 
 fn with_component(kind: &str, value: NbtTag) -> NbtCompound {
@@ -772,13 +850,37 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         let Some(component) = plain_kind(&error.kind) else {
             continue;
         };
+        if JSON_ONLY_ERRORS.contains(&(error.kind.as_str(), error.input.as_str())) {
+            continue;
+        }
         let input = parse_tag(&error.input).expect("the rejected input is valid SNBT");
+        let message = error.error.as_str();
         let expected = match component {
             BuiltinKey::Unbreakable
             | BuiltinKey::Rarity
             | BuiltinKey::MapDecorations
             | BuiltinKey::Profile => SavedError::BadValue(component),
-            _ => SavedError::OutOfRange(component),
+            BuiltinKey::MaxStackSize
+            | BuiltinKey::MaxDamage
+            | BuiltinKey::Damage
+            | BuiltinKey::RepairCost
+            | BuiltinKey::MapId => SavedError::OutOfRange(component),
+            _ if message.contains("Failed to get element")
+                || message.contains("Unknown registry key") =>
+            {
+                SavedError::UnknownEntry {
+                    component,
+                    table: registry_of(component)
+                        .expect("only a registry component has an unknown entry"),
+                }
+            }
+            _ if message.contains("within range")
+                || message.contains("must be positive")
+                || message.contains("must be non-negative") =>
+            {
+                SavedError::OutOfRange(component)
+            }
+            _ => SavedError::BadValue(component),
         };
         let nbt = with_component(&error.kind, input);
         assert_eq!(
@@ -791,4 +893,21 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         rejected += 1;
     }
     assert!(rejected >= 18, "the golden lost error cases: {rejected}");
+}
+
+#[test]
+fn an_inline_instrument_with_a_negative_zero_use_duration_is_out_of_range() {
+    let mut instrument = NbtCompound::new();
+    instrument.put(
+        "sound_event",
+        NbtTag::String("minecraft:entity.item.break".into()),
+    );
+    instrument.put("use_duration", NbtTag::Float(-0.0));
+    instrument.put("range", NbtTag::Float(1.0));
+    instrument.put("description", NbtTag::String("x".into()));
+    let nbt = with_component("instrument", NbtTag::Compound(instrument));
+    assert_eq!(
+        read_saved(&nbt, &Names),
+        Err(SavedError::OutOfRange(BuiltinKey::Instrument))
+    );
 }

@@ -11,4 +11,9 @@ pub enum NameTable {
     SoundEvent,
     EntityType,
     EntityTypeTag,
+    MobEffect,
+    Potion,
+    TrimMaterial,
+    TrimPattern,
+    Instrument,
 }

@@ -13,19 +13,30 @@ use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_snbt::parse_compound;
+use mcrs_voxel::BlockPos;
 
+use crate::ArgbColor;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
 use crate::BlockId;
 use crate::BlockSet;
+use crate::BlockState;
+use crate::BlockStateProperty;
 use crate::BlockTagId;
 use crate::Builtin;
 use crate::BuiltinKey;
 use crate::ComponentType;
 use crate::Count;
+use crate::CustomData;
+use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
+use crate::DimensionPos;
+use crate::DyedColor;
+use crate::EffectInstance;
+use crate::EnchantmentGlintOverride;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
@@ -35,43 +46,62 @@ use crate::EntityTypeTagId;
 use crate::Equippable;
 use crate::EquippableSlot;
 use crate::Food;
+use crate::InlineInstrument;
 use crate::InlineSoundEvent;
+use crate::InlineTrimMaterial;
+use crate::InlineTrimPattern;
+use crate::Instrument;
+use crate::InstrumentId;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
 use crate::Kind;
+use crate::LodestoneTracker;
 use crate::MapDecoration;
 use crate::MapDecorationTypeId;
 use crate::MapDecorations;
 use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
+use crate::MobEffectId;
 use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
+use crate::OminousBottleAmplifier;
 use crate::PatchEntry;
+use crate::PotionContents;
+use crate::PotionId;
 use crate::Profile;
 use crate::Rarity;
+use crate::RegistryValue;
 use crate::RepairCost;
 use crate::SavedError;
 use crate::SlotGroup;
 use crate::SlotStack;
 use crate::SoundEventId;
 use crate::SoundEventRef;
+use crate::StewEffect;
+use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
+use crate::Trim;
+use crate::TrimMaterialId;
+use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
 use crate::check_saved_form::MAX_COUNT;
 use crate::check_saved_form::NOT_NEGATIVE;
+use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::saved_form::DISPLAY_DEFAULT;
 use crate::saved_form::DISPLAY_HIDDEN;
 use crate::saved_form::DISPLAY_OVERRIDE;
 use crate::saved_form::Fault;
+use crate::saved_form::is_instrument_range;
+use crate::saved_form::is_use_duration;
 use crate::saved_form::saved_form;
 use crate::saved_key::KeyKind;
 use crate::saved_key::REMOVAL_MARKER;
@@ -310,6 +340,23 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(tag, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(tag, component)?)),
         BuiltinKey::Lore => Builtin::Lore(read_lore(tag)?),
+        BuiltinKey::DyedColor => Builtin::DyedColor(DyedColor(reader.color(tag)?)),
+        BuiltinKey::CustomModelData => Builtin::CustomModelData(reader.custom_model_data(tag)?),
+        BuiltinKey::EnchantmentGlintOverride => {
+            Builtin::EnchantmentGlintOverride(EnchantmentGlintOverride(reader.boolean(tag)?))
+        }
+        BuiltinKey::BlockState => Builtin::BlockState(reader.block_state(tag)?),
+        BuiltinKey::LodestoneTracker => Builtin::LodestoneTracker(reader.lodestone_tracker(tag)?),
+        BuiltinKey::Trim => Builtin::Trim(reader.trim(tag)?),
+        BuiltinKey::PotionContents => Builtin::PotionContents(reader.potion_contents(tag)?),
+        BuiltinKey::CustomData => Builtin::CustomData(CustomData(reader.custom_data(tag)?)),
+        BuiltinKey::SuspiciousStewEffects => {
+            Builtin::SuspiciousStewEffects(reader.suspicious_stew_effects(tag)?)
+        }
+        BuiltinKey::OminousBottleAmplifier => Builtin::OminousBottleAmplifier(
+            OminousBottleAmplifier(reader.int(tag, OMINOUS_AMPLIFIER)?),
+        ),
+        BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(tag)?)),
     })
 }
 
@@ -579,7 +626,7 @@ impl<L: NameLookup> Reader<'_, L> {
         match tag {
             NbtTag::String(name) => {
                 let id = self.entry(NameTable::SoundEvent, self.location(name)?)?;
-                Ok(SoundEventRef::Registry(SoundEventId(id)))
+                Ok(SoundEventRef::Reference(SoundEventId(id)))
             }
             NbtTag::Compound(map) => {
                 let sound_id = self.identifier(self.necessary(map, "sound_id")?)?;
@@ -618,6 +665,229 @@ impl<L: NameLookup> Reader<'_, L> {
     fn entity_type(&self, text: &str) -> Result<EntityTypeId, SavedError> {
         self.entry(NameTable::EntityType, self.location(text)?)
             .map(EntityTypeId)
+    }
+
+    fn color(&self, tag: &NbtTag) -> Result<ArgbColor, SavedError> {
+        if let Some(number) = TagNumber::of(tag) {
+            return Ok(ArgbColor(number.to_int()));
+        }
+        let [red, green, blue] = self.list(tag)? else {
+            return Err(self.bad());
+        };
+        Ok(ArgbColor::from_rgb_floats(
+            self.float(red)?,
+            self.float(green)?,
+            self.float(blue)?,
+        ))
+    }
+
+    fn custom_model_data(&self, tag: &NbtTag) -> Result<CustomModelData, SavedError> {
+        let map = self.map(tag)?;
+        Ok(CustomModelData {
+            floats: self.listed(map, "floats", Self::float)?,
+            flags: self.listed(map, "flags", Self::boolean)?,
+            strings: self.listed(map, "strings", |reader, tag| {
+                Ok(reader.string(tag)?.to_string())
+            })?,
+            colors: self.listed(map, "colors", Self::color)?,
+        })
+    }
+
+    fn listed<T>(
+        &self,
+        map: &NbtCompound,
+        field: &str,
+        mut read: impl FnMut(&Self, &NbtTag) -> Result<T, SavedError>,
+    ) -> Result<Vec<T>, SavedError> {
+        let Some(tag) = map.get(field) else {
+            return Ok(Vec::new());
+        };
+        let list = self.list(tag)?;
+        let mut values: Vec<T> = Vec::with_capacity(list.len());
+        for element in list {
+            values.push(read(self, element)?);
+        }
+        Ok(values)
+    }
+
+    fn block_state(&self, tag: &NbtTag) -> Result<BlockState, SavedError> {
+        let map = self.map(tag)?;
+        let mut properties: Vec<BlockStateProperty> = Vec::with_capacity(map.child_tags.len());
+        for (name, value) in &map.child_tags {
+            properties.push(BlockStateProperty {
+                name: name.clone(),
+                value: self.string(value)?.to_string(),
+            });
+        }
+        Ok(BlockState::new(properties))
+    }
+
+    fn lodestone_tracker(&self, tag: &NbtTag) -> Result<LodestoneTracker, SavedError> {
+        let map = self.map(tag)?;
+        Ok(LodestoneTracker {
+            target: self.optional(map, "target", Self::global_pos)?,
+            tracked: self.flag(map, "tracked", true)?,
+        })
+    }
+
+    fn global_pos(&self, tag: &NbtTag) -> Result<DimensionPos, SavedError> {
+        let map = self.map(tag)?;
+        let dimension = self.identifier(self.necessary(map, "dimension")?)?.to_buf();
+        let [x, y, z] = self.position(self.necessary(map, "pos")?)?;
+        Ok(DimensionPos::new(dimension, BlockPos::new(x, y, z)))
+    }
+
+    fn position(&self, tag: &NbtTag) -> Result<[i32; 3], SavedError> {
+        match tag {
+            NbtTag::IntArray(values) => match values.as_slice() {
+                [x, y, z] => Ok([*x, *y, *z]),
+                _ => Err(self.bad()),
+            },
+            NbtTag::ByteArray(values) => match values.as_ref() {
+                [x, y, z] => Ok([x, y, z].map(|value| i32::from(value.cast_signed()))),
+                _ => Err(self.bad()),
+            },
+            NbtTag::LongArray(values) => match values.as_slice() {
+                [x, y, z] => Ok([x, y, z].map(|value| TagNumber::Integer(*value).to_int())),
+                _ => Err(self.bad()),
+            },
+            NbtTag::List(values) => match values.as_slice() {
+                [x, y, z] => Ok([
+                    self.number(x)?.to_int(),
+                    self.number(y)?.to_int(),
+                    self.number(z)?.to_int(),
+                ]),
+                _ => Err(self.bad()),
+            },
+            _ => Err(self.bad()),
+        }
+    }
+
+    fn trim(&self, tag: &NbtTag) -> Result<Trim, SavedError> {
+        let map = self.map(tag)?;
+        let material = match self.necessary(map, "material")? {
+            NbtTag::Compound(material) => RegistryValue::Inline(InlineTrimMaterial::new(
+                self.identifier(self.necessary(material, "palette_id")?)?
+                    .to_buf(),
+                read_text(self.necessary(material, "description")?, self.component)?,
+            )),
+            material => RegistryValue::Reference(TrimMaterialId(
+                self.entry(NameTable::TrimMaterial, self.identifier(material)?)?,
+            )),
+        };
+        let pattern = match self.necessary(map, "pattern")? {
+            NbtTag::Compound(pattern) => {
+                let mut inline = InlineTrimPattern::new(
+                    self.identifier(self.necessary(pattern, "asset_id")?)?
+                        .to_buf(),
+                    read_text(self.necessary(pattern, "description")?, self.component)?,
+                );
+                inline.decal = self.flag(pattern, "decal", false)?;
+                RegistryValue::Inline(inline)
+            }
+            pattern => RegistryValue::Reference(TrimPatternId(
+                self.entry(NameTable::TrimPattern, self.identifier(pattern)?)?,
+            )),
+        };
+        Ok(Trim { material, pattern })
+    }
+
+    fn potion(&self, tag: &NbtTag) -> Result<PotionId, SavedError> {
+        self.entry(NameTable::Potion, self.identifier(tag)?)
+            .map(PotionId)
+    }
+
+    fn mob_effect(&self, tag: &NbtTag) -> Result<MobEffectId, SavedError> {
+        self.entry(NameTable::MobEffect, self.identifier(tag)?)
+            .map(MobEffectId)
+    }
+
+    fn potion_contents(&self, tag: &NbtTag) -> Result<PotionContents, SavedError> {
+        let map = match tag {
+            NbtTag::String(_) => {
+                return Ok(PotionContents {
+                    potion: Some(self.potion(tag)?),
+                    ..PotionContents::default()
+                });
+            }
+            _ => self.map(tag)?,
+        };
+        Ok(PotionContents {
+            potion: self.optional(map, "potion", Self::potion)?,
+            custom_color: self.optional(map, "custom_color", |reader, tag| {
+                Ok(reader.number(tag)?.to_int())
+            })?,
+            custom_effects: self.listed(map, "custom_effects", Self::effect_instance)?,
+            custom_name: self.optional(map, "custom_name", |reader, tag| {
+                Ok(reader.string(tag)?.to_string())
+            })?,
+        })
+    }
+
+    fn effect_instance(&self, tag: &NbtTag) -> Result<EffectInstance, SavedError> {
+        let map = self.map(tag)?;
+        let mut effect = EffectInstance::new(self.mob_effect(self.necessary(map, "id")?)?);
+        if let Some(amplifier) = map.get("amplifier") {
+            effect.amplifier = self.number(amplifier)?.to_int() as u8;
+        }
+        if let Some(duration) = map.get("duration") {
+            effect.duration = self.number(duration)?.to_int();
+        }
+        effect.ambient = self.flag(map, "ambient", false)?;
+        effect.show_particles = self.flag(map, "show_particles", true)?;
+        effect.show_icon = self.flag(map, "show_icon", effect.show_particles)?;
+        Ok(effect)
+    }
+
+    fn custom_data(&self, tag: &NbtTag) -> Result<NbtCompound, SavedError> {
+        match tag {
+            NbtTag::Compound(compound) => Ok(compound.clone()),
+            NbtTag::String(text) => parse_compound(text).map_err(|_| self.bad()),
+            _ => Err(self.bad()),
+        }
+    }
+
+    fn suspicious_stew_effects(&self, tag: &NbtTag) -> Result<SuspiciousStewEffects, SavedError> {
+        let list = self.list(tag)?;
+        let mut effects: Vec<StewEffect> = Vec::with_capacity(list.len());
+        for element in list {
+            let map = self.map(element)?;
+            effects.push(StewEffect {
+                effect: self.mob_effect(self.necessary(map, "id")?)?,
+                duration: (map.get("duration"))
+                    .and_then(TagNumber::of)
+                    .map_or(StewEffect::DEFAULT_DURATION, TagNumber::to_int),
+            });
+        }
+        Ok(SuspiciousStewEffects(effects))
+    }
+
+    fn instrument(
+        &self,
+        tag: &NbtTag,
+    ) -> Result<RegistryValue<InstrumentId, InlineInstrument>, SavedError> {
+        let map = match tag {
+            NbtTag::Compound(map) => map,
+            _ => {
+                let id = self.entry(NameTable::Instrument, self.identifier(tag)?)?;
+                return Ok(RegistryValue::Reference(InstrumentId(id)));
+            }
+        };
+        let use_duration = self.float(self.necessary(map, "use_duration")?)?;
+        let range = self.float(self.necessary(map, "range")?)?;
+        if !is_use_duration(use_duration) || !is_instrument_range(range) {
+            return Err(SavedError::OutOfRange(self.component));
+        }
+        Ok(RegistryValue::Inline(InlineInstrument {
+            sound_event: self.sound_event(self.necessary(map, "sound_event")?)?,
+            use_duration,
+            range,
+            durability_damage: (self.optional(map, "durability_damage", |reader, tag| {
+                reader.int(tag, NOT_NEGATIVE)
+            })?)
+            .unwrap_or_default(),
+            description: read_text(self.necessary(map, "description")?, self.component)?,
+        }))
     }
 }
 

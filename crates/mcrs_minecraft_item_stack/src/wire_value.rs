@@ -1,7 +1,10 @@
 use alloc::borrow::Cow;
+use alloc::string::String;
 use alloc::vec::Vec;
+use core::mem;
 use core::num::NonZeroU8;
 
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -9,18 +12,28 @@ use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
+use mcrs_voxel::BlockPos;
 
+use crate::ArgbColor;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
 use crate::BlockId;
 use crate::BlockSet;
+use crate::BlockState;
+use crate::BlockStateProperty;
 use crate::BlockTagId;
 use crate::Builtin;
 use crate::BuiltinKey;
 use crate::ComponentType;
+use crate::CustomData;
+use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
+use crate::DimensionPos;
+use crate::DyedColor;
+use crate::EffectInstance;
+use crate::EnchantmentGlintOverride;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
@@ -30,25 +43,41 @@ use crate::EntityTypeTagId;
 use crate::Equippable;
 use crate::EquippableSlot;
 use crate::Food;
+use crate::InlineInstrument;
 use crate::InlineSoundEvent;
+use crate::InlineTrimMaterial;
+use crate::InlineTrimPattern;
+use crate::Instrument;
+use crate::InstrumentId;
 use crate::ItemModel;
 use crate::ItemName;
+use crate::LodestoneTracker;
 use crate::Lore;
 use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
+use crate::MobEffectId;
 use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
+use crate::OminousBottleAmplifier;
+use crate::PotionContents;
+use crate::PotionId;
 use crate::Profile;
 use crate::Rarity;
+use crate::RegistryValue;
 use crate::RepairCost;
 use crate::SlotGroup;
 use crate::SoundEventId;
 use crate::SoundEventRef;
+use crate::StewEffect;
+use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
+use crate::Trim;
+use crate::TrimMaterialId;
+use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::WireError;
 use crate::lore::MAX_LINES;
@@ -66,10 +95,14 @@ const DISPLAY_HIDDEN: i32 = 1;
 const DISPLAY_OVERRIDE: i32 = 2;
 
 const HOLDER_SET_TAG: i32 = 0;
-const INLINE_SOUND_EVENT: i32 = 0;
+const INLINE_VALUE: i32 = 0;
 
 pub(crate) fn put_var_int(output: &mut Vec<u8>, value: i32) {
     let _ = VarInt(value).encode(output);
+}
+
+fn write_registry_reference(output: &mut Vec<u8>, id: u16) {
+    put_var_int(output, i32::from(id) + 1);
 }
 
 pub(crate) fn read_var_int(
@@ -125,6 +158,38 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(input, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(input, component)?)),
         BuiltinKey::Lore => Builtin::Lore(reader.lore(input)?),
+        BuiltinKey::DyedColor => Builtin::DyedColor(DyedColor(reader.color(input)?)),
+        BuiltinKey::CustomModelData => Builtin::CustomModelData(CustomModelData {
+            floats: reader.list(input, |reader, input| {
+                Ok(f32::from_be_bytes(reader.bytes(input)?))
+            })?,
+            flags: reader.list(input, Reader::boolean)?,
+            strings: reader.list(input, Reader::string)?,
+            colors: reader.list(input, Reader::color)?,
+        }),
+        BuiltinKey::EnchantmentGlintOverride => {
+            Builtin::EnchantmentGlintOverride(EnchantmentGlintOverride(reader.boolean(input)?))
+        }
+        BuiltinKey::BlockState => Builtin::BlockState(reader.block_state(input)?),
+        BuiltinKey::LodestoneTracker => Builtin::LodestoneTracker(LodestoneTracker {
+            target: reader.optional(input, Reader::global_pos)?,
+            tracked: reader.boolean(input)?,
+        }),
+        BuiltinKey::Trim => Builtin::Trim(reader.trim(input)?),
+        BuiltinKey::PotionContents => Builtin::PotionContents(reader.potion_contents(input)?),
+        BuiltinKey::CustomData => Builtin::CustomData(CustomData(reader.custom_data(input)?)),
+        BuiltinKey::SuspiciousStewEffects => Builtin::SuspiciousStewEffects(SuspiciousStewEffects(
+            reader.list(input, |reader, input| {
+                Ok(StewEffect {
+                    effect: MobEffectId(reader.known_id(input, NameTable::MobEffect)?),
+                    duration: reader.var_int(input)?,
+                })
+            })?,
+        )),
+        BuiltinKey::OminousBottleAmplifier => {
+            Builtin::OminousBottleAmplifier(OminousBottleAmplifier(reader.var_int(input)?))
+        }
+        BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(input)?)),
     })
 }
 
@@ -151,6 +216,11 @@ impl<L: NameLookup> Reader<'_, L> {
             component: self.component,
             table,
         })
+    }
+
+    fn known_id(&self, input: &mut &[u8], table: NameTable) -> Result<u16, WireError> {
+        let id = self.var_int(input)?;
+        self.named_id(id, table)
     }
 
     fn list_entry<T: Copy>(&self, input: &mut &[u8], list: &[T]) -> Result<T, WireError> {
@@ -355,21 +425,14 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn sound_event(&self, input: &mut &[u8]) -> Result<SoundEventRef, WireError> {
-        let form = self.var_int(input)?;
-        if form == INLINE_SOUND_EVENT {
+        let Some(id) = self.registry_form(input, NameTable::SoundEvent)? else {
             let mut inline = InlineSoundEvent::new(self.identifier_buf(input)?);
             inline.range = self.optional(input, |reader, input| {
                 Ok(f32::from_be_bytes(reader.bytes(input)?))
             })?;
             return Ok(SoundEventRef::Inline(inline));
-        }
-        let id = form
-            .checked_sub(1)
-            .filter(|id| *id >= 0)
-            .ok_or(self.bad())?;
-        Ok(SoundEventRef::Registry(SoundEventId(
-            self.named_id(id, NameTable::SoundEvent)?,
-        )))
+        };
+        Ok(SoundEventRef::Reference(SoundEventId(id)))
     }
 
     fn entity_type_set(&self, input: &mut &[u8]) -> Result<EntityTypeSet, WireError> {
@@ -395,6 +458,141 @@ impl<L: NameLookup> Reader<'_, L> {
             entity_types.push(EntityTypeId(self.named_id(id, NameTable::EntityType)?));
         }
         Ok(EntityTypeSet::EntityTypes(Cow::Owned(entity_types)))
+    }
+
+    fn color(&self, input: &mut &[u8]) -> Result<ArgbColor, WireError> {
+        Ok(ArgbColor(i32::from_be_bytes(self.bytes(input)?)))
+    }
+
+    fn string(&self, input: &mut &[u8]) -> Result<String, WireError> {
+        String::decode(input).map_err(|error| WireError::of_value(&error, self.component))
+    }
+
+    fn list<T>(
+        &self,
+        input: &mut &[u8],
+        mut read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
+    ) -> Result<Vec<T>, WireError> {
+        let count = self.length(input)?;
+        let budget = input.len() / mem::size_of::<T>().max(1);
+        let mut values: Vec<T> = Vec::with_capacity(count.min(budget));
+        for _ in 0..count {
+            values.push(read(self, input)?);
+        }
+        Ok(values)
+    }
+
+    fn block_state(&self, input: &mut &[u8]) -> Result<BlockState, WireError> {
+        let properties = self.list(input, |reader, input| {
+            Ok(BlockStateProperty {
+                name: reader.string(input)?,
+                value: reader.string(input)?,
+            })
+        })?;
+        Ok(BlockState::new(properties))
+    }
+
+    fn global_pos(&self, input: &mut &[u8]) -> Result<DimensionPos, WireError> {
+        let dimension = self.identifier_buf(input)?;
+        let pos =
+            BlockPos::decode(input).map_err(|error| WireError::of_value(&error, self.component))?;
+        Ok(DimensionPos::new(dimension, pos))
+    }
+
+    fn registry_form(&self, input: &mut &[u8], table: NameTable) -> Result<Option<u16>, WireError> {
+        let form = self.var_int(input)?;
+        if form == INLINE_VALUE {
+            return Ok(None);
+        }
+        let id = form
+            .checked_sub(1)
+            .filter(|id| *id >= 0)
+            .ok_or(self.bad())?;
+        self.named_id(id, table).map(Some)
+    }
+
+    fn trim(&self, input: &mut &[u8]) -> Result<Trim, WireError> {
+        let material = match self.registry_form(input, NameTable::TrimMaterial)? {
+            Some(id) => RegistryValue::Reference(TrimMaterialId(id)),
+            None => RegistryValue::Inline(InlineTrimMaterial::new(
+                self.identifier_buf(input)?,
+                read_text(input, self.component)?,
+            )),
+        };
+        let pattern = match self.registry_form(input, NameTable::TrimPattern)? {
+            Some(id) => RegistryValue::Reference(TrimPatternId(id)),
+            None => {
+                let mut inline = InlineTrimPattern::new(
+                    self.identifier_buf(input)?,
+                    read_text(input, self.component)?,
+                );
+                inline.decal = self.boolean(input)?;
+                RegistryValue::Inline(inline)
+            }
+        };
+        Ok(Trim { material, pattern })
+    }
+
+    fn potion_contents(&self, input: &mut &[u8]) -> Result<PotionContents, WireError> {
+        Ok(PotionContents {
+            potion: self.optional(input, |reader, input| {
+                Ok(PotionId(reader.known_id(input, NameTable::Potion)?))
+            })?,
+            custom_color: self.optional(input, |reader, input| {
+                Ok(i32::from_be_bytes(reader.bytes(input)?))
+            })?,
+            custom_effects: self.list(input, Self::effect_instance)?,
+            custom_name: self.optional(input, Self::string)?,
+        })
+    }
+
+    fn effect_instance(&self, input: &mut &[u8]) -> Result<EffectInstance, WireError> {
+        let mut effect =
+            EffectInstance::new(MobEffectId(self.known_id(input, NameTable::MobEffect)?));
+        self.effect_details(input, &mut effect)?;
+        let mut hidden = EffectInstance::new(effect.effect);
+        while self.boolean(input)? {
+            self.effect_details(input, &mut hidden)?;
+        }
+        Ok(effect)
+    }
+
+    fn effect_details(
+        &self,
+        input: &mut &[u8],
+        effect: &mut EffectInstance,
+    ) -> Result<(), WireError> {
+        effect.amplifier = u8::try_from(self.var_int(input)?.clamp(0, 255)).unwrap_or(u8::MAX);
+        effect.duration = self.var_int(input)?;
+        effect.ambient = self.boolean(input)?;
+        effect.show_particles = self.boolean(input)?;
+        effect.show_icon = self.boolean(input)?;
+        Ok(())
+    }
+
+    fn custom_data(&self, input: &mut &[u8]) -> Result<NbtCompound, WireError> {
+        let mut bytes = split_nbt(input, self.component)?;
+        match NbtTag::decode(&mut bytes) {
+            Ok(NbtTag::Compound(compound)) => Ok(compound),
+            Ok(_) => Err(self.bad()),
+            Err(error) => Err(WireError::of_value(&error, self.component)),
+        }
+    }
+
+    fn instrument(
+        &self,
+        input: &mut &[u8],
+    ) -> Result<RegistryValue<InstrumentId, InlineInstrument>, WireError> {
+        if let Some(id) = self.registry_form(input, NameTable::Instrument)? {
+            return Ok(RegistryValue::Reference(InstrumentId(id)));
+        }
+        Ok(RegistryValue::Inline(InlineInstrument {
+            sound_event: self.sound_event(input)?,
+            use_duration: f32::from_be_bytes(self.bytes(input)?),
+            range: f32::from_be_bytes(self.bytes(input)?),
+            durability_damage: self.var_int(input)?,
+            description: read_text(input, self.component)?,
+        }))
     }
 }
 
@@ -454,6 +652,43 @@ pub(crate) fn write_value<L: NameLookup>(
                 write_text(line, writer.component, output)?;
             }
         }
+        Builtin::DyedColor(DyedColor(color)) => output.extend_from_slice(&color.0.to_be_bytes()),
+        Builtin::CustomModelData(data) => writer.custom_model_data(data, output)?,
+        Builtin::EnchantmentGlintOverride(EnchantmentGlintOverride(value)) => {
+            put_boolean(output, *value);
+        }
+        Builtin::BlockState(state) => {
+            writer.list(state.properties(), output, |writer, property, output| {
+                writer.string(&property.name, output)?;
+                writer.string(&property.value, output)
+            })?;
+        }
+        Builtin::LodestoneTracker(tracker) => {
+            writer.optional(tracker.target.as_ref(), output, |writer, target, output| {
+                writer.identifier(target.dimension(), output)?;
+                target
+                    .pos
+                    .encode(&mut *output)
+                    .map_err(|_| WireError::OutOfRange(writer.component))
+            })?;
+            put_boolean(output, tracker.tracked);
+        }
+        Builtin::Trim(trim) => writer.trim(trim, output)?,
+        Builtin::PotionContents(contents) => writer.potion_contents(contents, output)?,
+        Builtin::CustomData(CustomData(compound)) => compound
+            .encode(&mut *output)
+            .map_err(|_| WireError::BadValue(writer.component))?,
+        Builtin::SuspiciousStewEffects(SuspiciousStewEffects(effects)) => {
+            writer.list(effects, output, |_, effect, output| {
+                put_var_int(output, i32::from(effect.effect.0));
+                put_var_int(output, effect.duration);
+                Ok(())
+            })?;
+        }
+        Builtin::OminousBottleAmplifier(OminousBottleAmplifier(amplifier)) => {
+            put_var_int(output, *amplifier);
+        }
+        Builtin::Instrument(Instrument(instrument)) => writer.instrument(instrument, output)?,
     }
     Ok(())
 }
@@ -595,17 +830,126 @@ impl<L: NameLookup> Writer<'_, L> {
 
     fn sound_event(&self, sound: &SoundEventRef, output: &mut Vec<u8>) -> Result<(), WireError> {
         match sound {
-            SoundEventRef::Registry(id) => {
-                put_var_int(output, i32::from(id.0) + 1);
+            SoundEventRef::Reference(id) => {
+                write_registry_reference(output, id.0);
                 Ok(())
             }
             SoundEventRef::Inline(inline) => {
-                put_var_int(output, INLINE_SOUND_EVENT);
+                put_var_int(output, INLINE_VALUE);
                 self.identifier(inline.sound_id(), output)?;
                 self.optional(inline.range, output, |_, range, output| {
                     output.extend_from_slice(&range.to_be_bytes());
                     Ok(())
                 })
+            }
+        }
+    }
+
+    fn string(&self, value: &str, output: &mut Vec<u8>) -> Result<(), WireError> {
+        value
+            .encode(&mut *output)
+            .map_err(|_| WireError::OutOfRange(self.component))
+    }
+
+    fn list<T>(
+        &self,
+        values: &[T],
+        output: &mut Vec<u8>,
+        mut write: impl FnMut(&Self, &T, &mut Vec<u8>) -> Result<(), WireError>,
+    ) -> Result<(), WireError> {
+        put_length(output, values.len())?;
+        for value in values {
+            write(self, value, output)?;
+        }
+        Ok(())
+    }
+
+    fn custom_model_data(
+        &self,
+        data: &CustomModelData,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        self.list(&data.floats, output, |_, value, output| {
+            output.extend_from_slice(&value.to_be_bytes());
+            Ok(())
+        })?;
+        self.list(&data.flags, output, |_, value, output| {
+            put_boolean(output, *value);
+            Ok(())
+        })?;
+        self.list(&data.strings, output, |writer, value, output| {
+            writer.string(value, output)
+        })?;
+        self.list(&data.colors, output, |_, color, output| {
+            output.extend_from_slice(&color.0.to_be_bytes());
+            Ok(())
+        })
+    }
+
+    fn trim(&self, trim: &Trim, output: &mut Vec<u8>) -> Result<(), WireError> {
+        match &trim.material {
+            RegistryValue::Reference(id) => write_registry_reference(output, id.0),
+            RegistryValue::Inline(material) => {
+                put_var_int(output, INLINE_VALUE);
+                self.identifier(material.palette_id(), output)?;
+                write_text(&material.description, self.component, output)?;
+            }
+        }
+        match &trim.pattern {
+            RegistryValue::Reference(id) => write_registry_reference(output, id.0),
+            RegistryValue::Inline(pattern) => {
+                put_var_int(output, INLINE_VALUE);
+                self.identifier(pattern.asset_id(), output)?;
+                write_text(&pattern.description, self.component, output)?;
+                put_boolean(output, pattern.decal);
+            }
+        }
+        Ok(())
+    }
+
+    fn potion_contents(
+        &self,
+        contents: &PotionContents,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        self.optional(contents.potion, output, |_, potion, output| {
+            put_var_int(output, i32::from(potion.0));
+            Ok(())
+        })?;
+        self.optional(contents.custom_color, output, |_, color, output| {
+            output.extend_from_slice(&color.to_be_bytes());
+            Ok(())
+        })?;
+        self.list(&contents.custom_effects, output, |_, effect, output| {
+            put_var_int(output, i32::from(effect.effect.0));
+            put_var_int(output, i32::from(effect.amplifier));
+            put_var_int(output, effect.duration);
+            put_boolean(output, effect.ambient);
+            put_boolean(output, effect.show_particles);
+            put_boolean(output, effect.show_icon);
+            put_boolean(output, false);
+            Ok(())
+        })?;
+        self.optional(contents.custom_name.as_deref(), output, Self::string)
+    }
+
+    fn instrument(
+        &self,
+        instrument: &RegistryValue<InstrumentId, InlineInstrument>,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        match instrument {
+            RegistryValue::Reference(id) => {
+                write_registry_reference(output, id.0);
+                Ok(())
+            }
+            RegistryValue::Inline(inline) => {
+                put_var_int(output, INLINE_VALUE);
+                self.sound_event(&inline.sound_event, output)?;
+                output.extend_from_slice(&inline.use_duration.to_be_bytes());
+                output.extend_from_slice(&inline.range.to_be_bytes());
+                put_var_int(output, inline.durability_damage);
+                write_text(&inline.description, self.component, output)
             }
         }
     }

@@ -1,4 +1,5 @@
 use alloc::format;
+use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 
@@ -23,7 +24,9 @@ impl SavedSink for TagSink {
 
     fn leaf(&self, leaf: Leaf<'_>) -> NbtTag {
         match leaf {
+            Leaf::Byte(value) => NbtTag::Byte(value),
             Leaf::Int(value) => NbtTag::Int(value),
+            Leaf::IntArray(values) => NbtTag::IntArray(values.to_vec()),
             Leaf::Float(value) => NbtTag::Float(value),
             Leaf::Double(value) => NbtTag::Double(value),
             Leaf::Boolean(value) => NbtTag::Byte(i8::from(value)),
@@ -39,6 +42,10 @@ impl SavedSink for TagSink {
 
     fn profile(&mut self, profile: &Profile) -> Option<NbtTag> {
         to_nbt_tag(profile).ok()
+    }
+
+    fn compound(&mut self, compound: &NbtCompound) -> Option<NbtTag> {
+        Some(NbtTag::Compound(compound.clone()))
     }
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<NbtTag>>) -> NbtTag {
@@ -81,11 +88,12 @@ impl SavedSink for TagSink {
         items: impl IntoIterator<Item = T>,
         mut entry: impl FnMut(&mut Self, T) -> Result<KeyedEntry<'a, NbtTag>, Fault>,
     ) -> Result<NbtTag, Fault> {
-        let mut map = NbtCompound::new();
+        let items = items.into_iter();
+        let mut child_tags: Vec<(String, NbtTag)> = Vec::with_capacity(items.size_hint().0);
         for item in items {
             let KeyedEntry { key, value } = entry(self, item)?;
-            map.put(key, value);
+            child_tags.push((key.to_string(), value));
         }
-        Ok(NbtTag::Compound(map))
+        Ok(NbtTag::Compound(NbtCompound { child_tags }))
     }
 }

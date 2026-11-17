@@ -1,20 +1,30 @@
 use alloc::borrow::Cow;
 
 use crate::AttributeModifiers;
+use crate::CustomData;
+use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
+use crate::DyedColor;
+use crate::EnchantmentGlintOverride;
 use crate::Food;
+use crate::Instrument;
 use crate::ItemModel;
 use crate::ItemName;
+use crate::LodestoneTracker;
 use crate::Lore;
 use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::Neutral;
+use crate::OminousBottleAmplifier;
+use crate::PotionContents;
 use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
+use crate::SuspiciousStewEffects;
 use crate::Tool;
+use crate::Trim;
 use crate::Unbreakable;
 
 pub(crate) trait EntityForm: Clone + 'static {
@@ -42,6 +52,26 @@ impl EntityForm for Profile {}
 impl EntityForm for CustomName {}
 
 impl EntityForm for ItemName {}
+
+impl EntityForm for DyedColor {}
+
+impl EntityForm for CustomModelData {}
+
+impl EntityForm for EnchantmentGlintOverride {}
+
+impl EntityForm for LodestoneTracker {}
+
+impl EntityForm for Trim {}
+
+impl EntityForm for PotionContents {}
+
+impl EntityForm for CustomData {}
+
+impl EntityForm for SuspiciousStewEffects {}
+
+impl EntityForm for OminousBottleAmplifier {}
+
+impl EntityForm for Instrument {}
 
 impl EntityForm for ItemModel {
     fn borrow_static(&'static self) -> Self {
