@@ -35,11 +35,11 @@ This document specifies wire behavior, client agreement, and execution semantics
 Primary evidence sources for this specification are:
 
 - Registry reports in [registries.json](../../assets/mcrs/reports/registries.json) and packet reports in [packets.json](../../assets/mcrs/reports/packets.json).
-- Client scenario [give_scenario.json](../../tools/mcrs_minecraft_probe/give_scenario.json) and console cases [give_cases.json](../../tools/mcrs_minecraft_probe/give_cases.json).
-- [give-tree.json](../../tools/mcrs_minecraft_probe/traces/give-tree.json): `commands` packets before and after operator promotion.
-- [give-client.json](../../tools/mcrs_minecraft_probe/traces/give-client.json): `system_chat` replies for 25 client commands and admin broadcast.
-- [give-console.json](../../tools/mcrs_minecraft_probe/traces/give-console.json): console outputs and sound counts for 29 cases.
-- [give-sound.json](../../tools/mcrs_minecraft_probe/traces/give-sound.json): decoded pickup sound packets for 17 cases.
+- Scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) and trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json), recorded on `26.4-snapshot-7` by the probe ([README.md](../../tools/mcrs_minecraft_probe/README.md)). The trace has 68 steps. Each step records what the clients observe.
+  - `join-GiveProbeA`, `join-GiveProbeB` and `promote`: `commands` packets before and after operator promotion.
+  - 25 steps `client.<id>`: `system_chat` replies of the sender, and the `sound` packets of the viewers.
+  - 30 console cases, named by their id: console output, the `system_chat` messages that the clients receive (`chat`), and the decoded `sound` packets (`sounds`, with `position` as sent, `volume`, `pitch` and `seed`).
+  - Steps `<id>.setup`: the preparation of a console case. They are not evidence of a rule.
 
 ### 0.3 Provenance and kinds
 
@@ -53,7 +53,7 @@ Every rule carries `Provenance`, `Kind`, and `Confidence` tags per [README.md](R
 
 - `CMD-GIVE-001` .. `CMD-GIVE-013`: `/give` command syntax, validation, execution, sound, and text rules.
 - `D6`: Intentional deviation shared with [item-entity.md](item-entity.md).
-- `U1`, `U3`, `U6`: Open questions in Section 7.
+- `U1`, `U3`: Open questions in Section 7.
 
 ---
 
@@ -77,10 +77,10 @@ In the `commands` (`16`) packet, the server publishes one subtree under root for
 | `count` | argument | `6` (`0x06`) | yes | `brigadier:integer` (`3`) | `flags = 1` (`has_min = true`), `min = 1` |
 
 When `<count>` is absent, the command uses `count = 1`.
-The `item` node has no custom-suggestions flag (`0x10`) in the captured tree (flags `6`).
+The `item` node has no custom suggestions in the captured tree (flags `6`, no `0x10` bit).
 The client builds the item and component suggestions locally, and the server sends no suggestion data for `/give`.
 
-- **Provenance**: `black_box_confirmed` (`give-tree.json`, `give-client.json`, `single-default`, and `registries.json`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `join-GiveProbeA`, `join-GiveProbeB`, `promote` and `client.single-default`; `registries.json`). The trace shows the node kind, `restricted`, `executable`, the parser and its properties, and no suggestions. The flag bytes follow from them.
 - **Kind**: `wire`, `client agreement`.
 - **Confidence**: high.
 
@@ -96,7 +96,7 @@ If a non-operator sends `chat_command` with `give ...`, the server rejects execu
 The server sends two red `system_chat` packets: `command.unknown.command` and `command.context.here` (`reply_count: 2`).
 This permission check also runs when a client sends raw commands with stale local trees.
 
-- **Provenance**: `black_box_confirmed` (`give-tree.json`; `give-client.json`, `no-permission`). Also `source_suggested` (inherited) ([command-permissions.md](command-permissions.md), `PERM-CMD-001`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `join-GiveProbeB`, `promote` and `client.no-permission`). Also `source_suggested` (inherited) ([command-permissions.md](command-permissions.md), `PERM-CMD-001`).
 - **Kind**: `wire`, `client agreement`, `semantic`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -117,7 +117,7 @@ Dead players whose respawn screen stays open (`immediate_respawn = false`) stay 
 If zero online players match `targets`, runtime fails with `argument.entity.notfound.player` and no `command.context.here`.
 Console execution with `@s` has no player source and fails with `argument.entity.notfound.player`, not `permissions.requires.player`.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `non-player-selector`, `offline-before-limit`). Also `black_box_confirmed` (`give-console.json`: `multiple`, `cross_dimension`, `argument_errors`, `console_precedence`, `dead_target`). The world-limited `@s` case is `source_suggested`, inherited from ARG-ENT-014 and ARG-ENT-018.
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.non-player-selector`, `client.offline-before-limit`). Also `black_box_confirmed` (`give.json`: `multiple`, `cross_dimension`, `argument_errors`, `console_precedence`, `dead_target`). The world-limited `@s` case is `source_suggested`, inherited from ARG-ENT-014 and ARG-ENT-018.
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high for captured cases; medium for the inherited `@s` case.
 
@@ -139,7 +139,7 @@ Runtime strict errors send one `system_chat` packet with no `command.context.her
 The check always uses count 1 and `S >= 1`, so `/give` never reports `arguments.item.overstacked`.
 This holds for each item and each component patch.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `malformed-component`, `empty-brackets`, `unknown-item`, `malformed-strict`). Also `black_box_confirmed` (`give-console.json`: `empty_brackets`, `invalid_component`, `console_precedence`, `per_target_limit`, `limit_inclusive`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..006`, `STK-VAL-001`). The absence of `arguments.item.overstacked` is `source_suggested`.
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.malformed-component`, `client.empty-brackets`, `client.unknown-item`, `client.malformed-strict`). Also `black_box_confirmed` (`give.json`: `empty_brackets`, `invalid_component`, `console_precedence`, `per_target_limit`, `limit_inclusive`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..006`, `STK-VAL-001`). The absence of `arguments.item.overstacked` is `source_suggested`.
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -159,7 +159,7 @@ The captured `/give GiveProbeA stone[max_stack_size=4] 400` also succeeds.
 If `count > 100 * S`, execution fails at runtime with `commands.give.failed.toomanyitems` (`(100 * S, item_text)`).
 On limit failure, no inventory changes, no item entities spawn, no sounds play, `#result = 0`, and `#success = 0`.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `zero`, `over-limit-tool`, `over-limit-patched`, `toomanyitems-epic`, `air-over-limit`). Also `black_box_confirmed` (`give-console.json`: `limit`, `per_target_limit`, `limit_inclusive`, `removed_max_stack_size`, `modified_air`, `console_precedence`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.zero`, `client.over-limit-tool`, `client.over-limit-patched`, `client.toomanyitems-epic`, `client.air-over-limit`). Also `black_box_confirmed` (`give.json`: `limit`, `per_target_limit`, `limit_inclusive`, `removed_max_stack_size`, `modified_air`, `console_precedence`).
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -180,7 +180,7 @@ The strict check never reports `arguments.item.overstacked` (`CMD-GIVE-004`).
 All runtime errors (steps 2 to 4) send one red `system_chat` packet with no `command.context.here`.
 Runtime errors also omit `<--[HERE]` from console output.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `zero`, `malformed-component`, `unknown-item`, `malformed-strict`, `offline-before-limit`, `over-limit-patched`). Also `black_box_confirmed` (`give-console.json`: `error_precedence`, `invalid_component`, `console_precedence`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.zero`, `client.malformed-component`, `client.unknown-item`, `client.malformed-strict`, `client.offline-before-limit`, `client.over-limit-patched`). Also `black_box_confirmed` (`give.json`: `error_precedence`, `invalid_component`, `console_precedence`).
 - **Kind**: `wire`, `semantic`.
 - **Confidence**: high.
 
@@ -196,7 +196,7 @@ Parse checks (`CMD-GIVE-004`) and the `100` limit (`CMD-GIVE-005`) still run on 
 When `count <= 100`, execution skips inventory mutation, spawns no item entity, and emits no pickup sound.
 The command still succeeds (`#result = target_count`, `#success = 1`) and outputs `[Air]` (`CMD-GIVE-013`).
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `air`, `empty-brackets`, `modified-air`, `air-over-limit`). Also `black_box_confirmed` (`give-console.json`: `air`, `empty_brackets`, `modified_air`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.air`, `client.empty-brackets`, `client.modified-air`, `client.air-over-limit`). Also `black_box_confirmed` (`give.json`: `air`, `empty_brackets`, `modified_air`).
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high.
 
@@ -219,14 +219,15 @@ Then `give GiveProbeA stone 100` fills `hotbar.0` to `64`, plays `1` sound, spaw
 
 Mixed multi-target commands evaluate each target separately with no rollback (`mixed_multi_target`).
 The captured spectator target receives items and overflow drops (`spectator_target`).
-The captured dead target receives items into an empty inventory (`dead_target`).
-The full-inventory case for a dead target is unresolved (U6).
+A dead target follows the same insertion and overflow rules (`dead_target`, `dead_target_full`).
+Suppose the dead target keeps its inventory of 36 `dirt` stacks of `64`.
+Then `give GiveProbeA stone 10` inserts no `stone`, spawns one item entity with `10` stone, plays no sound, and succeeds with `Gave 10 [Stone] to GiveProbeA`.
 
 **Intentional deviation (`D6`)**: For a creative target with no room, `mcrs` drops the uninserted items.
 The reference and the reason are in [D6](item-entity.md#111-intentional-deviations).
 Whether `IEN-PCK-006` changes too is [Q6](item-entity.md#113-open-questions).
 
-- **Provenance**: `black_box_confirmed` for the cited captures (`give-console.json`: `split`, `partial_survival`, `full_survival`, `greedy_split_partial`, `greedy_split_one_slot`, `mixed_multi_target`, `spectator_target`, `dead_target`; `give-sound.json`). The creative overflow rule is `design` (D6). The shared rules keep their own provenance.
+- **Provenance**: `black_box_confirmed` for the cited captures (`give.json`: `split`, `partial_survival`, `full_survival`, `greedy_split_partial`, `greedy_split_one_slot`, `mixed_multi_target`, `spectator_target`, `dead_target`, `dead_target_full`; the `sounds` of the same steps). The creative overflow rule is `design` (D6). The shared rules keep their own provenance.
 - **Kind**: `semantic`.
 - **Confidence**: high for the captured cases and D6.
 
@@ -246,7 +247,7 @@ Insertion by `/give` never increments `minecraft.picked_up`.
 That statistic counts only the pickup of an item entity.
 The inventory-change advancement triggers fire on the insertion.
 
-- **Provenance**: `black_box_confirmed` (`give-console.json`: `stats_and_advancement`). Also `source_suggested` (inherited) ([inventory.md](inventory.md), `INV-SYN-003..008`; [item-entity.md](item-entity.md), `IEN-SPN-004`). The statement that the statistic stays unchanged for each item is `source_suggested`.
+- **Provenance**: `black_box_confirmed` (`give.json`: `stats_and_advancement`; the step sets the score to `0` first). Also `source_suggested` (inherited) ([inventory.md](inventory.md), `INV-SYN-003..008`; [item-entity.md](item-entity.md), `IEN-SPN-004`). The statement that the statistic stays unchanged for each item is `source_suggested`.
 - **Kind**: `wire`, `semantic`.
 - **Confidence**: high.
 
@@ -270,12 +271,12 @@ The display item entity of the same part starts at the eye height minus `0.3` (h
 The server draws the pitch once for each sound event.
 Let `a` and `b` be two independent uniform values in `[0, 1)` from the random source of the target.
 Then `pitch = ((a - b) * 0.7 + 1) * 2`, with range `(0.6, 3.4)`.
-The captured pitch `1.423225` (`give-sound.json`, case `default`) is in this range.
+The captured pitch `2.3423` (`give.json`, step `default`) is in this range.
 
 The server draws the `seed` once for each sound event from the random source of the world.
 All viewers of that event get the same value.
 The client uses it to choose the sound variant.
-The captured packets of `default` end with the seed bytes `431a8b9501646c6c`.
+The trace records the seed decoded, in the field `seed`. In `default`, both viewers show the same `seed`. In `split`, the two events show different values.
 
 Recipients are connected players in the **same dimension** as the target.
 Euclidean distance from the sound position to the viewer must be strictly below `16.0` blocks (`distance < 16.0`).
@@ -283,7 +284,7 @@ In traces, a viewer at `dx = 14.0` receives the packet (`sound_in_range`).
 A viewer at exact `dx = 16.0` or in `minecraft:the_nether` receives no packet (`sound_at_boundary`, `sound_other_dimension`).
 A command that inserts `m` full parts emits `m` `sound` packets per viewer (`split`: `2` sounds).
 
-- **Provenance**: `source_suggested_black_box_confirmed` for the pitch formula and the seed (`give-sound.json`, case `default`). `black_box_confirmed` for the other fields (`give-sound.json`, 17 cases; `give-console.json`: `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
+- **Provenance**: `source_suggested_black_box_confirmed` for the pitch formula and the seed (`give.json`, step `default`, fields `pitch` and `seed`). `black_box_confirmed` for the other fields (`give.json`: the `sounds` of `default`, `limit`, `air`, `partial_survival`, `full_survival`, `empty_brackets`, `modified_air`, `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
 - **Kind**: `wire`, `semantic`.
 - **Confidence**: high for the captured cases; medium for the general position rule.
 
@@ -297,7 +298,7 @@ When `/give` succeeds, the result is the resolved target count (`N >= 1`). The s
 This holds when inventories are full or the item is `minecraft:air`.
 It also holds for the captured dead and spectator targets.
 
-- **Provenance**: `black_box_confirmed` (`give-console.json`: `default`, `multiple`, `limit`, `per_target_limit`, `limit_inclusive`, `air`, `invalid_component`, `partial_survival`, `full_survival`, `cross_dimension`, `mixed_multi_target`, `dead_target` and `parse_error_store`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `default`, `multiple`, `limit`, `per_target_limit`, `limit_inclusive`, `air`, `invalid_component`, `partial_survival`, `full_survival`, `cross_dimension`, `mixed_multi_target`, `dead_target`, `dead_target_full` and `parse_error_store`).
 - **Kind**: `semantic`.
 - **Confidence**: high.
 
@@ -314,8 +315,10 @@ Its arguments are the requested count, item text and number of targets, in that 
 Delivery to the source and other operators follows CMDP-EXEC-004.
 In particular, player feedback depends on `send_command_feedback`.
 The target display name follows the shared text rules.
+A console run shows the broadcast to an operator client as `chat.type.admin` (gray, italic).
+Its arguments are `Server` and the success message.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `single-default`, `multiple-targets`, `broadcast`). Also `source_suggested` (inherited) ([commands-packet.md](commands-packet.md), `CMDP-EXEC-004`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.single-default`, `client.multiple-targets`; the `chat` of the console steps `default` and `per_target_limit`). Also `source_suggested` (inherited) ([commands-packet.md](commands-packet.md), `CMDP-EXEC-004`).
 - **Kind**: `wire`, `client agreement`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -336,8 +339,8 @@ Both success and count-limit messages use the item text. Its observable content 
 The capture records the text structure for each listed example. It does not require one
 particular arrangement of text nodes when the same visible content and hover data result.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `single-default`, `rarity-uncommon`, `rarity-rare`, `rarity-epic`, `custom-name`, `custom-name-styled`, `item-name`, `lore-mixed`).
-  Also `black_box_confirmed` (`give-client.json`: `tooltip-hidden`, `removed-component`, `empty-brackets`, `modified-air`, `air-over-limit`, `toomanyitems-epic`).
+- **Provenance**: `black_box_confirmed` (`give.json`: `client.single-default`, `client.rarity-uncommon`, `client.rarity-rare`, `client.rarity-epic`, `client.custom-name`, `client.custom-name-styled`, `client.item-name`, `client.lore-mixed`).
+  Also `black_box_confirmed` (`give.json`: `client.tooltip-hidden`, `client.removed-component`, `client.empty-brackets`, `client.modified-air`, `client.air-over-limit`, `client.toomanyitems-epic`).
   Also `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-SHP-010..014`; [text-component.md](text-component.md), `TXT-HOV-001..003`, `TXT-NBT-002`).
 - **Kind**: `semantic`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
@@ -353,27 +356,22 @@ Its rule, reference behaviour, reason and test are in [D6](item-entity.md#111-in
 
 ## 6. Experiments and Conformance
 
-The saved captures cover 25 client steps and 29 console cases. All passed on `26.4-snapshot-7`.
+The saved trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json) covers 25 client steps and 30 console cases. All ran on `26.4-snapshot-7`.
 The experiment needs Java 25 and the verified server jar of that version.
-Provision the jar with `tools/vanilla-server/run.sh fetch`. The runner uses a marked test world
-under `target/vanilla-server/26.4-snapshot-7`. It refuses an existing unmarked world.
-The runner clears the test players' inventories and removes item entities in that test world.
+The probe provisions the jar with `tools/vanilla-server/run.sh fetch` and starts a server on a new flat world.
+The scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) sets the operators, the scoreboard objectives and the test area.
 Run the experiment with:
 
 ```bash
-MINECRAFT_EULA=true python3 tools/mcrs_minecraft_probe/give_record.py
+MINECRAFT_EULA=true tools/mcrs_minecraft_probe/record.sh give
 ```
 
-Key files in the probe suite are:
-
-- [give_record.py](../../tools/mcrs_minecraft_probe/give_record.py): isolated probe runner that produces `target/give-results.json` and `target/give-trace.jsonl`.
-- [give_client.py](../../tools/mcrs_minecraft_probe/give_client.py): minimal `1073742169` client that captures `commands`, `system_chat`, and `sound` packets.
-- [give_tree.py](../../tools/mcrs_minecraft_probe/give_tree.py): decoder for `commands` (`16`) trees recorded in the trace.
+The [probe README](../../tools/mcrs_minecraft_probe/README.md) states the scenario and trace formats.
+Pitch and seed are random in each run. Compare them by range, not by value.
 
 ---
 
 ## 7. Unresolved
 
-- **`U1` (Untested item and component pairs)**: Data-pack feature flags and rarer malformed component syntax errors outside `give-client.json` stay unprobed.
+- **`U1` (Untested item and component pairs)**: Data-pack feature flags and rarer malformed component syntax errors outside `give.json` stay unprobed.
 - **U3**: The command form of `air` for other commands is open in `item-stack.md`, U3.
-- **U6**: Confirm overflow for a dead target with a full inventory.
