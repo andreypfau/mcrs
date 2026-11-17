@@ -20,11 +20,8 @@ use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 #[test]
 fn pressing_the_offer_in_the_shop_gives_the_player_the_offered_stack() {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(ItemTable::leak((0..5).map(|_| Vec::new()))),
-        VanillaInventoryPlugin,
-        ShopPlugin,
-    ));
+    app.insert_resource(ItemTable::leak((0..5).map(|_| Vec::new())))
+        .add_plugins((ItemPlugin::default(), VanillaInventoryPlugin, ShopPlugin));
     let world = app.world_mut();
     let player = world.spawn(Player).id();
     world.flush();
@@ -72,11 +69,8 @@ fn pressing_the_offer_in_the_shop_gives_the_player_the_offered_stack() {
 #[test]
 fn the_holder_of_the_shop_goes_with_the_menu_when_the_player_leaves() {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(ItemTable::leak((0..5).map(|_| Vec::new()))),
-        VanillaInventoryPlugin,
-        ShopPlugin,
-    ));
+    app.insert_resource(ItemTable::leak((0..5).map(|_| Vec::new())))
+        .add_plugins((ItemPlugin::default(), VanillaInventoryPlugin, ShopPlugin));
     let world = app.world_mut();
     let player = world.spawn(Player).id();
     world.flush();

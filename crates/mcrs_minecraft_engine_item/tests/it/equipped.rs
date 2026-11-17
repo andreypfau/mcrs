@@ -204,7 +204,8 @@ struct Custom;
 #[test]
 fn the_projection_runs_in_the_schedule_the_plugin_names() {
     let mut app = App::new();
-    app.add_plugins(ItemPlugin::new(*TABLE).in_schedule(Custom));
+    app.insert_resource(*TABLE)
+        .add_plugins(ItemPlugin::default().in_schedule(Custom));
     let world = app.world_mut();
     let holder = world.spawn((Slots::new(1), Selected(0))).id();
     let stack = spawn(world, ItemStack::new(PLAIN, count(1)));

@@ -17,7 +17,6 @@ use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::schedule::common_conditions;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Query;
-use mcrs_minecraft_item_table::ItemTable;
 
 use crate::Equipped;
 use crate::Given;
@@ -32,19 +31,18 @@ use crate::item_components::ItemComponents;
 use crate::request_scratch::RequestScratch;
 
 pub struct ItemPlugin {
-    pub table: ItemTable,
     schedule: InternedScheduleLabel,
 }
 
-impl ItemPlugin {
-    #[must_use]
-    pub fn new(table: ItemTable) -> Self {
+impl Default for ItemPlugin {
+    fn default() -> Self {
         Self {
-            table,
             schedule: FixedUpdate.intern(),
         }
     }
+}
 
+impl ItemPlugin {
     #[must_use]
     pub fn in_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         self.schedule = schedule.intern();
@@ -65,8 +63,7 @@ impl Plugin for ItemPersistencePlugin {
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         let changed = common_conditions::any_match_filter::<HolderChanged>;
-        app.insert_resource(self.table)
-            .add_plugins(ItemPersistencePlugin)
+        app.add_plugins(ItemPersistencePlugin)
             .add_message::<Given>()
             .add_message::<RequestDrop>()
             .add_message::<RequestResult>()

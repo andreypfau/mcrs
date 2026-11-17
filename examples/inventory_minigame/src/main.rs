@@ -9,8 +9,9 @@ use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 fn main() {
     App::new()
+        .insert_resource(ItemTable::leak([]))
         .add_plugins((
-            ItemPlugin::new(ItemTable::leak([])),
+            ItemPlugin::default(),
             VanillaInventoryPlugin,
             KitPlugin::new(PlayerItems::default()),
             ArenaRulesPlugin,

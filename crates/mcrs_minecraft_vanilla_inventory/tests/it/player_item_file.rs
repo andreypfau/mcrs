@@ -52,7 +52,8 @@ fn app(dir: &std::path::Path) -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
         .add_plugins(PlayerPersistencePlugin)
-        .add_plugins((ItemPlugin::new(test_item_table()), PlayerItemFilePlugin))
+        .insert_resource(test_item_table())
+        .add_plugins((ItemPlugin::default(), PlayerItemFilePlugin))
         .insert_resource(WorldSave(dir.to_owned()));
     app
 }

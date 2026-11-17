@@ -36,11 +36,12 @@ fn a_player_holds_the_kit_in_the_game_and_its_own_items_after_it() {
     own.slots[2] = Some(stack(1, 12));
     own.slots[40] = Some(stack(2, 64));
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(ItemTable::leak((0..5).map(|_| Vec::new()))),
-        VanillaInventoryPlugin,
-        KitPlugin::new(kit.clone()),
-    ));
+    app.insert_resource(ItemTable::leak((0..5).map(|_| Vec::new())))
+        .add_plugins((
+            ItemPlugin::default(),
+            VanillaInventoryPlugin,
+            KitPlugin::new(kit.clone()),
+        ));
     let world = app.world_mut();
     let player = world.spawn(Player).id();
     world.commands().entity(player).restore_items(own.clone());

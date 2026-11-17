@@ -48,7 +48,8 @@ fn moved_to(kind: Kind, from: u16, occupied: &[u16]) -> Vec<u16> {
             Builtin::Equippable(Equippable::new(EquippableSlot::Offhand)),
         ],
     ]);
-    app.add_plugins((ItemPlugin::new(table), MenuPlugin, MenuClickPlugin));
+    app.insert_resource(table)
+        .add_plugins((ItemPlugin::default(), MenuPlugin, MenuClickPlugin));
     let source = app.allocate_request_source().unwrap();
     let world = app.world_mut();
     let viewer = world
