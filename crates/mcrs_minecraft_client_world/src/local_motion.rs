@@ -21,7 +21,7 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::abilities::{self, Abilities};
 use crate::joined_game::JoinedGame;
-use crate::local_player::Sprint;
+use crate::local_player::{LastSentInput, Sprint};
 use crate::player::Player;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -106,9 +106,11 @@ fn spawned(
             flight0: abilities::flight_after_change(mode, false),
             ..PlayerState::new(transform.translation)
         };
-        commands
-            .entity(player)
-            .insert((LocalMotion(state), SyncedData::default()));
+        commands.entity(player).insert((
+            LocalMotion(state),
+            SyncedData::default(),
+            LastSentInput::default(),
+        ));
     }
 }
 

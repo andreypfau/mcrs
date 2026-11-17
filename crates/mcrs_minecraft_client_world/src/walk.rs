@@ -193,11 +193,17 @@ mod tests {
         use mcrs_minecraft_network::client::{
             ClientConnection, ClientNetworkPlugin, finish_configuration,
         };
+        use mcrs_minecraft_pose::Pose;
         use mcrs_minecraft_protocol::Packet;
+        use mcrs_minecraft_protocol_game::ColumnPos;
         use mcrs_minecraft_protocol_game::PositionFlags;
-        use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
+        use mcrs_minecraft_protocol_game::clientbound::{
+            ClientboundGameEvent, ClientboundPlayerPosition,
+        };
+        use mcrs_minecraft_protocol_game::game_event::GameEventKind;
         use mcrs_minecraft_protocol_game::serverbound::{
-            ServerboundClientTickEnd, ServerboundMovePlayerPos,
+            ServerboundClientTickEnd, ServerboundMovePlayerPos, ServerboundPlayerInput,
+            ServerboundPlayerLoaded,
         };
         use std::net::TcpListener;
         use std::thread;
@@ -233,6 +239,115 @@ mod tests {
                 dimensions: Vec::new(),
             });
             (app, server, connection)
+        }
+
+        const LEVEL_CHUNKS_LOAD_START: ClientboundGameEvent = ClientboundGameEvent {
+            game_event: GameEventKind::LevelChunksLoadStart,
+        };
+
+        #[derive(Debug, PartialEq)]
+        struct SentFrame {
+            tick_end: u8,
+            id: i32,
+            body: Vec<u8>,
+        }
+
+        fn frames_before_tick_ends(
+            server: &mut Server,
+            tick_ends: u8,
+            ids: &[i32],
+        ) -> Vec<SentFrame> {
+            let mut sent = Vec::new();
+            let mut tick_end = 0;
+            while tick_end < tick_ends {
+                let frame = server.next_frame();
+                if frame.id == ServerboundClientTickEnd::ID {
+                    tick_end += 1;
+                } else if ids.contains(&frame.id) {
+                    sent.push(SentFrame {
+                        tick_end,
+                        id: frame.id,
+                        body: frame.body.to_vec(),
+                    });
+                }
+            }
+            sent
+        }
+
+        #[test]
+        fn a_held_shift_key_goes_to_the_server_once_and_crouches_the_local_player() {
+            let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
+            let player = session.player;
+            let (mut app, mut server, connection) = joined(session.app);
+            receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            app.insert_resource(MovementInput {
+                shift: true,
+                ..MovementInput::EMPTY
+            });
+            for _ in 0..3 {
+                app.world_mut().run_schedule(FixedUpdate);
+            }
+            app.update();
+            let pose = app.world().get::<LocalMotion>(player).unwrap().0.pose;
+            assert_eq!(pose, Pose::Crouching);
+
+            assert_eq!(
+                frames_before_tick_ends(&mut server, 3, &[ServerboundPlayerInput::ID]),
+                vec![SentFrame {
+                    tick_end: 0,
+                    id: ServerboundPlayerInput::ID,
+                    body: vec![0x20],
+                }],
+                "only the first tick has a change"
+            );
+        }
+
+        #[test]
+        fn a_shift_key_held_through_the_load_goes_out_after_player_loaded() {
+            let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
+            let (mut app, mut server, connection) = joined(session.app);
+            let spawn_column = ColumnPos::new(0, 0);
+            let column = {
+                let mut columns = app.world_mut().resource_mut::<ColumnStore>();
+                let column = columns.get(spawn_column).unwrap().as_ref().clone();
+                columns.remove(spawn_column);
+                column
+            };
+            receive(&mut app, connection, login(GameMode::Survival));
+            app.insert_resource(MovementInput {
+                shift: true,
+                ..MovementInput::EMPTY
+            });
+            app.world_mut().run_schedule(FixedUpdate);
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            app.world_mut().run_schedule(FixedUpdate);
+            app.world_mut()
+                .resource_mut::<ColumnStore>()
+                .insert(spawn_column, column);
+            app.world_mut().run_schedule(FixedUpdate);
+            app.update();
+
+            assert_eq!(
+                frames_before_tick_ends(
+                    &mut server,
+                    3,
+                    &[ServerboundPlayerLoaded::ID, ServerboundPlayerInput::ID],
+                ),
+                vec![
+                    SentFrame {
+                        tick_end: 2,
+                        id: ServerboundPlayerLoaded::ID,
+                        body: Vec::new(),
+                    },
+                    SentFrame {
+                        tick_end: 2,
+                        id: ServerboundPlayerInput::ID,
+                        body: vec![0x20],
+                    },
+                ],
+                "the load ends in the tick in which the spawn column arrives"
+            );
         }
 
         #[test]
