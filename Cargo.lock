@@ -4563,8 +4563,10 @@ dependencies = [
  "mcrs_minecraft_client_ticks",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
  "mcrs_voxel",
 ]
 

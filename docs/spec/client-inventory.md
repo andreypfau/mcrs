@@ -109,15 +109,22 @@ In scope:
 - the close of the inventory menu by the client and by the server;
 - the drop key and the swap key outside a screen.
 
-Out of scope. A later specification states each of these items:
+Out of scope. `client-container-screen.md` states each of these items:
 
 - the drag, the slots that it adds and the count preview of a drag;
 - the double click, its time limit, and the pick up all click that it gives;
-- the container screens of other menus, their textures, their geometry, and the bounds of the
-  window area and of an entry area;
-- the creative screen. While the creative flag is on, the vanilla client replaces the inventory
-  screen with the creative screen. It does this when the screen opens and at each tick;
-- the tooltip lines of a stack;
+- the container screens of the generic menus, their textures, their geometry, and the bounds of
+  their window area and of an entry area;
+- the parts of the item tooltip of a stack, for the component types of `item-stack.md`.
+
+`client-creative-inventory.md` states the creative screen, and when it replaces the inventory
+screen.
+
+A later specification states each of these other items:
+
+- the container screens of the other menus, and the bounds of the window area and of an entry
+  area in the inventory screen;
+- the other parts of the item tooltip, its image and its style;
 - the recipe book, and a mouse press that the recipe book takes;
 - the focus of an entry by the keyboard, and the activation key on a focused entry;
 - a click that an item takes for itself (`inventory-transactions.md`, ITX-JAV-008, row 1), and the
@@ -624,7 +631,8 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
     it (CINV-RCV-001).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
-Experiment E17 (issue 901), case 1, decides step 2 (section 10).
+Experiment E17 of `inventory-transactions.md` confirms step 2 for the removal of one item
+(ITX-JAV-025).
 
 ### CINV-HND-002: The swap key outside a screen
 
@@ -643,7 +651,7 @@ Experiment E17 (issue 901), case 1, decides step 2 (section 10).
   - A press while the two slots hold the empty stack also sends the packet.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
-Experiment E17 (issue 901), case 2, decides step 4 (section 10).
+Experiment E17 of `inventory-transactions.md` confirms step 4 (ITX-JAV-025).
 
 ---
 
@@ -712,6 +720,3 @@ These experiments have not run.
 - **E5** (recorder, vanilla client). Outside a screen, press Q, then Control and Q, then F. Do
   each with a stack in the selected slot and with the empty stack. Do each again as a spectator.
   Record the serverbound packets. Expect CINV-HND-001 and CINV-HND-002.
-- **E17** (issue 901). It adds an experiment to `inventory-transactions.md`. Case 1 decides step 2
-  of CINV-HND-001: the client removes the item before the answer of the server. Case 2 decides
-  step 4 of CINV-HND-002: the client changes no stack.

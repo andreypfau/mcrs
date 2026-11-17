@@ -117,6 +117,13 @@ states their keys.
 The task opens a game window. The fixture `client_frames` copies the output to
 `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`.
 
+## Client recordings
+
+`recordInventoryE17` runs `tools/mcrs_minecraft_client_recorder/record.sh inventory_e17` with
+`AUTOPLAY=true` and `CHEAT=remove:player_action`. It needs `MINECRAFT_EULA=true` in the
+environment. The fixture `inventory_e17` copies the recordings to
+`tools/mcrs_minecraft_client_recorder/recordings/inventory/`.
+
 ## Fonts
 
 `dumpFont` writes `font.json` to `crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla`. It loads

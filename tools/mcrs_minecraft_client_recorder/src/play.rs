@@ -2,6 +2,9 @@ use glam::DVec3;
 use mcrs_minecraft_client_ticks::Abilities;
 use mcrs_minecraft_client_ticks::Attribute;
 use mcrs_minecraft_client_ticks::BlockChange;
+use mcrs_minecraft_client_ticks::ChangedSlot;
+use mcrs_minecraft_client_ticks::Click;
+use mcrs_minecraft_client_ticks::Content;
 use mcrs_minecraft_client_ticks::DataEntity;
 use mcrs_minecraft_client_ticks::Effect;
 use mcrs_minecraft_client_ticks::EntityData;
@@ -10,6 +13,7 @@ use mcrs_minecraft_client_ticks::Keys;
 use mcrs_minecraft_client_ticks::Modifier;
 use mcrs_minecraft_client_ticks::Move;
 use mcrs_minecraft_client_ticks::Rotation;
+use mcrs_minecraft_client_ticks::SlotChange;
 use mcrs_minecraft_client_ticks::Teleport;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
@@ -22,13 +26,17 @@ use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::Position;
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerAbilities;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSectionBlocksUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundInteract;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPosRot;
@@ -39,6 +47,8 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerCommand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerInput;
 
 use crate::names::Names;
+use crate::stack_text::hashed_stack_text;
+use crate::stack_text::sent_stack_text;
 
 pub(crate) enum Play {
     Login(i32),
@@ -155,9 +165,40 @@ pub(crate) fn decode_clientbound(
             };
             return Ok(Play::Events(entity_data(entity, r)));
         }
-        _ => return Ok(Play::Events(Vec::new())),
+        name => {
+            return Ok(Play::Events(
+                container_event(name, r)?.into_iter().collect(),
+            ));
+        }
     };
     Ok(Play::Events(vec![event]))
+}
+
+fn container_event(name: &str, r: &mut &[u8]) -> anyhow::Result<Option<Event>> {
+    Ok(Some(match name {
+        "container_set_slot" => {
+            let packet = ClientboundContainerSetSlot::decode(r)?;
+            Event::Slot(SlotChange {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                slot: packet.slot,
+                stack: sent_stack_text(&packet.item),
+            })
+        }
+        "container_set_content" => {
+            let packet = ClientboundContainerSetContent::decode(r)?;
+            Event::Content(Content {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                cursor: sent_stack_text(&packet.carried_item),
+                slots: packet.slot_data.iter().map(sent_stack_text).collect(),
+            })
+        }
+        "set_cursor_item" => Event::Cursor(sent_stack_text(
+            &ClientboundSetCursorItem::decode(r)?.contents,
+        )),
+        _ => return Ok(None),
+    }))
 }
 
 pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Play> {
@@ -184,10 +225,28 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
         },
         "interact" => Event::Interact(ServerboundInteract::decode(r)?.using_secondary_action),
         "use_item" => Event::UseItem,
-        "player_action"
-            if ServerboundPlayerAction::decode(r)?.action == PlayerAction::ReleaseUseItem =>
-        {
-            Event::ReleaseUseItem
+        "player_action" => match ServerboundPlayerAction::decode(r)?.action {
+            PlayerAction::ReleaseUseItem => Event::ReleaseUseItem,
+            action => Event::Action(snake_case(&format!("{action:?}"))),
+        },
+        "container_click" => {
+            let packet = ServerboundContainerClick::decode(r)?;
+            Event::Click(Click {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                slot: packet.slot_index,
+                button: packet.button,
+                input: snake_case(&format!("{:?}", packet.container_input)),
+                cursor: hashed_stack_text(packet.carried_item.as_ref()),
+                changed: packet
+                    .changed_slots
+                    .iter()
+                    .map(|(slot, stack)| ChangedSlot {
+                        slot: *slot,
+                        stack: hashed_stack_text(stack.as_ref()),
+                    })
+                    .collect(),
+            })
         }
         "move_player_pos" => {
             let packet = ServerboundMovePlayerPos::decode(r)?;
