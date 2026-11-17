@@ -48,7 +48,7 @@ refers to the rules of these documents by id.
   from its slot (CCS-DBL-003).
 - **Item tooltip**: the text that the client shows for a stack (section 6). Each element of it
   is a **part**. A part can give more than one line (CCS-TIP-001).
-- **Creative tooltip**: an item tooltip that the creative inventory screen requests for a slot of
+- **Creative tooltip**: an item tooltip that the creative screen requests for a slot of
   its grid (`client-creative-inventory.md`).
 - **Advanced tooltips**: the option that F3 + H changes. It is off by default.
 - **Pick key**: the key binding `key.pickItem`. Its default is the middle mouse button.
@@ -60,8 +60,9 @@ section "Semantics, not accidents". The language keys and their English texts ar
 `assets/minecraft/lang/en_us.json` of the client jar.
 
 The observer of the rules of section 1 is a player who clicks in a container screen and sees the
-stacks move. The observer of the other rules is a player in normal play who
-sees the screen, unless the rule names another observer.
+stacks move. The observer of a rule of the kind client agreement is the server, which reads the
+clicks of the client. The observer of the other rules is a player in normal play who sees the
+screen, unless the rule names another observer.
 
 A rule that comes from the reference keeps the label `source_suggested` until an experiment of
 section 9 confirms it.
@@ -154,7 +155,7 @@ Out of scope:
   index 54 is `P[0]`.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the numeric ids. Kind: wire.
-Confidence: high.
+Confidence: medium.
 
 ### CCS-MNU-002: The quick move in a generic menu
 
@@ -169,11 +170,11 @@ Confidence: high.
 
 - **Postconditions:**
   - A stack from the container part goes first to the hotbar, from `P[8]` to `P[0]`. Then it
-    goes to the main slots, from `P[35]` to `P[9]`.
+    goes to the slots `P[35]` down to `P[9]`.
   - A stack from the player part never goes to another slot of the player part. When the
     container part has no room, the click moves no item.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-MNU-003: The repeat of a quick move in a generic menu
 
@@ -197,7 +198,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. A drag can go to each entry (ITX-JAV-017).
   3. A double click can gather from each entry (CCS-DBL-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -209,8 +210,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   id of the registry `minecraft:menu` and a text component, the title.
 - **Behavior:**
   1. The client makes a new menu of the menu type, with the container id of the packet.
-  2. Each container slot of the new menu holds the empty stack. The cursor of the new menu holds
-     the empty stack. The player part shows the stacks that the client holds for the player
+  2. Each container slot of the new menu holds the empty stack. The cursor stack becomes the
+     empty stack. The player part shows the stacks that the client holds for the player
      inventory.
   3. The new menu becomes the open menu. The client does not send `container_close` for the menu
      that was open before.
@@ -221,12 +222,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Postconditions:**
   - The container slots show stacks only after the next `container_set_content` or
     `container_set_slot` packet for the container id.
-  - The client discards the stacks that it showed for the container part and the cursor of the
-    menu that was open before.
+  - The client discards the stacks that it showed for the container part of the menu that was
+    open before.
 - **Edge cases:** a menu type that has no menu screen in the client gives no screen. The open menu
-  then does not change. Each menu type of the vanilla registry has a menu screen.
+  then does not change.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -252,7 +253,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   - For `generic_9xR`, the background texture covers the window area except its bottom row of
     GUI units (CCS-LAY-002). That row is still a part of the window area.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-LAY-002: The background texture
 
@@ -274,7 +275,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
   the player inventory and the player part.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the size of the three textures in the
-client jar. Kind: layout. Confidence: high.
+client jar. Kind: layout. Confidence: medium.
 
 ### CCS-LAY-003: The positions of the slots
 
@@ -283,18 +284,18 @@ client jar. Kind: layout. Confidence: high.
   corner of the entry area, relative to (`left`, `top`). `c` is the column and `r` is the row,
   from 0, in the order of CCS-MNU-001.
 
-| Menu type | Container slot | Main slots `P[9]` to `P[35]` | Hotbar `P[0]` to `P[8]` |
+| Menu type | Container slot | `P[9]` to `P[35]` | Hotbar `P[0]` to `P[8]` |
 |-----------|----------------|------------------------------|-------------------------|
 | `generic_9xR` | (`8 + 18·c`, `18 + 18·r`) | (`8 + 18·c`, `31 + 18·R + 18·r`) | (`8 + 18·c`, `89 + 18·R`) |
 | `generic_3x3` | (`62 + 18·c`, `17 + 18·r`) | (`8 + 18·c`, `84 + 18·r`) | (`8 + 18·c`, 142) |
 | `hopper` | (`44 + 18·c`, 20) | (`8 + 18·c`, `51 + 18·r`) | (`8 + 18·c`, 109) |
 
-  The main slots have the rows `r` = 0, 1 and 2. `P[9 + 9·r + c]` is in the column `c` and the
-  row `r`. The hotbar slot `P[c]` is in the column `c`.
+  The slots `P[9]` to `P[35]` have the rows `r` = 0, 1 and 2. `P[9 + 9·r + c]` is in the column
+  `c` and the row `r`. The hotbar slot `P[c]` is in the column `c`.
 - **Postconditions:** in `generic_9x3`, the entry area of the container slot 0 has the corner
   (`left + 8`, `top + 18`), and `P[0]` has the corner (`left + 8`, `top + 143`).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-LAY-004: The labels
 
@@ -311,11 +312,12 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
 - **Postconditions:** with the `en_us` language, the second label is `Inventory`. In
   `generic_9x3` it is at (8, 74).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-LAY-005: The target entry and its highlight
 
-- **Inputs:** the mouse position and the last input device.
+- **Inputs:** the mouse position and the last input device, in each menu screen. The positions
+  of CCS-LAY-003 are those of a container screen.
 - **Behavior:**
   1. The entry area of an entry is `x ≤ mx < x + 16` and `y ≤ my < y + 16`.
   2. When the last input device is mouse, the screen draws a highlight for the target entry. It
@@ -327,7 +329,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
   There, the pointer index is -1.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the two sprites of the client jar
-(24 × 24, `nine_slice` with the border 4). Kind: layout. Confidence: high.
+(24 × 24, `nine_slice` with the border 4). Kind: layout. Confidence: medium.
 
 ### CCS-LAY-006: The order of the draw and the cursor stack
 
@@ -343,7 +345,7 @@ Provenance: `source_suggested`; `black_box_confirmed` for the two sprites of the
 - **Edge cases:** the mouse position is outside the window area when `mx < left`, `my < top`,
   `mx ≥ left + iw` or `my ≥ top + ih`. The pointer index is then -999.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -373,7 +375,7 @@ it (CCS-MNU-004).
   drag, also when the release later gives one click (CCS-DRG-003).
 - **Edge cases:** a press of each button while a drag is open has no effect on the drag.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-DRG-002: A slot joins the drag set
 
@@ -398,7 +400,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   - The conditions are those of ITX-JAV-017. Thus each entry of the drag set also enters the
     set of the server.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: high.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### CCS-DRG-003: The end of a drag
 
@@ -422,7 +424,7 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: high.
   for each order (ITX-JAV-019). The order is not an observable result.
 
 Provenance: `source_suggested`. Kind: wire; unspecified for the order of the stage 1 clicks.
-Confidence: high.
+Confidence: medium.
 
 ### CCS-DRG-004: The cancel of a drag
 
@@ -453,7 +455,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   - Example: the cursor holds 10 stone, kind 0, and three empty entries. Each entry shows 3
     stone.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-DRG-006: The count of the cursor during a drag
 
@@ -468,7 +470,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
 - **Postconditions:** example: the cursor holds 10 stone, kind 0, and three empty entries. The
   mouse shows 1 stone. With `z` ≤ 1, the mouse shows the stack of the cursor.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-DRG-007: Shift and a drag
 
@@ -483,7 +485,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
   paints the three slots. The quick move occurs only when the player does not move to a second
   slot.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -503,7 +505,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   - The double click acts at the release of the button (CCS-DBL-002, CCS-DBL-003).
   - `client-widget.md`, WID-PTR-002, states the double click of the other screens.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-DBL-002: Pick up all with a double click
 
@@ -521,7 +523,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
     components of the menu into the cursor.
   - The first press with an empty cursor also sends its own click (`client-inventory.md`).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### CCS-DBL-003: Shift with a double click
 
@@ -531,11 +533,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   1. The remembered stack changes at each quick move click that the screen sends on an entry.
      It becomes a copy of the stack of that entry before the click, or the empty stack when the
      entry holds the empty stack.
-  2. When `S` does not exist, or the menu does not permit pick up all from `S`, the release
-     continues as a release without a double click.
+  2. When `S` does not exist, the release continues as a release without a double click. The
+     same occurs when the menu does not permit pick up all from `S`.
   3. When `T` is the empty stack, the client sends no click.
-  4. Else, for each entry `X` of the menu, in the order of the menu index, the client sends one
-     quick move click on `X` with the button 0 when each of these conditions is true:
+  4. Else the client examines each entry `X` of the menu, in the order of the menu index. It
+     sends one quick move click on `X` with the button 0 when each of these conditions is true:
      - `take(X)` is true;
      - `X` and `S` are slots of the same holder;
      - `X` holds a stack with the item and the components of `T`, and `count(X)` is not larger
@@ -551,7 +553,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Edge cases:** the conditions of step 4 read the stacks that the client shows before the first
   click of step 4. Each click then has its result on the server as ITX-JAV-009 states.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ---
 
@@ -585,7 +587,7 @@ Confidence: medium.
 
 ### CCS-TIP-002: The order of the parts
 
-- **Inputs:** a stack, the option advanced tooltips, the local player, and the feature flags of
+- **Inputs:** a stack, the option advanced tooltips, the local player, and the enabled features of
   the world. `TD` is the effective component `minecraft:tooltip_display` of the stack, or the
   default of STK-SHP-017 when the stack has none.
 - **Behavior:**
@@ -648,7 +650,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   - An enchanted stone shows its name in aqua.
 - **Edge cases:** the name of a stack with `minecraft:written_book_content` is out of scope.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-TIP-004: The enchantments
 
@@ -679,7 +681,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 - **Postconditions:** a lore text with a line break, or a lore text wider than 170, gives more
   than one line (CCS-TIP-001).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-TIP-006: The attribute modifiers
 
@@ -752,7 +754,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
         (`FF555555`);
      3. `item.components` with the number of effective components of the stack, in dark gray, only
         when that number is above 0.
-  2. When the feature flags of the world do not enable the item, the stack adds the translation
+  2. When the enabled features of the world do not enable the item, the stack adds the translation
      `item.disabled` in red, `FFFF5555`.
 - **Postconditions:** the durability part is white. `minecraft:stone` with no patch shows
   `minecraft:stone` and `N component(s)`, where `N` is the
@@ -778,18 +780,19 @@ None.
 
 These experiments have not run. Each uses a vanilla client of the version of
 `assets/minecraft/version.json`, recorded by `tools/mcrs_minecraft_client_recorder` against
-`tools/vanilla-server`. The recorder logs each packet and a screenshot at the GUI scale 2.
+`tools/vanilla-server`. The recorder logs each packet. A screenshot is one that the screenshot
+key of the client takes at the GUI scale 2.
 
 - **E1.** Open a chest, a double chest, a dispenser and a hopper. Take a screenshot of each
-  screen. Read the stacks of `container_set_content`. Expect CCS-MNU-001 and CCS-LAY-001 to
-  CCS-LAY-004.
+  screen. Read the stacks of `container_set_content`. Expect CCS-MNU-001, CCS-MNU-004 and
+  CCS-LAY-001 to CCS-LAY-004.
 - **E2.** Quick move a stack from each part of each generic menu, with a full container part and
   with an empty one. Expect CCS-MNU-002 and CCS-MNU-003.
 - **E3** (proxy). Send `open_screen` while the chat screen is open, and while a chest screen is
   open. Expect CCS-OPN-001.
 - **E4.** Hold 10 stone. Drag with the left button over three empty slots. Take a screenshot
   before the release. Read the clicks after the release. Expect CCS-DRG-001 to CCS-DRG-003,
-  CCS-DRG-005 and CCS-DRG-006.
+  CCS-DRG-005, CCS-DRG-006, CCS-LAY-005 and CCS-LAY-006.
 - **E5.** Hold 64 stone. Drag with the right button over a slot with 63 stone and an empty slot.
   Take a screenshot before the release. Expect CCS-DRG-002 and CCS-DRG-005.
 - **E6.** Start a drag with the left button. Press and release the right button, then release the
@@ -803,5 +806,6 @@ These experiments have not run. Each uses a vanilla client of the version of
 - **E10.** Hover stacks with a custom name, lore, enchantments, attribute modifiers,
   `unbreakable`, a filled map and a player head, with the advanced tooltips off and on. Take a
   screenshot of each tooltip. Expect CCS-TIP-001 to CCS-TIP-008.
-- The input agent of `tools/vanilla-client` moves and turns the player only. It cannot press a
-  mouse button or a key in a screen. E2 and E4 to E10 need that input.
+- The input agent of `tools/vanilla-client` sets only the movement keys, jump, sneak, sprint,
+  use and the rotation. It cannot press a mouse button or a key in a screen, and it cannot take
+  a screenshot. Until it can, a person plays the recorded client for E1 to E10.

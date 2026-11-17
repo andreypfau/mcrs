@@ -70,9 +70,9 @@ In scope: the tooltip of a request with text lines, its position, size, backgrou
 draw, and the three kinds of hover event. `client-gui-sprite.md` states the scaling of the
 background sprites, for all GUI sprites.
 
-Out of scope: the parts of an item tooltip (`client-container-screen.md`), the image of an item tooltip (for example the
-contents of a bundle), the tooltip of a widget with its delay and its positioners, and the
-narration of tooltips.
+Out of scope: the parts of an item tooltip (`client-container-screen.md`), the image of an item
+tooltip (for example the contents of a bundle), the tooltip of a widget with its delay and its
+positioners, and the narration of tooltips.
 
 ---
 
@@ -296,7 +296,6 @@ None.
 
 ## 6. Open points
 
-- `client-container-screen.md`, section 6, states the parts of an item tooltip. The image of an
-  item tooltip needs a separate specification.
+- The image of an item tooltip needs a separate specification.
 - The tooltip of a widget, for example a button, uses the same background with a delay and
   other positions. `client-widget.md`, section 6, states it.
