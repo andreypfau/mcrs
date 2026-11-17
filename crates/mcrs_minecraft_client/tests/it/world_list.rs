@@ -12,8 +12,11 @@ use mcrs_minecraft_client_world::world_list::{
 };
 use mcrs_minecraft_lang::{EN_US, Language};
 use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;
-use mcrs_minecraft_save::{NewWorld, NewWorldMode, SaveLock, WorldSummary};
+use mcrs_minecraft_save::{
+    NewWorld, NewWorldMode, SaveLock, WorldSummary, read_level_dat, write_level_dat,
+};
 use mcrs_minecraft_server_settings::ServerSettings;
 
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -172,6 +175,8 @@ fn created_worlds_are_listed_newest_first_and_a_held_one_survives_a_delete() {
         assert!(!world.locked && !world.is_disabled(), "{}", world.folder_id);
     }
 
+    assert_a_play_hands_the_host_the_world_holds_under_its_lock(&mut app, &saves.join("Creative"));
+
     let held = SaveLock::take(&saves.join("Hard one")).unwrap();
     let worlds = read_list(&mut app);
     assert!(
@@ -212,6 +217,32 @@ fn handed(open: OpenLocalWorld) -> (PathBuf, bool) {
         && open.origin == LocalWorldOrigin::Created
         && open.lock.is_some_and(|lock| lock.dir() == open.folder);
     (open.folder, handed)
+}
+
+fn assert_a_play_hands_the_host_the_world_holds_under_its_lock(app: &mut App, folder: &Path) {
+    let host = Uuid::from_u128(7);
+    let mut level = read_level_dat(folder).unwrap();
+    level.singleplayer_uuid = Some(host);
+    write_level_dat(folder, &level).unwrap();
+    drain::<OpenLocalWorld>(app);
+    app.world_mut().write_message(PlayWorld {
+        folder_id: "Creative".to_owned(),
+    });
+    let start = Instant::now();
+    let open = loop {
+        assert!(
+            start.elapsed() < TIMEOUT,
+            "the world was not opened in time"
+        );
+        app.update();
+        if let Some(open) = drain::<OpenLocalWorld>(app).pop() {
+            break open;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert_eq!(open.host, Some(host), "the host written after the listing");
+    assert_eq!(open.origin, LocalWorldOrigin::Opened);
+    assert!(open.lock.is_some_and(|lock| lock.dir() == folder));
 }
 
 fn assert_held_and_unlisted_plays_are_refused(app: &mut App) {

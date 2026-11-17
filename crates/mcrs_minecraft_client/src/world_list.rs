@@ -9,9 +9,10 @@ use mcrs_minecraft_client_world::world_list::{
     CreateWorld, DeleteWorld, PlayWorld, ReadWorldList, WorldList, WorldStoreError,
     WorldStoreFailed, WorldTypes,
 };
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_save::{
-    NewWorld, SaveLock, WorldSummary, create_world, delete_world, read_saves,
+    NewWorld, SaveLock, WorldSummary, create_world, delete_world, read_level_dat, read_saves,
 };
 
 use crate::local_server::{LocalServerPlugin, data_pack_registries};
@@ -43,12 +44,22 @@ enum Job {
     LoadRegistries,
     Create(NewWorld),
     Delete(String),
+    Open(String),
+}
+
+struct LockedWorld {
+    lock: SaveLock,
+    host: Option<Uuid>,
 }
 
 enum Done {
     Read(Result<Vec<WorldSummary>, WorldStoreError>),
     Registries(Result<Registries, WorldStoreError>),
     Created(Result<SaveLock, WorldStoreError>),
+    Opened {
+        folder_id: String,
+        world: Result<LockedWorld, WorldStoreError>,
+    },
     Deleted {
         folder_id: String,
         removed: Result<(), WorldStoreError>,
@@ -186,6 +197,10 @@ fn run(
         Job::Create(world) => {
             Done::Created(registries.and_then(|registries| create(&world, &registries, saves)))
         }
+        Job::Open(folder_id) => {
+            let world = open(&saves.join(&folder_id));
+            Done::Opened { folder_id, world }
+        }
         Job::Delete(folder_id) => {
             let removed = delete_world(&saves.join(&folder_id)).map_err(|error| (&error).into());
             Done::Deleted {
@@ -209,6 +224,17 @@ fn read(saves: &Path) -> Result<Vec<WorldSummary>, WorldStoreError> {
         error!(%error, "the saves folder cannot be listed");
         (&error).into()
     })
+}
+
+fn open(folder: &Path) -> Result<LockedWorld, WorldStoreError> {
+    let lock = SaveLock::take(folder).map_err(|error| {
+        error!(%error, "the world folder is not locked");
+        WorldStoreError::from(&error)
+    })?;
+    let host = read_level_dat(folder)
+        .ok()
+        .and_then(|level| level.singleplayer_uuid);
+    Ok(LockedWorld { lock, host })
 }
 
 fn create(
@@ -265,6 +291,23 @@ fn finish_job(
         Done::Created(Err(error)) => {
             failed.write(WorldStoreFailed::Create(error));
         }
+        Done::Opened {
+            world: Ok(LockedWorld { lock, host }),
+            ..
+        } => {
+            opens.write(OpenLocalWorld {
+                folder: lock.dir().to_owned(),
+                host,
+                origin: LocalWorldOrigin::Opened,
+                lock: Some(lock),
+            });
+        }
+        Done::Opened {
+            folder_id,
+            world: Err(error),
+        } => {
+            failed.write(WorldStoreFailed::Play { folder_id, error });
+        }
         Done::Deleted {
             folder_id,
             removed,
@@ -288,15 +331,16 @@ fn listed_worlds(read: Result<Vec<WorldSummary>, WorldStoreError>) -> WorldList 
 }
 
 fn play_world(
-    store: Res<WorldStore>,
+    mut store: ResMut<WorldStore>,
     list: Res<WorldList>,
     mut plays: MessageReader<PlayWorld>,
-    mut opens: MessageWriter<OpenLocalWorld>,
     mut failed: MessageWriter<WorldStoreFailed>,
 ) {
     for play in plays.read() {
-        let world = match listed(&list, &play.folder_id) {
-            Some(world) if !world.is_disabled() => world,
+        match listed(&list, &play.folder_id) {
+            Some(world) if !world.is_disabled() => {
+                store.pending.push_back(Job::Open(world.folder_id.clone()));
+            }
             refused => {
                 let error = match refused {
                     None => WorldStoreError::Io(std::io::ErrorKind::NotFound),
@@ -307,14 +351,7 @@ fn play_world(
                     folder_id: play.folder_id.clone(),
                     error,
                 });
-                continue;
             }
-        };
-        opens.write(OpenLocalWorld {
-            folder: store.plugin.saves.join(&world.folder_id),
-            host: world.level.as_ref().and_then(|level| level.host),
-            origin: LocalWorldOrigin::Opened,
-            lock: None,
-        });
+        }
     }
 }
