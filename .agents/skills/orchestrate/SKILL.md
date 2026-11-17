@@ -104,6 +104,6 @@ Report: commit, files changed, the tail of the check output, open points. At mos
 
 - A session that starts its second agent loads this skill first.
 - At 150k tokens, write a prompt for a new session (the skill `handoff`) and stop. Do not
-  compact and continue. The hook `.claude/hooks/context-guard.sh` gives the signal.
+  compact and continue.
 - Findings from another session go into a new session with the findings file, not into the
   session that wrote the code.

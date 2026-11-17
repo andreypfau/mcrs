@@ -5,8 +5,7 @@ description: Write the prompt that lets a new session or a new agent continue th
 
 # Hand-off prompt
 
-Write the hand-off at 150k tokens of context. The hook `.claude/hooks/context-guard.sh` adds a
-reminder to the prompt above that size.
+Write the hand-off at 150k tokens of context.
 
 Write the prompt to a file outside the tracked tree, and print the path. The reader has none
 of this conversation. The prompt holds only what the reader can not get from the repository.
