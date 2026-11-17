@@ -97,7 +97,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, mcrs]
-    timeout-minutes: 45
+    timeout-minutes: 90
+    env:
+      CARGO_UNSTABLE_FINE_GRAIN_LOCKING: 'false'
     steps:
       - name: check out the commit under test with its history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
