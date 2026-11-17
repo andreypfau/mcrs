@@ -20,6 +20,7 @@ use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::Direction;
@@ -34,7 +35,6 @@ use mcrs_minecraft_save::{PlayerDat, read_player_dat};
 use mcrs_minecraft_server::{
     VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin, VanillaItemPlugin,
 };
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_item_entity::{Form, ItemEntityCommandsExt, Launch};
 use mcrs_voxel::BlockPos;
 

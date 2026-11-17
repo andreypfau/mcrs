@@ -21,7 +21,7 @@ use mcrs_minecraft_engine::persisted_registry::{
     CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedRegistry,
     PersistedSnapshot,
 };
-use mcrs_minecraft_engine_item::{ItemPersistencePlugin, PlayerItemFilePlugin, Slots};
+use mcrs_minecraft_engine_item::{ItemPersistencePlugin, Slots};
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_server::{Placement, ShutdownRequest};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -43,6 +43,7 @@ use mcrs_minecraft_region_disk::{RegionDisk, region_dir};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::{WorldGenSettings, write_world_gen_settings};
+use mcrs_minecraft_vanilla_inventory::PlayerItemFilePlugin;
 use mcrs_minecraft_worldgen_structure::hardcoded::ocean_monument;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 

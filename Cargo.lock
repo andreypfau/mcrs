@@ -5133,24 +5133,12 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_math",
- "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
- "mcrs_minecraft_engine",
- "mcrs_minecraft_engine_registries",
- "mcrs_minecraft_engine_world",
- "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_transaction",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
- "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_registries",
- "mcrs_minecraft_resource",
- "mcrs_minecraft_save",
  "mcrs_minecraft_text",
  "mcrs_test_alloc",
  "rustc-hash 2.1.1",
- "serde",
 ]
 
 [[package]]
@@ -5762,6 +5750,7 @@ dependencies = [
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
+ "mcrs_minecraft_player_holders",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_text",
@@ -6291,6 +6280,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_player_holders"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_engine_inventory_menu",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_inventory_file",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_inventory_player",
+]
+
+[[package]]
 name = "mcrs_minecraft_pose"
 version = "0.5.8"
 dependencies = [
@@ -6725,6 +6728,7 @@ dependencies = [
  "mcrs_minecraft_nbt_path",
  "mcrs_minecraft_network",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_player_holders",
  "mcrs_minecraft_pose",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_probe",
@@ -7001,6 +7005,8 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
@@ -7018,11 +7024,16 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_player_holders",
  "mcrs_minecraft_pose",
+ "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_save",
  "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_item_entity",
+ "serde",
  "tracing",
 ]
 

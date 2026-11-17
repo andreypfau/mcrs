@@ -11,12 +11,12 @@ use mcrs_minecraft_inventory_player::MAIN;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::restore_holders;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::capture_holders::capture_holders;
 use crate::kept_equipment::KeptEquipment;
 use crate::player_file::INVENTORY_KEY;
-use crate::restore_holders::restore_holders;
 
 pub(crate) fn capture_player_file(
     world: &mut World,

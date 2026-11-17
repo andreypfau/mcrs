@@ -21,7 +21,7 @@ use crate::full_sends::FullSends;
 use crate::menu_content::menu_content;
 use crate::menu_slots::MenuSlots;
 use crate::wire_names::WireNames;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 #[expect(
     clippy::too_many_arguments,

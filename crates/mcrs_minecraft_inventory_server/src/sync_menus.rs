@@ -29,7 +29,7 @@ use crate::menu_slots::MenuSlots;
 use crate::sent_stack::SentStack;
 use crate::slot_stack::slot_stack;
 use crate::wire_names::WireNames;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 #[derive(Default)]
 pub(crate) struct SyncScratch {

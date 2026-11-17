@@ -6,7 +6,7 @@ use crate::click_drag::ClickDrag;
 use crate::creative_drops::CreativeDrops;
 use crate::full_sends::FullSends;
 use crate::last_container_id::LastContainerId;
-use mcrs_minecraft_vanilla_inventory::PlayerItemsRestored;
+use mcrs_minecraft_player_holders::PlayerItemsRestored;
 
 pub(crate) fn queue_full_send(
     restored: On<PlayerItemsRestored>,

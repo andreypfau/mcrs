@@ -6,6 +6,7 @@ use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use crate::carried_codec::CARRIED_KEYS;
 use crate::carried_codec::apply_carried;
 use crate::carried_codec::capture_carried;
+use crate::item_file_codec::register_ender_items;
 use crate::player_file::FILE_KEYS;
 use crate::player_file_codec::apply_player_file;
 use crate::player_file_codec::capture_player_file;
@@ -15,6 +16,7 @@ pub struct InventoryPersistencePlugin;
 
 impl Plugin for InventoryPersistencePlugin {
     fn build(&self, app: &mut App) {
+        register_ender_items(app);
         app.register_persisted_codec(
             FILE_KEYS,
             PersistScope::Persisted,

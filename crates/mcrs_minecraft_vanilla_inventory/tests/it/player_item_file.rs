@@ -16,12 +16,9 @@ use mcrs_minecraft_engine::persisted_registry::PersistedRegistry;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine::player_state::PlayerFileState;
 use mcrs_minecraft_engine::write_player;
-use mcrs_minecraft_engine_item::EnderItems;
 use mcrs_minecraft_engine_item::ItemPlugin;
-use mcrs_minecraft_engine_item::PlayerItemFilePlugin;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_engine_item::WornEquipment;
 use mcrs_minecraft_engine_registries::test_item_table;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
@@ -35,6 +32,9 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::PlayerDat;
 use mcrs_minecraft_save::read_player_dat;
 use mcrs_minecraft_save::write_player_dat;
+use mcrs_minecraft_vanilla_inventory::EnderItems;
+use mcrs_minecraft_vanilla_inventory::PlayerItemFilePlugin;
+use mcrs_minecraft_vanilla_inventory::WornEquipment;
 
 const UUID: u128 = 0x1234;
 

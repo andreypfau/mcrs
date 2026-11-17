@@ -93,7 +93,8 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 | `inventory_client_view` | 3 | none | changed | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | none | new | `PlayerItems`, the inventory keys of a player file |
 | `engine_item` | 4 | required | changed | stacks as entities, `SlotChanged`, `SlotPolicy`, gates, `RequestCheck`, request sources |
-| `vanilla_inventory` | 5 | required | changed | gameplay: player holders, vanilla slot policy, close, hand actions, creative, drops, persistence glue |
+| `player_holders` | 5 | required | new | the player holders, the vanilla slot policy of the player holders, the restore of their stacks |
+| `vanilla_inventory` | 5 | required | changed | gameplay: close, hand actions, creative, drops, persistence glue |
 | `inventory_server` | 5, edge | required | new | packet decode, click to request, `MenuSync`, the sync, `set_held_slot` |
 
 Notes:
@@ -227,7 +228,6 @@ codec in `vanilla_inventory`, because only the server reads it.
 pub struct VanillaInventoryPlugin;
 pub struct InventoryPersistencePlugin;
 pub enum InventorySet { Input, Drops }
-#[derive(Component)] pub struct PlayerHolders { pub cursor: Entity, pub craft_grid: Entity, pub craft_result: Entity }
 pub enum HandAction { DropOne, DropStack, SwapHands }
 pub trait PlayerInventoryCommandsExt {                   // for `EntityCommands` of a player
     fn hand_action(&mut self, action: HandAction) -> &mut Self;
@@ -290,6 +290,11 @@ impl MenuSync {
 | `MenuSync` | A component of a menu: the state id, the client view and the container id of that menu. |
 
 The edge owns `MenuSync`, the drag state and the sent selected slot. No gameplay crate reads them.
+
+## 4.7 `mcrs_minecraft_player_holders` (layer 5)
+
+`docs/inventory-client-design.md` section 4.2 gives the public names of this crate. It owns
+`PlayerHolders` and the slot policy of the player holders. It links no server-only crate.
 
 # 5. Usage
 
@@ -442,11 +447,11 @@ Section 2 names the writer of each stored thing. These rules add to it:
   player action. The `set` operation is the one exception (INV-CRE-001, INV-CRE-005).
 - A plugin changes a slot through a command. A system that writes a slotted stack in place calls
   `touch`.
-- `SlotPolicy` has one writer for each entry. `vanilla_inventory` writes the entries of the player
+- `SlotPolicy` has one writer for each entry. `player_holders` writes the entries of the player
   holders at the spawn. The entry of the cursor
   holder always permits each take and each place (ITX-LIM-004, ITX-LIM-005). By this rule, no
   other plugin writes it. Another plugin can
-  write an entry only if `vanilla_inventory` never writes it after the spawn.
+  write an entry only if `player_holders` never writes it after the spawn.
 - Only the edge writes `MenuSync`.
 - A menu never owns a stack. The despawn of a menu changes no slot.
 - `PlayerHolders` does not change after the spawn of the player.

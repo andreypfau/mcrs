@@ -17,10 +17,10 @@ use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 
-use crate::PlayerHolders;
 use crate::carried_codec::has_carried;
 use crate::close_inventory_menu::apply_close_moves;
 use crate::close_inventory_menu::close_inventory_menu;

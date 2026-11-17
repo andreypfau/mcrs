@@ -6,12 +6,12 @@ use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::restore_carried;
 
 use crate::capture_holders::capture_holders;
 use crate::player_file_codec::decode_error;
 use crate::player_file_codec::encode_error;
 use crate::player_file_codec::registry_names;
-use crate::restore_holders::restore_carried;
 use crate::saved_stack;
 
 const CURSOR_KEY: &str = "mcrs:cursor";

@@ -33,12 +33,12 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 pub const STONE: Kind = Kind(1);
