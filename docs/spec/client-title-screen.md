@@ -745,8 +745,12 @@ file. Kind: semantic. Confidence: medium.
   4. The cell of each button has the padding 2 on each side.
   5. The column has its centre at the centre of the screen (WID-LAY-003).
   6. The background is that of TITLE-PAN-004, step 5.
+  7. The reason has no maximum number of lines. When the column is taller than H, it stays
+     centred, the parts above y = 0 and below y = H do not show, and the screen does not scroll.
 - **Postconditions:** at W = 427 and H = 240, with a one-line reason: the title is at y = 89,
   the reason is at y = 118, and a button of 200 × 20 is at (113, 139).
+- **Edge cases:** at H = 240 the lower edge of the button leaves the screen from a reason of 19
+  lines. Escape does not close the screen.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
