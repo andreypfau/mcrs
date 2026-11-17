@@ -54,7 +54,7 @@ itself. CLAUDE.md wins on conflict.
   meet a number.
 - A new crate gets `[lints] workspace = true` and `[lib] doctest = false`, an
   entry in `[workspace.dependencies]`, and `#![no_std]` + `alloc`, or a
-  `// std: <dependency>` note. A crate without Bevy goes in
+  commit message that names the dependency that needs `std`. A crate without Bevy goes in
   `NO_BEVY_PACKAGES` in `xtask/src/checks.rs`.
 
 ## Formatting
@@ -116,7 +116,7 @@ itself. CLAUDE.md wins on conflict.
   to group methods.
 - **Public errors** implement `Display` and `core::error::Error` (short plain
   English; translated `Text` is rendered elsewhere). They are `Copy` when
-  possible and have a `///` line on each variant.
+  possible.
 - **`#[non_exhaustive]`** goes on a public enum that will grow, and on a
   public struct with public fields that will grow. Add a constructor when
   callers outside the crate build the struct. A fixed ontology (`Key`,
@@ -151,15 +151,14 @@ itself. CLAUDE.md wins on conflict.
 
 ## Documentation and comments
 
-- Zero comments by default. A comment states a non-obvious why, in one or
-  two lines.
-- A public item gets a short `///` that states its contract, not a
-  restatement of its name. A crate gets a `//!` line. Write docs in Markdown.
-- Document every case that can panic in a test helper. Document the
-  contract that an embedder must meet, such as a resource it must insert.
-- An `unsafe` block gets a `// SAFETY:` line, even in tests. Use `unsafe`
-  only when safe code cannot do the job, and keep it in its own small
-  module.
+- No comments and no doc comments outside `examples/`: no `//`, `/* */`,
+  `///` or `//!`, except a `// SAFETY:` note. The `comments` check of `xtask` rejects them.
+- A name carries the contract. A contract that a name cannot carry goes in a
+  type, in an `#[expect(..., reason = "...")]`, or in a design note in
+  `docs/`.
+- An `unsafe` block or impl gets a `// SAFETY:` line, even in tests. It is
+  the one comment that the check allows. Use `unsafe` only when safe code
+  cannot do the job, and keep it in its own small module.
 
 ## Implementation
 
@@ -184,14 +183,13 @@ Run the checklist on `git diff origin/main...HEAD` and report findings as
 `path:line — rule — change`, ranked by impact:
 
 1. Project rules: panics, overflow, allocation on hot paths, `Arc`/`dyn`,
-   layering, comments.
+   layering, comments outside `examples/`.
 2. Crate scope: deps a user pays for, a subdirectory in `src/`, a crate that
    holds more than one abstraction.
 3. Module layout: code in non-leaf modules, file names, two public paths.
 4. Signatures: bool params, tuples, magic values, `&Vec`/`&String`, std
    traits.
-5. Public API: `#[non_exhaustive]`, `#[must_use]`, `Display`/`Error` on errors,
-   `///` docs.
+5. Public API: `#[non_exhaustive]`, `#[must_use]`, `Display`/`Error` on errors.
 6. Imports and names: qualification, globs, `Ext`, abbreviations, shadowing.
 7. Implementation: chains, `for_each`, assert messages, macros, `SAFETY`.
 

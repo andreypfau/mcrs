@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 proc-macro2 = { workspace = true, features = ["span-locations"] }
+ra_ap_rustc_lexer.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 syn = { workspace = true, features = ["full", "visit"] }

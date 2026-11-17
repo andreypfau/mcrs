@@ -179,11 +179,13 @@ add a new use of what is listed here.
   the input. An error is data, rendered to text at the edge. A hot path that
   claims zero allocations has a test with a counting allocator.
 - **`no_std` with `alloc` where the dependencies allow it.** A new library crate
-  starts as `#![no_std]` unless a dependency forbids it, and says which one.
+  starts as `#![no_std]` unless a dependency forbids it, and its commit message
+  says which one.
 
 Out of scope: code written against Bevy's or tokio's own API. When a rule cannot
-be met, keep the use and state the reason next to it; do not work around the
-rule with an equivalent in disguise.
+be met, keep the use and state the reason in an `#[expect(..., reason = "...")]`
+or in the commit message; do not work around the rule with an equivalent in
+disguise.
 
 ## Rust style and comments
 
@@ -195,11 +197,13 @@ this file wins.
   re-exports. A file is named after its primary item.
 - A bool parameter that reads as a bare `true` at the call site is an enum. A
   returned tuple that is not a pair by nature is a struct.
-- **Default to zero comments.** Choose a name instead. A comment is for a
-  non-obvious *why*, in one or two lines. No module-header essays, no restating
-  the code, no story of the task; that belongs in the commit message.
-- A deliberate shortcut with a known ceiling gets a `// chisle:` comment naming
-  the ceiling and what lifts it.
+- **No comments outside `examples/`.** This covers `//`, `/* */`, `///`, `//!`
+  and the comments of every other language in the repository. The one exception
+  is the `// SAFETY:` note of an `unsafe` block or impl, which is required. Choose a name, a
+  type or an `#[expect(..., reason = "...")]` instead. The why of a change goes
+  in the commit message; a design goes in `docs/`. The `comments` check of
+  `xtask` rejects a comment; `cargo run -p xtask -- strip-comments` removes
+  them all.
 
 ## Working discipline
 

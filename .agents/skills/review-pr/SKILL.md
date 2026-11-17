@@ -41,8 +41,8 @@ summary of the change.
    behaviour with no test that fails without the change. Fixtures larger than the cases need:
    flag each added fixture file of more than 200 lines, and name the smaller case.
 4. **Style and layout.** The checklist of `rust-style`.
-5. **Verbosity.** A comment, a doc line or a document paragraph that restates the code or its
-   name, or tells the story of the task. A doc that grows where a name would do.
+5. **Verbosity.** A comment outside `examples/`, or a document paragraph that restates the
+   code or its name, or tells the story of the task.
 6. **Clean room.** A name of the reference code in code, comments, tests, notes or the commit
    message (`docs/clean-room.md`).
 

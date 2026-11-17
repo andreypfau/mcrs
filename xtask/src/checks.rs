@@ -185,10 +185,8 @@ const NO_BEVY_PACKAGES: [&str; 135] = [
     "mcrs_voxel",
 ];
 
-/// The wire and network layers, which a proxy or a bot takes without any game data.
 const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
 
-/// The crates that bake models from a pack, which a viewer takes without a connection.
 const STANDALONE_BAKE_PACKAGES: [&str; 2] = ["mcrs_minecraft_model", "mcrs_minecraft_model_file"];
 
 const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
@@ -201,7 +199,6 @@ const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "tokio",
 ];
 
-/// The crates that draw an entity, which a viewer takes without a connection.
 const ENTITY_RENDER_PACKAGES: [&str; 2] = [
     "mcrs_minecraft_entity_render",
     "mcrs_minecraft_entity_visual",
@@ -217,8 +214,6 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_engine_server",
 ];
 
-/// The crates of the packet edge, by prefix. `mcrs_minecraft_vanilla_inventory` has no direct
-/// dependency on them; the rule is direct because `mcrs_minecraft_engine` reaches the network.
 const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
     "mcrs_minecraft_network",
     "mcrs_minecraft_protocol",
@@ -342,6 +337,7 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
+        Check::Comments => crate::comments::check(&ctx.root, &ctx.head),
         Check::Parity => parity_check(ctx),
         Check::Fmt => fmt(ctx),
         Check::Keys => keys::check(

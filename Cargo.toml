@@ -1,5 +1,3 @@
-#cargo-features = ["codegen-backend"]
-
 [package]
 name = "mcrs"
 version = "0.5.8"
@@ -37,18 +35,15 @@ glam = { version = "0.33.12", default-features = false, features = ["all-types"]
 bevy_time = "0.20.1"
 bevy_tasks = "0.20.1"
 bevy_utils = "0.20.1"
-# `file_watcher` cannot compile for wasm; the client re-enables it through
-# `bevy` for non-wasm targets, so a native build still hot-reloads.
 bevy_asset = { version = "0.20.1" }
 bevy_derive = "0.20.1"
 bevy_log = { version = "0.20.1" }
 bevy_reflect = "0.20.1"
 bevy_platform = "0.20.1"
 bevy_state = "0.20.1"
-# Only a floor under bevy_asset's file reads: 0.2.4 can report EOF before the
-# last chunk of a file.
 piper = "0.2.5"
 proc-macro2 = "1.0.103"
+ra_ap_rustc_lexer = { package = "ra-ap-rustc_lexer", version = "0.185.0" }
 syn = "2.0.110"
 quote = "1.0.42"
 bytes = "1"
@@ -330,24 +325,17 @@ mcrs_minecraft_registries.workspace = true
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
 telemetry-tracy = ["bevy_log/tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
-# No other crate registers diagnostic plugins yet. Add propagation lines
-# here when individual crates start exposing their own histograms.
 telemetry-diagnostics = ["dep:bevy_diagnostic"]
 
 [profile.dev]
 opt-level = 0
-# Full debug info dominates compile and link time across a workspace this size.
-# Line tables keep backtraces readable, which is all the tests need.
 debug = "line-tables-only"
 debug-assertions = true
 
-# Line tables in dependencies only grow the test binaries and their link time.
 [profile.dev.package."*"]
 opt-level = 3
 debug = false
 
-# Build scripts and proc macros run at compile time, so optimizing them buys
-# build time rather than frame time. `package."*"` does not reach them.
 [profile.dev.build-override]
 opt-level = 3
 
@@ -360,11 +348,6 @@ lto = "fat"
 codegen-units = 1
 strip = true
 
-# `package."*"` only covers external dependencies; workspace members inherit
-# [profile.dev] opt-level 0. Both paths a column can arrive by are far too hot
-# for that: generation (density-function evaluation, octave Perlin noise,
-# palette writes) and the read out of the save (zlib, NBT, palette unpacking),
-# so the member crates on either are optimized even in dev builds.
 [profile.dev.package."mcrs_minecraft_worldgen"]
 opt-level = 3
 
@@ -413,23 +396,15 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
 
-# The light engine runs a frontier relaxation over millions of cells every time
-# a column arrives, so it belongs with the other per-column hot paths.
 [profile.dev.package."mcrs_minecraft_light_engine"]
 opt-level = 3
 
-# Edge costs sweep about a hundred thousand cells per region in every oracle
-# case, and the GPU bench builds bricks for every section of a fixture.
 [profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
 
-# Block definitions compile and evaluate a Molang condition per state at load.
 [profile.dev.package."mcrs_molang"]
 opt-level = 3
 
-# Every test runs in its own process under nextest, so each one that needs the
-# data pack parses it from scratch; the serde and builder code doing that lives
-# in these crates and costs about a second per test at opt-level 0.
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
 
@@ -466,17 +441,12 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_datapack"]
 opt-level = 3
 
-# The global allocator of most test binaries; every allocation of a fixture load passes through it.
 [profile.dev.package."mcrs_test_alloc"]
 opt-level = 3
 
-# The level field tests recompute the field from scratch after every change:
-# 0.6 seconds at opt-level 2, 4.7 at opt-level 0.
 [profile.dev.package."mcrs_minecraft_engine_world"]
 opt-level = 2
 
-# The browser bundle is inlined into a single HTML file, so binary size is the
-# dominant cost there in a way it never is for a native build.
 [profile.web]
 inherits = "release"
 opt-level = "s"

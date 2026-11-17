@@ -11,7 +11,7 @@ Before you start, read `docs-site/src/content/docs/en/contributing/docs.mdx` and
 
 ## Limits
 
-- You edit `docs-site/` only. Do not touch `docs/`, `PERF.md`, the root `README.md` or the code of the crates. Do not add comments to Rust code for the docs (`AGENTS.md`: "Default to zero comments"). The code fragment of an `Example` is set by the props of the component; see them in `docs-site/src/components/Example.astro`.
+- You edit `docs-site/` only. Do not touch `docs/`, `PERF.md`, the root `README.md` or the code of the crates. Do not add comments to code for the docs (`AGENTS.md`: "No comments outside `examples/`"). The code fragment of an `Example` is set by the props of the component; see them in `docs-site/src/components/Example.astro`.
 - Create a new page or section only by the procedure of step 4: an analyst agent, then the explicit consent of the user. Without these two steps you do not create, delete, rename or move pages, and you do not move text between them.
 - Do not push and do not open a pull request. Commit to the working branch.
 - Do not invent. Every statement has a source: a file in the repository, an issue, a pull request, `PERF.md`. No source, no statement.

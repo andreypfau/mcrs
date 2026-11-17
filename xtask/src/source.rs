@@ -4,12 +4,18 @@ use proc_macro2::{Span, TokenStream, TokenTree};
 use std::collections::BTreeMap;
 use std::path::Path;
 use syn::visit::{self, Visit};
-use syn::{Attribute, Expr, ExprLit, Lit, LitStr, Macro, Meta};
+use syn::{Attribute, Lit, LitStr, Macro};
 
 pub type Files = BTreeMap<String, String>;
 
 pub fn rust_files(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
-    let mut paths = match head {
+    let mut paths = files(repo, head)?;
+    paths.retain(|path| path.ends_with(".rs"));
+    Ok(paths)
+}
+
+pub fn files(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
+    let mut paths: Vec<String> = match head {
         Head::Worktree => {
             let listing = git::run(
                 repo,
@@ -30,7 +36,6 @@ pub fn rust_files(repo: &Path, head: &Head) -> Result<Vec<String>, String> {
         }
         Head::Commit(_) => scope::tracked(repo, head)?,
     };
-    paths.retain(|path| path.ends_with(".rs"));
     paths.sort();
     paths.dedup();
     Ok(paths)
@@ -128,22 +133,6 @@ pub fn walk_tokens(stream: &TokenStream, visit: &mut dyn FnMut(&[TokenTree], usi
 pub fn string_literal(literal: &proc_macro2::Literal) -> Option<String> {
     match Lit::new(literal.clone()) {
         Lit::Str(text) => Some(text.value()),
-        _ => None,
-    }
-}
-
-pub fn doc_line(attr: &Attribute) -> Option<String> {
-    let Meta::NameValue(pair) = &attr.meta else {
-        return None;
-    };
-    if !pair.path.is_ident("doc") {
-        return None;
-    }
-    match &pair.value {
-        Expr::Lit(ExprLit {
-            lit: Lit::Str(text),
-            ..
-        }) => Some(text.value()),
         _ => None,
     }
 }

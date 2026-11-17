@@ -73,8 +73,8 @@ The line numbers are those of the commit `9ceac16cd`.
    writes `Selected` (INV-SEL-003). The commands `clear`, `give` and `item` do not exist.
 9. Of the experiments of INV section 12 and ITX section 11, only E3, E8, E9 and E11 of INV and E9
    of ITX have a recorded result.
-10. Four more ceilings have a `chisle:` mark: `sync_menus.rs:110`, `close_container.rs:44`,
-    `engine_item/src/request.rs:10`, `engine_item/src/spawn_stack.rs:16`.
+10. Four more ceilings are in `sync_menus.rs`, `close_container.rs`,
+    `engine_item/src/request.rs` and `engine_item/src/spawn_stack.rs`.
 
 # 2. State classification
 
@@ -729,7 +729,7 @@ list it.
 | 16 | Q5, Q6, U1, U3 of `inventory-transactions.md`. | Answers of the specification. Q5 needs E16; Q6 is a choice of the owner; U1 needs E4; U3 belongs to the craft. |
 | 17 | `engine_item/src/spawn_stack.rs:16`: one archetype move for each component at a spawn. | Keep the ceiling. Lift it when a profile of `restore_items` or of a join shows it. |
 | 18 | `EnderItems` and `WornEquipment` stay in `engine_item/src/persist.rs`. | Move their pure codec to `inventory_file` in step 2 if the move is mechanical. If not, a later step. |
-| 19 | `MAX_PARTS` is 4, and a menu has at most 128 entries. | Keep the two with a `// chisle:` mark. The largest vanilla menu has 90 entries. |
+| 19 | `MAX_PARTS` is 4, and a menu has at most 128 entries. | Keep the two. The largest vanilla menu has 90 entries. |
 
 # 10. Steps
 
@@ -754,8 +754,7 @@ dependents.
   `vanilla_inventory/src/sync_menus.rs`, `menu_queue.rs`, `vanilla_inventory_plugin.rs`.
 - Done: a test app calls `put_at` and `consume` on a slot of a player. The sync of the same tick
   writes the slot packet. The comparison builds no value without a mismatch, and a test with the
-  counting allocator shows it. The `chisle:` marks of `menu_queue.rs:7` and `sync_menus.rs:110`
-  are gone.
+  counting allocator shows it. The ceilings of `menu_queue.rs` and `sync_menus.rs` are gone.
 
 **Step 2: the split and the file codec.**
 
@@ -822,7 +821,7 @@ dependents.
 - Done: a helmet enters the head slot by a click and by a quick move (INV-SLT-003, INV-MNU-004).
   The game rule `mcrs:spectators_open_menus` exists with the default value true. The off-hand
   slot accepts each item, and no switch for it exists. A system that writes `Selected` causes one
-  `set_held_slot` packet. The `chisle:` mark of `click_slots.rs:46` is gone.
+  `set_held_slot` packet. The ceiling of `click_slots.rs` is gone.
 
 **Step 6: the request ids.**
 
