@@ -55,8 +55,8 @@ impl Widgets {
         if let Some(widget) = self.widgets.get_mut(index) {
             widget.visible = false;
         }
-        if self.focused == Some(index) {
-            if let Some(edit) = self.edit_box_mut(index) {
+        if let Some(focused) = self.focused.filter(|focused| !self.accepts(*focused)) {
+            if let Some(edit) = self.edit_box_mut(focused) {
                 edit.editing = false;
             }
             self.focused = None;
