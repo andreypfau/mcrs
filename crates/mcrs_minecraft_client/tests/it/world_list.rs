@@ -220,29 +220,41 @@ fn handed(open: OpenLocalWorld) -> (PathBuf, bool) {
 }
 
 fn assert_a_play_hands_the_host_the_world_holds_under_its_lock(app: &mut App, folder: &Path) {
-    let host = Uuid::from_u128(7);
-    let mut level = read_level_dat(folder).unwrap();
-    level.singleplayer_uuid = Some(host);
-    write_level_dat(folder, &level).unwrap();
+    for (case, host, backup_only) in [
+        ("the host written after the listing", 7, false),
+        ("the host only the backup holds", 8, true),
+    ] {
+        let host = Uuid::from_u128(host);
+        let mut level = read_level_dat(folder).unwrap();
+        level.singleplayer_uuid = Some(host);
+        write_level_dat(folder, &level).unwrap();
+        if backup_only {
+            std::fs::rename(folder.join("level.dat"), folder.join("level.dat_old")).unwrap();
+        }
+        let open = play_creative(app);
+        assert_eq!(open.host, Some(host), "{case}");
+        assert_eq!(open.origin, LocalWorldOrigin::Opened, "{case}");
+        assert!(open.lock.is_some_and(|lock| lock.dir() == folder), "{case}");
+    }
+}
+
+fn play_creative(app: &mut App) -> OpenLocalWorld {
     drain::<OpenLocalWorld>(app);
     app.world_mut().write_message(PlayWorld {
         folder_id: "Creative".to_owned(),
     });
     let start = Instant::now();
-    let open = loop {
+    loop {
         assert!(
             start.elapsed() < TIMEOUT,
             "the world was not opened in time"
         );
         app.update();
         if let Some(open) = drain::<OpenLocalWorld>(app).pop() {
-            break open;
+            return open;
         }
         std::thread::sleep(Duration::from_millis(5));
-    };
-    assert_eq!(open.host, Some(host), "the host written after the listing");
-    assert_eq!(open.origin, LocalWorldOrigin::Opened);
-    assert!(open.lock.is_some_and(|lock| lock.dir() == folder));
+    }
 }
 
 fn assert_held_and_unlisted_plays_are_refused(app: &mut App) {

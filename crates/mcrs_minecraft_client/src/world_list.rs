@@ -13,6 +13,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_save::{
     NewWorld, SaveLock, WorldSummary, create_world, delete_world, read_level_dat, read_saves,
+    restore_level_dat_backup,
 };
 
 use crate::local_server::{LocalServerPlugin, data_pack_registries};
@@ -231,7 +232,8 @@ fn open(folder: &Path) -> Result<LockedWorld, WorldStoreError> {
         error!(%error, "the world folder is not locked");
         WorldStoreError::from(&error)
     })?;
-    let host = read_level_dat(folder)
+    let host = restore_level_dat_backup(folder)
+        .and_then(|()| read_level_dat(folder))
         .ok()
         .and_then(|level| level.singleplayer_uuid);
     Ok(LockedWorld { lock, host })
