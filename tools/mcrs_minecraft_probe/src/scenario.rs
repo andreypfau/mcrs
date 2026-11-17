@@ -77,12 +77,19 @@ pub struct Target {
     pub banned_players: Vec<PlayerBan>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Observe {
     /// The clients answer position syncs and chunk batches, and the trace of each step holds the
     /// menu packets that they received.
     #[serde(default, skip_serializing_if = "is_false")]
     pub inventory: bool,
+    /// The trace of each step holds the sound packets that the clients received.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub sound: bool,
+    /// The trace of each step holds the subtrees of these literal children of the root of each
+    /// `commands` packet that the clients received.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub commands: Vec<String>,
 }
 
 impl Observe {
@@ -121,6 +128,9 @@ pub enum Action {
     Leave(String),
     /// The client sends a chat command, written without the slash.
     Command { client: String, line: String },
+    /// The host runs these commands on the server console, in order, and the trace holds the
+    /// replies that the server printed.
+    Console { lines: Vec<String> },
     /// The client sends a container click.
     Click(Click),
     /// The client closes a container, by default the one it saw open last.

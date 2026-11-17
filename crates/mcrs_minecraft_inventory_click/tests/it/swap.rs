@@ -155,3 +155,22 @@ fn itx_jav_010_row_9_drops_what_finds_no_room() {
         ]
     );
 }
+
+/// INV-INS-003: the insert of row 9 skips each slot whose place filter refuses the stack.
+#[test]
+fn inv_ins_003_row_9_skips_each_slot_that_refuses_the_stack() {
+    let player = Player::new()
+        .with(HEAD, pumpkin(1, 1))
+        .with(HOTBAR_0, pumpkin(0, 10))
+        .with(37, pumpkin(1, 63))
+        .refusing(37)
+        .refusing(38);
+    let ops = click(&player, ClickKind::Swap, 0, Clicked::Entry(HEAD)).expect("an entry");
+    assert_eq!(
+        ops,
+        vec![
+            split(entry(HEAD), entry(39), 1),
+            split(entry(HOTBAR_0), entry(HEAD), 1),
+        ]
+    );
+}

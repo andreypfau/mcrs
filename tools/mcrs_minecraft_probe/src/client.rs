@@ -1,6 +1,8 @@
 use crate::menu_view::MenuView;
 use crate::pose::Pose;
-use crate::{Click, ConnectionState, MenuPacket, Observe, PredictedStack};
+use crate::{
+    Click, CommandTree, ConnectionState, MenuPacket, Observe, PredictedStack, SoundPlayed,
+};
 use anyhow::Context;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::SwitchMode;
@@ -28,8 +30,8 @@ use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, Pa
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Decode, Packet, VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkBatchFinished, ClientboundLogin, ClientboundPlayerPosition,
-    ClientboundSystemChatPacket,
+    ClientboundChunkBatchFinished, ClientboundCommands, ClientboundLogin,
+    ClientboundPlayerPosition, ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -80,6 +82,8 @@ pub(crate) struct Event {
 pub(crate) enum Signal {
     Chat(Text),
     Menu(MenuPacket),
+    Sound(SoundPlayed),
+    Commands(CommandTree),
     Disconnected(Text),
     Closed,
     /// The client closed the connection after an error of its own.
@@ -226,8 +230,13 @@ pub(crate) async fn session(
                 let Ok((id, body)) = frame else {
                     break Signal::Closed;
                 };
-                match read_game_packet(&mut io, observe, &mut view, &mut pose, id, &body).await {
-                    Ok(Some(signal @ (Signal::Chat(_) | Signal::Menu(_)))) => {
+                match read_game_packet(&mut io, &client, &observe, &mut view, &mut pose, id, &body).await {
+                    Ok(Some(
+                        signal @ (Signal::Chat(_)
+                        | Signal::Menu(_)
+                        | Signal::Sound(_)
+                        | Signal::Commands(_)),
+                    )) => {
                         if events.send(Event { client: client.clone(), signal }).is_err() {
                             return;
                         }
@@ -340,7 +349,8 @@ async fn send_order(
 
 async fn read_game_packet(
     io: &mut PacketIo<TcpStream>,
-    observe: Observe,
+    client: &str,
+    observe: &Observe,
     view: &mut MenuView,
     pose: &mut Pose,
     id: i32,
@@ -359,6 +369,11 @@ async fn read_game_packet(
     } else if id == ClientboundDisconnect::ID {
         let packet: ClientboundDisconnect = decode(body)?;
         return Ok(Some(Signal::Disconnected(packet.reason)));
+    } else if observe.sound && SoundPlayed::is_packet(id) {
+        return Ok(Some(Signal::Sound(SoundPlayed::read(client, body)?)));
+    } else if !observe.commands.is_empty() && id == ClientboundCommands::ID {
+        let tree = CommandTree::read(client, body, &observe.commands)?;
+        return Ok(Some(Signal::Commands(tree)));
     } else if !observe.inventory {
         return Ok(None);
     } else if id == ClientboundPlayerPosition::ID {

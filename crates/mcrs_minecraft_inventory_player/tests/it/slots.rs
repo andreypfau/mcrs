@@ -2,8 +2,6 @@ use mcrs_minecraft_inventory_player::ArmourLock;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
 use mcrs_minecraft_inventory_player::Holder;
-use mcrs_minecraft_inventory_player::OffHandRule;
-use mcrs_minecraft_inventory_player::OffHandTag;
 use mcrs_minecraft_inventory_player::Offer;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_player::SlotFilter;
@@ -42,7 +40,7 @@ fn inv_slt_001_002_the_holders_their_slots_and_slot_limits() {
             39,
             rule(1, SlotFilter::Armour(ArmourSlot::Head)),
         ),
-        (Holder::Inventory, 40, rule(99, SlotFilter::OffHand)),
+        (Holder::Inventory, 40, any),
         (Holder::Inventory, 41, None),
         (Holder::Cursor, 0, any),
         (Holder::Cursor, 1, None),
@@ -57,64 +55,27 @@ fn inv_slt_001_002_the_holders_their_slots_and_slot_limits() {
 }
 
 #[test]
-fn inv_slt_003_005_006_the_place_filters() {
+fn inv_slt_003_006_the_place_filters() {
     let plain = Offer::default();
     let helmet = Offer {
         wear: Some(EquipSlot::Armour(ArmourSlot::Head)),
-        ..Offer::default()
-    };
-    let tagged = Offer {
-        off_hand_tag: OffHandTag::Member,
-        ..Offer::default()
     };
     let head = SlotFilter::Armour(ArmourSlot::Head);
     let chest = SlotFilter::Armour(ArmourSlot::Chest);
     let cases = [
-        (head, helmet, OffHandRule::AnyItem, Filter::Permits),
-        (chest, helmet, OffHandRule::AnyItem, Filter::Refuses),
-        (head, plain, OffHandRule::AnyItem, Filter::Refuses),
-        (
-            SlotFilter::OffHand,
-            plain,
-            OffHandRule::default(),
-            Filter::Permits,
-        ),
-        (
-            SlotFilter::OffHand,
-            plain,
-            OffHandRule::TaggedItems,
-            Filter::Refuses,
-        ),
-        (
-            SlotFilter::OffHand,
-            tagged,
-            OffHandRule::TaggedItems,
-            Filter::Permits,
-        ),
-        (
-            SlotFilter::CraftResult,
-            plain,
-            OffHandRule::AnyItem,
-            Filter::Refuses,
-        ),
-        (
-            SlotFilter::Any,
-            helmet,
-            OffHandRule::TaggedItems,
-            Filter::Permits,
-        ),
+        (head, helmet, Filter::Permits),
+        (chest, helmet, Filter::Refuses),
+        (head, plain, Filter::Refuses),
+        (SlotFilter::CraftResult, plain, Filter::Refuses),
+        (SlotFilter::Any, helmet, Filter::Permits),
     ];
-    for (filter, offer, off_hand, expected) in cases {
-        assert_eq!(
-            filter.place(offer, off_hand),
-            expected,
-            "{filter:?} {offer:?} {off_hand:?}"
-        );
+    for (filter, offer, expected) in cases {
+        assert_eq!(filter.place(offer), expected, "{filter:?} {offer:?}");
     }
 }
 
 #[test]
-fn inv_slt_004_005_the_take_filters() {
+fn inv_slt_004_the_take_filters() {
     let head = SlotFilter::Armour(ArmourSlot::Head);
     let cases = [
         (
@@ -132,12 +93,6 @@ fn inv_slt_004_005_the_take_filters() {
         (
             head,
             ArmourLock::Free,
-            PlayerMode::NotCreative,
-            Filter::Permits,
-        ),
-        (
-            SlotFilter::OffHand,
-            ArmourLock::Locked,
             PlayerMode::NotCreative,
             Filter::Permits,
         ),

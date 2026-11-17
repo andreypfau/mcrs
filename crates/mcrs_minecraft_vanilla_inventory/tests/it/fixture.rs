@@ -34,7 +34,6 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
-use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
@@ -70,14 +69,9 @@ pub fn app() -> App {
 
 /// The items and the gameplay of the player inventory, with no persistence.
 pub fn gameplay_app() -> App {
-    gameplay_app_with(test_registries().clone(), VanillaInventoryPlugin::default())
-}
-
-/// The items and `plugin` over `registries`, with no persistence.
-pub fn gameplay_app_with(registries: Registries, plugin: VanillaInventoryPlugin) -> App {
     let mut app = App::new();
-    app.insert_resource(CurrentRegistries::new(registries))
-        .add_plugins((ItemPlugin::new(*TABLE), plugin));
+    app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .add_plugins((ItemPlugin::new(*TABLE), VanillaInventoryPlugin));
     app
 }
 

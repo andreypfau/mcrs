@@ -12,7 +12,7 @@ const LARGEST_STACK: i32 = 99;
 
 /// Gives `moved` each slot of `inventory`, whose selected hotbar slot is `selected`, that takes
 /// items of `stack` by the insert rule, with the number of items, in the order of the rule
-/// (INV-INS-001). The rule does not select a slot for which `place` refuses (INV-CLS-005), and
+/// (INV-INS-001). The rule does not select a slot for which `place` refuses (INV-INS-003), and
 /// fills each slot only up to its capacity (ITX-LIM-002). Changes no slot. Gives the number of
 /// items that found no room.
 pub(crate) fn insert_stack(

@@ -681,7 +681,10 @@ each Bedrock value comes from the public protocol documentation or is not known 
 - **Rule**: IEN-SPN-004.
 - **Reference**: for a player in creative mode with no room, the `give` command destroys the items,
   and the viewers see the display item as for a success.
-- **Visible to the client**: yes. In the reference, the player gets nothing and no message.
+- **Reason**: uninserted items remain available instead of being destroyed.
+- **Visible to the client**: yes. In the reference, the target receives no item. Command feedback
+  to the source follows `CMD-GIVE-012` in [command-give.md](command-give.md).
+- **Bug reference**: none.
 - **Test**: a differential test skips `give` to a player in creative mode with a full inventory.
 
 ### 11.2 Known vanilla quirks

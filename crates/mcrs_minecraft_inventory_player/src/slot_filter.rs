@@ -2,7 +2,6 @@ use mcrs_minecraft_inventory_transaction::Filter;
 
 use crate::ArmourSlot;
 use crate::EquipSlot;
-use crate::OffHandTag;
 use crate::Offer;
 
 /// The take and place filters of a slot of a player. They apply to a request, never to the
@@ -12,17 +11,7 @@ pub enum SlotFilter {
     /// A slot that permits each take and each place.
     Any,
     Armour(ArmourSlot),
-    OffHand,
     CraftResult,
-}
-
-/// The value of the game rule `mcrs:offhand_accepts_any_item`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum OffHandRule {
-    #[default]
-    AnyItem,
-    /// Only an item of the item tag `mcrs:offhand_allowed`.
-    TaggedItems,
 }
 
 /// Whether the stack of a slot has an enchantment with the effect
@@ -43,16 +32,12 @@ pub enum PlayerMode {
 }
 
 impl SlotFilter {
-    /// The place filter for `offer` under the off-hand game rule `rule`.
+    /// The place filter for `offer`.
     #[must_use]
-    pub fn place(self, offer: Offer, rule: OffHandRule) -> Filter {
+    pub fn place(self, offer: Offer) -> Filter {
         let permits = match self {
             Self::Any => true,
             Self::Armour(slot) => offer.wear == Some(EquipSlot::Armour(slot)),
-            Self::OffHand => match rule {
-                OffHandRule::AnyItem => true,
-                OffHandRule::TaggedItems => offer.off_hand_tag == OffHandTag::Member,
-            },
             Self::CraftResult => false,
         };
         if permits {
