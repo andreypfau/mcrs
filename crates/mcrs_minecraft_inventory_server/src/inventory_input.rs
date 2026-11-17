@@ -3,9 +3,9 @@ use bevy_ecs::message::Message;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_player_holders::HandAction;
 
 use crate::ClaimedSlot;
-use mcrs_minecraft_vanilla_inventory::HandAction;
 
 #[derive(Message, Clone, Debug, PartialEq)]
 #[non_exhaustive]

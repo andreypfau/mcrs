@@ -30,6 +30,7 @@ mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

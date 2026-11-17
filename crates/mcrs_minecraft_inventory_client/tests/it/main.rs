@@ -3,5 +3,6 @@
 mod clicks;
 mod closes;
 mod fixture;
+mod hands;
 mod packets;
 mod server;

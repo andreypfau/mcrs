@@ -7,6 +7,7 @@ use mcrs_minecraft_engine_inventory_click::MenuClickPlugin;
 use mcrs_minecraft_engine_item::ItemAppExt;
 
 use crate::CloseMenu;
+use crate::HandInput;
 use crate::InventoryClientSet;
 use crate::MenuClick;
 use crate::click_source::ClickSource;
@@ -18,6 +19,7 @@ use crate::outbox::Outbox;
 use crate::outbox::outbox_has_packets;
 use crate::predict_clicks::ClickScratch;
 use crate::predict_clicks::predict_clicks;
+use crate::predict_hands::predict_hands;
 use crate::respawn::respawn;
 use crate::send_outbox::send_outbox;
 use crate::set_cursor_item::set_cursor_item;
@@ -39,6 +41,7 @@ impl Plugin for InventoryClientPlugin {
         }
         app.add_message::<MenuClick>()
             .add_message::<CloseMenu>()
+            .add_message::<HandInput>()
             .init_resource::<ClickScratch>()
             .init_resource::<Outbox>()
             .configure_sets(
@@ -51,6 +54,7 @@ impl Plugin for InventoryClientPlugin {
                     (
                         predict_clicks.run_if(on_message::<MenuClick>),
                         close_menus.run_if(on_message::<CloseMenu>),
+                        predict_hands.run_if(on_message::<HandInput>),
                     )
                         .chain()
                         .in_set(InventoryClientSet::Predict),

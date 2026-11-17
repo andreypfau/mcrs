@@ -31,7 +31,6 @@ mod vanilla_inventory_requests;
 mod worn_equipment;
 
 pub use ender_items::EnderItems;
-pub use hand_action::HandAction;
 pub use inventory_persistence_plugin::InventoryPersistencePlugin;
 pub use inventory_set::InventorySet;
 pub use player_inventories::PlayerInventories;
