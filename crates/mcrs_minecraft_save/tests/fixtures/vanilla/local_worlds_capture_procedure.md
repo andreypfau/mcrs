@@ -9,7 +9,7 @@ cargo run -p mcrs_minecraft_update -- recapture local_worlds
 ```
 
 The task runs no server and no client. It makes its folders in a temporary directory and removes
-them at the end. Two runs on one machine write the same bytes. The lock cases start a second Java
+them at the end. It runs on macOS or Linux. Two runs on one machine write the same bytes. The lock cases start a second Java
 process of the same task, which takes or tests the lock of the game.
 
 ## Cases
@@ -38,4 +38,5 @@ file of `summaries` has the modification time 1700000000000 ms.
 - A saves folder that cannot be listed, and a refusal of a folder name other than an existing
   folder, are not cases.
 - The kind of lock and the effect of the close of a second handle are those of macOS and Linux.
-  Windows can differ.
+  Windows can differ. The task does not run on Windows: the lock of the game there denies the
+  read of `session.lock` through a second handle, so the task stops with an error at its start.

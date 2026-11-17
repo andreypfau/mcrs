@@ -912,8 +912,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Rule:** TITLE-SCR-006, step 9.
 - **Reference:** each title screen picks the logo when the client makes it (TITLE-SCR-002,
   step 2).
-- **Reason:** one pick for each start needs no state in each title screen. With the chance 0.0001,
-  a player sees no difference in practice.
+- **Reason:** with the chance 0.0001, a player sees no difference in practice.
 - **Visible to the client:** in effect no. A player sees the other logo with the chance 0.0001
   in each start, in place of each title screen.
 - **Bug reference:** `none`.

@@ -260,12 +260,14 @@ and the kind of lock; semantic for the rest. Confidence: medium.
 10. A create of the mcrs client takes the lock of the new folder at once after it makes the
     folder, before it writes another file (`client-world-screens.md`, WORLD-WRITE-002, step 3).
     The client holds the lock while it writes the files. Then it gives the lock to its local
-    server, as step 1 states. Thus the lock has no gap from the create to the stop of the server,
-    as in the game (SAVE-NEW-001, step 1). When the create fails, the client releases the lock.
+    server, as step 1 states. Thus the lock has no gap from the create to the stop of the server.
+    When the create fails, the client releases the lock.
 
-Provenance: `design` for the typed error of step 2 and for the screen of step 9.
-`source_suggested` for the hand-over of steps 1 and 10: the vanilla client takes the lock when it
-makes the folder and gives the same lock to its local server.
+Provenance: `design` for the typed error of step 2 and for the screen of step 9. `design` for the
+hand-over of steps 1 and 10: no other process can take a new world between the create and the
+start. `source_suggested` for the claim that the vanilla client does the same: it takes the lock
+when it makes the folder and gives the same lock to its local server (SAVE-NEW-001, step 1). No
+tool can drive the create of the vanilla client yet, so no experiment confirms it (issue #973).
 `source_suggested` for the content of step 1 and for the lock of the game that step 3 must meet.
 `design` for the kind of lock of mcrs in steps 3 and 4. On macOS, two processes show that a
 `flock` lock and a POSIX record lock conflict in both directions. In one process, a second handle
@@ -406,14 +408,18 @@ The game writes `level.dat` with a backup: the previous `level.dat` becomes `lev
 with `level.dat_old` and no `level.dat`. The server opens such a save directory as the vanilla
 server does:
 
-1. When `level.dat` does not exist and `level.dat_old` is a regular file, the server reads
-   `level.dat_old` as SAVE-LEVEL-001 states.
-2. When that read succeeds, the server renames `level.dat_old` to `level.dat`. Then it opens the
-   world from that file, as SAVE-NEW-003, rows 1 and 2, state. The checks of SAVE-VERSION-002
-   apply to it.
-3. When that read fails, the server does not start. The start returns an error that names
+1. When `level.dat` does not exist and `level.dat_old` is a regular file, the server applies the
+   check of `Data.DataVersion` of SAVE-VERSION-002, step 2, to `level.dat_old`. When the check
+   passes, it reads `level.dat_old` as SAVE-LEVEL-001 states. The check and the read occur before
+   the server renames a file.
+2. When the check and the read succeed, the server renames `level.dat_old` to `level.dat`. Then
+   it opens the world from that file, as SAVE-NEW-003, rows 1 and 2, state.
+3. When the read fails, the server does not start. The start returns an error that names
    `level.dat_old`. The server changes no file of the save directory.
-4. A `level.dat` that exists and does not read is a loud error (SAVE-FILE-002). The server does
+4. When the check fails, the server does not start. The start returns the error of
+   SAVE-VERSION-002, step 2. The server changes no file of the save directory: `level.dat_old`
+   keeps its name (SAVE-DEV-005).
+5. A `level.dat` that exists and does not read is a loud error (SAVE-FILE-002). The server does
    not read `level.dat_old` in its place (SAVE-DEV-003).
 
 - **Postconditions:** after a start on a save directory with only `level.dat_old`, the save
@@ -423,19 +429,25 @@ server does:
 The world list of the client does not read `level.dat_old`. Such a folder shows as an unreadable
 world (`client-world-screens.md`, WORLD-DIR-002, step 1).
 
-Provenance: `source_suggested_black_box_confirmed` for steps 1 and 2 and the postconditions by
+Provenance: `source_suggested_black_box_confirmed` for the read and the rename of steps 1 and 2
+and the postconditions by
 `crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `backup` (section Experiments, E5).
-`source_suggested` for step 3. `design` for step 4. Kind: semantic.
+`design` for the order of step 1 and for step 4: the game renames `level.dat_old` when the read
+succeeds, before it reads the version (SAVE-DEV-005). `source_suggested` for step 3. `design` for
+step 5. Kind: semantic.
 Confidence: medium.
 
 ## SAVE-VERSION-002: The version of `level.dat`
 
 1. The server reads `Data.DataVersion` of `level.dat` before it reads another file of the world.
+   When only `level.dat_old` exists, the server reads it from that file before it reads or
+   renames another file (SAVE-LEVEL-002, step 1).
 2. When `Data.DataVersion` is missing or is not `5127`, the server does not start. The start
    returns an error of its own type. The error names the save directory, the `DataVersion` that
    it found and `5127`. A caller can tell this error from another failed start.
-3. The server writes no file of the save directory for such a world. It releases the lock of
-   SAVE-LOCK-002 that it took.
+3. The server changes no file of the save directory for such a world, except the content of
+   `session.lock` of SAVE-LOCK-002, step 1. A `level.dat_old` keeps its name. The server releases
+   the lock that it took.
 4. A local world of the client shows the screen of a failed start with that error
    (`client-title-screen.md`, TITLE-LOAD-006, edge cases). The world list disables such a world
    before this (`client-world-screens.md`, WORLD-DIR-004, step 7), so a player meets the error
@@ -1284,7 +1296,7 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
 
 ### SAVE-DEV-003: A damaged `level.dat` does not fall back to the backup
 
-- **Rule:** SAVE-LEVEL-002, step 4.
+- **Rule:** SAVE-LEVEL-002, step 5.
 - **Reference:** when `level.dat` does not read, the vanilla server reads `level.dat_old`. It
   renames the damaged `level.dat` to `level.dat_corrupted_<date and time>` and renames
   `level.dat_old` to `level.dat`. Then it opens the world from the backup.
@@ -1306,5 +1318,19 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
   newer version can hold data that this version cannot read, and a save can lose it.
 - **Visible to the client:** yes, for a world of another version. The server does not start, and
   the error names the two versions.
+- **Bug reference:** `none`.
+- **Test:** a differential test uses only saves of `DataVersion` `5127`.
+
+### SAVE-DEV-005: A backup of another version keeps its name
+
+- **Rule:** SAVE-LEVEL-002, steps 1 and 4.
+- **Reference:** when `level.dat` is missing and `level.dat_old` reads, the vanilla server renames
+  `level.dat_old` to `level.dat` before it reads the version. A world of a version that it cannot
+  open then does not open, and the save directory keeps the renamed file.
+- **Reason:** mcrs does not open a world of another version (SAVE-DEV-004). A world that does not
+  open keeps its files as they are, so the game of the version of the world can open its backup
+  as before.
+- **Visible to the client:** only for a save directory with `level.dat_old`, no `level.dat`, and a
+  `DataVersion` that is not `5127`. The save directory keeps `level.dat_old`.
 - **Bug reference:** `none`.
 - **Test:** a differential test uses only saves of `DataVersion` `5127`.

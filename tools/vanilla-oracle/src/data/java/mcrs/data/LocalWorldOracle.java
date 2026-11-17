@@ -40,6 +40,9 @@ public final class LocalWorldOracle {
             System.out.println(DirectoryLock.isLocked(Path.of(args[1])));
             return;
         }
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            throw new IllegalStateException("the local world capture runs on macOS or Linux only: on Windows the lock of the game denies the read of session.lock through a second handle");
+        }
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
         Path out = Path.of(args[0]);
@@ -276,7 +279,10 @@ public final class LocalWorldOracle {
     private static boolean probe(final Path world) throws Exception {
         Process p = new ProcessBuilder(child("probe", world)).redirectError(ProcessBuilder.Redirect.INHERIT).start();
         String line = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8)).readLine();
-        p.waitFor();
-        return Boolean.parseBoolean(line);
+        int status = p.waitFor();
+        if (status != 0 || !("true".equals(line) || "false".equals(line))) {
+            throw new IOException("the probe process failed: exit status " + status + ", output " + line);
+        }
+        return line.equals("true");
     }
 }

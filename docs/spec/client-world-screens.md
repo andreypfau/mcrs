@@ -1155,8 +1155,13 @@ semantic. Confidence: medium.
 
 - **Postconditions:**
   - A stop of the client during step 3 leaves no `level.dat` with no `world_gen_settings.dat`.
-    A folder with no `level.dat` is not a world folder (WORLD-DIR-001). Its next start as a
-    server makes a new world with the seed of the file (`persistence.md`, SAVE-NEW-003).
+    A folder with no `level.dat` is not a world folder (WORLD-DIR-001). The next start of the
+    folder as a server makes a new world (`persistence.md`, SAVE-NEW-003):
+    - after a stop that follows the write of `world_gen_settings.dat`, with the seed of that file
+      (row "missing, present");
+    - after a stop that comes before that write, the folder has no `world_gen_settings.dat`. The
+      server uses the seed of its configuration, or a random seed (row "missing, missing",
+      step 1).
   - While the client makes the world, another process sees the folder as a locked folder or
     does not see it as a world folder. Thus another client cannot delete or open it.
   - The new world is in "Select World" the next time it opens. Its info line shows the game
@@ -1172,8 +1177,10 @@ a missing `initialized` reads as 1, and the server then does not complete a new 
 reads the seed and the dimensions from `world_gen_settings.dat` (`persistence.md`, SAVE-NEW-003),
 so the client writes that file. `design` for the order of step 3: the game writes only `level.dat`
 before the start, and an interrupted create of the game opens later with a random seed
-(`persistence.md`, SAVE-DEV-001). The lock of steps 3 and 4 is the behaviour of the game
-(`persistence.md`, SAVE-NEW-001, step 1). `source_suggested` for the rest. Kind: semantic.
+(`persistence.md`, SAVE-DEV-001). `design` for the hand-over of the lock in step 4
+(`persistence.md`, SAVE-LOCK-002, step 10). The game probably holds the lock in the same way
+(`persistence.md`, SAVE-NEW-001, step 1), but no experiment confirms it (issue #973).
+`source_suggested` for the rest. Kind: semantic.
 Confidence: medium.
 
 ---
