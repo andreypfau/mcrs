@@ -635,6 +635,7 @@
           "clear @a",
           "kill @e[type=item]",
           "gamemode survival GiveProbeA",
+          "scoreboard players set GiveProbeA picked_stone 0",
           "scoreboard players get GiveProbeA picked_stone",
           "give GiveProbeA stone 5",
           "scoreboard players get GiveProbeA picked_stone",

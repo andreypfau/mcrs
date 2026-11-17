@@ -25,4 +25,6 @@ pub use player_ban::PlayerBan;
 pub use run::run;
 pub use scenario::{Action, Observe, PlayerFileRead, Scenario, Step, Target};
 pub use sound_played::SoundPlayed;
-pub use trace::{ConnectionState, Disconnect, Observed, StepTrace, Trace, TraceVersion};
+pub use trace::{
+    ChatMessage, ConnectionState, Disconnect, Observed, StepTrace, Trace, TraceVersion,
+};

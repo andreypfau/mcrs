@@ -69,6 +69,9 @@ pub enum Observed {
     Console {
         /// The replies that the server printed, in order.
         output: Vec<String>,
+        /// The system chat messages the clients received, in the order of their arrival.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        chat: Vec<ChatMessage>,
     },
     /// The host stopped the server and started it again.
     Restarted,
@@ -80,6 +83,12 @@ pub enum ConnectionState {
     Login,
     Configuration,
     Play,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub client: String,
+    pub text: Text,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -1,8 +1,8 @@
 use crate::client;
 use crate::client::{Event, Login, Order, Signal};
 use crate::{
-    Action, CommandTree, ConnectionState, Disconnect, Host, MenuEvent, Observe, Observed, Scenario,
-    SoundPlayed, StepTrace, Trace, TraceVersion,
+    Action, ChatMessage, CommandTree, ConnectionState, Disconnect, Host, MenuEvent, Observe,
+    Observed, Scenario, SoundPlayed, StepTrace, Trace, TraceVersion,
 };
 use anyhow::Context;
 use mcrs_minecraft_core::VERSION;
@@ -239,8 +239,16 @@ impl Clients {
         host: &mut H,
     ) -> anyhow::Result<Observed> {
         let output = host.console(lines)?;
-        self.settle(self.quiet).await;
-        Ok(Observed::Console { output })
+        let mut chat = Vec::new();
+        for event in self.settle(self.quiet).await {
+            if let Signal::Chat(text) = event.signal {
+                chat.push(ChatMessage {
+                    client: event.client,
+                    text,
+                });
+            }
+        }
+        Ok(Observed::Console { output, chat })
     }
 
     async fn send(&mut self, sender: &str, order: Order) -> anyhow::Result<Observed> {

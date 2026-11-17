@@ -90,7 +90,7 @@ version. Each step has one result:
 | `left` | no content |
 | `command` | `replies`: the system chat messages that the sender gets; `disconnects`: each client that the server disconnects, with the reason |
 | `sent` | `disconnects`, as for `command`; the result of a step that sends a game packet |
-| `console` | `output`: the reply texts that the server printed for the commands, in order, without the log prefix |
+| `console` | `output`: the reply texts that the server printed for the commands, in order, without the log prefix; `chat`: the system chat messages that the clients received, each with `client` and `text`, in the order of their arrival |
 | `restarted` | no content |
 
 With `observe.inventory`, each step also has `inventory`: the menu packets that the clients get
