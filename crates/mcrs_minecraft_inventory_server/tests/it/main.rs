@@ -1,6 +1,7 @@
 #![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
 
 mod allocations;
+mod armour_slot;
 mod click;
 mod close;
 mod creative;

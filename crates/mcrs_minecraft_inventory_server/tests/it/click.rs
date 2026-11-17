@@ -22,6 +22,8 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
+use mcrs_minecraft_item_stack::Equippable;
+use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
@@ -458,5 +460,48 @@ fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
 
         assert_eq!(stacks(world, player), case.inventory, "{}", case.name);
         assert_eq!(sent(world), case.sent, "{}", case.name);
+    }
+}
+
+#[test]
+fn inv_slt_003_a_helmet_enters_the_head_slot_by_a_click_and_by_a_quick_move() {
+    const HEAD_ENTRY: u16 = 5;
+    const FROM: u16 = 9;
+    fn place(state_id: i32) -> Vec<Packet> {
+        vec![
+            Packet::pick_up(state_id, FROM),
+            Packet::pick_up(state_id, HEAD_ENTRY),
+        ]
+    }
+    fn quick_move(state_id: i32) -> Vec<Packet> {
+        vec![Packet {
+            kind: ClickKind::QuickMove,
+            ..Packet::pick_up(state_id, FROM)
+        }]
+    }
+    let paths: [(&str, fn(i32) -> Vec<Packet>); 2] =
+        [("pick up and place", place), ("quick move", quick_move)];
+    for (name, packets) in paths {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        let helmet = ItemStack::new(STONE, Count::new(1).expect("a count above 0"))
+            .set(Equippable::new(EquippableSlot::Head));
+        world.commands().spawn_stack(helmet).put_at(player, FROM);
+        world.flush();
+        world.run_schedule(FixedUpdate);
+        sent(world);
+        let state = i32::from(state_id(world, player));
+
+        for packet in packets(state) {
+            click(world, player, packet);
+        }
+        world.run_schedule(FixedUpdate);
+
+        assert_eq!(
+            stacks(world, player),
+            [(0, STONE, 5), (39, STONE, 1)],
+            "{name}"
+        );
     }
 }

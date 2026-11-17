@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+mod armour_place;
+mod player_entity_type;
 mod player_holders;
 mod player_holders_plugin;
 mod player_policy;
