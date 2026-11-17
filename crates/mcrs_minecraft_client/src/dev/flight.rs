@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use mcrs_minecraft_client_world::abilities::Abilities;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_client_world::local_motion::LocalMotion;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;

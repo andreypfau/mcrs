@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
-use mcrs_minecraft_client_world::abilities::Abilities;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_client_world::local_motion::{self, LocalMotion};
 use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};

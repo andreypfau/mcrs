@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_game_mode"
-description = "The game modes of a player, their names and their wire forms"
+description = "The game modes of a player, their names and their wire forms, and the abilities that a game mode gives"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -8,7 +8,7 @@ use mcrs_minecraft_entity_attribute::{
     AttributeInstances, AttributeModifier, HomeSlot, Instance, InstanceModifier, Modifier, fold,
 };
 use mcrs_minecraft_entity_visual::SyncedData;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{Abilities, GameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{MotionAttributes, PlayerState, SprintSpeed};
 use mcrs_minecraft_pose::Pose;
@@ -19,7 +19,7 @@ use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::entity_data_index::POSE;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::abilities::{self, Abilities};
+use crate::abilities;
 use crate::apply_entity_data::apply_entity_data;
 use crate::joined_game::JoinedGame;
 use crate::local_player::{LastSentInput, Sprint};
