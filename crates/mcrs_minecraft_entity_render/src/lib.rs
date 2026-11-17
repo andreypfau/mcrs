@@ -54,7 +54,7 @@ pub use player_skin::{PlayerModel, PlayerSkin, SKIN_SLOTS};
 pub use plugin::{
     EntityPasses, EntityRenderPlugin, EntitySlotSystems, FigureViewSystems, entity_passes,
 };
-pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError};
+pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError, QueryInput};
 pub use records::{
     CULL_VALID, ClipSlot, CullRecord, InputRecord, STATE_BABY, STATE_HIDDEN_SHIFT, ScatterEntry,
     StateRecord, TickRecord, f16_up,

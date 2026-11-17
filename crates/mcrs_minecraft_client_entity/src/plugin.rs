@@ -21,6 +21,7 @@ use crate::remove_spent_entities::remove_spent_entities;
 use crate::simulated_step::{
     hold_entities_that_do_not_step, step_simulated_entities, stir_changed_blocks,
 };
+use crate::sleeping_beds::{BedFacings, build_bed_facings, find_sleeping_beds};
 use crate::tracked_velocity::tick_velocities;
 
 pub struct ClientEntityPlugin;
@@ -39,6 +40,14 @@ impl Plugin for ClientEntityPlugin {
                 FixedUpdate,
                 (
                     tick_velocities.after(ClientEntityTick),
+                    build_bed_facings.run_if(
+                        resource_exists::<Blocks>
+                            .and_then(resource_exists_and_changed::<CurrentRegistries>),
+                    ),
+                    find_sleeping_beds
+                        .after(ClientEntityTick)
+                        .run_if(resource_exists::<ColumnStore>)
+                        .run_if(resource_exists::<BedFacings>),
                     build_client_tables
                         .run_if(
                             resource_exists::<Blocks>

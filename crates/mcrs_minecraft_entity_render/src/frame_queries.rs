@@ -70,6 +70,18 @@ impl QuerySource for FrameQueries<'_> {
             EntityQuery::IsSprinting => Self::flag(frame.sprinting),
             EntityQuery::IsSwimming => Self::flag(frame.swimming),
             EntityQuery::IsInvisible => Self::flag(frame.invisible),
+            EntityQuery::IsFallFlying => Self::flag(frame.fall_flying),
+            EntityQuery::IsSpinAttacking => Self::flag(frame.spin_attacking),
+            EntityQuery::IsUsingItem => Self::flag(frame.using_item),
+            EntityQuery::SwimAmount => Value::Number(frame.swim_amount),
+            EntityQuery::FallFlyingTicks => Value::Number(frame.fall_flying_ticks as f32),
+            EntityQuery::VelocityX => Value::Number(frame.velocity.x as f32),
+            EntityQuery::VelocityZ => Value::Number(frame.velocity.z as f32),
+            EntityQuery::TickVelocityLengthSquared => {
+                Value::Number(frame.tick_velocity_length_squared as f32)
+            }
+            EntityQuery::BedYRotation => Value::Number(frame.bed_y_rotation),
+            EntityQuery::HasBed => Self::flag(frame.has_bed),
             _ => Value::Number(0.0),
         };
         Some(value)

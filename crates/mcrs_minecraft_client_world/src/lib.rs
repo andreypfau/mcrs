@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod apply_entity_data;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;

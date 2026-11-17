@@ -39,5 +39,13 @@ pub fn input_record(
             };
         }
     }
+    for input in &layout.queries {
+        if let Some(value) = record.values.get_mut(input.value) {
+            *value = animation
+                .query_number(input.slot)
+                .filter(|number| number.is_finite())
+                .unwrap_or(0.0);
+        }
+    }
     record
 }

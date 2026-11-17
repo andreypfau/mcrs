@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_entity::SPRINT_MODIFIER;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{EntityTypeData, SPRINT_MODIFIER};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, AttributeModifier, HomeSlot, Instance, InstanceModifier, Modifier, fold,
@@ -14,12 +15,11 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
 };
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
-use mcrs_minecraft_protocol_game::entity_data_index::{
-    LIVING_FLAGS, POSE, SHARED_FLAGS, SLEEPING_POSITION,
-};
+use mcrs_minecraft_protocol_game::entity_data_index::POSE;
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::abilities::{self, Abilities};
+use crate::apply_entity_data::apply_entity_data;
 use crate::joined_game::JoinedGame;
 use crate::local_player::{LastSentInput, Sprint};
 use crate::player::Player;
@@ -49,24 +49,23 @@ pub(crate) fn on_set_entity_data(
     if !own {
         return;
     }
-    let Ok((mut motion, mut synced)) = player.single_mut() else {
+    let Ok((motion, mut synced)) = player.single_mut() else {
         return;
     };
-    for entry in &packet.metadata.0 {
-        match (entry.index, &entry.value) {
-            (POSE, MetaDataValue::Pose(pose)) => {
-                motion
-                    .reborrow()
-                    .map_unchanged(|motion| &mut motion.0.pose)
-                    .set_if_neq(*pose);
-            }
-            (SHARED_FLAGS, MetaDataValue::Byte(flags)) => synced.shared_flags = *flags as u8,
-            (LIVING_FLAGS, MetaDataValue::Byte(flags)) => synced.living_flags = *flags as u8,
-            (SLEEPING_POSITION, MetaDataValue::OptionalBlockPos(at)) => {
-                synced.sleeping_position = *at;
-            }
-            _ => {}
-        }
+    apply_entity_data(
+        &mut synced,
+        EntityTypeData::of(EntityType::Player),
+        &packet.metadata.0,
+    );
+    let sends_pose = packet
+        .metadata
+        .0
+        .iter()
+        .any(|entry| entry.index == POSE && matches!(entry.value, MetaDataValue::Pose(_)));
+    if sends_pose {
+        motion
+            .map_unchanged(|motion| &mut motion.0.pose)
+            .set_if_neq(synced.pose);
     }
 }
 

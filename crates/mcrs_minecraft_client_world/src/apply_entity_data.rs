@@ -3,7 +3,7 @@ use mcrs_minecraft_entity_visual::{SyncedData, UPSIDE_DOWN_NAMES, VariantId};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
-    SHARED_FLAGS, TICKS_FROZEN,
+    SHARED_FLAGS, SLEEPING_POSITION, TICKS_FROZEN,
 };
 use mcrs_minecraft_protocol_game::text::{Text, TextContent};
 
@@ -33,6 +33,9 @@ fn apply_entry(synced: &mut SyncedData, data: Option<&EntityTypeData>, entry: &M
             synced.living_flags = *flags as u8;
         }
         (HEALTH, MetaDataValue::Float(health)) if living => synced.health = *health,
+        (SLEEPING_POSITION, MetaDataValue::OptionalBlockPos(at)) if living => {
+            synced.sleeping_position = *at;
+        }
         (MOB_FLAGS, MetaDataValue::Byte(flags)) if mob => synced.mob_flags = *flags as u8,
         (BABY, MetaDataValue::Boolean(baby)) if ageable => synced.baby = *baby,
         (AGE_LOCKED, MetaDataValue::Boolean(locked)) if ageable => synced.age_locked = *locked,
