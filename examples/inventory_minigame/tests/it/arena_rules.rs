@@ -32,7 +32,7 @@ fn app() -> App {
     let mut app = App::new();
     app.add_plugins((
         ItemPlugin::new(ItemTable::leak((0..3).map(|_| Vec::new()))),
-        VanillaInventoryPlugin::default(),
+        VanillaInventoryPlugin,
         ArenaRulesPlugin {
             denial_source: DENIAL_SOURCE,
         },

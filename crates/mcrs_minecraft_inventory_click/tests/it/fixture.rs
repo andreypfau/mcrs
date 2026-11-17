@@ -14,7 +14,6 @@ use mcrs_minecraft_inventory_player::ArmourLock;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
 use mcrs_minecraft_inventory_player::Holder;
-use mcrs_minecraft_inventory_player::OffHandRule;
 use mcrs_minecraft_inventory_player::Offer;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_transaction::Filter;
@@ -113,6 +112,7 @@ pub struct Player {
     result: Stack,
     pub mode: PlayerMode,
     pub selected: u8,
+    refusing: Vec<MenuSlot>,
 }
 
 pub const CURSOR: MenuSlot = MenuSlot::new(Holder::Cursor, 0);
@@ -131,11 +131,18 @@ impl Player {
             result: None,
             mode: PlayerMode::NotCreative,
             selected: 0,
+            refusing: Vec::new(),
         }
     }
 
     pub fn with(mut self, index: u16, stack: Stack) -> Self {
         *self.stack_mut(entry(index)) = stack;
+        self
+    }
+
+    /// Gives the entry `index` a place filter that refuses each stack.
+    pub fn refusing(mut self, index: u16) -> Self {
+        self.refusing.push(entry(index));
         self
     }
 
@@ -206,11 +213,11 @@ impl Slots for Player {
         let Some(rule) = slot.holder.slot(slot.index) else {
             return Filter::Refuses;
         };
-        let offer = Offer {
-            wear: stack.equip,
-            ..Offer::default()
-        };
-        rule.filter.place(offer, OffHandRule::AnyItem)
+        if self.refusing.contains(&slot) {
+            return Filter::Refuses;
+        }
+        let offer = Offer { wear: stack.equip };
+        rule.filter.place(offer)
     }
 
     fn equal(&self, left: Item, right: Item) -> bool {

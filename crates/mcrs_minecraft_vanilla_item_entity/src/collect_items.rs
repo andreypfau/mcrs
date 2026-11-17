@@ -12,14 +12,19 @@ use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_item::Dropped;
+use mcrs_minecraft_engine_item::GateQuery;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotPolicy;
+use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_inventory_player::INVENTORY_SLOTS;
 use mcrs_minecraft_inventory_player::Slot;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_player::insert;
+use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::can_pick_up;
 use mcrs_minecraft_item_entity::pickup_box;
@@ -68,11 +73,16 @@ pub(crate) fn collect_items(
         let owner = owner.map(|owner| owner.0);
         for &(uuid, collector, reach) in sorted.iter() {
             if can_pick_up(item.pickup_delay, owner, uuid) && reach.intersects(&bounds) {
-                let offer = Offer {
-                    stack: stepped.stack,
-                    collector,
-                };
+                let stack = stepped.stack;
                 commands.queue(move |world: &mut World| {
+                    if world.resource::<Claimed>().0.contains(&stack) {
+                        return;
+                    }
+                    let offer = Offer {
+                        stack,
+                        collector,
+                        refused: refused_slots(world, stack, collector),
+                    };
                     if let Err(error) = world.run_system_cached_with(pick_up, offer) {
                         tracing::error!(%error, "the pickup of an item entity did not run");
                     }
@@ -86,6 +96,36 @@ pub(crate) fn collect_items(
 struct Offer {
     stack: Entity,
     collector: Entity,
+    /// The bit `n` is set when the place gate of the slot `n` of the collector refuses the stack.
+    refused: u64,
+}
+
+fn refuses(refused: u64, index: u16) -> bool {
+    refused
+        .checked_shr(u32::from(index))
+        .is_some_and(|bits| bits & 1 == 1)
+}
+
+/// The slots of `collector` whose place gate refuses `stack` (INV-INS-003), as a mask.
+fn refused_slots(world: &World, stack: Entity, collector: Entity) -> u64 {
+    let Some(policy) = world.get::<SlotPolicy>(collector) else {
+        return 0;
+    };
+    (0..INVENTORY_SLOTS)
+        .filter(|&index| {
+            let query = GateQuery {
+                slot: SlotRef {
+                    holder: collector,
+                    index,
+                },
+                actor: collector,
+                stack,
+            };
+            policy.access(index).place.answer(world, &query) == Filter::Refuses
+        })
+        .fold(0, |mask, index| {
+            mask | 1_u64.checked_shl(u32::from(index)).unwrap_or(0)
+        })
 }
 
 /// Inserts the items of a dropped stack into the slots of a collector (IEN-PCK-003 to
@@ -121,6 +161,7 @@ fn pick_up(
         Stacking::Stacks
     };
     let slot = |index: u16| match slots.get(usize::from(index)) {
+        _ if refuses(offer.refused, index) => Slot::Other,
         None if usize::from(index) < slots.len() => Slot::Empty,
         Some(held) if reader.mergeable(offer.stack, held) => {
             let held_count = reader.count(held).map_or(max, Count::get);

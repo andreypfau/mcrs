@@ -11,7 +11,8 @@ pub enum Slot {
     Alike {
         room: u8,
     },
-    /// A stack that is not alike, or a slot that does not exist.
+    /// A stack that is not alike, a slot whose place filter refuses the stack (INV-INS-003), or a
+    /// slot that does not exist.
     Other,
 }
 
@@ -27,7 +28,7 @@ pub struct Insertion {
 /// Inserts `count` items whose maximum stack size is `max` into a player inventory whose
 /// selected hotbar slot is `selected`. `merge` gets each alike slot with the items that it takes,
 /// in the order of the rule. A stack that stays `Alone` goes only to the first empty main slot. The insert
-/// reads no place filter and never fills an armour slot or an empty off-hand slot.
+/// reads no place filter itself and never fills an armour slot or an empty off-hand slot.
 pub fn insert(
     count: u8,
     max: u8,

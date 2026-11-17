@@ -1,6 +1,9 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use glam::DVec3;
+use mcrs_minecraft_engine_item::Gate;
+use mcrs_minecraft_engine_item::SlotAccess;
+use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Start;
@@ -150,4 +153,38 @@ fn ien_pck_007_of_two_collectors_in_reach_the_lower_uuid_takes_the_item() {
         ],
         [Some(10), None]
     );
+}
+
+/// INV-INS-003: the pickup skips each slot whose place filter refuses the stack.
+#[test]
+fn inv_ins_003_a_pickup_skips_each_slot_that_refuses_the_stack() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = collector(world, FEET, Collect::Survival);
+    fill_slot(world, player, 3, STONE, 10);
+    let open = SlotAccess {
+        limit: 99,
+        take: Gate::Permits,
+        place: Gate::Permits,
+    };
+    let mut policy = SlotPolicy::uniform(open);
+    for index in [0, 3] {
+        policy.set(
+            index,
+            SlotAccess {
+                place: Gate::Refuses,
+                ..open
+            },
+        );
+    }
+    world.entity_mut(player).insert(policy);
+    launch(world, STONE, 20, at(FEET));
+
+    run(&mut app, 1);
+
+    let world = app.world();
+    let counts: Vec<Option<u8>> = (0..4)
+        .map(|index| slot_count(world, player, index))
+        .collect();
+    assert_eq!(counts, [None, Some(20), None, Some(10)]);
 }

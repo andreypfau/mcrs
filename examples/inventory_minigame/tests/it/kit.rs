@@ -38,7 +38,7 @@ fn a_player_holds_the_kit_in_the_game_and_its_own_items_after_it() {
     let mut app = App::new();
     app.add_plugins((
         ItemPlugin::new(ItemTable::leak((0..5).map(|_| Vec::new()))),
-        VanillaInventoryPlugin::default(),
+        VanillaInventoryPlugin,
         KitPlugin::new(kit.clone()),
     ));
     let world = app.world_mut();

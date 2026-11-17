@@ -66,7 +66,7 @@ pub fn app() -> App {
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
         .add_plugins((
             ItemPlugin::new(*TABLE),
-            VanillaInventoryPlugin::default(),
+            VanillaInventoryPlugin,
             InventoryServerPlugin,
             InventoryPersistencePlugin,
         ));

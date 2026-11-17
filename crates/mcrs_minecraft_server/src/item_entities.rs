@@ -42,7 +42,7 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
     sub_app.add_plugins((
         ItemPlugin::new(table),
         ItemEntityPlugin,
-        VanillaInventoryPlugin::default(),
+        VanillaInventoryPlugin,
         InventoryServerPlugin,
     ));
     sub_app
