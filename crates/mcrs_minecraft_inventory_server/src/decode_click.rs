@@ -2,12 +2,11 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Local;
 use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_engine_registries::read_packet_hashed;
 use mcrs_minecraft_inventory_client_view::SlotView;
-use mcrs_minecraft_item_stack::read_hashed;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
-use mcrs_minecraft_wire::Encode;
 
 use crate::ClaimedSlot;
 use crate::InventoryInput;
@@ -45,11 +44,7 @@ fn claimed_view(
     names: &RegistryNames<'_>,
     bytes: &mut Vec<u8>,
 ) -> SlotView {
-    bytes.clear();
-    if stack.encode(&mut *bytes).is_err() {
-        return SlotView::Unknown;
-    }
-    match read_hashed(&mut bytes.as_slice(), names) {
+    match read_packet_hashed(stack, names, bytes) {
         Ok(hashed) => SlotView::Hashed(hashed),
         Err(_) => SlotView::Unknown,
     }

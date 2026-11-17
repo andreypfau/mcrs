@@ -37,3 +37,6 @@ tracing.workspace = true
 
 [features]
 test-support = ["mcrs_minecraft_game_registries/test-support"]
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
