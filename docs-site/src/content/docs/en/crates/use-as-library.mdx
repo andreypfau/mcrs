@@ -6,19 +6,19 @@ sidebar:
 kind: how-to
 audience: [rust, jvm]
 stability: wip
-tracking: [321, 287, 288]
+tracking: [321, 287]
 sources:
   - rust-toolchain.toml
   - xtask/src/checks.rs
   - crates/mcrs_minecraft_core/src/version.rs
-  - crates/mcrs_minecraft_game_rule/src/lib.rs
+  - examples/README.md
   - issue:321
   - issue:287
   - issue:288
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -28,7 +28,7 @@ import Status from '~/components/Status.astro';
 You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are planned.[^287][^288]
+Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Five library examples under `examples/` each have a test of their dependency tree.[^288] Minimal server, lobby and arena examples are planned.[^287]
 </Aside>
 
 ## 1. Add a git dependency with a pinned rev
@@ -68,11 +68,11 @@ If Bevy shows up for a crate from the no-Bevy list, that is a bug in mcrs, so pl
 
 ## What does not work yet
 
-You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
+You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Among the protocol, network and game data crates the known case is `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
 
 The same issue lists error types as the second blocker. The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching on the text.
 
-There is no example project to copy. The first small one is [Parse SNBT in your own project](/docs/en/crates/hello-nbt/), and it is itself untested outside the workspace.
+There is no example project outside the repository to copy. The programs under [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples) are workspace members and take their dependencies with `workspace = true`, so they do not build on their own outside the repository. The smallest tutorial is [Parse SNBT in your own project](/docs/en/crates/hello-nbt/), and nobody has tested it outside the workspace either.
 
 The API is not stable. Types change with every game snapshot, so pin a rev and read the changes before you move it.
 
@@ -82,5 +82,5 @@ mcrs has no artifact on Maven Central and no plugin jar that you drop into a fol
 
 [^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
 [^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.
-[^288]: <Status issue={288} /> Plans the examples as workspace members, each with a dependency-tree test.
+[^288]: <Status issue={288} /> Workspace members under `examples/`, each with a dependency-tree test.
 [^437]: <Status issue={437} /> The decision against a facade or an API crate: the public surface is the crates and plugins.
