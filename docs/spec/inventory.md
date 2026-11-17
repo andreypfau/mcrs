@@ -211,8 +211,8 @@ menu exists. Thus the cursor of the new menu then holds the empty stack.
 
 The vanilla client also accepts `open_screen` without `container_close` before it. With the
 `container_close` of step 1, the vanilla client closes the screen of the replaced menu first. It
-then shows the new screen and puts the mouse pointer at the centre of the window. Section 11, U5,
-states the open while the inventory menu is the open menu.
+then shows the new screen and puts the mouse pointer at the centre of the window. INV-MNU-011
+states the cursor when the inventory menu is the open menu.
 
 **INV-MNU-008** (`source_suggested`, semantic). Each player has a menu counter. The counter is
 0 when the player joins. Step 2 of INV-MNU-007 sets the counter to `(counter mod 100) + 1`. The new
@@ -239,6 +239,13 @@ empty text (TXT-MOD-004). The `open_screen` packet then carries the bytes `08 00
 The vanilla client then shows no text in the place of the title. Reason: the packet has no form
 without a title. The game has no default title for a menu type, because each opener gives its own
 title. For example, a chest and a barrel have the same menu type and different titles.
+
+**INV-MNU-011** (`design`, semantic). When the inventory menu is the open menu, step 1 of
+INV-MNU-007 does nothing. The cursor stack stays in the cursor slot. The `container_set_content`
+packet of step 4 carries that stack as the cursor, and the screen of the new menu shows it.
+The vanilla server sends the empty stack as the cursor and keeps the stack where the player cannot
+see it. Reason: each player has one cursor slot (INV-SLT-002), and the player can see each stack
+that the player holds. See deviation D8.
 
 ## 3. The selected slot and the hand actions
 
@@ -614,6 +621,13 @@ selected slot that the file holds. The server sends them as INV-SEL-003 and INV-
 - **Visible to the client**: only when a plugin gives a main slot or the off-hand slot a place
   filter. The reference has no such plugin.
 
+**D8.**
+
+- **Rule**: INV-MNU-011.
+- **Reference**: when the server opens a menu while the inventory menu is the open menu, the cursor
+  stack stays with the inventory menu. The new menu has the empty stack as its cursor.
+- **Visible to the client**: yes. The stack shows on the cursor of the new screen.
+
 ## 11. Unresolved
 
 - **U2**: INV-SYN-003. The place of the comparison in the tick of the player, relative to the
@@ -624,10 +638,3 @@ selected slot that the file holds. The server sends them as INV-SEL-003 and INV-
   helmet to go to the hotbar by row 5. Is this result a quirk that mcrs keeps, or a deviation? Until
   the owner decides, the rule
   states the vanilla result.
-
-- **U5**: INV-MNU-007. The server opens a menu while the inventory menu is the open menu, and the
-  cursor holds a stack. The vanilla server does no step of INV-CLS-001 then. The stack stays on
-  the cursor of the inventory menu, and the `container_set_content` of step 4 carries the empty
-  stack as the cursor. A player has one cursor (INV-SLT-002). Does the stack stay on the cursor of
-  the new menu, as a deviation, or does it enter the player inventory as step 1 of INV-CLS-001
-  states?
