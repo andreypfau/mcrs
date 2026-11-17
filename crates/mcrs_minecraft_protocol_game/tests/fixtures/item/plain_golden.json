@@ -1157,6 +1157,94 @@
       "nbt": "0a0300086475726174696f6e0000000300",
       "hash": -271167860,
       "wire": "0103"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.5,\"z\":-2.5,\"rotation\":90.0}}",
+      "json": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.5,\"z\":-2.5,\"rotation\":90.0}}",
+      "nbt": "0a0a00026d31050008726f746174696f6e42b40000060001783ff80000000000000600017ac0040000000000000800047479706500106d696e6563726166743a706c617965720000",
+      "hash": -228964035,
+      "wire": "0a0a00026d31050008726f746174696f6e42b40000060001783ff80000000000000600017ac0040000000000000800047479706500106d696e6563726166743a706c617965720000"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"\":{\"type\":\"red_x\",\"x\":1,\"z\":-2,\"rotation\":-45,\"extra\":true}}",
+      "json": "{\"\":{\"type\":\"minecraft:red_x\",\"x\":1.0,\"z\":-2.0,\"rotation\":-45.0}}",
+      "nbt": "0a0a0000050008726f746174696f6ec2340000060001783ff00000000000000600017ac00000000000000008000474797065000f6d696e6563726166743a7265645f780000",
+      "hash": 964638558,
+      "wire": "0a0a0000050008726f746174696f6ec2340000060001783ff00000000000000600017ac00000000000000008000474797065000f6d696e6563726166743a7265645f780000"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"a\":{\"type\":\"minecraft:target_x\",\"x\":0.0,\"z\":0.0,\"rotation\":0.0},\"b\":{\"type\":\"minecraft:banner_red\",\"x\":-1.0E300,\"z\":1.0E-300,\"rotation\":359.5}}",
+      "json": "{\"a\":{\"type\":\"minecraft:target_x\",\"x\":0.0,\"z\":0.0,\"rotation\":0.0},\"b\":{\"type\":\"minecraft:banner_red\",\"x\":-1.0E300,\"z\":1.0E-300,\"rotation\":359.5}}",
+      "nbt": "0a0a000161050008726f746174696f6e000000000600017800000000000000000600017a00000000000000000800047479706500126d696e6563726166743a7461726765745f78000a000162050008726f746174696f6e43b3c00006000178fe37e43c8800759c0600017a01a56e1fc2f8f3590800047479706500146d696e6563726166743a62616e6e65725f7265640000",
+      "hash": 598523218,
+      "wire": "0a0a000161050008726f746174696f6e000000000600017800000000000000000600017a00000000000000000800047479706500126d696e6563726166743a7461726765745f78000a000162050008726f746174696f6e43b3c00006000178fe37e43c8800759c0600017a01a56e1fc2f8f3590800047479706500146d696e6563726166743a62616e6e65725f7265640000"
+    },
+    {
+      "kind": "profile",
+      "input": "\"Notch\"",
+      "json": "{\"name\":\"Notch\"}",
+      "nbt": "0a0800046e616d6500054e6f74636800",
+      "hash": -1744970702,
+      "wire": "0001054e6f746368000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "\"\"",
+      "json": "{\"name\":\"\"}",
+      "nbt": "0a0800046e616d65000000",
+      "hash": -1688942415,
+      "wire": "000100000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0000000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3,4],\"name\":\"Steve\"}",
+      "json": "{\"id\":[1,2,3,4],\"name\":\"Steve\"}",
+      "nbt": "0a0800046e616d65000553746576650b00026964000000040000000100000002000000030000000400",
+      "hash": -26662935,
+      "wire": "01000000010000000200000003000000040553746576650000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1.9,2,3,4]}",
+      "json": "{\"id\":[1,2,3,4]}",
+      "nbt": "0a0b00026964000000040000000100000002000000030000000400",
+      "hash": 993081521,
+      "wire": "000001000000010000000200000003000000040000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"abcdefghijklmnop\",\"unknown\":1,\"model\":\"slim\"}",
+      "json": "{\"name\":\"abcdefghijklmnop\",\"model\":\"slim\"}",
+      "nbt": "0a0800046e616d6500106162636465666768696a6b6c6d6e6f700800056d6f64656c0004736c696d00",
+      "hash": -558759183,
+      "wire": "0001106162636465666768696a6b6c6d6e6f7000000000000101"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3,4],\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"textures\",\"value\":\"t\"},{\"name\":\"x\",\"value\":\"2\"}]}",
+      "json": "{\"id\":[1,2,3,4],\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"textures\",\"value\":\"t\"}]}",
+      "nbt": "0a0800046e616d65000553746576650b00026964000000040000000100000002000000030000000409000a70726f706572746965730a000000030800046e616d6500017808000576616c7565000131000800046e616d6500017808000576616c7565000132000800046e616d650008746578747572657308000576616c75650001740000",
+      "hash": -424142806,
+      "wire": "0100000001000000020000000300000004055374657665030178013100017801320008746578747572657301740000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":{\"textures\":[\"v1\",\"v2\"]}}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"textures\",\"value\":\"v1\"},{\"name\":\"textures\",\"value\":\"v2\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d650008746578747572657308000576616c756500027631000800046e616d650008746578747572657308000576616c7565000276320000",
+      "hash": -193760865,
+      "wire": "00010553746576650002087465787475726573027631000874657874757265730276320000000000"
     }
   ],
   "errors": [
@@ -1404,6 +1492,56 @@
       "kind": "villager_food",
       "input": "{\"nutrition\":null}",
       "error": "No key nutrition in MapLike[{\"nutrition\":null}]"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}}",
+      "error": "No key rotation in MapLike[{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}] missed input: {\"m1\":{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}}"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":\"1\",\"z\":2.0,\"rotation\":0.0}}",
+      "error": "Not a number: \"1\" missed input: {\"m1\":{\"type\":\"minecraft:player\",\"x\":\"1\",\"z\":2.0,\"rotation\":0.0}}"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3]}",
+      "error": "Failed to parse either. First: Input is not a list of 4 ints; No key name in MapLike[{\"id\":[1,2,3]}]; Input is not a list of 4 ints; Second: Not a string: {\"id\":[1,2,3]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":\"00000001-0000-0002-0000-000300000004\"}",
+      "error": "Failed to parse either. First: Not a json array: \"00000001-0000-0002-0000-000300000004\"; No key name in MapLike[{\"id\":\"00000001-0000-0002-0000-000300000004\"}]; Not a json array: \"00000001-0000-0002-0000-000300000004\"; Second: Not a string: {\"id\":\"00000001-0000-0002-0000-000300000004\"}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"é\"}",
+      "error": "Failed to parse either. First: Player name contained disallowed characters: 'é'; Player name contained disallowed characters: 'é'; No key id in MapLike[{\"name\":\"é\"}]; Second: Not a string: {\"name\":\"é\"}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"model\":\"default\"}",
+      "error": "Unknown element name: default"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}",
+      "error": "Failed to parse either. First: List is too long: 17, expected range [0-16]; List is too long: 17, expected range [0-16]; No key name in MapLike[{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}]; No key id in MapLike[{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}]; Second: Not a string: {\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}",
+      "error": "Failed to parse either. First: String \"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\" is too long: 65, expected range [0-64]; String \"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\" is too long: 65, expected range [0-64]; No key name in MapLike[{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}]; No key id in MapLike[{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}]; Second: Not a string: {\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}",
+      "error": "Failed to parse either. First: Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; No key name in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; No key id in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; Second: Not a string: {\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}"
     }
   ],
   "decodes": [
@@ -1566,6 +1704,11 @@
       "kind": "attack_animation",
       "wire": "0503",
       "json": "{\"type\":\"none\",\"duration\":3}"
+    },
+    {
+      "kind": "profile",
+      "wire": "000105537465766501000000010000000200000003000000040000000000",
+      "json": "{\"name\":\"Steve\",\"id\":[1,2,3,4]}"
     }
   ],
   "decode_errors": [
@@ -1578,6 +1721,11 @@
       "kind": "enchantable",
       "wire": "ffffffff0f",
       "error": "Enchantment value must be positive, but was -1"
+    },
+    {
+      "kind": "profile",
+      "wire": "00000011",
+      "error": "17 elements exceeded max size of: 16"
     }
   ]
 }

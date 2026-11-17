@@ -1321,7 +1321,7 @@ The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`
 
 This section states the shape of 3 more component types. STK-SHP-001 to STK-SHP-005 apply to each
 rule of this section. The fixture `item_records` has the cases `map_dec_*` and `profile_*`, which
-confirm the forms of this section.
+confirm the forms of this section. The fixture `item_plain` has the cases of experiment E26.
 
 **STK-SHP-021** (`source_suggested_black_box_confirmed`, wire). `minecraft:map_id`:
 
@@ -1355,6 +1355,11 @@ Each decoration entry is a map with these fields:
 network NBT (STK-TYP-003). Thus `type` is an identifier on the wire, not a numeric id. The reader of
 the wire form gives a decode error when the NBT is not a valid saved form. The limits of the network
 NBT of STK-SHP-004 apply.
+
+The order of the keys of each compound in the NBT is unspecified. The vanilla client reads the NBT
+as a map, and the hash sorts the keys (STK-HSH-006). Thus a parity test of the wire form must
+compare the decoded trees, not the bytes. The game does not write the keys in the order of the
+input or of the table (experiment E26).
 
 The reader of the saved form ignores a key of a decoration entry that the table does not list
 (STK-SHP-001). An entry that is not valid makes the whole value not valid. An identifier that
@@ -1425,12 +1430,13 @@ empty. It writes each field of the skin patch that has a value. A partial profil
 and a UUID has the same saved form as a full profile with the same values. The reader of that saved
 form gives the full profile.
 
-Limits: those of the table and of STK-SHP-025. Prototypes: no prototype has this component. These
-statements have the provenance `source_suggested`, and experiment E26 (Q10) confirms them:
+Limits: those of the table and of STK-SHP-025. Prototypes: no prototype has this component.
+Experiment E26 confirms these statements:
 
 - the string form and the empty name;
 - a UUID of numbers that are not ints;
-- a full profile without properties.
+- a full profile without properties;
+- the same saved form for a partial profile with a name and a UUID.
 
 **STK-SHP-025** (`source_suggested_black_box_confirmed`, wire). A property has these fields:
 
@@ -1458,8 +1464,7 @@ unspecified. A parity test must not compare it.
 
 The reader of the map form must apply the limits of the list form to the result. The result has at
 most 16 properties in total, and each name and each value is in the range of the table. This is
-deviation D6. The statements on the order and on the map form have the provenance
-`source_suggested`. Experiment E26 (Q10) confirms them.
+deviation D6. Experiment E26 confirms the statements on the order and on the map form.
 
 **STK-SHP-026** (`source_suggested_black_box_confirmed`, wire). The wire form of
 `minecraft:profile` is its own binary form. It has these parts, in this order:
@@ -1589,42 +1594,73 @@ gray, for a dynamic profile.
   `map_decorations` and `profile`.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
-- **Q10**: STK-SHP-022, STK-SHP-024 and STK-SHP-025. Experiment E26 confirms the statements with
-  the provenance `source_suggested`. Add each case of the table below to the fixture `item_plain`
-  of `tools/fixtures.json`, then write the fixture again with `tools/vanilla-oracle`. A case of the
-  kind "value" records the JSON, the NBT, the wire form and the hash. A case of the kind "error"
-  records the rejection. A case of the kind "decode" gives the wire form as input.
-
-  | Component type | Kind | Input | Rule |
-  |----------------|------|-------|------|
-  | `map_decorations` | value | `{"m1":{"type":"minecraft:player","x":1.5,"z":-2.5,"rotation":90.0}}` | STK-SHP-022 |
-  | `map_decorations` | value | `{"":{"type":"red_x","x":1,"z":-2,"rotation":-45,"extra":true}}` | STK-SHP-022 |
-  | `map_decorations` | value | `{"a":{"type":"minecraft:target_x","x":0.0,"z":0.0,"rotation":0.0},"b":{"type":"minecraft:banner_red","x":-1.0E300,"z":1.0E-300,"rotation":359.5}}` | STK-SHP-022 |
-  | `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":1.0,"z":2.0}}` | STK-SHP-022 |
-  | `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":"1","z":2.0,"rotation":0.0}}` | STK-SHP-022 |
-  | `map_decorations` | error | `[]` | STK-SHP-022 |
-  | `profile` | value | `"Notch"` | STK-SHP-024 |
-  | `profile` | value | `""` | STK-SHP-024 |
-  | `profile` | value | `{}` | STK-SHP-024 |
-  | `profile` | value | `{"id":[1,2,3,4],"name":"Steve"}` | STK-SHP-024 |
-  | `profile` | value | `{"id":[1.9,2,3,4]}` | STK-SHP-024 |
-  | `profile` | value | `{"name":"abcdefghijklmnop","unknown":1,"model":"slim"}` | STK-SHP-024 |
-  | `profile` | value | `{"id":[1,2,3,4],"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t"},{"name":"x","value":"2"}]}` | STK-SHP-025 |
-  | `profile` | value | `{"name":"Steve","properties":{"textures":["v1","v2"]}}` | STK-SHP-025 |
-  | `profile` | error | `{"id":[1,2,3]}` | STK-SHP-024 |
-  | `profile` | error | `{"id":"00000001-0000-0002-0000-000300000004"}` | STK-SHP-024 |
-  | `profile` | error | `{"name":"é"}` | STK-SHP-024 |
-  | `profile` | error | `{"model":"default"}` | STK-SHP-024 |
-  | `profile` | error | a list form with 17 properties `{"name":"p","value":"v"}` | STK-SHP-025 |
-  | `profile` | error | a list form with one property whose name has 65 code units | STK-SHP-025 |
-  | `profile` | error | a map form with the 17 keys `"a"` to `"q"`, each with the value `[]` | STK-SHP-025 |
-  | `profile` | decode | `00 01 05 5374657665 01 00000001 00000002 00000003 00000004 00 00 00 00 00` | STK-SHP-026 |
-  | `profile` | decode error | `00 00 00 11` | STK-SHP-026 |
-
-  The decode case is a partial profile with a name and a UUID. Its JSON must be the saved form of
-  the full profile with the same values.
 - **Q11**: STK-SHP-027. The comparison of the name of a profile does not ignore case, as in the
   reference. The inherited requirement "Name case" of `README.md` asks that a comparison of player
   names ignore ASCII case. Does the owner keep the comparison with case for this component?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
 - **U3**: the command form with the item `minecraft:air`.
+
+## 11. Experiments
+
+Each experiment ran against the game version of `assets/minecraft/version.json`. The fixture of an
+experiment holds its raw output.
+
+**E26.** Rules: STK-SHP-022, STK-SHP-024, STK-SHP-025 and STK-SHP-026.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of `tools/fixtures.json`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For a case of the kind "value", read the JSON, the NBT, the wire form and the hash.
+4. For a case of the kind "error", read the rejection.
+5. For a case of the kind "decode", give the wire form to the reader. Read the JSON of the result.
+6. For a case of the kind "decode error", give the wire form to the reader. Read the decode error.
+
+The fixture keeps the cases of the four kinds in its lists `values`, `errors`, `decodes` and
+`decode_errors`. The field `kind` of a case gives the component type.
+
+| Component type | Kind | Input | Rule |
+|----------------|------|-------|------|
+| `map_decorations` | value | `{"m1":{"type":"minecraft:player","x":1.5,"z":-2.5,"rotation":90.0}}` | STK-SHP-022 |
+| `map_decorations` | value | `{"":{"type":"red_x","x":1,"z":-2,"rotation":-45,"extra":true}}` | STK-SHP-022 |
+| `map_decorations` | value | `{"a":{"type":"minecraft:target_x","x":0.0,"z":0.0,"rotation":0.0},"b":{"type":"minecraft:banner_red","x":-1.0E300,"z":1.0E-300,"rotation":359.5}}` | STK-SHP-022 |
+| `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":1.0,"z":2.0}}` | STK-SHP-022 |
+| `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":"1","z":2.0,"rotation":0.0}}` | STK-SHP-022 |
+| `map_decorations` | error | `[]` | STK-SHP-022 |
+| `profile` | value | `"Notch"` | STK-SHP-024 |
+| `profile` | value | `""` | STK-SHP-024 |
+| `profile` | value | `{}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1,2,3,4],"name":"Steve"}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1.9,2,3,4]}` | STK-SHP-024 |
+| `profile` | value | `{"name":"abcdefghijklmnop","unknown":1,"model":"slim"}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1,2,3,4],"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t"},{"name":"x","value":"2"}]}` | STK-SHP-025 |
+| `profile` | value | `{"name":"Steve","properties":{"textures":["v1","v2"]}}` | STK-SHP-025 |
+| `profile` | error | `{"id":[1,2,3]}` | STK-SHP-024 |
+| `profile` | error | `{"id":"00000001-0000-0002-0000-000300000004"}` | STK-SHP-024 |
+| `profile` | error | `{"name":"é"}` | STK-SHP-024 |
+| `profile` | error | `{"model":"default"}` | STK-SHP-024 |
+| `profile` | error | a list form with 17 properties `{"name":"p","value":"v"}` | STK-SHP-025 |
+| `profile` | error | a list form with one property whose name has 65 code units | STK-SHP-025 |
+| `profile` | error | a map form with the 17 keys `"a"` to `"q"`, each with the value `[]` | STK-SHP-025 |
+| `profile` | decode | `00 01 05 5374657665 01 00000001 00000002 00000003 00000004 00 00 00 00 00` | STK-SHP-026 |
+| `profile` | decode error | `00 00 00 11` | STK-SHP-026 |
+
+Results:
+
+- The game accepts each case of the kind "value". It rejects each case of the kind "error".
+- The wire form of each value of `minecraft:map_decorations` is the network NBT of its saved form.
+- The case with the key `""` keeps the empty key. It gives the type `minecraft:red_x`, the
+  numbers `1.0`, `-2.0` and `-45.0`, and no key `extra`.
+- The game writes the keys of a compound of `minecraft:map_decorations` in an order that is
+  different from the order of the input.
+- `"Notch"` and `""` give a partial profile with only a name. `{}` gives a partial profile with no
+  field.
+- `{"id":[1.9,2,3,4]}` gives the UUID of the ints `1, 2, 3, 4`.
+- The saved form of the full profile without properties has no key `properties`.
+- The saved form of the case with the key `unknown` has no key `unknown`. Its wire form ends with
+  `01 01`, the model `slim`.
+- The input `x=1, textures=t, x=2` gives the list `x=1, x=2, textures=t` in each format.
+- The map form `{"textures":["v1","v2"]}` gives the list form with two properties.
+- The case of the kind "decode" gives a saved form with the keys `name` and `id`. As a tree, this
+  saved form is equal to the saved form of the full profile with the same values.
+- The case of the kind "decode error" gives a decode error for 17 properties.
