@@ -2,7 +2,10 @@
 
 extern crate alloc;
 
+mod armour_gates;
 mod armour_place;
+mod armour_take;
+mod locking_enchantments;
 mod player_entity_type;
 mod player_holders;
 mod player_holders_plugin;

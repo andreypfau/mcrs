@@ -9,6 +9,7 @@ stability: changing
 tracking: [158]
 sources:
   - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_game_mode/src/player_game_mode.rs
   - crates/mcrs_minecraft_engine/src/game_profile.rs
   - crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs
   - crates/mcrs_minecraft_engine_world/src/session/sessions.rs
@@ -42,9 +43,13 @@ In a plugin you write the query as a system parameter, for example `Query<(&Game
 
 <Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]\npub struct GameProfile"} title="GameProfile" />
 
-The game mode, the flight state and the operator level are in one file:
+The game mode is in the crate `mcrs_minecraft_game_mode`, so a server and a client use the same component. Its `bevy` feature adds the `Component` derive:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_game_mode::GameMode;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
+<Example file="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" from="#[derive(" to="impl Default" title="PlayerGameMode" />
+
+The flight state and the operator level are in the engine:
+
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_engine_world::session::PlayerSession;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerFlying" />
 
 `PlayerOpLevel` in the same file holds the operator level, which goes from 0 for a player who is not an operator up to 4. The test harness reads a game mode like this:
 

@@ -1,4 +1,3 @@
-use crate::ability::PlayerGameMode;
 use crate::block_break::{
     DESTRUCTION_NONE, Hit, break_block, destruction, eye_position, harvest, level_event, observed,
 };
@@ -18,7 +17,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_volume::{BlockVolume, Unavailable};
 use mcrs_voxel::{BlockPos, BlockStateId};
 

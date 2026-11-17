@@ -1,10 +1,9 @@
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::write_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;

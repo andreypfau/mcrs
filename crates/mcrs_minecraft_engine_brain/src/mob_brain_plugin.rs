@@ -26,7 +26,6 @@ use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
 use mcrs_minecraft_engine::PlayerBody;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_physics::PhysicsTables;
@@ -43,7 +42,7 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::TagKey;
 

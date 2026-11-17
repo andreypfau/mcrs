@@ -1,9 +1,9 @@
-use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::ability::{PlayerFlying, PlayerOpLevel};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::GameEventKind;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundGameEvent, ClientboundPlayerAbilities};

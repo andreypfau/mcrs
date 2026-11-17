@@ -6,11 +6,10 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
-use crate::ability::PlayerGameMode;
 use crate::game_profile::GameProfile;
 use crate::player_dimensions::PlayerBody;
 

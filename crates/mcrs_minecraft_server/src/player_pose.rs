@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{DetectChangesMut, Local, Query, Res, Single, With};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use mcrs_minecraft_collision_table::BlockWorld;
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
+use mcrs_minecraft_engine::ability::PlayerFlying;
 use mcrs_minecraft_engine::{PoseSystems, ShiftKey, player_scale};
 use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -13,7 +13,7 @@ use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_physics::{NoBodies, PoseInputs, QueryEntity, Scratch, View, select_pose};
 use mcrs_minecraft_pose::Pose;
 
