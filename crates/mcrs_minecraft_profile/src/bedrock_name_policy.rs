@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::hash::BuildHasher;
 
-use crate::PlayerName;
+use crate::{PlayerName, player_name};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BedrockNamePolicy {
@@ -65,7 +65,7 @@ impl BedrockNamePolicy {
         if full.is_empty() {
             return Err(BedrockNameError::Empty);
         }
-        let name = |text: &str| crate::player_name(text).map_err(|_| BedrockNameError::Empty);
+        let name = |text: &str| player_name::player_name(text).map_err(|_| BedrockNameError::Empty);
         let base = name(&full)?;
         if !online.contains(&base) {
             return Ok(base);
