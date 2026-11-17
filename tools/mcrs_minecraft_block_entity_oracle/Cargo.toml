@@ -6,6 +6,7 @@ edition.workspace = true
 publish = false
 
 [lib]
+test = false
 doctest = false
 
 [lints]
