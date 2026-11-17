@@ -253,7 +253,11 @@ impl Plugin for ClientChatPlugin {
             )
             .add_systems(
                 Update,
-                (log_messages, send_chat, request_suggestions)
+                (
+                    log_messages.before(SessionSet::Clear),
+                    send_chat,
+                    request_suggestions,
+                )
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             )
