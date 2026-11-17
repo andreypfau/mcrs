@@ -2,16 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 A block model has elements. Each element is a box with up to six faces. A blockstate variant
 can turn the whole model in steps of 90°. This document states how the client changes these
 data into baked faces: four positions in block space, four texture coordinates, a direction, a
-cull face and the data that the lighting step uses. The document does not prescribe an
-architecture.
+cull face and the data that the lighting step uses.
 
 ## 0. Conventions
 
@@ -48,9 +44,7 @@ architecture.
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of this document, which replaces the present code.
-
+section "Semantics, not accidents". 
 The **face artefact** is the file
 `crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_faces.json`. The task
 `dumpBlockFaces` of `tools/vanilla-oracle` writes it. The game bakes the geometry of each
@@ -70,21 +64,7 @@ not the child model that the blockstate names.
 | `BFB-VAR` | the variant transform |
 | `BFB-DIR` | the direction and the vertex order of a baked face |
 | `BFB-OUT` | the other fields of a baked face, and how the client uses them |
-| `BFB-TEST` | parity tests |
 | `BFB-DEV` | intentional deviations |
-
-### 0.4 Scope
-
-In scope: positions, texture coordinates, direction, cull face, tint index, shade face and light
-emission of each baked face, and the directional shade factor of each dimension type. The rules
-apply to block models and to the elements of item models. An item model uses no variant
-transform.
-
-Out of scope: how the client finds a model file, its parents and its textures (BMR); ambient
-occlusion and smooth light (`block-smooth-light.md`, prefix `BSL`); the colour that a tint index
-selects; when a neighbour block hides a face with a cull face.
-
----
 
 ## 1. Input fields
 
@@ -107,7 +87,7 @@ selects; when a neighbour block hides a face with a cull face.
 Provenance: `source_suggested_black_box_confirmed` (the face artefact has `shade_face` and
 `light_emission` values for 82 model files with `shade_direction_override` and for the two
 models with `light_emission`; no vanilla model file has the key `shade`). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-IN-002: Fields of a face entry
 
@@ -125,7 +105,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** none.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-IN-003: Fields of an element rotation
 
@@ -143,7 +123,7 @@ Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact has cases for Euler
 rotations, for example `minecraft:block/template_hanging_sign_rot_3`, and for the angles `−90`,
-`−67.5`, `0.0001` and `67.5`). Kind: semantic. Confidence: high. Milestone: 1.
+`−67.5`, `0.0001` and `67.5`). Kind: semantic. Confidence: high.
 
 ---
 
@@ -162,7 +142,7 @@ rotations, for example `minecraft:block/template_hanging_sign_rot_3`, and for th
   sides.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-GEO-002: The corners of a face
 
@@ -192,7 +172,7 @@ Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic. The
 order of the corners matters to BSL, which splits the face into two triangles. Confidence:
-high. Milestone: 1.
+high.
 
 ### BFB-GEO-003: The corners of a face entry
 
@@ -204,7 +184,7 @@ high. Milestone: 1.
 - **Postconditions:** none.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -230,7 +210,7 @@ Confidence: high. Milestone: 1.
   rotation.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-UV-002: Texture coordinates of the corners
 
@@ -249,7 +229,7 @@ Confidence: high. Milestone: 1.
   - An element rotation does not change the texture coordinates.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -273,7 +253,6 @@ Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact, with an error of at most
 `1e-7` between the formula in 64-bit arithmetic and the game). Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -301,7 +280,7 @@ Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact has cases for each
 combination of `x`, `y`, `z` and `uvlock` that a vanilla blockstate uses). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-VAR-002: UV lock
 
@@ -321,7 +300,7 @@ Confidence: high. Milestone: 1.
   of 90°. The texture of a turned stair or fence stays aligned with the world.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact; exact quarter turns give
-an error of at most `1e-7` against the game). Kind: semantic. Confidence: high. Milestone: 1.
+an error of at most `1e-7` against the game). Kind: semantic. Confidence: high.
 
 ---
 
@@ -342,7 +321,7 @@ an error of at most `1e-7` against the game). Kind: semantic. Confidence: high. 
   BFB-DEV-001 records how the reference differs in that case.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact, except the ties of
-BFB-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
+BFB-DEV-001). Kind: semantic. Confidence: high.
 
 ### BFB-DIR-002: The vertex order after a variant rotation
 
@@ -363,7 +342,7 @@ BFB-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
   BFB-GEO-002 for the final direction. The texture keeps its place on the face.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -385,7 +364,7 @@ Confidence: high. Milestone: 1.
   implementation can use other names.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-OUT-002: The cull face
 
@@ -399,7 +378,7 @@ Confidence: high. Milestone: 1.
   states when a neighbour hides a face.
 
 Provenance: `source_suggested_black_box_confirmed` (the face artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BFB-OUT-003: The directional shade factor
 
@@ -427,8 +406,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** a model with `"shade_direction_override": "up"`, for example `cross`, has
   the factor `1.0` on each face in the overworld and `0.9` in the nether.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
-BFB-TEST-002.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put a stone block, a poppy and an oak hanging sign on a flat floor in the overworld and in the nether. Compare the screenshots of the reference and the client.
 
 ### BFB-OUT-004: Light emission of a face
 
@@ -443,8 +421,7 @@ BFB-TEST-002.
 - **Postconditions:** a face with `light_emission` `15` shows at full brightness in a dark
   place, for example the emissive layer of `cross_emissive`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
-BFB-TEST-002, item 4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: put a block whose model uses `cross_emissive` in a dark room. The emissive layer shows at full brightness.
 
 ### BFB-OUT-005: The order of baked faces
 
@@ -461,46 +438,7 @@ BFB-TEST-002, item 4.
 Provenance: `source_suggested_black_box_confirmed` (the face artefact lists the faces with no
 cull face first, then the faces of `north`, `south`, `east`, `west`, `up` and `down`, each group
 in the order of item 1). Kind: semantic for items 1 and 2; unspecified for item 3. Confidence:
-medium. Milestone: 1.
-
----
-
-## 8. Parity tests
-
-### BFB-TEST-001: Baked faces against the face artefact
-
-- **Inputs:** the face artefact; the vanilla model files of the client jar.
-- **Behavior:**
-  1. For each case, read the elements of the model file `model` of the case.
-  2. Bake them with the variant transform `x`, `y`, `z` and `uvlock` of the case.
-  3. Put the baked faces in groups by cull face. Compare each group with the faces of the case
-     that have the same `cull`, in the order of BFB-OUT-005, item 1.
-  4. `texture`, `cull`, `tint`, `shade_face` and `light_emission` must be equal.
-  5. Each position and each sprite coordinate must agree within `1e-5`.
-  6. `direction` must be equal. When the two directions have dot products with `n` of BFB-DIR-001
-     that agree within `1e-5`, the test accepts both (BFB-DEV-001).
-- **Postconditions:** the test fails when one case does not agree.
-
-Provenance: `source_suggested_black_box_confirmed` (the face artefact). An independent
-implementation of this document agreed with all 1011 cases. The largest error was `1e-7`. 42
-model files had a tie of BFB-DEV-001. Kind: semantic. Confidence: high. Milestone: 1.
-
-### BFB-TEST-002: Screenshots of shading and emission
-
-- **Inputs:** a reference client and the client, at the same camera position and field of view.
-- **Behavior:**
-  1. In the overworld at noon, put a stone block, a poppy and an oak hanging sign on a flat
-     floor. Take a screenshot.
-  2. Do step 1 again in the nether.
-  3. Compare the two planes of the poppy. Both planes have the factor `1.0` in the overworld and
-     `0.9` in the nether. The north side of the stone has the factor `0.8` in both dimensions.
-  4. In a dark room, put a block whose model uses `cross_emissive`. The emissive layer shows at
-     full brightness.
-  5. Compare the two sets of images.
-- **Postconditions:** the colour of each face agrees within 3 of 255 in each channel. The
-  outline of each shape agrees within one pixel at 1920 × 1080.
-
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
+medium.
 
 ---
 
@@ -515,7 +453,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
   `0.8` against `0.6`, when the element has no `shade_direction_override`. Examples are the
   sides of `lever`, `campfire`, the candle models, the stem models and the hanging sign
   models. BSL can also sample the light of a different neighbour.
-- **Test:** BFB-TEST-001 accepts both directions of a tie.
+- **Test:** a differential test accepts both directions of a tie.
 
 ### BFB-DEV-002: Exact quarter turns
 
@@ -523,11 +461,11 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
 - **Reference:** the reference builds the face frames of BFB-VAR-002 with trigonometric
   functions in 32-bit floating point.
 - **Visible to the client:** no. The difference is at most `1e-7` in sprite coordinates.
-- **Test:** BFB-TEST-001 uses a tolerance of `1e-5`.
+- **Test:** a differential test uses a tolerance of `1e-5`.
 
 ---
 
-## 10. Open questions
+## 10. Unresolved
 
 1. Sprite coordinates outside `[0, 1]`: the reference then samples the neighbour sprites of its
    atlas. No vanilla model has such a face. The client can clamp the coordinates or repeat the

@@ -1,20 +1,12 @@
 # Item stack: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| World version | `5127` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the item stack as data: its parts, its component patch, its count, and each
 format that carries it. It states the meaning of four component types, and it lists each component
-type of this game version. It does not prescribe an architecture.
+type of this game version.
 
-Scope: the stack itself. This document does not state inventories, the slots of a player, clicks,
-menus or item entities. It does not state enchantment effects, the use of an item, attributes,
-tooltips or the formats of Bedrock Edition. Section 8.1 states the shape of 15 component types. For
+Section 8.1 states the shape of 15 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -58,16 +50,13 @@ section 8.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by an artefact that the game writes, or by a result in section 12.
+- `black_box_confirmed`: shown by an artefact that the game writes.
 - `source_suggested_black_box_confirmed`: taken from the reference behaviour, and consistent with an
-  artefact or a result in section 12.
+  artefact.
 - `source_suggested`: taken from the reference behaviour, with no result. The confidence is at most
-  medium. Section 11 attaches an experiment.
+  medium.
 - `design`: a choice of this project. The rule states the reason.
 - `unresolved`: not decided. Section 10 collects these items.
-
-No experiment of section 11 has a recorded run. Each one is a proposal. The results of section 12
-come from the goldens that the game wrote for `26.4-snapshot-7`.
 
 ### 0.3 Artefacts cited
 
@@ -142,14 +131,12 @@ type that is not a saved type. Thus the JSON of STK-PRO-002 can state each proto
 
 **STK-PRO-007** (`source_suggested`, semantic). Air has a prototype as each other item has. A stack
 of air is the empty stack (STK-EMP-001), so no read of a stack gives a component of air.
-See experiment E1.
 
 ## 2. The component patch
 
 **STK-PAT-001** (`source_suggested_black_box_confirmed`, semantic). A component patch has at most
 one patch entry for each component type. A value entry states that the stack has that component.
 A removal entry states that the stack does not have a component of that component type.
-See result R6.
 
 **STK-PAT-002** (`source_suggested`, semantic). A read of a stack for a component type gives one
 of three results:
@@ -160,24 +147,22 @@ of three results:
 | removed | the patch has a removal entry for the component type | none |
 | default | the patch has no patch entry for the component type | the component of the prototype, or none when the prototype has none |
 
-See experiment E2.
 
 **STK-PAT-003** (`source_suggested`, semantic). A read of the empty stack gives no effective
-component for each component type. See experiment E1.
+component for each component type.
 
 **STK-PAT-004** (`source_suggested`, semantic). A patch entry has no effect in these two cases:
 
 - a value entry whose component is equal to the component of the prototype for that component type;
 - a removal entry for a component type that the prototype does not have.
 
-A component patch is in normal form when it has no such patch entry. See experiment E3.
+A component patch is in normal form when it has no such patch entry.
 
 **STK-PAT-005** (`source_suggested`, semantic). The component patch of each stack is in normal
 form. A reader of a stack in each format of section 6 must drop each patch entry without effect.
 A writer of a stack thus writes no such patch entry. This rule does not apply to the patch of an
 item template (STK-TPL-007). It does not apply to the reader of a hashed stack: a hashed stack
-carries a hash in place of each value, and the reader keeps each entry for STK-HSH-003. See
-experiment E3.
+carries a hash in place of each value, and the reader keeps each entry for STK-HSH-003.
 
 **STK-PAT-006** (`source_suggested`, semantic). A change of one component of a stack keeps the
 normal form:
@@ -189,7 +174,6 @@ normal form:
 | remove a component | has a component | a removal entry |
 | remove a component | has none | no patch entry for the component type |
 
-See experiment E3.
 
 **STK-PAT-007** (`design`, semantic). Two components of one component type are equal when their
 saved forms are equal as trees. In a tree, the order of the keys of a map has no effect. The
@@ -206,7 +190,7 @@ STK-SHP-017 states one exception for `minecraft:tooltip_display`.
 
 **STK-PAT-008** (`source_suggested`, semantic). A component patch can have a value entry for a
 component type that the prototype does not have. A component patch can have a value entry for
-each component type, also for a type that has no use for that item. See experiment E2.
+each component type, also for a type that has no use for that item.
 
 ## 3. The empty stack
 
@@ -219,11 +203,10 @@ one of these conditions is true:
 Only one empty stack exists. A reader of a format that has an empty stack must give the empty stack
 for such a value. The saved stack has no empty stack: its reader gives an error (STK-SAV-002,
 STK-CNT-003).
-See results R2 and R4.
 
 **STK-EMP-002** (`source_suggested`, semantic). The empty stack has the item air, the count 0 and
 an empty component patch. No data of the item, the count or the patch of the value that became
-empty remains. See experiment E1.
+empty remains.
 
 **STK-EMP-003** (`source_suggested_black_box_confirmed`, wire). Each format writes the empty stack
 as this table states.
@@ -241,18 +224,16 @@ as this table states.
 | optional item template (STK-TPL-005) | the byte `00` |
 | hashed stack (STK-HSH-001) | the byte `00` |
 
-See results R2, R4 and R5.
 
 ## 4. The count
 
 **STK-CNT-001** (`source_suggested`, semantic). The count of a stack that is not empty is 1 or
 more. The largest count that every format carries without error is 99.
-A format can accept a larger count (STK-CNT-003). See experiment E4.
+A format can accept a larger count (STK-CNT-003).
 
 **STK-CNT-002** (`source_suggested`, semantic). The maximum stack size of a stack is an effective
 component (STK-CMP-001). A patch can change it for one stack. A stack can have a count larger than
 its maximum stack size. Only strict validation rejects such a stack (STK-VAL-001).
-See experiment E5.
 
 **STK-CNT-003** (`source_suggested_black_box_confirmed`, wire). Each reader does this with a count
 out of range:
@@ -269,10 +250,9 @@ out of range:
 | item template, wire form | each VarInt that is not 0 | 0 is a decode error. The reader accepts a negative count and a count larger than 99 (STK-TPL-004). |
 | hashed stack | each VarInt | The reader accepts each value. The value only takes part in STK-HSH-003. |
 
-See results R1 and R7, and experiments E4 and E6.
 
 **STK-CNT-004** (`source_suggested`, semantic). A stack with a count larger than 99 has no saved
-form. The writer reports an error and writes no stack for it. See experiment E4.
+form. The writer reports an error and writes no stack for it.
 
 **STK-CNT-005** (`design`, semantic). A server must not send a wire stack with a count larger than
 99. Reason: the client cannot send that stack back in a `set_creative_mode_slot` packet, and the
@@ -288,10 +268,9 @@ one of these conditions is true:
 
 Two component patches are equal when they have patch entries for the same component types, of the
 same kind, with equal components (STK-PAT-007). The count has no part in this relation.
-See experiment E7.
 
 **STK-EQ-002** (`source_suggested`, semantic). Two stacks are equal when they have the same item
-and components and the same count. See experiment E7.
+and components and the same count.
 
 **STK-EQ-003** (`source_suggested`, semantic). A stack can stack when these two conditions are
 true:
@@ -299,7 +278,6 @@ true:
 - its maximum stack size is larger than 1;
 - it cannot take damage (STK-DMG-001), or its damage value is 0.
 
-See experiment E8.
 
 **STK-EQ-004** (`source_suggested`, semantic). Two stacks can merge when they have the same item
 and components. The count of the result must not be larger than the maximum stack size. The game
@@ -316,7 +294,7 @@ The two stacks have the same components. The check thus gives the same answer fo
 moves and for the stack that receives. A caller without the check gives a different result only
 for a stack that strict validation rejects (STK-VAL-001). Such a stack has a maximum stack size
 larger than 1 and a damage value larger than 0. `inventory-transactions.md` states how a merge
-moves the count. See experiment E8.
+moves the count.
 
 **STK-EQ-005** (`source_suggested`, semantic). In equality of two components, two float values are
 equal when one of these conditions is true:
@@ -327,13 +305,11 @@ equal when one of these conditions is true:
 The same rule applies to two double values. Equality does not use the numeric comparison of
 IEEE 754. Thus each NaN is equal to each other NaN, with each payload and each sign. Thus `0.0`
 and `-0.0` are not equal. This rule applies to STK-PAT-004, STK-PAT-006, STK-EQ-001 and STK-EQ-004.
-See experiment E28.
 
 **STK-EQ-006** (`source_suggested`, semantic). In free NBT (STK-TYP-004), two numbers of different
 tag kinds are not equal. For example, `{a:1}` and `{a:1b}` are not equal. Two float tags or two
 double tags are equal as STK-EQ-005 states. A field with a known number kind is different: its
 reader gives one number kind, and equality compares the values after the decode.
-See experiment E28.
 
 ## 6. Formats
 
@@ -348,7 +324,7 @@ these keys:
 | `count` | an int | optional; the default is 1; the range is `1..99` | always writes it |
 | `components` | a map: the component patch (STK-SAV-003) | optional; the default is an empty patch | omits it when the patch is empty |
 
-In NBT, `count` is an Int tag. The order of the keys has no meaning. See result R6.
+In NBT, `count` is an Int tag. The order of the keys has no meaning.
 
 **STK-SAV-002** (`source_suggested`, semantic). The reader gives an error and no stack in each of
 these cases:
@@ -358,7 +334,7 @@ these cases:
 - `id` names air;
 - `count` is out of range (STK-CNT-003).
 
-The saved stack has no form for the empty stack. See experiment E9.
+The saved stack has no form for the empty stack.
 
 **STK-SAV-003** (`source_suggested_black_box_confirmed`, wire). The component patch is a map. Each
 key is one of these:
@@ -369,12 +345,11 @@ key is one of these:
 | `!<type>` | the empty map `{}` | a removal entry |
 
 `<type>` is the identifier of the component type. The writer writes it with the namespace.
-See result R6.
 
 **STK-SAV-004** (`source_suggested`, semantic). The reader accepts a key without a namespace and
 gives it the namespace `minecraft`. The value of a `!<type>` key must be a map. The reader ignores
 the keys of that map. A value that is not a map, for example `1b` or `"x"`, is an error of that
-key (STK-SAV-005). See experiment E10.
+key (STK-SAV-005).
 
 **STK-SAV-005** (`source_suggested`, semantic). A key of the patch is an error when one of these
 conditions is true:
@@ -395,23 +370,22 @@ entry of the key that is later in the order of the input replaces the earlier on
 order of the document. An NBT compound has no order, thus the result in NBT is not specified. A
 writer must not write a value key and a removal key for one component type.
 
-See experiments E10 and E11.
 
 **STK-SAV-006** (`source_suggested`, semantic). When a key of the patch is an error, the reader
 reports the error. The reader of a world file then gives the stack with the patch entries that
 decode. A reader that has no partial result gives no stack. A design note states which reader each
-caller uses. See experiment E11.
+caller uses.
 
 **STK-SAV-007** (`source_suggested`, semantic). The reader of the saved stack does not do strict
 validation. The reader accepts a count larger than the maximum stack size, and a damage value
-equal to the maximum damage. See experiment E5.
+equal to the maximum damage.
 
 **STK-SAV-008** (`source_suggested`, wire). The optional saved stack is the saved stack or the
 empty map `{}`. The writer writes `{}` for the empty stack. The reader gives the empty stack for a
-map that has no keys. See experiment E12.
+map that has no keys.
 
 **STK-SAV-009** (`source_suggested`, semantic). The writer omits each patch entry of a component
-type that is not a saved type. The writer reports no error for it. See experiment E13.
+type that is not a saved type. The writer reports no error for it.
 
 **STK-SAV-010** (`source_suggested`, wire). The saved stack with slot is the saved stack with one
 more key:
@@ -422,11 +396,10 @@ more key:
 
 A list of such maps holds the slots of a container. The writer writes no element for a slot that
 holds the empty stack. A slot number larger than 255 is an error of the writer.
-See experiment E14.
 
 **STK-SAV-011** (`source_suggested_black_box_confirmed`, wire). The saved form has no other
 variant for SNBT. In SNBT, the saved stack is the same map in the syntax of `snbt.md`. In JSON,
-`count` is a number. See result R6.
+`count` is a number.
 
 ### 6.2 The command form
 
@@ -440,14 +413,13 @@ entry    = type "=" value | "!" type
 
 `item` is the identifier of an item. `type` is the identifier of a component type. `value` is the
 SNBT of the saved form of the component, as `snbt.md` states it. Whitespace can occur before and
-after each `entry`, `=` and `,`. See experiment E15.
+after each `entry`, `=` and `,`.
 
 **STK-CMD-002** (`source_suggested`, client agreement). An identifier without a namespace gets the
 namespace `minecraft`. A `type "=" value` entry is a value entry. A `"!" type` entry is a removal
-entry. See experiment E15.
+entry.
 
 **STK-CMD-003** (`source_suggested`, client agreement). A `,` with no entry after it is an error.
-Experiment E15 decides if `[]` is valid.
 
 **STK-CMD-004** (`source_suggested`, client agreement). The parser gives these errors. Each error
 is a translation key of the game.
@@ -460,10 +432,9 @@ is a translation key of the game.
 | one component type occurs in two entries, of each kind | `arguments.item.component.repeated` |
 | `value` is not a valid saved form of the component | `arguments.item.component.malformed` |
 
-See experiment E16.
 
 **STK-CMD-005** (`source_suggested`, semantic). The component patch of the result is in normal
-form (STK-PAT-005). See experiment E3.
+form (STK-PAT-005).
 
 **STK-CMD-006** (`source_suggested`, semantic). A command that makes a stack of count `n` from the
 command form does these checks, in this order:
@@ -472,7 +443,6 @@ command form does these checks, in this order:
    `arguments.item.overstacked`.
 2. If strict validation rejects the result, the error is `arguments.item.malformed`.
 
-See experiment E17.
 
 ### 6.3 The wire stack
 
@@ -488,15 +458,15 @@ in this order:
 | value entries | `A` times: type id (VarInt), then the wire form of the component | count is larger than 0 |
 | removal entries | `R` times: type id (VarInt) | count is larger than 0 |
 
-The item id has no offset. The empty stack is the one byte `00`. See results R1 and R2.
+The item id has no offset. The empty stack is the one byte `00`.
 
 **STK-NET-002** (`source_suggested_black_box_confirmed`, wire). The wire form of a component
 depends on its component type (STK-TYP-003). No length and no end mark separates two components.
-A reader must know the wire form of each component type to read a stack. See result R1.
+A reader must know the wire form of each component type to read a stack.
 
 **STK-NET-003** (`source_suggested`, wire). The reader gives a decode error for an item id or a
 type id that names no entry. The reader gives the empty stack when the count is larger than 0 and
-the item is air. See experiment E18.
+the item is air.
 
 **STK-NET-004** (`design`, wire). A writer must not write two patch entries for one component
 type. The order of the patch entries is the choice of the writer. What a reader does with two
@@ -507,23 +477,23 @@ server write each component type one time.
 the clientbound `container_set_slot`, `container_set_content`, `set_cursor_item`,
 `set_player_inventory` and `set_equipment`. A value of the item stack kind in the entity data
 carries one too. In `container_set_content`, a VarInt number of wire stacks comes before the
-stack of the cursor. See results R1, R2 and R3.
+stack of the cursor.
 
 **STK-NET-006** (`source_suggested`, wire). The wire stack that is not empty has the same bytes
 as the wire stack. A count of 0 or less is a decode error. A count larger than 0 with the item
 air is also a decode error. In that case the reader reads the bytes of the patch before it gives
 the error. A writer must not give it the empty stack. The result of a merchant offer uses this
-format. See experiment E19.
+format.
 
 ### 6.4 The wire stack with length prefix
 
 **STK-NET-007** (`source_suggested_black_box_confirmed`, wire). The wire stack with length prefix
 has the fields of STK-NET-001, with one change. In each value entry, a VarInt comes between the
 type id and the component. This VarInt is the number of bytes of the wire form of the component.
-The serverbound `set_creative_mode_slot` packet carries this format. See results R4 and R5.
+The serverbound `set_creative_mode_slot` packet carries this format.
 
 **STK-NET-008** (`source_suggested`, wire). A component type whose wire form has no bytes has the
-length 0. See result R4.
+length 0.
 
 **STK-NET-009** (`source_suggested`, semantic). After the reader decodes a stack that is not
 empty, the stack must have a saved form. The reader gives a decode error of the packet when one of
@@ -533,7 +503,7 @@ these conditions is true:
 - a component of a saved type in the patch has no valid saved form.
 
 The check ignores the patch entries of a component type that is not a saved type. The check does
-not do strict validation. See experiment E6.
+not do strict validation.
 
 **STK-NET-010** (`source_suggested`, wire). The length of STK-NET-007 sets the bounds of the
 component. The reader does this:
@@ -547,20 +517,20 @@ component. The reader does this:
 
 After the component, the reader continues at the first byte after the length. The length has no
 maximum of its own. A writer must write the exact length. The last case of the table is stricter
-than the reference. Deviation D4 records the reference behaviour. See experiment E20.
+than the reference. Deviation D4 records the reference behaviour.
 
 ### 6.5 Where a nested format applies
 
 **STK-NET-011** (`source_suggested`, wire). The length prefix of STK-NET-007 applies only to the
 value entries of the outer stack. An item template inside a component uses the wire form of
-STK-TPL-003, with no length prefix. See experiment E20.
+STK-TPL-003, with no length prefix.
 
 ### 6.6 The item template
 
 **STK-TPL-001** (`source_suggested_black_box_confirmed`, semantic). An item template has an item,
 a count and a component patch. The item is not air and the count is not 0. A component that holds
 stacks holds item templates (STK-TYP-004). An item template is data. It does not change while its
-owner holds it. See result R6.
+owner holds it.
 
 **STK-TPL-002** (`source_suggested_black_box_confirmed`, wire). The saved form of an item template
 is a map with these keys:
@@ -572,32 +542,32 @@ is a map with these keys:
 | `components` | a map: the component patch (STK-SAV-003) | optional; the default is an empty patch | omits it when the patch is empty |
 
 The reader also accepts one string, the identifier of the item. That string means the count 1 and
-an empty patch. The writer always writes the map. See results R6 and R7.
+an empty patch. The writer always writes the map.
 
 **STK-TPL-003** (`source_suggested_black_box_confirmed`, wire). The wire form of an item template
 has these fields, in this order: item id (VarInt), count (VarInt), then the patch as STK-NET-001
 states it. The item id comes before the count. This order is different from the order of the wire
-stack. See results R6 and R7.
+stack.
 
 **STK-TPL-004** (`source_suggested`, wire). A count of 0 in the wire form is a decode error. An
 item id of air is a decode error. The reference reader accepts a negative count and a count
 larger than 99. The item template then holds that count. A stack that someone makes from an item
 template with a negative count is the empty stack (STK-EMP-001). A writer must not write a count
-out of `1..99`. See experiment E21.
+out of `1..99`.
 
 **STK-TPL-005** (`source_suggested`, wire). The optional item template is one boolean byte, then
-the item template when the byte is `01`. See experiment E20.
+the item template when the byte is `01`.
 
 **STK-TPL-006** (`source_suggested`, semantic). To make a stack from an item template, copy the
 item, the count and the patch, then do strict validation. When strict validation rejects the
-stack, the result is the empty stack. See experiment E22.
+stack, the result is the empty stack.
 
 **STK-TPL-007** (`source_suggested`, semantic). The game does not bring the patch of an item
 template to normal form. The item template keeps each patch entry that its reader gets, also a
 patch entry without effect (STK-PAT-004). The writers of the item template write each of these
 patch entries. The hash of the component that owns the item template includes them
 (STK-HSH-004). A stack that someone makes from the item template has a patch in normal form
-(STK-TPL-006 and STK-PAT-005). See experiment E3.
+(STK-TPL-006 and STK-PAT-005).
 
 ### 6.7 The hashed stack
 
@@ -616,14 +586,14 @@ in this order:
 
 The empty stack is the one byte `00`. A number of entries larger than 256 is a decode error. The
 serverbound `container_click` packet carries a hashed stack for each changed slot and for the
-cursor. See result R3.
+cursor.
 
 **STK-HSH-002** (`source_suggested`, wire). The value entries have no two entries with one type
 id. The removal entries have no two entries with one type id. The order of the entries has no
 meaning. The reader gives no decode error for a type id that occurs two times. For two value
 entries with one type id, the reader keeps the hash of the last one. A type id that occurs two
 times in the removal entries counts as one removal entry. A type id that names no component type
-is a decode error. An item id of air is not a decode error. See experiment E23.
+is a decode error. An item id of air is not a decode error.
 
 **STK-HSH-003** (`source_suggested`, client agreement). A hashed stack matches a stack when one
 of these conditions is true:
@@ -648,13 +618,12 @@ air, the count 0 and no entries matches the empty stack in the reference. A writ
 empty stack as a hashed stack that is not present (STK-EMP-003).
 
 `inventory-transactions.md` states what the server does when the stacks do not match.
-See result R3 and experiment E23.
 
 **STK-HSH-004** (`source_suggested_black_box_confirmed`, client agreement). The hash of a
 component is the hash of its saved form (STK-HSH-005). A reference to a registry entry in the
 saved form is the identifier string, as the saved form of a world file has it. The writer of the
 saved form must omit each optional field that the game omits, because an extra field changes the
-hash. See results R3 and R9.
+hash.
 
 **STK-HSH-005** (`source_suggested_black_box_confirmed`, client agreement). The hash of a node of
 the saved form is the CRC-32C checksum of a byte string. CRC-32C has the reflected polynomial
@@ -688,19 +657,18 @@ code units `0061 D83D DE00 0062`. Its byte string is
 The hash sets no limit on the length of a string, and it does not normalize the string. The
 saved form and the wire form have their own limits, which their rules state. The fixture has no
 case with a surrogate that has no pair.
-
-See results R8 and R9. The table at the end of this section gives the input of each case of the
+ The table at the end of this section gives the input of each case of the
 fixture `hash_ops`.
 
 **STK-HSH-006** (`source_suggested_black_box_confirmed`, client agreement). An entry of a map is
 `u32le(hash of the key)` then `u32le(hash of the value)`. The key is a string node. Sort the
 entries by the hash of the key as an unsigned 32-bit number. For equal key
-hashes, sort by the hash of the value in the same way. The smallest number comes first. See result R9.
+hashes, sort by the hash of the value in the same way. The smallest number comes first.
 
 **STK-HSH-007** (`source_suggested_black_box_confirmed`, client agreement). The node kind of a
 number is the kind that the saved form of the component type states. A small value does not
 change the kind. For example, `minecraft:max_stack_size` is an int node, and a boolean field is a
-boolean node. See result R8.
+boolean node.
 
 **STK-HSH-008** (`unresolved`, client agreement). The hash of a component whose type is not a
 saved type is not decided. The reference server cannot compute that hash. A match against a stack
@@ -712,7 +680,7 @@ STK-HSH-005 take the bit pattern of the value without a change. The hash does no
 canonical. Thus two NaN values with different bit patterns have different hashes, and `0.0` and
 `-0.0` have different hashes. An implementation must keep the bit pattern of each float and each
 double from the reader to the writer and to the hash. Two components that are equal by STK-EQ-005
-can thus have different hashes. This occurs only for a NaN. See experiment E28.
+can thus have different hashes. This occurs only for a NaN.
 
 #### The inputs of the fixture `hash_ops`
 
@@ -784,15 +752,14 @@ Notes on the cases:
 
 **STK-CMP-001** (`source_suggested_black_box_confirmed`, semantic). `minecraft:max_stack_size`
 holds one integer. The maximum stack size of a stack is the effective component, or 1 when the
-stack has no such effective component. Most prototypes have the value 64. See result R8.
+stack has no such effective component. Most prototypes have the value 64.
 
 **STK-CMP-002** (`source_suggested_black_box_confirmed`, semantic). `minecraft:max_damage` holds
 one integer. The maximum damage of a stack is the effective component, or 0 when the stack has no
-such effective component. See result R8.
+such effective component.
 
 **STK-CMP-003** (`source_suggested_black_box_confirmed`, semantic). `minecraft:damage` holds one
 integer. `minecraft:unbreakable` holds no data. Only its presence has a meaning.
-See results R1 and R8.
 
 **STK-CMP-004** (`source_suggested_black_box_confirmed`, wire). The forms of the four component
 types are:
@@ -805,7 +772,7 @@ types are:
 | `minecraft:unbreakable` | 4 | the empty map `{}` | none | no bytes |
 
 A value out of the range is not a valid saved form (STK-SAV-005). The reader of the wire form does
-not check the range. See results R1, R6 and R8.
+not check the range.
 
 **STK-CMP-005** (`design`, wire). A server must not send a component of STK-CMP-004 with a value
 out of the range of its saved form. Reason: the client cannot save or hash that component.
@@ -819,19 +786,18 @@ conditions are true:
 - it has an effective component `minecraft:damage`;
 - it has no effective component `minecraft:unbreakable`.
 
-See experiment E24.
 
 **STK-DMG-002** (`source_suggested`, semantic). The damage value of a stack is the value of the
 effective component `minecraft:damage`, or 0 when the stack has none. The result is limited to the
-range from 0 to the maximum damage. See experiment E24.
+range from 0 to the maximum damage.
 
 **STK-DMG-003** (`source_suggested`, semantic). A write of the damage value limits the new value
 to the range from 0 to the maximum damage. Then it sets the component `minecraft:damage`
-(STK-PAT-006). See experiment E24.
+(STK-PAT-006).
 
 **STK-DMG-004** (`source_suggested`, semantic). A stack is damaged when it can take damage and its
 damage value is larger than 0. A stack is broken when it can take damage and its damage value is
-equal to the maximum damage or larger. See experiment E24.
+equal to the maximum damage or larger.
 
 **STK-DMG-005** (`source_suggested`, semantic). To apply an amount of damage `a` to a stack, do
 these steps:
@@ -843,20 +809,18 @@ these steps:
 
 `a` can be negative. A negative amount decreases the damage value. The holder and the enchantments
 of the stack can change `a` or cancel the damage before step 1. Another document states that.
-See experiment E25.
 
 **STK-DMG-006** (`source_suggested`, semantic). When a stack breaks, its count decreases by 1. The
 operation reports that the stack broke, and reports the item. A stack with the count 1 thus
-becomes the empty stack. See experiment E25.
+becomes the empty stack.
 
 **STK-DMG-007** (`source_suggested`, semantic). A second operation applies damage and never
 breaks the stack. It limits the new damage value to the range from 0 to the maximum damage minus
-1. The count does not change. See experiment E25.
+1. The count does not change.
 
 **STK-DMG-008** (`source_suggested`, semantic). The next unit of damage breaks a stack when two
 conditions are true. The stack can take damage. Its damage value is equal to the maximum damage
 minus 1, or larger.
-See experiment E24.
 
 ### 7.3 Strict validation
 
@@ -871,7 +835,6 @@ these conditions is true. A parity test compares the result, and not which condi
 4. The stack is broken (STK-DMG-004).
 
 A document for bundles states one more condition for `minecraft:bundle_contents`.
-See experiment E5.
 
 **STK-VAL-002** (`source_suggested`, semantic). Strict validation applies in these places:
 
@@ -882,12 +845,10 @@ See experiment E5.
 | a loot function that sets the components of a stack | the stack keeps the patch that it had before |
 
 Strict validation does not apply to the reader of a saved stack (STK-SAV-007) or of a wire stack.
-See experiments E5 and E22.
 
 **STK-VAL-003** (`source_suggested`, semantic). No rule connects `minecraft:damage` and
 `minecraft:max_damage` in the patch at decode. A stack can have `minecraft:damage` without
 `minecraft:max_damage`. Such a stack cannot take damage, and its damage value is 0.
-See experiment E24.
 
 ## 8. The component types
 
@@ -898,7 +859,7 @@ the type ids from that file.
 
 **STK-TYP-002** (`source_suggested`, semantic). Three component types are not saved types:
 `minecraft:creative_slot_lock`, `minecraft:additional_trade_cost` and
-`minecraft:map_post_processing`. Each other component type is a saved type. See experiment E13.
+`minecraft:map_post_processing`. Each other component type is a saved type.
 
 **STK-TYP-003** (`source_suggested_black_box_confirmed`, wire). Each component type can occur in a
 wire stack. The column "Wire" of the table states the kind of the wire form:
@@ -907,12 +868,11 @@ wire stack. The column "Wire" of the table states the kind of the wire form:
   states that form.
 - `NBT`: the wire form is the saved form of the component as one network NBT.
 
-See result R1 and experiment E26.
 
 **STK-TYP-004** (`source_suggested_black_box_confirmed`, semantic). The column "Stacks" has `yes`
 when a component of the type holds item templates. `minecraft:custom_data`,
 `minecraft:entity_data`, `minecraft:bucket_entity_data` and `minecraft:block_entity_data` hold
-free NBT. That NBT can hold saved stacks, but the component does not read them. See result R6.
+free NBT. That NBT can hold saved stacks, but the component does not read them.
 
 Each identifier in the table has the namespace `minecraft`.
 
@@ -1074,7 +1034,7 @@ These statements apply to each table:
 - "No limit" means that only the size of the file or of the packet limits the length.
 
 The item definitions show the omitted defaults: 29 prototypes have `minecraft:tool` with only the
-key `rules`. See experiment E29.
+key `rules`.
 
 **STK-SHP-002** (`source_suggested_black_box_confirmed`, wire). The tables use these forms:
 
@@ -1092,7 +1052,7 @@ key `rules`. See experiment E29.
 An int is a signed 32-bit integer. The reader of an identifier accepts a string without a
 namespace and gives the namespace `minecraft`. The writer always writes the namespace. A string
 that is not an identifier is an error in each format. An identifier or a numeric id that names no
-entry of the registry is an error in each format. See results R1, R6 and R8.
+entry of the registry is an error in each format.
 
 The reader of the saved form in NBT accepts a number of each numeric tag kind for an int, a float
 or a double. It converts the number to the kind of the field:
@@ -1119,7 +1079,7 @@ A JSON boolean for a number is an error. A JSON number for a boolean is an error
 with a fraction for an int loses its fraction as the table states.
 
 The writer always writes the tag kind of the first table. The statements on a different tag kind
-have the provenance `source_suggested`. See experiments E9 and E29.
+have the provenance `source_suggested`.
 
 **STK-SHP-003** (`source_suggested_black_box_confirmed`, wire). A name of a list is one of a fixed
 set of strings. The reader of the saved form compares the string exactly. Each other string is an
@@ -1133,7 +1093,6 @@ error. The wire form is the id of the name. These lists occur in more than one r
 
 A writer must write an id of the list. The item definitions show the names `add_value`,
 `add_multiplied_total`, `mainhand`, `body`, `head`, `feet`, `chest`, `legs` and `hidden`.
-See experiment E30.
 
 **STK-SHP-004** (`source_suggested_black_box_confirmed`, wire). A text is a text component of the
 game. Its saved form is a string, a map or a list. `text-component.md` states
@@ -1142,7 +1101,7 @@ text. The writer writes a plain text without style as one string. The wire form 
 NBT. Its reader gives a decode error for an NBT that is deeper than 512 levels. It also gives a
 decode error for an NBT that is larger than a quota of 2097152 bytes. The exact measure of the
 size is not specified. Two texts are equal when their content, their style and their children are
-equal (STK-PAT-007). See results R1 and R6, and experiment E32.
+equal (STK-PAT-007).
 
 **STK-SHP-005** (`design`, unspecified). A server must not send a component of this section with
 a value out of the range of its saved form. Reason: the client cannot save or hash that component.
@@ -1157,8 +1116,7 @@ writes such an id.
 | `(value)` | int | `1..99` | necessary | VarInt |
 
 Limits: none. Equality: the two values are equal. Prototypes: each prototype has this component.
-The value is 64 for 1368 prototypes, 1 for 249 prototypes and 16 for 69 prototypes.
-See STK-CMP-001 and result R8.
+The value is 64 for 1368 prototypes, 1 for 249 prototypes and 16 for 69 prototypes. See STK-CMP-001.
 
 **STK-SHP-007** (`source_suggested_black_box_confirmed`, wire). `minecraft:max_damage`:
 
@@ -1167,7 +1125,7 @@ See STK-CMP-001 and result R8.
 | `(value)` | int | `1..2147483647` | necessary | VarInt |
 
 Limits: none. Equality: the two values are equal. Prototypes: 84 prototypes have this component,
-with 40 different values. The other 1602 prototypes do not have it. See STK-CMP-002 and result R8.
+with 40 different values. The other 1602 prototypes do not have it. See STK-CMP-002.
 
 **STK-SHP-008** (`source_suggested_black_box_confirmed`, wire). `minecraft:damage`:
 
@@ -1177,13 +1135,12 @@ with 40 different values. The other 1602 prototypes do not have it. See STK-CMP-
 
 Limits: none. Equality: the two values are equal. Prototypes: the 84 prototypes that have
 `minecraft:max_damage` have this component with the value 0 (STK-PRO-006). No other prototype has
-it. See results R1 and R8.
+it.
 
 **STK-SHP-009** (`source_suggested_black_box_confirmed`, wire). `minecraft:unbreakable` has no
 field. The saved form is the empty map `{}`. The wire form has no bytes. The reader of the saved
 form accepts a map with keys and ignores each key. A value that is not a map is an error.
 Equality: each two components of this type are equal. Prototypes: no prototype has this component.
-See results R1 and R6, and experiment E29.
 
 **STK-SHP-010** (`source_suggested_black_box_confirmed`, wire). `minecraft:custom_name`:
 
@@ -1193,7 +1150,6 @@ See results R1 and R6, and experiment E29.
 
 Limits: those of STK-SHP-004 only. A menu that renames a stack has a limit of its own. A document
 for menus states it. Equality: as STK-SHP-004. Prototypes: no prototype has this component.
-See results R1 and R6.
 
 **STK-SHP-011** (`source_suggested_black_box_confirmed`, wire). `minecraft:item_name` has the
 shape of `minecraft:custom_name` (STK-SHP-010). Prototypes: each prototype has this component.
@@ -1221,7 +1177,7 @@ prototype has this component. For each of the 1686 items, the value is the ident
 Limits: 256 elements. A saved form with more elements is not a valid saved form. A wire form with
 a number larger than 256 is a decode error. No reader removes the elements past the limit.
 Equality: the two lists have equal elements in the same order. Prototypes: each prototype has
-this component with the empty list `[]`. See experiments E29 and E30.
+this component with the empty list `[]`.
 
 **STK-SHP-014** (`source_suggested_black_box_confirmed`, wire). `minecraft:rarity`:
 
@@ -1254,7 +1210,7 @@ The reference reader also accepts one enchantment two times, and the level of th
 wins. In the saved form, two keys that name one enchantment are an error. For example, a map with `sharpness` and `minecraft:sharpness` is not a
 valid saved form. These statements have the provenance `source_suggested`. Equality: the two maps have the same
 enchantments with the same levels. The order has no effect. Prototypes: each prototype has this
-component with the empty map `{}`. See experiments E29 and E30.
+component with the empty map `{}`.
 
 **STK-SHP-016** (`source_suggested_black_box_confirmed`, wire). `minecraft:attribute_modifiers`
 is a list of entries. The saved form is a list of maps. The wire form is the number of entries,
@@ -1281,7 +1237,7 @@ registry. Limits: none on the number of entries. Equality: the two lists have eq
 the same order. Two entries are equal when each field is equal. `amount` is equal as STK-EQ-005
 states. Prototypes: each prototype has this component. The value is the empty list `[]` for 1593
 prototypes. The other 93 prototypes have 1 to 3 entries. No prototype has `slot` `any` or a
-display of the type `override`. See experiment E31.
+display of the type `override`.
 
 **STK-SHP-017** (`source_suggested_black_box_confirmed`, wire). `minecraft:tooltip_display`:
 
@@ -1295,7 +1251,7 @@ an element that occurred before in the list. The writers write the elements in t
 set. The hash uses that order (STK-HSH-005). Limits: none on the number of elements. Equality:
 the two values of `hide_tooltip` are equal, and the two sets have the same elements. The order of
 the elements has no effect on equality. This is an exception to STK-PAT-007. Prototypes: each
-prototype has this component with the empty map `{}`. See experiments E30 and E31.
+prototype has this component with the empty map `{}`.
 
 **STK-SHP-018** (`source_suggested_black_box_confirmed`, wire). `minecraft:repair_cost`:
 
@@ -1304,7 +1260,7 @@ prototype has this component with the empty map `{}`. See experiments E30 and E3
 | `(value)` | int | `0..2147483647` | necessary | VarInt |
 
 Limits: none. Equality: the two values are equal. Prototypes: each prototype has this component
-with the value 0. See result R6.
+with the value 0.
 
 **STK-SHP-019** (`source_suggested_black_box_confirmed`, wire). `minecraft:food`:
 
@@ -1351,8 +1307,7 @@ the number of rules or of blocks. Equality: each field is equal, and the two lis
 equal rules in the same order. The two float fields are equal as STK-EQ-005 states. Two block sets
 are equal when they are the same tag. They are also equal when they are lists with the same blocks
 in the same order. A tag is not equal to a list. Prototypes: 38 prototypes have this component.
-The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`. See experiments
-E29 and E32.
+The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`.
 
 ## 9. Intentional deviations
 
@@ -1362,7 +1317,6 @@ E29 and E32.
 - **Reference**: the reference reader accepts two patch entries for one component type. The last
   value entry wins, and a removal entry wins over a value entry.
 - **Visible to the client**: no. The vanilla server writes each component type one time.
-- **Test**: a differential test must not send two patch entries for one component type.
 
 **D2.**
 
@@ -1371,7 +1325,6 @@ E29 and E32.
   component. The reference reader of the wire stack accepts a count larger than 99.
 - **Visible to the client**: yes, when a server sends such a stack. The client shows the count,
   and its next `set_creative_mode_slot` packet for that stack fails at the server.
-- **Test**: a differential test must not make a stack with a count larger than 99.
 
 **D3.**
 
@@ -1382,7 +1335,6 @@ E29 and E32.
   larger than 255. A hashed stack with a count larger than 255 is equal to no stack.
 - **Visible to the client**: no. The vanilla client and the vanilla server send no count larger
   than 99.
-- **Test**: a differential test must not make a stack with a count larger than 255.
 
 **D4.**
 
@@ -1392,7 +1344,6 @@ E29 and E32.
 - **mcrs**: the reader of the wire stack with length prefix gives a decode error for such a
   component. Reason: a strict reader refuses input that no conforming writer produces.
 - **Visible to the client**: no. The vanilla client writes the exact length.
-- **Test**: a differential test must not write a length that is larger than the component.
 
 **D5.**
 
@@ -1402,129 +1353,21 @@ E29 and E32.
 - **mcrs**: the reader of the wire form gives a decode error for the level 0 in each format that
   carries the component. Reason: a strict reader refuses input that no conforming writer produces.
 - **Visible to the client**: no. The vanilla client and the vanilla server write no level 0.
-- **Test**: a differential test must not write an enchantment with the level 0.
 
-## 10. Open questions
-
-For the owner:
+## 10. Unresolved
 
 - **Q1**: STK-SAV-006. Which callers keep a stack whose patch has a bad key, and which drop the
-  stack? Experiment E11 gives the reference behaviour for a world file. The owner decides if this
-  project copies it for each caller.
+  stack? The owner decides if this project copies the reference for each caller.
 - **Q2**: STK-DMG-006. A stack with a count larger than 1 that breaks keeps a damage value equal
   to the maximum damage. Strict validation prevents such a stack, but the saved reader does not.
   Does this project copy the reference, or does the remainder get the damage value 0?
 - **Q3**: STK-CMD-001. Is the command form in the scope of this document, or does it move to an
   `argument-item.md` with the item predicate form?
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
-  the client clicks. Which hash does the client send, or does the client fail? Experiment E27.
-- **Q5**: answered. STK-NET-010 states that the reader gives a decode error. Deviation D4 records
-  the reference behaviour.
-- **Q6**: answered. STK-EQ-005, STK-EQ-006 and STK-HSH-009 state the rules. Experiment E28
-  confirms them.
+  the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
   document owns each group of types? Section 8.1 states the first 15 types.
-- **Q8**: answered. `text-component.md` owns the text component. Its sections 3, 6 and 7 state the
-  saved form with the canonical form, the equality and the hash.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
-
-Not decided by an experiment yet. An entry with "answered from the source" has a rule with the
-label `source_suggested`. Its experiment confirms the rule.
-
-- **U1**: answered from the source. STK-SAV-004 states that the value must be a map.
-  Experiment E10.
-- **U2**: STK-CMD-003. If `[]` is valid in the command form. Experiment E15.
-- **U3**: the command form with the item `minecraft:air`. Experiment E16.
-- **U4**: answered from the source. STK-TPL-004 states that the reader accepts a negative count.
-  Experiment E21.
-- **U5**: answered from the source. STK-SHP-002 states that the reader of `count` accepts a Byte
-  tag and a Short tag. Experiment E9.
-- **U6**: answered from the source. STK-SHP-002 states the conversion of a number of a different
-  tag kind; TXT-SAV-010 and TXT-JSN-004 of `text-component.md` state it for a text. Experiment
-  E29.
-- **U7**: answered from the source. STK-SHP-015 states that the saved map is an error and that
-  the last entry of the wire form wins. Experiments E29 and E30.
-- **U8**: answered from the source. STK-SHP-009 states that the reader accepts a map with keys.
-  Experiment E29.
-- **U9**: answered. TXT-EQ-002 and TXT-EQ-007 of `text-component.md`: the two forms decode to equal
-  texts, with one saved form, one wire form and one hash.
-
-## 11. Experiments
-
-Each experiment uses the game version of the table at the top of this document. An experiment of
-the kind "golden" adds cases to a golden of `tools/fixtures.json`. Run it with
-`cargo run -p mcrs_minecraft_update -- recapture <name>`. The codecs of the game then write the
-expected values. Where no golden has the case kind, the first step adds that kind to
-`tools/vanilla-oracle`. An experiment of the kind "server" uses a vanilla server with
-`online-mode=false` and one scripted client that is an operator.
-
-| Experiment | Kind | Steps | Record |
-|------------|------|-------|--------|
-| E1 | golden | Decode the wire stack `01 00 00 00` (count 1, air). Decode a wire stack with the count 0. Read `minecraft:max_stack_size` of each result. | If each result is the empty stack; the component that the read gives. |
-| E2 | server | Give `stone[max_stack_size=16]`, `stone[!max_stack_size]`, `stone` and `stone[damage=3]`. Read each stack with `data get`. Put 20 of each in one slot with `item replace`. | The saved patch; which counts the server accepts. |
-| E3 | golden | Decode a saved stack, a wire stack and an item template of `minecraft:stone` with `max_stack_size` 64 in the patch, and with `!minecraft:damage`. Encode each result. | If the output has the patch entry. |
-| E4 | golden | Decode a saved stack with the counts 0, -1, 99, 100 and 2147483647. Encode a stack with the count 100 to the saved form and to the wire form. | The error or the stack of each case. |
-| E5 | server | Write a chest with `data merge block`: 64 diamond swords in one slot, a sword with `damage` equal to `max_damage`, and stone with `max_damage` 10. Read the block with `data get`. Do the same stacks with `give`. | Which stacks the block keeps; the error of each `give`. |
-| E6 | server | Send `set_creative_mode_slot` in creative mode with the counts 99, 100 and 127, with `max_stack_size` 0 in the patch, and with 64 diamond swords. | For each case: the slot that the server holds, or the disconnect reason. |
-| E7 | server | Put two stacks in two slots: equal patches written in a different key order, and patches that differ in one component. Move one on the other with a click. | If the stacks merge. |
-| E8 | server | Click a stack of 1 damaged sword with `max_stack_size` 16 on an equal stack. Repeat with `damage` 0, and with `unbreakable`. | If the stacks merge, and the counts. |
-| E9 | golden | Decode saved stacks: no `id`, `id` of an unknown item, `id` `minecraft:air`, `id` without a namespace, `count` as a Byte tag, `count` as a Short tag. | The error or the stack of each case. |
-| E10 | golden | Decode saved stacks with the patch keys `damage`, `!repair_cost`, `!minecraft:repair_cost` with the values `{}`, `1b` and `"x"`. | The patch of each result, or the error. |
-| E11 | server | Stop the server. Write a player inventory with one stack that has an unknown patch key, one with `minecraft:creative_slot_lock`, and one with `max_stack_size` 0. Start the server and read the inventory. | For each stack: absent, or present with which patch entries; the log line. |
-| E12 | golden | Encode the empty stack as an optional saved stack. Decode `{}`, and decode a map with only `count`. | The output; the result of each decode. |
-| E13 | golden | Encode a stack with `minecraft:additional_trade_cost` 3 to the saved form and to the wire form. | If the saved form has the key; the wire bytes. |
-| E14 | server | Fill a chest with stacks in the slots 0 and 26 only. Read `Items` with `data get`. Write `Items` with a `Slot` of `-1b`, and with no `Slot`. | The elements of the list; the slot that each stack gets. |
-| E15 | server | Run `give @s` with `stone[]`, `stone[ damage = 1 , !lore ]`, `stone[damage=1,]`, `stone[`, and `minecraft:stone[minecraft:damage=1]`. Read the suggestions packet of the client for each. | The result or the translation key of each case. |
-| E16 | server | Run `give @s` with `nope`, `stone[nope=1]`, `stone[creative_slot_lock={}]`, `stone[damage=1,!damage]`, `stone[damage="x"]`, `stone[=1]` and `air`. | The translation key of each case. |
-| E17 | server | Run `give @s diamond_sword[max_stack_size=16] 1`, `give @s stone[max_stack_size=4] 5`, and `item replace entity @s hotbar.0 with stone[max_stack_size=4] 5`. | The translation key of each case. |
-| E18 | golden | Decode wire stacks with an item id of 100000, and with a type id of 122. | The error of each case. |
-| E19 | golden | Encode the empty stack as a wire stack that is not empty. Decode the byte `00` in that format. | The error of each case. |
-| E20 | golden | Encode a bundle that holds one damaged sword as a wire stack with length prefix. Encode a decorated pot with two empty sides. | The bytes; where a length occurs. |
-| E21 | golden | Decode the wire form of an item template with the counts 0, -1 and 100, and with the item id of air. | The error or the item template of each case. |
-| E22 | server | Give a bundle whose contents are 64 diamond swords, and one whose contents are a broken sword. Take the contents out. | The stacks that the player gets. |
-| E23 | server | Send `container_click` with a hashed stack whose value entries are in reverse order, with one wrong hash, and with one type id two times. | If the server sends the slot again, or the disconnect reason. |
-| E24 | server | Give `stone[damage=5]`, `stone[max_damage=10,max_stack_size=1,damage=50]` and a sword with `damage` 3 and `unbreakable`. Hit a block with each in survival mode. Read each stack. | The saved patch before and after; if the client shows a durability bar. |
-| E25 | server | Give a sword with `damage` at the maximum damage minus 1. Break one block. Repeat with the item modifier `set_damage` with `add` -0.1 on a damaged sword. | The stack after each step; the packets of the break. |
-| E26 | golden | Encode a stack with each of `custom_data`, `intangible_projectile`, `map_decorations`, `debug_stick_state`, `recipes`, `lock` and `container_loot`. | The wire bytes of each component. |
-| E27 | server | Put a filled map and a glass pane in a cartography table. Click the result slot with a vanilla client. Capture the `container_click` packet. | The hashed stack of the result slot, or the failure of the client. |
-| E28 | golden | Decode a stack whose patch has `minimum_attack_charge` equal to the prototype as `-0.0f` and `0.0f`. Decode wire stacks of an apple with `food` whose `saturation` has the bits `7fc00000`, `7fc00001`, `ffc00000`, `00000000` and `80000000`. Compare each pair of the results. Compare `custom_data` `{a:1}` with `{a:1b}`. Encode each result and hash each component. | If the first result has the patch entry; which pairs have the same item and components; the wire bytes and the hash of each. |
-| E29 | golden | Decode saved components: `max_stack_size` as `64b`, `64L` and `64.5f`; `food` with `saturation` as `1.0d` and with no `saturation`; `food` with an unknown key; `unbreakable` as `{a:1}` and as `1b`; `rarity` as `"COMMON"`; `lore` with 257 lines; `enchantments` with the levels 0 and 256, and with the keys `sharpness` and `minecraft:sharpness`; `tool` with a rule `speed` of `0.0f`, `-0.0f` and `Infinityf`; `tooltip_display` with `hide_tooltip` `"x"`. Encode each result. | The error or the saved form of each case. |
-| E30 | golden | Decode wire components: `rarity` with the ids 4 and -1; a slot group with the id 11; `enchantments` with the levels 0 and 256, and with one enchantment two times; `lore` with the number 257; `tooltip_display` with one type id two times. Encode each result to the saved form and hash it. | The error or the component of each case; the saved form and the hash. |
-| E31 | server | Put two stacks in two slots: `tooltip_display` with `hidden_components` `[lore,enchantments]` and `[enchantments,lore]`. Repeat with two `attribute_modifiers` entries in the two orders. Move one stack on the other with a click. | If the stacks merge. |
-| E32 | golden | Decode saved components: `item_name` as `"x"`, `{text:"x"}` and `["x"]`; `tool` with `blocks` as `"minecraft:stone"`, `["minecraft:stone"]`, `[]` and `"#minecraft:nope"`. Compare the results. Encode each result and hash it. | Which results are equal; the saved form, the wire bytes and the hash of each. |
-
-## 12. Captured results
-
-Each result is a case of a golden that the game wrote. The fixture name is a name of
-`tools/fixtures.json`.
-
-| Result | Fixture | Case | Bytes or value |
-|--------|---------|------|----------------|
-| R1 | `inventory_packets` | `container_set_slot` | `03 07 0005 01 b108 03 00 03 07 06 0800056e616d6564 04` |
-| R2 | `inventory_packets` | `container_set_slot_empty` | `00 01 ffff 00` |
-| R3 | `inventory_packets` | `container_click` | `01 02 0003 00 00 02 0004 00 0003 01 b108 01 03 03 9915c56e 04 c574b4c8 06 d2ee6d5e 00 01 8608 01 00 00` |
-| R4 | `inventory_packets` | `set_creative_mode_slot` | `0024 01 b108 03 00 03 01 07 06 08 0800056e616d6564 04 00` |
-| R5 | `inventory_packets` | `set_creative_mode_slot_empty` | `ffff 00` |
-| R6 | `item_nested` | `use_remainder_full` | saved: `{"id":"minecraft:diamond_sword","count":3,"components":{"minecraft:max_stack_size":16,"minecraft:damage":7,"minecraft:custom_name":"named","minecraft:unbreakable":{},"!minecraft:repair_cost":{}}}`; wire: `b108 03 04 01 01 10 03 07 06 0800056e616d6564 04 13`; hash: -1619506781 |
-| R7 | `item_nested` | `use_remainder_plain` | saved: `{"id":"minecraft:stone"}`; wire: `01 01 00 00`; hash: 725422587 |
-| R8 | `item_plain` | `max_stack_size` 64, `damage` 0, `max_damage` 1561 | `max_stack_size`: wire `40`, NBT `03 00000040`, hash 733160003. `damage`: hash -2146075228. `max_damage`: wire `990c`. |
-| R9 | `hash_ops` | the node kinds | absent value: -1609117614. Empty map: -982207288. Empty list: -1978007022. True: -1019818302. False: 828198337. Float 1.5: -1709970540. String `hello`: 773640809. Empty string: 1615905556. Section 6.7 gives the input and the hash of each of the 26 cases. |
-
-Notes on the results:
-
-- R1: the fields before the stack are the container id 3, the state id 7 and the slot 5. The stack
-  has the count 1, the item id 1073 (`minecraft:diamond_sword`), 3 value entries and 0 removal
-  entries. The value entries are `damage` 7, `custom_name` as network NBT, and `unbreakable` with
-  no bytes.
-- R3: the packet has 2 changed slots. Slot 4 has a hashed stack that is not present. Slot 3 has
-  the item id 1073, the count 1 and 3 value entries. The hash `9915c56e` is the hash of the int 7.
-  The hash `c574b4c8` is the hash of the empty map. The hash `d2ee6d5e` is the hash of the string
-  `named`. The cursor has the item id 1030, the count 1 and no patch entries.
-- R4: the lengths of the 3 components are 1, 8 and 0.
-- R6: the wire form has the item id, the count 3, 4 value entries and 1 removal entry. The removal
-  entry is the type id 19 (`repair_cost`). The hash is the hash of the saved map, with the unsigned
-  order of STK-HSH-006. The signed order gives 1172329907, which is not the value of the game.
-- R9: the `float` case of the fixture is the float 1.5. An earlier revision of this row gave
-  "Float 0.5: -1631070359". The fixture has no case with the float 0.5, thus the game did not
-  record that number. The number is the result of STK-HSH-005 for the float 0.5.
+- **U2**: STK-CMD-003. If `[]` is valid in the command form.
+- **U3**: the command form with the item `minecraft:air`.

@@ -2,11 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `draft` |
-| Last updated | `2026-11-17` |
-| Game version | `26.4-snapshot-7` |
-| Protocol version | `1073742169` |
-| World version | `5127` |
+| Version | see `assets/minecraft/version.json` |
 | Permission requirement | `gamemasters` ([command-permissions.md](command-permissions.md), `PERM-CMD-001`) |
 | Parser ids | `brigadier:integer` (`3`), `minecraft:entity` (`6`), `minecraft:item_stack` (`14`) ([registries.json](../../assets/mcrs/reports/registries.json)) |
 | Clientbound packets | `add_entity` (`1`), `commands` (`16`), `container_set_content` (`18`), `container_set_slot` (`20`), `remove_entities` (`78`), `set_entity_data` (`101`), `sound` (`119`), `system_chat` (`124`), `take_item_entity` (`127`) ([packets.json](../../assets/mcrs/reports/packets.json)) |
@@ -35,11 +31,6 @@ This document specifies wire behavior, client agreement, and execution semantics
 Primary evidence sources for this specification are:
 
 - Registry reports in [registries.json](../../assets/mcrs/reports/registries.json) and packet reports in [packets.json](../../assets/mcrs/reports/packets.json).
-- Scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) and trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json), recorded on `26.4-snapshot-7` by the probe ([README.md](../../tools/mcrs_minecraft_probe/README.md)). The trace has 68 steps. Each step records what the clients observe.
-  - `join-GiveProbeA`, `join-GiveProbeB` and `promote`: `commands` packets before and after operator promotion.
-  - 25 steps `client.<id>`: `system_chat` replies of the sender, and the `sound` packets of the viewers.
-  - 31 console cases, named by their id: console output, the `system_chat` messages that the clients receive (`chat`), and the decoded `sound` packets (`sounds`, with `position` as sent, `volume`, `pitch` and `seed`).
-  - Steps `<id>.setup`: the preparation of a console case. They are not evidence of a rule.
 
 ### 0.3 Provenance and kinds
 
@@ -53,7 +44,7 @@ Every rule carries `Provenance`, `Kind`, and `Confidence` tags per [README.md](R
 
 - `CMD-GIVE-001` .. `CMD-GIVE-013`: `/give` command syntax, validation, execution, sound, and text rules.
 - `D6`: Intentional deviation shared with [item-entity.md](item-entity.md).
-- `U1`, `U3`: Open questions in Section 7.
+- `U1`, `U3`: Unresolved items in Section 7.
 
 ---
 
@@ -354,23 +345,6 @@ particular arrangement of text nodes when the same visible content and hover dat
 
 This command has one intentional deviation, `D6` (creative overflow).
 Its rule, reference behaviour, reason and test are in [D6](item-entity.md#111-intentional-deviations); `CMD-GIVE-008` applies it.
-
----
-
-## 6. Experiments and Conformance
-
-The saved trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json) covers 25 client steps and 31 console cases. All ran on `26.4-snapshot-7`.
-The experiment needs Java 25 and the verified server jar of that version.
-The probe provisions the jar with `tools/vanilla-server/run.sh fetch` and starts a server on a new flat world.
-The scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) sets the operators, the scoreboard objectives and the test area.
-Run the experiment with:
-
-```bash
-MINECRAFT_EULA=true tools/mcrs_minecraft_probe/record.sh give
-```
-
-The [probe README](../../tools/mcrs_minecraft_probe/README.md) states the scenario and trace formats.
-Pitch and seed are random in each run. Compare them by range, not by value.
 
 ---
 

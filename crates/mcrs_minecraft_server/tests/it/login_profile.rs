@@ -273,7 +273,7 @@ fn an_acknowledged_switch_login_compresses_only_after_the_acknowledgement() {
 }
 
 #[test]
-fn an_acknowledged_switch_login_that_times_out_after_login_finished_closes_without_a_packet() {
+fn switch_login_timeout_after_login_finished_closes_without_packet() {
     let mut app = server(None);
     let mut client = connect_with(&mut app, SwitchMode::Acknowledged);
     send_hello(&mut app, &client, "Steve", Uuid::new_v4());
@@ -346,7 +346,7 @@ fn a_hello_under_an_empty_name_is_accepted_as_in_the_game() {
 }
 
 #[test]
-fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_is_saved() {
+fn second_login_ends_first_session_and_plays_once_player_is_saved() {
     let mut app = server(None);
     let dim = dimension(&mut app);
 
@@ -424,7 +424,7 @@ fn a_connection_silent_in_login_is_disconnected_after_six_hundred_ticks() {
 }
 
 #[test]
-fn a_shutdown_after_the_login_finished_disconnects_in_the_protocol_the_client_switched_to() {
+fn shutdown_after_login_finished_disconnects_in_switched_protocol() {
     let mut app = server(None);
     app.add_plugins(ShutdownPlugin);
     let mut client = connect(&mut app);
@@ -1134,7 +1134,7 @@ fn forwarded_hello(app: &mut App) -> (Client, i32) {
 }
 
 #[test]
-fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_proxy() {
+fn fwd_use_001_002_forwarded_login_takes_proxy_profile_and_address() {
     let mut app = forwarding_server();
     app.insert_resource(ServerProfile::Local);
     let (mut client, message_id) = forwarded_hello(&mut app);
@@ -1199,7 +1199,7 @@ fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
 }
 
 #[test]
-fn loop_addr_001_loop_grant_002_a_forwarded_loopback_address_makes_no_operator_on_public() {
+fn loop_addr_001_loop_grant_002_forwarded_loopback_makes_no_operator() {
     assert_eq!(
         forwarded_op(ServerProfile::Public, &LOOPBACK_FORWARDED_PAYLOAD),
         None

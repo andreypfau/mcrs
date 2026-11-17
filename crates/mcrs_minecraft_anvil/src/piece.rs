@@ -934,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn an_inline_feature_or_a_processor_compound_without_its_list_fails_the_load_naming_its_key() {
+    fn compound_without_its_list_fails_the_load_naming_the_key() {
         let element = |key: &str, element_type: &str| {
             let mut element = NbtCompound::new();
             element.put_string("element_type", element_type.to_owned());

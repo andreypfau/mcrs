@@ -1,11 +1,6 @@
 # The `gamemode` command: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the tree of the `gamemode` command, what it changes, and the messages
 that it sends. It does not prescribe an architecture.
@@ -17,8 +12,7 @@ that it sends. It does not prescribe an architecture.
 - **Target**: a player whose game mode the command sets.
 - **Mode text**: the translation `gameMode.<name>`, where `<name>` is the keyword of the game
   mode (`argument-keywords.md`, ARG-KW-001).
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-GM`. None of the experiments
-  has been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-GM`.
 
 ---
 

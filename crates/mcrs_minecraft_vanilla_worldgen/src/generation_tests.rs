@@ -144,7 +144,7 @@ fn force_eviction(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "the helper drives the real stage to the top of every ladder and reads the blocks back, and the stepping and the read-back share one stage"
+    reason = "stepping and read-back share one stage"
 )]
 fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region, usize) {
     let y_sections = &dim.ctx.y_sections;

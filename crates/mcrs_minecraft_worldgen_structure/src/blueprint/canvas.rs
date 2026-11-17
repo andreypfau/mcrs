@@ -134,7 +134,7 @@ impl Canvas {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "lays the rings of the hip roof from the outside in, with the lining test for each cell inline, so the roof reads as the reference builds it"
+        reason = "lining test inline, rings laid from the outside in"
     )]
     pub fn hip_roof(
         &mut self,

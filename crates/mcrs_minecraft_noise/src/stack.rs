@@ -160,7 +160,7 @@ impl<N: Noise> NoiseStack<N> {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the output, the column position, the sample grid, the two scales and the scratch of one stack evaluation"
+        reason = "independent inputs of one stack evaluation"
     )]
     pub fn fill_column_at(
         &self,

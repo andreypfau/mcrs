@@ -1,10 +1,5 @@
 # The STATUS protocol: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
 This document states the STATUS state of the game protocol. A client uses this
 state to get the server list entry of a server. The entry holds the message of
 the day, the player counts, a sample of player names and the game version. The
@@ -12,8 +7,7 @@ client also uses the state to measure the round-trip time.
 
 This document states only what a client, a server or a packet capture can see.
 It does not prescribe an architecture. Every rule comes from the responses of a
-vanilla server. Section 7 gives the experiments, and section 8 gives the
-captured responses.
+vanilla server. Section 7 lists the experiments.
 
 ## 0. Conventions
 
@@ -39,7 +33,7 @@ captured responses.
 - **Sample entry**: one object of the sample.
 - **Idle time**: the time since the server received the last serverbound packet
   of the connection. The handshake is a serverbound packet.
-- **Probe**: the test client of section 7.2. It writes frames and logs each frame
+- **Probe**: the test client of section 7. It writes frames and logs each frame
   that it receives, with the time.
 
 ### 0.2 Wire types
@@ -54,18 +48,14 @@ captured responses.
 
 This document uses the provenance labels of `registry.md`, section 0.3. A rule
 with the label `black_box_confirmed` cites the experiment of section 7 that
-shows it. The responses of each experiment are in section 8. All experiments in
-this document were run on 2026-10-29 against the vanilla server of
-`26.4-snapshot-4`.
+shows it.
 
 ### 0.4 Artefacts cited
 
-- `assets/mcrs/reports/packets.json`: the packet id report of `26.4-snapshot-4`.
-  Its `status` section gives the packet ids of STATUS-PKT-001.
+- `assets/mcrs/reports/packets.json`: the packet id report. Its `status` section
+  gives the packet ids of STATUS-PKT-001.
 - `assets/minecraft/version.json`: the version name and the protocol version of
   STATUS-JSON-005.
-- Section 8 of this document: the frames that the probe received in the
-  experiments of section 7.
 
 ### 0.5 ID prefixes
 
@@ -212,7 +202,7 @@ for these two versions. No experiment used other versions (section 6).
 - **Behavior:** the vanilla server does not write the keys `favicon`,
   `enforcesSecureChat` or `preventsChatReports` in any experiment of this
   document. No experiment had a `server-icon.png` file. All experiments had
-  `online-mode=false` and `enforce-secure-profile=false` (section 7.1).
+  `online-mode=false` and `enforce-secure-profile=false` (section 7).
 
 Provenance: `black_box_confirmed` (E1, E8). Kind: wire. Confidence: high for the
 keys that the experiments show. A file `server-icon.png` or other values of
@@ -375,27 +365,6 @@ Provenance: `black_box_confirmed` (E17). Kind: semantic. Confidence: high. E17
 sends its first packet directly after the handshake. It does not show if the
 close comes after the handshake or after that packet (section 6).
 
-## 5. Conformance checks
-
-These checks cover only a part of this document. A server that passes them
-can break a rule that no check tests, for example STATUS-SEQ-005 or
-STATUS-JSON-006.
-
-| Check | Rules |
-|-------|-------|
-| E1 gives one status response and one pong with the same payload, then a close | STATUS-PKT-002, STATUS-SEQ-001 |
-| E3 gives one status response and then a close | STATUS-SEQ-002 |
-| E4 gives one pong and then a close | STATUS-SEQ-003 |
-| E6 closes at 30 s and at 50 s | STATUS-SEQ-004 |
-| E10 gives a document without `description` | STATUS-JSON-002 |
-| E11 gives a sample of 12 entries with 15 online players | STATUS-JSON-004 |
-| In E12, each sample holds 12 different players of the 15 online players | STATUS-JSON-004 |
-| E16 gives a document without `players.sample` | STATUS-CFG-003 |
-| E17 gives a close without a packet | STATUS-CFG-004 |
-
-The exact bytes of the response document can differ from section 8. The keys,
-the types and the values must agree.
-
 ## 6. Unresolved
 
 - **Server icon.** A file `server-icon.png` in the server directory can add a
@@ -437,65 +406,10 @@ the types and the values must agree.
 
 ## 7. Experiments
 
-### 7.1 Server setup
+The probe is a TCP client that sends frames without compression and logs each frame. The server runs with
+`online-mode=false`, `enforce-secure-profile=false` and `white-list=false`. The properties column lists the
+other properties.
 
-1. Get the package descriptor of `26.4-snapshot-4` from the `url` of the
-   `json` entry of `crates/mcrs_minecraft_client_jar/src/release.json`.
-2. Verify the SHA-1 of the descriptor against the `sha1` of that entry.
-3. Get the dedicated server jar from the `url` of the `downloads.server` entry
-   of the descriptor.
-4. Verify the SHA-1 and the size of the jar against the same entry.
-5. Write `eula=true` in `eula.txt`. Do this only when you accept the Minecraft
-   EULA.
-6. Write `server.properties` with these lines:
-
-   ```properties
-   online-mode=false
-   server-ip=127.0.0.1
-   server-port=25577
-   level-seed=42
-   view-distance=4
-   simulation-distance=4
-   enforce-secure-profile=false
-   white-list=false
-   ```
-
-7. Add the lines of the experiment to `server.properties`.
-8. Start the server with Java 25 or later: `java -Xmx2G -jar server.jar nogui`.
-   Keep its standard input open. A server with a closed standard input does not
-   read console commands.
-9. Wait for the log line `Done`.
-10. Before you change `server.properties`, send `stop` to the console. Then
-    start the server again.
-
-The default `server.properties` of this version has `white-list=true`. With
-that value, the server disconnects each player that joins with the reason
-`You are not white-listed on this server!`. Step 6 sets it to `false`.
-
-### 7.2 The probe
-
-The probe is a TCP client. It does these steps on one connection:
-
-1. Connect to `127.0.0.1:25577`.
-2. Send the handshake: protocol version `1073742166`, host `127.0.0.1`, port
-   `25577`, intent `1`. E7 uses a different protocol version.
-3. Do the steps of the experiment.
-4. For each read, wait for one frame, with a time limit.
-5. Log the id, the length and the body of each frame, or the close, or the
-   end of the time limit.
-
-The probe sends frames without compression. mcrs has a probe of this kind:
-`PacketIo` of `mcrs_minecraft_network` can connect, send the packets of section
-1 and receive frames.
-
-### 7.3 Players
-
-E11 to E16 need online players. Any client that can join in offline mode can
-supply them. For the experiments of this document, the mcrs client joined with
-the names `bot00` to `bot14`, with one connection for each name. The clients
-continued to update, so that the server did not disconnect them.
-
-### 7.4 List of experiments
 
 | Id | Properties added | Players | Probe steps |
 |----|------------------|---------|-------------|
@@ -516,175 +430,6 @@ continued to update, so that the server did not disconnect them.
 | E15 | `max-players=0` | 0 | status request, read |
 | E16 | `hide-online-players=true` | 3 | status request, read |
 | E17 | `enable-status=false` | 0 | (a) as E1; (b) as E4 |
-
-## 8. Captured results
-
-Each block gives the frames that the probe received, in order. `>` is a frame
-that the probe sent. `<` is a frame that it received, or the close. Times are
-from the end of the handshake.
-
-E1:
-
-```text
-> status_request
-< id 0x00, 128 bytes, String:
-  {"description":"A Minecraft Server","players":{"max":20,"online":0},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-> ping_request 0x0123456789abcdef
-< id 0x01, 8 bytes: 01 23 45 67 89 ab cd ef
-< close at 0.040 s
-```
-
-E2:
-
-```text
-> status_request
-< id 0x00 (as E1)
-> ping_request 0xffffffffffffffff
-< id 0x01, 8 bytes: ff ff ff ff ff ff ff ff
-```
-
-E3:
-
-```text
-> status_request
-< id 0x00 (as E1)
-> status_request
-< close at 0.002 s
-```
-
-E4:
-
-```text
-> ping_request 0x000000000000002a
-< id 0x01, 8 bytes: 00 00 00 00 00 00 00 2a
-< close at 0.002 s
-```
-
-E5:
-
-```text
-> status_request
-< id 0x00 (as E1)
-> ping_request 0x0000000000000001
-< id 0x01, 8 bytes: 00 00 00 00 00 00 00 01
-> ping_request 0x0000000000000002
-< close at 0.002 s
-```
-
-E6:
-
-```text
-(a) < close at 30.002 s
-(b) > status_request
-    < id 0x00 (as E1)
-    < close at 30.002 s
-(c) < no frame in 20 s
-    > status_request
-    < id 0x00 (as E1)
-    < close at 50.007 s
-```
-
-E7:
-
-```text
-> status_request
-< id 0x00, the same document as E1, with "protocol":1073742166
-```
-
-E8:
-
-```json
-{"description":"Hello mcrs","players":{"max":7,"online":0},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E9 (the JSON text as received; `\n` is a JSON escape here):
-
-```json
-{"description":"§cRed §lbold§r plain\nsecond line","players":{"max":20,"online":0},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E10:
-
-```json
-{"players":{"max":20,"online":0},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E11, first capture. Captures 2 and 3 were the same. Captures 4 to 6 held the
-same 12 names in other orders. `bot00`, `bot13` and `bot14` are not in the
-sample:
-
-```json
-{"description":"A Minecraft Server","players":{"max":20,"online":15,"sample":[{"id":"b7fedf1d-4755-3933-8b95-94af66bb8fba","name":"bot02"},{"id":"12ef748b-a7df-33d8-a8b8-35fbb5ead07b","name":"bot03"},{"id":"3c122e9b-bd92-3320-bafd-927ef5e89be4","name":"bot10"},{"id":"88605d7e-d180-3c93-aa45-88a8fefd609e","name":"bot05"},{"id":"0c9f36f5-17f5-3345-a016-807efd763dac","name":"bot07"},{"id":"c1f80fd8-6b9e-3ba7-b676-d522e37a6a2e","name":"bot11"},{"id":"2aefc396-b4dc-3b3a-a447-2a8439f9bd23","name":"bot04"},{"id":"8bc9b6cf-cadf-39fd-a553-36e7e837dd38","name":"bot12"},{"id":"25686541-576e-3601-96ea-2aa4cb9afa94","name":"bot01"},{"id":"bc93b0c2-ec2e-3e4d-aad2-edc9b2e76bc3","name":"bot06"},{"id":"e5719c3f-2331-3909-88a9-f752cf82a079","name":"bot09"},{"id":"42857abc-d860-3fa9-813c-4c0f019fcb53","name":"bot08"}]},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E11, capture 6:
-
-```json
-{"description":"A Minecraft Server","players":{"max":20,"online":15,"sample":[{"id":"3c122e9b-bd92-3320-bafd-927ef5e89be4","name":"bot10"},{"id":"25686541-576e-3601-96ea-2aa4cb9afa94","name":"bot01"},{"id":"88605d7e-d180-3c93-aa45-88a8fefd609e","name":"bot05"},{"id":"c1f80fd8-6b9e-3ba7-b676-d522e37a6a2e","name":"bot11"},{"id":"2aefc396-b4dc-3b3a-a447-2a8439f9bd23","name":"bot04"},{"id":"42857abc-d860-3fa9-813c-4c0f019fcb53","name":"bot08"},{"id":"12ef748b-a7df-33d8-a8b8-35fbb5ead07b","name":"bot03"},{"id":"e5719c3f-2331-3909-88a9-f752cf82a079","name":"bot09"},{"id":"bc93b0c2-ec2e-3e4d-aad2-edc9b2e76bc3","name":"bot06"},{"id":"8bc9b6cf-cadf-39fd-a553-36e7e837dd38","name":"bot12"},{"id":"b7fedf1d-4755-3933-8b95-94af66bb8fba","name":"bot02"},{"id":"0c9f36f5-17f5-3345-a016-807efd763dac","name":"bot07"}]},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E12. Each line gives the wall-clock time at which the document changed and
-`players.online`. Then it gives the sample and the names that are not in the
-sample. A name `botNN` shows as the number `NN`. The players joined in the order
-`bot00` to `bot14`:
-
-```text
-20:50:42.766 15 05 03 11 01 10 07 12 02 04 09 08 06  missing: 00 13 14
-20:50:46.051 15 03 10 00 04 06 05 09 08 02 07 11 01  missing: 12 13 14
-20:50:51.220 15 04 07 03 02 09 11 06 08 05 12 01 10  missing: 00 13 14
-20:50:56.403 15 07 08 03 06 05 01 04 11 00 02 09 10  missing: 12 13 14
-20:51:01.573 15 09 04 08 02 03 06 05 11 07 10 13 12  missing: 00 01 14
-20:51:06.104 15 07 02 08 10 06 03 01 12 05 04 09 11  missing: 00 13 14
-20:51:11.256 15 09 06 03 08 00 02 11 01 05 04 07 10  missing: 12 13 14
-20:51:16.460 15 06 08 01 03 10 11 05 02 09 04 12 07  missing: 00 13 14
-20:51:21.711 15 10 05 04 06 07 14 13 09 08 11 12 03  missing: 00 01 02
-20:51:26.868 15 05 04 12 11 07 06 08 10 09 03 13 02  missing: 00 01 14
-20:51:31.475 15 13 07 14 11 08 10 05 12 09 06 04 03  missing: 00 01 02
-20:51:36.572 15 10 06 03 08 04 05 11 07 12 09 01 02  missing: 00 13 14
-```
-
-E13, `players.online` and the names of the sample. The server log shows the
-joins of `bot00` at 20:45:29, `bot01` at 20:45:29 and `bot02` at 20:45:30:
-
-```text
-20:45:28.784 0 (no sample)
-20:45:29.265 1 [bot00]
-20:45:29.746 2 [bot01, bot00]
-20:45:30.294 3 [bot02, bot01, bot00]
-20:45:34.743 3 [bot02, bot01, bot00]
-20:45:35.243 3 [bot01, bot00, bot02]
-20:45:39.620 3 [bot01, bot00, bot02]
-20:45:40.106 3 [bot00, bot02, bot01]
-20:45:44.886 3 [bot00, bot02, bot01]
-20:45:45.352 3 [bot01, bot00, bot02]
-```
-
-E14. The players stopped at 20:45:59.405:
-
-```text
-20:45:59.457 0 (no sample)
-```
-
-E15:
-
-```json
-{"description":"A Minecraft Server","players":{"max":0,"online":0},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E16:
-
-```json
-{"description":"A Minecraft Server","players":{"max":20,"online":3},"version":{"name":"26.4 Snapshot 4","protocol":1073742166}}
-```
-
-E17:
-
-```text
-(a) > status_request
-    < close at 0.037 s
-(b) > ping_request 0x000000000000002a
-    < close at 0.002 s
-```
 
 ## 9. Intentional deviations
 

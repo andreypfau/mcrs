@@ -10,7 +10,6 @@ intermediate step. A second round needs the owner's word.
 
 The pass includes the simplify lens and the verbosity lens. Do not run another review skill
 (`simplify`, `code-review`, `chisle-review`, `chisle-audit`) or a second reviewer beside it.
-The fan-out in the checklist of `rust-style` does not apply to this pass.
 
 ## Who reviews
 
@@ -21,7 +20,7 @@ Review `git diff origin/main...HEAD` in <worktree>. Load the skills rust-style a
 efficient-testing; load bevy-ecs when the diff adds or changes a component, a resource, a
 message or a system. Read CLAUDE.md. Apply every lens of the section "What the reviewer looks
 for" of the skill review-pr, the simplify and verbosity lenses included. You are the only
-reviewer: do not fan out as the rust-style checklist says for a large diff. Do not edit files.
+reviewer. Do not edit files.
 Do not run the workspace test suite. Report findings only, most severe first: file, line, the
 defect in one sentence, the input or state that shows it, the smallest fix. No praise and no
 summary of the change.
@@ -48,8 +47,7 @@ summary of the change.
 
 ## What you do with the findings
 
-- Check each finding against the code before you act on it. A reviewer is wrong often: in one
-  measured round 17 of 23 findings were rejected.
+- Check each finding against the code before you act on it. A reviewer is often wrong.
 - Apply each valid finding. Fold the fix into the commit it belongs to
   (`git commit --fixup=<commit>`, then `git rebase --autosquash <base>`).
 - Give each rejected finding one line with the reason, in your report to the owner.

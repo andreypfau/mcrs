@@ -474,7 +474,7 @@ fn is_registry_type(name: &str) -> bool {
 }
 
 #[test]
-fn every_registry_resource_of_the_host_reaches_every_dimension_through_one_snapshot() {
+fn host_registry_resources_reach_every_dimension_in_one_snapshot() {
     let mut app = crate::host_app::make_host_app();
     crate::host_app::drive_to_playing(&mut app);
     crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
@@ -659,7 +659,7 @@ fn dimensions_that_replaced_their_snapshot(app: &mut App, since: &[(Entity, Tick
 }
 
 #[test]
-fn a_swapped_set_reaches_every_dimension_on_the_next_tick_and_an_idle_tick_replaces_nothing() {
+fn swapped_set_reaches_dimensions_next_tick_idle_tick_replaces_nothing() {
     use mcrs_minecraft_engine_registries::replace_registries;
     use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 

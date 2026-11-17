@@ -60,7 +60,7 @@ fn fbk_trg_002_the_default_pairs_map_each_colour_powder_to_its_concrete() {
 }
 
 #[test]
-fn fbk_trg_002_a_later_pack_adds_and_overrides_pairs_and_replace_discards_earlier_ones() {
+fn fbk_trg_002_later_pack_overrides_and_replace_discards_earlier() {
     let base = file(
         r#"{"values": {"minecraft:sand": "minecraft:sandstone", "minecraft:gravel": "minecraft:stone"}}"#,
     );
@@ -100,7 +100,7 @@ fn fbk_trg_002_a_later_pack_adds_and_overrides_pairs_and_replace_discards_earlie
 }
 
 #[test]
-fn fbk_trg_002_an_unknown_or_self_mapped_block_fails_the_load_with_the_pack_and_the_id() {
+fn fbk_trg_002_unknown_or_self_mapped_block_fails_the_load() {
     let cases = [
         (
             r#"{"values": {"minecraft:no_such_powder": "minecraft:stone"}}"#,

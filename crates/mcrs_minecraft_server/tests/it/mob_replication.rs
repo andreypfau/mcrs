@@ -273,7 +273,7 @@ fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
 }
 
 #[test]
-fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_floor() {
+fn trk_spn_001_summoned_pig_reaches_viewer_as_one_bundle_and_falls() {
     let mut server = start();
     load_stone_column(&mut server);
     let (operator, _) = server.join(OPERATOR, "op");
@@ -684,7 +684,7 @@ fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
     assert_eq!(
         text.as_ref(),
         "teleport does not move or face a mob yet; only players can be victims or facing targets",
-        "docs/spec/command-teleport.md, CMD-TP-016"
+        "teleport refuses a mob victim"
     );
 }
 

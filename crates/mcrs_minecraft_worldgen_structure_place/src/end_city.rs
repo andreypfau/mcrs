@@ -31,7 +31,7 @@ impl EndCityChains {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the chains, the frozen structures and the piece, the column's clip and reference, the volume, the random source and the two lists the piece fills, which the reference's post-process takes as separate values"
+    reason = "independent inputs of one piece's post-process"
 )]
 pub fn place_end_city_piece<W: WorldGenVolume>(
     chains: &EndCityChains,

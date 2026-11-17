@@ -2,16 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 The client draws each face of a block in the chunk mesh with a shade and a light at each vertex.
 The shade makes corners and edges darker where blocks touch. The light comes from the block
 light and the sky light of the cells around the face. This document states how the client
-computes these values for each vertex of a face. The document does not prescribe an
-architecture.
+computes these values for each vertex of a face.
 
 ## 0. Conventions
 
@@ -64,8 +60,7 @@ architecture.
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of these rules, which replaces the present code.
+section "Semantics, not accidents".
 
 ### 0.3 ID prefixes
 
@@ -77,18 +72,6 @@ of these rules, which replaces the present code.
 | `BSL-SMOOTH` | the smooth path |
 | `BSL-FLAT` | the flat path |
 | `BSL-OUT` | the values of a vertex and their interpolation |
-| `BSL-TEST` | parity tests |
-
-### 0.4 Scope
-
-In scope: the quads of block models in the chunk mesh, and full cube faces that the mesh draws
-in a different form. Both forms must give the same values.
-
-Out of scope: fluids, entities, block entity shapes (`block-entity-models.md`, BEM-BAKE-003 and
-BEM-BAKE-004), the light engine that computes the light levels, the visibility of a face, the
-tint, and the light map that turns a light value into a colour.
-
----
 
 ## 1. Data of a cell
 
@@ -103,7 +86,7 @@ tint, and the light map that turns a light value into a colour.
   with an offset outside `[−2, 2]` on any axis.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-IN-002: Occlusion shade of a block state
 
@@ -127,7 +110,7 @@ The occlusion shade has only the two values `0.2` and `1.0`. Another value of
 the reference has no other value, and a flag is smaller than a number in the state data.
 
 Provenance: `source_suggested_black_box_confirmed` (shade artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-IN-003: Light of a cell under a state
 
@@ -141,7 +124,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** the result is the **light of `c` under `s`**, two light levels.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -168,7 +151,7 @@ Confidence: high. Milestone: 1.
   index, not the position of the vertex.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact, field `positions`). Kind:
-client agreement. Confidence: high. Milestone: 1.
+client agreement. Confidence: high.
 
 ### BSL-FACE-002: A quad on the boundary and a partial quad
 
@@ -188,7 +171,7 @@ client agreement. Confidence: high. Milestone: 1.
   planar quad inside a block with full collision is on the boundary. The comparisons use f32.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact, cases `inset_in_full_block`,
-`post`, `thin_layer`, `diagonal`). Kind: client agreement. Confidence: high. Milestone: 1.
+`post`, `thin_layer`, `diagonal`). Kind: client agreement. Confidence: high.
 
 ### BSL-FACE-003: Edge order
 
@@ -212,7 +195,7 @@ Provenance: `source_suggested_black_box_confirmed` (golden artefact, cases `inse
 The order changes the result of f32 sums in the last bit, and BSL-SMOOTH-003 selects `E1`.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -232,7 +215,7 @@ Confidence: high. Milestone: 1.
   Else, the client uses the flat path of section 5 for each quad of the own state.
 - **Postconditions:** the choice is the same for all quads of one block state.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1. Experiment: put
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: put
 a glowstone block next to a stone block on a floor of stone, with smooth light on. Take a
 screenshot. The faces of the glowstone show no dark corners. The faces of the stone show dark
 corners where they touch the floor.
@@ -251,7 +234,7 @@ All numbers in this section are f32, except light levels and light values, which
 - **Postconditions:** none.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-SMOOTH-002: Edge samples
 
@@ -265,7 +248,7 @@ Confidence: high. Milestone: 1.
   `2n + E`.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-SMOOTH-003: Diagonal samples
 
@@ -279,7 +262,7 @@ Confidence: high. Milestone: 1.
   contain `E1`. This asymmetry is visible at an inside corner, and the client keeps it.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1. Experiment: put a stone block on a floor of stone. Put a second
+Confidence: high. Experiment: put a stone block on a floor of stone. Put a second
 stone block two cells west and one cell north of it, on the floor. Take a screenshot of the west
 face of the first block, with a sky light level of `15` everywhere. The lower north corner of
 that face is lighter than its lower south corner. Without item 1, the two corners have the same
@@ -298,7 +281,7 @@ shade.
 - **Postconditions:** none.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-SMOOTH-005: Corner values
 
@@ -322,7 +305,7 @@ Confidence: high. Milestone: 1.
   neighbour does not make a bright face dark, because item 2.1 replaces its light.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-SMOOTH-006: Vertex values of a quad that is not partial
 
@@ -335,7 +318,7 @@ Confidence: high. Milestone: 1.
   it.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BSL-SMOOTH-007: Vertex values of a partial quad
 
@@ -356,7 +339,6 @@ Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact, cases `bottom_slab`, `post`,
 `thin_layer`, `inset_in_full_block` and `diagonal`). Kind: client agreement. Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -378,7 +360,7 @@ Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact, fields
 `flat_light_with_cull_face` and `flat_light_without_cull_face`). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -409,7 +391,7 @@ Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (golden artefact, fields `smooth_shade` and
 `flat_shade`, overworld set only). Kind: client agreement. Confidence: high for the `default`
-set, medium for the `nether` set. Milestone: 1. Experiment for the `nether` set: put a stone
+set, medium for the `nether` set. Experiment for the `nether` set: put a stone
 block on the floor of the nether. Take a screenshot. The top face and the bottom face of a
 floating stone block have the same brightness.
 
@@ -423,7 +405,7 @@ floating stone block have the same brightness.
   rule raises the sky light value as well as the block light value. It removes the fraction of
   a smooth light value.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 put an open eyeblossom in a dark cave, at block light level `0` and sky light level `0`. Take a
 screenshot. The petals that the block model marks with `light_emission` show bright, and the
 stem shows dark.
@@ -440,60 +422,10 @@ stem shows dark.
   A mesh that merges full cube faces into one larger face must give each block face the values
   of these two triangles.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: high.
 Experiment: put one stone block on a floor of stone. Put a second stone block diagonal to it on
 the floor, so one corner of a floor face is dark. Take a screenshot from above. The dark area of
 the floor face is a triangle on one side of the diagonal from its vertex 0 to its vertex 2.
-
----
-
-## 7. Parity tests
-
-### BSL-TEST-001: Vertex values against the golden artefact
-
-- **Inputs:** each case of the golden artefact.
-- **Steps:**
-  1. Make a world from the case. The own cell has the state `own` with the light `own_light`.
-     `own` can name only some of the properties of its block. Each property that `own` does
-     not name has the value of the default state of the block. The entry of `palette` with
-     that full state gives the flags of the own cell.
-     Each entry of `cells` is `[x, y, z, palette index, block light level, sky light level]`.
-     Each other cell is air with the light `default_light`. The entries of `palette` give the
-     state and its flags.
-  2. Make a quad with the direction `direction` and the vertex positions `positions`. The quad
-     has no shade override and no element emission.
-  3. Compute the smooth path. Compare the shade bytes with `smooth_shade` and the light values
-     with `smooth_light`, with the `default` cardinal light set.
-  4. Compute the flat path with the cull face `direction`. Compare with
-     `flat_light_with_cull_face`.
-  5. Compute the flat path with no cull face. Compare with `flat_light_without_cull_face` and
-     `flat_shade`.
-- **Expected:** all values are equal. A light value is `[block, sky]`.
-
-Provenance: `black_box_confirmed` (golden artefact). Kind: client agreement. Confidence: high.
-Milestone: 1.
-
-### BSL-TEST-002: Occlusion shade of each state
-
-- **Inputs:** the shade artefact and the block definitions of `assets/mcrs/block_definition/`.
-- **Steps:** for each block state, compute the occlusion shade with BSL-IN-002.
-- **Expected:** a state in `exceptions` has its listed value. Each other state follows the rule
-  of BSL-IN-002, item 2.
-
-Provenance: `black_box_confirmed` (shade artefact). Kind: client agreement. Confidence: high.
-Milestone: 1.
-
-### BSL-TEST-003: Screenshot of a corner
-
-- **Inputs:** a world in the reference and the same world in the client.
-- **Steps:**
-  1. Make a floor of stone. Put stone, glass, mud, a bottom slab and an oak fence on it.
-  2. Set the time to noon. Turn smooth light on.
-  3. Take a screenshot from the same camera position in the reference and in the client.
-- **Expected:** the shade of each face looks the same. The faces next to the glass show no dark
-  corner from the glass. The faces next to the mud show a dark corner.
-
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1.
 
 ---
 
@@ -503,7 +435,7 @@ None.
 
 ---
 
-## 9. Open questions
+## 9. Unresolved
 
 1. BSL-IN-001: the reference reads the light of a cell in an unloaded section from its light
    engine. This document does not state the light of such a cell. The light engine

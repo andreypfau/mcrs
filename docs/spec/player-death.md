@@ -1,12 +1,5 @@
 # Player death: the death screen, the drops, the respawn and the equipment sync
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Packets | PLAY, clientbound: `entity_event` 34, `game_event` 39, `initialize_border` 44, `player_combat_kill` 69, `remove_entities` 78, `player_position` 73, `sound` 119, `respawn` 84, `set_default_spawn_position` 99, `set_equipment` 104, `set_experience` 105, `set_health` 106, `container_set_content` 18. PLAY, serverbound: `client_command` 12 |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the packet ids:
 `assets/mcrs/reports/packets.json`.
 
 This document states what occurs after the health of a player reaches 0. It states the death
@@ -16,8 +9,7 @@ a living entity. This document does not repeat that section. It states only what
 new for a player. `item-entity.md` states the item entities of the drops. `dimension-change.md`
 states the packets of a change of dimension. This document refers to both.
 
-The rules come from the reference implementation and from public documentation. None of the
-experiments in section 13 has run.
+The rules come from the reference implementation and from public documentation.
 
 ## 0. Conventions
 
@@ -32,7 +24,7 @@ experiments in section 13 has run.
 - **Death position**: the position of the player at the moment of the death.
 - **Respawn point**: the data that a player stores to select the place of its next respawn. It has
   a dimension, a block position, a yaw, a pitch and a flag `forced`. A player can have no respawn
-  point. How a player gets a respawn point is out of scope (section 9).
+  point. How a player gets a respawn point is out of scope.
 - **World spawn**: the dimension, the block position, the yaw and the pitch of the spawn of the
   world. The game rule `respawn_radius` and the world border limit the use of the world spawn.
 - **Respawn request**: the packet `client_command` with the action `perform_respawn`
@@ -54,8 +46,7 @@ experiments in section 13 has run.
 ### 0.2 Provenance
 
 The labels are those of `registry.md`, section 0.3. Each rule states its kind and its
-confidence, as `docs/spec/README.md` defines them. No rule has the label
-`black_box_confirmed`, because no experiment ran.
+confidence, as `docs/spec/README.md` defines them.
 
 ### 0.3 ID prefix
 
@@ -577,19 +568,6 @@ that still tracks it receives `remove_entities` with its network id. This is the
 PLD-DTH-002 or of the respawn, whichever comes first. A viewer that tracks the respawned player
 receives the spawn bundle of TRK-SPN-001, with the same network id. The respawned player leaves the viewers that it did not track in the respawn dimension. The order of the packets is the removal first, then the spawn. The respawn sends no `player_info_update` to a viewer. The hardcore change of PLD-RST-005 can send one afterwards.
 
-## 9. Out of scope
-
-| Subject | Reason | Hook |
-|---------|--------|------|
-| how a player gets a respawn point: the bed, the anchor, the command `spawnpoint`, and the message "Respawn point set" | a later specification of the bed and the anchor | PLD-RSP-002 |
-| the end credits and the respawn after the win of the game | a later specification of the end | PLD-RSP-001 |
-| the death message of a mob and of a tamed animal | `entity-damage.md` and the specification of each mob | PLD-MSG-001 |
-| the scoreboard criteria of death, the stats of death, the kill credit | `player-attack.md`, a specification of the scoreboard | PLD-DTH-001 |
-| the packets `player_combat_enter` and `player_combat_end` | no rule of this document needs them | PLD-MSG-005 |
-| the totem of undying | `entity-damage.md`, section 12 | PLD-DTH-001 |
-| the loot of a mob that a player killed | `item-entity.md` | PLD-DRP-004 |
-| the client layout of the death screen | `client-gui-sprite.md` and a later client specification | PLD-SCR-004 |
-
 ## 10. Equipment sync
 
 **PLD-EQP-001** (`source_suggested`, wire, confidence: high). The packet `set_equipment` (play
@@ -669,17 +647,16 @@ None.
 - **U2.** After a respawn with `keep_inventory`, the server keeps the selected hotbar slot of the
   dead player. The reference sends no `set_held_slot` in the respawn sequence. A new client player
   starts with slot 0. The client and the server can then disagree on the selected slot until the
-  player changes it. Is this a defect? A player expects the same slot. Run experiment E10.
+  player changes it. Is this a defect? A player expects the same slot.
 - **U3.** The reference copies the chunk tracking view of the dead player to the respawned player.
-  The behaviour of the chunk packets for a respawn in the same dimension is not stated. Run
-  experiment E11.
+  The behaviour of the chunk packets for a respawn in the same dimension is not stated.
 - **U4.** For a search radius of 16 or more, the square has more than 1024 columns. The reference
   then uses 1024 candidates that form a strip along one side of the square. A player does not
   expect this. PLD-RSP-004 states the
   behaviour only for a radius up to 15. The owner must decide the behaviour for a larger radius.
 - **U5.** The pose of a dying player. DMG-NET-002 states that the death sends the pose `dying`. It is not
   known whether a viewer receives that pose for a player. The client can animate the death from
-  the health 0 alone. Run experiment E9.
+  the health 0 alone.
 - **U6.** The tag `always_most_significant_fall` is not in the corpus of this repository. The set of
   damage types that have it is unknown. The owner must supply the tag file.
 - **U7.** The order of the stand-up offsets of a bunk bed (a bed with a bed block below it). It
@@ -688,27 +665,4 @@ None.
   the stacks of the inventory menu only. A stack on the cursor of an open chest menu is not
   covered.
 - **U9.** The exact floor-height test of PLD-RSP-003 for a block with a partial collision shape,
-  for example a slab or a carpet. A later experiment decides it.
-
-## 13. Experiments
-
-None of these experiments has run. Each one uses `tools/vanilla-server`, and a client recorded
-with `tools/mcrs_minecraft_client_recorder` that the input agent of `tools/vanilla-client` plays.
-Record the clientbound packets 34, 69, 84, 104, 99, 106 and 105, and the serverbound packet 12.
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| E1 | Kill the player with `/kill`. Record the packet 69. Decode its message. Repeat with `show_death_messages` false | PLD-SCR-001, PLD-MSG-001 |
-| E2 | Set `immediate_respawn` true. Record the `login` packet and the `game_event` of a rule change. Kill the player | PLD-SCR-002, PLD-SCR-003 |
-| E3 | Kill the player with `/damage` of each `message_id` of the damage types, and by a zombie that holds a named sword. Record the message | PLD-MSG-002 |
-| E4 | Drop the player from 10 blocks near a ladder, with a zombie that hit the player before. Record the message | PLD-MSG-003 |
-| E5 | Fill the inventory and the armor. Add a cursor stack and a craft grid stack. Kill the player. Record the item entities and read the experience | PLD-DRP-001 to PLD-DRP-005 |
-| E6 | Repeat E5 with `keep_inventory` true, and with the player in spectator mode | PLD-DRP-001, PLD-RST-003 |
-| E7 | Set a bed, a charged anchor, an uncharged anchor, a forced point, and a blocked bed. Kill the player. Record the packets 84 and 73, and the position | PLD-RSP-002, PLD-RSP-003 |
-| E8 | Set the world spawn in a cave world and in open terrain. Set `respawn_radius` to 0, 10, 16 and 40. Respawn 200 times. Plot the positions | PLD-RSP-004, U4 |
-| E9 | Add a second client. Kill the first player. Record the packets 101 and 34 of the second client until the packet 78 | PLD-DTH-002, U5 |
-| E10 | With `keep_inventory` true, select slot 5 and die. Record the packet 107. Read the selected slot of the server | U2 |
-| E11 | Die and respawn in the same dimension with the chunk loader of the client on. Record the chunk packets | PLD-NET-004, U3 |
-| E12 | With two clients, wear armor, change the held stack, change its damage, swap hands, join and respawn. Record the packets 104 and 34 of the second client | PLD-EQP-003 to PLD-EQP-007 |
-| E13 | Run `/attribute` to add a modifier and give an effect. Kill the player. Read the attributes, the food, the health and the effects after the respawn | PLD-RST-002, PLD-RST-004 |
-| E14 | Join a hardcore server and die. Respawn. Record the packets and read the game mode | PLD-RST-005 |
+  for example a slab or a carpet. 

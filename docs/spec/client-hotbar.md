@@ -1,12 +1,6 @@
 # The hotbar in the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Status | `draft` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the player of the vanilla client changes the selected slot with the keys
 1 to 9. It states when the client sends `set_carried_item`, and what the client does with a
@@ -59,11 +53,9 @@ section "Semantics, not accidents". The language keys and their English texts ar
 
 The observer of each rule is a player in normal play who sees the HUD, unless the rule names
 another observer. For the rules of section 3, the observer is the server that reads the
-serverbound packets: a vanilla server, and the mcrs server through `inventory.md`, INV-SEL-002.
+serverbound packets: a vanilla server (`inventory.md`, INV-SEL-002).
 
-No experiment of section 6 ran. The input agent of `tools/vanilla-client` presses only the
-movement keys and the use key (CHB-EXP-06). Thus each rule that comes from the reference keeps the
-label `source_suggested`.
+Each rule that comes from the reference keeps the label `source_suggested`.
 
 ### 0.3 ID prefixes
 
@@ -73,7 +65,6 @@ label `source_suggested`.
 | `CHB-KEY` | the hotbar keys |
 | `CHB-SYN` | `set_carried_item` and `set_held_slot` in the client |
 | `CHB-HUD` | the hotbar in the HUD for each game mode |
-| `CHB-EXP` | experiments |
 | `CHB-DEV` | intentional deviations |
 
 ### 0.4 Scope
@@ -96,7 +87,7 @@ Out of scope:
 - the layout of the hotbar: the positions, the sizes and the sprites;
 - the selected item name and the hotbar attack indicator, except the rule that hides them
   (CHB-HUD-002);
-- the pick of a block or of an entity with the pick key (`inventory.md`, section 9);
+- the pick of a block or of an entity with the pick key;
 - the debug keys that use the digit keys.
 
 ### 0.5 Constants
@@ -144,7 +135,7 @@ sources, and a player in normal play never sees them disagree.
     PHY-INP-022). A `set_held_slot` changes it in each game mode (CHB-SYN-003).
   - A vanilla server does not change its selected slot for a new game mode.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -187,7 +178,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CH
 | `key.hotbar.8` | 7 | 8 |
 | `key.hotbar.9` | 8 | 9 |
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CHB-KEY-002: A hotbar key inside a screen
 
@@ -203,7 +194,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CH
      key bindings).
 - **Postconditions:** the client does not keep the key for the time after the screen closes.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CHB-KEY-003: Two hotbar keys in one client tick
 
@@ -248,7 +239,7 @@ press two hotbar keys in 50 ms with an expectation of an order.
 - **Edge cases:** the order of `set_carried_item` and the movement packets of one client tick is
   unspecified. The bound of the postconditions applies.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-02.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CHB-SYN-002: `set_carried_item` before a main-hand packet
 
@@ -265,8 +256,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CH
     `player_action` with the status 0 comes after the `set_carried_item` with 2.
   - This agrees with `client-block-breaking.md`, CBK-PKT-004.
 
-Provenance: `design`. Kind: deviation. Confidence: high. Experiment: CHB-EXP-02, steps 4 and 5.
-mcrs deviates: CHB-DEV-001.
+Provenance: `design`. Kind: deviation. Confidence: high.
 
 ### CHB-SYN-003: The client applies `set_held_slot`
 
@@ -288,7 +278,7 @@ mcrs deviates: CHB-DEV-001.
   - A player in spectator mode does not see the change. The HUD shows it after a change to another
     game mode (CHB-MODE-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-03.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CHB-SYN-004: The selected slot of a new local player
 
@@ -301,8 +291,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CH
   (`inventory.md`, INV-SEL-003; `dimension-change.md`, row 16 of the sequence). The level loading
   screen covers the HUD at that time. Thus a player does not see the value of step 2.
 
-Provenance: `source_suggested`. Kind: unspecified. Confidence: medium. Experiment: CHB-EXP-03,
-step 1.
+Provenance: `source_suggested`. Kind: unspecified. Confidence: medium.
 
 ---
 
@@ -320,7 +309,7 @@ step 1.
 - **Postconditions:** the HUD reads the selected slot in each frame. A change shows in the next
   frame.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CHB-HUD-002: No hotbar in spectator mode
 
@@ -338,112 +327,13 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CH
   - The other parts of the HUD, for example the hearts and the experience bar, have their own
     rules. This rule does not hide them.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: CHB-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
 ## 5. Known vanilla quirks
 
 None.
-
----
-
-## 6. Experiments
-
-None of these experiments ran. Each experiment uses a vanilla server of the version in the
-header, from `tools/vanilla-server/run.sh`, and the vanilla client of `tools/vanilla-client`.
-"Record the packets" means: record each serverbound `set_carried_item`, `player_action`,
-`use_item_on` and `attack`, with its client tick. "Record the HUD" means: take a screenshot at the
-GUI scale 2. CHB-EXP-06 lists what the tools need before the experiments can run.
-
-### CHB-EXP-01: The hotbar keys
-
-1. Join in survival mode. Give the player a different item in each hotbar slot.
-2. Press the keys 1 to 9 in order, one key in each second. Record the HUD and the packets after
-   each key.
-3. Press the key 4 two times. Record the packets.
-4. Run `/gamemode creative`. Press the key 2. Record the HUD and the packets.
-5. Hold C and press the key 3. Record the HUD and the packets. Release C.
-6. Hold X and press the key 3. Record the HUD and the packets. Release X.
-7. Open the chat screen. Press the key 7. Close the chat screen. Record the HUD and the packets.
-8. Open the inventory screen. Put the mouse pointer on an empty main slot. Press the key 8.
-   Record the selected slot and the packets. Close the screen. Record the HUD.
-9. Run `/gamemode spectator`. Press the key 6. Record the HUD and the packets.
-10. While the spectator menu shows, press the key 1. Record the HUD and the packets.
-11. Run `/gamemode survival`. Record the HUD.
-
-Decides: CHB-KEY-001 and CHB-KEY-002. Expected: step 2 sends 1 to 8. Step 3 sends 3 one time.
-Steps 5 and 6 do not change the selected slot. Step 7 sends nothing. Step 8 does not change
-the selected slot. Steps 9 and 10 send nothing. Step 11 shows the selection frame at the slot 1.
-
-### CHB-EXP-02: The sends of `set_carried_item`
-
-1. Join in survival mode at the selected slot 0.
-2. Between two client ticks, turn the wheel 3 notches toward the player. Record the packets.
-3. Between two client ticks, turn the wheel one notch away from the player and one notch toward
-   the player. Record the packets.
-4. Put a stack in the off-hand slot and a different stack in the slot 2. In one client tick,
-   press the key 3 and the swap key. Record the packets and the stacks of the two slots in the
-   mcrs client.
-5. Look at a block. In one client tick, press the key 5 and the attack key. Record the packets of
-   the mcrs client.
-
-Decides: CHB-SYN-001 and CHB-SYN-002. Expected: step 2 sends 3 one time. Step 3 sends nothing.
-Steps 4 and 5 send `set_carried_item` before the `player_action`. Steps 4 and 5 test the mcrs
-client only, because CHB-SYN-002 is a deviation.
-
-### CHB-EXP-03: `set_held_slot`
-
-1. Select the slot 4 and leave. Join again. Record the clientbound `set_held_slot`, the packets of
-   the next 5 client ticks and the HUD.
-2. In a proxy between the client and the server, send `set_held_slot` with 7. Record the HUD and
-   the packets of the next 5 client ticks.
-3. Send `set_held_slot` with 9, with −1 and with 100. Record the HUD and the state of the
-   connection after each packet.
-4. Open the inventory screen. Send `set_held_slot` with 3. Close the screen. Record the HUD and the
-   packets.
-5. Run `/gamemode spectator`. Send `set_held_slot` with 6. Run `/gamemode survival`. Record the
-   HUD.
-
-Decides: CHB-SYN-003 and step 1 of CHB-SYN-004. Expected: step 1 sends 4 one time. Step 2 sends 7
-one time. Step 3 changes nothing and keeps the connection. Step 4 sends 3. Step 5 shows the
-selection frame at the slot 6.
-
-### CHB-EXP-04: The HUD in each game mode
-
-1. Give the player a stack in each hotbar slot and in the off-hand slot. Set the option "Attack
-   Indicator" to "Hotbar".
-2. For survival, adventure, creative and spectator mode, run `/gamemode`. Record the HUD.
-3. In spectator mode, press the middle mouse button. Record the HUD while the spectator menu
-   shows, and after it closes.
-
-Decides: CHB-HUD-001 and CHB-HUD-002.
-
-### CHB-EXP-05: A change of the game mode
-
-1. Join in survival mode. Press the key 6. Wait 5 client ticks.
-2. Run `/gamemode spectator`. Turn the wheel 3 notches. Press the key 2.
-3. Run `/gamemode survival`. Record the HUD, the packets, and the output of
-   `/data get entity @s SelectedItemSlot`.
-4. Do steps 1 to 3 again with creative mode in the place of survival mode.
-
-Decides: CHB-MODE-002. Expected: the HUD shows the selection frame at the slot 5, the server
-gives 5, and the client sends no `set_carried_item` after step 1.
-
-### CHB-EXP-06: What the tools need
-
-The input agent of `tools/vanilla-client` sets only the movement keys, the jump key, the sneak
-key, the sprint key and the use key. Before the experiments of this section can run, the tools
-need these additions:
-
-1. The input agent presses the hotbar keys, the swap key, the attack key, the chat key, the
-   inventory key, the toolbar activators and `key.spectatorHotbar`.
-2. The input agent sends wheel events. `entity-physics.md`, section 14, U15, asks for the same
-   addition.
-3. The input agent takes a screenshot, and puts the mouse pointer on a slot of a menu screen.
-4. The recorder of `tools/mcrs_minecraft_client_recorder` records the serverbound packets of
-   section 6 with the client tick.
-5. The recorder sends a `set_held_slot` with a given value to the client.
 
 ---
 

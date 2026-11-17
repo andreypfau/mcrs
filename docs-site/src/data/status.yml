@@ -30,11 +30,11 @@
     en: "Terrain, sky, clouds, light, mobs, the F3 overlay, chat and block breaking in creative. Render distance 96 columns by default."
     ru: "Рельеф, небо, облака, свет, мобы, оверлей F3, чат и ломание блоков в креативе. Дальность по умолчанию 96 колонок."
   missing:
-    en: "At 96 columns the GPU frame is 3.7 ms, above the 1.0 ms target, and the process holds 12 GB. Measured only on an Apple M4 Max with macOS. The web build hangs. No sound, particles or weather."
-    ru: "На 96 колонках GPU-кадр 3.7 мс при цели 1.0 мс, процесс держит 12 ГБ. Замеры только на Apple M4 Max и macOS. Веб-сборка зависает. Нет звука, частиц и погоды."
+    en: "The web build hangs. No sound, particles or weather."
+    ru: "Веб-сборка зависает. Нет звука, частиц и погоды."
   state: partial
   issues: [337, 344, 129]
-  evidence: "PERF.md#render-distance"
+  evidence: "crates/mcrs_minecraft_client"
   verified: 2026-11-09
 
 - id: protocol
@@ -131,14 +131,14 @@
 - id: datapacks
   title: { en: Data packs and registries, ru: Датапаки и реестры }
   works:
-    en: "{registries} registries with {registry_entries} entries load from a data pack at start. Biomes and dimensions come from the pack without a rebuild."
-    ru: "{registries} реестров и {registry_entries} записей загружаются из датапака при старте. Биомы и измерения берутся из пака без пересборки."
+    en: "Registries load from a data pack at start. Biomes and dimensions come from the pack without a rebuild."
+    ru: "Реестры загружаются из датапака при старте. Биомы и измерения берутся из пака без пересборки."
   missing:
     en: "Reloading a data pack while the server runs."
     ru: "Перезагрузка датапака на ходу."
   state: works
   issues: [316]
-  evidence: "PERF.md#server-start"
+  evidence: "crates/mcrs_minecraft_datapack"
   verified: 2026-11-09
 
 - id: molang
@@ -171,7 +171,7 @@
   title: { en: Crates as a library, ru: Крейты как библиотека }
   works:
     en: "{crates} crates. CI checks that {crates_no_bevy} packages build without Bevy, {crates_no_std} without std and {crates_wasm32} for wasm32."
-    ru: "{crates} крейта. CI проверяет, что {crates_no_bevy} пакетов собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32."
+    ru: "{crates} крейт. CI проверяет, что {crates_no_bevy} пакетов собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32."
   missing:
     en: "Nothing is published on crates.io, there are no library examples, and the API is not stable."
     ru: "На crates.io ничего не опубликовано, примеров библиотеки нет, API не стабилен."

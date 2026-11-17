@@ -473,7 +473,7 @@ fn column_mask_bytes(height: HeightContext) -> usize {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the water mask, the chunk position and world seed, and the router, workspace, biome table and height context that one chunk's carving reads"
+    reason = "independent inputs of one chunk's carving"
 )]
 pub(crate) fn carve_sources(
     water: impl Fn() -> WaterMask,
@@ -645,7 +645,7 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
 #[cfg(test)]
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context, block ids and fluid that one chunk's carving reads"
+    reason = "independent inputs of one chunk's carving"
 )]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,

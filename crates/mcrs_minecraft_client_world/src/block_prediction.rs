@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn cbk_prd_007_a_server_state_for_a_recorded_position_waits_for_the_acknowledgement() {
+    fn cbk_prd_007_server_state_waits_for_the_acknowledgement() {
         let mut predictions = BlockPredictions::default();
         let (broken, other) = (BlockPos::new(0, 0, 0), BlockPos::new(1, 0, 0));
         predictions.record(1, broken, state(1));

@@ -95,7 +95,7 @@ mod tests {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "keeps the reference's loops over y, z and x with the water test inline, because it is the oracle the bitmask is checked against"
+        reason = "oracle for the bitmask, so it keeps the plain loops"
     )]
     fn reference_scan(
         is_water: &impl Fn(i32, i32, i32) -> bool,

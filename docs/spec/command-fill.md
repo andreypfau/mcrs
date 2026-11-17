@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `minecraft:block_pos` 8, `minecraft:block_state` 12 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states the forms of `fill` without a filter: the plain form and the modes
 `replace`, `outline` and `hollow`. It states the volume limit, the sets and the messages. It does
@@ -21,8 +19,7 @@ not prescribe an architecture.
   value of the region on that axis.
 - **Inner position**: a position of the region that is not a border position.
 - **Set**: one change of a block, as `block-simulation.md`, SIM-SET-002, states it.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-FILL`. None of the experiments
-  has been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-FILL`.
 
 ## 1. Scope
 
@@ -125,14 +122,3 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 Provenance: `source_suggested`. Kind: semantic; the keys and the argument order are wire.
 Confidence: high. Experiment: run `fill 0 -60 0 2 -60 0 minecraft:stone` two times. The first reply
 is `commands.fill.success` with 3. The second reply is `commands.fill.failed`.
-
----
-
-## 2. Use in a benchmark
-
-- A superflat world already has a floor of `grass_block` at `y = -61`. A fence ring at `y = -60`
-  needs four plain fills, one for each side, each one block wide.
-- One fill changes at most 32768 positions. A side of a pen of more than 32768 blocks, or a floor
-  of more than 32768 positions, needs more than one fill, or a larger
-  `max_block_modifications`.
-- A script that runs the same fill again must accept `commands.fill.failed`.

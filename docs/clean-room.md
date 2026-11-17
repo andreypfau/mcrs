@@ -60,8 +60,8 @@ artefact the game produced.
 Each rule carries a provenance label (`docs/spec/registry.md`, section 0.3). A rule with the
 label `source_suggested` is allowed: the author read the reference implementation, and the
 rule states only behaviour. An experiment that the game confirms changes the label to a
-confirmed one. A specification with a `source_suggested` rule is a draft, and an implementer does
-not start on it (`docs/spec/README.md`, section "Status of a specification").
+confirmed one. A specification with a `source_suggested` rule is not ready, and an implementer does not
+start on it.
 
 ## Exception: world generation
 

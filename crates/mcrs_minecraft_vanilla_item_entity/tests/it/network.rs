@@ -214,7 +214,7 @@ fn ien_pck_005_a_partial_pickup_sends_the_take_of_the_part_before_the_new_stack(
 }
 
 #[test]
-fn the_take_and_the_removal_of_an_item_that_crosses_a_tile_edge_go_to_the_tile_of_its_spawn() {
+fn item_take_and_removal_across_tile_edge_go_to_spawn_tile() {
     let mut app = app();
     let world = app.world_mut();
     collector(world, DVec3::new(1.0, FLOOR, 0.5), Collect::Survival);

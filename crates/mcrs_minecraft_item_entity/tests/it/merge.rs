@@ -19,7 +19,7 @@ fn ien_mrg_001_an_item_looks_every_2_ticks_after_a_block_move_else_every_40() {
 }
 
 #[test]
-fn ien_mrg_002_the_pickup_delay_32767_the_age_minus_32768_and_a_full_stack_do_not_merge() {
+fn ien_mrg_002_special_delay_age_and_full_stack_do_not_merge() {
     let cases = [
         (ItemEntity::default(), 10, true),
         (ItemEntity::with_pickup_delay(NEVER_PICKED_UP), 10, false),

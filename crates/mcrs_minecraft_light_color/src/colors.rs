@@ -104,7 +104,7 @@ mod load {
     impl LightColors {
         #[expect(
             clippy::excessive_nesting,
-            reason = "walks each file's entries, their member blocks and the matching states in order, recording which entry claimed each state so a double claim names both"
+            reason = "a double claim names both entries"
         )]
         pub fn from_files(
             files: impl IntoIterator<Item = (String, Vec<u8>)>,

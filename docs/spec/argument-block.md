@@ -2,17 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `block_predicate` 13; the related type `block_state` 12 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
-`assets/mcrs/reports/registries.json`, registry `minecraft:command_argument_type`.
 
 This document states the argument type `minecraft:block_predicate`. It states the text that the
 type accepts, the errors and their positions, the suggestions, and the test that the value
 applies to a block in the world. Section 6 states how the related type `minecraft:block_state`
-differs. The document does not prescribe an architecture.
+differs.
 
 ## 0. Conventions
 
@@ -46,7 +42,7 @@ differs. The document does not prescribe an architecture.
 
 ### 0.2 Provenance and confidence
 
-The labels of `registry.md`, section 0.3, apply. None of the experiments has been run. The
+The labels of `registry.md`, section 0.3, apply. The
 experiments use the command `execute if block <pos> <predicate>` (`command-execute.md`,
 CMD-EX-056). A pass gives `commands.execute.conditional.pass`. A test that does not pass gives
 `commands.execute.conditional.fail`.
@@ -61,17 +57,6 @@ client agreement.
 |--------|---------|
 | `ARG-BLK` | the read, the errors, the test, the suggestions and the wire form |
 | `ARG-BLK-DEV` | intentional deviations from the reference |
-
-### 0.4 Scope
-
-In scope: the read of one predicate, its errors, its suggestions, its test of a block, and its
-wire form. The vanilla commands that read the argument are `execute if block`,
-`execute unless block`, `fill ... replace <filter>` and `clone ... filtered <filter>`.
-
-Out of scope: the grammar of the text form of NBT (SNBT). `snbt.md` states it. Section 1.6
-states what the predicate needs from it.
-
----
 
 ## 1. The read
 
@@ -586,7 +571,7 @@ rules of section 1.
 
 ---
 
-## 8. Open questions
+## 8. Unresolved
 
 - **`,` and `]` in the stage "tag, value".** The reference suggests them with the range of the
   value text, so a selection replaces the value. Whether a later revision limits them to an

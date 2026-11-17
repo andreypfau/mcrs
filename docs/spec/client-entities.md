@@ -2,13 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`. The rules state the behaviour of
-`26.4-snapshot-7`. The capture artefacts of section 0.2 were first captured from
-`26.4-snapshot-4`. Section 0.5 lists what that version does differently, and which rules wait
-for a capture from `26.4-snapshot-7`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states how the client keeps the state of an entity that the server sends. It
 covers the lifecycle of the entity, its position and rotation, the interpolation of movement,
@@ -16,7 +10,7 @@ the body yaw, the walk accumulator, the hurt time and the death time. It states 
 the client keeps. It also states how the client moves an item, a falling block, a primed TNT and
 an experience orb between two updates of the server. It also states the values
 that the renderer (`client-entity-render.md`) and the Molang queries (`molang-queries.md`) read
-in each frame. The document does not prescribe an architecture.
+in each frame.
 
 ## 0. Conventions
 
@@ -76,20 +70,13 @@ in each frame. The document does not prescribe an architecture.
 
 ### 0.2 Provenance and confidence
 
-Each rule has a line `Milestone`: `1` is the pig, `2` is the frog, and `later` is a rule that
-milestones 1 and 2 do not use.
-
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". A rule that a capture artefact (below) confirms has the
 label `source_suggested_black_box_confirmed` and cites the artefact. Each other rule has the
 label `source_suggested` and an experiment.
 
-A parity test of this document compares values with a tolerance of `1e-4` degree for angles,
-`1e-6` block for positions and `1e-5` for the walk values. An exact match is not required. A
-test that compares a bone pose uses the pose tolerance of `entity-animation.md`, EANIM-GPU-003.
-
-The capture harness of `client-frame-capture.md` (CFC) writes two artefacts for each scene of
-`tools/scenes/`. They are in `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`:
+Two capture artefacts exist for each scene of `tools/scenes/`. They are in
+`crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`:
 
 - `<scene>.packets.json`: each entity packet that the client applied during the scene, in the
   order of application. The key `packet` is the packet identifier. The key `updates_before` is
@@ -121,14 +108,8 @@ The capture harness of `client-frame-capture.md` (CFC) writes two artefacts for 
 | `on_ground` | the on-ground flag |
 | `path_before_update`, `path_after_update` | `true` when the path is not empty before and after the update |
 
-The key `start_immediately` is present only in a capture from `26.4-snapshot-7`. Three runs of
-`pig_walk`, `pig_hurt_death` and `pig_idle` from `26.4-snapshot-4` gave the same packets and the
-same entity rows. Only the value `updates_before` can change between two runs, and only for a packet
-that arrives while no entity ticks. A replay test therefore applies each packet before the
-first row with an `update` larger than its `updates_before`.
-
 The rules of sections 15 and 16 cite the experiments of section 19 (`CENTS-E1` and the next
-ones). These experiments use the same harness and the same two artefacts. Their scenes are not in
+ones). These experiments use the same two artefacts. Their scenes are not in
 `tools/scenes/`: section 19 gives the steps of each scene. An entity row of a simulated entity
 has only the keys `age`, `position`, `previous_position`, `pitch`, `on_ground`,
 `path_before_update` and `path_after_update`. No row has the velocity.
@@ -155,49 +136,6 @@ has only the keys `age`, `position`, `previous_position`, `pitch`, `on_ground`,
 | `CENTS-SIM` | the step and the position updates of a simulated entity |
 | `CENTS-DEV` | intentional deviations |
 
-### 0.4 Scope
-
-In scope:
-
-- living entities that are not the local player, and that do not ride and are not ridden;
-- the four simulated entities, and their movement by the client step (section 16);
-- the velocity that the client keeps for each non-local entity (section 15).
-
-The rules for the local player are in other documents. The equipment that the client keeps
-(CENTS-EQUIP-001) is in scope.
-
-Out of scope:
-
-- riding and passengers, sleeping, the drawing of items in hands and of armour, particles and
-  sounds of entity events;
-- each other entity that is not a living entity: arrows, thrown items, llama spit, accelerated
-  projectiles, minecarts, boats, item frames and the other types;
-- the velocity of the local player. A `set_entity_motion` for the local player, knockback to the
-  local player and each other impulse to the local player are in `entity-physics.md`,
-  PHY-SRV-009;
-- the effects that a simulated entity has on the world. The server does them (CENTS-SIM-002);
-- the attraction of an experience orb to the players (`experience.md`, XP-ATT-001, XP-ATT-002)
-  and the lava step of an orb (XP-ORB-003), until the orb behaviour has an implementation issue.
-  The server of mcrs has no orb behaviour yet, other than the row "experience orb" of
-  `entity-physics.md`, PHY-ORD-005. CENTS-SIM-002, item 5, states what the client does.
-
-### 0.5 Differences in 26.4-snapshot-4
-
-The first capture artefacts come from `26.4-snapshot-4`. That version is different in three
-behaviours of this document:
-
-1. A stepped delta and a stepped path have no Boolean `start immediately` (CENTS-MOVE-005).
-2. Thus no start empties the path before the reference point (CENTS-INTERP-001, item 4).
-3. The movement along the path uses a speed that catches up with the remaining weight, not an
-   even spread of the remaining weight over `N` ticks (CENTS-INTERP-002).
-
-The replay of `pig_walk.packets.json` with the rules of `26.4-snapshot-4` gave each position of
-the pig within `3e-8` block. That result confirms the other rules of section 4, which both
-versions share. The rules CENTS-MOVE-005, CENTS-INTERP-001 and CENTS-INTERP-002 have the label
-`source_suggested` until a capture from `26.4-snapshot-7` replaces the artefacts.
-
----
-
 ## 1. Time
 
 ### CENTS-TIME-001: Tick and partial tick
@@ -213,13 +151,11 @@ versions share. The rules CENTS-MOVE-005, CENTS-INTERP-001 and CENTS-INTERP-002 
      `pt` = 1 for each entity that is not a player. Thus the frame shows the current values of
      that entity. A step of the tick rate does not change this rule.
 - **Postconditions:** each value that a frame reads is a function of the previous value, the
-  current value and `pt` (CENTS-FRAME-001). Item 4 agrees with `client-frame-capture.md`,
-  CFC-RUN-003.
+  current value and `pt` (CENTS-FRAME-001).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: spawn a pig with
 the tag `NoAI`. Teleport it 1 block east with `/tp`. Record frames at 240 Hz. The pig moves
 over 3 ticks, and its frame position changes in each frame.
-Milestone: 1.
 
 ### CENTS-TIME-002: Age
 
@@ -233,7 +169,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: spawn a bat.
 The wing animation of a new bat starts from the same phase each time.
-Milestone: 1.
 
 ### CENTS-TIME-003: Tick rate packets
 
@@ -252,7 +187,6 @@ Milestone: 1.
 Provenance: `source_suggested_black_box_confirmed`, artefacts `pig_walk.packets.json` and
 `pig_walk.entity_ticks.json` (section 0.2). Kind: wire for items 1 and 2, semantic for the rest.
 Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -282,7 +216,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: summon a pig
 with `Rotation:[90f,0f]` while you look at a different direction. The pig appears with its body
 and its head to the west.
-Milestone: 1.
 
 ### CENTS-LIFE-002: Remove entities
 
@@ -293,7 +226,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: kill a pig.
 The pig disappears in the frame after the remove packet.
-Milestone: 1.
 
 ---
 
@@ -313,7 +245,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: capture a move packet
 of a pig. Decode it from the last position sync. The result matches the next position sync.
-Milestone: 1.
 
 ### CENTS-MOVE-005: Wire form of a delta and of a path
 
@@ -343,10 +274,9 @@ Milestone: 1.
   Boolean of a stepped path after the steps.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: high. Experiment: capture the packets of
-`pig_walk` from `26.4-snapshot-7` (section 0.2). Each move of the pig is a stepped delta with
+`pig_walk` (section 0.2). Each move of the pig is a stepped delta with
 one step of 3 ticks and `start_immediately` `false`. Hit the pig: the next stepped delta has
 `start_immediately` `true`.
-Milestone: 1.
 
 ### CENTS-MOVE-002: Relative move packets
 
@@ -367,7 +297,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: lead a pig with
 a carrot on a stick. Capture the packets. Each move packet starts a new interpolation.
-Milestone: 1.
 
 ### CENTS-MOVE-003: Position sync
 
@@ -389,11 +318,10 @@ Milestone: 1.
   each non-local entity, living or simulated.
 
 Provenance: `source_suggested`; item 3 `source_suggested_black_box_confirmed` (in the
-`pig_walk` capture of `26.4-snapshot-7`, a position sync arrives while the world is frozen, and
+`pig_walk` capture, a position sync arrives while the world is frozen, and
 the pig keeps its position and its path). Kind: semantic. Confidence: high. Experiment: teleport
 a pig by 100 blocks with `/tp`. The pig appears at the new place in the next frame, with no
 movement between the two places.
-Milestone: 1.
 
 ### CENTS-MOVE-004: Teleport
 
@@ -429,7 +357,6 @@ Milestone: 1.
 Provenance: `source_suggested`; item 2 for absolute axes `source_suggested_black_box_confirmed`
 by CENTS-E2 (section 19), with an item and an orb. Kind: semantic. Confidence:
 medium. Experiment: teleport a pig by 2 blocks. The pig moves over 3 ticks.
-Milestone: 1.
 
 ---
 
@@ -481,12 +408,11 @@ The interpolation length `N` is the update interval of the entity type for a pig
 `T` and `W` are `f32` values. The value `aᵢ = 1` for `S` = 0 is a `design` choice: the
 reference divides 0 by 0 there. No vanilla server sends such a path.
 
-Provenance: `source_suggested` (section 0.5). Kind: semantic. Confidence: high. Experiment:
-replay `pig_walk.packets.json` of a capture from `26.4-snapshot-7` with this rule and
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment:
+replay `pig_walk.packets.json` with this rule and
 CENTS-INTERP-002. Each position of `pig_walk.entity_ticks.json` matches within `1e-6` block. The
 first packet of the pig is a move with a zero delta. It adds a segment of 3 ticks that does not
 move the pig.
-Milestone: 1.
 
 ### CENTS-INTERP-002: Movement along the path
 
@@ -510,9 +436,8 @@ Milestone: 1.
   start during an active interpolation adds its segments after the segments that remain. The
   next `N` ticks then spread all the remaining weight evenly.
 
-Provenance: `source_suggested` (section 0.5). Kind: semantic. Confidence: high. Experiment: as
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: as
 for CENTS-INTERP-001.
-Milestone: 1.
 
 ### CENTS-INTERP-003: Snap
 
@@ -529,7 +454,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: as for
 CENTS-MOVE-003.
-Milestone: 1.
 
 ### CENTS-INTERP-004: Movement from other causes
 
@@ -548,7 +472,7 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: during an
 interpolation of a pig, send a teleport of the same pig by 1 block up. The pig ends the
 interpolation 1 block higher than the target of the earlier packet.
-Milestone: 1 (CENTS-INTERP-003, item 3, needs it). CENTS-DEV-001 applies to the collision test.
+ CENTS-DEV-001 applies to the collision test.
 
 ---
 
@@ -567,7 +491,6 @@ Milestone: 1 (CENTS-INTERP-003, item 3, needs it). CENTS-DEV-001 applies to the 
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: stand near a pig
 that looks at you. Walk around the pig. Record the head yaw. Each change takes 3 ticks.
-Milestone: 1.
 
 ---
 
@@ -596,7 +519,6 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: compare the walk
 speed of a pig in a frame capture with a model that uses this order. A different order changes
 the leg phase by one tick.
-Milestone: 1.
 
 ---
 
@@ -628,7 +550,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 tag `NoAI`. Turn its head with a head yaw packet from a test server, then stop. The body
 follows the head between tick 11 and tick 20. No capture scene turns a head yet; a new scene
 can add the case to the artefacts of section 0.2.
-Milestone: 1.
 
 ### CENTS-BODY-002: Body yaw of another living entity
 
@@ -647,7 +568,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: watch another
 player that walks backward. The body faces the yaw, not the direction of movement.
-Milestone: later.
 
 ---
 
@@ -672,7 +592,6 @@ Milestone: later.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: lead a pig in a
 straight line at a constant speed. The leg swing reaches a constant amplitude after about 10
 ticks.
-Milestone: 1.
 
 ### CENTS-WALK-002: Walk values in a frame
 
@@ -687,7 +606,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: hit a pig that
 stands still. Its legs swing for a few ticks.
-Milestone: 1.
 
 ---
 
@@ -708,7 +626,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: hit a pig. The
 red tint lasts 10 ticks.
-Milestone: 1.
 
 ### CENTS-HURT-002: Fields of the damage and hurt packets
 
@@ -727,7 +644,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: capture the packets
 when a player hits a pig. Decode them with these fields. The packet length matches.
-Milestone: 1.
 
 ---
 
@@ -744,7 +660,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: kill a pig. The
 pig turns red and falls on its side.
-Milestone: 1.
 
 ### CENTS-DEATH-002: Death time
 
@@ -759,7 +674,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: kill a pig.
 Record the tilt of the body in each frame. The tilt follows CEREN-PLACE-003 from the first tick.
-Milestone: 1.
 
 ### CENTS-DEATH-003: End of the death
 
@@ -774,7 +688,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: kill a pig with
 the server at tick rate 20. The pig disappears 20 ticks after its health becomes 0.
-Milestone: 1.
 
 ---
 
@@ -793,7 +706,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: name a pig with
 a name tag. Then make it invisible with an effect. The name stays.
-Milestone: 1.
 
 ### CENTS-DATA-002: Indices that each living entity has
 
@@ -817,7 +729,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: capture the set
 entity data packet of a baby pig with a custom name. The indices 2, 3 and 16 have these types.
-Milestone: 1.
 
 ### CENTS-DATA-003: Values derived from entity data
 
@@ -842,7 +753,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: set a pig on
 fire with a fire aspect sword. The client shows the fire while bit 0 is set.
-Milestone: 1.
 
 ---
 
@@ -886,7 +796,6 @@ Provenance: `source_suggested`. Kind: wire for 1; semantic for the others. Confi
 Experiment: put a saddle on a pig. Capture the packet `minecraft:set_equipment`. The slot byte
 is 7. The asset is `minecraft:saddle`. Remove the saddle with shears. The next packet has an
 empty stack for the slot 7.
-Milestone: 1.
 
 ---
 
@@ -906,7 +815,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: push a frog
 from a block. The flag changes when the frog lands.
-Milestone: 2.
 
 ### CENTS-FLAG-002: In water
 
@@ -919,7 +827,6 @@ Milestone: 2.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: put a frog in water
 of depth 1. Record the flag with a test mod. Compare it with the top of the water.
-Milestone: 2.
 
 ---
 
@@ -945,16 +852,14 @@ Milestone: 2.
 | eye position | the frame position plus `(0, eye height, 0)` | — |
 | in-water flag | the flag of the last tick (CENTS-FLAG-002) | `is_in_water` |
 | upside down | the custom name of index 2 (`client-entity-render.md`, CEREN-PLACE-005) | — (it negates the relative head yaw and the pitch) |
-| vehicle and riders | `0.0` in milestones 1 and 2; later, the passenger list of `minecraft:set_passengers` | `is_riding`, `has_rider` |
+| vehicle and riders | `0.0` | `is_riding`, `has_rider` |
 
   The eye height is the term of section 0.1. The renderer and the queries read these values
-  from one record of the frame. A value that a later milestone supplies has its default in that
-  record until then.
+  from one record of the frame.
 - **Postconditions:** each query reads the same value in all expressions of one frame.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: record a pig at
 240 Hz while it turns. The body and the head turn in each frame, not only in each tick.
-Milestone: 1.
 
 ### CENTS-FRAME-002: Ground speed and movement
 
@@ -969,7 +874,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: lead a pig at a
 known speed. Compare the ground speed with the distance per second.
-Milestone: 2.
 
 ---
 
@@ -996,7 +900,6 @@ Milestone: 2.
 
 Provenance: `source_suggested`; item 5 `source_suggested_black_box_confirmed` for an item by
 CENTS-E3 (section 19). Kind: semantic. Confidence: high.
-Milestone: later.
 
 ### CENTS-VEL-002: Decay of the velocity of a living entity
 
@@ -1018,7 +921,7 @@ Milestone: later.
 | cutoff of one axis | `0.003` (strict: a value equal to the cutoff stays) |
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CENTS-E5
-(section 19). Milestone: later.
+(section 19).
 
 ### CENTS-VEL-003: Velocity of another player
 
@@ -1033,7 +936,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   the velocity at once (CENTS-MOVE-004). The count that remains then continues to the target `u`.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: CENTS-E7
-(section 19). Milestone: later.
+(section 19).
 
 ---
 
@@ -1058,7 +961,7 @@ the predicted position after each tick.
   CENTS-TICK-001 do not apply to it. The frame position is the position of CENTS-FRAME-001.
 
 Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 (section 19). Kind: semantic.
-Confidence: high. Milestone: later.
+Confidence: high.
 
 ### CENTS-SIM-002: Step of the type
 
@@ -1091,7 +994,7 @@ Confidence: high. Milestone: later.
      CENTS-SIM-001 occur.
   5. For an orb, the client does the move of the row "experience orb" of PHY-ORD-005, the skip
      of the first tick (item 4) and the interpolation of CENTS-SIM-004. It does not do the lava step (XP-ORB-003) or the
-     attraction (XP-ATT-001, XP-ATT-002), because they are out of scope (section 0.4). Against a
+     attraction (XP-ATT-001, XP-ATT-002), because this document does not state them. Against a
      vanilla server, an orb in lava or near a player thus departs from the server position. The
      next update of the server corrects the position through CENTS-SIM-004.
   6. A falling block that lands on the client stays, with drag only, until
@@ -1107,7 +1010,7 @@ Confidence: high. Milestone: later.
 
 Provenance: `source_suggested`; the move through air of the four types, item 4 and the removal of
 the TNT `source_suggested_black_box_confirmed` by CENTS-E1, the removal below the world by
-CENTS-E4 (section 19). Kind: semantic. Confidence: medium. Milestone: later.
+CENTS-E4 (section 19). Kind: semantic. Confidence: medium.
 
 ### CENTS-SIM-003: Position update of an item, a falling block and a primed TNT
 
@@ -1124,7 +1027,7 @@ CENTS-E4 (section 19). Kind: semantic. Confidence: medium. Milestone: later.
   interpolates from the old previous position to the new position.
 
 Provenance: `source_suggested_black_box_confirmed` by CENTS-E1, CENTS-E2 and CENTS-E3 (section
-19). Kind: semantic. Confidence: high. Milestone: later.
+19). Kind: semantic. Confidence: high.
 
 ### CENTS-SIM-004: Interpolation of an orb
 
@@ -1167,7 +1070,7 @@ Provenance: `source_suggested_black_box_confirmed` by CENTS-E1, CENTS-E2 and CEN
 
 Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 and CENTS-E2 (section 19); the
 types of item 5.2 and the point `A` of item 6 `source_suggested`. Kind: semantic. Confidence:
-high. Milestone: later.
+high.
 
 ### CENTS-SIM-005: Absent chunk data
 
@@ -1182,7 +1085,7 @@ high. Milestone: later.
   the server has a block. The next update of the server corrects the position.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CENTS-E6
-(section 19). Milestone: later.
+(section 19).
 
 ---
 
@@ -1194,8 +1097,7 @@ CENTS-INTERP-004, item 1, moves the path only when the moved entity box has no c
 client that has no collision shapes of blocks yet can treat the test as passed. The difference
 is visible only when a snap during a path puts the entity into a block.
 
-Provenance: `design`. Reason: the block collision shapes are not part of milestones 1 and 2.
-Milestone: 1.
+Provenance: `design`. Reason: the client has no block collision shapes yet.
 
 ### CENTS-DEV-002: No removal of an orb at the client age 6000
 
@@ -1211,7 +1113,7 @@ Milestone: 1.
 - **Test**: a differential test ignores an orb that the vanilla client removes at its client age
   6000 while the server keeps it.
 
-Provenance: `design`. Reason: decision of the owner. Milestone: later.
+Provenance: `design`. Reason: decision of the owner.
 
 ---
 
@@ -1223,12 +1125,12 @@ None.
 
 ## 19. Experiments
 
-Each experiment uses the harness of section 0.2 with a scene of `tools/scenes/` in the format of
+Each experiment uses a scene of `tools/scenes/` in the format of
 `pig_idle.json`: a flat world and the scene commands below. The command
 is `./gradlew :client-capture:captureClientFrames -PoracleOut=<directory> -Pscene=<name>` in
 `tools/vanilla-oracle/`.
 
-### CENTS-E1: Step through air of the four types (run)
+### CENTS-E1: Step through air of the four types
 
 Steps:
 
@@ -1240,19 +1142,7 @@ Steps:
 6. Wait 120 ticks. Replay the packets with CENTS-SIM-001 to CENTS-SIM-004, and compare each
    position with the entity rows.
 
-Results with `26.4-snapshot-7`:
-
-- Each row before the landing matches the replay with an error of exactly 0: 30 rows of the
-  item, 28 of the falling block, 33 of the TNT and 33 of the orb.
-- A replay without item 4 of CENTS-SIM-002 (the first tick of the orb) gives an error of
-  0.137 block. A replay without item 5.1 of CENTS-SIM-004 also gives errors.
-- The falling block reaches the floor at `y` −60 in update 70. It stays until
-  `minecraft:remove_entities` arrives before update 71.
-- The fuse value 1 of the TNT arrives before update 100. The client removes the TNT in update
-  100. `minecraft:remove_entities` for the TNT arrives after update 100. No explosion occurs on
-  the client.
-
-### CENTS-E2: Teleport of an item and an orb (run)
+### CENTS-E2: Teleport of an item and an orb
 
 Steps:
 
@@ -1261,14 +1151,7 @@ Steps:
 3. Teleport both with `/tp` by 10 blocks on X, then by 70 blocks on X. Each `/tp` sends
    `minecraft:teleport_entity`.
 
-Results with `26.4-snapshot-7`:
-
-- At 10 blocks, the item has the new position in the next row. The orb has X 7.833, 11.167 and
-  14.5 in the next three rows.
-- At 70 blocks (`D²` = 4900), both snap: the position and the previous position are 84.5.
-- The first move of zero length after the add starts an interpolation of 3 ticks of the orb.
-
-### CENTS-E3: Velocity of an item (run)
+### CENTS-E3: Velocity of an item
 
 Steps:
 
@@ -1277,16 +1160,7 @@ Steps:
 3. Wait 20 ticks, then `data merge entity @e[type=minecraft:item,limit=1] {Motion:[0.0d,0.0d,0.3d]}`.
 4. Wait 40 ticks.
 
-Results with `26.4-snapshot-7`:
-
-- Before update 32, `minecraft:set_entity_motion` with Z velocity `0.2940243` and a relative
-  move to Z `4.8000488` arrive.
-- The rows give Z `5.0940731`, `5.3822169`, `5.6645979`: each tick adds the velocity, then
-  multiplies the velocity by `0.98F`.
-- Before update 52, a velocity and a move to Z `9.6862793` arrive. The next row is Z
-  `9.8825803`, which is `9.6862793 + 0.1963010`.
-
-### CENTS-E4: Orb age and removal below the world (run)
+### CENTS-E4: Orb age and removal below the world
 
 Steps:
 
@@ -1298,35 +1172,22 @@ Steps:
    fall through the hole.
 4. Wait 6150 ticks.
 
-Results with `26.4-snapshot-7`:
-
-- The item has its last row in update 83, at `y` −128.43. The orb of step 3 has its last row in
-  update 98, at `y` −128.92. The client removes each one in the next update.
-  `minecraft:remove_entities` for each one arrives after that update.
-- The orb of step 2 has its last row in update 6011, with the age 6000. Then the client removes
-  it. The server sends no `minecraft:remove_entities` for it. This is the reference behaviour of
-  CENTS-DEV-002. The client of mcrs keeps the orb.
-
-### CENTS-E5: Decay of the velocity of a living entity (not run)
+### CENTS-E5: Decay of the velocity of a living entity
 
 Steps: summon a pig with `NoAI:1b` in the air with `NoGravity:1b`. Set its `Motion` to
 `[0.0d,0.0d,0.5d]` with `data merge`. Record the client velocity in each tick. Expected result:
 the velocity is multiplied by 0.98 in each tick with no interpolation, and an axis below 0.003
-becomes 0 (CENTS-VEL-002). Reason not run: the entity rows of the harness have no velocity. The
-harness needs a key `velocity` in a row.
+becomes 0 (CENTS-VEL-002).
 
-### CENTS-E6: Absent chunk data (not run)
+### CENTS-E6: Absent chunk data
 
 Steps: put an item on a floor at the edge of the loaded chunks of the client, with a velocity
 toward a chunk that the client has not loaded and the server has. Record the rows. Expected
 result: the item falls in the chunk that is not loaded, and the next update corrects it
-(CENTS-SIM-005). Reason not run: the server tracks an item only up to a distance that is less
-than the render distance of the scene. The harness has no step that unloads a chunk on the
-client only.
+(CENTS-SIM-005).
 
-### CENTS-E7: Velocity of another player (not run)
+### CENTS-E7: Velocity of another player
 
 Steps: connect a second client. Give the second player a knockback. Record the velocity of that
 player on the first client in each tick. Expected result: the velocity reaches the value of the
-packet in 3 ticks (CENTS-VEL-003). Reason not run: the harness has one client and no velocity in
-a row.
+packet in 3 ticks (CENTS-VEL-003).

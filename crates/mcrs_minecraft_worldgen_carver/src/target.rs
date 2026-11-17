@@ -543,7 +543,7 @@ mod tests {
         #[test]
         #[expect(
             clippy::excessive_nesting,
-            reason = "checks the region slot against the column mask at every width and origin, so a failing combination names itself"
+            reason = "checks the region slot against the column mask at every width and origin"
         )]
         fn a_region_slot_equals_its_columns_mask_at_every_width_and_origin() {
             let mut carved = [0usize; 3];

@@ -705,7 +705,7 @@ impl Program {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the workspace, the volume, the surface node with its density and upper bound, and the lower bound and cell height of one top-surface fill"
+        reason = "independent inputs of one top-surface fill"
     )]
     fn fill_top_surface(
         &self,
@@ -745,7 +745,7 @@ impl Program {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the workspace, both grids, the column index, the density and upper bound nodes, and the lower bound and cell height of one surface descent"
+        reason = "independent inputs of one surface descent"
     )]
     fn find_top_surface(
         &self,
@@ -1250,7 +1250,7 @@ fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the output, the block origin, the two grids, the lattice values and the two cell sizes of one trilinear interpolation"
+    reason = "independent inputs of one trilinear interpolation"
 )]
 fn interpolate(
     out: &mut [f32],

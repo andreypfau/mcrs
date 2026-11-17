@@ -251,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn an_option_list_scrolls_a_notch_and_its_cycle_button_and_slider_report_their_values() {
+    fn option_list_scrolls_and_its_controls_report_their_values() {
         let mut app = app_opening(open_option_list);
         point_at(&mut app, 100, 50);
         app.world_mut()

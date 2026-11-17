@@ -162,7 +162,7 @@ fn generate_cut_out<W: WorldGenVolume>(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the configuration, the volume, the iceberg's shape, and the radius, vertical offset, water flag, angle and local position of one carved block"
+    reason = "independent inputs of one carved block"
 )]
 fn carve<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
@@ -202,7 +202,7 @@ fn carve<W: WorldGenVolume>(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the configuration, the volume, the random source, the iceberg's shape, and the height, local position, radius and offset of one iceberg block"
+    reason = "independent inputs of one iceberg block"
 )]
 fn generate_block<W: WorldGenVolume>(
     cfg: &CompiledIceberg,

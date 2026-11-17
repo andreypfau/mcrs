@@ -11,7 +11,6 @@ sources:
   - README.md
   - docs/clean-room.md
   - assets/minecraft/version.json
-  - PERF.md
   - issue:437
   - issue:321
 verified:
@@ -34,7 +33,7 @@ No. Bukkit and Paper plugins do not load, and there is no facade API, because th
 
 ## Why Rust?
 
-Not because "it is faster". Rust gives memory safety without a garbage collector. Each Bevy system declares which data it reads and which it writes, and the Bevy scheduler uses this to run systems in parallel without locks. The scheduler checks access conflicts when it builds the system graph. The compiler does not. The numbers we measured are in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), each with the machine and the scenario. See [Parallel tick](/docs/en/concepts/parallel-tick/).
+Not because "it is faster". Rust gives memory safety without a garbage collector. Each Bevy system declares which data it reads and which it writes, and the Bevy scheduler uses this to run systems in parallel without locks. The scheduler checks access conflicts when it builds the system graph. The compiler does not. See [Parallel tick](/docs/en/concepts/parallel-tick/).
 
 ## Another Rust server?
 

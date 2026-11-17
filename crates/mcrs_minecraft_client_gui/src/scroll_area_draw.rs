@@ -272,8 +272,7 @@ mod tests {
         }
 
         #[test]
-        fn the_selected_row_has_a_white_outline_while_its_list_has_the_focus_and_a_grey_one_after()
-        {
+        fn selected_row_outline_is_white_while_focused_then_grey() {
             let mut widgets = screen();
             let area = GuiRect::new(0, 38, 427, 150);
             let kind = WidgetKind::SelectionList(SelectionList::new(3, 36));

@@ -2,16 +2,15 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+| Version | see `assets/minecraft/version.json` |
 
 This document states the attributes of a living entity. It states the definition of each
 attribute, the base value that each entity type gives, and the data of one instance. It states how
 the base value and the modifiers give the value, in exact f64 arithmetic. It states what the server
 sends to a client, what a client does with it, and what a save keeps.
 
-The documents that add a modifier or read a value state their own rules. Section 5 and section 9
-list them.
+The documents that add a modifier or read a value state their own rules. Section 5
+lists them.
 
 ## 0. Conventions
 
@@ -66,20 +65,6 @@ Each rule has an ID with the prefix `ATR`. The second part names the section.
 | `ATR-NET` | the packets that the server sends |
 | `ATR-CLI` | what a client does |
 | `ATR-SAV` | the save data |
-
-### 0.4 Scope
-
-This document states:
-
-- the 40 definitions, and the attribute set and the base values of the 94 living entity types;
-- the instance, its base value, its modifiers and the changes of them;
-- the value, bit for bit;
-- the sprint modifier and the creative mode modifiers, and a table of the other sources;
-- the content and the time of `update_attributes`, for a tracking player and for the own player;
-- what a client does with `update_attributes`, and the instances of a client before that packet;
-- the field `attributes` of a saved living entity.
-
-Section 10 lists the subjects that are out of scope.
 
 ### 0.5 Artefacts cited
 
@@ -169,7 +154,7 @@ the type `player`.
 ## 2. The attribute set and the base of an entity type
 
 **ATR-BASE-001** (`source_suggested_black_box_confirmed`, semantic, confidence: high). An entity
-type is a living entity type when Appendix A has a row for it. This game version has 94 such
+type is a living entity type when the part `default_attributes` of the fixture `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json` has an entry for it. This game version has 94 such
 types. A living entity has one instance for each attribute of the attribute set of its type. It has
 no instance for another attribute. An entity of another type has no instance.
 
@@ -189,17 +174,15 @@ attribute set of each living entity type contains these 26 attributes, the commo
 `movement_speed`, `name_tag_distance`, `oxygen_bonus`, `safe_fall_distance`, `scale`,
 `step_height`, `water_movement_efficiency` and `waypoint_transmit_range`.
 
-The column "More attributes" of Appendix A gives the other attributes of the set of a type.
+The attribute set of each type is in the part `default_attributes` of the fixture `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json`.
 
 **ATR-BASE-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: high). A
-new instance has the base of the type and no modifier. The base of the type is the value in the
-column "Base values" of Appendix A, when the row of the type names the attribute. In each other
-case, it is the attribute default. Appendix A is the one table of these values. Other documents
-cite it.
+new instance has the base of the type and no modifier. The base of the type is the fixture value, when the fixture names a base for the attribute. In each other
+case, it is the attribute default.
 
 The vanilla client has the same table. Thus the client agrees on each instance that the server
 does not send. The part `default_attributes` of the fixture `attributes.json` holds each base of
-each type as bits. It is the data for a test of Appendix A.
+each type as bits.
 
 The spawn of an entity can change the base value of an instance or add a modifier. For example, a
 `slime`, a `magma_cube` and a `sulfur_cube` set `max_health` by their size. The specification of
@@ -610,7 +593,7 @@ the sprint modifier of the new local player.
 A recording of the packets does not show the instances of the client itself. In `a4_respawn.txt`
 the entries of ATR-NET-005 come in the client tick of the respawn. Thus no client tick reads the
 instances that the client copies from the old local player for those attributes. An experiment
-that reads the values on the client after a respawn decides this rule (section 13, A6).
+that reads the values on the client after a respawn decides this rule.
 
 **ATR-CLI-006** (`design`, semantic, confidence: high). The attribute of an entry of
 `update_attributes` is a numeric id on the wire. The decode of the packet succeeds for each
@@ -628,8 +611,7 @@ packet with this library gets each entry, also the entry with the unknown id.
 Provenance: `design`. The owner decided on 2026-11-15 that the client of this project ignores only
 that entry. The vanilla client fails to decode the packet (ATR-CLI-003, row 4). A vanilla server
 never sends such an id (ATR-NET-001), so a differential test does not see this difference. An
-attribute that a data pack or a server adds is out of scope (section 10). This project has no
-attribute registry that a data pack or a server can extend.
+attribute that a data pack or a server adds is not specified here. The registry is static in this game version.
 
 ## 8. The save data
 
@@ -725,34 +707,6 @@ A player file that a vanilla server wrote has only the keys of
 `persistence.md`, so it loads. The game ignores such a key, and its next save does not hold it
 (section 11, "Unknown keys in the list `attributes`").
 
-## 9. Readers
-
-A reader reads the value of ATR-VAL-001, not the base value. A reader that needs an f32 narrows the
-value, and its own rule states that. These documents state readers:
-
-| Attribute | Reader |
-|-----------|--------|
-| `movement_speed` | PHY-INP-006 of `entity-physics.md`; CCAM-FOV-002 of `client-camera.md`; MVC-LAY-009 of `movement-checks.md` |
-| `block_interaction_range` | BRK-RCH-001 and BRK-SRV-012 of `block-breaking.md`; CBK-TGT-004 of `client-block-breaking.md` |
-| `max_health`, `armor`, `armor_toughness`, `max_absorption`, `safe_fall_distance`, `fall_damage_multiplier` | DMG-ATT-001 and DMG-ATT-002 of `entity-damage.md` |
-| `scale`, `step_height`, `gravity`, `jump_strength` and the other movement attributes | `entity-physics.md` |
-
-A rule that acts when a value changes is a rule of the reader. For example, DMG-ATT-001 lowers the
-health when `max_health` becomes less than the health.
-
-## 10. Out of scope
-
-| Subject | Reason |
-|---------|--------|
-| the command `/attribute` and its messages | a command specification must state them |
-| the modifiers of items, enchantments and equipment | issues #121 and #214 |
-| the changes of a base value at the spawn of a mob | the specification of each mob |
-| the respawn that keeps all player data (the return from the End) on the server | no specification states that respawn yet |
-| the modifier of the crouch state on `waypoint_transmit_range`, and the two waypoint attributes | waypoints are another domain |
-| the text and the colour of an attribute line in an item tooltip | the tooltip is another domain; ATR-DEF-002 gives it the data |
-| the reaction of each reader to a changed value | section 9 |
-| a data pack or a server that adds an attribute | the registry is static in this game version |
-
 ## 11. Intentional deviations
 
 - **Entries for instances that did not change.**
@@ -810,161 +764,17 @@ health when `max_health` becomes less than the health.
   - the time of an entry for a tracking player, and the entries of the spawn bundle
     (ATR-NET-003, ATR-NET-004).
 
-  Section 13 states the change of the tool that A4 and A5 need.
 - **U7.** The result of an unknown key in the list `attributes` of entity data from a source other
   than a player file is not decided. Examples are a mob in a saved chunk and the data of a command.
   The change that adds the save of mob entities decides it (ATR-SAV-002).
 
 ## 13. Experiments
 
-| Id | Tool and input | State | Rules |
-|----|----------------|-------|-------|
-| A1 | `tools/vanilla-oracle`, task `dumpAttributes`. Run `cargo run -p mcrs_minecraft_update -- recapture attributes`. It writes the base values of each type, 68 values and 37 orders. | ran on `26.4-snapshot-7` | ATR-BASE-001 to ATR-BASE-003, ATR-INS-002, ATR-VAL-001 to ATR-VAL-003 |
-| A2 | The recordings `e9_sprint_stone.txt`, `e12_fly.txt` and `e10_jump_boost.txt` of the client recorder. Read the lines `< attribute`. | ran before this document | ATR-SRC-002, ATR-SRC-003, ATR-NET-002, ATR-NET-003 |
-| A3 | `tools/mcrs_minecraft_probe` with the scenario `scenarios/attributes.json`. Record each reply. The steps `baby_zombie` to `baby_zombie_saved` summon a baby `zombie`, read its value, its modifier and its field `attributes`. The trace is `tools/mcrs_minecraft_probe/traces/attributes.json`. | ran on `26.4-snapshot-7`; two runs give the same trace | ATR-BASE-001, ATR-INS-002, ATR-INS-004, ATR-INS-005, ATR-SRC-001, ATR-SRC-003, ATR-SAV-001, ATR-SAV-002, U3, U6 |
-| A4 | The client recorder, scenario `a4`. Give the player a base value of 30 for `max_health`, a modifier of `/attribute` on `luck` and the effect `speed` with the infinite duration. Kill the player; the rule `immediate_respawn` respawns it. Record each `update_attributes` for the own player, with its tick. The recording is `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt`. | the respawn ran on `26.4-snapshot-7`; the leave and the join did not run | ATR-NET-003, ATR-NET-005, PLD-RST-004 |
-| A5 | The client recorder, scenario `a5`. Give the player the effect `slowness`, then let it sprint for 20 ticks. Record each `update_attributes`, with its tick. The recording is `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a5_slowness_sprint.txt`. | the own player ran on `26.4-snapshot-7`; the second client did not run | ATR-NET-002, ATR-NET-003 |
-| A6 | Not yet possible. Repeat A4 with a leave and a join before the death. Repeat A5 with a second client that tracks the first player. In each client, read the values of the local player after each packet. | not run | ATR-NET-003, ATR-NET-004, ATR-NET-005, ATR-CLI-005, U5 |
-| A7 | `tools/mcrs_minecraft_probe` with the scenario `scenarios/attributes_load.json`. Each step summons a `pig` with an `attributes` list that is not well formed, then reads its field `attributes` or a base value. The step `compound_no_id` gives one compound with no `id`, one compound with an `id` that is not a string, and one good compound. Record each reply. The trace is `tools/mcrs_minecraft_probe/traces/attributes_load.json`. Compare each reply with the row of ATR-SAV-002 that names the step. | not run | ATR-SAV-001, ATR-SAV-002 |
-
-A3, A4, A5 and A7 need a vanilla server. `tools/vanilla-server` starts one only when the person that
-runs it accepts the EULA of the game. Run A4 and A5 with this command, with `a5` in place of `a4`
-for A5:
-
-```sh
-MINECRAFT_EULA=true AUTOPLAY=true MAX_FPS=20 tools/mcrs_minecraft_client_recorder/record.sh a4 \
-    crates/mcrs_minecraft_entity/tests/fixtures/vanilla
-```
-
-Run A7 with this command. The person that runs it sets `MINECRAFT_EULA=true` to accept the EULA:
-
-```sh
-MINECRAFT_EULA=true tools/mcrs_minecraft_probe/record.sh attributes_load
-```
-
-A6 needs these changes of the client recorder. They are more than an input file:
-
-- a scenario line that makes the client leave and join again in a step, and a recording of the
-  packets from the `login` packet, with their ticks; now the events before the first teleport of
-  a step go only into the start state of the recording;
-- a second client, and the entries of `update_attributes` for an entity other than the own player,
-  with the network id of that entity;
-- a line of the recording for the values that the vanilla client reads for its local player.
-
-## 14. Relation to other documents
-
-| Document | Relation |
-|----------|----------|
-| `entity-tracking.md` | TRK-TYPE-003 and TRK-TYPE-004 repeat rows of Appendix A. TRK-DATA-004 states the entries of the spawn bundle. TRK-UPD-001 and TRK-UPD-002 state the update. |
-| `entity-damage.md` | DMG-ATT-002 reads values. Its Appendix A states the immunities of each type and cites Appendix A of this document for the base values. |
-| `entity-physics.md` | PHY-INP-006 reads `movement_speed` and cites the value rules. |
-| `movement-checks.md` | MVC-PKT-026 states the layout of the packet. MVC-LAY-009 computes a value at a proxy and cites the value rules. |
-| `status-effects.md` | EFX-ATT-001 and EFX-ATT-002 are a source. EFX-ATT-003 cites the value rules. |
-| `client-camera.md` | CCAM-FOV-002 reads `movement_speed` and cites the value rules. |
-| `block-breaking.md` | BRK-RCH-001 and BRK-SRV-012 read `block_interaction_range`. |
-| `environment-damage.md` | ENV-FRZ-005 is a source. |
-| `player-death.md`, `dimension-change.md` | PLD-RST-004 and DIM-CHG-004 state what a respawn keeps. |
-| `persistence.md` | It states the fields of an attribute compound. |
-
-## Appendix A: the attribute set and the base values of each living entity type
-
-Each type has the common set of ATR-BASE-002 and the attributes of the column "More attributes".
-The column "Base values" gives each base of the type that differs from the attribute default. Each
-other base of the type is the attribute default of ATR-DEF-001. Experiment A1 gives this table.
-
-| Type | More attributes | Base values |
-|------|-----------------|-------------|
-| `allay` | `attack_damage`, `flying_speed`, `follow_range` | `flying_speed` 0.10000000149011612, `follow_range` 16, `movement_speed` 0.10000000149011612 |
-| `armadillo` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 12, `movement_speed` 0.14 |
-| `armor_stand` | none | `step_height` 0 |
-| `axolotl` | `attack_damage`, `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 14, `movement_speed` 1, `step_height` 1 |
-| `bat` | `follow_range` | `follow_range` 16, `max_health` 6 |
-| `bee` | `attack_damage`, `flying_speed`, `follow_range`, `tempt_range` | `flying_speed` 0.6000000238418579, `follow_range` 16, `max_health` 10, `movement_speed` 0.30000001192092896 |
-| `blaze` | `attack_damage`, `follow_range` | `attack_damage` 6, `follow_range` 48, `movement_speed` 0.23000000417232513 |
-| `bogged` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 16, `movement_speed` 0.25 |
-| `breeze` | `attack_damage`, `follow_range` | `attack_damage` 3, `follow_range` 24, `max_health` 30, `movement_speed` 0.6299999952316284 |
-| `camel` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `max_health` 32, `movement_speed` 0.09000000357627869, `safe_fall_distance` 6, `step_height` 1.5 |
-| `camel_husk` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `max_health` 32, `movement_speed` 0.09000000357627869, `safe_fall_distance` 6, `step_height` 1.5 |
-| `cat` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 3, `follow_range` 16, `max_health` 10, `movement_speed` 0.30000001192092896 |
-| `cave_spider` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 12, `movement_speed` 0.30000001192092896 |
-| `chicken` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 4, `movement_speed` 0.25 |
-| `cod` | `follow_range` | `follow_range` 16, `max_health` 3 |
-| `copper_golem` | `follow_range` | `follow_range` 16, `max_health` 12, `movement_speed` 0.20000000298023224, `step_height` 1 |
-| `cow` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 10, `movement_speed` 0.20000000298023224 |
-| `creaking` | `attack_damage`, `follow_range` | `attack_damage` 3, `max_health` 1, `movement_speed` 0.4000000059604645, `step_height` 1.0625 |
-| `creeper` | `attack_damage`, `follow_range` | `follow_range` 16, `movement_speed` 0.25 |
-| `dolphin` | `attack_damage`, `follow_range` | `attack_damage` 3, `follow_range` 16, `max_health` 10, `movement_speed` 1.2000000476837158 |
-| `donkey` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.5, `max_health` 53, `movement_speed` 0.17499999701976776, `safe_fall_distance` 6, `step_height` 1 |
-| `drowned` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 3, `follow_range` 35, `movement_speed` 0.23000000417232513, `step_height` 1 |
-| `elder_guardian` | `attack_damage`, `follow_range` | `attack_damage` 8, `follow_range` 16, `max_health` 80, `movement_speed` 0.30000001192092896 |
-| `ender_dragon` | `follow_range` | `camera_distance` 16, `follow_range` 16, `max_health` 200 |
-| `enderman` | `attack_damage`, `follow_range` | `attack_damage` 7, `follow_range` 64, `max_health` 40, `movement_speed` 0.30000001192092896, `step_height` 1 |
-| `endermite` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 8, `movement_speed` 0.25 |
-| `evoker` | `attack_damage`, `follow_range` | `follow_range` 12, `max_health` 24, `movement_speed` 0.5 |
-| `fox` | `attack_damage`, `follow_range`, `tempt_range` | `max_health` 10, `movement_speed` 0.30000001192092896, `safe_fall_distance` 5 |
-| `frog` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 10, `follow_range` 16, `max_health` 10, `movement_speed` 1, `step_height` 1 |
-| `frostbite` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 3, `follow_range` 35, `max_health` 24, `movement_speed` 0.20999999344348907 |
-| `ghast` | `flying_speed`, `follow_range` | `camera_distance` 8, `flying_speed` 0.06, `follow_range` 100, `max_health` 10 |
-| `giant` | `attack_damage`, `follow_range` | `attack_damage` 50, `camera_distance` 16, `follow_range` 16, `max_health` 100, `movement_speed` 0.5 |
-| `glow_squid` | `follow_range` | `follow_range` 16, `max_health` 10 |
-| `goat` | `attack_damage`, `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 10, `movement_speed` 0.20000000298023224 |
-| `guardian` | `attack_damage`, `follow_range` | `attack_damage` 6, `follow_range` 16, `max_health` 30, `movement_speed` 0.5 |
-| `happy_ghast` | `flying_speed`, `follow_range`, `tempt_range` | `camera_distance` 8, `flying_speed` 0.05, `follow_range` 16, `movement_speed` 0.05, `tempt_range` 16 |
-| `hoglin` | `attack_damage`, `follow_range` | `attack_damage` 6, `attack_knockback` 1, `follow_range` 16, `knockback_resistance` 0.6000000238418579, `max_health` 40, `movement_speed` 0.30000001192092896 |
-| `horse` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.7, `max_health` 53, `movement_speed` 0.22499999403953552, `safe_fall_distance` 6, `step_height` 1 |
-| `husk` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 3, `follow_range` 35, `movement_speed` 0.23000000417232513 |
-| `illusioner` | `attack_damage`, `follow_range` | `follow_range` 18, `max_health` 32, `movement_speed` 0.5 |
-| `iron_golem` | `attack_damage`, `follow_range` | `attack_damage` 15, `follow_range` 16, `knockback_resistance` 1, `max_health` 100, `movement_speed` 0.25, `step_height` 1 |
-| `llama` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.5, `max_health` 53, `movement_speed` 0.17499999701976776, `safe_fall_distance` 6, `step_height` 1 |
-| `magma_cube` | `attack_damage`, `follow_range` | `follow_range` 16, `movement_speed` 0.20000000298023224 |
-| `mannequin` | none | none |
-| `mooshroom` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 10, `movement_speed` 0.20000000298023224 |
-| `mule` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.5, `max_health` 53, `movement_speed` 0.17499999701976776, `safe_fall_distance` 6, `step_height` 1 |
-| `nautilus` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 3, `follow_range` 16, `knockback_resistance` 0.30000001192092896, `max_health` 15, `movement_speed` 1 |
-| `ocelot` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 3, `follow_range` 16, `max_health` 10, `movement_speed` 0.30000001192092896 |
-| `panda` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 6, `follow_range` 16, `movement_speed` 0.15000000596046448 |
-| `parched` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 16, `movement_speed` 0.25 |
-| `parrot` | `attack_damage`, `flying_speed`, `follow_range`, `tempt_range` | `attack_damage` 3, `flying_speed` 0.4000000059604645, `follow_range` 16, `max_health` 6, `movement_speed` 0.20000000298023224 |
-| `phantom` | `attack_damage`, `follow_range` | `follow_range` 16 |
-| `pig` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 10, `movement_speed` 0.25 |
-| `piglin` | `attack_damage`, `follow_range` | `attack_damage` 5, `follow_range` 16, `max_health` 16, `movement_speed` 0.3499999940395355 |
-| `piglin_brute` | `attack_damage`, `follow_range` | `attack_damage` 7, `follow_range` 12, `max_health` 50, `movement_speed` 0.3499999940395355 |
-| `pillager` | `attack_damage`, `follow_range` | `attack_damage` 5, `max_health` 24, `movement_speed` 0.3499999940395355 |
-| `player` | `attack_damage`, `attack_speed`, `block_break_speed`, `block_interaction_range`, `luck`, `mining_efficiency`, `sneaking_speed`, `submerged_mining_speed`, `sweeping_damage_ratio`, `waypoint_receive_range` | `attack_damage` 1, `movement_speed` 0.10000000149011612, `waypoint_transmit_range` 60000000, `waypoint_receive_range` 60000000 |
-| `polar_bear` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 6, `follow_range` 20, `max_health` 30, `movement_speed` 0.25 |
-| `pufferfish` | `follow_range` | `follow_range` 16, `max_health` 3 |
-| `rabbit` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 3, `follow_range` 16, `max_health` 3, `movement_speed` 0.30000001192092896 |
-| `ravager` | `attack_damage`, `follow_range` | `attack_damage` 12, `attack_knockback` 1.5, `knockback_resistance` 0.75, `max_health` 100, `movement_speed` 0.3, `step_height` 1 |
-| `salmon` | `follow_range` | `follow_range` 16, `max_health` 3 |
-| `sheep` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 8, `movement_speed` 0.23000000417232513 |
-| `shulker` | `follow_range` | `follow_range` 16, `max_health` 30 |
-| `silverfish` | `attack_damage`, `follow_range` | `attack_damage` 1, `follow_range` 16, `max_health` 8, `movement_speed` 0.25 |
-| `skeleton` | `attack_damage`, `follow_range` | `follow_range` 16, `movement_speed` 0.25 |
-| `skeleton_horse` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.7, `max_health` 15, `movement_speed` 0.20000000298023224, `safe_fall_distance` 6, `step_height` 1 |
-| `slime` | `attack_damage`, `follow_range` | `follow_range` 16 |
-| `sniffer` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 14, `movement_speed` 0.10000000149011612 |
-| `snow_golem` | `follow_range` | `follow_range` 16, `max_health` 4, `movement_speed` 0.20000000298023224 |
-| `spider` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 16, `movement_speed` 0.30000001192092896 |
-| `squid` | `follow_range` | `follow_range` 16, `max_health` 10 |
-| `stray` | `attack_damage`, `follow_range` | `follow_range` 16, `movement_speed` 0.25 |
-| `strider` | `follow_range`, `tempt_range` | `follow_range` 16, `movement_speed` 0.17499999701976776 |
-| `sulfur_cube` | `follow_range`, `tempt_range` | `follow_range` 16, `tempt_range` 8 |
-| `tadpole` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 6, `movement_speed` 1 |
-| `trader_llama` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.5, `max_health` 53, `movement_speed` 0.17499999701976776, `safe_fall_distance` 6, `step_height` 1 |
-| `tropical_fish` | `follow_range` | `follow_range` 16, `max_health` 3 |
-| `turtle` | `follow_range`, `tempt_range` | `follow_range` 16, `max_health` 30, `movement_speed` 0.25, `step_height` 1 |
-| `vex` | `attack_damage`, `follow_range` | `attack_damage` 4, `follow_range` 16, `max_health` 14 |
-| `villager` | `follow_range` | `follow_range` 16, `movement_speed` 0.5 |
-| `vindicator` | `attack_damage`, `follow_range` | `attack_damage` 5, `follow_range` 12, `max_health` 24, `movement_speed` 0.3499999940395355 |
-| `wandering_trader` | `follow_range` | `follow_range` 16 |
-| `warden` | `attack_damage`, `follow_range` | `attack_damage` 30, `attack_knockback` 1.5, `follow_range` 24, `knockback_resistance` 1, `max_health` 500, `movement_speed` 0.30000001192092896 |
-| `witch` | `attack_damage`, `follow_range` | `follow_range` 16, `max_health` 26, `movement_speed` 0.25 |
-| `wither` | `attack_damage`, `flying_speed`, `follow_range` | `armor` 4, `flying_speed` 0.6000000238418579, `follow_range` 40, `max_health` 300, `movement_speed` 0.6000000238418579 |
-| `wither_skeleton` | `attack_damage`, `follow_range` | `follow_range` 16, `movement_speed` 0.25 |
-| `wolf` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 4, `follow_range` 16, `max_health` 8, `movement_speed` 0.30000001192092896 |
-| `zoglin` | `attack_damage`, `follow_range` | `attack_damage` 6, `attack_knockback` 1, `follow_range` 16, `knockback_resistance` 0.6000000238418579, `max_health` 40, `movement_speed` 0.30000001192092896 |
-| `zombie` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 3, `follow_range` 35, `movement_speed` 0.23000000417232513 |
-| `zombie_horse` | `follow_range`, `tempt_range` | `fall_damage_multiplier` 0.5, `follow_range` 16, `jump_strength` 0.7, `max_health` 25, `movement_speed` 0.22499999403953552, `safe_fall_distance` 6, `step_height` 1 |
-| `zombie_nautilus` | `attack_damage`, `follow_range`, `tempt_range` | `attack_damage` 3, `follow_range` 16, `knockback_resistance` 0.30000001192092896, `max_health` 15, `movement_speed` 1.100000023841858 |
-| `zombie_villager` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 3, `follow_range` 35, `movement_speed` 0.23000000417232513 |
-| `zombified_piglin` | `attack_damage`, `follow_range`, `spawn_reinforcements` | `armor` 2, `attack_damage` 5, `follow_range` 35, `movement_speed` 0.23000000417232513 |
+| Id | Description | Rules |
+|----|-------------|-------|
+| A1 | Oracle task `dumpAttributes`. It writes the base values of each type, 68 values and 37 orders. | ATR-BASE-001 to ATR-BASE-003, ATR-INS-002, ATR-VAL-001 to ATR-VAL-003 |
+| A2 | The recordings `e9_sprint_stone.txt`, `e12_fly.txt` and `e10_jump_boost.txt` of the client recorder. Read the lines `< attribute`. | ATR-SRC-002, ATR-SRC-003, ATR-NET-002, ATR-NET-003 |
+| A3 | Probe scenario `scenarios/attributes.json`. The steps `baby_zombie` to `baby_zombie_saved` summon a baby `zombie`, read its value, its modifier and its field `attributes`. | ATR-BASE-001, ATR-INS-002, ATR-INS-004, ATR-INS-005, ATR-SRC-001, ATR-SRC-003, ATR-SAV-001, ATR-SAV-002 |
+| A4 | Client recorder, scenario `a4`. Give the player a base value of 30 for `max_health`, a modifier of `/attribute` on `luck` and the effect `speed` with the infinite duration. Kill the player. Record each `update_attributes` for the own player, with its tick. | ATR-NET-003, ATR-NET-005 |
+| A5 | Client recorder, scenario `a5`. Give the player the effect `slowness`, then let it sprint for 20 ticks. Record each `update_attributes`, with its tick. | ATR-NET-002, ATR-NET-003 |
+| A7 | Probe scenario `scenarios/attributes_load.json`. Each step summons a `pig` with an `attributes` list that is not well formed, then reads its field `attributes` or a base value. | ATR-SAV-001, ATR-SAV-002 |

@@ -1,26 +1,25 @@
 # mcrs_minecraft_client_recorder
 
 Records the client ticks of a vanilla client for the player experiments of
-`docs/spec/entity-physics.md`, section 15: E9 to E14 and E21 to E23, and for the conformance
-tests C1 to C7 of `docs/spec/movement-checks.md`, section 14.2. The tool starts the
+`docs/spec/entity-physics.md`: E9 to E14 and E21 to E23, and for the conformance
+tests C1 to C7 of `docs/spec/movement-checks.md`. The tool starts the
 vanilla dedicated server of the corpus version, listens as a proxy in front of it, and sets
 each step of an experiment up through the server console. A human plays the vanilla client, or
 the input agent of `tools/vanilla-client` plays it (see "Record without a human"). The tool writes one recording for each step. These tests read the recordings:
 
 - `own_player_follows_the_recorded_client_ticks` in
-  `crates/mcrs_minecraft_physics/tests/recorded_player.rs` reads
+  `crates/mcrs_minecraft_physics/tests/it/recorded_player.rs` reads
   `crates/mcrs_minecraft_physics/tests/fixtures/player`.
-- `a_vanilla_client_raises_no_flag` in `crates/mcrs_minecraft_move_predict/tests/conformance.rs`
+- `a_vanilla_client_raises_no_flag` in `crates/mcrs_minecraft_move_predict/tests/it/conformance.rs`
   reads the same directory and `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`,
-  subdirectories included. It prints the number of predicted ticks N and the bound 3/N of the
-  false positive rate. With no recording, it prints that it skipped.
+  subdirectories included.
 - `each_recording_of_a_predicted_cheat_module_is_flagged` in the same file reads
   `crates/mcrs_minecraft_move_predict/tests/fixtures/cheats/<module>` and prints the detection
   rate of each module. Each recording of `fly`, `speed`, `no_fall`, `phase` and `step` must have a
   flag. Layer 2 does not see `timer`, so its rate is only printed.
 
 Run them with
-`cargo nextest run -p mcrs_minecraft_move_predict --test conformance --no-capture`.
+`cargo nextest run -p mcrs_minecraft_move_predict conformance --no-capture`.
 
 ## Record one experiment
 
@@ -94,20 +93,6 @@ ping -i 0.1 -c 3000 <host> | sed -nE 's/.*time=([0-9.]+) ms/\1/p' \
 Record one trace for each of these connections: a wired home connection, a home Wi-Fi with
 other traffic, a mobile connection, and a host on another continent. Write the connection and the
 date in a comment on the first line.
-
-The traces in `traces/` come from one machine in Tokyo on a home Wi-Fi, on 2026-11-07. The
-machine had no wired connection and no mobile connection, so these traces do not exist yet. The
-first line of each trace names the host and its address.
-
-| Trace | Host | Median round trip |
-|-------|------|-------------------|
-| `lan` | the Wi-Fi gateway | 6 ms |
-| `tokyo` | `ntp.nict.jp`, Tokyo | 12 ms |
-| `us_east` | `mirror.math.princeton.edu`, New Jersey | 187 ms |
-| `europe` | `speedtest.tele2.net`, Sweden | 278 ms |
-| `south_america` | `speedtest.sao1.edgoo.net`, São Paulo | 282 ms |
-
-No trace has a median near 500 ms. C4 uses `south_america`, the trace with the largest median.
 
 The trace of C7 stalls each direction for 3 seconds after 900 frames, again and again:
 

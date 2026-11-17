@@ -9,7 +9,6 @@ stability: changing
 tracking: [136, 137, 341, 344, 521, 337]
 sources:
   - README.md
-  - PERF.md
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client_jar/src/native.rs
   - issue:136
@@ -56,21 +55,11 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 
 ## Only one platform is checked
 
-Every number in PERF.md comes from one machine, an Apple M4 Max with macOS and Metal, and the author has checked no other platform. Linux and Windows are not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
+The author has checked one platform, an Apple M4 Max with macOS and Metal. Linux and Windows are not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
 
-## A 96-column view and what it costs
+## A 96-column view
 
-The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The table gives three costs of this view, all taken in one scenario: an M4 Max with macOS, a 2560x1440 window, the save `two-relight` with 38,025 columns and 295,511 sections resident, a static view, and `MCRS_HOT=1` to hold the CPU cores at speed.
-
-| What | Value | Where |
-|---|---|---|
-| Engine CPU frame | 1.12 ms median, 1.33 ms worst second | [PERF.md, Hardening](https://github.com/andreypfau/mcrs/blob/main/PERF.md#hardening) |
-| GPU frame | 3.7 ms with the occlusion test on, 6.0 ms with it off (`MCRS_OCCLUSION=0`). The note in PERF.md calls 3.7 ms over its ceiling | PERF.md, Hardening |
-| Memory of the process | 12 GB | [PERF.md, Render distance](https://github.com/andreypfau/mcrs/blob/main/PERF.md#render-distance) |
-
-At 96 columns the GPU limits the frame and the CPU does not. Flying at top speed costs more than standing still. In the same scenario the engine frame then takes a 1.56 ms median and 5.0 ms for the worst second. The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. The memory at 96 columns is not bounded yet.[^337]
-
-If your GPU or RAM is smaller than this machine's, lower `MCRS_VIEW`, the number of columns the client asks for. The Render distance table of PERF.md reads 0.71 ms of engine time at 12 columns, on an older build. There are no numbers for other machines.
+The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower `MCRS_VIEW`, the number of columns the client asks for.
 
 ## Build it from source to run it
 
@@ -80,6 +69,6 @@ There is no binary download, so you build the client from source. The steps are 
 A detailed guide for players will come before the alpha. Until then, this page gives no steps that were not run on a clean machine.
 </Aside>
 
-The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/). For all numbers and their method, see [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md).
+The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/).
 
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.

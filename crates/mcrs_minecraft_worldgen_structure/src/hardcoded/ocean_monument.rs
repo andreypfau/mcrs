@@ -144,7 +144,7 @@ fn grid_has_room(x: i32, y: i32, z: i32) -> bool {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "builds the monument's room graph and draws its openings in the reference's order, so the random draws match it"
+    reason = "builds the monument's room graph and draws its openings in the reference's order"
 )]
 fn room_graph(rng: &mut LegacyRandom) -> Option<Graph> {
     let mut slot = [None; 75];

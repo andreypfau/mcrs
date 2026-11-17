@@ -964,7 +964,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn abilities_without_a_server_rule_come_back_as_read_and_a_mode_change_updates_the_rest() {
+    fn abilities_without_a_server_rule_reload_and_mode_change_updates_rest() {
         let dir = temp_world();
         let mut dat = PlayerDat::default();
         dat.root.child_tags.clear();
@@ -1223,7 +1223,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_join_applies_the_snapshot_that_the_host_parsed_and_does_not_read_the_file_again() {
+    fn join_applies_the_host_parsed_snapshot_without_rereading_the_file() {
         let dir = temp_world();
         let mut dat = PlayerDat::default();
         dat.root.put("TestMarker", NbtTag::Int(7));

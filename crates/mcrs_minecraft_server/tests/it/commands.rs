@@ -550,7 +550,7 @@ fn a_tick_answers_only_the_latest_request_of_a_player() {
 }
 
 #[test]
-fn a_request_longer_than_the_chat_screen_gets_a_reply_only_from_a_command_block_editor() {
+fn overlong_request_replies_only_to_a_command_block_editor() {
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");
     let (guest, _) = server.join(GUEST, "Guest");
@@ -1628,7 +1628,7 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
 }
 
 #[test]
-fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own_entry() {
+fn game_mode_set_before_dimension_change_reaches_own_entry() {
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -1781,7 +1781,7 @@ fn told(
 }
 
 #[test]
-fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limited() {
+fn gamemode_changes_every_dimension_unless_selector_is_world_limited() {
     let (mut server, op, nether_player) = two_dimensions(Limits::default());
     let nether = host_app::label_of(&server.app, "minecraft:the_nether");
     let overworld = server.dim;

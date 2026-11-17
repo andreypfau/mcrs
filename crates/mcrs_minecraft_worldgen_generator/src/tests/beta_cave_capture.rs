@@ -318,12 +318,9 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::too_many_lines,
-        reason = "one parity gate: carves the captured chunk, converts the result back to Beta blocks and compares it with the capture, so the setup and the comparison read together"
+        reason = "one parity gate keeps setup and comparison together"
     )]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "compares each cell of the carved chunk with the capture across the chunk's three axes, so a mismatch names its position"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "a mismatch names its position")]
     fn beta_cave_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();
@@ -460,10 +457,7 @@ mod exhaustive {
     }
 
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "finds the surface from the top of each carved column, then checks for cave air and lava below it section by section, with the per-cell test inline"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "per-cell test inline in one scan")]
     fn generate_column_beta_has_caves() {
         let pipeline = BetaPipeline::new();
         let y_sections = &pipeline.y_sections;
@@ -527,10 +521,7 @@ mod exhaustive {
     }
 
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "scans the sections below Y 32 of every generated chunk for cave air cell by cell, with the per-cell test inline"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "per-cell test inline in one scan")]
     fn beta_real_pipeline_has_cave_air_below_y32() {
         let pipeline = BetaPipeline::new();
         let y_sections = &pipeline.y_sections;

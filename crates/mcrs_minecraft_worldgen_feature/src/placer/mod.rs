@@ -147,7 +147,7 @@ pub type Generate<'a, W> = &'a mut dyn FnMut(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the biome presence, step range, modifier chain, biome predicate, volume, scratch, origin, seed and generator of one decoration pass"
+    reason = "independent inputs of one decoration pass"
 )]
 pub fn decorate<'a, W: WorldGenVolume>(
     present: &[FixedBitSet],

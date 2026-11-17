@@ -5,9 +5,11 @@ description: How to split work between agents in mcrs - one item per agent, the 
 
 # Agents and context in mcrs
 
-The cost of a call is the size of its context. An agent that works at 600k tokens pays about ten
-times more for each call than a new agent. Measured on this repository: a small fix costs $0.3
-to $1 in a new agent and $8 to $19 in an agent that already holds 600k tokens.
+The cost of a call is the size of its context. A new agent is far cheaper per call than an agent
+that holds a large context.
+
+An agent reports and stops at 200k tokens of context. The main session writes a hand-off prompt
+(skill `handoff`) and stops at 150k tokens.
 
 ## Size of a job
 
@@ -20,18 +22,10 @@ to $1 in a new agent and $8 to $19 in an agent that already holds 600k tokens.
 
 ## Model and effort
 
-Raise the effort before you change the model. Above `high`, one more effort level costs as much
-as a larger model: use the next model at `medium` instead of `xhigh` or `max`.
-
-| Job | Model | Effort |
-| - | - | - |
-| Main session: design, crate map, briefs, verification of review findings | Opus | `medium` |
-| Main session: a large migration, a layer split, a long run without the owner | Fable | `medium` |
-| `spec-author` | Opus; Fable for a large domain | `high` |
-| `implementer` | Opus | `medium`, then `high` |
-| `reviewer` | Opus | `medium` |
-| `Explore`, `log-reader` | Haiku | default |
-| Mechanical work, `mcrs-update-docs`, CI watch in `ship` | Sonnet | `medium` |
+Raise the effort before you change the model. Above `high`, use the next model at `medium`
+instead of `xhigh` or `max`. The agent files in `.claude/agents/` set the model and effort of
+each role. The main session runs Opus at `medium`, or Fable for a large migration. Mechanical
+work, `mcrs-update-docs` and the CI watch in `ship` run on Sonnet.
 
 - Set the model of one job with the `model` parameter of the agent call. Do not edit the agent
   file for one job.
@@ -40,8 +34,7 @@ as a larger model: use the next model at `medium` instead of `xhigh` or `max`.
   `log-reader` on Haiku.
 - A small model gets only work with an output that is easy to check. A code edit with written
   steps (a rename, a file move, a written list of fixes) goes to Sonnet. A code edit that needs
-  a decision stays on Opus or Fable. Measured on one issue: Sonnet as `implementer` used as many tokens as
-  Opus, left a path unfixed and wrote a test that passed without the fix.
+  a decision stays on Opus or Fable.
 - When an agent fails twice on the same item at `medium`, start a new agent with the same
   model at `high`. When that agent fails too, start one with the next model at `medium`. Do not
   raise the effort of a model above `high`.
@@ -50,7 +43,7 @@ as a larger model: use the next model at `medium` instead of `xhigh` or `max`.
 
 - Continue an agent only to answer its question.
 - A new item goes to a new agent, with a hand-off: the commit, the files, the open point.
-- Do not send a new item to an agent that is above 200k tokens. Do not wake such an agent after
+- Do not send a new item to an agent above 200k tokens. Do not wake a large agent after
   an idle hour: the cache is gone and the whole context is written again.
 - A fork inherits the whole context of its parent. Use a fork only when the job needs that
   context. An independent job gets an ordinary agent and a brief.
@@ -103,7 +96,6 @@ Report: commit, files changed, the tail of the check output, open points. At mos
 ## The main session
 
 - A session that starts its second agent loads this skill first.
-- At 150k tokens, write a prompt for a new session (the skill `handoff`) and stop. Do not
-  compact and continue.
+- At 150k tokens, write the hand-off prompt and stop. Do not compact and continue.
 - Findings from another session go into a new session with the findings file, not into the
   session that wrote the code.

@@ -2,31 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| World version (`DataVersion`) | `5124` |
-| Data pack format | `124.0` |
-
-The source of these values is `../../assets/minecraft/version.json`.
-
-Changes from 26.4-snapshot-2: 26.4-snapshot-3 and 26.4-snapshot-4 did not change
-the code of the machinery in this document. This machinery is:
-
-- the server tick and the dimension tick
-- the tick-rate gate
-- the scheduled-tick queues
-- neighbor updates and shape updates
-- sets
-- block events
-- random ticks
-- section properties.
-
-Only one change in the game data affects this machinery: the fluid registry. From
-26.4-snapshot-4, a source fluid and a flowing fluid are one fluid type (0.1). Each
-rule that this change affects has a "Changed in" note in its Provenance line. These
-rules are SIM-SCH-001, SIM-SCH-004, SIM-SCH-007, SIM-SCH-012 and SIM-SCH-013, and
-also the constants of section 9. The terms (0.1) and the cited artifacts (0.5)
-are updated to agree with this change.
+| Version | see `assets/minecraft/version.json` |
 
 This document gives the block simulation machinery of one dimension on the server.
 It gives only what a server, a client or a save file can see. It contains these
@@ -40,12 +16,10 @@ subjects:
 - random ticks
 - the behavior of some blocks (section 12).
 
-This document does not tell an implementation which architecture to use. Sections
-1 to 11 do not include what each block does when it receives an update, a tick or
+Sections 1 to 10 do not include what each block does when it receives an update, a tick or
 an event. They give only the machinery that delivers these to the block. Section 12
 gives the behavior of the blocks that a benchmark scene or a save needs. At this
-time, these blocks are `minecraft:fire` and `minecraft:soul_fire`. Section 13 gives
-the implementation of section 12 and of the saved block ticks.
+time, these blocks are `minecraft:fire` and `minecraft:soul_fire`.
 
 The document has two parts.
 
@@ -69,8 +43,7 @@ The document has two parts.
     comparison only. It does not conform to Part A (A.0).
 
   Section B.4 lists the intentional deviations: the points where all instances of
-  this project keep the contract and do not copy vanilla. Section 11 gives the
-  design space that a third architecture can use.
+  this project keep the contract and do not copy vanilla.
 
 Each vanilla rule has two different parts:
 
@@ -96,7 +69,7 @@ that behavior from sections (section 0.2).
   - `source`, a boolean. It shows if the fluid is a source or a flowing fluid.
   - `level`, 1 to 8. It is the amount of fluid.
 
-  The single state of `minecraft:empty` has no properties. The default state of water and of lava is a source with `level` 8. A water source and flowing water are both of type `minecraft:water`. A flowing state with `level` 8 is *falling*. Changed in 26.4-snapshot-4: the game removed the types `minecraft:flowing_water` and `minecraft:flowing_lava`.
+  The single state of `minecraft:empty` has no properties. The default state of water and of lava is a source with `level` 8. A water source and flowing water are both of type `minecraft:water`. A flowing state with `level` 8 is *falling*.
 - **Section**, **section position**, **column**: refer to 0.2.
 - **Game time**: the tick counter of the dimension (a 64-bit integer). Its value never decreases. The world data contains it. All dimensions of one server read the same game time (SIM-TICK-003).
 - **Dimension tick**: one iteration of the tick of one dimension (SIM-TICK-002).
@@ -211,9 +184,8 @@ reference implementation, not from an experiment.
 
 ### 0.5 Artifacts cited
 
-- `../../assets/minecraft/version.json`: the version values above.
-- `../../assets/mcrs/reports/registries.json`: the entries and ids of the block registry and of the fluid registry, and the `minecraft:game_rule` registry. Generated with 26.4-snapshot-4.
-- `../../assets/mcrs/reports/packets.json`: packet ids (`minecraft:block_event` = 7, `minecraft:block_update` = 8, `minecraft:level_chunk_with_light` = 46, `minecraft:section_blocks_update` = 86 in the play clientbound table). Generated with 26.4-snapshot-4.
+- `../../assets/mcrs/reports/registries.json`: the entries and ids of the block registry and of the fluid registry, and the `minecraft:game_rule` registry.
+- `../../assets/mcrs/reports/packets.json`: packet ids (`minecraft:block_event` = 7, `minecraft:block_update` = 8, `minecraft:level_chunk_with_light` = 46, `minecraft:section_blocks_update` = 86 in the play clientbound table).
 - `data/minecraft/datapacks/redstone_experiments/pack.mcmeta` in the client jar: the feature pack that enables `minecraft:redstone_experiments`.
 
 ### 0.6 Rule groups
@@ -778,7 +750,7 @@ reads the block above it.
 | `piston`, `sticky_piston` | ±14 | ±14 | ±14 | the blocks that the piston moves or destroys | item drops. Note 5 |
 
 Provenance: `source_suggested`. Kind: semantic. The bounds come from the
-reference at `26.4-snapshot-7`. No experiment was run. Confidence: high for the boxes of
+reference. No experiment was run. Confidence: high for the boxes of
 radius 2 or less, medium for the other boxes. Each box is an upper bound, and
 some boxes are larger than necessary.
 
@@ -1214,7 +1186,7 @@ the model:
   - The gates have no step, and they apply for each partition.
 
 The reference sources of this document do not include that fork. Its rules are
-not checked against 26.4-snapshot-4.
+not checked against it.
 
 ### B.4 Intentional deviations
 
@@ -2064,7 +2036,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Invariants:** none.
 - **Conformance tests:** the conformance tests of SIM-SCH-006 cover this rule.
 
-Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: the type of a fluid tick is now the same for a source and for a flowing fluid.
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-002: Priority
 
@@ -2129,9 +2101,9 @@ Provenance: `source_suggested`. Confidence: high.
   - Start with A at P. The handler of A sets P to B. Schedule (P, A, 5) and (P, B, 5). Result: at G + 5, the handler of A is logged, then the handler of B. Failing twin: only the handler of A is logged, because the queue discards the tick of B as a duplicate.
   - Put flowing water at P with flags 530, so that no fluid tick is pending at P. Schedule a `minecraft:water` fluid tick with delay 5. Set P to a water source. Then schedule a `minecraft:water` fluid tick with delay 1.
 
-    Result: one tick, due at G + 5. Failing twin: two ticks, because the source state and the flowing state have different types (as before 26.4-snapshot-4).
+    Result: one tick, due at G + 5. Failing twin: two ticks, because the source state and the flowing state have different types.
 
-Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: a source and a flowing state of one fluid have the same type. As a result, their fluid ticks at one position de-duplicate against each other. Before this change, water and flowing water were separate types, and it was possible for both ticks to be pending.
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-005: Section queues and eligibility
 
@@ -2217,9 +2189,9 @@ Provenance: `source_suggested` for the vanilla algorithm and for the column-queu
   - Schedule (P, probe A, 2). At G + 1, replace P with probe B. Result: at G + 2, no tick handler of A or of B is logged.
   - Put flowing water at P with flags 530, so that no fluid tick is pending at P. Schedule a `minecraft:water` fluid tick at P with delay 2. At G + 1, set P to a water source with flags 530. Flags 530 cause no neighbor or shape updates and no placement side effect, so nothing schedules a second tick.
 
-    Result: at G + 2, the fluid tick handler of the source runs. Failing twin: the tick is consumed and does not run. This was the behavior before 26.4-snapshot-4, when the tick was keyed to the flowing type.
+    Result: at G + 2, the fluid tick handler of the source runs. Failing twin: the tick is consumed and does not run.
 
-Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: the type check matches any state of the fluid. As a result, a source/flowing change at P no longer consumes a pending fluid tick with no effect.
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-008: Budget and fairness
 
@@ -2323,7 +2295,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Ordering constraints:** the list order encodes the relative insertion order (SIM-SCH-013).
 - **Numeric semantics:** `t` = due − `G`, truncated to 32 bits. It is negative for an overdue tick.
 - **Postconditions:** when the server loads the column and activates it at game time `G'`, it restores the ticks with the due ticks `G' + t`.
-- **Edge cases:** a column that is saved while its sections do not run ticks carries their overdue ticks with a negative `t`. The server writes both lists, also when they are empty (OQ-07, answered).
+- **Edge cases:** a column that is saved while its sections do not run ticks carries their overdue ticks with a negative `t`. The server writes both lists, also when they are empty.
 - **Invariants:** the position of each element is in the column.
 - **Vanilla grouping:** there is one save record for each column. This is the layout of the save format, not of the simulation. A section-native store makes this record from two parts, one after the other. The first part is the list of saved ticks of the column that are not activated. The second part is the active ticks of the sections of the column, merged by sub-tick order. If two ticks of the column share a sub-tick order (copies, SIM-SCH-016), the relative order of these ticks in vanilla is unspecified.
 - **Conformance tests:** freeze the ticks at game time G. Use an unpowered repeater with a repeater delay of 1, in a plain line. As a player, place a redstone block on the input side of the repeater, directly behind it. Make sure that the redstone block is in the column of the repeater. Do `/save-all flush`.
@@ -2334,7 +2306,7 @@ Provenance: `source_suggested`. Confidence: high.
 
   A redstone block on a lateral side schedules nothing. A repeater reads its input from behind, and only diodes lock it from the side. The placement in the column of the repeater is important. `/save-all flush` writes only the columns that are marked unsaved. When the server schedules a tick, it does not mark the column (SIM-SCH-015).
 
-Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: the only `fluid_ticks` ids are `minecraft:water` and `minecraft:lava`. The server writes the tick of a flowing fluid under the id of its fluid. There is no other change to the layout.
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-013: Load and activation
 
@@ -2379,10 +2351,10 @@ Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: th
 - **Vanilla grouping:** vanilla does load and activation for each column. It numbers the restored sub-tick orders over all of the list of the column for each kind. A section-native store keeps the index of each saved tick in the column list, or it keeps the list complete until activation. It assigns `k − m` from the index, and then puts each tick in the queue of its section. If the store numbers the ticks for each section separately, the order of restored ticks across the sections of one column changes. This is not vanilla.
 - **Conformance tests:**
   - Save a column with `t: 3` for a repeater. Later, load the column. It activates at `G'`. Result: the repeater ticks in the dimension tick of `G' + 3`. Failing twin: the repeater ticks immediately, or at the stored absolute time.
-  - Load a column with `block_ticks: [{i: "minecraft:no_such_block", …}, {i: "minecraft:repeater", …, t: 1, p: 0}]`. Result: the repeater tick runs. The server logs one error line for the list. Failing twin: the server discards both elements (OQ-02, answered).
+  - Load a column with `block_ticks: [{i: "minecraft:no_such_block", …}, {i: "minecraft:repeater", …, t: 1, p: 0}]`. Result: the repeater tick runs. The server logs one error line for the list. Failing twin: the server discards both elements.
   - Use a column list `[u (section sy=4, t: 0), v (section sy=0, t: 0)]`, with both ticks at priority normal. The column activates at `G'`. Result: in the first scheduled phase after activation, u runs before v (u gets −2, v gets −1). In vanilla, this phase is normally the dimension tick of `G' + 1`, and both ticks are then overdue. Failing twin: v runs first (numbered for each section, or by height).
 
-Provenance: `source_suggested`. Confidence: high. Changed in 26.4-snapshot-4: the flowing fluid ids are removed. As a result, they decode as unknown ids. Vanilla renames them when it upgrades saves from before world version 5123. There is no other change to the decode step and the activation step.
+Provenance: `source_suggested`. Confidence: high.
 
 ### SIM-SCH-014: Ticks during generation
 
@@ -2540,16 +2512,16 @@ This rule collects what SIM-SCH-012 and SIM-SCH-013 require for the list `block_
 - **Numeric semantics:** as SIM-SCH-012.
 - **Postconditions:** a column that the server loads and saves again, with no tick run and no change of game time, has the same `block_ticks` list, element for element.
 - **Edge cases:**
-  - An instance can lack the handler of a block type T that vanilla simulates. This instance still loads, keeps and saves the ticks of T. When such a tick runs, the instance consumes it. Vanilla runs the handler, and the handler can schedule the next tick. Thus the ticks of T end. Section 13 lists the block types with saved ticks in the benchmark scene.
+  - An instance can lack the handler of a block type T that vanilla simulates. This instance still loads, keeps and saves the ticks of T. When such a tick runs, the instance consumes it. Vanilla runs the handler, and the handler can schedule the next tick. Thus the ticks of T end.
   - A tick at a position whose section does not accept ticks is discarded (SIM-SCH-005). In vanilla, a block handler never meets this case in its footprint (SIM-FIRE-012).
   - A section that is loaded but does not run scheduled ticks keeps its ticks, and they get overdue (SIM-SCH-015). Its record then holds a negative `t`.
 - **Invariants:** after a load, the pending block ticks of a column are the elements that decode, without the later duplicates (DEV-03).
 - **Conformance tests:**
-  - Load the column records of the benchmark scene (section 13.3). Result: 4,846 block ticks decode: 4,835 of `minecraft:fire`, 7 of `minecraft:crafter` and 4 of `minecraft:observer`. There are no fluid ticks. Each tick has `p: 0`. Failing twin: 0 block ticks, because the load keeps only `fluid_ticks`.
-  - Write each record of the scene again, at the game time of the load. Result: each `block_ticks` list is equal to the list of the save, element for element.
+  - Load column records that hold block ticks of `minecraft:fire`, `minecraft:crafter` and `minecraft:observer`, and no fluid ticks. Result: each block tick decodes with `p: 0`. Failing twin: 0 block ticks, because the load keeps only `fluid_ticks`.
+  - Write each record again, at the game time of the load. Result: each `block_ticks` list is equal to the list of the save, element for element.
   - Load a record with `block_ticks: [{i: "minecraft:fire", …, t: 5, p: 0}]` at a position that holds stone. Result: at `G' + 5` the tick is consumed with no effect, and no fire tick stays pending.
 
-Provenance: `source_suggested_black_box_confirmed`. The save of the gold farm (section 13.6, E-F1) holds `block_ticks` elements of three block types with all six keys, in columns that also hold `fluid_ticks: []`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. A vanilla save (section 13, E-F1) holds `block_ticks` elements of three block types with all six keys, in columns that also hold `fluid_ticks: []`. Kind: semantic. Confidence: high.
 
 ## 6. Block events
 
@@ -2758,7 +2730,7 @@ Provenance: `source_suggested`, with the table recalculated from the formula. Co
   - In a frozen biome, make a lake of water sources under the open sky. Use clear weather. Result: ice forms at the edges of the lake. Twin that must fail: if precipitation runs only during rain, no ice forms.
   - Kernel test of a group draw: use a group of 64 columns and `k = 3`, for 100 000 steps. Result: the mean count of hits for each column and each step is 3 / 48 = 0.0625 (binomial tolerance). No column gets more than 3 hits in one step. Twin that must fail: a draw of columns with replacement gives a column more than 3 hits in some steps.
 
-Provenance: `source_suggested`, confirmed against the reference at `26.4-snapshot-7`. The group draw is `derived`. Independent gates of equal probability give a binomial count. For a given count, each set of hit slots has the same probability. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. The group draw is `derived`. Independent gates of equal probability give a binomial count. For a given count, each set of hit slots has the same probability. Kind: semantic. Confidence: high.
 
 ---
 
@@ -2817,7 +2789,7 @@ Provenance: `source_suggested`. Confidence: high.
 | Start value of the sub-tick counter | 0, for each dimension, not saved | SIM-SCH-003 | `source_suggested` |
 | Restored sub-tick orders | −m … −1, for each column save record and for each kind | SIM-SCH-013 | `source_suggested` |
 | Broadcast range of block events | 64.0 blocks, squared distance < 4096 | SIM-BEV-004 | `source_suggested` |
-| `block_event` / `block_update` / `level_chunk_with_light` / `section_blocks_update` packet ids | 7 / 8 / 46 / 86 | SIM-BEV-004, SIM-SET-005, 0.2 | `black_box_confirmed` at 26.4-snapshot-4 (`../../assets/mcrs/reports/packets.json`) |
+| `block_event` / `block_update` / `level_chunk_with_light` / `section_blocks_update` packet ids | 7 / 8 / 46 / 86 | SIM-BEV-004, SIM-SET-005, 0.2 | `black_box_confirmed` (`../../assets/mcrs/reports/packets.json`) |
 | Load levels: full, block-ticking, entity-ticking | 33, 32, 31 | SIM-TICK-005 | `source_suggested` |
 | Default simulation distance | 10 | SIM-TICK-005 | `source_suggested` |
 | Temporary ticket for synchronous loads | `minecraft:unknown`, level 33, load only, timeout 1 (removed by the second purge after the last access that loads and misses the cache), for each column | SIM-SET-003 | `source_suggested` |
@@ -2840,25 +2812,17 @@ Provenance: `source_suggested`. Confidence: high.
 | Burnout chances of the neighbors | 300 to the side, 250 above and below; 50 less where `gameplay/increased_fire_burnout` is true | SIM-FIRE-006 | `source_suggested` |
 | Spread rate | 100 for `dy` ≤ 1, `100 × dy` for `dy` = 2 to 4 | SIM-FIRE-007 | `source_suggested` |
 | Spread odds | `(k + 40 + 7 × difficulty) / (age + 30)`, integer division; halved where `gameplay/increased_fire_burnout` is true | SIM-FIRE-007 | `source_suggested` |
-| Fluid types | `empty`, `water`, `lava`; source/flowing: the `source` property of the fluid state; amount: its `level` (1 to 8) | 0.1, SIM-SCH-001 | `black_box_confirmed` at 26.4-snapshot-4 by `registries.json`; changed in 26.4-snapshot-4 (before: five types, with separate flowing types) |
+| Fluid types | `empty`, `water`, `lava`; source/flowing: the `source` property of the fluid state; amount: its `level` (1 to 8) | 0.1, SIM-SCH-001 | `black_box_confirmed` by `registries.json` |
 
 ---
 
-## 10. Open questions
+## 10. Unresolved
 
-Each question lists the rules that it affects and an experiment that answers it.
+Each item lists the rules that it affects and an experiment that answers it.
 
 - **OQ-01: Ties between restored ticks of different columns** (SIM-SCH-006, SIM-SCH-013).
   - **Question:** two columns that activate together each restore a tick with equal priority and equal sub-tick order (for example, −1, the last of each list). Vanilla selects between them by the internal layout of a priority heap that it fills in hash-table order. As a result, the choice is always the same for the same inputs only when the inputs include the history of the table. Which one runs first? The code does not answer this question, because the layout of the heap, not the positions of the columns, settles a tie. On a tie, the phase continues to collect from the column that it collects from at that time.
   - **Experiment:** use two columns, each with one saved `minecraft:observer` tick with `t: 0`. Connect them so that the one that pulses first locks the other (a repeater lock). Load the two columns in one tick. Do this in 20 restarts, with different load orders. If the winner is not always the same, the vanilla policy can break the tie by any stable key. For this key, propose the `(sx, sz)` of the column, smallest first.
-- **OQ-02: One bad element in a tick list** (SIM-SCH-013).
-  - **Question:** does the game discard only the bad element, as the reference implementation suggests, or the full list?
-  - **Experiment:** edit a region file. In `block_ticks`, put an element with an unknown block id first, then a valid repeater tick with `t: 1`. Load the column. Monitor the repeater for a toggle. Look for "Failed to read field" in the log.
-  - **Answered:** the game discards only the bad element (SIM-SCH-013 step 1).
-- **OQ-03: Updates that get to unloaded sections** (SIM-SET-003).
-  - **Question:** a neighbor update with a target in a section that is not loaded loads that section synchronously (in vanilla, its whole column). Confirm this. Also confirm that the column unloads after the 1-tick ticket expires, and that any ticks scheduled into it are saved.
-  - **Experiment:** use a server with view distance 2 and one player. Make a line of observers that crosses the edge of the loaded area. Monitor the load events (the loaded count on the debug screen, or the timestamps of the region files). Monitor the pending tick of the observer in the saved column record.
-  - **Answered:** yes. For what occurs after the ticket expires, and for an experiment that can show it, refer to SIM-SET-003.
 - **OQ-04: Order of random tick visits** (SIM-RND-001).
   - **Question:** the column order of vanilla is a hash-table iteration order. The position generator and the dimension random are unseeded anyway. Is any tick-for-tick parity wanted here?
   - **Proposal:** no. The vanilla policy fixes a stable order (section position, smallest first) and declares this an intentional deviation. The column order of vanilla is the iteration order of a hash map of simulation levels. This order is not shuffled and not random, but only the capacity and the insertion history of the map fix it. No experiment can give the same picks as vanilla, because vanilla seeds the two random sources from the clock or from a thread-local random.
@@ -2872,23 +2836,7 @@ Each question lists the rules that it affects and an experiment that answers it.
     - some block entities: chest (also the trapped chest and the copper chests), ender chest, shulker box, bell, decorated pot, spawner, end gateway.
 
     The policy question stays open.
-- **OQ-06: Client sync in sections that are loaded but do not broadcast** (SIM-SET-005).
-  - **Question:** a set with *sync-clients* in a section that is *loaded* but does not *broadcast changes* is not marked. Does a client that has that section at the time of the set ever see the change before it is resent?
-  - **Experiment:** use a view distance that is larger than the simulation distance + 2. Use `/setblock` in a column at load level 33 that the client shows at that time. Do not log out and log in again. See if the client shows the new block.
-  - **Answered:** no. Refer to SIM-SET-005.
-- **OQ-07: Empty tick lists and the repeater save example** (SIM-SCH-012).
-  - **Question:** are `block_ticks` and `fluid_ticks` written as empty lists when there are no ticks? Is the `p: -1` of the repeater example the value that the game writes?
-  - **Experiment:** save a column with no pending ticks. Read the column with an NBT viewer. Then run the SIM-SCH-012 conformance test.
-  - **Answered:** the game always writes both lists, and the corrected example is correct (SIM-SCH-012).
-- **OQ-08: Duplicate elements in a saved list** (SIM-SCH-013).
-  - **Question:** activation adds saved ticks without de-duplication. Do two elements that are the same both run?
-  - **Experiment:** edit a column record so that `block_ticks` lists the same `minecraft:observer` position two times, with `t: 0`. An observer that ticks two times in one phase powers and unpowers in the same tick. Put a redstone lamp behind the observer. Monitor the lamp through a pulse detector that uses a comparator. The lamp shows the difference between one tick and two ticks.
-  - **Answered:** refer to SIM-SCH-013, edge cases.
-- **OQ-09: Post-processing order and its ticks** (SIM-SCH-017).
-  - **Question:** confirm that post-processing of a newly generated column runs before its saved ticks activate. Also confirm that the fluids that it touches are ticked immediately, not scheduled.
-  - **Experiment:** generate new terrain next to an ocean while a player flies in. Find the first tick on which the new column gets block-ticking status. On that tick, examine the water at a generated cave entrance. Record if the water flowed one step on that tick (ticked immediately) or flows one delay later (scheduled).
-  - **Answered:** refer to SIM-SCH-017.
-- **OQ-10: Exact mode and partitioned mode on one code path** (SIM-MODEL-008, section 11).
+- **OQ-10: Exact mode and partitioned mode on one code path** (SIM-MODEL-008).
   - **Question:** the vanilla collection order (SIM-SCH-006) compares the heads of different columns by (priority, sequence) and ignores the due tick. In a partitioned instance, the sequence must be stable (P-SEQ). A sequence that is calculated from partition-local state is not the vanilla counter. Can one ordering policy give the same order as vanilla when there is one partition, and also be stable with several partitions?
   - **Proposal:** in a partitioned mode, the sequence is (partition time when the tick is scheduled, partition id, local counter). In exact mode, the sequence is the vanilla counter. The two modes are different only in that policy. Make this decision when the scheduled-tick kernel is designed.
 - **OQ-11: Chain limit across partitions** (SIM-MODEL-103).
@@ -2908,90 +2856,11 @@ Each question lists the rules that it affects and an experiment that answers it.
 
 ---
 
-## 11. Design space
-
-This section shows what a third architecture can do and must not do. These
-statements follow from Part A. An example is an architecture with causally
-connected shards of cubic sections. It merges and splits the shards
-dynamically. Its cross-shard effects are messages that it applies in a stable
-order.
-
-### 11.1 Freedoms it can use
-
-- **Partition shape** (P-SHAPE, P-FORM). The contract does not mention columns
-  or squares. A partition can be any group of cubic sections, of any height. It
-  can be formed from causal connectivity (SIM-MODEL-006), not from proximity.
-  This is possible because of the footprint of each single step of the
-  machinery. That footprint has a radius of at most 2 blocks, plus the bounded
-  radius of the handler itself (A.2, SIM-MODEL-009).
-- **Parallel steps.** Two partitions can step at the same time if their work
-  meets the conditions of SIM-MODEL-006. These conditions also apply to the
-  work that the steps create. If the shared
-  counters of A.2 are made partition-local and stable, the result is the same as
-  the result of any sequential order (SIM-MODEL-006).
-- **Order across sections.** These items are free (SIM-MODEL-102,
-  SIM-MODEL-104, SIM-MODEL-106, SIM-MODEL-107):
-  - the order of scheduled ticks across sections when some collected tick is
-    overdue (SIM-SCH-006)
-  - the order of section visits for random picks and for the client broadcast
-  - the order between chain requests that do not depend on each other and are
-    not in conflict.
-- **Random streams** (P-RNG, P-RANDOM): only distributions are necessary. For
-  this reason, a stream for each partition or for each section, seeded from saved
-  state, is allowed. Such a stream makes the result always the same for the same
-  inputs. This is not true for vanilla.
-- **Clock** (P-CLOCK): the contract allows free-running partition time. This has
-  the cost given in SIM-MODEL-004 (contraptions that span partitions of different
-  speeds). Lock-step costs nothing in a design where all partitions advance one
-  time for each server tick. Lock-step also keeps world time and partition time
-  equal.
-
-### 11.2 Hard constraints
-
-- **Exact mode.** All rules of sections 1 to 9 hold, and parity fixtures
-  recorded from vanilla pass, with these settings:
-  - one partition for each dimension
-  - the vanilla ordering policy for each queue
-  - a lock-step clock
-  - the vanilla counters.
-
-  The exact mode runs on the same code path as the partitioned mode. Only the
-  division into partitions and the ordering policy are different.
-- **No lost work.** Merges, splits and messages keep all pending items and all
-  keys. The only exception is a rebased due tick (SIM-MODEL-002, SIM-MODEL-004).
-  The loss of priority on merge in the threaded instance is the failure to
-  avoid.
-- **No discarded cross-partition effects.** A neighbor, shape, tick or event item
-  that is aimed outside the partition is never a skip with no log message, and
-  never an error. The instance runs it synchronously (semantic level) or sends
-  it as a message (boundary level, OQ-12). If the instance discards it,
-  contraptions on a partition boundary behave differently from the same
-  contraption inside one partition (B.3).
-- **Stable order.** Each order is a function of item keys and stored state
-  (SIM-MODEL-008). A shared atomic counter, a hash iteration or "first partition
-  found" is not such a function.
-- These constraints also apply:
-  - **Delay and promptness** (SIM-MODEL-004).
-  - **De-duplication** (SIM-SCH-004).
-  - **Budget semantics** for each partition (SIM-SCH-006, SIM-SCH-008).
-  - **Update limit** that travels with the cascade (SIM-SHP-002).
-  - **Chain limit** (SIM-NBR-004, OQ-11).
-  - **Phase order** (A.4).
-  - **Intentional deviations** (B.4).
-- **Save format** (SIM-MODEL-108): the record for each column, with relative
-  delays and with restored sequences that are calculated separately for
-  each record. This applies to any division into partitions.
-- **Height with no limit.** A rule must not use a column of fixed height as a
-  condition. The column groupings that apply only to vanilla stay in the vanilla
-  instance (0.2).
-
----
-
 ## 12. Block behaviors
 
 This section gives what some blocks do when the machinery of sections 1 to 9
 delivers a tick, an update or a side effect to them. Each rule of this section is
-from the reference at `26.4-snapshot-7`. The shape functions of the blocks that
+from the reference. The shape functions of the blocks that
 need support from a neighbour are in `block-support.md`.
 
 ### 12.1 Fire and soul fire
@@ -3053,7 +2922,7 @@ Out of scope:
   - Kernel: put fire with age 0 on netherrack, with oak planks to the east. Close the gate. Run 10,000 dimension ticks. Result: P holds fire with age 0, the planks stay, and one fire tick is pending at P at the end of each dimension tick. The number of fire ticks that run is between 256 and 334. Failing twin: no fire tick is pending after the first one ran, because the handler did not reschedule before the gate.
   - Kernel: put fire with age 0 on stone, with no flammable neighbor. Open the gate. Result: the fire goes out at its first tick that reads an age above 3. The fourth increase of the age comes at the 12th tick on average. Thus, over 1,000 runs, the mean number of fire ticks to the removal is 13 ± 0.5. Failing twin: the mean is 12, because the rule tested `a'`.
   - Kernel: put fire with age 15 on netherrack, with no flammable neighbor. Open the gate. Run 100,000 dimension ticks. Result: the fire stays. Failing twin: the fire goes out, because the floor is not infiniburn in the rule.
-  - Vanilla: experiments E-F3 and E-F5 (section 13.6).
+  - Vanilla: experiments E-F3 and E-F5 (section 13).
 
 Provenance: `source_suggested_black_box_confirmed`. E-F3 and E-F5 agree: the closed gate, the burnout without fuel on stone, and the infiniburn floor. Edge case 1 also agrees with E-F1 and E-F2: the save holds 4,835 fire ticks with the gate closed. Kind: semantic. Confidence: high.
 
@@ -3067,7 +2936,7 @@ Provenance: `source_suggested_black_box_confirmed`. E-F3 and E-F5 agree: the clo
   - A player of the dimension who is not in spectator mode has a distance less than `R` to the point `(P.x, P.y, P.z)`.
 
   The distance is the Euclidean distance in f64 from the position of the player. The point is the corner of P with the smallest coordinates, not the center of P. The comparison is strict.
-- **Ordering constraints:** the test reads the position that each player has when the scheduled-tick phase starts. In vanilla, no player moves during the block phases of a dimension tick. The moves that vanilla received before the dimension tick are applied. In this project, these are the positions after the player moves of the step (L2 of `../physics-architecture.md` §8), and before the block domain. The block domain reads them from a copy of the player table that the step makes before the block phases. The copy holds the dimension, the position and the game mode of each player.
+- **Ordering constraints:** the test reads the position that each player has when the scheduled-tick phase starts. In vanilla, no player moves during the block phases of a dimension tick. The moves that vanilla received before the dimension tick are applied. In this project, these are the positions after the player moves of the step, and before the block domain. The block domain reads them from a copy of the player table that the step makes before the block phases. The copy holds the dimension, the position and the game mode of each player.
 - **Numeric semantics:** `R` is a 32-bit integer from −1 to 2,147,483,647.
 - **Postconditions:** none.
 - **Edge cases:**
@@ -3092,7 +2961,7 @@ Provenance: `source_suggested_black_box_confirmed`. E-F3 and E-F5 agree: the clo
 | (−10, 64, 0) | 10.0 | closed | open, with the center (distance 9.53) |
 | (9, 64, 0), the player in spectator mode | 9.0 | closed | open |
 
-Provenance: `source_suggested`. The upgrade table is `source_suggested_black_box_confirmed`. The 1.21.8 save of the gold farm has `doFireTick` false and `allowFireTicksAwayFromPlayer` false. Its upgrade to `26.4-snapshot-7` has `minecraft:fire_spread_radius_around_player` 0 (E-F2). Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. The upgrade table is `source_suggested_black_box_confirmed`. The 1.21.8 save of the gold farm has `doFireTick` false and `allowFireTicksAwayFromPlayer` false. Its upgrade has `minecraft:fire_spread_radius_around_player` 0 (E-F2). Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-003: Survival, the fire placement state and the shape function
 
@@ -3278,9 +3147,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 - **Invariants:** each block type of the table is an entry of the block registry of this game version.
 - **Conformance tests:**
   - Each of the 254 ids names a block of `../../assets/mcrs/block_definition/`.
-  - Vanilla: experiment E-F6 (section 13.6).
+  - Vanilla: experiment E-F6 (section 13).
 
-Provenance: `source_suggested`. The table was compared with the reference by a script, entry for entry (section 13.6, E-F0). E-F6 confirms two entries: `moss_carpet` is not flammable, and `pale_moss_carpet` burns. Kind: semantic. Confidence: high.
+Provenance: `source_suggested`. The table was compared with the reference by a script, entry for entry (section 13, E-F0). E-F6 confirms two entries: `moss_carpet` is not flammable, and `pale_moss_carpet` burns. Kind: semantic. Confidence: high.
 
 ### SIM-FIRE-009: Placement side effect of fire and soul fire
 
@@ -3297,11 +3166,11 @@ Provenance: `source_suggested`. The table was compared with the reference by a s
 - **Postconditions:** after a set of fire, a fire tick at P is pending, if none was pending before.
 - **Edge cases:**
   - A set of fire with *skip-placement* (for example flags 818 of a strict command) schedules no tick. That fire never ticks until a later set or a saved tick gives it one.
-  - A fire that the server loads from a save gets no placement side effect. Only its saved tick makes it tick. The scene of section 13.3 holds 178 fires without a saved tick. These fires do not tick until a set changes their state.
+  - A fire that the server loads from a save gets no placement side effect. Only its saved tick makes it tick. A save can hold fires without a saved tick. These fires do not tick until a set changes their state.
   - The dimension test uses the dimension key, not the dimension type.
 - **Invariants:** none.
 - **Conformance tests:**
-  - Vanilla: experiment E-F4 (section 13.6).
+  - Vanilla: experiment E-F4 (section 13).
   - Kernel: set fire on netherrack with flags 3 at G. Result: one fire tick is pending at P, due at `G + 30` to `G + 39`. Set the same fire again with another age. Result: the pending tick does not change.
 
 Provenance: `source_suggested_black_box_confirmed`. E-F4: a set of fire on netherrack with ticks frozen left one fire tick with `t` 30 to 39 and `p: 0`. Kind: semantic. Confidence: high.
@@ -3320,7 +3189,7 @@ Provenance: `source_suggested_black_box_confirmed`. E-F4: a set of fire on nethe
 - **Postconditions:** none.
 - **Edge cases:** a saved tick of `minecraft:soul_fire` is consumed with no effect (SIM-SCH-019). Soul fire is not flammable, so fire does not spread from it to its neighbors.
 - **Invariants:** soul fire never schedules a tick.
-- **Conformance tests:** vanilla: experiment E-F7 (section 13.6). Kernel: set soul fire on soul sand. Result: no tick is pending at P.
+- **Conformance tests:** vanilla: experiment E-F7 (section 13). Kernel: set soul fire on soul sand. Result: no tick is pending at P.
 
 Provenance: `source_suggested_black_box_confirmed`. E-F7: soul fire on soul sand left no saved tick. Kind: semantic. Confidence: high.
 
@@ -3337,7 +3206,7 @@ Provenance: `source_suggested_black_box_confirmed`. E-F7: soul fire on soul sand
     |-----------|-----------------|-----------------------------------|
     | a scheduled tick | the kind (block or fluid), the type of the tick, its position | not more than one tick of each (position, type) is pending (SIM-SCH-004, DEV-03), and a phase collects it one time |
     | a block event | its position, block, `a` and `b`, and the count of equal events that the step delivered before it | the count separates an equal event that a drain delivers again |
-    | a random pick | the stream that the pick forks from the stream of its section (`../physics-architecture.md` §7.4) | the section and the index of the pick |
+    | a random pick | the stream that the pick forks from the stream of its section | the section and the index of the pick |
     | a set request of the step input (a command, a player) | its position, and its index in the step input of the dimension, before the step divides the input between the cells | the input order is stable. An index that counts only the requests that one cell owns depends on the division into cells |
     | a chain item (a neighbor update, a shape update, a side effect) | none: it continues the stream of the work item that started the chain | the order of the chain is fixed (SIM-NBR-003) |
     | a chain item that arrives as a message from another partition | its position, and the key of the message | messages apply in a stable order (SIM-MODEL-007) |
@@ -3376,142 +3245,14 @@ Provenance: `derived` from SIM-TICK-005 and SIM-MODEL-009. Kind: semantic. Confi
 
 ---
 
-## 13. Implementation: saved block ticks and fire
+## 13. Experiments
 
-This section is the plan of the steps G8a and G8b of `../farms/gold-farm.md`. G8a
-gives the exit of the farm: the saved ticks, the reschedule and the gate. G8b gives
-the full fire tick. G8b needs inputs that the block kernel does not have at this
-time.
+- **E-F0** (the odds table). Compare the odds table of the reference with the table of SIM-FIRE-008, entry for entry.
+- **E-F1** (the census of a save). Read the region files of the nether of a vanilla save. Count the elements of `block_ticks` and `fluid_ticks`, their block ids, their `t` and the blocks below the fires.
+- **E-F1b** (the delay rule). Start the saved fire ticks at their saved `t`. Reschedule each tick with `30 + r(10)`. Measure the mean count of fire ticks that run in one dimension tick.
+- **E-F2** (the game rule of a save). Read `data/minecraft/game_rules.dat` of the upgraded save and `level.dat` of the original save.
 
-### 13.1 What the server has
-
-- The anvil reader decodes `fluid_ticks` (`mcrs_minecraft_anvil`, `ticks.rs`) and leaves out `block_ticks`.
-- The saved lists do not get to the kernel. For a saved column, `fill_column` (`mcrs_minecraft_worldgen_generator`, `stages.rs`) gives `FilledSnapshot.ticks` an empty list. `generation_stage.rs` (`mcrs_minecraft_vanilla_worldgen`) then makes `StoredColumn.ticks` with `generated_ticks::column_ticks`. That function gives each tick the delay 0 (SIM-SCH-014) and holds the block as a block state. It is correct only for the ticks of generation.
-- The block kernel holds, activates and takes back the ticks of both kinds (`mcrs_minecraft_engine`, `block_simulation.rs`: `hold`, `activate`, `take_column`). The cold store of the server writes both kinds through `take_column` (`cold_columns.rs`). Only the tests write anvil files (`write_chunk`).
-- A rule handler gets a `Cx` over a `SimulationVolume` (block states only) and `BlockFacts`. It gets no random stream, no player, no game rule, no light, no heightmap, no biome and no difficulty. `StepOutput` has no output for an entity spawn other than item drops.
-- No block has rules: each dimension runs `InertBlocks`. Fire is the first block with rules.
-
-### 13.2 G8a: saved ticks, reschedule, gate
-
-Rules: SIM-SCH-019, SIM-FIRE-001 steps 1 and 2, SIM-FIRE-002, SIM-FIRE-009 step 2,
-SIM-FIRE-010, SIM-FIRE-011. Do the work in this order:
-
-1. **Decode `block_ticks`.** Use one generic decoder for both lists, because `Block` and `Fluid` are both registry enums. The decoder must also do these items of step 1 of SIM-SCH-013:
-   - narrow a numeric field of another NBT type to int before the clamp (`p: 4294967295L` gives −1);
-   - read an `i` without a namespace as `minecraft:`;
-   - log one error line for each list that dropped one or more elements.
-
-   Write `block_ticks` in `write_chunk`, so that the round-trip test of the chunk files of the game covers it (SIM-SCH-012).
-2. **Carry the saved lists to the kernel.** `FilledSnapshot` gets a second field for the saved ticks: the decoded lists of the anvil reader, with their types, `t` and `p` as the save holds them. `fill_column` fills it for a saved column. `generation_stage.rs` makes `StoredColumn.ticks` from that field when the source is `Saved`, and from `generated_ticks::column_ticks` when the source is `Generated`.
-3. **Activation time.** The step in which the sections of a column first run scheduled ticks activates their saved ticks with `G' = now − 1`. `now` is the game time of the step. Today `run_block_simulation` sets `now = GameTick(kernel.time.0)` and passes it to `BlockSimulation::activate` (`block_simulation.rs`). The block phase collects the ticks with `due ≤ now`, and a save writes `t = due − now` through `take_column`. Change: pass `GameTick(now.0 - 1)` to `BlockSimulation::activate`, and correct its doc comment. `TickQueue::activate` and `take_column` keep `now`. The change applies to saved ticks and to generated ticks. The reason: vanilla activates between dimension ticks, before the game time advances (SIM-SCH-013 step 3). With the change, a column that the server saves at the end of step N and activates in step N + 1 keeps each due tick. Without it, each save and load makes each tick one dimension tick later.
-4. **The current stream** of SIM-FIRE-011. `Cx` holds the stream of the work item that runs. The scheduled-tick handler and the placement side effect draw from it.
-5. **The game rule.** `mcrs_minecraft_save::read_game_rules` reads `data/minecraft/game_rules.dat`, but only `advance_time`, and only the client calls it. Add `fire_spread_radius_around_player` (default 128) to it. The server reads it at start and carries the value into each dimension world.
-6. **The block rules.** One rules type replaces `InertBlocks`. It matches on the block type, and it holds static tables for each state, built from the registries in `DimensionBlockRules`. In G8a it has these handlers:
-   - the fire tick, steps 1 and 2 of SIM-FIRE-001;
-   - the placement side effect of fire, step 2 of SIM-FIRE-009. Step 1 waits for G8b (SIM-FIRE-003);
-   - no handler for soul fire (SIM-FIRE-010).
-
-   In G8a the spread gate is closed when `R = 0`, as the rule states. When `R` is not 0, G8a also keeps each fire tick to the reschedule. It logs one warning for the dimension. This is a known gap that G8b closes, not a deviation.
-7. **The bench and the tests** of section 13.4.
-
-### 13.3 Exit of G8a: the nether fire scene
-
-The fire ticks of the gold farm go to a benchmark of the block domain, not to the farm
-benchmark (`../farms/gold-farm.md` §7, decision 4). The scene is the nether area of
-the farm:
-
-- `MCRS_BENCH_WORLD=~/mc-worlds/upgraded/hermitcraft10`
-- `MCRS_BENCH_AREA="minecraft:the_nether -317 -609 5"`: the 121 columns within 5 columns of the column `(-20, -39)` of the farm center.
-- The game rules of the save. No player is necessary.
-- Each column of the area runs scheduled ticks. Load one more ring of columns, so that SIM-FIRE-012 holds. Question 59 of `../physics-architecture.md` §15 asks if the engine keeps that guarantee in general. It does not block G8a, because a closed gate reads only P.
-
-The bench is one binary. It decodes the region files through the anvil reader and
-step 2 of section 13.2, and it gives the columns to `BlockSimulation` through
-`LandedTicks`. It does not read the regions directly into a `SectionIndex`, as
-`random_ticks_save.rs` does, because that path skips step 2. The bench asserts these
-results:
-
-1. The 121 columns of the area hold 4,846 block ticks after the load: 4,835 fire, 7 crafter, 4 observer. They hold no fluid tick, and the load drops no element. The ring of columns outside the area adds its own ticks; the bench does not count them.
-2. The dimension world read `R = 0` from the save. Without this check, result 5 also passes with the default 128 and no player.
-3. The 2,629 fire ticks of the area with `t ≤ 1` run in the first scheduled phase of the area (step 3 of section 13.2). Failing twin: 2,593, when the activation uses the time of the step.
-4. At the end of each dimension tick after the activation, 4,835 fire ticks are pending in the 121 columns of the area.
-5. Warm up for 1,200 dimension ticks, then measure 12,000 dimension ticks. The mean count of fire ticks that run in one dimension tick in the 121 columns is 140.1 ± 0.5. The expected value is 4,835 / 34.5 = 140.14. One dimension tick has a standard deviation of 11.7, but the mean of 12,000 has a standard deviation below 0.01, so the tolerance never fails by chance.
-6. No block state of the area or of its ring changes.
-
-Results 1, 3, 4 and 6 are exact. The bench prints the time of the scheduled-tick
-phase. The vanilla run of the farm reports 0.50 ms for all scheduled ticks of the
-nether (`../farms/gold-farm.md` §2.2). That run loads a larger area, so it is not a
-limit for this scene. When `MCRS_BENCH_WORLD` is not set, the bench prints why and
-measures nothing.
-
-The 7 crafter ticks and 4 observer ticks are consumed with no effect, because the
-server has no rules for these block types (SIM-SCH-019).
-
-### 13.4 Tests of G8a
-
-| Test | Rules | Evidence |
-|------|-------|----------|
-| Decode of both lists: an unknown id is dropped and logged one time for the list, the other elements stay; a long `p` narrows; an `i` without a namespace reads; a tick outside the column is dropped with no log; the order stays | SIM-SCH-013, SIM-SCH-019 | fixture |
-| The round trip of the chunk files of the game: `block_ticks` is equal to the file of the game | SIM-SCH-012 | game files (`vanilla_files.rs`) |
-| A saved column gets to the kernel. Use a small checked-in region with fire ticks of `t` −5, 0 and 1, a fire tick at a position that holds stone, and an element with an unknown id. Test 1: `fill_column` and `generation_stage` give `StoredColumn.ticks` with the saved types, `t` and `p`, and one error line. Test 2: feed those ticks to `BlockSimulation` through `LandedTicks`. Check the due tick of each tick (`G' + t`), and the consumed tick at the stone. No server test loads anvil regions, so the test does not use `world_cells.rs` | SIM-SCH-013, SIM-SCH-019, step 3 of 13.2 | fixture (CI) |
-| The first kernel test of SIM-FIRE-001; the gate with `R = 0` (closed) and with `R` not 0 (one warning for the dimension, reschedule only); the kernel tests of SIM-FIRE-009 and SIM-FIRE-010 | SIM-FIRE-001, 002, 009, 010 | harness |
-| Determinism with the gate closed: a synthetic scene of 64 fires, two runs, and 1 cell against 4 cells. Hash the tick queues (position and due tick of each pending tick), not the block states, because a closed gate changes no block. Compare with a golden hash | SIM-FIRE-011 | harness, golden hash |
-| The bench of section 13.3 | all of G8a | real save |
-
-### 13.5 G8b: the full fire tick
-
-Rules: SIM-FIRE-001 steps 3 to 9, SIM-FIRE-003 to SIM-FIRE-008, SIM-FIRE-009 step 1,
-SIM-FIRE-012. G8b needs these inputs and one output. Each input is read-only during
-the block phases. Give them to the rules as one view of the step input, next to
-`BlockFacts`:
-
-| Input | Rule | Source | Status |
-|-------|------|--------|--------|
-| `R`, and a copy of the players: dimension, position, game mode | SIM-FIRE-002 | `game_rules.dat` (13.2 step 5); the copy of the player table that the step makes before the block phases | the player table exists only as a plan (`../physics-architecture.md` §5.7). G8b adds the copy |
-| ignite odds, burn odds | SIM-FIRE-008 | the table of SIM-FIRE-008, as a table for each state (0 for a waterlogged state) | in this document only |
-| sturdy top of each state | SIM-FIRE-003 | `VoxelShape::face_mask(Up) == FACE_MASK_FULL` over the collision shape of the corpus, with the exceptions of SIM-FIRE-003. Do not use the two existing derivations of the world generation: one uses the selection shape too (`feature_program.rs`), and both lack the exceptions | to build |
-| `#minecraft:soul_fire_base_blocks`, `#minecraft:leaves`, the infiniburn tag of the dimension type | SIM-FIRE-003, 005, 010 | the data pack, `mcrs_minecraft_dimension_environment` | present as data; masks for each state to build |
-| `tnt_explodes` | SIM-FIRE-006 | `game_rules.dat` | key only |
-| the difficulty | SIM-FIRE-007 | `difficulty_settings` of `level.dat` | `mcrs_minecraft_save` does not read it. G8b adds the read and carries it into the dimension world |
-| `gameplay/increased_fire_burnout` at P | SIM-FIRE-006, 007 | the environment attributes of the biome and of the dimension (`registry-fields.md`) | data present; no lookup at a position in the kernel |
-| rain at Q: the rain of the dimension, the sky light at Q, the `MOTION_BLOCKING` height, the biome and its snow test at Q | SIM-FIRE-004 | the weather, the light data, the heightmaps, the biomes. The snow test is the temperature test of SIM-RND-004 | data present; no test outside world generation. G8b adds it, and precipitation can then use it |
-
-The output: `StepOutput` gets a list of primed TNT spawns, each a position, in the order of the tick. The engine has no spawn path for a primed TNT at this time; the physics has its entity kind (`entity-physics.md`). Until the engine has that path, it removes the TNT block, logs each spawn that it cannot do, and spawns nothing. The engine spawns them after the block domain, as it handles `ItemDropped`, when the path exists.
-order of the tick. The engine spawns them after the block domain, as it handles
-`ItemDropped`. The spawn of the entity and its start motion are entity rules.
-
-Exit of G8b: the kernel tests of SIM-FIRE-001 to SIM-FIRE-012 pass. These include the table of SIM-FIRE-002, which needs the copy of the players with their game modes, and the tests of SIM-FIRE-011 with the gate open. G8b is of size M to L. The scene of
-section 13.3 runs with `R = −1` for 12,000 dimension ticks, and prints its phase time.
-Its fires on a floor that is not infiniburn and not next to fuel go out
-(SIM-FIRE-001), so result 4 does not apply. When the vanilla fixtures of E-F3 to
-E-F7 exist, a test compares them with the rules.
-
-Out of scope for both steps: the items of section 12.1, and the rules of other block
-types, for example the crafter and the observer of the scene. Fluid ticks are in
-scope only for the load and the save.
-
-### 13.6 Experiments
-
-Experiments that were run:
-
-- **E-F0** (the odds table). A script read the table of the reference and compared it with the table of SIM-FIRE-008. Result: 254 entries, no entry is missing, no entry is extra, and no value differs. Each id is a file of the corpus.
-- **E-F1** (the census of the scene). A script read the region files of the nether of `~/mc-worlds/upgraded/hermitcraft10`. It read the columns within 5 columns of `(-20, -39)`. Results:
-  - `block_ticks`: 4,846 elements. 4,835 are `minecraft:fire`, 7 `minecraft:crafter`, 4 `minecraft:observer`. Each element has `p: 0`. There are no `fluid_ticks`.
-  - Each of the 4,835 fire ticks is at a position that holds fire. The fires are at `y` 4 to 124, below the roof. 178 other fire blocks of the area have no tick.
-  - Below the fires: netherrack 4,727, bedrock 35, nether quartz ore 34, nether gold ore 22, blackstone 10, glowstone 3, magma block 2, gravel 1, oak planks 1. Thus 4,729 fires have an infiniburn floor.
-  - The `t` of the fire ticks is −21,515 to 39. 2,593 ticks have `t ≤ 0` and 36 have `t = 1`. No tick has `t` above 39.
-  - With radius 10 the area holds 7,953 fire ticks. With radius 5 it holds 4,835, the number of `../farms/gold-farm.md` §2.4.
-- **E-F2** (the game rule of the save). `data/minecraft/game_rules.dat` of the upgraded save has `minecraft:fire_spread_radius_around_player` 0. `level.dat` of the 1.21.8 save has `doFireTick` false and `allowFireTicksAwayFromPlayer` false.
-- **E-F1b** (a simulation of the delay rule). A script started the 4,835 ticks at their saved `t` and rescheduled each tick with `30 + r(10)`. The script used three seeds, a warm-up of 1,200 ticks and 12,000 measured ticks. The mean was 140.14 to 140.15. The standard deviation of one tick was 11.6 to 11.8.
-
-Experiments on the vanilla server. These ran on the dedicated server of
-`26.4-snapshot-7` (`tools/vanilla-server/run.sh serve`, with the EULA that the owner
-accepted). A script wrote the commands to the standard input of the server. The world
-was a flat overworld with the surface block at `y` −61, at the difficulty hard, with
-no player. The positions are not the positions of the steps below, so that the
-experiments do not touch each other.
-The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
-Each result agrees with the rules. No rule changed.
+Experiments E-F3 to E-F7 run on a vanilla dedicated server, with a flat overworld, difficulty hard and no player.
 
 - **E-F3** (the gate). Do these steps:
   1. `/gamerule fire_spread_radius_around_player 0`
@@ -3520,23 +3261,15 @@ Each result agrees with the rules. No rule changed.
   4. `/tick sprint 2400`
   5. `/execute if block 1 -60 0 minecraft:fire[age=0]` and `/execute if block 0 -60 0 minecraft:oak_planks`
 
-  Expected: both tests pass. Then do the same steps with the radius −1 at other positions. Expected: the planks are gone within 2,400 ticks.
-
-  Result: with the radius 0, the fire stayed at age 0 and the planks stayed. With the radius −1, the planks and the fire were gone after 2,400 ticks: the planks burned, and the fire then had no fuel (SIM-FIRE-001 step 7.1). Limit: with no player, the radius 0 and the radius 128 both close the gate. E-F2 gives the value 0 of the save.
+  Expected: both tests pass. Then do the same steps with the radius -1 at other positions. Expected: the planks are gone within 2,400 ticks.
 - **E-F4** (the delay). Do these steps:
   1. `/tick freeze`
   2. Put 50 fires on netherrack with `/setblock`, at 50 positions in one column.
   3. `/save-all flush`
 
-  Expected: the record of the column holds 50 elements `{i: "minecraft:fire", t, p: 0}`, with `t` from 30 to 39. Each value occurs.
-
-  Result: 50 elements, each `p: 0`. The counts of `t` from 30 to 39 were 3, 6, 4, 5, 2, 6, 9, 7, 2, 6. Each value occurred, and no other value.
-- **E-F5** (the floor). Use the radius −1. Put fire on netherrack and fire on stone, with no flammable block near them. Run `/tick sprint 20000`. Expected: the fire on netherrack stays, with age 15. The fire on stone is gone.
-
-  Result: as expected. The fire on stone was already gone after 2,400 ticks, and its position held air after 20,000 ticks.
-- **E-F6** (the table). Use the radius −1. Put fire on stone next to `moss_carpet`, and a second fire next to `pale_moss_carpet`. Expected: the fire next to `moss_carpet` goes out, and the `moss_carpet` stays. The `pale_moss_carpet` can burn. When it burns, its fire goes out.
-
-  Result: after 2,400 ticks, the `moss_carpet` stayed and its fire was gone. The `pale_moss_carpet` and its fire were gone.
+  Expected: the record of the column holds 50 elements `{i: "minecraft:fire", t, p: 0}`, with `t` from 30 to 39.
+- **E-F5** (the floor). Use the radius -1. Put fire on netherrack and fire on stone, with no flammable block near them. Run `/tick sprint 20000`. Expected: the fire on netherrack stays, with age 15. The fire on stone is gone.
+- **E-F6** (the table). Use the radius -1. Put fire on stone next to `moss_carpet`, and a second fire next to `pale_moss_carpet`. Expected: the fire next to `moss_carpet` goes out, and the `moss_carpet` stays. The `pale_moss_carpet` can burn. When it burns, its fire goes out.
 - **E-F7** (soul fire). Do these steps:
   1. `/tick freeze`
   2. `/setblock 0 -60 0 minecraft:soul_sand`
@@ -3544,5 +3277,3 @@ Each result agrees with the rules. No rule changed.
   4. `/save-all flush`
 
   Expected: the record of the column has no `block_ticks` element at `(0, -59, 0)`.
-
-  Result: the column of the soul fire had no `block_ticks` element.

@@ -1,12 +1,5 @@
 # Numeric primitives: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
-
 The game computes many results with a small set of numeric operations: conversions from float to
 integer, comparisons, interpolations, an angle wrap, a sine table, an arctangent and a colour
 conversion. The bits of these results go into terrain, command output and registry data. This
@@ -511,11 +504,11 @@ None.
 
 ---
 
-## 11. Open questions
+## 11. Unresolved
 
 1. NUM-TRIG-003, NUM-TRIG-004: the game version of this document uses the current form for each
    read of the sine table. This includes world generation. The world generation of mcrs uses the
    earlier double form. A parity test of carvers, ore features, speleothem features and trunk
-   placers against `26.4-snapshot-7` decides which form applies.
+   placers against the game decides which form applies.
 2. NUM-TRIG-005: no artefact of a Beta release confirms the f32 constant or the earlier table
    for that release.

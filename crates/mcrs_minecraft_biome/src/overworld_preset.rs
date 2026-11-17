@@ -250,7 +250,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+        reason = "the reference passes these as separate values"
     )]
     fn surface(
         &mut self,
@@ -278,7 +278,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+        reason = "the reference passes these as separate values"
     )]
     fn underground(
         &mut self,
@@ -304,7 +304,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+        reason = "the reference passes these as separate values"
     )]
     fn bottom(
         &mut self,
@@ -497,7 +497,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the peak-band biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the peak-band biome entries in the reference's order"
     )]
     fn add_peaks(&mut self, weirdness: Parameter) {
         for c in cells(self.temperatures, self.humidities) {
@@ -614,7 +614,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the high-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the high-slice biome entries in the reference's order"
     )]
     fn add_high_slice(&mut self, weirdness: Parameter) {
         for c in cells(self.temperatures, self.humidities) {
@@ -742,7 +742,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the mid-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the mid-slice biome entries in the reference's order"
     )]
     fn add_mid_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
@@ -907,7 +907,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the low-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the low-slice biome entries in the reference's order"
     )]
     fn add_low_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
@@ -1041,7 +1041,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the valley biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the valley biome entries in the reference's order"
     )]
     fn add_valleys(&mut self, weirdness: Parameter) {
         let full = self.full_range;

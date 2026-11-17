@@ -11,7 +11,6 @@ sources:
   - docs-site/scripts/check-sources.mjs
   - docs-site/README.md
   - docs/clean-room.md
-  - PERF.md
 verified:
   snapshot: 26.4-snapshot-7
   commit: 3540f457b
@@ -25,7 +24,7 @@ Anyone can add or fix a page of this site. This page tells you what a page is fo
 
 ## Three kinds of docs
 
-| | Canon: `docs/`, `PERF.md`, `DECISIONS.md` | This site | README and landing page |
+| | Canon: `docs/` | This site | README and landing page |
 |---|---|---|---|
 | For | AI agents, spec authors | plugin developers from the JVM, contributors, Rust developers, admins | observers, players, curious developers |
 | Reader's question | What exactly does the rule require? | How do I do X, and why is it built so? | What is this, and is it for me? |
@@ -37,11 +36,11 @@ Copy nothing from the world generation design notes, which are `docs/worldgen.md
 
 ### Every fact has one source
 
-Do not type a number from memory. The game version lives in `assets/minecraft/version.json`, performance numbers in `PERF.md`, behavior in `docs/spec/`, and decisions in issues.
+Do not type a number from memory. The game version lives in `assets/minecraft/version.json`, behavior in `docs/spec/`, and decisions in issues.
 
 A count that two pages repeat, and the game snapshot id, live in `src/data/facts.yml`. A page writes such a value as `{fact('crates')}` after the line `import { fact } from '~/lib/facts.mjs';`, and `status.yml` writes it as `{crates}`. The id `snapshot` is read from `assets/minecraft/version.json`. Every entry has a `how` field that says how to measure it. A number that only one page states stays in the text of that page.
 
-Russian changes the form of a word after a number ("122 крейта", "122 крейтов"), so the Russian pages are edited by hand when a number changes. Find the places with `grep -rn "fact('crates')" src/content/docs/ru`.
+Russian changes the form of a word after a number, so the Russian pages are edited by hand when a number changes. Find the places with `grep -rn "fact('crates')" src/content/docs/ru`.
 
 The banner at the top of the home page names the commit of `origin/main` that the last docs update checked against. The commit and its date are `docs_commit` and `docs_commit_date` in `facts.yml`, and a docs update moves both. `npm test` fails if the date is not the commit date of that commit. On each visit the banner asks GitHub how many commits main has after that commit, and it hides the line if GitHub does not answer.
 
@@ -140,7 +139,7 @@ The state of a feature is shown in text and tables with `Status`. The state of a
 
 | State | When to use it |
 |---|---|
-| `works` | A test runs it, or `PERF.md` has a measurement. A commit alone is not enough. |
+| `works` | A test runs it. A commit alone is not enough. |
 | `partial` | A part works, and the rest is in an issue or a PR. A link is required. |
 | `wip` | Not in the code, or not finished, and an issue exists. "Direction, not a commitment." |
 | `undecided` | No issue, or the label `needs-decision`. |
@@ -205,8 +204,8 @@ An explainer follows four rules of honesty. A mechanism is not a measurement. Sh
 
 Go through this list before every PR that adds or changes a page.
 
-1. Every number has the machine, the scenario and a link to `PERF.md` or an issue beside it. Numbers come from `PERF.md` only, with the machine (M4 Max, macOS) and the scenario.
-2. "Works" appears only when a test, a commit or a `PERF.md` entry shows it. Otherwise write "partial" or "wip".
+1. Every number has its source beside it: a test, a specification or an issue.
+2. "Works" appears only when a test or a commit shows it. Otherwise write "partial" or "wip".
 3. State and goal differ visibly: a badge, a label or an Aside.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.

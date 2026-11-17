@@ -1,9 +1,6 @@
 # Entity damage: health, damage and death
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the health of a living entity, the damage that it takes, and its death. It
 states one procedure for each hit, the reductions of the damage, the cooldown after a hit, and the
@@ -12,7 +9,7 @@ crowd. Other sources use the same procedure with their own damage type. The proc
 for a player and for a mob. Section 10 states the rules that apply only to a player.
 
 The rules come from the reference implementation. Experiments on a vanilla server confirm the
-numeric rules and the packets (sections 15 and 16).
+numeric rules and the packets (section 15).
 
 ## 0. Conventions
 
@@ -47,7 +44,7 @@ numeric rules and the packets (sections 15 and 16).
   `AbsorptionAmount`.
 - **Armor value**: the value of the attribute `armor`, rounded down to an integer.
 - **Armor toughness**: the value of the attribute `armor_toughness`, converted to f32.
-- **Fire-immune**: a property of an entity type. Appendix A lists the living types that have it.
+- **Fire-immune**: a property of an entity type.
 - **Dying state**: the state of a living entity whose health is 0 or that died (section 8).
 - **Death time**: an integer counter of an entity in the dying state. The data name is
   `DeathTime`.
@@ -62,7 +59,7 @@ numeric rules and the packets (sections 15 and 16).
 
 ### 0.2 Provenance
 
-The labels are those of `entity-physics.md`, section 0.2. Section 16 holds the captured results.
+The labels are those of `entity-physics.md`, section 0.2.
 Each rule states its kind and its confidence, for example
 `(black_box_confirmed, semantic, confidence: high)`. The kinds are those of `docs/spec/README.md`.
 
@@ -106,10 +103,7 @@ Section 12 lists the subjects that are out of scope, with the reason for each.
   `assets/minecraft/tags/entity_type/fall_damage_immune.json`. Section 0.6 lists the members that
   this document uses.
 - `assets/mcrs/reports/packets.json`: the packet ids of section 9.
-- The game rule table of `crates/mcrs_minecraft_game_rule`: `max_entity_cramming` (default 24),
-  `fall_damage`, `fire_damage`.
-- Appendix A: the immunities of each living entity type. A vanilla server gave these values
-  (experiment D8).
+- The game rules `max_entity_cramming` (default 24), `fall_damage` and `fire_damage`.
 
 ### 0.6 Damage tags of the three types
 
@@ -143,13 +137,13 @@ becomes less than the health, the health changes to the max health.
 | `fall_damage_multiplier` | the fall damage (DMG-FALL-002) |
 
 The base value of each attribute is data of the entity type. ATR-BASE-003 of `attributes.md` and
-its Appendix A own that table. ATR-DEF-001 of that document gives the default when a type has no
+own that table. ATR-DEF-001 of that document gives the default when a type has no
 own value. Modifiers of items and effects change the value, as ATR-VAL-001 of `attributes.md`
 states. A mob with no modifier has the base value.
 
 **DMG-ATT-003** (`black_box_confirmed`, semantic, confidence: high). Two properties of the entity
 type make it immune to some damage types (DMG-HIT-001). They are the entity type tag
-`fall_damage_immune` and the fire-immune property of Appendix A.
+`fall_damage_immune` and the fire-immune property.
 
 The zombified piglin is fire-immune and is not in `fall_damage_immune`. Thus magma does not hurt
 it, and a fall does.
@@ -189,8 +183,7 @@ the procedure stops.
 1. The entity is removed.
 2. The entity is invulnerable and the damage type does not have the tag
    `bypasses_invulnerability`. Hook: the saved flag `Invulnerable` and the saved counter
-   `invulnerable_time` make an entity invulnerable. In G2 no system sets them, so no mob is
-   invulnerable and the row needs no field for them.
+   `invulnerable_time` make an entity invulnerable.
 3. The damage type has the tag `is_fire` and the entity type is fire-immune.
 4. The damage type has the tag `is_fall` and the entity type is in `fall_damage_immune`.
 5. For a player, a test of DMG-PLR-001 is true.
@@ -201,8 +194,7 @@ the procedure stops.
 tests of DMG-HIT-001, the hit does these steps before the cooldown:
 
 1. Hook: set the idle time of the entity to 0 (AIT-RFX-006). This step occurs before the
-   cooldown, so also a hit that the cooldown rejects sets it. G2 has no idle time; `mob-goals.md`
-   adds it for the stroll (GOAL-STR-001), and `natural-spawning.md` for the despawn.
+   cooldown, so also a hit that the cooldown rejects sets it.
 2. If the amount is less than 0, set it to 0.
 3. If the amount is NaN or infinite, set it to the largest finite f32 value.
 
@@ -234,7 +226,7 @@ client sees the same bits as the server (DMG-NET-002).
 is not rejected does these steps:
 
 1. Hook: record the causing entity for the kill credit and for the anger of mobs. A source with
-   no causing entity records nothing. `player-attack.md` and `mob-goals.md` (section 6.1, a hook)
+   no causing entity records nothing. `player-attack.md` and `mob-goals.md`
    state these records. The damage record that the panic reads is GOAL-PNC-001.
 2. For a full hit:
    - send the damage event (DMG-NET-001);
@@ -246,7 +238,7 @@ is not rejected does these steps:
    (DMG-NET-007).
 4. Else, for a full hit, play the hurt sound (DMG-NET-007), unless the damage type has the tag
    `no_hurt_sound`.
-5. Hook: record the source as the last damage source of the entity. No system of G2 reads it.
+5. Hook: record the source as the last damage source of the entity.
 
 A partial hit sends no damage event and plays no sound. Its health change reaches the client only
 through the entity data.
@@ -340,17 +332,16 @@ entity, for `d'`, `m` and a damage type:
 The game rule `fall_damage` applies only to a player (DMG-PLR-001). A mob takes fall damage when
 the game rule is false (experiment D2).
 
-D1 (section 16) gives the values for a zombified piglin. A fall of 78 blocks onto
+D1 gives the values for a zombified piglin. A fall of 78 blocks onto
 `honey_block` gives 15 damage, so the piglin keeps 5 health.
 
 **DMG-FALL-003** (`source_suggested`, semantic, confidence: medium). Hook. The fall action applies
 also to each passenger (PHY-RCH-002), with the same `d'`, `m` and damage type. That hit writes
-another row, so it is a write of PHY-CMP-015 at the merge point, not a hit of DMG-ORD-002. G2 has
-no passengers, so G2 does not implement this rule.
+another row, so it is a write of PHY-CMP-015 at the merge point, not a hit of DMG-ORD-002.
 
 **DMG-FALL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The fall
 action of each block. D1 and D12 confirm each row. The farm needs only the default row and
-`honey_block`; G2 implements these two rows.
+`honey_block`.
 
 | Block | `d'` | `m` | Damage type | Other effect |
 |-------|------|-----|-------------|--------------|
@@ -367,9 +358,7 @@ action of each block. D1 and D12 confirm each row. The farm needs only the defau
 
 The bounce action of a bed and of a slime block is part of `entity-physics.md` (PHY-RST-001). The
 block effects of farmland and of the egg are writes of the block domain (DMG-ORD-002). The block
-flag `STEP_ACTION` does not tell `magma_block` from the other step blocks. The named block data
-of `mcrs_minecraft_collision_table` gets a hot floor flag and the fall multiplier; this document
-allows that change of the kernel crate.
+flag `STEP_ACTION` does not tell `magma_block` from the other step blocks.
 
 **DMG-FALL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). When the
 fall damage `n` is more than 0, the server plays two sounds at the entity before the hit:
@@ -509,7 +498,7 @@ the dying state:
 - keeps its box, because the pose `dying` has the dimensions of the pose `standing` for a mob;
 - keeps its row and counts in each count that does not test the alive state, for example the
   mob cap of `natural-spawning.md`;
-- keeps the death time in the save. Hook: G2 saves no mob.
+- keeps the death time in the save.
 
 **DMG-DTH-005** (`design`, semantic, confidence: medium). The state that the physics step reads
 is the only authority for the health and the dying state. This state holds the health, the
@@ -689,7 +678,7 @@ are not linear, so with them the total can differ by a small amount.
 
 | Subject | Where it is stated, or the reason | Hook |
 |---------|-----------------------------------|------|
-| items: shields, helmets with `damages_helmet` (the amount × 0.75), the wear of armor, the protection of enchantments, the immunity of enchantments, the totem of undying | the farm uses no items (`gold-farm.md`) | DMG-HIT-002, DMG-RED-003, DMG-DTH-001 |
+| items: shields, helmets with `damages_helmet` (the amount × 0.75), the wear of armor, the protection of enchantments, the immunity of enchantments, the totem of undying | Out of scope. | DMG-HIT-002, DMG-RED-003, DMG-DTH-001 |
 | the attack of a player, the knockback of an attack, the kill credit, the sweep | `player-attack.md` is not written yet | DMG-SRC-002, DMG-HIT-005 |
 | the experience of a death | `experience.md` (XP-DRP-001 to XP-DRP-003) | DMG-DTH-001 step 4 |
 | loot and the drop of equipment | item entities are out of scope; `player-death.md` states the drop of a player (PLD-DRP-001 to PLD-DRP-006) | DMG-DTH-001 step 4 |
@@ -699,7 +688,7 @@ are not linear, so with them the total can differ by a small amount.
 | starvation | `hunger.md` (HNG-STV-001, HNG-STV-002) | DMG-HIT-001 |
 | explosion damage and explosion knockback | `explosions.md` (EXP-DMG-001 to EXP-DMG-003, EXP-KNB-001) | DMG-SRC-002, DMG-PLR-003 |
 | the damage of an arrow and of a snowball | `projectiles.md` (PRJ-ENT-001 to PRJ-ENT-007, PRJ-SNW-001 to PRJ-SNW-003) | DMG-SRC-002 |
-| entity types with an own hit procedure: `armor_stand`, `ender_dragon`, `squid`, `glow_squid`, and others | their behaviour is type data of a later document | Appendix A |
+| entity types with an own hit procedure: `armor_stand`, `ender_dragon`, `squid`, `glow_squid`, and others | their behaviour is type data of a later document | the entity type data |
 | the difficulty scale of a hit on a mob | DMG-PLR-003 states the rule for a player only | DMG-PLR-003 |
 | impulses, for example a wind charge, that cancel the fall damage of the launch | the farm has no impulse | DMG-FALL-001 |
 | the death of a player: respawn, the death screen, `player_combat_kill`, the drop of the inventory | `player-death.md` (PLD-DTH-001 to PLD-RST-004) | DMG-DTH-001 |
@@ -724,18 +713,13 @@ are not linear, so with them the total can differ by a small amount.
 
 - **U1.** No artefact gives the hurt sound, the death sound or the fall sounds of each entity type.
   DMG-NET-007 gives the values of the farm. A later document must give the table.
-- **U2.** No artefact gives the fire-immune property. Appendix A gives the values that a vanilla
-  server showed (D8). The corpus gives `fall_damage_immune` as a tag.
+- **U2.** No artefact gives the fire-immune property. The corpus gives `fall_damage_immune` as a tag.
 - **U3.** Some types have an own hit procedure (section 12). D8 shows `armor_stand`, `squid`,
-  `glow_squid` and `ender_dragon` as immune to each type, because their procedures differ. Appendix A
-  marks them.
+  `glow_squid` and `ender_dragon` as immune to each type, because their procedures differ.
 
 ## 15. Experiments
 
-Each experiment ran on a vanilla dedicated server of `26.4-snapshot-7`, through its console. The
-world was flat, with `difficulty hard`, `spawn_mobs false` and `pause-when-empty-seconds=-1`.
-`tick freeze` and `tick step 1` gave single ticks. `data get entity <uuid> <path>` read the
-values; a UUID selector also reads an entity in the dying state.
+The experiments ran on a vanilla dedicated server through its console. The rules cite them as D1 to D13.
 
 | Id | Steps | Rules |
 |----|-------|-------|
@@ -746,313 +730,9 @@ values; a UUID selector also reads an entity in the dying state.
 | D5 | Put a pig, a zombie and a zombified piglin in cells of 1 × 1 blocks on `magma_block`. Step 130 ticks. Read `Health` and `HurtTime` after each tick. | DMG-HOT-001, DMG-HIT-006 |
 | D6 | Put 25 or 30 zombified piglins in a cell of 1 × 1 blocks on `honey_block`. Step 200 ticks. Read the `Health` of each entity after each tick. Repeat with `max_entity_cramming` 26 and 0, and with `NoAI`. | DMG-CRW-001, DMG-CRW-002, DMG-CRW-003 |
 | D7 | Repeat D6 with `Health:5f` for 40 ticks, and with `max_health` 1000 and `Health:1000f` for 400 ticks. | DMG-CRW-002, DMG-CRW-003 |
-| D8 | For each entity type, summon it with `NoAI` and `NoGravity`. Read the base value of each attribute of DMG-ATT-002 with `/attribute … base get`, and `Health`. Do a `/damage` of `fall`, `hot_floor`, `cramming` and `player_attack` with the amounts 0.001, 0.002, 0.003 and 0.004, so that the cooldown accepts each one. Record each reply "invulnerable". | DMG-ATT-001, DMG-ATT-003, Appendix A |
+| D8 | For each entity type, summon it with `NoAI` and `NoGravity`. Read the base value of each attribute of DMG-ATT-002 with `/attribute … base get`, and `Health`. Do a `/damage` of `fall`, `hot_floor`, `cramming` and `player_attack` with the amounts 0.001, 0.002, 0.003 and 0.004, so that the cooldown accepts each one. Record each reply "invulnerable". | DMG-ATT-001, DMG-ATT-003 |
 | D9 | Join the server with an offline client that answers only the keep-alive, the teleport and the chunk batches. Run D1 (13 blocks onto honey), D5 for a pig, the kills and the hits of D3 near the player, and hits on the player. Record the clientbound packets 1, 25, 34, 43, 48, 69, 78, 101, 103, 106 and 119. | section 9 |
-
 | D10 | With the client of D9, drop a zombie 10 blocks onto magma. Record the packets and read `Health`. | DMG-ORD-001 |
 | D11 | Hit the player of D9 with `/damage Probe 1 minecraft:mob_attack by <piglin>`. Record the packets. | DMG-NET-001, DMG-NET-006 |
 | D12 | Drop a zombified piglin 10 and 24 blocks onto a bed, `slime_block`, `powder_snow`, `pointed_dripstone` and `icicle` with the tip up, and `shelf_mushroom`. Read `Health` after 6 seconds. | DMG-FALL-004, DMG-FALL-005 |
 | D13 | With the client of D9, hit a zombified piglin with `cramming` 6, then kill it with `cramming` 100. Decode each `sound` packet by the registry `minecraft:sound_event`. | DMG-NET-003, DMG-NET-007 |
-
-This check is still open:
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| D14 | With `tools/vanilla-client`, watch a zombified piglin fall onto honey, take crowd hits and die, with the server of this project. The client must show the hurt, the death and the removal, with no disconnect. | section 9 |
-
-D14 tests this server, so it waits for the implementation of G2.
-
-The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture. The capture of D6 and D7 holds the tick of each crowd hit and of each death for each
-trial. The ticks start at tick 1 after the summon. The packet captures hold the body of
-each recorded packet as hex, after the packet id.
-
-## 16. Captured results
-
-**D1.** Health after the fall:
-
-| `d` | `honey_block` | `stone` | `hay_block` |
-|-----|---------------|---------|-------------|
-| 3 | 20 | 20 | 20 |
-| 4 | 20 | 19 | 20 |
-| 24 | 16 | dead | 16 |
-| 50 | 11 | dead | 11 |
-| 78 | 5 | dead | 5 |
-| 78.0625 | 5 | dead | 5 |
-
-**D2.** The piglin had 13 health after a fall of 10 blocks with `fall_damage` false.
-
-**D3.** Values after each hit, read in the same frozen tick. The tick count starts at the first hit.
-
-| Tick | Hit | Zombified piglin, armor 2 | Pig |
-|------|-----|---------------------------|-----|
-| 0 | `cactus` 5 / 2 | 15.08, hurt time 10 | 8.0 |
-| 2 | `cactus` 3 / 1 | rejected | rejected |
-| 3 | `cactus` 8 / 3 | 12.139999, hurt time 7 | 7.0 |
-| 9 | `cactus` 8 / 3 | rejected | rejected |
-| 10 | `cactus` 8 / 3 | 4.267999, hurt time 10 | 4.0 |
-| 20 | `cramming` 1 / 1 | 3.2679992 | 3.0 |
-
-The zombie lost 5.904 to `cactus` 6. The pig with `absorption` 0 (4 absorption) had 9.0 health and
-0 absorption after `cactus` 5. The pig with `resistance` 0 had 6.0 health after `cactus` 5.
-
-**D4.** `DeathTime` was `k` after `k` ticks, for `k` from 0 to 19. After 20 ticks the UUID found no
-entity. `@e` did not select the entity in any of these ticks.
-
-**D5.** The pig lost 1.0 in ticks 2, 12, 22 and so on, and was gone after its tenth hit. The zombie
-lost 0.94 at the same ticks: 19.06, 18.119999, 17.179998. The zombified piglin kept 20.0.
-
-**D6, D7.** The rows of DMG-CRW-002, and:
-
-- every crowd hit was 6.0;
-- with `max_entity_cramming` 26 and 0, a crowd of 25 had no hit in 120 ticks;
-- with `NoAI`, 4 trials gave one death each, at ticks 31 to 33;
-- with 1000 health, 2328 hits gave a mean gap of 12.96 ticks. The gaps 10, 11, 12, 13 and 14 had
-  566, 424, 322, 220 and 175 hits, a ratio near 3/4. The mean tick of the first hit was 4.27.
-
-**D8.** Appendix A.
-
-**D9.** Hex of the packet bodies after the packet id. The piglin was entity 2, the pig entity 3.
-
-| Event | Packet | Body |
-|-------|--------|------|
-| a fall of 13 blocks onto honey | `entity_event` | `00000002 36` |
-| | `damage_event` | `02 0a 00 00 00` |
-| | `set_entity_data` | `02 09 03 41900000 ff` (18.0) |
-| | `set_entity_motion` | `02 …` |
-| a hit of magma on the pig | `damage_event` | `03 14 00 00 00`, each 10 ticks |
-| a crowd hit | `damage_event` | `02 04 00 00 00` |
-| a partial hit of 8 after 6 | `set_entity_data` only | `02 09 03 40800000 ff` (4.0) |
-| the death of the pig | `entity_event` | `00000003 03` |
-| | `set_entity_data` | `03 06 14 07 09 03 00000000 ff` |
-| 20 ticks later | `entity_event`, `remove_entities` | `00000003 3c`, `01 03` |
-| a crowd hit of 3 on the player | `damage_event`, `set_health` | `01 04 00 00 00`, `41880000 14 40a00000` |
-
-No `hurt_animation` arrived for `cramming`, `cactus` and `magic`. Each of them has
-`no_knockback`.
-
-**D10.** The zombie burned in daylight before it landed, so it had 19.0 health. In the tick when it
-landed, the server sent `damage_event` with the type 20 (`hot_floor`) and no other
-`damage_event`. The health became 12.06. The `hot_floor` hit of 1 gave 0.94 through the armor. The
-fall hit of 7 was a partial hit of 6. A fall hit first gives 12.0 and the type 10. Thus the
-step action comes before the fall action (DMG-ORD-001).
-
-**D11.** `damage_event` `01 1c 13 13 00`: the type 28 (`mob_attack`). The piglin with the
-network id 18 is the causing entity and the direct entity (18 + 1 = `0x13`). Then
-`hurt_animation` `01 00000000` in the same tick, and in the next update the velocity of the player
-to the player itself and `set_health`.
-
-**D12.** Health after the fall:
-
-| Floor | 10 blocks | 24 blocks |
-|-------|-----------|-----------|
-| red bed, foot | 19 | 12 |
-| `shelf_mushroom` | 19 | 12 |
-| `slime_block` | 20 | 20 |
-| `powder_snow` | 20 | 20 |
-| `pointed_dripstone`, tip up | 3 | dead, "impaled on a stalagmite" |
-| `icicle`, tip up | 3 | dead, "impaled on a stalagmite" |
-
-The top of a bed is at 0.5625, so `d` is 9.4375 and 23.4375: `floor(4.71875 - 2.999999) = 1` and
-`floor(11.71875 - 2.999999) = 8`. For the tip, `floor((9.31 + 2.5 - 3) × 2) = 17`. A fall onto a
-bed sent `entity.hostile.small_fall`, then `block.wood.fall` with the volume 0.5, then
-`damage_event`, then the hurt sound. A piglin in powder snow later took `freeze` damage; that is
-out of scope.
-
-**D13.** A crowd hit: `damage_event` type 4, then `entity.zombified_piglin.hurt`, source 5, at the
-position of the piglin. The kill by a full hit: `damage_event` type 4,
-`entity.zombified_piglin.death`, `add_entity` of the drop and `entity_event` 3. Then in the update
-comes `set_entity_data` with the pose `dying` and the health 0. After 20 ticks: `entity_event` 60 and
-`remove_entities`. The fall onto honey of D9 sent, in one tick: `block.honey_block.slide`,
-`entity_event` 54, `entity.hostile.small_fall`, `block.honey_block.fall`, `damage_event`,
-`entity.zombified_piglin.hurt`, and `block.honey_block.fall` again. The second block fall sound is
-the one of the honey row of DMG-FALL-004. The magma hit on a pig sent `entity.pig.hurt`.
-
-## 17. Implementation
-
-### 17.1 What the implementation does now
-
-The implementation on the main branch does these things for a mob that is not a player:
-
-- It applies the damage cooldown, the full hit, the partial hit and the change of the health of
-  DMG-HIT-001 to DMG-HIT-005. It does not apply the reductions of section 4.
-- It decreases the hurt time and the damage cooldown in each tick (DMG-HIT-006).
-- It starts the dying state, counts the death time, and removes the entity after 20 ticks
-  (DMG-DTH-001, DMG-DTH-003, DMG-DTH-004).
-- It applies the crowd damage of DMG-CRW-001 to DMG-CRW-003.
-- It sends the damage event, the death entity event and the removal entity event to the tracking
-  players (DMG-NET-001, DMG-NET-003).
-- It lets the command `damage` hit a mob with an amount and a damage type.
-
-The implementation does not yet do these things:
-
-- the reductions of section 4, the fall damage of section 5 and the magma damage of section 6;
-- the knockback of DMG-KB-001;
-- the health, the absorption and the death of a player, and the rules of section 10;
-- the packets of DMG-NET-002 and of DMG-NET-004 to DMG-NET-007;
-- the rules of `environment-damage.md`, `hunger.md`, `status-effects.md`, `experience.md`,
-  `projectiles.md`, `explosions.md`, `player-death.md` and `persistence.md`.
-
-### 17.2 Order of work
-
-Do the work in this order:
-
-1. DMG-SRC-001 and DMG-SRC-002: the source, the type and the cause chain.
-2. DMG-ATT-001 and DMG-RED-001 through DMG-RED-004: health, armor, toughness, resistance and
-   absorption.
-3. DMG-HIT-001 through DMG-HIT-006: the hit procedure, the cooldown and the hurt time.
-4. DMG-KB-001: the knockback and its resistance.
-5. DMG-FALL-001 through DMG-FALL-005, DMG-HOT-001, DMG-CRW-001 through DMG-CRW-003: the
-   environment and the crowd.
-6. DMG-DTH-001 through DMG-DTH-004: the dying state, the death time and the removal.
-7. DMG-NET-001 through DMG-NET-006: the packets, the entity data and the client rows.
-8. Sounds and particles stay out of scope until the client has an audio layer.
-
-### 17.3 Exit test
-
-The exit test starts an embedded server, joins a player and sets the survival mode. It then checks
-these results in this order:
-
-1. A player attack on another player sends a damage event and a hurt animation. The health
-   decreases, and the client shows the new health.
-2. A fall of more than three blocks gives the damage of DMG-FALL-002. The test compares the f32
-   bits of the table.
-3. Fire, lava, drowning, freezing, suffocation, cactus and the void each use their damage type and
-   obey their game rule. `environment-damage.md` states this step.
-4. A hit that kills sends the death packet. The client shows the death screen. The respawn packet
-   returns the player with full health. `player-death.md` states this step.
-5. A hit on a mob through the mob procedure gives the same reductions as a hit on a player. The
-   server sends the damage event.
-6. The client rows of health, absorption, armor, food, air and experience, and the death screen,
-   are at the exact positions of the layout.
-
-### 17.4 Data tables
-
-| Table | Source |
-|-------|--------|
-| damage types and their network ids | the corpus `damage_type/`, the registry (REG-ENTRY-004, REG-NET-006) |
-| the damage tags of 0.6 and of DMG-HIT-001 | the corpus `tags/damage_type/` |
-| `fall_damage_immune` | the corpus `tags/entity_type/` |
-| the base attributes | Appendix A of `attributes.md` |
-| fire-immune, the own hit procedures | the type table of `entity-tracking.md` (TRK-TYPE-001), with the values of Appendix A. That table gains the fields fire-immune and the hit kind (normal or own) |
-| the fall action of each block | DMG-FALL-004 of this document |
-| the magma step action and the fall multiplier | the named block data of `mcrs_minecraft_collision_table` (DMG-FALL-004) |
-| `max_entity_cramming` | the resource of DMG-CRW-001 |
-| the hurt and death sounds | DMG-NET-007; U1 for the other types |
-
-### 17.5 Tests
-
-- The hit procedure, as a kernel test with the values of D3. The values are the f32 bits of 15.08,
-  12.139999, 4.267999 and 3.2679992, the zombie value 14.096, absorption and `resistance`. These values catch
-  a wrong order of the reductions and a cooldown with `≥ 10` instead of `> 10`.
-- The fall damage of the table of DMG-FALL-002, with the values of D1.
-- The crowd order of DMG-CRW-002 with crowds of 5 health: 25 give one death and 30 give six. A
-  crowd hit that ignores the deaths of the tick gives about six deaths for 25.
-- A wire test for `damage_event`, the entity events and the entity data of the death against the
-  hex of D9. It does not compare `sound` packets.
-- The exit test of 17.3 in the engine.
-
-## Appendix A: immunities of the living types
-
-The values come from D8, for summoned entities. Appendix A of `attributes.md` gives the base
-values of the attributes of each type (DMG-ATT-002). The columns `fall` and `fire` state the
-immunity to the damage types `fall` and `hot_floor`: `yes` for immune. Only the `own` types are
-immune to `cramming`. `own` marks a type whose own hit procedure rejected each type in D8 (U3). A
-type that is not in the table has no immunity.
-
-| Type | `fall` | `fire` |
-|------|--------|--------|
-| `allay` | yes | — |
-| `armadillo` | — | — |
-| `armor_stand` | own | own |
-| `axolotl` | — | — |
-| `bat` | yes | — |
-| `bee` | yes | — |
-| `blaze` | yes | yes |
-| `bogged` | — | — |
-| `breeze` | yes | — |
-| `camel` | — | — |
-| `camel_husk` | — | — |
-| `cat` | yes | — |
-| `cave_spider` | — | — |
-| `chicken` | yes | — |
-| `cod` | — | — |
-| `copper_golem` | yes | — |
-| `cow` | — | — |
-| `creaking` | — | — |
-| `creeper` | — | — |
-| `dolphin` | — | — |
-| `donkey` | — | — |
-| `drowned` | — | — |
-| `elder_guardian` | — | — |
-| `enderman` | — | — |
-| `endermite` | — | — |
-| `ender_dragon` | own | own |
-| `evoker` | — | — |
-| `fox` | — | — |
-| `frog` | — | — |
-| `frostbite` | — | — |
-| `ghast` | yes | yes |
-| `giant` | — | — |
-| `glow_squid` | own | own |
-| `goat` | — | — |
-| `guardian` | — | — |
-| `happy_ghast` | yes | — |
-| `hoglin` | — | — |
-| `horse` | — | — |
-| `husk` | — | — |
-| `illusioner` | — | — |
-| `iron_golem` | yes | — |
-| `llama` | — | — |
-| `magma_cube` | yes | yes |
-| `mannequin` | — | — |
-| `mooshroom` | — | — |
-| `mule` | — | — |
-| `nautilus` | — | — |
-| `ocelot` | yes | — |
-| `panda` | — | — |
-| `parched` | — | — |
-| `parrot` | yes | — |
-| `phantom` | yes | — |
-| `pig` | — | — |
-| `piglin` | — | — |
-| `piglin_brute` | — | — |
-| `pillager` | — | — |
-| `polar_bear` | — | — |
-| `pufferfish` | — | — |
-| `rabbit` | — | — |
-| `ravager` | — | — |
-| `salmon` | — | — |
-| `sheep` | — | — |
-| `shulker` | yes | yes |
-| `silverfish` | — | — |
-| `skeleton` | — | — |
-| `skeleton_horse` | — | — |
-| `slime` | — | — |
-| `sniffer` | — | — |
-| `snow_golem` | yes | — |
-| `spider` | — | — |
-| `squid` | own | own |
-| `stray` | — | — |
-| `strider` | — | yes |
-| `sulfur_cube` | — | — |
-| `tadpole` | — | — |
-| `trader_llama` | — | — |
-| `tropical_fish` | — | — |
-| `turtle` | — | — |
-| `vex` | — | yes |
-| `villager` | — | — |
-| `vindicator` | — | — |
-| `wandering_trader` | — | — |
-| `warden` | — | yes |
-| `witch` | — | — |
-| `wither` | yes | yes |
-| `wither_skeleton` | — | yes |
-| `wolf` | — | — |
-| `zoglin` | — | yes |
-| `zombie` | — | — |
-| `zombie_horse` | — | — |
-| `zombie_nautilus` | — | — |
-| `zombie_villager` | — | — |
-| `zombified_piglin` | — | yes |
-
-The `player` type is not in D8. A player has no immunity of this table.

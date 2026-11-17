@@ -392,7 +392,7 @@ fn brk_ord_001_an_abort_out_of_reach_gets_only_the_ack() {
 }
 
 #[test]
-fn brk_srv_012_a_modifier_on_block_interaction_range_lets_a_break_out_of_the_base_reach() {
+fn brk_srv_012_range_modifier_allows_break_beyond_base_reach() {
     let mut app = host_app::make_host_app();
     app.add_plugins(VanillaEntityAttributesPlugin);
     let mut server = PlayServer::start(app, &[], 0);

@@ -24,13 +24,13 @@ import Status from '~/components/Status.astro';
 import StatusRows from '~/components/StatusRows.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page is the only full status table in the docs, and other pages show a part of it. Each row has a date and either a check you can run or a section of PERF.md.
+This page is the only full status table in the docs, and other pages show a part of it. Each row has a date and a check you can run.
 
 ## What the states mean
 
 | State | Meaning |
 |---|---|
-| <Status state="works" /> | A test you can run or a measurement in PERF.md shows it |
+| <Status state="works" /> | A test you can run shows it |
 | <Status state="partial" /> | Part works, and the rest is in an issue or a PR |
 | <Status state="wip" /> | It is not in the code or not finished, and an issue tracks it |
 | <Status state="undecided" /> | No decision yet. The plugin loader (jar, wasm, scripts) is in this state |
@@ -43,8 +43,6 @@ An issue that says "planned" states a direction. It has no date and it is not a 
 ## Status by area
 
 <StatusRows areas="worldgen,lighting,client,protocol,network,persistence,gameplay,commands,entities,physics,datapacks,molang,tools,library" />
-
-Performance numbers are in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), each with the machine and the scenario. All of them were measured on one machine, an Apple M4 Max with macOS. We publish no comparison with vanilla, Paper or other servers.
 
 ## What is not planned
 

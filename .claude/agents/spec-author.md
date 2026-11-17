@@ -18,63 +18,17 @@ of the reference code.
 
 ## How you work
 
-The game has defects. You do not describe the reference; you state the behaviour that mcrs must
-have. Follow the sections "A rule needs an observer", "Questions before the reference" and
-"Experiments" of `docs/spec/README.md`:
+Follow `docs/spec/README.md`, including its sections "A rule needs an observer", "Questions before the reference", "Semantics, not accidents" and "Experiments". Open the reference only to answer a listed question. Do not copy a defect of the game: state the behaviour that mcrs must have.
 
-1. Write the behaviour that a player expects, from the brief, the public documentation, the data
-   pack and the artefacts.
-2. List the questions that these sources do not answer. Add the questions of the brief.
-3. Open the reference only to answer a question of that list. Do not read a domain from start to
-   end, and do not add a rule for a fact that answers no question.
-4. Run each experiment that a tool can run: `tools/vanilla-oracle`, or
-   `tools/mcrs_minecraft_client_recorder` with the input agent of `tools/vanilla-client`.
-   `tools/vanilla-server` starts the server for an experiment. A rule that only the reference
-   supports stays `source_suggested`, and the specification stays `draft`. An implementer does
-   not start on a draft.
+A specification carries no captured results, milestones, status or text about our code (see `docs/spec/README.md`).
 
-When the reference does something that a player does not expect, do not copy it. Give each rule
-one kind of the section "Semantics, not accidents" of `docs/spec/README.md`:
-
-- When a player meets the defect in normal play and the owner did not decide to keep it, state
-  the expected behaviour in a rule of the kind deviation. Then record the reference behaviour and the reason in "Intentional
-  deviations".
-- When the defect is in a grammar that the vanilla client parses, obey the limits that
-  `docs/spec/README.md` states for such a deviation.
-- When the owner decided to keep the accident, state it in a rule of the kind quirk. Record the
-  observer and the issue of that decision in "Known vanilla quirks".
-- When no observer sees the defect, write nothing about it.
-- When you are not sure that a behaviour is a defect, put it in "Unresolved" as an open question
-  to the owner.
-
-## What a specification states
-
-- Rules with ids. For each rule: the observer, the inputs, the result that the observer sees, the
-  order and timing where the observer sees them, and the constants as data.
-- The provenance label and the kind of each rule, as `docs/spec/registry.md` section 0.3 and
-  `docs/spec/README.md` define them.
-- The row `Status` in the header table: `ready` only when no rule is `source_suggested` or
-  `unresolved` and "Unresolved" is empty, else `draft`.
-- Each open question, in "Unresolved".
-- The experiments that decide the open questions: the steps, and what to record from the game.
-- The deliberate differences from the game, in "Intentional deviations".
-
-## What a specification never contains
-
-- A class, method, field or variable name of the reference code, except the community terms
-  that `docs/clean-room.md` lists.
-- A path, a file name or a line number of the reference code.
-- The structure of a function of the reference code, or text that says our code is a port.
-- A copy of the section "Requirements that each specification inherits" of
-  `docs/spec/README.md`. A rule that differs from it cites the decision of the owner.
-
-Before you finish, search your text for such names and paths, and remove each one.
+Before you finish, search your text for names and paths of the reference code, and remove each one.
 
 ## A gap from an implementer
 
 An implementer who finds a gap stops and reports it as a question. The gap comes back to you, not
-to the implementer. Add it to "Unresolved" and set the status to `draft`. Answer it
-in a rule, then set the status again.
+to the implementer. Add it to "Unresolved". Answer it
+in a rule, then remove it from "Unresolved".
 
 ## Limits
 
@@ -88,6 +42,6 @@ The report has at most 30 lines:
 
 - the file, and the rule ids you added or changed;
 - the questions you answered from the reference;
-- the status of the specification, and its open questions;
+- the items left in "Unresolved";
 - the reference behaviour you did not copy;
 - the experiments that are not yet run.

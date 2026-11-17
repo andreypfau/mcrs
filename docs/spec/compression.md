@@ -1,13 +1,10 @@
 # Frames, compression and the cipher layer: behavioural specification
 
-| Field | 26.3 | 26.4 |
-|-------|------|------|
-| Game version | `26.3` (release) | `26.4-snapshot-5` (Minecraft Java Edition, 26.4 Snapshot 5) |
-| Protocol version | `777` | `1073742167` |
+Version: see `assets/minecraft/version.json`.
 
 This document states how the game cuts a TCP byte stream into frames, how it
 compresses a frame, and how it encrypts the stream. These rules are the same in
-26.3 and in 26.4. The rules for 26.4 come from snapshot 5.
+26.3 and in 26.4.
 
 The rules here apply in every connection state. The LOGIN state turns compression
 and encryption on. The moment of that switch differs between the versions, and
@@ -267,16 +264,8 @@ serverbound frames of sizes from 64 to 255. They are compressed.
 
 ---
 
-## 4. Open questions
+## 4. Unresolved
 
-- **FQ-01: Captures** (all rules). No capture in the repository confirms these
-  rules. Make these captures with a vanilla client and a vanilla server for each
-  version:
-  - an offline login with a threshold of 256;
-  - an online login with a threshold of 256;
-  - an offline login with a threshold of -1.
-
-  Store them as artefacts, and change the labels to confirmed labels.
 - **FQ-02: Sender behaviour at the limits** (FRAME-003, FRAME-006). The exact
   bytes that a vanilla sender writes before it closes the connection on a send
   error are not known. An implementation must not depend on them.

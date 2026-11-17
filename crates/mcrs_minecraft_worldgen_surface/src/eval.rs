@@ -122,7 +122,7 @@ where
 {
     #[expect(
         clippy::too_many_arguments,
-        reason = "the router, program and scratch, the two biome lookups, the column position, its top and the biomes it stores, which define one column's evaluator"
+        reason = "independent inputs of one column's evaluator"
     )]
     pub fn new(
         router: &'a NoiseRouter,

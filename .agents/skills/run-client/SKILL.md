@@ -46,11 +46,10 @@ BEVY_ASSET_ROOT=<worktree> MCRS_SERVER=127.0.0.1:25599 MCRS_CAPTURE=/tmp/run-cli
 ```
 
 - `MCRS_CAPTURE=<file>.png` waits until the chunks settle, writes one screenshot and exits
-  with 0. This is the smoke run. It takes about two minutes on a new world.
+  with 0. This is the smoke run.
 - Without `MCRS_SERVER`, the client hosts its own server. A world folder is then its argument.
 - For a longer look, start the client without `MCRS_CAPTURE` as a background command. Then
-  `touch /tmp/run-client/screenshots/capture` writes `screenshots/<millis>.png` within a
-  quarter of a second. `MCRS_SCREENSHOT_DIR` moves that folder.
+  `touch /tmp/run-client/screenshots/capture` writes `screenshots/<millis>.png`. `MCRS_SCREENSHOT_DIR` moves that folder.
 - Other knobs are `MCRS_*` variables: `MCRS_VIEW` (render distance), `MCRS_STATS=1` (debug
   lines in the log). Read `crates/mcrs_minecraft_client/src/config.rs` for the list.
 
@@ -95,7 +94,7 @@ BACKEND=webgl2 scripts/build-web.sh  # writes target/bundle/mcrs-webgl2.html
   screencapture -x -o -l "$id" /tmp/run-client/web.png
   ```
 
-- Wait about a minute after the start: the page loads 46 MB and then streams the chunks.
+- Wait until the page has loaded and streamed the chunks.
 - Scale a large image before you read it: `sips -Z 1200 shot.png --out shot-small.png`.
 
 ## 6. What to check

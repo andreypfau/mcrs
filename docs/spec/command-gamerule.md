@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `brigadier:bool` 0, `brigadier:integer` 3 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states the query and the set of a game rule, the messages, and the effect of six
 rules that a benchmark of mobs uses. It does not prescribe an architecture.
@@ -15,13 +13,10 @@ rules that a benchmark of mobs uses. It does not prescribe an architecture.
 ## 0. Conventions
 
 - **Node**, **literal**, **source**, **error**: as `command-parser.md` defines them.
-- **Game rule**: an entry of the registry `minecraft:game_rule`. The crate
-  `mcrs_minecraft_game_rule` holds the table of the entries, with the type, the default and the
-  range of each.
+- **Game rule**: an entry of the registry `minecraft:game_rule`.
 - **Short name**: the path of the identifier of a game rule, for example `spawn_mobs` for
   `minecraft:spawn_mobs`.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-GR`. None of the experiments has
-  been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-GR`.
 
 ## 1. Scope
 
@@ -86,12 +81,12 @@ Confidence: high. Experiment: run `gamerule mob_drops false` two times. The firs
 
 ---
 
-## 2. The rules of a benchmark of mobs
+## 2. Rules that change mob behaviour
 
 ### CMD-GR-004: The six rules
 
-| Rule | Type, default, range | Effect in this server |
-|------|----------------------|-----------------------|
+| Rule | Type, default, range | Effect |
+|------|----------------------|--------|
 | `minecraft:spawn_mobs` | bool, `true` | When false, natural spawning spawns no mob of any category, and the special spawners (phantoms, patrols, wandering traders, cats, sieges) do not run (`natural-spawning.md`). `summon` and spawn eggs still make mobs. |
 | `minecraft:advance_time` | bool, `true` | When false, no clock advances, and the time of day stays (`command-time.md`, CMD-TIME-006 and the rules after it). |
 | `minecraft:advance_weather` | bool, `true` | When false, the weather timers stop, and the rain and the thunder do not start or end by themselves (CMD-W-003). |
@@ -103,8 +98,7 @@ A change applies from the next read of the rule. A read in the same tick after t
 the new value. A change of `advance_time` also sends the state of each clock to each player
 (`command-time.md`).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. The types, the defaults and the
-ranges come from the table of `mcrs_minecraft_game_rule`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CMD-GR-005: The push limit with `max_entity_cramming` 0
 

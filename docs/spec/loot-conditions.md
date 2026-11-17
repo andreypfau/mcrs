@@ -1,16 +1,10 @@
 # Loot conditions and context number providers: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the result of each loot condition and of each context number provider. For
 each type, it states the context parameters and the world values that the type reads. It states
-the result when a value is absent, and each random draw that the type takes. It does not
-prescribe an architecture.
+the result when a value is absent, and each random draw that the type takes.
 
 The scope of this document is:
 
@@ -23,7 +17,7 @@ The scope of this document is:
 - the level-based value of REG-FLD-386.
 
 `registry-fields.md`, sections 6 and 9, states how the server decodes each of these types. This
-document does not repeat the decode. Section 6 lists what this document does not state.
+document does not repeat the decode.
 
 ## 0. Conventions
 
@@ -87,9 +81,9 @@ The labels are those of `registry.md`, section 0.3:
 - `source_suggested_black_box_confirmed`: taken from the reference, and consistent with a cited
   artefact.
 - `source_suggested`: taken from the reference, with no artefact yet. The confidence is at most
-  medium. The rule names the experiment of section 8 that decides it.
+  medium.
 - `design`: a choice of mcrs. The rule states the reason.
-- `unresolved`: not decided. Section 7.3 collects these items.
+- `unresolved`: not decided.
 
 The reference that the author read is the game version above. Each rule states its kind, as
 `docs/spec/README.md` defines it.
@@ -100,7 +94,6 @@ The reference that the author read is the game version above. Each rule states i
   `data/minecraft/context_int_provider/` and `data/minecraft/context_float_provider/`, and the
   conditions inside `data/minecraft/loot_table/`, `advancement/` and `enchantment/`.
   `tools/mcrs_minecraft_fixtures` installs it.
-- The captured results of `block-loot.md`, section 11.
 
 The vanilla data pack uses these condition types: `all_of`, `any_of`, `inverted`,
 `random_chance`, `random_chance_with_enchanted_bonus`, `entity_properties`, `killed_by_player`,
@@ -163,7 +156,7 @@ checks these parameters against the parameter set of the use.
   with Silk Touch at level 1 or more. `minecraft:tool/can_shear` passes for the tool `shears`.
   `minecraft:block/fast_cooking` is a `match_block` condition for `smoker` and `blast_furnace`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-002: `inverted`, `all_of` and `any_of`
 
@@ -182,7 +175,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Example:** `any_of` with the terms `random_chance` 0.5 and `random_chance` 0.5 takes one `F`
   when the first `F` is less than 0.5, and two `F` otherwise.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X2.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-003: `survives_explosion`
 
@@ -193,7 +186,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   negative bound, so the condition fails.
 - **Draws:** one `F`, only when `explosion_radius` is present.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-004: `table_bonus`
 
@@ -202,11 +195,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   `tool` is absent. Let `c` be the element `min(L, len − 1)` of `chances`, where `len` is the
   number of elements. The condition takes `F` and passes when `F < c`.
 - **Draws:** one `F`, also when `c` is 0 or 1, and also when `tool` is absent.
-- **Example:** `gravel` drops `flint` with the chance 0.1 for an empty hand. Result L2 of
-  `block-loot.md` shows the chances of `oak_leaves`.
+- **Example:** `gravel` drops `flint` with the chance 0.1 for an empty hand.
 
-Provenance: `source_suggested_black_box_confirmed` (result L2 of `block-loot.md`). Kind:
-semantic. Confidence: high. Experiment: X1 for the draw.
+Provenance: `source_suggested_black_box_confirmed`. Kind:
+semantic. Confidence: high.
 
 ### LOOT-CND-005: `random_chance`
 
@@ -217,7 +209,7 @@ semantic. Confidence: high. Experiment: X1 for the draw.
 - **Draws:** the draws of `chance`, then one `F`. The condition takes the `F` also when `c ≤ 0`
   or `c ≥ 1`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-006: `match_block`
 
@@ -232,7 +224,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   tests a `composter` with the `level` 0.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-007: `match_tool`
 
@@ -242,7 +234,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   stack. The item predicate states the result for the empty stack.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-008: `location_check`
 
@@ -257,7 +249,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   (LOOT-SRC-006 of `block-loot.md`).
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-009: `entity_properties`
 
@@ -272,9 +264,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   `snowball` or `snow` when a player breaks it, and drops nothing for `setblock` with `destroy`.
 - **Draws:** none.
 
-Provenance: `source_suggested_black_box_confirmed` (result L5 of `block-loot.md`, for a present
-`predicate`). Kind: semantic. Confidence: high for a present `predicate`, medium for an absent
-`predicate`. Experiment: X10.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high for a present `predicate`, medium for an absent
+`predicate`.
 
 ### LOOT-CND-010: `random_chance_with_enchanted_bonus`
 
@@ -287,7 +278,7 @@ Provenance: `source_suggested_black_box_confirmed` (result L5 of `block-loot.md`
 - **Example:** the vanilla entity tables use the enchantment `minecraft:looting`, for example
   for the rare drops of a zombie.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-011: `killed_by_player`
 
@@ -296,7 +287,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   absent.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-012: `entity_scores`
 
@@ -314,7 +305,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   after it. The decode must keep the order of the entries of the file.
 - **Draws:** the draws of the ranges that the condition tests, in the order of the entries.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-013: `damage_source_properties`
 
@@ -324,7 +315,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   dimension of the evaluation to the damage source predicate. It passes when that predicate matches.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-014: `weather_check`
 
@@ -344,7 +335,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Timing:** the condition reads the rain strength and the thunder strength of the current tick.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X11.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-015: `time_check`
 
@@ -362,7 +353,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Example:** `"clock": "minecraft:overworld", "period": 24000, "value": {"min": 13000}` passes
   at night.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X11.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-016: `int_value_check`
 
@@ -372,7 +363,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   and does not read `value`.
 - **Draws:** those of LOOT-CND-021, with `value` as the input provider.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-017: `float_value_check`
 
@@ -380,7 +371,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Result:** as LOOT-CND-016, with float providers and f32 comparisons.
 - **Draws:** those of LOOT-CND-021, with `value` as the input provider.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-018: `enchantment_active_check`
 
@@ -389,7 +380,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   the parameter equals `active`.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-019: `environment_attribute_check`
 
@@ -405,7 +396,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     same bits. Thus `0.0` and `-0.0` are different.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X12.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ## 3. Common values of the conditions
 
@@ -424,7 +415,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 - **Absent values:** the entity of a target is absent when its parameter is absent.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-021: Int range and float range
 
@@ -446,7 +437,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Draws:** the draws of each read, in the order above. Each read is a separate read of
   LOOT-NUM-001. Thus an evaluation error in `min` gives 0 for `min` only.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-022: Level of an enchantment
 
@@ -460,7 +451,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     (REG-FLD-122) names count, and only the slots that are not empty. It is 0 when no such item
     has the enchantment.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-CND-023: Score of a score holder
 
@@ -471,7 +462,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - A score holder has a score for an objective when the scoreboard holds a score of that holder
     in that objective.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ## 4. Context number providers
 
@@ -503,7 +494,7 @@ evaluation. "Error" means an evaluation error.
   `{"type": "minecraft:add", "inputs": [1, {"type": "minecraft:div", "left": 1, "right": 0}]}`
   also reads as 0, not as 1.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X9.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-002: Evaluation order of operands
 
@@ -520,15 +511,14 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Draws:** the draws of the operands, in this order. The draw of the type itself comes after
   the draws of its operands.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-003: `constant`
 
 - **Result:** the int `value` or the float `value`. A bare number is a `constant`.
 - **Draws:** none.
 
-Provenance: `source_suggested_black_box_confirmed` (the block tables of `block-loot.md`, section
-11). Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
 
 ### LOOT-NUM-004: Int unary types
 
@@ -542,7 +532,7 @@ Provenance: `source_suggested_black_box_confirmed` (the block tables of `block-l
 
 - **Draws:** those of `input`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-005: Float unary types
 
@@ -563,7 +553,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 - **Draws:** those of `input`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X8.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-006: Int binary types
 
@@ -579,7 +569,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 - **Draws:** those of `left`, then those of `right`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-007: Float binary types
 
@@ -594,7 +584,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Draws:** `sub` and `div`: those of `left`, then those of `right`. `mod`: those of `right`,
   then those of `left` when it evaluates `left`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-008: `pow`
 
@@ -607,7 +597,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     `-1` to an infinity is a NaN.
 - **Draws:** those of `base`, then those of `exponent`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7, X8.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-009: Int `uniform`
 
@@ -617,11 +607,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   no draw. This is a `design` choice. LOOT-CDV-002 records the reference.
 - **Draws:** those of `min`, then those of `max`, then one `B(b − a + 1)` when `a < b`.
 - **Example:** `{"type": "minecraft:uniform", "min": 2, "max": 4}` gives 2, 3 or 4 with the chance
-  1/3 each. Result L3 of `block-loot.md` shows it for `glowstone`.
+  1/3 each.
 
-Provenance: `source_suggested_black_box_confirmed` (result L3 of `block-loot.md`, for the
-distribution). Kind: semantic. Confidence: high for the distribution, medium for the draw.
-Experiment: X5.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high for the distribution, medium for the draw.
 
 ### LOOT-NUM-010: Float `uniform`
 
@@ -630,7 +618,7 @@ Experiment: X5.
   A NaN `a` or `b` is not `a ≥ b`, so it takes the draw.
 - **Draws:** those of `min`, then those of `max`, then one `F` when `a ≥ b` is false.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X5.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-011: Int aggregate types
 
@@ -648,7 +636,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   that a library user makes in code meets the column "Value with no elements".
 - **Draws:** those of each element, in order.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-012: Float aggregate types
 
@@ -668,7 +656,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - An empty `inputs` is a fault of the load, as LOOT-NUM-011 states.
 - **Draws:** those of each element, in order.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X8.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-013: `conditional`
 
@@ -680,7 +668,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Example:** `context_float_provider/cooking/speed_default.json` selects a fast speed for a
   `smoker` or a `blast_furnace`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-014: `number_dispatcher`
 
@@ -693,7 +681,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Example:** `context_int_provider/compostable/low.json` gives 1 for an empty `composter`.
   Otherwise it gives 1 with the weight 30 and 0 with the weight 70.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-015: `weighted_list`
 
@@ -706,7 +694,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Note:** the decode makes sure that `W` is at least 1 and at most `2^31 − 1` (REG-FLD-732). An
   element with the weight 0 is never selected.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-016: `environment_attribute`
 
@@ -717,7 +705,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Reads:** the parameter `origin` when the attribute is positional.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X12.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-017: `storage`
 
@@ -737,7 +725,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      fallback.
 - **Draws:** those of `fallback`, only when the provider evaluates it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X12.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-018: `binomial`
 
@@ -750,7 +738,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   age 0.
 
 Provenance: `source_suggested_black_box_confirmed` (the block tables of `block-loot.md`, for the
-distribution). Kind: semantic. Confidence: medium. Experiment: X5.
+distribution). Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-019: `score`
 
@@ -768,7 +756,7 @@ distribution). Kind: semantic. Confidence: medium. Experiment: X5.
   3. Otherwise the value is the score.
 - **Draws:** those of `fallback`, only when the provider evaluates it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-020: `enchantment_level`
 
@@ -777,7 +765,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Result:** the level-based value `amount` at `L` (LOOT-NUM-021).
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-021: Level-based value
 
@@ -798,7 +786,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   records the reference.
 - **Draws:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-022: Resolvable int and resolvable float
 
@@ -811,7 +799,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Example:** `context_int_provider/compostable/low.json` is the value of the layers that an item
   adds to a `composter`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### LOOT-NUM-023: The number providers of the block tables
 
@@ -820,7 +808,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   providers in LOOT-MOD-008. That id is now in `loot-functions.md`, and it cites this rule.
 - **Note:** a float `uniform` with `min ≥ max` takes no draw (LOOT-NUM-010).
 
-Provenance: `source_suggested_black_box_confirmed` (results L2 and L3 of `block-loot.md`). Kind:
+Provenance: `source_suggested_black_box_confirmed`. Kind:
 semantic. Confidence: high.
 
 ## 5. Order of the draws in an evaluation
@@ -833,22 +821,9 @@ semantic. Confidence: high.
 - **Example:** `random_chance` with `"chance": {"type": "minecraft:uniform", "min": 0.2, "max":
   0.4}` takes one `F` for the chance, and then one `F` for the test.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X1, X5.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
-## 6. What this document does not state
-
-- How the server decodes each type: `registry-fields.md`, section 9.
-- The context, its parameters, the parameter sets of each use and the validation of the
-  parameters: `loot.md` (LOOT-CTX).
-- The generator, its seed and the method of `F` and `B(n)`: `loot.md` (LOOT-RND).
-- The entity, location, damage source, item and block predicates: `predicates.md` (PRED).
-- The evaluation of tables, pools and entries: `loot.md`. The item modifiers:
-  `loot-functions.md`.
-- The default value of each component that holds a resolvable number.
-- The weather, the clocks and the environment attributes themselves: `command-weather.md`,
-  `command-time.md` and `environment-attributes.md`.
-
-## 7. Intentional deviations, open questions and unresolved items
+## 7. Intentional deviations
 
 ### 7.1 Intentional deviations
 
@@ -861,8 +836,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   the command or the action that evaluates the condition fails.
 - **Visible to the client**: no. A data pack author sees a load fault in place of an error at the
   evaluation.
-- **Test**: a differential test does not use a `time_check` with `period` 0. A test of the load
-  expects a fault.
 
 **LOOT-CDV-002.**
 
@@ -870,7 +843,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Reference**: an int `uniform` with `max − min + 1` more than `2^31 − 1` stops the evaluation
   with an error that nothing catches. The command or the action that evaluates it fails.
 - **Visible to the client**: no. A data pack author sees an error in place of a result.
-- **Test**: a differential test skips such a range.
 
 **LOOT-CDV-003.**
 
@@ -879,7 +851,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   An `enchantment_level` with no parameter `enchantment_level` uses the level 0. Thus each
   `lookup` in such a provider meets this case.
 - **Visible to the client**: no. A data pack author sees an error in place of a result.
-- **Test**: a differential test skips a `lookup` at a level less than 1.
 
 **LOOT-CDV-004.**
 
@@ -890,41 +861,3 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   does not allow it.
 - **Visible to the client**: no. A data pack author sees a load fault in place of a failed
   evaluation. No vanilla `random_chance` has a `chance` that is not a bare number.
-- **Test**: a differential test does not use such a provider. A test of the load expects a fault.
-
-### 7.2 Open questions
-
-No open question remains. Q1 and Q2 are closed: REG-FLD-387 rejects a `clamped` with `max ≤ min`,
-and REG-FLD-715 rejects a `time_check` with `period` 0.
-
-### 7.3 Unresolved
-
-None.
-
-Item U1 is closed: LOOT-CND-009 states the result with no `predicate`. Each condition with an
-optional `predicate` is consistent in itself, and `{}` already tests that the entity is present.
-
-## 8. Experiments
-
-No experiment of this document ran. `tools/vanilla-server` needs the acceptance of the EULA in
-the environment, and the environment of the author did not have it. The loot dumper of
-`tools/vanilla-oracle` (#387) is not ready. Each experiment of this table is a fixture for that
-dumper, or a command for `tools/vanilla-server`. A fixture of the dumper has a table, a context and a
-seed. It records the stacks of a roll and the state of the generator after the roll. The context
-has a key set of LOOT-CTX-011 (`loot.md`) and holds each required parameter of that key set. A row
-that names no key set uses the key set `chest`, with `origin` and a player as `this_entity`.
-
-| Id | Steps | Record | Rules |
-|----|-------|--------|-------|
-| X1 | Roll a table with one pool and one entry `item`, with the condition `random_chance` 0.5. Repeat with `table_bonus`, and with `survives_explosion` with the radius 4 and without a radius. For these rolls, use the key set `block`, with the state `stone`, an origin, a pickaxe with Fortune II as `tool`, and `explosion_radius` 4 or no `explosion_radius`. Roll `random_chance_with_enchanted_bonus` with the key set `entity`: a zombie as `this_entity`, an origin, a player attack as `damage_source`, and the player with a sword with Looting II as `attacking_entity`. Use the same seed. | the stacks and the generator state after each roll | LOOT-CND-003, LOOT-CND-004, LOOT-CND-005, LOOT-CND-010, LOOT-CND-022, LOOT-NUM-024 |
-| X2 | Roll `any_of` and `all_of` with two `random_chance` 0.5 terms, for 20 seeds. Repeat with a tag of two predicates. | the generator state, which shows one or two draws | LOOT-CND-002 |
-| X3 | Roll `int_value_check` with the value `uniform` 0 to 10 and the range `{"min": {"type": "minecraft:uniform", "min": 0, "max": 10}, "max": {"type": "minecraft:uniform", "min": 0, "max": 10}}`. Repeat with `{}` as the range, and with the point form. Set two scores and roll `entity_scores` with two objectives, the first of which does not exist. Roll `score` with a fallback `uniform`. | the generator state | LOOT-CND-012, LOOT-CND-016, LOOT-CND-017, LOOT-CND-021, LOOT-CND-023, LOOT-NUM-019 |
-| X4 | Roll `set_count` with the float `mod` of `right` 0 and `left` `uniform`. Repeat with `right` 3. | the generator state, which shows no draw for `right` 0 | LOOT-NUM-002, LOOT-NUM-007 |
-| X5 | Roll `set_count` with an int `uniform` 3 to 3, an int `uniform` 1 to 6, a float `uniform` 2 to 1, and `binomial` with `n` `uniform` 1 to 3 and `p` 0.5. | the counts and the generator state | LOOT-NUM-009, LOOT-NUM-010, LOOT-NUM-018 |
-| X6 | Roll `set_count` with `weighted_list` of two `uniform` elements, `conditional` with `random_chance` 0.5, `number_dispatcher` with two `random_chance` cases, and `enchantment_level` with each level-based value type at the levels 0, 1 and 5. For `enchantment_level`, use the key set `enchanted_item`, with a stick as `tool` and the level as `enchantment_level`. | the counts and the generator state | LOOT-NUM-013, LOOT-NUM-014, LOOT-NUM-015, LOOT-NUM-020, LOOT-NUM-021, LOOT-NUM-022 |
-| X7 | Roll `set_count` with the int providers of LOOT-NUM-004, LOOT-NUM-006, LOOT-NUM-008 and LOOT-NUM-011 at the edge values of their error column. | the counts | LOOT-NUM-001, LOOT-NUM-004, LOOT-NUM-006, LOOT-NUM-008, LOOT-NUM-011 |
-| X8 | Roll `float_value_check` with the float providers of LOOT-NUM-005, LOOT-NUM-007, LOOT-NUM-008 and LOOT-NUM-012 at NaN, an infinity, `-0.0` and `±2^31`, against the point form. | the result of each check | LOOT-NUM-001, LOOT-NUM-005, LOOT-NUM-007, LOOT-NUM-012 |
-| X9 | Roll `set_count` with `add` of 1 and the int `div` 1 by 0. | the count 0 | LOOT-NUM-001 |
-| X10 | Start `tools/vanilla-server` with a data pack of predicates. Run `execute if predicate` from the console and as a player, for `entity_properties` with no `predicate` and with `{}`, `killed_by_player`, `match_tool`, `match_block`, `location_check`, `damage_source_properties`, `enchantment_active_check` and a predicate key of a cycle. | the result of each command, and the load error of the cycle | LOOT-CND-001, LOOT-CND-006, LOOT-CND-007, LOOT-CND-008, LOOT-CND-009, LOOT-CND-011, LOOT-CND-013, LOOT-CND-018, LOOT-CND-020 |
-| X11 | In the same server, run `weather rain` and `weather thunder`, and wait 100 ticks. Test `weather_check` in the overworld and in the nether. Run `time set` to 13000, 37000 and `2^31 + 5`, and test `time_check` with and without `period`. | the result of each command | LOOT-CND-014, LOOT-CND-015 |
-| X12 | Write a byte, a long of `2^32 + 7`, a double NaN and a list into a storage with `data modify storage`. Test `int_value_check` with `storage` for each path. Test `environment_attribute_check` and `environment_attribute` for a positional and a dimension attribute, with and without `origin`. | the result of each command | LOOT-CND-019, LOOT-NUM-016, LOOT-NUM-017 |

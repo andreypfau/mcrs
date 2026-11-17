@@ -234,7 +234,7 @@ fn an_enum_stored_as_a_number_is_a_type_error_and_the_fields_after_it_still_read
 }
 
 #[test]
-fn an_enum_stored_as_an_array_declaring_more_bytes_than_the_input_holds_is_an_error() {
+fn enum_array_declaring_more_bytes_than_input_is_an_error() {
     let mut bytes = vec![0x0a, 0, 0];
     bytes.extend([0x07, 0, 4]);
     bytes.extend(b"data");
@@ -258,7 +258,7 @@ fn an_enum_stored_as_an_array_declaring_more_bytes_than_the_input_holds_is_an_er
 }
 
 #[test]
-fn an_enum_stored_as_a_collection_is_the_same_type_error_from_a_file_and_from_memory() {
+fn enum_as_collection_is_the_same_type_error_from_file_and_memory() {
     let collections = [
         NbtTag::ByteArray(Box::new(*b"\0\x01A")),
         NbtTag::ByteArray(Box::new([])),

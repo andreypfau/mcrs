@@ -944,7 +944,7 @@ mod tests {
     }
 
     #[test]
-    fn a_new_viewer_gets_the_spawns_of_the_tile_then_its_moves_but_never_its_own_subject() {
+    fn new_viewer_gets_tile_spawns_then_moves_never_its_own_subject() {
         let mut muxer = muxer();
         let spawns = vec![
             event(1, EntityEvent::Spawn(())),
@@ -964,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn a_subject_that_crosses_tiles_is_removed_where_it_leaves_view_and_spawned_where_it_enters() {
+    fn tile_crossing_removes_where_it_leaves_and_spawns_where_it_enters() {
         let mut muxer = muxer();
         muxer.subscribe(ViewerId(1), view(ORIGIN, None));
         muxer.subscribe(ViewerId(2), view(FAR, None));
@@ -1160,7 +1160,7 @@ mod tests {
     }
 
     #[test]
-    fn a_ranged_subject_is_removed_when_it_walks_out_of_range_and_spawned_when_it_comes_back() {
+    fn ranged_subject_is_removed_out_of_range_and_spawned_on_return() {
         let mut muxer = muxer();
         let home = TileKey::new(-1, 0, 0);
         muxer

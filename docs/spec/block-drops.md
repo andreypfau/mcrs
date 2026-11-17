@@ -2,42 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+| Version | see `assets/minecraft/version.json` |
 
-Source of these values: `assets/minecraft/version.json`.
-
-This document completes the rules of issue #77: what a removed block drops, and the experience
-that it pays. Most of this behaviour already has rules in other documents. The section "Coverage"
-gives the document of each topic. This document states only the topics that no other document states. It
-does not prescribe an architecture.
-
-## Coverage
-
-Each topic of issue #77 has rules in the documents of this table. A rule id with the prefix `BDR` is
-a rule of this document.
-
-| Topic | Rules |
-|-------|-------|
-| The causes that evaluate a block table, and the values of each cause | LOOT-SRC-002 to LOOT-SRC-006 (`block-loot.md`) |
-| The context of a block table | LOOT-CTX-001 (`block-loot.md`) |
-| A survival break drops items only with a harvest: the correct tool | BRK-LOOT-001, BRK-PRG-003 (`block-breaking.md`) |
-| A creative break drops no item of the block | BRK-DRP-001, BRK-DRP-007, BRK-DRP-008, BRK-PRT-003 (`block-breaking.md`) |
-| A block that loses its support drops its items | BRK-DRP-004, BRK-DRP-009, BRK-LOOT-003 (`block-breaking.md`) |
-| The game rule `block_drops` | BRK-LOOT-005, LOOT-OUT-003, BDR-XP-001 |
-| The item entities of a drop list, their start values and their order | LOOT-OUT-002, LOOT-OUT-004 (`block-loot.md`), IEN-SPN-001 (`item-entity.md`), PHY-CMP-025 (`entity-physics.md`) |
-| The random values of a drop | LOOT-RND-001, LOOT-RND-003 (`block-loot.md`) |
-| The experience of a survival break: the blocks, the amount, the draw, the harvest and Silk Touch | BRK-LOOT-004, BRK-LOOT-006 (`block-breaking.md`), BDR-XP-002, BDR-XP-003 |
-| The experience of the other causes | BDR-XP-001 |
-| The orbs of an amount of experience | BRK-LOOT-001, BRK-LOOT-004, XP-VAL-001, XP-SPN-001 (`experience.md`) |
-| The explosions that give `explosion_radius` | BDR-EXL-001 |
-| The context of a block table in an explosion | LOOT-SRC-002, LOOT-CTX-001, EXP-BLK-003 (`explosions.md`) |
-| The merge of the stacks of one explosion | BDR-EXL-002 |
-| The steps of an explosion at one position | EXP-BLK-003, BDR-EXL-003 |
-| The experience of a block in an explosion | BDR-XP-001, BDR-EXL-003 |
-| The items that a block holds | BRK-DRP-002, BRK-DRP-003, BRK-LOOT-003, IEN-SPN-005, BDR-CNT-001, BDR-CNT-002 |
-| The order of the item entities and the orbs against each other | BDR-ORD-001. LOOT-OUT-004, BRK-LOOT-001, BRK-LOOT-003 and BRK-LOOT-006 cite it. |
-| The context of the part of a door or a bed that drops | LOOT-SRC-006, item U1 |
+This document states what a removed block drops and the experience that it pays. It states only the topics that other documents do not state.
 
 ## 0. Conventions
 
@@ -90,8 +57,7 @@ The labels are those of `docs/spec/registry.md`, section 0.3:
 
 Section 5.1 records a deviation from the reference.
 
-The author read the reference of the game version above. No experiment of section 6 ran, and the
-captured results of `block-breaking.md` come from `26.4-snapshot-4`. Each rule from the reference
+No experiment of section 6 ran. Each rule from the reference
 thus has the label `source_suggested`. Each rule states its kind, as `docs/spec/README.md` defines
 it.
 
@@ -294,8 +260,7 @@ creative break, a neighbour removal, a command destroy, and an explosion of the 
 do not drop. The game rule `block_drops` has no effect on the held items (BRK-LOOT-005).
 
 The held items are not part of a drop list. Thus an explosion does not decay them and does not merge
-them (BDR-EXL-002). Result R22 and result R45 of `block-breaking.md` show the held items of a chest,
-a barrel and a furnace.
+them (BDR-EXL-002).
 
 **BDR-CNT-002** (`source_suggested`, semantic, confidence medium). Each held stack becomes item
 entities as IEN-SPN-005 states, with the pickup delay 0, except for these two types:
@@ -326,8 +291,8 @@ creaking heart, which come first.
 | neighbour removal, command destroy | 1. the drop list. 2. the orbs. 3. the held items. 4. the items and the orbs of each neighbour removal that this removal causes. |
 | explosion | For each position, in the order of EXP-BLK-003: 1. the orbs of a creaking heart. 2. the orbs of step 1 of EXP-BLK-003. 3. the held items. 4. the items and the orbs of each neighbour removal. 5. the entity of step 4 of EXP-BLK-003, for example the primed TNT of EXP-TNT-003. After the last position: 6. the collected stacks (BDR-EXL-002). |
 
-Result R45 of `block-breaking.md` lists the held items of a chest before the chest, as step 2 and
-step 4 of a survival break state. It does not record the order of the packets.
+The held items of a chest come before the chest, as step 2 and
+step 4 of a survival break state.
 
 ## 5. Intentional deviations and unresolved items
 
@@ -350,15 +315,7 @@ step 4 of a survival break state. It does not record the order of the packets.
 - **U1**: item U1 of `block-loot.md`, the context of the part of a door or a bed that drops when the
   break hits the other part. The reference suggests the context of a neighbour removal: the empty
   stack and no `this_entity`. Experiment E7 uses a data pack whose table reads the tool and the
-  entity, so it can show the context. E7 did not run.
-- **U2**: decided. BDR-XP-002 states the draw of a spawner, and that Silk Touch has no effect on it.
-  Result R46 of `block-breaking.md` (60 breaks, `26.4-snapshot-4`) gave values from 15 to 43, with 15
-  and 43 one time each. This result is possible with the draw of BDR-XP-002, but it does not confirm
-  it. Experiment E1 tests the draw.
-
-Item U3 is closed: BDR-XP-001 states the experience of an explosion that a creative or spectator
-player causes. The experience blocks test only that the causing entity is a player, and the
-creaking heart tests the game mode for a break and for an explosion.
+  entity, so it can show the context.
 
 ## 6. Experiments
 
@@ -385,15 +342,3 @@ E11, record the `add_entity` packets with `tools/mcrs_minecraft_client_recorder`
 | E9 | Add a data pack with the enchantment `example:xp`. Its effect `minecraft:block_experience` has two conditional effects: `add` with `linear` (`base` 2, `per_level_above_first` 1), then `multiply` with `factor` 3. Give a survival player a netherite pickaxe with `example:xp` at level 1, and break `coal_ore`, `iron_ore`, `stone` and `spawner` 50 times each. Repeat at level 2. Sum the orb values of each break. Expected at level 1: 6, 9 or 12 for `coal_ore`, 6 for `iron_ore`, no orb for `stone`, and 15 to 43 for `spawner`. | BDR-XP-002, BDR-XP-003 |
 | E10 | Put a lectern with a book for each value of `facing`, and do the command destroy. Read `Pos` and `PickupDelay` of the item entity. Put a jukebox with a disc, and do the command destroy 20 times. Repeat with a single `chest` above the jukebox, and with one half of a double chest above it. Do the command destroy on a chest with 64 `stone`, and read `PickupDelay`. | BDR-CNT-002 |
 | E11 | With a survival player and an iron pickaxe, break a chest with 3 `diamond`, with a torch on it. Break `coal_ore` with a torch on it, and `creaking_heart` with `natural=true` and a torch on it. Do the command destroy on the chest and the `coal_ore` setups. In creative mode, break the chest setup and a `beehive` with `honey_level=5`. Record the packets, and note the entity type of each `add_entity`. | BDR-ORD-001 |
-
-## 7. What this document does not state
-
-- The experience that a furnace, a blast furnace or a smoker stores from its recipes and pays at a
-  removal. The specification of the furnace states it.
-- The loot of a trial spawner and of a vault.
-- The power, the damage source and the options of each exploder (`explosions.md`, section 6), and
-  the explosions of a dragon respawn.
-- What a block does in the mode `trigger`, for example a door that opens.
-- A block that a piston destroys, and a block that a mob breaks or removes.
-- The silverfish of an infested block, and the bees of a beehive.
-- The public message and the plugin point of a drop. The design note of issue #77 states them.

@@ -35,7 +35,7 @@ pub struct CompiledBonusChest {
 }
 #[expect(
     clippy::excessive_nesting,
-    reason = "places the monster room's floor, walls and chests in the reference's order, with the per-cell block draw inline so its random draws keep their sequence"
+    reason = "per-cell draw inline keeps the random draws in sequence"
 )]
 pub fn place_monster_room<W: WorldGenVolume>(
     config: &CompiledMonsterRoom,
