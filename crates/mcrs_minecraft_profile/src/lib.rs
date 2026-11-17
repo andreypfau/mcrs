@@ -42,20 +42,8 @@ fn player_name(text: &str) -> Result<PlayerName, String> {
     Ok(BoundedString(text.to_owned()))
 }
 
-fn check_length<const MAX: usize>(text: &str) -> Result<(), ProfileError<'_>> {
-    let length = text.encode_utf16().count();
-    if length > MAX {
-        return Err(ProfileError::StringTooLong {
-            text,
-            length,
-            max: MAX,
-        });
-    }
-    Ok(())
-}
-
 fn check_player_name(text: &str) -> Result<(), ProfileError<'_>> {
-    check_length::<16>(text)?;
+    BoundedString::<16>::check(text)?;
     if text.chars().any(|c| c <= ' ' || c >= '\x7f') {
         return Err(ProfileError::DisallowedNameCharacters(text));
     }
@@ -344,10 +332,10 @@ pub fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
 }
 
 fn check_property(property: &Property) -> Result<(), ProfileError<'_>> {
-    check_length::<64>(&property.name)?;
-    check_length::<32767>(&property.value)?;
+    BoundedString::<64>::check(&property.name)?;
+    BoundedString::<32767>::check(&property.value)?;
     if let Some(signature) = &property.signature {
-        check_length::<1024>(signature)?;
+        BoundedString::<1024>::check(signature)?;
     }
     Ok(())
 }
