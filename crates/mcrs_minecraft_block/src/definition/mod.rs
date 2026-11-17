@@ -1,3 +1,4 @@
+mod interner;
 pub mod placement_filter;
 pub mod schema;
 pub mod state_condition;
@@ -16,6 +17,7 @@ use glam::Vec3;
 use hashbrown::hash_map::EntryRef;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
+use self::interner::Interner;
 use self::schema::{
     BlockDefinitionFile, BlockProperties, BlockProperty, Components, LavaFlammable, ModelBox,
     NoteBlockInstrument, PlacementFilter, PropertyValue, Sticky,
@@ -596,9 +598,9 @@ struct Builder {
     owners: Vec<Option<Id<Block>>>,
     shapes: Vec<Box<[Aabb]>>,
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
-    loot: Vec<ResourceLocationBuf>,
+    loot: Interner<ResourceLocationBuf>,
     experience: Vec<IntProvider>,
-    sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
+    sound_sets: Interner<ResourceKeyBuf<BlockSoundSet>>,
     filters: Vec<PlacementFilter>,
     filter_of: FxHashMap<BlockStateId, u16>,
     support_of: FxHashMap<BlockStateId, ShapeId>,
@@ -631,9 +633,9 @@ impl Builder {
             owners: Vec::new(),
             shapes: Vec::new(),
             shape_ids: FxHashMap::with_hasher(FxBuildHasher),
-            loot: Vec::new(),
+            loot: Interner::default(),
             experience: Vec::new(),
-            sound_sets: Vec::new(),
+            sound_sets: Interner::default(),
             filters: Vec::new(),
             filter_of: FxHashMap::default(),
             support_of: FxHashMap::default(),
@@ -661,7 +663,7 @@ impl Builder {
     }
 
     fn intern_loot(&mut self, table: &ResourceLocationBuf) -> LootId {
-        LootId(intern(&mut self.loot, table))
+        LootId(self.loot.intern(table))
     }
 
     fn intern_experience(&mut self, drop: IntProvider) -> ExperienceId {
@@ -945,7 +947,7 @@ impl Builder {
         let sound_set = components
             .block_sound_set
             .as_ref()
-            .map(|set| SoundSetId(intern(&mut self.sound_sets, set)));
+            .map(|set| SoundSetId(self.sound_sets.intern(set)));
         let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
             fluid: fluid.fluid.id(),
             level: fluid.level,
@@ -1002,9 +1004,9 @@ impl Builder {
         Ok(BlockDefinitions {
             states: std::mem::take(&mut self.states),
             shapes: std::mem::take(&mut self.shapes),
-            loot: std::mem::take(&mut self.loot),
+            loot: std::mem::take(&mut self.loot).into_values(),
             experience: std::mem::take(&mut self.experience),
-            sound_sets: std::mem::take(&mut self.sound_sets),
+            sound_sets: std::mem::take(&mut self.sound_sets).into_values(),
             filters: std::mem::take(&mut self.filters),
             filter_of: std::mem::take(&mut self.filter_of),
             support_of: std::mem::take(&mut self.support_of),
