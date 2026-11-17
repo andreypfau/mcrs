@@ -69,3 +69,4 @@ crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_occlusion_shade.json lin
 crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/** linguist-generated
 crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json linguist-generated
 crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json linguist-generated
+tools/mcrs_minecraft_client_recorder/recordings/inventory/inventory_e17_*.txt linguist-generated

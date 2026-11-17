@@ -564,5 +564,15 @@
         "to": "crates/mcrs_minecraft_save/tests/fixtures/vanilla"
       }
     ]
+  },
+  {
+    "name": "inventory_e17",
+    "task": "recordInventoryE17",
+    "outputs": [
+      {
+        "pattern": "inventory_e17_*.txt",
+        "to": "tools/mcrs_minecraft_client_recorder/recordings/inventory"
+      }
+    ]
   }
 ]

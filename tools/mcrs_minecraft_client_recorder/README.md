@@ -51,7 +51,8 @@ experiment again.
 The second argument of `record.sh` is the output directory `<out>`. Without it, the recordings
 of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, the recordings of
 the scenarios `pose_*` (the experiments of `docs/spec/player-pose.md`, section 9) go to
-`recordings/pose` in this directory, and the others go to
+`recordings/pose` in this directory, the recordings of the scenarios `inventory_*` go to
+`recordings/inventory` in this directory, and the others go to
 `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
 ## Record without a human
@@ -155,6 +156,7 @@ which the proxy changed no packet gives no recording.
 | `start_fall_flying` | When `player_input` turns the jump flag on, the proxy sends `player_command` with the action `start_fall_flying` after it. |
 | `no_shift_input` | `player_input` never has the shift flag. |
 | `shift_before_loaded` | Before each `player_loaded`, the proxy sends `player_input` with the shift flag. |
+| `remove:<packet>` | The proxy removes each serverbound packet with the name `<packet>` of the protocol table. When a removed packet gives an event, the recording writes it as `> removed <event>`. |
 
 The last three modules are for experiment E8 of `docs/spec/player-pose.md`, section 9. Each
 module has its scenario: `pose_e8_1` for `start_fall_flying`, `pose_e8_2` for `no_shift_input`
@@ -165,6 +167,13 @@ has loaded the world changes each step.
 ```sh
 MINECRAFT_EULA=true AUTOPLAY=true CHEAT=start_fall_flying \
     tools/mcrs_minecraft_client_recorder/record.sh pose_e8_1
+```
+
+The scenario `inventory_e17` is experiment E17 of `docs/spec/inventory-transactions.md`. It
+uses `remove:player_action`. The fixture `inventory_e17` of `tools/fixtures.json` records it:
+
+```sh
+MINECRAFT_EULA=true cargo run -p mcrs_minecraft_update -- recapture inventory_e17
 ```
 
 C1 has no wall, so `step` changes nothing in it. E13 has a wall:
@@ -215,11 +224,17 @@ line is a tick in which the client sent no move packet.
 | `< block <x> <y> <z> <state>` | `block_update`, or one entry of `section_blocks_update` |
 | `< forget <x> <z>` | `forget_level_chunk` |
 | `< data <entity> <index> <value>` | one entry of `set_entity_data` |
+| `< slot <container> <state> <slot> <stack>` | `container_set_slot` |
+| `< content <container> <state> <cursor> <stack>...` | `container_set_content`, with each slot in order |
+| `< cursor <stack>` | `set_cursor_item` |
 | `> input <keys>` | `player_input` |
 | `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
 | `> command <action>` | `player_command` with another action |
 | `> interact <true or false>` | `interact`; true when its secondary action flag is on |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
+| `> action <action>` | `player_action` with another action |
+| `> click <container> <state> <slot> <button> <input> <cursor> [<slot>=<stack>]...` | `container_click`, with the changed slots last |
+| `> removed <event>` | a serverbound packet that a proxy module removed; the server did not receive it |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |
 
@@ -245,7 +260,14 @@ A particle, a list of particles or a profile ends the entries of its packet: the
 decode their length, so the entries after them are not kept.
 
 The `<action>` of a `command` event is `stop_sleeping`, `start_riding_jump`, `stop_riding_jump`,
-`open_inventory` or `start_fall_flying`.
+`open_inventory` or `start_fall_flying`. The `<action>` of an `action` event is the name of the
+action in snake case, for example `drop_item` or `swap_item_with_offhand`. The `<input>` of a
+`click` event is the click kind in snake case, for example `pickup`.
+
+A `<stack>` is one word. It is `-` for the empty stack, or else `<item>*<count>`. A stack of a
+clientbound packet adds `{<component>,!<component>}` when it has a patch: the names of the
+added and of the removed components. A hashed stack of `container_click` adds
+`{<component>=<hash>,!<component>}`.
 
 ## The scenario format
 
@@ -268,9 +290,12 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `at <tick> <command>` | a console command at a client tick of the step |
 
 The arena must have at most 32768 blocks, the limit of `fill`. The keys of `input` are `none`
-or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint`, `use` and
-`leave_bed`. `leave_bed` is not a key: at the tick of its line, the input agent presses Escape on
-the bed screen, which sends what the leave button sends.
+or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint`, `use`,
+`leave_bed`, `drop`, `swap_hands`, `inventory`, `close` and `click:<slot>`. `leave_bed` is not a
+key: at the tick of its line, the input agent presses Escape on the bed screen, which sends what
+the leave button sends. The input agent presses `drop`, `swap_hands` and `inventory` once at
+the tick of their line. At that tick, `close` closes the open screen, and `click:<slot>` clicks
+with the primary button on the slot of that index in the open container screen.
 The input agent takes the client tick after it sees the title `Go` as the tick after `go`.
 With a delay, the title comes later, and so do the inputs.
 

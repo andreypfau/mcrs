@@ -29,6 +29,7 @@ fetch_verified "$work/server.jar" \
 
 case "$1" in
     pose*) out="$recorder_here/recordings/pose" ;;
+    inventory*) out="$recorder_here/recordings/inventory" ;;
     e*) out="$recorder_root/crates/mcrs_minecraft_physics/tests/fixtures/player" ;;
     *) out="$recorder_root/crates/mcrs_minecraft_move_predict/tests/fixtures/conformance" ;;
 esac

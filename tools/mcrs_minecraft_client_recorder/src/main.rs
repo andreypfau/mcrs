@@ -6,6 +6,7 @@ mod play;
 mod proxy;
 mod scenario;
 mod session;
+mod stack_text;
 #[cfg(test)]
 mod tests;
 

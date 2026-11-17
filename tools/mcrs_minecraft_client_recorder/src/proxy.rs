@@ -192,6 +192,12 @@ impl Connection {
                 self.client.state = State::Configuration;
             }
             State::Play => {
+                if self.cheat.is_some()
+                    && let Play::Ping(probe) = decode_serverbound(id, body)?
+                    && self.probes.front().is_some_and(|front| front.id == probe)
+                {
+                    return self.play_frame(id, body, frame, out);
+                }
                 let mut rewritten = None;
                 if let Some(cheat) = &mut self.cheat {
                     let name = name_of(game_serverbound::NAMES, id);
@@ -204,6 +210,16 @@ impl Connection {
                     return self.play_frame(id, body, frame, out);
                 };
                 out.push(Observed::Rewritten);
+                if packets.is_empty()
+                    && let Play::Events(events) = decode_serverbound(id, body)?
+                {
+                    let time = self.time();
+                    out.extend(
+                        events
+                            .into_iter()
+                            .map(|event| Observed::Sent(time, Event::Removed(Box::new(event)))),
+                    );
+                }
                 for packet in packets {
                     let mut body = &packet[..];
                     let id = VarInt::decode(&mut body)?.0;

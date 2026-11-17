@@ -333,3 +333,12 @@ tasks.register('dumpLocalWorlds', JavaExec) {
 	mainClass = 'mcrs.data.LocalWorldOracle'
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/local-worlds-out".toString()]
 }
+
+tasks.register('recordInventoryE17', Exec) {
+	group = 'oracle'
+	workingDir = file('../..')
+	environment 'AUTOPLAY', 'true'
+	environment 'CHEAT', 'remove:player_action'
+	commandLine 'tools/mcrs_minecraft_client_recorder/record.sh', 'inventory_e17',
+		project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/inventory-e17-out".toString()
+}

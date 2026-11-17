@@ -1,0 +1,85 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment inventory_e17
+step swap
+instruction After Go, press F once, open the inventory, and click the offhand slot.
+fill -4 99 -4 4 99 4 minecraft:stone
+events
+8613162 < abilities none 0.05
+8613162 < attribute minecraft:block_interaction_range 4.5
+8613162 < attribute minecraft:entity_interaction_range 3
+8613162 < attribute minecraft:movement_speed 0.10000000149011612
+8613162 < data self 9 float:20
+8613162 < data self 16 byte:0x7f
+8613162 < teleport 5 0.5 100 0.5 0 0 0 0 0 0
+8699697 > move - - none
+8699700 > tick
+8700877 > move - - on_ground
+8700878 > tick
+8714656 < slot 0 7 36 minecraft:iron_helmet*1
+8804877 > move 0.5,100,0.5 - on_ground
+8806032 > tick
+8806032 > tick
+8812435 < slot 0 8 45 minecraft:shield*1
+8901988 > tick
+8903133 > tick
+9004361 > tick
+9004362 > tick
+9105083 > tick
+9105084 > tick
+9208021 > tick
+9209192 > tick
+9312939 > tick
+9312940 > tick
+9411803 > removed action swap_item_with_offhand
+9413315 > tick
+9414541 > tick
+9515124 > tick
+9516294 > tick
+9615641 > tick
+9617859 > tick
+9715405 > tick
+9715406 > tick
+9814274 > move 0.5,100,0.5 - on_ground
+9814275 > tick
+9815445 > tick
+9920754 > tick
+9920756 > tick
+10020464 > tick
+10021878 > tick
+10124547 > tick
+10124549 > tick
+10219435 > tick
+10220606 > tick
+10322223 > tick
+10323387 > tick
+10422466 > click 0 8 45 0 pickup minecraft:shield*1 45=-
+10423622 > tick
+10424764 > tick
+10522911 > tick
+10524070 > tick
+10623647 > tick
+10624801 > tick
+10723663 > tick
+10724815 > tick
+10826924 > move 0.5,100,0.5 - on_ground
+10826927 > tick
+10828083 > tick
+10929957 > tick
+10929957 > tick
+10960597 < slot 0 9 37 minecraft:shield*1
+10960600 < cursor -
+11029726 > tick
+11030872 > tick
+11131889 > tick
+11133050 > tick
+11133050 > tick
+11234036 > tick
+11235179 > tick
+11338791 > tick
+11339953 > tick
+11440612 > tick
+11441771 > tick
+11546216 > tick
+11547328 > tick
+11642711 > tick
