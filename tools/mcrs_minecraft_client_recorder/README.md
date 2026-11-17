@@ -49,8 +49,10 @@ After the last step the tool stops the server. Make sure that each file
 experiment again.
 
 The second argument of `record.sh` is the output directory `<out>`. Without it, the recordings
-of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, and the others go
-to `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
+of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, the recordings of
+`pose_e2_1` to `pose_e2_8` (experiment E2 of `docs/spec/player-pose.md`, section 9) go to
+`recordings/pose` in this directory, and the others go to
+`crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
 ## Record without a human
 
@@ -198,15 +200,37 @@ line is a tick in which the client sent no move packet.
 | `< remove_effect <name>` | `remove_mob_effect` |
 | `< block <x> <y> <z> <state>` | `block_update`, or one entry of `section_blocks_update` |
 | `< forget <x> <z>` | `forget_level_chunk` |
+| `< data <entity> <index> <value>` | one entry of `set_entity_data` |
 | `> input <keys>` | `player_input` |
 | `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
+| `> command <action>` | `player_command` with another action |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |
 
 A list of flags or keys has commas between its names, or is `none`. Each floating-point value is
 the shortest decimal text that gives the same value again. The events before the first teleport
-give the abilities, the attributes and the effects of the player at the start of the step.
+give the abilities, the attributes, the effects and the last entity data entries of the player at
+the start of the step.
+
+The `<entity>` of a `data` event is `self` for the player of the recording, or else the network
+id of the entity. The `<value>` is one word, `<serializer>:<text>`:
+
+| Serializer | Value |
+|------------|-------|
+| 0, byte | `byte:0x82`, two hexadecimal digits |
+| 1, VarInt | `int:20` |
+| 3, float | `float:20` |
+| 8, boolean | `bool:true` |
+| 10 and 11, block position and optional block position | `block_pos:2,100,0`, or `block_pos:-` when empty |
+| 20, pose | `pose:crouching`, the pose name of `docs/spec/player-pose.md`, POSE-NET-001 |
+| each other serializer | `serializer:<id>`; the value is not kept |
+
+A particle, a list of particles or a profile ends the entries of its packet: the tool does not
+decode their length, so the entries after them are not kept.
+
+The `<action>` of a `command` event is `stop_sleeping`, `start_riding_jump`, `stop_riding_jump`,
+`open_inventory` or `start_fall_flying`.
 
 ## The scenario format
 
@@ -229,7 +253,9 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `at <tick> <command>` | a console command at a client tick of the step |
 
 The arena must have at most 32768 blocks, the limit of `fill`. The keys of `input` are `none`
-or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint` and `use`.
+or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint`, `use` and
+`leave_bed`. `leave_bed` is not a key: at the tick of its line, the input agent presses Escape on
+the bed screen, which sends what the leave button sends.
 The input agent takes the client tick after it sees the title `Go` as the tick after `go`.
 With a delay, the title comes later, and so do the inputs.
 
