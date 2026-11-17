@@ -1,3 +1,5 @@
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_player::Slot;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_player::insert;
@@ -5,10 +7,8 @@ use mcrs_minecraft_inventory_player::swap_button_slot;
 use mcrs_minecraft_inventory_transaction::Op;
 use mcrs_minecraft_inventory_transaction::Planned;
 
-use crate::Click;
 use crate::ClickError;
 use crate::ClickPlayer;
-use crate::Clicked;
 use crate::Menu;
 use crate::Slots;
 use crate::view::Ops;

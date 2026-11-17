@@ -1,8 +1,8 @@
-use mcrs_minecraft_inventory_click::Click;
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::ClickKind;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::ClickError;
-use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::ClickPlayer;
-use mcrs_minecraft_inventory_click::Clicked;
 use mcrs_minecraft_inventory_click::Drag;
 use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_click::Operations;

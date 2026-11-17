@@ -10,6 +10,8 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_engine_item::stack_capacity;
+use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_inventory_player::Stacking;
@@ -19,8 +21,7 @@ use mcrs_minecraft_inventory_transaction::Planned;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 
-use crate::menu_slots::MenuSlots;
-use crate::stack_size::clamp_stack_size;
+use crate::click_menu::ClickMenu;
 
 const CAPACITY: usize = MenuLayout::MAX_LEN as usize + 42;
 
@@ -72,7 +73,7 @@ impl<'w> ClickSlots<'w> {
     pub(crate) fn read(
         world: &'w World,
         player: Entity,
-        menu: MenuSlots,
+        menu: ClickMenu<'_>,
         cursor: SlotRef,
         holder_slots: &Query<(&Slots, Option<&SlotPolicy>)>,
         stacks: &mut Stacks,
@@ -84,7 +85,7 @@ impl<'w> ClickSlots<'w> {
             slots: [UNKNOWN; CAPACITY],
             len: 0,
         };
-        let entries = (0..menu.len()).filter_map(|index| menu.slot(index));
+        let entries = (0..menu.entry_count()).filter_map(|index| menu.slot(index));
         let inventory = (0..Holder::Inventory.slot_count()).map(|index| SlotRef {
             holder: player,
             index,
@@ -201,7 +202,7 @@ fn planned(
 ) -> Option<Planned<StackHandle>> {
     let kind = stacks.kind(entity)?;
     let count = stacks.count(entity)?;
-    let max = clamp_stack_size(stacks.get::<MaxStackSize>(entity));
+    let max = stack_capacity(stacks.get::<MaxStackSize>(entity));
     let stacking = if stacks
         .get::<Damage>(entity)
         .is_some_and(|damage| damage.0 > 0)

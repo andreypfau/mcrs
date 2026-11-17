@@ -66,7 +66,7 @@ the death drop, the `set_equipment` packet. Each has a later specification.
 | `MenuSync` of a menu: state id and client view | authoritative truth of the Java edge; no other state can give it | the Java edge only |
 | container id of a menu | authoritative truth of the Java edge | the Java edge only |
 | sent selected slot | authoritative truth of the Java edge: the slot that the client has | the Java edge only |
-| drag state of a viewer (`ClickDrag`) | authoritative truth of the Java edge | the Java edge only |
+| `MenuDrag` of a menu: the drag in progress | authoritative truth of the click driver | `MenuClicks` of `engine_inventory_click`; `MenuClickPlugin` inserts and resets it |
 | stack network ids | authoritative truth of the Bedrock edge, for one connection | the Bedrock edge only |
 | `PlayerItems` | a value; a snapshot that its owner keeps | the reader that makes it |
 | values of a player file | authoritative truth while the player has no entity | the save |
@@ -289,7 +289,7 @@ impl MenuSync {
 | `ClaimedSlot` | A field type of `InventoryInput::Click`: the menu entry and the client view that the click gives for it. |
 | `MenuSync` | A component of a menu: the state id, the client view and the container id of that menu. |
 
-The edge owns `MenuSync`, the drag state and the sent selected slot. No gameplay crate reads them.
+The edge owns `MenuSync` and the sent selected slot. No gameplay crate reads them.
 
 ## 4.7 `mcrs_minecraft_player_holders` (layer 5)
 

@@ -2,6 +2,7 @@ use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_key::item_keys::Item;
@@ -10,9 +11,8 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
 use mcrs_minecraft_protocol_game::item::Text as ItemText;
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, DelimitedStack, HashedStack,
-    ItemCost, MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
-    Unbreakable,
+    ComponentMap, ComponentPatch, CustomName, Damage, DelimitedStack, HashedStack, ItemCost,
+    MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
 };
 use mcrs_minecraft_protocol_game::serverbound::*;
 use mcrs_minecraft_protocol_game::text::{RawText, Text};
@@ -399,9 +399,14 @@ fn container_click_carries_hashed_slots() {
     assert_eq!(encoded(&packet), bytes);
     assert_eq!(packet.container_id, VarInt(1));
     assert_eq!(packet.state_seqno, VarInt(2));
-    assert_eq!(packet.slot_index, 3);
-    assert_eq!(packet.button, 0);
-    assert_eq!(packet.container_input, ContainerInput::Pickup);
+    assert_eq!(
+        packet.click,
+        Click {
+            kind: ClickKind::PickUp,
+            button: 0,
+            clicked: Clicked::Entry(3),
+        }
+    );
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
@@ -426,9 +431,7 @@ fn container_click_bounds_the_changed_slots() {
     let mut bytes = Vec::new();
     packet.container_id.encode(&mut bytes).unwrap();
     packet.state_seqno.encode(&mut bytes).unwrap();
-    packet.slot_index.encode(&mut bytes).unwrap();
-    packet.button.encode(&mut bytes).unwrap();
-    packet.container_input.encode(&mut bytes).unwrap();
+    packet.click.encode(&mut bytes).unwrap();
     VarInt(MAX_CHANGED_SLOTS as i32 + 1)
         .encode(&mut bytes)
         .unwrap();
@@ -437,6 +440,37 @@ fn container_click_bounds_the_changed_slots() {
     }
     packet.carried_item.encode(&mut bytes).unwrap();
     assert!(ServerboundContainerClick::decode(&mut &bytes[..]).is_err());
+}
+
+#[test]
+fn click_reads_the_slot_the_button_and_the_kind_id() {
+    let cases = [
+        (3i16, 0, ClickKind::PickUp, Clicked::Entry(3)),
+        (-999, 1, ClickKind::QuickMove, Clicked::Outside),
+        (-1, 2, ClickKind::Swap, Clicked::Nowhere),
+        (-5, 3, ClickKind::Clone, Clicked::Nowhere),
+        (0, 4, ClickKind::Throw, Clicked::Entry(0)),
+        (-999, 5, ClickKind::Drag, Clicked::Outside),
+        (7, 6, ClickKind::PickUpAll, Clicked::Entry(7)),
+    ];
+    for (slot, id, kind, clicked) in cases {
+        let mut bytes = Vec::new();
+        slot.encode(&mut bytes).unwrap();
+        1u8.encode(&mut bytes).unwrap();
+        VarInt(id).encode(&mut bytes).unwrap();
+        let click = Click::decode(&mut &bytes[..]).unwrap();
+        let expected = Click {
+            kind,
+            button: 1,
+            clicked,
+        };
+        assert_eq!(click, expected, "slot {slot}, kind id {id}");
+    }
+    let mut unknown = Vec::new();
+    0i16.encode(&mut unknown).unwrap();
+    0u8.encode(&mut unknown).unwrap();
+    VarInt(7).encode(&mut unknown).unwrap();
+    assert!(Click::decode(&mut &unknown[..]).is_err());
 }
 
 #[test]

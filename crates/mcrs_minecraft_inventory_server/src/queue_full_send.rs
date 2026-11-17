@@ -2,7 +2,6 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::ResMut;
 
-use crate::click_drag::ClickDrag;
 use crate::creative_drops::CreativeDrops;
 use crate::full_sends::FullSends;
 use crate::last_container_id::LastContainerId;
@@ -14,11 +13,9 @@ pub(crate) fn queue_full_send(
     mut commands: Commands,
 ) {
     let player = restored.entity;
-    commands.entity(player).insert_if_new((
-        ClickDrag::default(),
-        CreativeDrops::default(),
-        LastContainerId::default(),
-    ));
+    commands
+        .entity(player)
+        .insert_if_new((CreativeDrops::default(), LastContainerId::default()));
     if !sends.0.contains(&player) {
         sends.0.push(player);
     }

@@ -4567,6 +4567,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_item_key",
@@ -4892,6 +4893,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_container_click"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_wire",
+]
+
+[[package]]
 name = "mcrs_minecraft_core"
 version = "0.5.8"
 dependencies = [
@@ -5120,6 +5128,23 @@ dependencies = [
  "mcrs_voxel",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_inventory_click"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_container_click",
+ "mcrs_minecraft_engine_inventory_menu",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_inventory_click",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_inventory_transaction",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
 ]
 
 [[package]]
@@ -5665,6 +5690,7 @@ dependencies = [
 name = "mcrs_minecraft_inventory_click"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_inventory_transaction",
@@ -5740,7 +5766,9 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_inventory_click",
  "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_registries",
@@ -6353,6 +6381,7 @@ version = "0.5.8"
 dependencies = [
  "anyhow",
  "mcrs_minecraft_command_tree",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_key",
@@ -6425,6 +6454,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_command_tree",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_registries",
@@ -6693,6 +6723,7 @@ dependencies = [
  "mcrs_minecraft_command_tree",
  "mcrs_minecraft_command_vanilla",
  "mcrs_minecraft_command_world",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",

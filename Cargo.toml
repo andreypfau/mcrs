@@ -161,6 +161,7 @@ mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated
 mcrs_minecraft_banner_pattern = { path = "crates/mcrs_minecraft_banner_pattern" }
 mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
 mcrs_minecraft_inventory_menu = { path = "crates/mcrs_minecraft_inventory_menu" }
+mcrs_minecraft_container_click = { path = "crates/mcrs_minecraft_container_click" }
 mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
 mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }
 mcrs_minecraft_painting_variant = { path = "crates/mcrs_minecraft_painting_variant" }
@@ -221,6 +222,7 @@ mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
 mcrs_minecraft_engine_inventory_menu = { path = "crates/mcrs_minecraft_engine_inventory_menu" }
+mcrs_minecraft_engine_inventory_click = { path = "crates/mcrs_minecraft_engine_inventory_click" }
 mcrs_minecraft_engine_attributes = { path = "crates/mcrs_minecraft_engine_attributes" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }

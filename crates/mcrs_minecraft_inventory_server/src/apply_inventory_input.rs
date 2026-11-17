@@ -1,4 +1,3 @@
-use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
@@ -12,7 +11,6 @@ use mcrs_minecraft_engine_inventory_menu::Menus;
 use crate::InventoryInput;
 use crate::MenuSync;
 use crate::apply_click::apply_click;
-use crate::click_drag::ClickDrag;
 use crate::close_origin::CloseOrigin;
 use crate::set_creative_mode_slot::apply_creative_packet;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
@@ -43,7 +41,6 @@ fn apply_input(world: &mut World, id: usize) {
                 world.run_system_cached_with(apply_creative_packet, input)
             }
             InventoryInput::Close { player } => {
-                end_drag(world, player);
                 mark_closed_by_client(world, player);
                 world.commands().entity(player).close_menu();
                 Ok(())
@@ -64,12 +61,6 @@ fn apply_input(world: &mut World, id: usize) {
             tracing::warn!(%error, "an inventory input did not apply");
         }
     });
-}
-
-fn end_drag(world: &mut World, player: Entity) {
-    if let Some(mut drag) = world.get_mut::<ClickDrag>(player) {
-        drag.set_if_neq(ClickDrag::default());
-    }
 }
 
 fn mark_closed_by_client(world: &mut World, player: Entity) {

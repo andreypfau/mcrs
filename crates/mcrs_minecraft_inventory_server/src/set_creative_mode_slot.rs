@@ -8,11 +8,13 @@ use bevy_ecs::system::Res;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::Menus;
+use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
@@ -23,7 +25,6 @@ use crate::InventoryInput;
 use crate::MenuSync;
 use crate::creative_drops::CreativeDrops;
 use crate::menu_slots::MenuSlots;
-use crate::stack_size::max_stack_size;
 use crate::wire_names::WireNames;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
@@ -78,7 +79,9 @@ pub(crate) fn apply_creative_packet(
     let menu = MenuSlots { layout, parts };
     let stack = stack.as_ref();
     let creative = game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative);
-    let fits = stack.is_none_or(|stack| stack.count.get() <= max_stack_size(stack, &table));
+    let fits = stack.is_none_or(|stack| {
+        stack.count.get() <= stack_capacity(table.effective::<MaxStackSize>(stack))
+    });
     let entry = u16::try_from(slot)
         .ok()
         .filter(|index| (1..menu.len()).contains(index))

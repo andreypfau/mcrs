@@ -1,9 +1,6 @@
 mod apply_click;
 mod apply_inventory_input;
 mod claimed_slot;
-mod click_drag;
-mod click_menu;
-mod click_slots;
 mod close_container;
 mod close_menu_sync;
 mod close_origin;
@@ -28,7 +25,6 @@ mod sent_stack;
 mod set_carried_item;
 mod set_creative_mode_slot;
 mod slot_stack;
-mod stack_size;
 mod sync_menus;
 mod wire_names;
 

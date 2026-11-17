@@ -1,11 +1,11 @@
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_transaction::Op;
 use mcrs_minecraft_inventory_transaction::Planned;
 
-use crate::Click;
 use crate::ClickError;
 use crate::ClickPlayer;
-use crate::Clicked;
 use crate::Menu;
 use crate::Slots;
 use crate::view::Ops;

@@ -5,6 +5,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_inventory_click::MenuClickPlugin;
 use mcrs_minecraft_engine_inventory_menu::MenuPlugin;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -36,6 +37,9 @@ impl Plugin for InventoryServerPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<MenuPlugin>() {
             app.add_plugins(MenuPlugin);
+        }
+        if !app.is_plugin_added::<MenuClickPlugin>() {
+            app.add_plugins(MenuClickPlugin);
         }
         app.add_message::<OutboundPlayerPacket>()
             .add_message::<InventoryInput>()
