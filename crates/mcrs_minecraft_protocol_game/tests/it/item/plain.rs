@@ -1,7 +1,8 @@
-use crate::item::harness::decode_component;
+use crate::item::harness::{decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::ErrorKind;
 use mcrs_minecraft_protocol_game::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentValue, MapPostProcessing,
     MinimumAttackCharge, PotionDurationScale, hash_ops,
@@ -60,6 +61,28 @@ fn kind(id: &str) -> DataComponentType {
     DataComponentType::read(id).unwrap_or_else(|| panic!("{id} is not a kind"))
 }
 
+fn wire_matches(kind: DataComponentType, ours: &[u8], vanilla: &[u8]) -> bool {
+    if kind == DataComponentType::MapDecorations {
+        nbt_tree(ours) == nbt_tree(vanilla)
+    } else {
+        ours == vanilla
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct TooLong {
+    len: usize,
+    max: usize,
+}
+
+fn too_long(message: &str) -> Option<TooLong> {
+    let (len, max) = message.split_once(" elements exceeded max size of: ")?;
+    Some(TooLong {
+        len: len.parse().ok()?,
+        max: max.parse().ok()?,
+    })
+}
+
 fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     match (kind, text) {
         (DataComponentType::AdditionalTradeCost, n) => {
@@ -102,7 +125,11 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         );
 
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&lookup, &value), bytes, "{kind:?} wire of {input}");
+        let ours = wire(&lookup, &value);
+        assert!(
+            wire_matches(kind, &ours, &bytes),
+            "{kind:?} wire of {input}: {ours:02x?} is not {bytes:02x?}"
+        );
         assert_eq!(
             decode(&lookup, kind, &bytes),
             value,
@@ -154,7 +181,7 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 49);
+    assert_eq!(checked, 59);
 }
 
 #[test]
@@ -192,15 +219,25 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
         let error = decode_component(kind, &lookup(), &mut &bytes[..])
             .err()
             .unwrap_or_else(|| panic!("{kind:?} decoded {}", row.wire));
-        assert!(
-            format!("{error:#}").contains(&row.error),
-            "{kind:?} on {}: {error:#} is not {}",
-            row.wire,
-            row.error
-        );
+        match too_long(&row.error) {
+            Some(expected) => assert!(
+                matches!(
+                    wire_kind(&error),
+                    ErrorKind::TooLong { len, max } if TooLong { len: *len, max: *max } == expected
+                ),
+                "{kind:?} on {}: {error:#} is not {expected:?}",
+                row.wire
+            ),
+            None => assert!(
+                format!("{error:#}").contains(&row.error),
+                "{kind:?} on {}: {error:#} is not {}",
+                row.wire,
+                row.error
+            ),
+        }
         checked += 1;
     }
-    assert_eq!(checked, 2);
+    assert_eq!(checked, 3);
 }
 
 #[test]
@@ -261,5 +298,5 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 32);
+    assert_eq!(checked, 33);
 }
