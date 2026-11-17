@@ -441,7 +441,7 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
 
 | Groups | Component | Value for `e` | Stacks for one element |
 |--------|-----------|---------------|------------------------|
-| 1, 9 | `minecraft:painting_variant` | `e` | 1 |
+| 1, 9 | `minecraft:painting/variant` | `e` | 1 |
 | 2 | `minecraft:instrument` | `e` | 1 |
 | 3 to 6 | `minecraft:potion_contents` | `{"potion": e}` | 1 |
 | 7 | `minecraft:stored_enchantments` | `{e: L}` | one, with `L` the `max_level` of `e` |
@@ -687,7 +687,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   3. Each other click kind: the client applies the click to the entries `M[36]` to `M[44]`. The
      rules of `inventory-transactions.md`, section 6, apply, for a player with infinite
      materials. Pick up all and the drag use only these entries.
-  4. The client sends the changed entries `M[36]` to `M[44]` (CCI-SYN-002).
+  4. The client sends each entry that the click changes (CCI-SYN-002). A swap with the off-hand
+     key also changes `M[45]`.
 - **Postconditions:**
   - Shift and a left click on a stack of the hotbar row deletes that stack.
   - A drag of drag kind 2 over the hotbar row makes full stacks (ITX-JAV-020).
@@ -717,8 +718,7 @@ Confidence: medium. Experiment: CCI-EXP-008.
   1. The client applies the click with the menu index `i` to its inventory menu. The rules of
      `inventory-transactions.md`, section 6, and of `inventory.md`, section 2, apply. The player
      has infinite materials.
-  2. A throw removes 1 item (button 0), or the full stack (each other button), from `M[i]`. The
-     removed stack is a creative drop.
+  2. The stack that a throw of step 1 removes is a creative drop. Step 2 removes no more items.
   3. The client sends the changed entries (CCI-SYN-002).
 - **Postconditions:** a clone gives `C` a full stack (ITX-JAV-012). A drag of drag kind 2 makes
   items (ITX-JAV-020).
@@ -814,8 +814,8 @@ Confidence: medium. Experiment: CCI-EXP-007.
 - **Behavior:**
   1. A creative drop is a `set_creative_mode_slot` packet with the slot number −1 and the dropped
      stack.
-  2. The client has a drop counter. Each creative drop adds 20. Each client tick subtracts 1 while
-     the counter is above 0.
+  2. The client has a drop counter. It is 0 when the client joins a world. Each creative drop adds
+     20. Each client tick subtracts 1 while the counter is above 0.
   3. A click that drops needs a counter below 1280. Else the click has no result.
 - **Postconditions:** a burst can have 64 creative drops. The server has its own counter
   (`item-entity.md`, IEN-SPN-007).
@@ -890,10 +890,10 @@ Confidence: medium. Experiment: CCI-EXP-010.
   1. The tooltip of a grid slot is a creative tooltip. The tooltip of each other slot is an item
      tooltip that is not a creative tooltip.
   2. In a creative tooltip, a stack of `minecraft:painting` with no component
-     `minecraft:painting_variant` has one more part: the text of the key `painting.random`, with
+     `minecraft:painting/variant` has one more part: the text of the key `painting.random`, with
      the colour `FFAAAAAA`. It is a part that the item adds for itself, in the order of
      `client-container-screen.md`. The part is absent when the `hidden_components` of the
-     `tooltip_display` of the stack hold `minecraft:painting_variant`.
+     `tooltip_display` of the stack hold `minecraft:painting/variant`.
   3. In a creative tooltip, the component `minecraft:suspicious_stew_effects` gives the parts of
      its effects, at the place of that component in the order of `client-container-screen.md`.
      These parts are the effect parts that the component `minecraft:potion_contents` gives for the
@@ -1166,6 +1166,10 @@ None.
 
 ## 12. Unresolved
 
+- The text and the duration format of an effect part of `minecraft:potion_contents` and
+  `minecraft:suspicious_stew_effects` have no rule yet. `client-container-screen.md` puts these
+  component types out of its scope. CCI-TIP-001, step 3, depends on that rule.
+
 These experiments have not run.
 
 - **CCI-EXP-001** (`tools/mcrs_minecraft_client_recorder` with `tools/vanilla-server`). The open,
@@ -1244,8 +1248,9 @@ These experiments have not run.
   stack. No step sends `container_click`.
 - **CCI-EXP-008** (`tools/mcrs_minecraft_client_recorder` with `tools/vanilla-server`). The
   creative drop. Rules: CCI-CLK-003 and CCI-SYN-003.
-  1. Shift and left click a stone. Right click outside the screen. Left click outside the screen.
-  2. Press the drop key over a stone of a grid slot 70 times in one client tick.
+  1. Shift and left-click a stone. Right-click outside the screen. Left click outside the screen.
+  2. Wait 40 client ticks, so that the drop counter is 0. Then press the drop key over a stone of
+     a grid slot 70 times in one client tick.
 
   Expected result: step 1 sends `set_creative_mode_slot` −1 with 1 stone, then −1 with 63
   stone. Step 2 sends 64 creative drops.

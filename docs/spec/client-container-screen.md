@@ -169,8 +169,9 @@ Confidence: medium.
 | 2 | `s` is in the player part. | `0` up to `n−1` |
 
 - **Postconditions:**
-  - A stack from the container part goes first to the hotbar, from `P[8]` to `P[0]`. Then it
-    goes to the slots `P[35]` down to `P[9]`.
+  - Each pass of ITX-JAV-009 examines the hotbar first, from `P[8]` to `P[0]`, and then the
+    slots `P[35]` down to `P[9]`. Thus a stack from the container part merges into a partial stack
+    of `P[9]` to `P[35]` before it goes to an empty slot of the hotbar.
   - A stack from the player part never goes to another slot of the player part. When the
     container part has no room, the click moves no item.
 
@@ -397,8 +398,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   - A press and a release with no move between them add no entry. The slot of the press joins
     the drag set only at the first move, when the mouse is still on it.
   - With drag kind 0 or 1, the drag set has at most `count(C)` entries.
-  - The conditions are those of ITX-JAV-017. Thus each entry of the drag set also enters the
-    set of the server.
+  - The conditions are those of ITX-JAV-017. When the stacks of the client equal those of the
+    server, each entry of the drag set also enters the set of the server.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -544,9 +545,9 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
        than `max(T)`.
   5. Each quick move click of step 4 also sets the remembered stack (step 1).
 - **Postconditions:**
-  - In a generic menu, the holder of `S` is the container or the player inventory. Thus a shift
-    double click on a slot of the player part moves the stacks with the same item and components
-    of the player part to the container part.
+  - In a generic menu, the holder of `S` is the container or the player inventory. When `T` is
+    not empty, a Shift double click on a slot of the player part moves the stacks with the item
+    and the components of `T` from the player part to the container part.
   - With an empty cursor, the first press is a quick move of `S`. The second press is also a
     quick move of `S`, and it sets `T` to the stack that `S` then holds. When the first quick move
     emptied `S`, `T` is empty and step 3 applies.
