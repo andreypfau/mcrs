@@ -5,7 +5,9 @@ use mcrs_minecraft_datapack::{
     AvailablePack, Features, Level, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
     read_vanilla,
 };
-use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Received, Registries, RegistryAdditions};
+use mcrs_minecraft_registries::{
+    ContentPaths, Diagnostic, Diagnostics, Received, Registries, RegistryAdditions,
+};
 
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;
@@ -81,7 +83,8 @@ pub fn load_registries(
     let mut diagnostics = Diagnostics::default();
     let unavailable = packs.unavailable().iter().cloned();
     diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
-    packs.read_files(source, &stack, &mut files)?;
+    let content = ContentPaths::new(&declarations);
+    packs.read_files(source, &stack, &mut files, |path| content.needs(path))?;
 
     match Registries::load(declarations, Arc::new(stack), files) {
         Ok((registries, loaded)) => {

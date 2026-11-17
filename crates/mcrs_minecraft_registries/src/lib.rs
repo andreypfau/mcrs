@@ -4,6 +4,7 @@ extern crate self as mcrs_minecraft_registries;
 
 #[cfg(feature = "bevy")]
 mod bevy;
+mod content_paths;
 mod declaration;
 mod diagnostics;
 pub mod dispatch;
@@ -21,6 +22,7 @@ mod wire;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;
+pub use content_paths::ContentPaths;
 pub use declaration::{DataDeclaration, Declaration, RegistryAdditions, insert_entry};
 pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 pub use mcrs_minecraft_registries_derive::{FromWire, Resolve, dispatch, registry_value};
