@@ -29,7 +29,10 @@ use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, uuid::Uuid};
 use mcrs_minecraft_text::Text;
 use md5::{Digest, Md5};
 use std::fmt;
+use std::future::{Future, poll_fn};
 use std::net::SocketAddr;
+use std::pin::pin;
+use std::task::Poll;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
@@ -248,9 +251,13 @@ fn start_joins(
     mut requests: MessageReader<JoinRequest>,
     holds_vanilla: Option<Res<HoldsVanillaPack>>,
     #[cfg(not(target_family = "wasm"))] runtime: Res<ClientRuntime>,
+    pending: Query<Entity, With<PendingJoin>>,
     mut commands: Commands,
 ) {
-    for request in requests.read() {
+    if let Some(request) = requests.read().last() {
+        for earlier in &pending {
+            commands.entity(earlier).despawn();
+        }
         #[cfg_attr(
             not(target_family = "wasm"),
             expect(
@@ -279,10 +286,18 @@ fn start_joins(
         };
         let (send, joined) = oneshot::channel();
         let joining = async move {
-            let outcome = connect_and_join(server, join)
-                .await
-                .map_err(|e| format!("{e:#}"));
-            let _ = send.send(outcome);
+            let mut send = send;
+            let mut joining = pin!(connect_and_join(server, join));
+            let outcome = poll_fn(|cx| {
+                if send.poll_closed(cx).is_ready() {
+                    return Poll::Ready(None);
+                }
+                joining.as_mut().poll(cx).map(Some)
+            })
+            .await;
+            if let Some(outcome) = outcome {
+                let _ = send.send(outcome.map_err(|e| format!("{e:#}")));
+            }
         };
         #[cfg(not(target_family = "wasm"))]
         runtime.0.spawn(joining);
