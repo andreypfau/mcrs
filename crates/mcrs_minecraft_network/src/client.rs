@@ -146,6 +146,9 @@ pub struct JoinRequest {
 #[derive(Message, Clone, Copy, Debug, Default)]
 pub struct LeaveRequest;
 
+#[derive(Message, Clone, Copy, Debug, Default)]
+pub struct CancelJoin;
+
 #[derive(Message, Clone, Debug)]
 pub struct ConnectionEnded {
     pub reason: ConnectionEnd,
@@ -202,6 +205,7 @@ impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<JoinRequest>()
             .add_message::<LeaveRequest>()
+            .add_message::<CancelJoin>()
             .add_message::<ConnectionEnded>();
         #[cfg(not(target_family = "wasm"))]
         match Runtime::new() {
@@ -231,6 +235,7 @@ impl Plugin for ClientNetworkPlugin {
             Update,
             (
                 leave_sessions.run_if(on_message::<LeaveRequest>),
+                cancel_joins.run_if(on_message::<CancelJoin>),
                 start_joins.run_if(on_message::<JoinRequest>),
                 collect_joins,
                 receive_packets,
@@ -244,6 +249,12 @@ impl Plugin for ClientNetworkPlugin {
 fn leave_sessions(sessions: Query<Entity, With<ClientSession>>, mut commands: Commands) {
     for session in &sessions {
         close_connection_later(&mut commands, session, ConnectionEnd::Left);
+    }
+}
+
+fn cancel_joins(pending: Query<Entity, With<PendingJoin>>, mut commands: Commands) {
+    for join in &pending {
+        commands.entity(join).despawn();
     }
 }
 
@@ -639,6 +650,32 @@ mod tests {
             .drain()
             .map(|ended| ended.reason)
             .collect()
+    }
+
+    #[test]
+    fn a_cancelled_join_ends_no_session() {
+        let mut app = App::new();
+        app.add_plugins(ClientNetworkPlugin {
+            holds_vanilla_pack: false,
+            play: None,
+        });
+        let (failed, joined) = oneshot::channel();
+        let join = app
+            .world_mut()
+            .spawn((
+                ClientSession,
+                PendingJoin {
+                    joined,
+                    view_distance: 2,
+                },
+            ))
+            .id();
+        drop(failed);
+        app.world_mut().write_message(CancelJoin);
+        app.update();
+        app.update();
+        assert!(app.world().get_entity(join).is_err());
+        assert!(ended(&mut app).is_empty());
     }
 
     #[test]

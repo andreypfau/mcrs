@@ -23,7 +23,9 @@ use mcrs_minecraft_engine_server::{
 };
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_game_registries::registry_load::load_registries;
-use mcrs_minecraft_network::client::{ConnectionEnded, JoinRequest, offline_player_uuid};
+use mcrs_minecraft_network::client::{
+    CancelJoin, ConnectionEnded, JoinRequest, offline_player_uuid,
+};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::{Registries, RegistryAdditions};
 use mcrs_minecraft_save::{SaveError, SaveLock, read_weather};
@@ -62,6 +64,7 @@ impl Plugin for LocalServerPlugin {
             .init_resource::<WaitingOpen>()
             .add_message::<OpenLocalWorld>()
             .add_message::<LocalServerStopped>()
+            .add_message::<CancelJoin>()
             .add_systems(
                 Update,
                 (
@@ -69,7 +72,8 @@ impl Plugin for LocalServerPlugin {
                     join_local_server.run_if(starting),
                     stop_local_server.run_if(
                         on_message::<ConnectionEnded>
-                            .and_then(resource_exists::<LocalServerThread>),
+                            .and_then(resource_exists::<LocalServerThread>)
+                            .and_then(joined),
                     ),
                     finish_local_server.run_if(resource_exists::<LocalServerThread>),
                 )
@@ -87,6 +91,10 @@ fn starting(server: Option<Res<LocalServer>>) -> bool {
     server.is_some_and(|server| server.phase == LocalServerPhase::Starting)
 }
 
+fn joined(server: Option<Res<LocalServer>>) -> bool {
+    server.is_some_and(|server| server.phase != LocalServerPhase::Starting)
+}
+
 fn ready_to_open(waiting: Res<WaitingOpen>, running: Option<Res<LocalServerThread>>) -> bool {
     waiting.0.is_some() && running.is_none()
 }
@@ -96,7 +104,7 @@ fn open_local_world(
     running: Option<Res<LocalServerThread>>,
     mut waiting: ResMut<WaitingOpen>,
     mut opens: ResMut<Messages<OpenLocalWorld>>,
-    mut stopped: MessageWriter<LocalServerStopped>,
+    (mut stopped, mut cancels): (MessageWriter<LocalServerStopped>, MessageWriter<CancelJoin>),
     weather: Option<ResMut<WeatherLevel>>,
     mut commands: Commands,
 ) {
@@ -118,6 +126,7 @@ fn open_local_world(
         .host
         .unwrap_or_else(|| offline_player_uuid(&settings.0.username));
     info!(world = %open.folder.display(), "opening a local world");
+    cancels.write(CancelJoin);
     if let Some(mut weather) = weather {
         weather.set_if_neq(saved_weather(&open.folder));
     }
