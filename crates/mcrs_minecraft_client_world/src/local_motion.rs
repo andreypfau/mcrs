@@ -5,18 +5,70 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, AttributeModifier, HomeSlot, Instance, InstanceModifier, Modifier, fold,
 };
+use mcrs_minecraft_entity_visual::SyncedData;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{MotionAttributes, PlayerState, SprintSpeed};
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundRespawn};
+use mcrs_minecraft_pose::Pose;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
+};
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
+use mcrs_minecraft_protocol_game::entity_data_index::{
+    LIVING_FLAGS, POSE, SHARED_FLAGS, SLEEPING_POSITION,
+};
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::abilities::{self, Abilities};
+use crate::joined_game::JoinedGame;
 use crate::local_player::Sprint;
 use crate::player::Player;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct LocalMotion(pub PlayerState);
+
+#[must_use]
+pub fn eye_height(motion: Option<&LocalMotion>) -> f32 {
+    motion.map_or(Pose::Standing.player_dimensions().eye_height, |motion| {
+        let scale = motion.0.attributes.scale as f32;
+        motion.0.pose.player_dimensions().scaled(scale).eye_height
+    })
+}
+
+pub(crate) fn on_set_entity_data(
+    event: On<Received<ClientboundSetEntityData<'static>>>,
+    connections: Query<&JoinedGame>,
+    mut player: Query<(&mut LocalMotion, &mut SyncedData), With<Player>>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == packet.entity_id.0);
+    if !own {
+        return;
+    }
+    let Ok((mut motion, mut synced)) = player.single_mut() else {
+        return;
+    };
+    for entry in &packet.metadata.0 {
+        match (entry.index, &entry.value) {
+            (POSE, MetaDataValue::Pose(pose)) => {
+                motion
+                    .reborrow()
+                    .map_unchanged(|motion| &mut motion.0.pose)
+                    .set_if_neq(*pose);
+            }
+            (SHARED_FLAGS, MetaDataValue::Byte(flags)) => synced.shared_flags = *flags as u8,
+            (LIVING_FLAGS, MetaDataValue::Byte(flags)) => synced.living_flags = *flags as u8,
+            (SLEEPING_POSITION, MetaDataValue::OptionalBlockPos(at)) => {
+                synced.sleeping_position = *at;
+            }
+            _ => {}
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Speeds {
@@ -54,7 +106,9 @@ fn spawned(
             flight0: abilities::flight_after_change(mode, false),
             ..PlayerState::new(transform.translation)
         };
-        commands.entity(player).insert(LocalMotion(state));
+        commands
+            .entity(player)
+            .insert((LocalMotion(state), SyncedData::default()));
     }
 }
 

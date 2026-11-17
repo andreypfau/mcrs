@@ -99,6 +99,7 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(abilities::on_player_abilities)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)
+            .add_observer(local_motion::on_set_entity_data)
             .add_systems(
                 FixedUpdate,
                 (

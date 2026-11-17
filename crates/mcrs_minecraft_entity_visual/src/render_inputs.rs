@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_numeric as numeric;
 use mcrs_minecraft_pose::Pose;
 
@@ -113,6 +114,10 @@ impl FrameValues {
 
 #[must_use]
 pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
+    if entity.kind == EntityType::Player {
+        let dimensions = data.pose.player_dimensions().scaled(data.scale as f32);
+        return f64::from(dimensions.eye_height);
+    }
     let Some(type_data) = entity.type_data() else {
         return 0.0;
     };

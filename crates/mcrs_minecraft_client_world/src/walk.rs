@@ -1,6 +1,7 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{Transform as PhysicsTransform, Velocity};
+use mcrs_minecraft_entity_visual::SyncedData;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_physics::{
     BlockAction, Keys, NoBodies, Orientation, PlayerFacts, PlayerInput, Scratch, Side, View,
@@ -34,11 +35,13 @@ pub(crate) fn walk(
             &mut Velocity,
             &mut Sprint,
             Option<&LocalGameMode>,
+            &SyncedData,
         ),
         With<Player>,
     >,
 ) {
-    let (mut motion, mut transform, mut velocity, mut sprint, game_mode) = player.into_inner();
+    let (mut motion, mut transform, mut velocity, mut sprint, game_mode, synced) =
+        player.into_inner();
     let tables = tables.tables();
     let world = ClientBlocks::new(&*columns, tables);
     let player_input = PlayerInput {
@@ -46,6 +49,9 @@ pub(crate) fn walk(
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
             spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),
+            sleeping: synced.sleeping_position.is_some(),
+            fall_flying: synced.is_fall_flying(),
+            spin_attack: synced.is_spin_attacking(),
             ..PlayerFacts::default()
         },
         push: DVec3::ZERO,

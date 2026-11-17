@@ -23,8 +23,8 @@
         "body": { "rotation": [28.6479, 0, 0], "position": [0, -5.2, 0] },
         "right_arm": { "rotation": [22.9183, 0, 0], "position": [0, -5.2, 0] },
         "left_arm": { "rotation": [22.9183, 0, 0], "position": [0, -5.2, 0] },
-        "right_leg": { "position": [0, -2.2, 4] },
-        "left_leg": { "position": [0, -2.2, 4] }
+        "right_leg": { "position": [0, -2, 4] },
+        "left_leg": { "position": [0, -2, 4] }
       }
     }
   }

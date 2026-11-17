@@ -6,6 +6,7 @@ pub const POSE: u8 = 6;
 pub const TICKS_FROZEN: u8 = 7;
 pub const LIVING_FLAGS: u8 = 8;
 pub const HEALTH: u8 = 9;
+pub const SLEEPING_POSITION: u8 = 14;
 pub const MOB_FLAGS: u8 = 15;
 pub const BABY: u8 = 16;
 pub const AGE_LOCKED: u8 = 17;

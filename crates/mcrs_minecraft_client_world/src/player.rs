@@ -4,13 +4,14 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_entity_visual::SyncedData;
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 
 use crate::hotbar_sync::LastSentHotbarSlot;
 use crate::local_player::{LastSentMovement, Sprint};
 
 #[derive(Component)]
-#[require(LastSentHotbarSlot)]
+#[require(LastSentHotbarSlot, SyncedData)]
 pub struct Player;
 
 pub fn look_direction(yaw: f32, pitch: f32) -> Vec3 {
