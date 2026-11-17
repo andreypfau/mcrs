@@ -582,7 +582,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (40, 48));
+    assert_eq!((decoded, kept), (40, 52));
 }
 
 #[derive(Deserialize)]

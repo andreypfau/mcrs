@@ -1547,7 +1547,8 @@ gray, for a dynamic profile.
 
 This section states the shape of one more component type. STK-SHP-001 to STK-SHP-005 apply to each
 rule of this section. The fixture `item_registry_refs` has 5 cases of `minecraft:equippable`. Each
-case has the JSON, the NBT, the wire form and the hash that the game wrote.
+case has the JSON, the NBT, the wire form and the hash that the game wrote. The fixture `item_plain`
+has the 4 cases of `minecraft:equippable` of experiment E27.
 
 **STK-SHP-028** (`source_suggested_black_box_confirmed`, wire). `minecraft:equippable`:
 
@@ -1636,8 +1637,10 @@ The readers apply these statements:
   error. The reader does not read such a string as an inline sound event. A string that is not an
   identifier is an error.
 - The reader of the saved form reads a map as an inline sound event.
-- The reader of the saved form reads a `range` that is not a valid float as no value. This is an
-  exception to STK-SHP-001. This statement has the provenance `source_suggested`.
+- The reader of the saved form reads a `range` that is not a valid float (STK-SHP-002) as no
+  value. The inline sound event stays valid. For example, a string, a list and a map give no
+  value. The string `"2.5"` also gives no value. This is an exception to STK-SHP-001. Experiment
+  E27 confirms this statement.
 - The reader of the wire form reads the VarInt 0 as an inline sound event. It reads each other
   number `n` as the entry with the numeric id `n - 1`. A number that names no entry is a decode
   error.
@@ -1880,3 +1883,31 @@ Results:
   the full profile with the same values. Thus the game does not find a partial profile and a full
   profile equal.
 - The case of the kind "decode error" gives a decode error for 17 properties.
+
+**E27.** Rule: STK-SHP-029, the read of a `range` that is not a valid float.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of
+   `tools/fixtures.json`. Each case has the kind "value" and the component type `equippable`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For each case, read the JSON, the NBT, the wire form and the hash.
+
+The fixture keeps the cases in its list `values`. Each input is
+`{"slot":"head","equip_sound":{"sound_id":"minecraft:item.armor.equip_generic","range":R}}`, with
+the value `R` of the table.
+
+| `R` | Kind of the value |
+|-----|-------------------|
+| `"x"` | a string |
+| `"2.5"` | a string of a number |
+| `[1.0]` | a list |
+| `{"a":1.0}` | a map |
+
+Results:
+
+- The game accepts each case.
+- Each case gives the same JSON, NBT, wire form and hash. The inline sound event has the
+  `sound_id` of the input and no `range`.
+- The wire form of the sound event is `00`, then `sound_id` as String (32767), then `00` for no
+  range.
