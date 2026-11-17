@@ -88,6 +88,12 @@ cd tools/vanilla-oracle
   fails without `-Pgolden` and `-PgoldenIn`. `recapture <name>` fills in the properties and puts the
   file back.
 
+## Player dimensions
+
+`dumpPlayerDimensions` writes `player_dimensions.json`: the width, the height, the eye height and
+the fixed flag of `minecraft:player` for each pose, with `minecraft:scale` at 1 and at 2. No server
+and no level run. `recapture player_dimensions` runs it.
+
 ## Sign text
 
 `dumpSignText` runs the sign text renderers against a recording collector. It writes what they

@@ -199,10 +199,14 @@ the prefix `MVC`.
   `suppresses_bounce` and `can_glide_through`, and the entity type tags
   `powder_snow_walkable_mobs` and `fall_damage_immune`.
 - `assets/minecraft/version.json`: the version of the corpus.
+- `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json`: the output of the
+  oracle task `dumpPlayerDimensions` of `tools/vanilla-oracle`. For `minecraft:player` and each
+  pose, it gives the width, the height, the eye height and the fixed flag, with the `scale`
+  attribute at 1 and at 2.
 
-No artefact in the repository gives the dimensions of an entity type, the speed factor, the jump
-factor or the bounce restitution of a block. This document states these values as data where it
-needs them. Section 14 records the gap as U2 and U3.
+No artefact in the repository gives the dimensions of each pose of another entity type, the speed
+factor, the jump factor or the bounce restitution of a block. This document states these values as
+data where it needs them. Section 14 records the gap as U2 and U3.
 
 ## 1. Numbers and precision
 
@@ -324,8 +328,13 @@ The `sleeping` pose always has fixed dimensions with the width 0.2F, the height 
 height 0.2F. A baby of a living type has the dimensions of its type scaled by 0.5F. This scale
 applies before the scale attribute, unless the type states other baby dimensions.
 
-**PHY-BOX-004** (`source_suggested`, client agreement, confidence: medium). The player has these
-dimensions before the scale attribute:
+The fixture `player_dimensions.json` agrees with this rule for `minecraft:player` at the scale 2. It
+does not show a baby, another type or a scale that is not a power of 2. Thus the label of this rule
+stays `source_suggested`.
+
+**PHY-BOX-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: high). The
+player has these dimensions before the scale attribute. The fixture
+`player_dimensions.json` shows each row.
 
 | Pose | Width | Height | Eye height | Fixed |
 |------|-------|--------|-----------|-------|
@@ -337,6 +346,9 @@ dimensions before the scale attribute:
 | `sleeping` | 0.2F | 0.2F | 0.2F | yes |
 | `dying` | 0.2F | 0.2F | 1.62F | yes |
 | other poses | as `standing` | | | |
+
+The other poses are `long_jumping`, `croaking`, `using_tongue`, `sitting`, `roaring`, `sniffing`,
+`emerging`, `digging`, `sliding`, `shooting` and `inhaling`.
 
 **PHY-BOX-005** (`source_suggested`, client agreement, confidence: medium). The eye height of a
 type without a stated eye height is `f32(0.85F × height)`.
@@ -3293,8 +3305,9 @@ for client agreement. A server that computes another result gives false setbacks
 - **U1**: the physics fixtures of the vanilla server under
   `crates/mcrs_minecraft_collision_table/tests/fixtures/physics/` predate the fall of PHY-ORD-001
   step 14 and PHY-FALL-004. A maintainer must record them again.
-- **U2**: no artefact gives the dimensions of each entity type and pose. A `dumpDefinitions`
-  task for entity types could write the width, the height, the eye height, the fixed flag and the
+- **U2**: no artefact gives the dimensions of each entity type and pose. The oracle task
+  `dumpPlayerDimensions` writes them for `minecraft:player` only. A `dumpDefinitions` task for
+  entity types could write the width, the height, the eye height, the fixed flag and the
   pose dimensions.
 - **U3**: the corpus does not give the speed factor, the jump factor, the bounce restitution and
   the fall distance reduction of a block. Section 6.6 gives the vanilla values as data. A corpus

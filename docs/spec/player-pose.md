@@ -52,9 +52,10 @@ use one part with no other part (section 6).
 The labels of `registry.md`, section 0.3, apply. The kinds are those of `README.md`, section
 "Semantics, not accidents". Each rule states its label, its kind and its confidence.
 
-The layout of the entity data comes from a captured artefact (section 0.5). The other rules come
-from the reference implementation. The recordings of experiment E2 confirm the rules that cite
-them. No experiment has confirmed the other rules yet. Section 9 gives the experiments.
+The layout of the entity data and the eye height of each pose come from captured artefacts
+(section 0.5). The other rules come from the reference implementation. The recordings of
+experiment E2 confirm the rules that cite them. No experiment has confirmed the other rules yet.
+Section 9 gives the experiments.
 
 ### 0.3 ID prefixes
 
@@ -93,6 +94,11 @@ These subjects are out of scope:
   oracle task `dumpEntityTypes` of `tools/vanilla-oracle`, game version `26.4-snapshot-7`. For
   `minecraft:player`, it gives the width 0.6, the height 1.8 and the eye height 1.62 of the
   pose `standing`. It also gives the index and the serializer of each entity data entry.
+- `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json`: the output of
+  the oracle task `dumpPlayerDimensions` of `tools/vanilla-oracle`, game version
+  `26.4-snapshot-7`. For `minecraft:player` and each pose id from 0 to 17, it gives the pose name,
+  the width, the height, the eye height and the fixed flag, with the `scale` attribute at 1 and
+  at 2 (experiment E1).
 - The data pack: the fluid tag `swimmable` and the block tag `beds`.
 - The recordings of experiment E2, in `tools/mcrs_minecraft_client_recorder/recordings/pose/`,
   game version `26.4-snapshot-7`. A vanilla client played each step with the input agent of
@@ -101,8 +107,8 @@ These subjects are out of scope:
   cites a recording by its file name without the extension `.txt`.
 
 The recorder writes a pose by the name of its id in POSE-NET-001. In each step, the names agree
-with the pose of the step for the ids 0 to 5. No artefact gives the dimensions of the other poses
-or the pose ids 6 to 17.
+with the pose of the step for the ids 0 to 5. The fixture of E1 gives the dimensions of each pose.
+No artefact gives the wire encoding of the pose ids 6 to 17.
 
 ## 1. Authority of the server
 
@@ -293,10 +299,12 @@ ceiling).
 
 ## 3. Eye height
 
-**POSE-EYE-001** (`source_suggested`, semantic, confidence: medium). The eye height of a player is
-the eye height of its current pose, after the scale attribute (PHY-BOX-003, PHY-BOX-004). It
-changes with the pose (POSE-SRV-010). A player never has the eye height of the row `dying`
-(POSE-SRV-008).
+**POSE-EYE-001** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The eye
+height of a player is the eye height of its current pose, after the scale attribute (PHY-BOX-003,
+PHY-BOX-004). It changes with the pose (POSE-SRV-010). A player never has the eye height of the
+row `dying` (POSE-SRV-008). The capture of E1 (`player_dimensions.json`) shows the eye height of
+each pose at the scale 1 and 2. For example, the eye height of `crouching` is 1.27 at the scale 1
+and 2.54 at the scale 2. The eye height of `sleeping` and `dying` does not change with the scale.
 
 **POSE-EYE-002** (`source_suggested`, semantic, confidence: medium). These rules read the eye
 height or the eye position of a player. Each reads the pose of its own side: the server reads the
@@ -503,11 +511,16 @@ None. No rule of this document is a deviation from the reference.
 
 ## 9. Experiments
 
-E2 has run. E7 needs only new scenarios. Each other experiment needs a change to a tool first.
+E1 and E2 have run. E7 needs only new scenarios. Each other experiment needs a change to a tool
+first.
 
-- **E1** (oracle). Add a task to `tools/vanilla-oracle` that writes the width, the height, the eye
-  height and the fixed flag of `minecraft:player` for each pose, at the scale 1 and the scale 2.
-  Record the table. It decides PHY-BOX-004 and POSE-EYE-001.
+- **E1** (oracle, run). The task `dumpPlayerDimensions` of `tools/vanilla-oracle` writes the width,
+  the height, the eye height and the fixed flag of `minecraft:player` for each pose, at the scale
+  1 and the scale 2. Run it with `cargo run -p mcrs_minecraft_update -- recapture
+  player_dimensions`. The result is
+  `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json`. Each value agrees with PHY-BOX-004 and
+  POSE-EYE-001. The pose ids and names agree with POSE-NET-001. The capture does not show the wire
+  encoding of POSE-NET-001.
 - **E2** (recorder, done). The recorder writes the event `< data <entity> <index> <value>` for
   each entry of `set_entity_data`. The scenarios `pose_e2_1` to `pose_e2_8` of
   `tools/mcrs_minecraft_client_recorder/scenarios/` give the steps, and section 0.5 gives the
