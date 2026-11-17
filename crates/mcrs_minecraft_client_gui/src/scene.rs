@@ -831,6 +831,7 @@ impl Plugin for GuiPlugin {
                     }),
                     crate::title_draw::draw.run_if(resource_equals(Screen::Title)),
                     draw_tooltip,
+                    crate::title_draw::fade_title.run_if(resource_equals(Screen::Title)),
                     build_gui_batch,
                 )
                     .chain(),

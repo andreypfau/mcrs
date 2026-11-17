@@ -63,7 +63,6 @@ pub(crate) struct TitleTexts {
 pub(crate) fn draw(
     mut state: ResMut<TitleScreenState>,
     atlas: Option<Res<GuiAtlas>>,
-    time: Res<Time<Real>>,
     mut scene: ResMut<GuiScene>,
     mut texts: Local<TitleTexts>,
 ) {
@@ -88,7 +87,6 @@ pub(crate) fn draw(
             GuiTextureId::TitleLogo
         }
     });
-    let alpha = state.alpha(menu_clock(&time));
     let out = &mut scene.quads;
     let centre = screen.width / 2;
     draw_top(
@@ -104,8 +102,16 @@ pub(crate) fn draw(
         let origin = Vec2::new(at.x as f32, at.y as f32);
         draw_str(&atlas.font, origin, text, WHITE, false, out);
     }
+}
+
+pub(crate) fn fade_title(
+    mut state: ResMut<TitleScreenState>,
+    time: Res<Time<Real>>,
+    mut scene: ResMut<GuiScene>,
+) {
+    let alpha = state.alpha(menu_clock(&time));
     if alpha < 255 {
-        for quad in out.iter_mut() {
+        for quad in scene.quads.iter_mut() {
             fade(quad, alpha);
         }
     }
