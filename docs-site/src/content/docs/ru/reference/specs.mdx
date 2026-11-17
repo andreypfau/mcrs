@@ -26,7 +26,7 @@ Id правила, например `CMD-TP-013`, состоит из префи
 | Вход, статус, сжатие | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
 | Whitelist и баны | `whitelist.md`, `bans.md` | `WL`, `BAN` |
 | Команды: парсер, дерево, права | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
-| Команды: каждая команда | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-give.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md` | `CMD-*` |
+| Команды: каждая команда | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-give.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md`, `-swing.md` | `CMD-*` |
 | Реестры и датапаки | `registry.md`, `registry-fields.md`, `environment-attributes.md` | `REG-*`, `ENVA` |
 | Текстовые форматы и числа | `snbt.md`, `numeric.md` | `SNBT`, `NUM` |
 | Текстовый компонент | `text-component.md` | `TXT-*` |
@@ -34,7 +34,7 @@ Id правила, например `CMD-TP-013`, состоит из префи
 | Симуляция, ломание и установка блоков | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md`, `block-support.md` | `SIM`, `BRK-*`, `PLC-*`, `SUP-*` |
 | Предметы | `item-stack.md`, `inventory-transactions.md`, `item-entity.md`, `block-loot.md` | `STK-*`, `ITX-*`, `IEN-*`, `LOOT-*` |
 | Движение игрока | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM` |
-| Сущности: физика, урон, трекинг, геометрия | `entity-physics.md`, `entity-damage.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md` | `PHY`, `DMG`, `TRK`, `EGEO`, `EANIM`, `AIT` |
+| Сущности: физика, урон, трекинг, геометрия | `entity-physics.md`, `entity-damage.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md`, `arm-swing.md` | `PHY`, `DMG`, `TRK`, `EGEO`, `EANIM`, `AIT`, `SWG` |
 | Мобы: цели, поиск пути, виды | `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
 | Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
 | Клиент: мир и сущности | `client-camera.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CENTS`, `CENT`, `CEREN`, `CPR` |
@@ -73,9 +73,10 @@ Kind говорит, насколько точным должно быть пр�
 | `semantic` | Смысл и результат, но не внутренний порядок. |
 | `layout` | Позиции и размеры GUI. |
 | `deviation` | В эталоне есть дефект, и правило описывает корректное поведение. |
+| `quirk` | mcrs воспроизводит случайность эталона, так как от неё зависит наблюдатель. |
 | `unspecified` | Parity-тест не должен это сравнивать. |
 
-Еще в файле есть раздел "Intentional deviations", где записано, чем mcrs намеренно отличается от ванили. В каждой записи указаны id правила, эталонное поведение, видит ли отличие клиент и что с ним делает тест.
+Еще в файле есть раздел "Intentional deviations", где записано, чем mcrs намеренно отличается от ванили. В каждой записи указаны id правила, эталонное поведение, причина, видит ли отличие клиент, ссылка на внешний баг (или `none`, если она не указана) и что с отличием делает тест.
 
 В `registry.md` сказано, что ни один из его экспериментов не запускался. Поэтому относитесь к правилу `source_suggested` как к утверждению, за которым пока нет игрового артефакта.
 

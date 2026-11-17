@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
         .target
         .operators
         .iter()
-        .map(|name| Operator::new(name))
+        .map(|name| Operator::new(name, scenario.target.operator_level(name)))
         .collect();
     fs::write(
         directory.join("ops.json"),
