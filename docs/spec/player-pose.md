@@ -1,9 +1,9 @@
 # Pose and eye height of a player
 
+Version: see `assets/minecraft/version.json`.
+
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Status | `draft` |
 
 This document states who selects the pose of a player, and when. It states how the pose and the
@@ -54,8 +54,8 @@ The labels of `registry.md`, section 0.3, apply. The kinds are those of `README.
 
 The layout of the entity data and the eye height of each pose come from captured artefacts
 (section 0.5). The other rules come from the reference implementation. The recordings of
-experiment E2 confirm the rules that cite them. No experiment has confirmed the other rules yet.
-Section 9 gives the experiments.
+the experiments E2, E7 and E8 confirm the rules that cite them. No experiment has confirmed the
+other rules yet. Section 9 gives the experiments.
 
 ### 0.3 ID prefixes
 
@@ -100,10 +100,12 @@ These subjects are out of scope:
   the width, the height, the eye height and the fixed flag, with the `scale` attribute at 1 and
   at 2 (experiment E1).
 - The data pack: the fluid tag `swimmable` and the block tag `beds`.
-- The recordings of experiment E2, in `tools/mcrs_minecraft_client_recorder/recordings/pose/`,
-  game version `26.4-snapshot-7`. A vanilla client played each step with the input agent of
-  `tools/vanilla-client`. A recording gives each entity data entry of the own player, each
-  teleport and each serverbound input, with the client tick and the time at the proxy. A rule
+- The recordings of the experiments E2, E7 and E8, in
+  `tools/mcrs_minecraft_client_recorder/recordings/pose/`, game version `26.4-snapshot-7`. A
+  vanilla client played each step with the input agent of `tools/vanilla-client`. A recording
+  gives each entity data entry of the own player, each teleport and each serverbound input, with
+  the client tick and the time at the proxy. In E8, a module of the recorder proxy changed the
+  serverbound packets, and the recording gives the packets that the server received. A rule
   cites a recording by its file name without the extension `.txt`.
 
 The recorder writes a pose by the name of its id in POSE-NET-001. In each step, the names agree
@@ -136,9 +138,19 @@ own player receives bit 1 in the tracker update of the next tick, and the pose o
 `pose_e2_1_fly_shift` (the flight state keeps `standing` with bit 1 on), `pose_e2_3_swim`
 (sprint), `pose_e2_8_boat_then_shift` and `pose_e2_8_shift_then_boat` (passenger).
 
-**POSE-SRV-012** (`source_suggested`, semantic, confidence: medium). The secondary action flag of
-`interact` also sets the shift key state, when the server handles the packet. The server ignores
-`player_input` until the player has loaded (MVC-PKT-005). No recording shows these two inputs.
+**POSE-SRV-012** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The
+secondary action flag of `interact` also sets the shift key state, when the server handles the
+packet. Thus bit 1 and the pose follow as after `player_input` (POSE-SRV-009). The server ignores
+`player_input` until the player has loaded (MVC-PKT-005). Recordings:
+
+- `pose_e8_2_shift_only`: the proxy clears the shift flag of each `player_input`, and the player
+  holds `shift`. No bit 1 comes.
+- `pose_e8_2_interact_shift`: the same, and the player uses a pig with `shift` held. The client
+  sends `interact` with the flag on. Bit 1 comes in the next update, and `crouching` one tick
+  later.
+- `pose_e8_3_stand`: the proxy sends `player_input` with the shift flag just before
+  `player_loaded`. No bit 1 and no `crouching` come. `pose_e8_3_crouch` shows that a later
+  `player_input` with the shift flag sets bit 1.
 
 **POSE-SRV-003** (`source_suggested_black_box_confirmed`, semantic, confidence: high). In the base
 tick of a player,
@@ -167,11 +179,14 @@ Recordings: `pose_e2_5_elytra` (bit 7, then the pose `fall_flying` one tick late
 the player lands), `pose_e2_5_elytra_removed_1` (a command removes the elytra in the air; bit 7
 and the pose `fall_flying` clear while the player still falls).
 
-**POSE-SRV-013** (`source_suggested`, semantic, confidence: medium). When the server handles
-`player_command` action 6 and does not set fall flying, it marks bit 7 of the shared flags as
-changed, with the value 0. Thus the own player receives bit 7 cleared in the next update, as a
-correction. A vanilla client sends action 6 only when its own check lets the player glide
-(POSE-CLI-002). Thus no recording of a vanilla client shows this correction.
+**POSE-SRV-013** (`source_suggested_black_box_confirmed`, semantic, confidence: high). When the
+server handles `player_command` action 6 and does not set fall flying, it marks bit 7 of the
+shared flags as changed, with the value 0. Thus the own player receives the shared flags with bit
+7 cleared in the next update, as a correction. The server sends the entry also when its value did
+not change. A vanilla client sends action 6 only when its own check lets the player glide
+(POSE-CLI-002). Recording: `pose_e8_1_no_elytra` (the proxy sends action 6 after a `jump` press in
+the air with no elytra; the shared flags `0x00` come in the next update). In
+`pose_e2_5_no_elytra`, with no action 6, no entry of the shared flags comes.
 
 **POSE-SRV-005** (`source_suggested_black_box_confirmed`, semantic, confidence: high). Only the
 server sets the spin attack. It sets it when a riptide attack starts. It clears it when the ticks
@@ -179,8 +194,13 @@ of the attack end. POSE-SRV-014 gives the other ends of the attack. Recording: `
 (bit 2 of the living flags, then the pose `spin_attack` one tick later; 20 ticks later, the
 pose `standing` and the living flags 0).
 
-**POSE-SRV-014** (`source_suggested`, semantic, confidence: medium). The server also clears the
-spin attack when the player hits a living entity, or when the player has a horizontal collision.
+**POSE-SRV-014** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The server
+also clears the spin attack when the player hits a living entity, or when the player has a
+horizontal collision. When this occurs in the first player tick of the attack, the selection never
+sees the spin attack (POSE-SRV-009). The own player then receives bit 2 on and off in two
+consecutive updates, and no pose `spin_attack`. Recordings: `pose_e7_1_riptide_wall` (the first
+move after the release has a horizontal collision), `pose_e7_1_riptide_mob` (the health of the
+mob drops in the same update that clears bit 2).
 
 **POSE-SRV-006** (`source_suggested_black_box_confirmed`, semantic, confidence: high). Sleep:
 
@@ -191,19 +211,26 @@ spin attack when the player hits a living entity, or when the player has a horiz
    0.6875.
 3. When the player stops sleeping, the server sets the pose `standing` at once. The player moves
    to a stand-up position, and the sleeping position becomes empty. The own player receives the
-   teleport, the pose and the empty position in the same tick.
+   teleport at once. The pose and the empty position come in the next tracker update
+   (POSE-NET-004). After action 0, this update is in the same tick as the teleport. After a stop
+   in the player tick (step 4, POSE-SRV-016), it is in the next tick.
 4. In each tick, the server stops the sleep when no block with the tag `beds` is at the sleeping
    position.
 5. `player_command` action 0 stops the sleep (MVC-PKT-006).
 
 Recordings: `pose_e2_6_leave_button` (steps 1, 2, 3 and 5), `pose_e2_6_break_bed` (step 4: the
-pose `standing` and the empty position two ticks after the command that removes the bed).
-POSE-SRV-015 gives the other parts of a sleep.
+teleport one tick after the command that removes the bed, then the pose `standing` and the empty
+position one tick later). POSE-SRV-015 and POSE-SRV-016 give the other parts of a sleep.
 
 **POSE-SRV-015** (`source_suggested`, semantic, confidence: medium). When the player starts to
-sleep, a passenger dismounts first, and the server sets the velocity to zero. In each tick, the
-server also stops the sleep when the bed rule of the bed no longer lets the player sleep
-(`environment-attributes.md`, `gameplay/bed_rule`).
+sleep, a passenger dismounts first, and the server sets the velocity to zero.
+
+**POSE-SRV-016** (`source_suggested_black_box_confirmed`, semantic, confidence: high). In each
+tick, the server also stops the sleep when the bed rule of the bed no longer lets the player sleep
+(`environment-attributes.md`, `gameplay/bed_rule`). The stop follows POSE-SRV-006, step 3.
+Recording: `pose_e7_2_time_day`. In it, the game rule `players_sleeping_percentage` is 101, so the
+night does not pass. A command sets the time to day 20 ticks after the sleep starts. The teleport
+comes in the next tick. The pose `standing` and the empty position come one tick later.
 
 **POSE-SRV-007** (`source_suggested_black_box_confirmed`, semantic, confidence: high). When a
 player mounts a vehicle, the server sets the pose `standing` at once. A passenger with the shift
@@ -468,10 +495,10 @@ parts. Each part takes only the values that it names as input:
 
 | Part | Rules | Input | Output |
 |------|-------|-------|--------|
-| selection | PHY-BOX-006, POSE-SRV, POSE-CLI-001 | the inputs of POSE-SRV-002 | a pose |
+| selection | PHY-BOX-006, POSE-SRV, POSE-CLI-001 | the inputs of POSE-SRV-002, the current pose and the blocks around the player | a pose |
 | dimensions | PHY-BOX-003, PHY-BOX-004, POSE-SRV-010 | a pose and the scale | the box and the eye height |
 | synchronization | POSE-NET | a pose and the flags | entity data entries |
-| drawing | POSE-REN | the entries of POSE-NET-002 and the client ticks | a pose rotation and part angles |
+| drawing | POSE-REN | the entries of POSE-NET-002, the pitch, the head yaw, the velocity and the client ticks | a pose rotation and part angles |
 
 Reason: a bot needs the selection without the drawing, and a viewer needs the drawing without the
 selection. A plugin replaces the output of the selection and keeps the other parts.
@@ -505,14 +532,16 @@ None. No rule of this document is a deviation from the reference.
 
 ## 8. Known vanilla quirks
 
-- POSE-REN-005 uses the absolute value of the cosine. Thus a player that glides backward has the
-  same lean as a player that glides forward. mcrs keeps this behaviour for parity with vanilla
-  clients.
+- **Rule**: POSE-REN-005. The rule uses the absolute value of the cosine. Thus a player that
+  glides backward has the same lean as a player that glides forward.
+- **Observer**: the vanilla client. A player that sees the same remote player in a vanilla client
+  and in the mcrs client sees a different lean without the accident.
+- **Decision**: #90.
+- **Bug reference**: none.
 
 ## 9. Experiments
 
-E1 and E2 have run. E7 needs only new scenarios. Each other experiment needs a change to a tool
-first.
+E1, E2, E7 and E8 have run.
 
 - **E1** (oracle, run). The task `dumpPlayerDimensions` of `tools/vanilla-oracle` writes the width,
   the height, the eye height and the fixed flag of `minecraft:player` for each pose, at the scale
@@ -545,6 +574,35 @@ first.
   entity ticks of the dimension. Both are corrected. In step 5, the vanilla client sent no action
   6 with no elytra, and the server accepted the start before the removal of the elytra. Thus E2
   did not decide POSE-SRV-013. In step 4, the pose `swimming` came with no bit 4.
+- **E7** (recorder, run). The scenarios `pose_e7_1` and `pose_e7_2` give the steps:
+  1. do a riptide into a wall (`riptide_wall`), and into an iron golem with no AI
+     (`riptide_mob`). Expect the living flags 0 in the next update after the hit or the collision
+     (POSE-SRV-014);
+  2. sleep in a bed, then a command sets the time to day (`time_day`). Record whether and when
+     the pose `standing` comes (POSE-SRV-016).
+
+  Results: in both riptide steps, the attack ended in its first player tick, so the pose
+  `spin_attack` never came. In step 2, the sleep stopped in the first tick after the command.
+  Both results also showed that a stop in the player tick sends the teleport one tick before the
+  pose. POSE-SRV-006, step 3, is corrected.
+- **E8** (proxy, serverbound, run). A module of the recorder proxy changes the serverbound
+  packets of a vanilla client (`tools/mcrs_minecraft_client_recorder/README.md`, "Proxy-emulated
+  modules"). Each step has a scenario, and each scenario names its module:
+  1. `pose_e8_1`, module `start_fall_flying`: send `player_command` action 6 when the player has
+     no elytra. Expect bit 7 with the value 0 in the next update (POSE-SRV-013);
+  2. `pose_e8_2`, module `no_shift_input`: drop the shift flag of `player_input`, and use a pig
+     with `shift` held, so that the client sends `interact` with the secondary action flag.
+     Expect bit 1 (POSE-SRV-012);
+  3. `pose_e8_3`, module `shift_before_loaded`: send `player_input` with the shift flag just
+     before `player_loaded`. Expect no bit 1 (POSE-SRV-012).
+
+  Results: each expectation held. In step 3, the recorder writes a recording only when the
+  module changed a packet, so `pose_e8_3_stand` shows that the early packet reached the server.
+
+## 10. Unresolved
+
+These checks have not run. Each needs a change to a tool first.
+
 - **E3** (two clients). Run the steps 1, 3 and 5 of E2 with a second client that tracks the first.
   Record the entries of the first player at the second client, with the server tick of each
   packet. Expect each change in the update of the next tick (POSE-NET-003, POSE-NET-004). Record
@@ -559,20 +617,3 @@ first.
   bed of each `facing`, and do a riptide. Take a screenshot at the second client from a fixed
   camera in each case. Compare with the mcrs client at the same state (POSE-REN-001 to
   POSE-REN-009).
-- **E7** (recorder). Record these steps in scenarios of the form of E2:
-  1. do a riptide into a wall, and into a mob with no AI. Expect the living flags 0 and the pose
-     `standing` in the next update after the hit or the collision (POSE-SRV-014);
-  2. sleep in a bed, then a command sets the time to day. Record whether and when the pose
-     `standing` comes (POSE-SRV-015).
-- **E8** (proxy, serverbound). Through the recorder proxy, change the serverbound packets of a
-  vanilla client:
-  1. send `player_command` action 6 when the player has no elytra. Expect bit 7 with the value 0
-     in the next update (POSE-SRV-013);
-  2. drop the shift flag of `player_input`, and send `interact` with the secondary action flag.
-     Expect bit 1 (POSE-SRV-012);
-  3. send `player_input` with the shift flag before the player has loaded. Expect no bit 1
-     (POSE-SRV-012).
-
-## 10. Unresolved
-
-None.

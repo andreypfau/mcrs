@@ -1,0 +1,152 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e8_1
+step no_elytra
+instruction After Go, tap Space once in the air.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+3734853 < abilities none 0.05
+3734853 < attribute minecraft:block_interaction_range 4.5
+3734853 < attribute minecraft:entity_interaction_range 3
+3734853 < attribute minecraft:movement_speed 0.10000000149011612
+3734853 < data self 9 float:20
+3734853 < data self 16 byte:0x7f
+3734853 < teleport 3 0.5 130 0.5 0 0 0 -90 40 0
+3808026 > move 0.5,130,0.5 - none
+3808028 > tick
+3809191 > move 0.5,129.9215999984741,0.5 - none
+3809193 > tick
+3912777 > move 0.5,129.76636799395752,0.5 - none
+3912780 > tick
+3912780 > move 0.5,129.53584062504456,0.5 - none
+3912780 > tick
+4013697 > move 0.5,129.23152379758702,0.5 - none
+4014934 > tick
+4014935 > move 0.5,128.85489329934836,0.5 - none
+4014936 > tick
+4130948 > move 0.5,128.40739540236495,0.5 - none
+4130951 > tick
+4130952 > move 0.5,127.89044745325998,0.5 - none
+4130952 > tick
+4224294 > move 0.5,127.30543845175123,0.5 - none
+4225914 > tick
+4225915 > move 0.5,126.65372961758861,0.5 - none
+4240997 > tick
+4327478 > move 0.5,125.93665494615301,0.5 - none
+4330216 > tick
+4330217 > move 0.5,125.15552175294313,0.5 - none
+4330219 > tick
+4421800 > move 0.5,124.31161120717263,0.5 - none
+4423032 > tick
+4423033 > move 0.5,123.40617885469536,0.5 - none
+4424468 > tick
+4522986 > input jump
+4522990 > command start_fall_flying
+4522991 > move 0.5,122.44045513047199,0.5 - none
+4522993 > tick
+4522993 > move 0.5,121.41564586078749,0.5 - none
+4522993 > tick
+4536661 < data self 0 byte:0x00
+4631096 > input none
+4631098 > move 0.5,120.33293275542412,0.5 - none
+4631100 > tick
+4631100 > move 0.5,119.19347388999103,0.5 - none
+4631100 > tick
+4734793 > move 0.5,117.99840417860726,0.5 - none
+4734796 > tick
+4734796 > move 0.5,116.74883583713114,0.5 - none
+4734797 > tick
+4833619 > move 0.5,115.44585883712504,0.5 - none
+4834794 > tick
+4834795 > move 0.5,114.09054135074088,0.5 - none
+4834796 > tick
+4936931 > move 0.5,112.68393018670788,0.5 - none
+4936933 > tick
+4936933 > move 0.5,111.22705121760069,0.5 - none
+4936933 > tick
+4936933 > move 0.5,109.720909798562,0.5 - none
+4936934 > tick
+5042355 > move 0.5,108.16649117765084,0.5 - none
+5042356 > tick
+5042357 > move 0.5,106.56476089798385,0.5 - none
+5042357 > tick
+5138263 > move 0.5,104.91666519183373,0.5 - none
+5139445 > tick
+5139446 > move 0.5,103.2231313668458,0.5 - none
+5139447 > tick
+5244169 > move 0.5,101.48506818453016,0.5 - none
+5244172 > tick
+5244172 > move 0.5,100,0.5 - on_ground
+5244173 > tick
+5343664 > tick
+5344928 > tick
+5445798 > tick
+5447261 > tick
+5549283 > tick
+5549285 > tick
+5653975 > tick
+5653977 > tick
+5751240 > tick
+5752398 > tick
+5853272 > tick
+5854565 > tick
+5955313 > tick
+5956504 > tick
+6058458 > tick
+6059624 > tick
+6158067 > tick
+6159241 > tick
+6261545 > tick
+6261547 > move 0.5,100,0.5 - on_ground
+6262699 > tick
+6360438 > tick
+6361616 > tick
+6461988 > tick
+6461989 > tick
+6562204 > tick
+6562205 > tick
+6675427 > tick
+6675428 > tick
+6769198 > tick
+6770378 > tick
+6876249 > tick
+6876250 > tick
+6970463 > tick
+6971618 > tick
+7073365 > tick
+7074552 > tick
+7184842 > tick
+7189925 > tick
+7280411 > tick
+7281583 > move 0.5,100,0.5 - on_ground
+7281585 > tick
+7378122 > tick
+7379774 > tick
+7483103 > tick
+7484270 > tick
+7582856 > tick
+7582857 > tick
+7686569 > tick
+7686571 > tick
+7787305 > tick
+7788459 > tick
+7788460 > tick
+7889327 > tick
+7890493 > tick
+7991919 > tick
+7991920 > tick
+8097468 > tick
+8097470 > tick
+8210679 > tick
+8210681 > tick
+8298772 > move 0.5,100,0.5 - on_ground
+8299955 > tick
+8301555 > tick
+8401887 > tick
+8401888 > tick
+8503911 > tick
+8505113 > tick
+8605831 > tick
+8605832 > tick
+8710118 > tick
+8710120 > tick

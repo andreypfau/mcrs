@@ -54,7 +54,8 @@ in each frame.
   baby factor that the mob document gives, or 1 for an adult. `s` is the value of the attribute
   `minecraft:scale`, or 1 when the client has no value.
 - **Eye height**: `e · g · s`, with `e` the eye height of the entity type (`entity_types.json`), for
-  each pose. `player-pose.md` states the eye height of each pose of a player.
+  each pose. A pose with the fixed flag has the eye height `e` at each scale. `player-pose.md`
+  states the eye height of each pose of a player.
 - **Simulation distance**: the value `simulation_distance` of the login packet, in chunks.
 - **Loaded chunk**: a chunk column for which the client received the chunk data, and which the
   client did not unload after that.
