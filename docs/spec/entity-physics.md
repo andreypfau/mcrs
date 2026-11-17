@@ -366,8 +366,9 @@ entity change, the entity makes its box again from its position. The server can 
 server-simulated entity to a near free position. It can do this only when all these conditions are
 true:
 
-- the new box is larger;
+- the new width or the new height is larger than the old one;
 - the width and the height are not more than 4;
+- the entity has physics;
 - the entity is not a player;
 - the entity is not in its first tick.
 
