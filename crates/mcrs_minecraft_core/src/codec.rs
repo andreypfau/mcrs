@@ -623,15 +623,41 @@ pub struct BoundedString<const MAX_CHARS: usize>(pub String);
 impl<const MAX_CHARS: usize> BoundedString<MAX_CHARS> {
     pub fn new(text: impl Into<String>) -> Result<Self, String> {
         let text = text.into();
-        let chars = text.encode_utf16().count();
-        if chars > MAX_CHARS {
-            return Err(format!(
-                "String \"{text}\" is too long: {chars}, expected range [0-{MAX_CHARS}]"
-            ));
-        }
+        Self::check(&text).map_err(|error| error.to_string())?;
         Ok(BoundedString(text))
     }
+
+    pub fn check(text: &str) -> Result<(), StringTooLong<'_>> {
+        let length = text.encode_utf16().count();
+        if length > MAX_CHARS {
+            return Err(StringTooLong {
+                text,
+                length,
+                max: MAX_CHARS,
+            });
+        }
+        Ok(())
+    }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StringTooLong<'a> {
+    pub text: &'a str,
+    pub length: usize,
+    pub max: usize,
+}
+
+impl fmt::Display for StringTooLong<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { text, length, max } = self;
+        write!(
+            f,
+            "String \"{text}\" is too long: {length}, expected range [0-{max}]"
+        )
+    }
+}
+
+impl std::error::Error for StringTooLong<'_> {}
 
 impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {

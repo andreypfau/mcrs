@@ -7,8 +7,10 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::to_nbt_tag;
 use mcrs_minecraft_text::Text;
 
+use crate::Profile;
 use crate::saved_form::Fault;
 use crate::saved_sink::Field;
+use crate::saved_sink::KeyedEntry;
 use crate::saved_sink::Leaf;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
@@ -33,6 +35,10 @@ impl SavedSink for TagSink {
 
     fn text(&mut self, text: &Text) -> Option<NbtTag> {
         to_nbt_tag(text).ok()
+    }
+
+    fn profile(&mut self, profile: &Profile) -> Option<NbtTag> {
+        to_nbt_tag(profile).ok()
     }
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<NbtTag>>) -> NbtTag {
@@ -68,5 +74,18 @@ impl SavedSink for TagSink {
             list.push(element(self, item)?);
         }
         Ok(NbtTag::List(list))
+    }
+
+    fn keyed_map<'a, T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        mut entry: impl FnMut(&mut Self, T) -> Result<KeyedEntry<'a, NbtTag>, Fault>,
+    ) -> Result<NbtTag, Fault> {
+        let mut map = NbtCompound::new();
+        for item in items {
+            let KeyedEntry { key, value } = entry(self, item)?;
+            map.put(key, value);
+        }
+        Ok(NbtTag::Compound(map))
     }
 }

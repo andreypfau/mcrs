@@ -4659,7 +4659,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - The value is one object. Each key is a free string. Each value is one decoration entry.
-  - `x`, `z` and `rotation` are required.
+  - `type`, `x`, `z` and `rotation` are required. `x` and `z` are doubles. `rotation` is a float.
+  - `item-stack.md`, STK-SHP-022, states the shape.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5018,12 +5019,13 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 | Field | Default | Lenient |
 |-------|---------|---------|
-| `properties` (partial profile form) | `[]` (empty property map) | no |
+| `properties` (full profile and partial profile) | `[]` (empty list of properties) | no |
 
 - **Write form notes:**
   - The value holds a player name, a UUID and properties.
   - A reader accepts a bare player name string. The encoder never writes the bare string. It always writes the object form.
-  - `texture`, `cape` and `elytra` are identifiers of textures. They are not references. `model` is a model string.
+  - `texture`, `cape` and `elytra` are identifiers of textures. They are not references. `model` is `wide` or `slim`.
+  - `item-stack.md`, STK-SHP-023 to STK-SHP-027, states the shape.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -7862,7 +7864,6 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - REG-FLD-540: `asset_id` is classified as key only and unchecked, because the server loads no `equipment_asset` registry.
 - REG-FLD-513, REG-FLD-543, REG-FLD-534, REG-FLD-540, REG-FLD-576, REG-FLD-577: `item_model`, `tooltip_style`, `use_cooldown.cooldown_group`, `equippable.camera_overlay`, the skin texture fields of `profile` and `note_block_sound` are treated as plain identifiers, not references. `note_block_sound` names a sound event, but no load step checks it.
 - REG-FLD-597: a key that is both a data component id and a predicate type id always selects the predicate type. The full list of such ids is not known.
-- REG-FLD-576: the default of `properties` in the partial profile form is assumed to compare equal to an empty property map.
 - REG-FLD-500 to REG-FLD-646: the rule "left out when equal to the default" depends on value equality. The analysis checked records, enum values, singleton values, the empty patch and the empty exact predicate. Other default values are assumed to compare by content.
 - REG-FLD-549, REG-FLD-562, REG-FLD-567, REG-FLD-568, REG-FLD-578, REG-FLD-587, REG-FLD-588, REG-FLD-589: the element form of `block_transformer`, the inline forms of `trim_material`, `trim_pattern`, `instrument` and `banner_pattern`, and the context int and float providers are not expanded in this chapter. Other rules own them.
 - REG-FLD-700, REG-FLD-722, REG-FLD-723, REG-FLD-741, REG-FLD-801: a key in a `reference or inline` field of a stage 3 registry inside a synced entry probably fails the load. The exact lookup set during the synced load and during the client read is not confirmed.

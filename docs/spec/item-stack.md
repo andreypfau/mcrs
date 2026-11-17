@@ -6,7 +6,7 @@ This document states the item stack as data: its parts, its component patch, its
 format that carries it. It states the meaning of four component types, and it lists each component
 type of this game version.
 
-Section 8.1 states the shape of 15 component types. For
+Sections 8.1 and 8.2 state the shape of 18 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -47,6 +47,15 @@ section 8.
 - **Maximum stack size**, **maximum damage**, **damage value**: the numbers that STK-CMP-001,
   STK-CMP-002 and STK-DMG-002 define.
 - **Strict validation**: the checks of STK-VAL-001.
+- **Player name**: a string of 0 to 16 UTF-16 code units, each in the range `U+0021..U+007E`
+  (STK-SHP-024).
+- **Property**: a name, a value and an optional signature, all strings, in a profile
+  (STK-SHP-025).
+- **Property group**: the properties of one profile with one name (STK-SHP-025).
+- **Full profile**, **partial profile**: the two forms of the component `minecraft:profile`
+  (STK-SHP-023).
+- **Dynamic profile**: a partial profile with no property and with exactly one of a player name and
+  a UUID (STK-SHP-027).
 
 ### 0.2 Provenance
 
@@ -65,7 +74,7 @@ section 8.
 - `assets/mcrs/reports/packets.json`: the packet id report of the game.
 - `assets/mcrs/item_definition/`: one file for each item, which the game writes through
   `tools/vanilla-oracle`. STK-PRO-002 states the keys.
-- The fixtures `hash_ops`, `item_plain`, `item_nested` and `inventory_packets` of
+- The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records` and `inventory_packets` of
   `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
 
 ### 0.4 ID prefixes
@@ -186,7 +195,8 @@ through a format.
 The saved form of this rule is the form that the writer gives for the component. It is not the
 input text of a reader. Two inputs that decode to one component are thus equal. STK-EQ-005 states
 equality of two numbers in floating point. STK-EQ-006 states equality of two numbers in free NBT.
-STK-SHP-017 states one exception for `minecraft:tooltip_display`.
+STK-SHP-017 states one exception for `minecraft:tooltip_display`. STK-SHP-027 states the exceptions
+for `minecraft:profile`.
 
 **STK-PAT-008** (`source_suggested`, semantic). A component patch can have a value entry for a
 component type that the prototype does not have. A component patch can have a value entry for
@@ -625,6 +635,10 @@ saved form is the identifier string, as the saved form of a world file has it. T
 saved form must omit each optional field that the game omits, because an extra field changes the
 hash.
 
+The hash takes the saved form of the component itself. Two equal components can have different
+saved forms, and thus different hashes. STK-SHP-027 gives an example. Deviation D7 states the
+difference from the reference.
+
 **STK-HSH-005** (`source_suggested_black_box_confirmed`, client agreement). The hash of a node of
 the saved form is the CRC-32C checksum of a byte string. CRC-32C has the reflected polynomial
 `0x82F63B78`, the start value `0xFFFFFFFF` and a final inversion of each bit. The byte string of
@@ -1011,7 +1025,7 @@ This section states the shape of 15 component types. The counts of prototypes co
 files of `assets/mcrs/item_definition/`.
 
 **STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
-STK-SHP-020 states one component type in a table. The columns are:
+STK-SHP-020, and each rule of section 8.2, states one component type in a table. The columns are:
 
 - "Field": the key of the field in the saved form. `(value)` means that the component is one
   value and not a map.
@@ -1103,7 +1117,7 @@ decode error for an NBT that is larger than a quota of 2097152 bytes. The exact 
 size is not specified. Two texts are equal when their content, their style and their children are
 equal (STK-PAT-007).
 
-**STK-SHP-005** (`design`, unspecified). A server must not send a component of this section with
+**STK-SHP-005** (`design`, unspecified). A server must not send a component of section 8.1 or 8.2 with
 a value out of the range of its saved form. Reason: the client cannot save or hash that component.
 For an id that is not in a list of names, the reference reader of the wire form gives the name
 with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
@@ -1309,6 +1323,221 @@ are equal when they are the same tag. They are also equal when they are lists wi
 in the same order. A tag is not equal to a list. Prototypes: 38 prototypes have this component.
 The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`.
 
+### 8.2 Shapes of the map and profile types
+
+This section states the shape of 3 more component types. STK-SHP-001 to STK-SHP-005 apply to each
+rule of this section. The fixture `item_records` has the cases `map_dec_*` and `profile_*`, which
+confirm the forms of this section. The fixture `item_plain` has the cases of experiment E26.
+
+**STK-SHP-021** (`source_suggested_black_box_confirmed`, wire). `minecraft:map_id`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | each int | necessary | VarInt |
+
+The value is the number of a map. A negative number is valid: the fixture `item_plain` has the
+case `-1`. Limits: none. Equality: the two values are equal. Prototypes: no prototype has this
+component.
+
+**STK-SHP-022** (`source_suggested_black_box_confirmed`, wire). `minecraft:map_decorations` is a
+map from a key to a decoration entry:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | a map | no limit on the number of keys | necessary | one network NBT of the saved form |
+| each key | string | each string, also the empty string | | a key of the NBT |
+| each value | a decoration entry (below) | below | | a Compound tag of the NBT |
+
+Each decoration entry is a map with these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `type` | entry of the registry `minecraft:map_decoration_type` | each entry | necessary | String tag: the identifier |
+| `x` | double | each double | necessary | Double tag |
+| `z` | double | each double | necessary | Double tag |
+| `rotation` | float | each float | necessary | Float tag |
+
+`minecraft:map_decoration_type` is a static registry. The wire form is the saved form as one
+network NBT (STK-TYP-003). Thus `type` is an identifier on the wire, not a numeric id. The reader of
+the wire form gives a decode error when the NBT is not a valid saved form. The limits of the network
+NBT of STK-SHP-004 apply.
+
+The order of the keys of each compound in the NBT is unspecified (experiment E26). The vanilla
+client reads the NBT as a map, and the hash sorts the keys (STK-HSH-006). Thus a parity test of
+the wire form must compare the decoded trees, not the bytes.
+
+The reader of the saved form ignores a key of a decoration entry that the table does not list
+(STK-SHP-001). An entry that is not valid makes the whole value not valid. An identifier that
+names no decoration type is an error. `x` and `z` are a position in the world, in blocks.
+`rotation` is an angle in degrees. Another document states how a map shows the entries.
+
+Limits: none on the number of entries. Equality: the two maps have the same keys, and the entries
+of each key are equal. Two entries are equal when each field is equal. `x`, `z` and `rotation` are
+equal as STK-EQ-005 states. Prototypes: 17 prototypes have this component with the empty map `{}`.
+The other 1669 prototypes do not have it.
+
+**STK-SHP-023** (`source_suggested_black_box_confirmed`, wire). `minecraft:profile` holds a player
+profile and a skin patch. The player profile has one of two forms:
+
+- A full profile has a UUID, a player name and a list of properties.
+- A partial profile has an optional player name, an optional UUID and a list of properties.
+
+The skin patch has four optional fields: `texture`, `cape`, `elytra` and `model`. The saved form
+does not state the form of the profile. The reader of the saved form selects the form
+(STK-SHP-024). The wire form states the form in its first byte (STK-SHP-026).
+
+**STK-SHP-024** (`source_suggested_black_box_confirmed`, wire). The saved form of
+`minecraft:profile` is a map, or one string. The map has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `id` | UUID (below) | each UUID | necessary in the full profile; no value in the partial profile | STK-SHP-026 |
+| `name` | player name | each player name | necessary in the full profile; no value in the partial profile | STK-SHP-026 |
+| `properties` | a list of properties (STK-SHP-025) | STK-SHP-025 | the empty list | STK-SHP-026 |
+| `texture` | identifier | each identifier | no value | STK-SHP-026 |
+| `cape` | identifier | each identifier | no value | STK-SHP-026 |
+| `elytra` | identifier | each identifier | no value | STK-SHP-026 |
+| `model` | a name: `wide` or `slim` | `wide`, `slim` | no value | STK-SHP-026 |
+
+The two forms that the table uses are:
+
+| Form | Saved form in NBT | Saved form in JSON | Hash node |
+|------|-------------------|--------------------|-----------|
+| UUID | Int Array tag with 4 elements | a list of 4 numbers | int array |
+| player name | String tag | string | string |
+
+The 4 ints of a UUID are the 128 bits of the UUID, most significant int first. The reader of the
+saved form in NBT also accepts a List tag, a Byte Array tag or a Long Array tag of 4 numbers. It
+converts each number as STK-SHP-002 states for an int. A list with more or fewer than 4 elements
+is an error. A string, for example a UUID with hyphens, is an error.
+
+A player name has 0 to 16 UTF-16 code units. Each code unit is in the range `U+0021..U+007E`.
+Thus the empty string is valid, and a space or a letter outside ASCII is an error. No reader
+changes the case of a player name.
+
+The identifiers of `texture`, `cape` and `elytra` name textures of a resource pack. No registry
+holds them, and no reader checks that the texture exists. The name of `model` is compared
+exactly. Each other string of `model` is an error.
+
+The reader of the saved form gives the component in this way:
+
+1. When the value is a string, the string must be a player name. The result is a partial profile
+   with that name and with no other field.
+2. When the value is a map, each field of the table that is present must be valid. Else the
+   value is an error.
+3. When the map has both `id` and `name`, the result is a full profile. Else the result is a
+   partial profile.
+4. A value that is not a string or a map is an error.
+
+The reader ignores a key that the table does not list (STK-SHP-001). The writer always writes the
+map. It writes `id` and `name` when the profile has them. It omits `properties` when the list is
+empty. It writes each field of the skin patch that has a value. A partial profile with both a name
+and a UUID has the same saved form as a full profile with the same values. The reader of that saved
+form gives the full profile.
+
+Limits: those of the table and of STK-SHP-025. Prototypes: no prototype has this component.
+Experiment E26 confirms these statements:
+
+- the string form and the empty name;
+- a UUID of numbers that are not ints;
+- a full profile without properties;
+- the same saved form for a partial profile with a name and a UUID.
+
+**STK-SHP-025** (`source_suggested_black_box_confirmed`, wire). A property has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `name` | string | 0 to 64 UTF-16 code units | necessary | String (64) |
+| `value` | string | 0 to 32767 UTF-16 code units | necessary | String (32767) |
+| `signature` | string | 0 to 1024 UTF-16 code units | no value | Boolean, then String (1024) when the Boolean is `01` |
+
+The saved form of the list of properties has two forms:
+
+- The list form is a list of maps with the fields of the table. The list has at most 16 elements.
+- The map form is a map from a property name to a list of strings. Each string gives a property
+  with that name, that value and no signature. The map has at most 16 keys.
+
+The reader takes the map form when the value is a map, and the list form when the value is a list.
+Each other value is an error. The writer always writes the list form. It omits `signature` when
+the property has no signature.
+
+A profile always holds its properties in property groups. The groups are in the order of the
+first property of each name. In a group, the properties keep the order of the input. Each reader
+puts the properties in this order. A profile from a lookup and a profile that a user of the library
+makes also have this order. Thus the input `x=1, textures=t, x=2` gives the list
+`x=1, x=2, textures=t`. The order of the groups from the map form is unspecified. A parity test
+must not compare it.
+
+The writer of each format and the hash take the properties in the order of the profile. Thus the
+order of the groups has an effect on the saved form, on the wire form and on the hash. Two equal
+profiles (STK-SHP-027) can have different saved forms and different hashes. The saved form and the
+hash of a profile come only from that profile. This is deviation D7.
+
+The reader of the map form must apply the limits of the list form to the result. The result has at
+most 16 properties in total, and each name and each value is in the range of the table. This is
+deviation D6. Experiment E26 confirms the statements on the order, on the map form and on the
+hash.
+
+**STK-SHP-026** (`source_suggested_black_box_confirmed`, wire). The wire form of
+`minecraft:profile` is its own binary form. It has these parts, in this order:
+
+| Part | Wire form | Condition |
+|------|-----------|-----------|
+| form | Boolean: `01` for a full profile, `00` for a partial profile | always |
+| UUID | UUID | full profile |
+| name | String (16) | full profile |
+| name present | Boolean | partial profile |
+| name | String (16) | partial profile, name present is `01` |
+| UUID present | Boolean | partial profile |
+| UUID | UUID | partial profile, UUID present is `01` |
+| number of properties, `P` | VarInt, at most 16 | always |
+| properties | `P` times: `name`, `value` and `signature` as STK-SHP-025 states | always |
+| texture present | Boolean | always |
+| texture | Identifier | texture present is `01` |
+| cape present | Boolean | always |
+| cape | Identifier | cape present is `01` |
+| elytra present | Boolean | always |
+| elytra | Identifier | elytra present is `01` |
+| model present | Boolean | always |
+| model | Boolean: `01` for `slim`, `00` for `wide` | model present is `01` |
+
+Boolean, String (n), UUID and Identifier have the forms of `login.md`, section 0.2. Let the saved
+UUID have the ints `a`, `b`, `c` and `d` (STK-SHP-024). Its wire form is `a`, `b`, `c` and `d` in
+that order, each as 4 bytes, big-endian. A number of properties larger than 16 is a decode error. A
+string longer than its limit is a decode error. The reader of the wire form does not check the code
+units of a name. A name that is not a player name has no valid saved form, so STK-NET-009 applies.
+
+For example, the partial profile with only the UUID of the ints `1, 2, 3, 4` has the wire form
+`00 00 01 00000001 00000002 00000003 00000004 00 00 00 00 00`.
+
+**STK-SHP-027** (`source_suggested_black_box_confirmed`, semantic). Two components of
+`minecraft:profile` are equal when each of these conditions is true:
+
+- They have the same form: full profile or partial profile.
+- They have the same name, or no name. The comparison does not ignore case. The inherited
+  requirement "Name case" of `README.md` applies to a lookup of a player, not to the equality of
+  this component. Equality decides if two stacks can merge (STK-EQ-004).
+- They have the same UUID, or no UUID.
+- Their property groups have the same names. For each name, the two groups have equal properties
+  in the same order. Two properties are equal when their values are equal and their signatures
+  are equal or both absent.
+- Each field of the skin patch is equal, or absent in both.
+
+The order of the groups has no effect on equality. The form has an effect on equality, also when
+the saved forms are equal. These two statements are an exception to STK-PAT-007.
+
+Thus the profiles with the properties `x=1, textures=t` and `textures=t, x=1` are equal. Their
+saved forms and their hashes are different (STK-SHP-025). Two stacks with these two profiles can
+merge. A hashed stack with the hash of one profile does not match a stack with the other profile
+(STK-HSH-003). Experiment E26 confirms the order of the groups, the order in a group, the case of
+the name, the signature, the skin patch and the form.
+
+A dynamic profile is a partial profile with no property and with exactly one of a name and a UUID.
+No format records that a profile is dynamic. The game can replace a dynamic profile with the
+result of a lookup by the name or the UUID. Another document states when the game does that lookup.
+The vanilla client shows the tooltip line with the translation key `component.profile.dynamic`, in
+gray, for a dynamic profile.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -1354,6 +1583,41 @@ The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`
   carries the component. Reason: a strict reader refuses input that no conforming writer produces.
 - **Visible to the client**: no. The vanilla client and the vanilla server write no level 0.
 
+**D6.**
+
+- **Rule**: STK-SHP-025.
+- **Reference**: the reference reader of the map form of the properties checks only the number of
+  keys. It accepts more than 16 properties in total, a name longer than 64 code units and a value
+  longer than 32767 code units. The writers of the saved form, of the hash and of the wire form
+  then fail for that component.
+- **mcrs**: the reader of the map form gives an error for such a value. Reason: a reader must not
+  accept a value that no writer can write.
+- **Visible to the client**: no. The vanilla client and the vanilla server write only the list
+  form. A data pack, a command or a save file with such a map form gets an error in mcrs. In the
+  reference, the stack fails later, when the game saves it or sends it.
+- **Bug reference**: none.
+- **Test**: a differential test does not compare a map form that is outside these limits.
+
+**D7.**
+
+- **Rule**: STK-SHP-025 and STK-HSH-004.
+- **Reference**: the reference keeps the saved form and the hash of a profile in a cache. It finds
+  an entry of the cache by equality (STK-SHP-027). Thus a profile can get the saved form and the
+  hash of an earlier equal profile with a different order of groups. The result depends on the
+  profiles that the process encoded before. The vanilla client and the vanilla server each have
+  their own cache. The wire form does not use the cache.
+- **mcrs**: the saved form and the hash of a profile come only from that profile. Reason: a result
+  must not depend on earlier values.
+- **Visible to the client**: only for two equal profiles with different orders of groups. The
+  client can then send the hash of the other order. The hashed stack does not match, and the
+  server sends the slot again (`inventory-transactions.md`). A vanilla server gives the same result
+  when its cache holds the other order. The game makes such a pair only from a command, a data pack
+  or a save file.
+- **Bug reference**: none.
+- **Test**: in the fixture `item_plain`, the second profile of two equal profiles has the saved
+  form and the hash of the first. A differential test compares only the wire form of such a
+  profile.
+
 ## 10. Unresolved
 
 - **Q1**: STK-SAV-006. Which callers keep a stack whose patch has a bad key, and which drop the
@@ -1366,8 +1630,94 @@ The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types? Section 8.1 states the first 15 types.
+  document owns each group of types? Sections 8.1 and 8.2 state 18 types, with `map_id`,
+  `map_decorations` and `profile`.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
 - **U3**: the command form with the item `minecraft:air`.
+
+## 11. Experiments
+
+Each experiment ran against the game version of `assets/minecraft/version.json`. The fixture of an
+experiment holds its raw output.
+
+**E26.** Rules: STK-SHP-022, STK-SHP-024, STK-SHP-025, STK-SHP-026, STK-SHP-027 and STK-HSH-004.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of `tools/fixtures.json`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For a case of the kind "value", read the JSON, the NBT, the wire form and the hash.
+4. For a case of the kind "error", read the rejection.
+5. For a case of the kind "decode", give the wire form to the reader. Read the JSON of the result.
+6. For a case of the kind "decode error", give the wire form to the reader. Read the decode error.
+
+The fixture keeps the cases of the four kinds in its lists `values`, `errors`, `decodes` and
+`decode_errors`. The field `kind` of a case gives the component type.
+
+| Component type | Kind | Input | Rule |
+|----------------|------|-------|------|
+| `map_decorations` | value | `{"m1":{"type":"minecraft:player","x":1.5,"z":-2.5,"rotation":90.0}}` | STK-SHP-022 |
+| `map_decorations` | value | `{"":{"type":"red_x","x":1,"z":-2,"rotation":-45,"extra":true}}` | STK-SHP-022 |
+| `map_decorations` | value | `{"a":{"type":"minecraft:target_x","x":0.0,"z":0.0,"rotation":0.0},"b":{"type":"minecraft:banner_red","x":-1.0E300,"z":1.0E-300,"rotation":359.5}}` | STK-SHP-022 |
+| `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":1.0,"z":2.0}}` | STK-SHP-022 |
+| `map_decorations` | error | `{"m1":{"type":"minecraft:player","x":"1","z":2.0,"rotation":0.0}}` | STK-SHP-022 |
+| `map_decorations` | error | `[]` | STK-SHP-022 |
+| `profile` | value | `"Notch"` | STK-SHP-024 |
+| `profile` | value | `""` | STK-SHP-024 |
+| `profile` | value | `{}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1,2,3,4],"name":"Steve"}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1.9,2,3,4]}` | STK-SHP-024 |
+| `profile` | value | `{"name":"abcdefghijklmnop","unknown":1,"model":"slim"}` | STK-SHP-024 |
+| `profile` | value | `{"id":[1,2,3,4],"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t"},{"name":"x","value":"2"}]}` | STK-SHP-025 |
+| `profile` | value | `{"name":"Steve","properties":{"textures":["v1","v2"]}}` | STK-SHP-025 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"textures","value":"t"}]}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"textures","value":"t"},{"name":"x","value":"1"}]}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"1"},{"name":"x","value":"2"}]}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"2"},{"name":"x","value":"1"}]}` | STK-SHP-027 |
+| `profile` | value | `{"id":[1,2,3,4],"name":"steve"}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"1"}]}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"1","signature":"s"}]}` | STK-SHP-027 |
+| `profile` | value | `{"name":"Steve","properties":[{"name":"x","value":"1"}],"model":"slim"}` | STK-SHP-027 |
+| `profile` | error | `{"id":[1,2,3]}` | STK-SHP-024 |
+| `profile` | error | `{"id":"00000001-0000-0002-0000-000300000004"}` | STK-SHP-024 |
+| `profile` | error | `{"name":"é"}` | STK-SHP-024 |
+| `profile` | error | `{"model":"default"}` | STK-SHP-024 |
+| `profile` | error | a list form with 17 properties `{"name":"p","value":"v"}` | STK-SHP-025 |
+| `profile` | error | a list form with one property whose name has 65 code units | STK-SHP-025 |
+| `profile` | error | a map form with the 17 keys `"a"` to `"q"`, each with the value `[]` | STK-SHP-025 |
+| `profile` | decode | `00 01 05 5374657665 01 00000001 00000002 00000003 00000004 00 00 00 00 00` | STK-SHP-026 |
+| `profile` | decode | `00 00 00 03 01 78 01 31 00 08 7465787475726573 01 74 00 01 78 01 32 00 00 00 00 00` | STK-SHP-025 |
+| `profile` | decode error | `00 00 00 11` | STK-SHP-026 |
+
+Results:
+
+- The game accepts each case of the kind "value". It rejects each case of the kind "error".
+- The wire form of each value of `minecraft:map_decorations` is the network NBT of its saved form.
+- The case with the key `""` keeps the empty key. It gives the type `minecraft:red_x`, the
+  numbers `1.0`, `-2.0` and `-45.0`, and no key `extra`.
+- The game writes the keys of a compound of `minecraft:map_decorations` in an order that is
+  different from the order of the input.
+- `"Notch"` and `""` give a partial profile with only a name. `{}` gives a partial profile with no
+  field.
+- `{"id":[1.9,2,3,4]}` gives the UUID of the ints `1, 2, 3, 4`.
+- The saved form of the full profile without properties has no key `properties`.
+- The saved form of the case with the key `unknown` has no key `unknown`. Its wire form ends with
+  `01 01`, the model `slim`.
+- The input `x=1, textures=t, x=2` gives the list `x=1, x=2, textures=t` in each format.
+- The map form `{"textures":["v1","v2"]}` gives the list form with two properties.
+- The first case of the kind "decode" gives a saved form with the keys `name` and `id`. As a
+  tree, this saved form is equal to the saved form of the full profile with the same values.
+- The second case of the kind "decode" has the properties `x=1, textures=t, x=2` on the wire. It
+  gives the list `x=1, x=2, textures=t`.
+- The case `textures=t, x=1` gives the saved form and the hash of the case `x=1, textures=t`
+  before it. Its wire form keeps the order `textures=t, x=1`. Thus the game gives a profile the
+  saved form and the hash of an earlier equal profile (D7).
+- Four later cases each differ from an earlier case in one condition: the order in a group, the
+  case of the name, the signature or the skin patch. Each of the four cases keeps its own saved
+  form. Thus the game does not find it equal to the earlier case.
+- The saved form of the first case of the kind "decode" has the keys in a different order from
+  the full profile with the same values. Thus the game does not find a partial profile and a full
+  profile equal.
+- The case of the kind "decode error" gives a decode error for 17 properties.

@@ -18,6 +18,9 @@ macro_rules! for_each_builtin {
             RepairCost => "repair_cost",
             Food => "food",
             Tool => "tool",
+            MapId => "map_id",
+            MapDecorations => "map_decorations",
+            Profile => "profile",
         }
     };
 }

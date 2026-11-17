@@ -5,6 +5,7 @@ use crate::Builtin;
 use crate::HashError;
 use crate::HashScratch;
 use crate::NameLookup;
+use crate::Profile;
 use crate::field_map::FieldMap;
 use crate::node_hash::ListHash;
 use crate::node_hash::MapEntry;
@@ -13,6 +14,7 @@ use crate::node_serializer::hash_of;
 use crate::saved_form::Fault;
 use crate::saved_form::saved_form;
 use crate::saved_sink::Field;
+use crate::saved_sink::KeyedEntry;
 use crate::saved_sink::Leaf;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
@@ -55,6 +57,10 @@ impl SavedSink for HashSink<'_> {
         hash_of(text, &mut self.scratch.entries).ok()
     }
 
+    fn profile(&mut self, profile: &Profile) -> Option<NodeHash> {
+        hash_of(profile, &mut self.scratch.entries).ok()
+    }
+
     fn fields(&self, fields: impl IntoIterator<Item = Field<NodeHash>>) -> NodeHash {
         let mut map = FieldMap::new();
         for field in fields {
@@ -91,5 +97,29 @@ impl SavedSink for HashSink<'_> {
             list = list.push(element(self, item)?);
         }
         Ok(list.finish())
+    }
+
+    fn keyed_map<'a, T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        mut entry: impl FnMut(&mut Self, T) -> Result<KeyedEntry<'a, NodeHash>, Fault>,
+    ) -> Result<NodeHash, Fault> {
+        let start = self.scratch.entries.len();
+        for item in items {
+            let KeyedEntry { key, value } = match entry(self, item) {
+                Ok(entry) => entry,
+                Err(fault) => {
+                    self.scratch.entries.truncate(start);
+                    return Err(fault);
+                }
+            };
+            self.scratch.entries.push(MapEntry {
+                key: NodeHash::string(key),
+                value,
+            });
+        }
+        let hash = NodeHash::map(self.scratch.entries.get_mut(start..).unwrap_or_default());
+        self.scratch.entries.truncate(start);
+        Ok(hash)
     }
 }

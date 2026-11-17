@@ -9,6 +9,7 @@ use std::io::Cursor;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -33,12 +34,17 @@ use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
 use crate::Kind;
+use crate::MapDecoration;
+use crate::MapDecorationTypeId;
+use crate::MapDecorations;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::PatchEntry;
+use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
 use crate::SavedError;
@@ -271,6 +277,9 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.int(tag, POSITIVE)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.int(tag, NOT_NEGATIVE)?)),
+        BuiltinKey::MapId => Builtin::MapId(MapId(reader.number(tag)?.to_int())),
+        BuiltinKey::MapDecorations => Builtin::MapDecorations(reader.map_decorations(tag)?),
+        BuiltinKey::Profile => Builtin::Profile(reader.profile(tag)?),
         BuiltinKey::Unbreakable => {
             reader.map(tag)?;
             Builtin::Unbreakable(Unbreakable)
@@ -473,6 +482,27 @@ impl<L: NameLookup> Reader<'_, L> {
             rule.correct_for_drops = Some(self.boolean(correct_for_drops)?);
         }
         Ok(rule)
+    }
+
+    fn map_decorations(&self, tag: &NbtTag) -> Result<MapDecorations, SavedError> {
+        let map = self.map(tag)?;
+        let mut decorations: Vec<MapDecoration> = Vec::with_capacity(map.child_tags.len());
+        for (key, decoration) in &map.child_tags {
+            let decoration = self.map(decoration)?;
+            let kind = self.identifier(self.necessary(decoration, "type")?)?;
+            decorations.push(MapDecoration {
+                key: key.as_str().into(),
+                kind: MapDecorationTypeId(self.entry(NameTable::MapDecorationType, kind)?),
+                x: self.number(self.necessary(decoration, "x")?)?.to_double(),
+                z: self.number(self.necessary(decoration, "z")?)?.to_double(),
+                rotation: self.float(self.necessary(decoration, "rotation")?)?,
+            });
+        }
+        MapDecorations::new(decorations).ok_or(self.bad())
+    }
+
+    fn profile(&self, tag: &NbtTag) -> Result<Profile, SavedError> {
+        from_tag(tag.clone()).map_err(|_| self.bad())
     }
 
     fn block_set(&self, tag: &NbtTag) -> Result<BlockSet, SavedError> {

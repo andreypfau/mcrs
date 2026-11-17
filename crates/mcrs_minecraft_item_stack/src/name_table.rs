@@ -7,4 +7,5 @@ pub enum NameTable {
     Block,
     BlockTag,
     ComponentType,
+    MapDecorationType,
 }

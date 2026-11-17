@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::CustomName;
@@ -8,6 +10,7 @@ use mcrs_minecraft_item_stack::HashedComponent;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::RepairCost;
@@ -26,6 +29,7 @@ use serde::Deserialize;
 use crate::common::COMPONENT_TYPES;
 use crate::common::stack;
 use crate::common::unhex;
+use crate::common::var_int;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -55,6 +59,7 @@ impl Names {
         let indexed: &'static [&'static str] = match table {
             NameTable::BlockTag => &["mineable/pickaxe"],
             NameTable::ComponentType => &COMPONENT_TYPES,
+            NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             _ => &[],
         };
         (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
@@ -101,13 +106,16 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 6] = [
+const PLAIN_KINDS: [&str; 9] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "rarity",
     "repair_cost",
+    "map_id",
+    "map_decorations",
+    "profile",
 ];
 
 fn plain_cases() -> Vec<Recorded> {
@@ -195,19 +203,25 @@ fn component_type(kind: &str) -> ComponentType {
 
 fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let value = unhex(wire);
-    let length = u8::try_from(value.len()).expect("the golden values are short");
     let type_id = u8::try_from(component.0).expect("the type ids of the test are small");
-    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id, length];
+    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id];
+    frame.extend(var_int(value.len()));
     frame.extend(value);
     read_wire_with_length(&mut frame.as_slice(), &Names)
         .expect("the game wrote a valid component")
         .expect("the stack is not empty")
 }
 
+struct SeenProfile {
+    stack: ItemStack,
+    wire: String,
+}
+
 #[test]
 fn a_component_has_the_hash_that_the_game_recorded() {
     let mut scratch = HashScratch::default();
     let mut compared: Vec<String> = Vec::new();
+    let mut profiles: Vec<SeenProfile> = Vec::new();
     let cases = plain_cases()
         .into_iter()
         .chain(record_cases())
@@ -216,6 +230,18 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         let component = component_type(&case.kind);
         let stack = stack_with(component, &case.wire);
         let label = format!("{} {}", case.kind, case.case);
+        if case.kind == "profile" {
+            let cached_by_the_game = profiles
+                .iter()
+                .any(|seen| seen.stack == stack && seen.wire != case.wire);
+            profiles.push(SeenProfile {
+                stack: stack.clone(),
+                wire: case.wire.clone(),
+            });
+            if cached_by_the_game {
+                continue;
+            }
+        }
         let hashed = hash_stack(Some(&stack), &Names, &mut scratch)
             .expect("a decoded component has a hash")
             .expect("the stack is not empty");
@@ -242,13 +268,31 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "repair_cost",
         "food",
         "tool",
+        "map_id",
+        "map_decorations",
+        "profile",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),
             "the goldens lost each case of {kind}"
         );
     }
-    assert!(compared.len() >= 35, "the goldens lost cases: {compared:?}");
+    assert!(compared.len() >= 50, "the goldens lost cases: {compared:?}");
+}
+
+#[test]
+fn the_map_decorations_of_a_map_prototype_hash_as_the_empty_map() {
+    let recorded: BTreeMap<String, i32> = serde_json::from_str(&fixture("hash_ops").text())
+        .expect("the fixture is a map of case names to hashes");
+    let stack = stack(STONE, 1).set(MapDecorations::new([]).expect("no key repeats"));
+    let hashed = hashed(Some(&stack)).expect("the stack is not empty");
+    assert_eq!(
+        hashed.values,
+        [HashedComponent {
+            component: component_type("map_decorations"),
+            hash: recorded["empty_map"],
+        }]
+    );
 }
 
 #[test]

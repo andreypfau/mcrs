@@ -44,6 +44,10 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_profile::Profile;
+use mcrs_minecraft_profile::ProfileIdentity;
+use mcrs_minecraft_profile::Property;
+use mcrs_minecraft_profile::SkinPatch;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
@@ -52,6 +56,8 @@ use mcrs_minecraft_snbt::write_compound;
 use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
+use crate::common::same;
+use crate::common::same_map;
 use crate::common::stack;
 use crate::common::unhex;
 
@@ -80,6 +86,7 @@ impl Names {
             NameTable::ComponentType => {
                 &["max_stack_size", "damage", "bundle_contents", "custom_data"]
             }
+            NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             _ => &[],
         }
     }
@@ -110,28 +117,6 @@ fn with_components(components: &str) -> NbtCompound {
     saved(&format!(
         "{{id:\"minecraft:stone\",components:{{{components}}}}}"
     ))
-}
-
-fn same(left: &NbtTag, right: &NbtTag) -> bool {
-    match (left, right) {
-        (NbtTag::Compound(left), NbtTag::Compound(right)) => same_map(left, right),
-        (NbtTag::List(left), NbtTag::List(right)) => {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| same(left, right))
-        }
-        _ => left == right,
-    }
-}
-
-fn same_map(left: &NbtCompound, right: &NbtCompound) -> bool {
-    left.child_tags.len() == right.child_tags.len()
-        && left
-            .child_tags
-            .iter()
-            .all(|(key, value)| right.get(key).is_some_and(|other| same(value, other)))
 }
 
 fn assert_same(actual: &NbtCompound, expected: &NbtCompound, case: &str) {
@@ -246,8 +231,8 @@ fn the_writer_gives_the_canonical_form_of_what_the_reader_accepts() {
     let cases: [(&str, &str); 9] = [
         (r#"{id:"stone"}"#, r#"{id:"minecraft:stone",count:1}"#),
         (
-            r#"{id:"stone",count:3b,components:{"minecraft:max_stack_size":64.5f,"minecraft:max_damage":10000000000.0d,"minecraft:damage":-0.5d,"minecraft:repair_cost":4294967298L,"minecraft:enchantments":{sharpness:3s},"minecraft:attribute_modifiers":[{type:"attack_damage",id:"base",amount:2,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:2b},"minecraft:food":{nutrition:4.9f,saturation:1,can_always_eat:0.5f},"minecraft:tool":{rules:[{blocks:"stone",speed:2b,correct_for_drops:-1}],default_mining_speed:3L,damage_per_block:2.9d,can_destroy_blocks_in_creative:0L}}}"#,
-            r#"{id:"minecraft:stone",count:3,components:{"minecraft:max_stack_size":64,"minecraft:max_damage":2147483647,"minecraft:damage":0,"minecraft:repair_cost":2,"minecraft:enchantments":{"minecraft:sharpness":3},"minecraft:attribute_modifiers":[{type:"minecraft:attack_damage",id:"minecraft:base",amount:2.0d,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:1b},"minecraft:food":{nutrition:4,saturation:1.0f,can_always_eat:1b},"minecraft:tool":{rules:[{blocks:"minecraft:stone",speed:2.0f,correct_for_drops:1b}],default_mining_speed:3.0f,damage_per_block:2,can_destroy_blocks_in_creative:0b}}}"#,
+            r#"{id:"stone",count:3b,components:{"minecraft:max_stack_size":64.5f,"minecraft:max_damage":10000000000.0d,"minecraft:damage":-0.5d,"minecraft:repair_cost":4294967298L,"minecraft:map_id":2.7d,"minecraft:enchantments":{sharpness:3s},"minecraft:attribute_modifiers":[{type:"attack_damage",id:"base",amount:2,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:2b},"minecraft:food":{nutrition:4.9f,saturation:1,can_always_eat:0.5f},"minecraft:tool":{rules:[{blocks:"stone",speed:2b,correct_for_drops:-1}],default_mining_speed:3L,damage_per_block:2.9d,can_destroy_blocks_in_creative:0L}}}"#,
+            r#"{id:"minecraft:stone",count:3,components:{"minecraft:max_stack_size":64,"minecraft:max_damage":2147483647,"minecraft:damage":0,"minecraft:repair_cost":2,"minecraft:map_id":2,"minecraft:enchantments":{"minecraft:sharpness":3},"minecraft:attribute_modifiers":[{type:"minecraft:attack_damage",id:"minecraft:base",amount:2.0d,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:1b},"minecraft:food":{nutrition:4,saturation:1.0f,can_always_eat:1b},"minecraft:tool":{rules:[{blocks:"minecraft:stone",speed:2.0f,correct_for_drops:1b}],default_mining_speed:3.0f,damage_per_block:2,can_destroy_blocks_in_creative:0b}}}"#,
         ),
         (
             r#"{id:"stone",components:{damage:3,"!minecraft:damage":{},"!repair_cost":{},"minecraft:repair_cost":5}}"#,
@@ -462,6 +447,88 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
 }
 
 #[test]
+fn a_map_decoration_needs_a_map_with_each_field_and_a_known_type() {
+    let bad_value = SavedError::BadValue(BuiltinKey::MapDecorations);
+    let cases: [(&str, SavedError); 2] = [
+        (r#"{"+":1b}"#, bad_value),
+        (
+            r#"{"+":{type:"no_such_type",x:1,z:2,rotation:0}}"#,
+            SavedError::UnknownEntry {
+                component: BuiltinKey::MapDecorations,
+                table: NameTable::MapDecorationType,
+            },
+        ),
+    ];
+    for (decorations, expected) in cases {
+        let nbt = with_components(&format!(r#""minecraft:map_decorations":{decorations}"#));
+        assert_eq!(read_saved(&nbt, &Names), Err(expected), "{decorations}");
+    }
+}
+
+#[test]
+fn a_profile_ignores_the_order_of_its_property_groups_but_not_the_case_of_its_name() {
+    let profile = |profile: &str| {
+        read_saved(
+            &with_components(&format!(r#""minecraft:profile":{profile}"#)),
+            &Names,
+        )
+        .expect("the test profile is valid")
+    };
+    let first_x = profile(r#"{properties:[{name:"x",value:"1"},{name:"y",value:"2"}]}"#);
+    let first_y = profile(r#"{properties:[{name:"y",value:"2"},{name:"x",value:"1"}]}"#);
+    assert_eq!(first_x, first_y);
+    let one_two = profile(r#"{properties:[{name:"x",value:"1"},{name:"x",value:"2"}]}"#);
+    let two_one = profile(r#"{properties:[{name:"x",value:"2"},{name:"x",value:"1"}]}"#);
+    assert_ne!(one_two, two_one);
+    let upper = profile(r#""Steve""#);
+    let lower = profile(r#""steve""#);
+    assert_ne!(upper, lower);
+    let partial = |properties: &[(&str, &str)]| Profile {
+        profile: ProfileIdentity::Partial {
+            name: None,
+            id: None,
+            properties: properties
+                .iter()
+                .map(|&(name, value)| Property {
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                    signature: None,
+                })
+                .collect(),
+        },
+        skin: SkinPatch::default(),
+    };
+    let ungrouped = [
+        (
+            partial(&[("x", "1"), ("t", "1"), ("x", "1")]),
+            partial(&[("x", "1"), ("t", "1"), ("y", "1")]),
+            false,
+        ),
+        (
+            partial(&[("x", "1"), ("t", "1"), ("x", "2")]),
+            partial(&[("x", "1"), ("x", "2"), ("t", "1")]),
+            true,
+        ),
+    ];
+    for (left, right, equal) in ungrouped {
+        assert_eq!(left == right, equal, "{left:?} == {right:?}");
+        assert_eq!(right == left, equal, "{right:?} == {left:?}");
+    }
+}
+
+#[test]
+fn the_map_form_of_the_properties_holds_at_most_16_properties_in_total() {
+    let values = vec![r#""v""#; 17].join(",");
+    let nbt = with_components(&format!(
+        r#""minecraft:profile":{{properties:{{p:[{values}]}}}}"#
+    ));
+    assert_eq!(
+        read_saved(&nbt, &Names),
+        Err(SavedError::BadValue(BuiltinKey::Profile))
+    );
+}
+
+#[test]
 fn the_writer_names_the_rule_that_a_stack_breaks() {
     let unnamed_enchantment = Enchantments::new([EnchantmentLevel {
         enchantment: EnchantmentId(9),
@@ -578,13 +645,16 @@ struct PlainError {
     input: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 6] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 9] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
     ("unbreakable", BuiltinKey::Unbreakable),
     ("rarity", BuiltinKey::Rarity),
     ("repair_cost", BuiltinKey::RepairCost),
+    ("map_id", BuiltinKey::MapId),
+    ("map_decorations", BuiltinKey::MapDecorations),
+    ("profile", BuiltinKey::Profile),
 ];
 
 fn plain_kind(kind: &str) -> Option<BuiltinKey> {
@@ -612,7 +682,7 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         if plain_kind(&value.kind).is_none() {
             continue;
         }
-        let hex = value.nbt.as_ref().expect("each of the six types is saved");
+        let hex = value.nbt.as_ref().expect("each of the nine types is saved");
         let bytes = unhex(hex);
         let nbt = with_component(&value.kind, tag_of(&bytes));
         let read = read_saved(&nbt, &Names).expect("the game wrote a valid component");
@@ -627,10 +697,15 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         };
         let key = format!("minecraft:{}", value.kind);
         let written = patch.get(&key).expect("the writer wrote the component");
-        assert_eq!(bytes_of(written), bytes, "{} {hex}", value.kind);
+        let expected = tag_of(&bytes);
+        if let NbtTag::Compound(_) = expected {
+            assert!(same(written, &expected), "{} {hex}", value.kind);
+        } else {
+            assert_eq!(bytes_of(written), bytes, "{} {hex}", value.kind);
+        }
         checked += 1;
     }
-    assert!(checked >= 17, "the golden lost cases: {checked}");
+    assert!(checked >= 32, "the golden lost cases: {checked}");
 
     let mut rejected = 0;
     for error in &golden.errors {
@@ -639,7 +714,10 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         };
         let input = parse_tag(&error.input).expect("the rejected input is valid SNBT");
         let expected = match component {
-            BuiltinKey::Unbreakable | BuiltinKey::Rarity => SavedError::BadValue(component),
+            BuiltinKey::Unbreakable
+            | BuiltinKey::Rarity
+            | BuiltinKey::MapDecorations
+            | BuiltinKey::Profile => SavedError::BadValue(component),
             _ => SavedError::OutOfRange(component),
         };
         let nbt = with_component(&error.kind, input);
@@ -652,5 +730,5 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         );
         rejected += 1;
     }
-    assert!(rejected >= 8, "the golden lost error cases: {rejected}");
+    assert!(rejected >= 18, "the golden lost error cases: {rejected}");
 }

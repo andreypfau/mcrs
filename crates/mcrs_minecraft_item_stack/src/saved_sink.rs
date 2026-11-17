@@ -1,6 +1,7 @@
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
+use crate::Profile;
 use crate::saved_form::Fault;
 
 pub(crate) const TAG_MARKER: &str = "#";
@@ -39,12 +40,19 @@ pub(crate) struct NamedEntry<'a> {
     pub(crate) value: Leaf<'a>,
 }
 
+pub(crate) struct KeyedEntry<'a, N> {
+    pub(crate) key: &'a str,
+    pub(crate) value: N,
+}
+
 pub(crate) trait SavedSink {
     type Node;
 
     fn leaf(&self, leaf: Leaf<'_>) -> Self::Node;
 
     fn text(&mut self, text: &Text) -> Option<Self::Node>;
+
+    fn profile(&mut self, profile: &Profile) -> Option<Self::Node>;
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<Self::Node>>) -> Self::Node;
 
@@ -57,5 +65,11 @@ pub(crate) trait SavedSink {
         &mut self,
         items: impl IntoIterator<Item = T>,
         element: impl FnMut(&mut Self, T) -> Result<Self::Node, Fault>,
+    ) -> Result<Self::Node, Fault>;
+
+    fn keyed_map<'a, T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        entry: impl FnMut(&mut Self, T) -> Result<KeyedEntry<'a, Self::Node>, Fault>,
     ) -> Result<Self::Node, Fault>;
 }

@@ -6,6 +6,7 @@ use mcrs_minecraft_wire::ErrorKind;
 use crate::BuiltinKey;
 use crate::ComponentType;
 use crate::NameTable;
+use crate::SavedError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -44,6 +45,16 @@ impl WireError {
     pub(crate) fn of_value(error: &mcrs_minecraft_wire::Error, component: BuiltinKey) -> Self {
         match error.kind() {
             ErrorKind::UnexpectedEnd => Self::UnexpectedEnd,
+            _ => Self::BadValue(component),
+        }
+    }
+
+    pub(crate) fn of_saved(error: SavedError, component: BuiltinKey) -> Self {
+        match error {
+            SavedError::OutOfRange(component) => Self::OutOfRange(component),
+            SavedError::UnknownEntry { component, table } => {
+                Self::UnknownEntry { component, table }
+            }
             _ => Self::BadValue(component),
         }
     }

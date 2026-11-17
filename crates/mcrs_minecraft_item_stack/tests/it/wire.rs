@@ -24,6 +24,7 @@ use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Lore;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
@@ -60,8 +61,10 @@ use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
+use crate::common::same;
 use crate::common::stack;
 use crate::common::unhex;
+use crate::common::var_int;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -89,6 +92,7 @@ impl Names {
             NameTable::Block => indexed(&["stone", "dirt"]),
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
             NameTable::ComponentType => indexed(&COMPONENT_TYPES),
+            NameTable::MapDecorationType => indexed(&["player", "red_x", "target_x", "banner_red"]),
             _ => Vec::new(),
         }
     }
@@ -237,6 +241,12 @@ fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str
             "1c",
             "02 00 1a 6d696e6563726166743a6d696e6561626c652f7069636b617865 01 41000000 01 01
              03 00 01 00 00 40200000 00 00",
+        ),
+        (
+            "map_decorations",
+            stone().set(MapDecorations::new([]).expect("no key repeats")),
+            "31",
+            "0a 00",
         ),
     ]
 }
@@ -477,14 +487,44 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 6] = [
+const DECODED_PLAIN: [&str; 9] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "repair_cost",
     "rarity",
+    "map_id",
+    "map_decorations",
+    "profile",
 ];
+
+fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: usize) {
+    if kind != "map_decorations" {
+        assert_eq!(hex(written), hex(expected), "{kind}");
+        return;
+    }
+    let tree = |bytes: &[u8]| {
+        let mut reader = NbtReadHelper::new(Cursor::new(bytes));
+        let tag = NbtTag::deserialize(&mut reader).expect("the component is one NBT value");
+        assert_eq!(
+            reader.position().expect("a cursor knows its position"),
+            u64::try_from(bytes.len()).expect("a buffer length fits in 64 bits"),
+            "{kind}: the component has no bytes after its NBT value"
+        );
+        tag
+    };
+    let (written_header, written_tree) = written.split_at(header);
+    let (expected_header, expected_tree) = expected.split_at(header);
+    assert_eq!(hex(written_header), hex(expected_header), "{kind}");
+    assert_eq!(written_tree.len(), expected_tree.len(), "{kind}");
+    assert!(
+        same(&tree(written_tree), &tree(expected_tree)),
+        "{kind}: wrote {}, expected {}",
+        hex(written_tree),
+        hex(expected_tree)
+    );
+}
 
 #[test]
 fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_back() {
@@ -501,26 +541,22 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         };
         let type_id = u8::try_from(type_id).expect("the type ids are below 128");
         let component = unhex(component);
-        let length = u8::try_from(component.len()).expect("the golden components are short");
-        let prefixed = [
-            unhex("01 01 01 00"),
-            vec![type_id, length],
-            component.clone(),
-        ]
-        .concat();
+        let header = [unhex("01 01 01 00"), vec![type_id]].concat();
+        let length = var_int(component.len());
+        let prefixed = [header.clone(), length.clone(), component.clone()].concat();
         let read = read_all(&prefixed, read_wire_with_length).expect("the game wrote it");
-        assert_eq!(
-            hex(&wire_with_length(read.as_ref())),
-            hex(&prefixed),
-            "{}",
-            value.kind
+        assert_same_component(
+            &value.kind,
+            &wire_with_length(read.as_ref()),
+            &prefixed,
+            header.len() + length.len(),
         );
         if !DECODED_PLAIN.contains(&value.kind.as_str()) {
             kept += 1;
             continue;
         }
 
-        let bare = [unhex("01 01 01 00"), vec![type_id], component].concat();
+        let bare = [header.clone(), component].concat();
         let tag = NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(unhex(nbt))))
             .expect("the golden holds one NBT value");
         let mut patch = NbtCompound::new();
@@ -536,10 +572,111 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
             value.kind
         );
         assert_eq!(read, Some(from_saved), "{}", value.kind);
-        assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{}", value.kind);
+        assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (17, 8));
+    assert_eq!((decoded, kept), (40, 48));
+}
+
+#[derive(Deserialize)]
+struct DecodeGolden {
+    decodes: Vec<PlainDecode>,
+    decode_errors: Vec<PlainDecodeError>,
+}
+
+#[derive(Deserialize)]
+struct PlainDecode {
+    kind: String,
+    wire: String,
+    json: String,
+}
+
+#[derive(Deserialize)]
+struct PlainDecodeError {
+    kind: String,
+    wire: String,
+}
+
+fn with_one_component(kind: &str, component: &str) -> Vec<u8> {
+    let type_id = COMPONENT_TYPES
+        .iter()
+        .position(|path| *path == kind)
+        .expect("the kind has a type id");
+    let type_id = u8::try_from(type_id).expect("the type ids are below 128");
+    [unhex("01 01 01 00"), vec![type_id], unhex(component)].concat()
+}
+
+#[test]
+fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_back() {
+    let golden: DecodeGolden =
+        serde_json::from_str(&fixture("item_plain").text()).expect("the golden is JSON");
+
+    let mut decoded = 0;
+    for case in &golden.decodes {
+        if case.kind != "profile" {
+            continue;
+        }
+        let bare = with_one_component(&case.kind, &case.wire);
+        let read = read_all(&bare, read_wire)
+            .expect("the game decoded it")
+            .expect("a stone");
+        let from_json = read_saved(
+            &saved(&format!(
+                r#"{{id:"minecraft:stone",components:{{"minecraft:{}":{}}}}}"#,
+                case.kind, case.json
+            )),
+            &Names,
+        )
+        .expect("the game wrote a valid saved form");
+        let written_back = if read == from_json {
+            wire(Some(&from_json))
+        } else {
+            bare
+        };
+        assert_eq!(hex(&wire(Some(&read))), hex(&written_back), "{}", case.wire);
+        let written = write_saved(&read, &Names).expect("the component has a saved form");
+        assert_eq!(read_saved(&written, &Names), Ok(from_json), "{}", case.wire);
+        decoded += 1;
+    }
+    assert_eq!(decoded, 2);
+
+    let mut rejected = 0;
+    for case in &golden.decode_errors {
+        if case.kind != "profile" {
+            continue;
+        }
+        let bare = with_one_component(&case.kind, &case.wire);
+        assert_eq!(
+            read_all(&bare, read_wire),
+            Err(WireError::BadValue(BuiltinKey::Profile)),
+            "{}",
+            case.wire
+        );
+        rejected += 1;
+    }
+    assert_eq!(rejected, 1);
+}
+
+#[test]
+fn a_partial_profile_with_a_name_and_a_uuid_differs_from_the_full_profile_it_saves_as() {
+    let partial = read_all(
+        &with_one_component(
+            "profile",
+            "00 01 05 5374657665 01 00000001 00000002 00000003 00000004 00 00 00 00 00",
+        ),
+        read_wire,
+    )
+    .expect("the stack is valid")
+    .expect("a stone");
+    let full = read_saved(
+        &saved(r#"{id:"minecraft:stone",components:{"minecraft:profile":{id:[I;1,2,3,4],name:"Steve"}}}"#),
+        &Names,
+    )
+    .expect("the profile is valid");
+
+    assert_ne!(partial, full);
+    let written = write_saved(&partial, &Names).expect("the profile has a saved form");
+    assert_eq!(read_saved(&written, &Names), Ok(full));
 }
 
 #[derive(Clone, Copy)]

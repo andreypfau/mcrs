@@ -41,7 +41,7 @@ impl NbtCompound {
     pub fn deserialize_content<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<NbtCompound, Error> {
-        let mut compound = NbtCompound::new();
+        let mut child_tags = Vec::new();
 
         loop {
             let tag_id = reader.get_u8()?;
@@ -51,10 +51,12 @@ impl NbtCompound {
 
             let name = get_nbt_string(reader)?;
             let tag = NbtTag::deserialize_data(reader, tag_id)?;
-            compound.put(&name, tag);
+            child_tags.push((name, tag));
         }
 
-        Ok(compound)
+        Ok(NbtCompound {
+            child_tags: fold_duplicate_keys(child_tags),
+        })
     }
 
     pub fn serialize_content<W: Write, E: NbtEncoding>(
@@ -281,4 +283,46 @@ impl From<NbtCompound> for NbtTag {
     fn from(value: NbtCompound) -> Self {
         NbtTag::Compound(value)
     }
+}
+
+fn fold_duplicate_keys(child_tags: Vec<(String, NbtTag)>) -> Vec<(String, NbtTag)> {
+    if child_tags.len() < 2 {
+        return child_tags;
+    }
+    let mut by_key: Vec<(&str, usize)> = child_tags
+        .iter()
+        .enumerate()
+        .map(|(index, (key, _))| (key.as_str(), index))
+        .collect();
+    by_key.sort_unstable();
+    if by_key
+        .windows(2)
+        .all(|pair| matches!(pair, [first, second] if first.0 != second.0))
+    {
+        return child_tags;
+    }
+    let mut value_source: Vec<Option<usize>> = vec![None; child_tags.len()];
+    for group in by_key.chunk_by(|first, second| first.0 == second.0) {
+        if let (Some(first), Some(last)) = (group.first(), group.last())
+            && let Some(source) = value_source.get_mut(first.1)
+        {
+            *source = Some(last.1);
+        }
+    }
+    let mut slots: Vec<Option<(String, NbtTag)>> = child_tags.into_iter().map(Some).collect();
+    let mut folded = Vec::with_capacity(slots.len());
+    for (position, source) in value_source.into_iter().enumerate() {
+        let Some(source) = source else {
+            continue;
+        };
+        let Some((key, first_value)) = slots.get_mut(position).and_then(Option::take) else {
+            continue;
+        };
+        let value = slots
+            .get_mut(source)
+            .and_then(Option::take)
+            .map_or(first_value, |(_, last_value)| last_value);
+        folded.push((key, value));
+    }
+    folded
 }
