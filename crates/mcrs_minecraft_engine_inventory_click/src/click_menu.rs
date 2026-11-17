@@ -3,13 +3,15 @@ use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::RouteWhen;
 
-#[derive(Clone, Copy, Debug)]
+use crate::click_slots::ClickSlots;
+
+#[derive(Clone, Copy)]
 pub(crate) struct ClickMenu<'menu> {
     pub(crate) layout: &'menu MenuLayout,
     pub(crate) parts: &'menu MenuParts,
     pub(crate) buttons: MenuButtons,
+    pub(crate) slots: &'menu ClickSlots<'menu>,
 }
 
 impl Menu for ClickMenu<'_> {
@@ -25,7 +27,10 @@ impl Menu for ClickMenu<'_> {
 
     fn quick_move_destinations(&self, source: u16) -> impl Iterator<Item = u16> {
         let buttons = self.buttons;
-        let route = (self.layout.routes(source)).find(|route| holds(route.when));
+        let worn = self.slot(source).and_then(|slot| self.slots.worn(slot));
+        let holds_empty =
+            |index: u16| (self.slot(index)).is_some_and(|slot| self.slots.holds_empty(slot));
+        let route = (self.layout.routes(source)).find(|route| route.when.holds(worn, holds_empty));
         route
             .into_iter()
             .flat_map(|route| route.to.iter())
@@ -38,12 +43,5 @@ impl Menu for ClickMenu<'_> {
 
     fn permits_drag(&self, index: u16) -> bool {
         self.layout.permits_drag(index) && !self.buttons.contains(index)
-    }
-}
-
-fn holds(when: RouteWhen) -> bool {
-    match when {
-        RouteWhen::Always => true,
-        RouteWhen::Wears { .. } => false,
     }
 }

@@ -1309,6 +1309,38 @@
       "nbt": "0a0800046e616d65000553746576650800056d6f64656c0004736c696d09000a70726f706572746965730a000000010800046e616d6500017808000576616c75650001310000",
       "hash": -2076609311,
       "wire": "0001055374657665000101780131000000000101"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":\"x\"}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":\"2.5\"}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":[1.0]}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":{\"a\":1.0}}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
     }
   ],
   "errors": [

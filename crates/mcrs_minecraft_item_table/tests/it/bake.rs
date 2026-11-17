@@ -8,6 +8,7 @@ use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item_stack::AttributeModifiers;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
@@ -77,6 +78,12 @@ impl Registries {
             (
                 NameTable::BlockTag,
                 pack_table(&vanilla_dir().join("tags/block")),
+            ),
+            (NameTable::SoundEvent, static_table("minecraft:sound_event")),
+            (NameTable::EntityType, static_table("minecraft:entity_type")),
+            (
+                NameTable::EntityTypeTag,
+                pack_table(&vanilla_dir().join("tags/entity_type")),
             ),
         ]);
         Self { tables }
@@ -186,7 +193,7 @@ fn the_prototypes_have_the_counts_of_the_specification() {
             .get::<AttributeModifiers>()
             .map_or(0, |modifiers| modifiers.modifiers.len())
     };
-    let cases: [(&str, usize, usize); 19] = [
+    let cases: [(&str, usize, usize); 20] = [
         (
             "STK-SHP-006 max stack size",
             count(|prototype| prototype.get::<MaxStackSize>().is_some()),
@@ -261,6 +268,11 @@ fn the_prototypes_have_the_counts_of_the_specification() {
                     .is_some_and(|decorations| decorations.decorations().is_empty())
             }),
             17,
+        ),
+        (
+            "STK-SHP-028 equippable",
+            count(|prototype| prototype.get::<Equippable>().is_some()),
+            84,
         ),
     ];
     for (rule, actual, expected) in cases {

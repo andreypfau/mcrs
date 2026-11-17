@@ -1,7 +1,7 @@
 use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
 
-const CAPACITY: usize = 6;
+const CAPACITY: usize = 11;
 
 pub(crate) struct FieldMap {
     entries: [MapEntry; CAPACITY],

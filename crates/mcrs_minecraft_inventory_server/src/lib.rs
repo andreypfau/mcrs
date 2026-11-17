@@ -19,12 +19,13 @@ mod menu_queue;
 mod menu_slots;
 mod menu_sync;
 mod open_menu_sync;
-mod queue_full_send;
 mod send_full_state;
+mod sent_selected;
 mod sent_stack;
 mod set_carried_item;
 mod set_creative_mode_slot;
 mod slot_stack;
+mod sync_held_slot;
 mod sync_menus;
 mod wire_names;
 

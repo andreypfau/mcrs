@@ -23,10 +23,11 @@ use crate::full_sends::FullSends;
 use crate::full_sends::any_full_send;
 use crate::menu_queue::MenuQueue;
 use crate::open_menu_sync::open_menu_sync;
-use crate::queue_full_send::queue_full_send;
 use crate::send_full_state::send_full_state;
+use crate::sent_selected::SentSelected;
 use crate::set_carried_item::set_carried_item;
 use crate::set_creative_mode_slot::set_creative_mode_slot;
+use crate::sync_held_slot::sync_held_slot;
 use crate::sync_menus::sync_menus;
 use mcrs_minecraft_vanilla_inventory::InventorySet;
 
@@ -61,13 +62,13 @@ impl Plugin for InventoryServerPlugin {
                         .in_set(InventorySet::Input),
                     (
                         send_full_state.run_if(any_full_send),
+                        sync_held_slot.run_if(any_with_component::<SentSelected>),
                         sync_menus.run_if(any_with_component::<MenuSync>),
                     )
                         .chain()
                         .in_set(InventoryServerSet::Sync),
                 ),
             )
-            .add_observer(queue_full_send)
             .add_observer(set_carried_item)
             .add_observer(decode_click)
             .add_observer(decode_hand_action)

@@ -3,6 +3,7 @@ use core::iter;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Query;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::GateQuery;
 use mcrs_minecraft_engine_item::SlotAccess;
@@ -11,17 +12,17 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_item::stack_capacity;
-use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_inventory_menu::worn_slot;
+use mcrs_minecraft_inventory_player::EquipSlot;
 use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_inventory_transaction::Loaded;
 use mcrs_minecraft_inventory_transaction::Planned;
 use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::MaxStackSize;
-
-use crate::click_menu::ClickMenu;
 
 const CAPACITY: usize = MenuLayout::MAX_LEN as usize + 42;
 
@@ -36,6 +37,7 @@ pub(crate) struct StackHandle {
     pub(crate) entity: Entity,
     alike: usize,
     stacking: Stacking,
+    worn: Option<EquipSlot>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,7 +75,8 @@ impl<'w> ClickSlots<'w> {
     pub(crate) fn read(
         world: &'w World,
         player: Entity,
-        menu: ClickMenu<'_>,
+        layout: &MenuLayout,
+        parts: &MenuParts,
         cursor: SlotRef,
         holder_slots: &Query<(&Slots, Option<&SlotPolicy>)>,
         stacks: &mut Stacks,
@@ -85,7 +88,7 @@ impl<'w> ClickSlots<'w> {
             slots: [UNKNOWN; CAPACITY],
             len: 0,
         };
-        let entries = (0..menu.entry_count()).filter_map(|index| menu.slot(index));
+        let entries = (0..layout.len()).filter_map(|index| parts.slot(layout.entry(index)?));
         let inventory = (0..Holder::Inventory.slot_count()).map(|index| SlotRef {
             holder: player,
             index,
@@ -135,6 +138,19 @@ impl<'w> ClickSlots<'w> {
     fn state(&self, slot: SlotRef) -> SlotState {
         self.find(slot)
             .map_or(SlotState::Missing, |known| known.state)
+    }
+
+    pub(crate) fn worn(&self, slot: SlotRef) -> Option<EquipSlot> {
+        match self.state(slot) {
+            SlotState::Holds {
+                stack: Some(stack), ..
+            } => stack.stack.worn,
+            SlotState::Holds { stack: None, .. } | SlotState::Missing => None,
+        }
+    }
+
+    pub(crate) fn holds_empty(&self, slot: SlotRef) -> bool {
+        matches!(self.state(slot), SlotState::Holds { stack: None, .. })
     }
 
     fn answer(&self, gate: Gate, slot: SlotRef, stack: Entity) -> Filter {
@@ -211,6 +227,7 @@ fn planned(
     } else {
         Stacking::Stacks
     };
+    let worn = (stacks.get::<Equippable>(entity)).and_then(|equippable| worn_slot(equippable.slot));
     let alike = (known.iter())
         .filter_map(|known| match known.state {
             SlotState::Holds {
@@ -225,6 +242,7 @@ fn planned(
             entity,
             alike,
             stacking,
+            worn,
         },
         kind: kind.0,
         count: count.get(),

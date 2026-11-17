@@ -394,11 +394,15 @@ commit before the next input of that player reads the slots (ITX-JAV-003). A sys
 
 A gate is a `fn` pointer in a table. It is not a trait object. `GateQuery` gives it the three
 inputs that ITX-LIM-006 permits. A gate that reads other state breaks the contract of that rule.
+State that the gate derives from the registries, such as the entity type tags of INV-SLT-003, is
+not other state: it does not change during a request.
 
-`vanilla_inventory` registers two gates: the armour place gate (INV-SLT-003) and the armour take
-gate (INV-SLT-004). The off-hand slot has no gate (INV-SLT-005). It builds the policy of the player
-inventory from `Holder::slot` of `inventory_player`. The craft result has `place: Gate::Refuses`
-(INV-SLT-006).
+`PlayerHoldersPlugin` of `player_holders` registers the armour place gate (INV-SLT-003). Thus the
+server and the client use the same gate. The armour take gate (INV-SLT-004) does not exist yet,
+because it needs the game mode of the player, and only the server engine keeps the game mode. Until
+then, the take filter of each armour slot is `Gate::Permits`. The off-hand slot has no gate
+(INV-SLT-005). `player_holders` builds the policy of the player inventory from `Holder::slot` of
+`inventory_player`. The craft result has `place: Gate::Refuses` (INV-SLT-006).
 
 ## 6.3 The change source
 

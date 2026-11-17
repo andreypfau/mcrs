@@ -4,6 +4,7 @@ use core::num::NonZeroU8;
 
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
@@ -23,7 +24,13 @@ use crate::Damage;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
+use crate::EntityTypeId;
+use crate::EntityTypeSet;
+use crate::EntityTypeTagId;
+use crate::Equippable;
+use crate::EquippableSlot;
 use crate::Food;
+use crate::InlineSoundEvent;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::Lore;
@@ -37,6 +44,8 @@ use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
 use crate::SlotGroup;
+use crate::SoundEventId;
+use crate::SoundEventRef;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -56,7 +65,8 @@ const DISPLAY_DEFAULT: i32 = 0;
 const DISPLAY_HIDDEN: i32 = 1;
 const DISPLAY_OVERRIDE: i32 = 2;
 
-const BLOCK_TAG: i32 = 0;
+const HOLDER_SET_TAG: i32 = 0;
+const INLINE_SOUND_EVENT: i32 = 0;
 
 pub(crate) fn put_var_int(output: &mut Vec<u8>, value: i32) {
     let _ = VarInt(value).encode(output);
@@ -111,6 +121,7 @@ pub(crate) fn read_value<L: NameLookup>(
             can_always_eat: reader.boolean(input)?,
         }),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(input)?),
+        BuiltinKey::Equippable => Builtin::Equippable(reader.equippable(input)?),
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(input, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(input, component)?)),
         BuiltinKey::Lore => Builtin::Lore(reader.lore(input)?),
@@ -280,7 +291,7 @@ impl<L: NameLookup> Reader<'_, L> {
 
     fn block_set(&self, input: &mut &[u8]) -> Result<BlockSet, WireError> {
         let form = self.var_int(input)?;
-        if form == BLOCK_TAG {
+        if form == HOLDER_SET_TAG {
             let name = self.identifier(input)?;
             let block_tag =
                 self.names
@@ -300,6 +311,90 @@ impl<L: NameLookup> Reader<'_, L> {
             blocks.push(BlockId(self.id(input, NameTable::Block)?));
         }
         Ok(BlockSet::Blocks(Cow::Owned(blocks)))
+    }
+
+    fn equippable(&self, input: &mut &[u8]) -> Result<Equippable, WireError> {
+        let mut equippable = Equippable::new(self.list_entry(input, &EquippableSlot::ALL)?);
+        equippable.equip_sound = self.optional(input, Self::sound_event)?;
+        equippable.set_asset_id(self.optional(input, Self::identifier_buf)?);
+        equippable.set_camera_overlay(self.optional(input, Self::identifier_buf)?);
+        equippable.allowed_entities = self.optional(input, Self::entity_type_set)?;
+        equippable.dispensable = self.boolean(input)?;
+        equippable.swappable = self.boolean(input)?;
+        equippable.damage_on_hurt = self.boolean(input)?;
+        equippable.equip_on_interact = self.boolean(input)?;
+        equippable.can_be_sheared = self.boolean(input)?;
+        equippable.shearing_sound = self.optional(input, Self::sound_event)?;
+        Ok(equippable)
+    }
+
+    fn optional<T>(
+        &self,
+        input: &mut &[u8],
+        read: impl FnOnce(&Self, &mut &[u8]) -> Result<T, WireError>,
+    ) -> Result<Option<T>, WireError> {
+        if self.boolean(input)? {
+            read(self, input).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn identifier_buf(&self, input: &mut &[u8]) -> Result<ResourceLocationBuf, WireError> {
+        Ok(self.identifier(input)?.to_buf())
+    }
+
+    fn named_id(&self, id: i32, table: NameTable) -> Result<u16, WireError> {
+        u16::try_from(id)
+            .ok()
+            .filter(|id| self.names.name(table, *id).is_some())
+            .ok_or(WireError::UnknownEntry {
+                component: self.component,
+                table,
+            })
+    }
+
+    fn sound_event(&self, input: &mut &[u8]) -> Result<SoundEventRef, WireError> {
+        let form = self.var_int(input)?;
+        if form == INLINE_SOUND_EVENT {
+            let mut inline = InlineSoundEvent::new(self.identifier_buf(input)?);
+            inline.range = self.optional(input, |reader, input| {
+                Ok(f32::from_be_bytes(reader.bytes(input)?))
+            })?;
+            return Ok(SoundEventRef::Inline(inline));
+        }
+        let id = form
+            .checked_sub(1)
+            .filter(|id| *id >= 0)
+            .ok_or(self.bad())?;
+        Ok(SoundEventRef::Registry(SoundEventId(
+            self.named_id(id, NameTable::SoundEvent)?,
+        )))
+    }
+
+    fn entity_type_set(&self, input: &mut &[u8]) -> Result<EntityTypeSet, WireError> {
+        let form = self.var_int(input)?;
+        if form == HOLDER_SET_TAG {
+            let name = self.identifier(input)?;
+            let entity_tag =
+                self.names
+                    .id(NameTable::EntityTypeTag, name)
+                    .ok_or(WireError::UnknownEntry {
+                        component: self.component,
+                        table: NameTable::EntityTypeTag,
+                    })?;
+            return Ok(EntityTypeSet::Tag(EntityTypeTagId(entity_tag)));
+        }
+        let count = usize::try_from(form)
+            .ok()
+            .and_then(|form| form.checked_sub(1))
+            .ok_or(self.bad())?;
+        let mut entity_types: Vec<EntityTypeId> = Vec::with_capacity(count.min(input.len()));
+        for _ in 0..count {
+            let id = self.var_int(input)?;
+            entity_types.push(EntityTypeId(self.named_id(id, NameTable::EntityType)?));
+        }
+        Ok(EntityTypeSet::EntityTypes(Cow::Owned(entity_types)))
     }
 }
 
@@ -342,6 +437,7 @@ pub(crate) fn write_value<L: NameLookup>(
             put_boolean(output, food.can_always_eat);
         }
         Builtin::Tool(tool) => writer.tool(tool, output)?,
+        Builtin::Equippable(equippable) => writer.equippable(equippable, output)?,
         Builtin::MapDecorations(_) => writer.saved_form_as_nbt(value, output)?,
         Builtin::Profile(profile) => profile
             .encode(&mut *output)
@@ -451,7 +547,7 @@ impl<L: NameLookup> Writer<'_, L> {
                     .names
                     .name(NameTable::BlockTag, block_tag.0)
                     .ok_or(WireError::UnnamedId(NameTable::BlockTag))?;
-                put_var_int(output, BLOCK_TAG);
+                put_var_int(output, HOLDER_SET_TAG);
                 self.identifier(name, output)
             }
             BlockSet::Blocks(blocks) => {
@@ -459,6 +555,83 @@ impl<L: NameLookup> Writer<'_, L> {
                 put_length(output, form)?;
                 for block in blocks.iter() {
                     put_var_int(output, i32::from(block.0));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn equippable(&self, equippable: &Equippable, output: &mut Vec<u8>) -> Result<(), WireError> {
+        self.list_id(&EquippableSlot::ALL, equippable.slot, output)?;
+        self.optional(equippable.equip_sound.as_ref(), output, Self::sound_event)?;
+        self.optional(equippable.asset_id(), output, Self::identifier)?;
+        self.optional(equippable.camera_overlay(), output, Self::identifier)?;
+        self.optional(
+            equippable.allowed_entities.as_ref(),
+            output,
+            Self::entity_type_set,
+        )?;
+        put_boolean(output, equippable.dispensable);
+        put_boolean(output, equippable.swappable);
+        put_boolean(output, equippable.damage_on_hurt);
+        put_boolean(output, equippable.equip_on_interact);
+        put_boolean(output, equippable.can_be_sheared);
+        self.optional(
+            equippable.shearing_sound.as_ref(),
+            output,
+            Self::sound_event,
+        )
+    }
+
+    fn optional<T>(
+        &self,
+        value: Option<T>,
+        output: &mut Vec<u8>,
+        write: impl FnOnce(&Self, T, &mut Vec<u8>) -> Result<(), WireError>,
+    ) -> Result<(), WireError> {
+        put_boolean(output, value.is_some());
+        value.map_or(Ok(()), |value| write(self, value, output))
+    }
+
+    fn sound_event(&self, sound: &SoundEventRef, output: &mut Vec<u8>) -> Result<(), WireError> {
+        match sound {
+            SoundEventRef::Registry(id) => {
+                put_var_int(output, i32::from(id.0) + 1);
+                Ok(())
+            }
+            SoundEventRef::Inline(inline) => {
+                put_var_int(output, INLINE_SOUND_EVENT);
+                self.identifier(inline.sound_id(), output)?;
+                self.optional(inline.range, output, |_, range, output| {
+                    output.extend_from_slice(&range.to_be_bytes());
+                    Ok(())
+                })
+            }
+        }
+    }
+
+    fn entity_type_set(
+        &self,
+        entity_types: &EntityTypeSet,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        match entity_types {
+            EntityTypeSet::Tag(entity_tag) => {
+                let name = self
+                    .names
+                    .name(NameTable::EntityTypeTag, entity_tag.0)
+                    .ok_or(WireError::UnnamedId(NameTable::EntityTypeTag))?;
+                put_var_int(output, HOLDER_SET_TAG);
+                self.identifier(name, output)
+            }
+            EntityTypeSet::EntityTypes(entity_types) => {
+                let form = entity_types
+                    .len()
+                    .checked_add(1)
+                    .ok_or(WireError::TooLong)?;
+                put_length(output, form)?;
+                for entity_type in entity_types.iter() {
+                    put_var_int(output, i32::from(entity_type.0));
                 }
                 Ok(())
             }

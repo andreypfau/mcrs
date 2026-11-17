@@ -11,6 +11,8 @@ use crate::BuiltinKey;
 use crate::CustomName;
 use crate::Damage;
 use crate::Enchantments;
+use crate::EntityTypeSet;
+use crate::Equippable;
 use crate::Food;
 use crate::HashError;
 use crate::ItemName;
@@ -25,6 +27,7 @@ use crate::NameTable;
 use crate::RepairCost;
 use crate::SavedError;
 use crate::SlotGroup;
+use crate::SoundEventRef;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -108,6 +111,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
         Builtin::TooltipDisplay(display) => walk.tooltip_display(sink, display),
         Builtin::Food(food) => walk.food(sink, food),
         Builtin::Tool(tool) => walk.tool(sink, tool),
+        Builtin::Equippable(equippable) => walk.equippable(sink, equippable),
         Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
             walk.text(sink, text)
         }
@@ -310,6 +314,75 @@ impl<L: NameLookup> Walk<'_, L> {
                 }
                 sink.list(blocks.iter(), |sink, block| {
                     self.entry(sink, NameTable::Block, block.0)
+                })
+            }
+        }
+    }
+
+    fn equippable<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        equippable: &Equippable,
+    ) -> Result<S::Node, Fault> {
+        let equip_sound = (equippable.equip_sound.as_ref())
+            .map(|sound| self.sound_event(sink, sound))
+            .transpose()?;
+        let allowed_entities = (equippable.allowed_entities.as_ref())
+            .map(|entity_types| self.entity_type_set(sink, entity_types))
+            .transpose()?;
+        let shearing_sound = (equippable.shearing_sound.as_ref())
+            .map(|sound| self.sound_event(sink, sound))
+            .transpose()?;
+        let name = |name: ResourceLocation<'_>| sink.leaf(Leaf::Name(name));
+        let flag =
+            |value: bool, absent: bool| (value != absent).then(|| sink.leaf(Leaf::Boolean(value)));
+        Ok(sink.fields([
+            Field::new("slot", sink.leaf(Leaf::String(equippable.slot.name()))),
+            Field::optional("equip_sound", equip_sound),
+            Field::optional("asset_id", equippable.asset_id().map(name)),
+            Field::optional("camera_overlay", equippable.camera_overlay().map(name)),
+            Field::optional("allowed_entities", allowed_entities),
+            Field::optional("dispensable", flag(equippable.dispensable, true)),
+            Field::optional("swappable", flag(equippable.swappable, true)),
+            Field::optional("damage_on_hurt", flag(equippable.damage_on_hurt, true)),
+            Field::optional(
+                "equip_on_interact",
+                flag(equippable.equip_on_interact, false),
+            ),
+            Field::optional("can_be_sheared", flag(equippable.can_be_sheared, false)),
+            Field::optional("shearing_sound", shearing_sound),
+        ]))
+    }
+
+    fn sound_event<S: SavedSink>(&self, sink: &S, sound: &SoundEventRef) -> Result<S::Node, Fault> {
+        match sound {
+            SoundEventRef::Registry(id) => self.entry(sink, NameTable::SoundEvent, id.0),
+            SoundEventRef::Inline(inline) => {
+                let range = inline.range.map(|range| sink.leaf(Leaf::Float(range)));
+                Ok(sink.fields([
+                    Field::new("sound_id", sink.leaf(Leaf::Name(inline.sound_id()))),
+                    Field::optional("range", range),
+                ]))
+            }
+        }
+    }
+
+    fn entity_type_set<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        entity_types: &EntityTypeSet,
+    ) -> Result<S::Node, Fault> {
+        match entity_types {
+            EntityTypeSet::Tag(entity_tag) => {
+                let name = self.name(NameTable::EntityTypeTag, entity_tag.0)?;
+                Ok(sink.leaf(Leaf::TagName(name)))
+            }
+            EntityTypeSet::EntityTypes(entity_types) => {
+                if let [entity_type] = entity_types.as_ref() {
+                    return self.entry(sink, NameTable::EntityType, entity_type.0);
+                }
+                sink.list(entity_types.iter(), |sink, entity_type| {
+                    self.entry(sink, NameTable::EntityType, entity_type.0)
                 })
             }
         }

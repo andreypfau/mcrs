@@ -93,6 +93,13 @@ impl Names {
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
             NameTable::ComponentType => indexed(&COMPONENT_TYPES),
             NameTable::MapDecorationType => indexed(&["player", "red_x", "target_x", "banner_red"]),
+            NameTable::SoundEvent => vec![
+                (50, "item.armor.equip_generic"),
+                (52, "item.armor.equip_iron"),
+                (999, "item.shears.snip"),
+            ],
+            NameTable::EntityType => vec![(103, "pig"), (156, "zombie")],
+            NameTable::EntityTypeTag => indexed(&["skeletons"]),
             _ => Vec::new(),
         }
     }
@@ -575,7 +582,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (40, 48));
+    assert_eq!((decoded, kept), (40, 52));
 }
 
 #[derive(Deserialize)]
@@ -655,6 +662,53 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
         rejected += 1;
     }
     assert_eq!(rejected, 1);
+}
+
+#[test]
+fn the_equippable_components_that_the_game_wrote_read_and_write_back_in_the_saved_and_the_wire_form()
+ {
+    let golden = fixture("item_registry_refs").text();
+    let mut is_equippable = false;
+    let mut nbt: Option<NbtTag> = None;
+    let mut checked = 0;
+    for line in golden.lines() {
+        if let Some(sample) = line.strip_prefix("sample minecraft:") {
+            is_equippable = sample.starts_with("equippable ");
+            nbt = None;
+        } else if !is_equippable {
+            continue;
+        } else if let Some(bytes) = line.strip_prefix("  nbt ") {
+            let bytes = unhex(bytes);
+            nbt = Some(
+                NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(bytes)))
+                    .expect("the golden holds one NBT value"),
+            );
+        } else if let Some(component) = line.strip_prefix("  wire ") {
+            let nbt = nbt
+                .take()
+                .expect("the sample has its NBT before its wire form");
+            let bare = with_one_component("equippable", component);
+            let read = read_all(&bare, read_wire).expect("the game wrote it");
+            assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{component}");
+
+            let mut patch = NbtCompound::new();
+            patch.put("minecraft:equippable", nbt);
+            let mut stone = saved(r#"{id:"minecraft:stone"}"#);
+            stone.put("components", NbtTag::Compound(patch.clone()));
+            let from_saved = read_saved(&stone, &Names).expect("the game saved a valid component");
+            assert_eq!(read, Some(from_saved.clone()), "{component}");
+
+            let written = write_saved(&from_saved, &Names).expect("the component has a saved form");
+            assert!(
+                written
+                    .get("components")
+                    .is_some_and(|written| same(written, &NbtTag::Compound(patch))),
+                "{component}"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 5);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::system::Commands;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
@@ -20,6 +21,7 @@ use crate::cursor_slot::cursor_slot;
 use crate::full_sends::FullSends;
 use crate::menu_content::menu_content;
 use crate::menu_slots::MenuSlots;
+use crate::sent_selected::SentSelected;
 use crate::wire_names::WireNames;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
@@ -36,6 +38,7 @@ pub(crate) fn send_full_state(
     wire_names: WireNames,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut bytes: Local<Vec<u8>>,
+    mut commands: Commands,
 ) {
     let names = wire_names.names();
     for player in sends.0.drain(..) {
@@ -65,5 +68,6 @@ pub(crate) fn send_full_state(
             }),
         ));
         packets.write(to(session, PacketPayload::ContainerSetContent(content)));
+        commands.entity(player).insert(SentSelected(selected.0));
     }
 }

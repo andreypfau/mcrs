@@ -64,19 +64,21 @@ impl MenuClicks<'_, '_> {
             .p1()
             .get(menu)
             .map_err(|_| MenuClickError::NoMenuDrag)?;
-        let click_menu = ClickMenu {
-            layout,
-            parts,
-            buttons: *buttons,
-        };
         let slots = ClickSlots::read(
             self.world_and_drags.p0(),
             viewer,
-            click_menu,
+            layout,
+            parts,
             clicker.cursor,
             &self.holders,
             &mut self.stacks,
         );
+        let click_menu = ClickMenu {
+            layout,
+            parts,
+            buttons: *buttons,
+            slots: &slots,
+        };
         let planned = mcrs_minecraft_inventory_click::request(
             click,
             clicker.player,

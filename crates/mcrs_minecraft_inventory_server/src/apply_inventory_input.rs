@@ -12,7 +12,9 @@ use crate::InventoryInput;
 use crate::MenuSync;
 use crate::apply_click::apply_click;
 use crate::close_origin::CloseOrigin;
+use crate::sent_selected::SentSelected;
 use crate::set_creative_mode_slot::apply_creative_packet;
+use mcrs_minecraft_inventory_player::HOTBAR;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
 pub(crate) fn apply_inventory_input(
@@ -52,6 +54,11 @@ fn apply_input(world: &mut World, id: usize) {
             InventoryInput::SelectSlot { player, slot } => {
                 if let Ok(slot) = u8::try_from(slot) {
                     world.commands().entity(player).select_slot(slot);
+                    if HOTBAR.contains(&u16::from(slot))
+                        && let Some(mut sent) = world.get_mut::<SentSelected>(player)
+                    {
+                        sent.0 = slot;
+                    }
                 }
                 Ok(())
             }

@@ -54,12 +54,19 @@ impl Names {
             NameTable::Enchantment => &[(33, "sharpness"), (40, "unbreaking")],
             NameTable::Attribute => &[(1, "armor"), (3, "attack_damage"), (30, "scale")],
             NameTable::Block => &[(1, "stone"), (9, "dirt")],
+            NameTable::SoundEvent => &[
+                (50, "item.armor.equip_generic"),
+                (52, "item.armor.equip_iron"),
+                (999, "item.shears.snip"),
+            ],
+            NameTable::EntityType => &[(103, "pig"), (156, "zombie")],
             _ => &[],
         };
         let indexed: &'static [&'static str] = match table {
             NameTable::BlockTag => &["mineable/pickaxe"],
             NameTable::ComponentType => &COMPONENT_TYPES,
             NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
+            NameTable::EntityTypeTag => &["skeletons"],
             _ => &[],
         };
         (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
@@ -165,7 +172,7 @@ fn record_cases() -> Vec<Recorded> {
 }
 
 fn registry_ref_cases() -> Vec<Recorded> {
-    const KINDS: [&str; 3] = ["enchantments", "attribute_modifiers", "tool"];
+    const KINDS: [&str; 4] = ["enchantments", "attribute_modifiers", "tool", "equippable"];
     let golden = fixture("item_registry_refs").text();
     let mut cases = Vec::new();
     let mut sample: Option<(String, String)> = None;
@@ -271,6 +278,7 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "map_id",
         "map_decorations",
         "profile",
+        "equippable",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),

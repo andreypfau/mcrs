@@ -120,21 +120,26 @@ resources of a world that loads stacks without `ItemPlugin`. It registers no cod
 ```rust
 pub struct PlayerHoldersPlugin;
 #[derive(Component)] pub struct PlayerHolders { pub cursor: Entity, pub craft_grid: Entity, pub craft_result: Entity }
-#[derive(EntityEvent)] pub struct PlayerItemsRestored { pub entity: Entity }
-pub fn restore_holders(In<(Entity, PlayerItems)>, Commands, Query<Option<&PlayerHolders>>);
-pub fn restore_carried(In<(Entity, PlayerItems)>, Commands, Query<Option<&PlayerHolders>>);
+pub fn restore_holders(In<(Entity, PlayerItems)>, /* system parameters */);
+pub fn restore_carried(In<(Entity, PlayerItems)>, /* system parameters */);
 ```
 
 | Name | Contract |
 |-|-|
 | `PlayerHoldersPlugin` | Gives each new player its holders and their `SlotPolicy`, and opens the inventory menu. It adds `MenuPlugin` when the app has no `MenuPlugin`. |
 | `PlayerHolders` | The three child holders of a player. The player entity is the fourth holder. |
-| `PlayerItemsRestored` | Triggers after the holders of a player get the stacks of a restore. |
 | `restore_holders` | Replaces the stacks of the four player holders and sets `Selected`. |
 | `restore_carried` | Replaces the stacks of the cursor and the craft grid. |
 
-The slot policy gives `Gate::Refuses` to the place filter of each armour slot and of the craft
-result. The policy is the same on the server and on the client.
+The slot policy gives `Gate::Refuses` to the place filter of the craft result. `PlayerHoldersPlugin`
+registers the armour place gate (INV-SLT-003), and the policy gives that gate to the place filter
+of each armour slot. The gate reads the `minecraft:equippable` component of the stack. It reads the
+entity type id of the player and the entity type tags that contain it from one resource. An
+observer writes this resource each time the app inserts or removes `CurrentRegistries`. When the
+gate does not register, the place filter of each armour slot is `Gate::Refuses`. The armour take
+gate (INV-SLT-004) does not exist yet, because it needs the game mode of the player. Until then,
+the take filter of each armour slot is `Gate::Permits`. The policy is the same on the server and on
+the client.
 
 ## 4.3 `mcrs_minecraft_vanilla_inventory` (layer 5), changes
 

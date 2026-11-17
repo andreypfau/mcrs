@@ -16,6 +16,7 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_stack.workspace = true
