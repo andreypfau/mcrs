@@ -267,12 +267,15 @@ impl RootPacks {
         &self.unavailable
     }
 
-    /// Reads the data of every pack of `stack` that this root offers into `files`.
+    /// Reads the data of every pack of `stack` that this root offers into `files`. The bytes of a
+    /// file are read only when `needs` returns true for its path inside its namespace; any other
+    /// file is held with empty bytes.
     pub fn read_files(
         &self,
         source: &dyn PackSource,
         stack: &PackStack,
         files: &mut PackFiles,
+        needs: impl Fn(&str) -> bool,
     ) -> Result<(), ReadError> {
         for pack in stack.packs() {
             match self.directories.get(pack.id()) {
@@ -282,9 +285,12 @@ impl RootPacks {
                     pack.id(),
                     VANILLA_ROOT,
                     &format!("{STANDARD_DATA}/{VANILLA_ROOT}"),
+                    &needs,
                 )?,
-                Some(PackDirectory::Local(root)) => local_into(source, files, pack, root)?,
-                Some(PackDirectory::Standard(root)) => standard_into(source, files, pack, root)?,
+                Some(PackDirectory::Local(root)) => local_into(source, files, pack, root, &needs)?,
+                Some(PackDirectory::Standard(root)) => {
+                    standard_into(source, files, pack, root, &needs)?;
+                }
                 None => {}
             }
         }
@@ -298,11 +304,16 @@ fn read_tree(
     pack: &str,
     directory: &str,
     in_pack: &str,
+    needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
     for (path, relative) in walk(source, directory)? {
         let in_pack = format!("{in_pack}/{relative}");
         if !files.holds_value(pack, &in_pack) {
-            files.insert(pack, in_pack, source.read(&path)?);
+            let bytes = match needs(&relative) {
+                true => source.read(&path)?,
+                false => Vec::new(),
+            };
+            files.insert(pack, in_pack, bytes);
         }
     }
     Ok(())
@@ -313,13 +324,14 @@ fn local_into(
     files: &mut PackFiles,
     pack: &StackedPack,
     root: &str,
+    needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
     let overlays = &pack.overlays;
     for entry in list(source, root)?.into_iter().filter(|e| e.directory) {
         if !overlays.contains(&entry.name) {
             let directory = format!("{root}/{}", entry.name);
             let in_pack = format!("{STANDARD_DATA}/{}", entry.name);
-            read_tree(source, files, pack.id(), &directory, &in_pack)?;
+            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
         }
     }
     for overlay in overlays {
@@ -330,7 +342,7 @@ fn local_into(
         {
             let directory = format!("{overlay_root}/{}", entry.name);
             let in_pack = format!("{overlay}/{STANDARD_DATA}/{}", entry.name);
-            read_tree(source, files, pack.id(), &directory, &in_pack)?;
+            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
         }
     }
     Ok(())
@@ -341,10 +353,19 @@ fn standard_into(
     files: &mut PackFiles,
     pack: &StackedPack,
     root: &str,
+    needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
     let overlays = pack.overlays.iter().map(|o| format!("{o}/{STANDARD_DATA}"));
     for data in std::iter::once(STANDARD_DATA.to_owned()).chain(overlays) {
-        read_tree(source, files, pack.id(), &format!("{root}/{data}"), &data)?;
+        let data_root = format!("{root}/{data}");
+        for entry in list(source, &data_root)?
+            .into_iter()
+            .filter(|e| e.directory)
+        {
+            let directory = format!("{data_root}/{}", entry.name);
+            let in_pack = format!("{data}/{}", entry.name);
+            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
+        }
     }
     Ok(())
 }

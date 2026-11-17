@@ -6,6 +6,7 @@ use mcrs_minecraft_datapack::{
     PackContent, PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack,
 };
 
+use crate::content_paths::ContentPaths;
 use crate::declaration::{Declaration, Source};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 use crate::order::entry_file_order;
@@ -377,28 +378,15 @@ fn route<'f>(
     files: Vec<PackFile<'f>>,
     diagnostics: &mut Diagnostics,
 ) -> HashMap<ResourceLocationBuf, Files<'f>> {
-    let directories: HashMap<&str, (&ResourceLocationBuf, bool)> = (declarations.iter())
-        .map(|d| (d.key.path(), (&d.key, !matches!(d.kind, Kind::Fixed))))
-        .collect();
+    let content = ContentPaths::new(declarations);
     let mut routed: HashMap<ResourceLocationBuf, Files<'f>> = HashMap::new();
     for file in files {
-        let (tag, inside) = match file.relative.strip_prefix("tags/") {
-            Some(inside) => (true, inside),
-            None => (false, file.relative),
-        };
-        let found = inside.match_indices('/').rev().find_map(|(at, _)| {
-            let (directory, rest) = inside.split_at_checked(at)?;
-            match directories.get(directory) {
-                Some(&(key, has_entries)) if tag || has_entries => {
-                    Some((key, rest.strip_prefix('/')?))
-                }
-                _ => None,
-            }
-        });
-        let Some((key, rest)) = found else {
+        let Some(owner) = content.owner(file.relative) else {
             continue;
         };
-        let name = match rest.strip_suffix(".json") {
+        let tag = owner.tag;
+        let key = &owner.declaration.key;
+        let name = match owner.below.strip_suffix(".json") {
             Some(stem) => ResourceLocationBuf::new(file.namespace, stem).ok(),
             None if ResourceLocationBuf::new(file.namespace, file.relative).is_ok() => continue,
             None => None,
