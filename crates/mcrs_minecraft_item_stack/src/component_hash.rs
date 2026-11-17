@@ -1,3 +1,4 @@
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
@@ -41,7 +42,9 @@ impl SavedSink for HashSink<'_> {
 
     fn leaf(&self, leaf: Leaf<'_>) -> NodeHash {
         match leaf {
+            Leaf::Byte(value) => NodeHash::byte(value),
             Leaf::Int(value) => NodeHash::int(value),
+            Leaf::IntArray(values) => NodeHash::int_array(values),
             Leaf::Float(value) => NodeHash::float(value),
             Leaf::Double(value) => NodeHash::double(value),
             Leaf::Boolean(value) => NodeHash::boolean(value),
@@ -59,6 +62,10 @@ impl SavedSink for HashSink<'_> {
 
     fn profile(&mut self, profile: &Profile) -> Option<NodeHash> {
         hash_of(profile, &mut self.scratch.entries).ok()
+    }
+
+    fn compound(&mut self, compound: &NbtCompound) -> Option<NodeHash> {
+        hash_of(compound, &mut self.scratch.entries).ok()
     }
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<NodeHash>>) -> NodeHash {

@@ -22,6 +22,17 @@ macro_rules! for_each_builtin {
             MapDecorations => "map_decorations",
             Profile => "profile",
             Equippable => "equippable",
+            DyedColor => "dyed_color",
+            CustomModelData => "custom_model_data",
+            EnchantmentGlintOverride => "enchantment_glint_override",
+            BlockState => "block_state",
+            LodestoneTracker => "lodestone_tracker",
+            Trim => "trim",
+            PotionContents => "potion_contents",
+            CustomData => "custom_data",
+            SuspiciousStewEffects => "suspicious_stew_effects",
+            OminousBottleAmplifier => "ominous_bottle_amplifier",
+            Instrument => "instrument",
         }
     };
 }

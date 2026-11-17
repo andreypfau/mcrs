@@ -41,7 +41,7 @@ pub(crate) struct NamedRegistry {
     pub(crate) key: &'static str,
 }
 
-pub(crate) const NAMED_REGISTRIES: [NamedRegistry; 7] = [
+pub(crate) const NAMED_REGISTRIES: [NamedRegistry; 12] = [
     NamedRegistry {
         table: NameTable::Attribute,
         key: "minecraft:attribute",
@@ -69,6 +69,26 @@ pub(crate) const NAMED_REGISTRIES: [NamedRegistry; 7] = [
     NamedRegistry {
         table: NameTable::EntityType,
         key: "minecraft:entity_type",
+    },
+    NamedRegistry {
+        table: NameTable::MobEffect,
+        key: "minecraft:mob_effect",
+    },
+    NamedRegistry {
+        table: NameTable::Potion,
+        key: "minecraft:potion",
+    },
+    NamedRegistry {
+        table: NameTable::TrimMaterial,
+        key: "minecraft:trim_material",
+    },
+    NamedRegistry {
+        table: NameTable::TrimPattern,
+        key: "minecraft:trim_pattern",
+    },
+    NamedRegistry {
+        table: NameTable::Instrument,
+        key: "minecraft:instrument",
     },
 ];
 
