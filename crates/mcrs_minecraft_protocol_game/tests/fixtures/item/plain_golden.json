@@ -1341,6 +1341,198 @@
       "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
       "hash": 543641330,
       "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[2.0,-0.1,0.5]",
+      "json": "-72065",
+      "nbt": "03fffee67f",
+      "hash": -1690482203,
+      "wire": "fffee67f"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "00000000"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"floats\":[1,-0.5],\"flags\":[false],\"strings\":[\"\",\"a b\"],\"colors\":[[1.0,0.0,0.0],255]}",
+      "json": "{\"floats\":[1.0,-0.5],\"flags\":[false],\"strings\":[\"\",\"a b\"],\"colors\":[-65536,255]}",
+      "nbt": "0a090006666c6f61747305000000023f800000bf000000090007737472696e6773080000000200000003612062090005666c616773010000000100090006636f6c6f72730300000002ffff0000000000ff00",
+      "hash": 9696090,
+      "wire": "023f800000bf000000010002000361206202ffff0000000000ff"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"facing\":\"north\",\"half\":\"top\",\"waterlogged\":\"false\"}",
+      "json": "{\"facing\":\"north\",\"half\":\"top\",\"waterlogged\":\"false\"}",
+      "nbt": "0a08000468616c660003746f7008000b77617465726c6f67676564000566616c7365080006666163696e6700056e6f72746800",
+      "hash": -1904361278,
+      "wire": "0306666163696e67056e6f7274680468616c6603746f700b77617465726c6f676765640566616c7365"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"no_such_property\":\"any text\"}",
+      "json": "{\"no_such_property\":\"any text\"}",
+      "nbt": "0a0800106e6f5f737563685f70726f70657274790008616e79207465787400",
+      "hash": 2092834312,
+      "wire": "01106e6f5f737563685f70726f706572747908616e792074657874"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"overworld\",\"pos\":[33554431,2047,-33554432]},\"tracked\":true}",
+      "json": "{\"target\":{\"dimension\":\"minecraft:overworld\",\"pos\":[33554431,2047,-33554432]}}",
+      "nbt": "0a0a00067461726765740b0003706f730000000301ffffff000007fffe00000008000964696d656e73696f6e00136d696e6563726166743a6f766572776f726c640000",
+      "hash": -396020573,
+      "wire": "01136d696e6563726166743a6f766572776f726c647fffffe0000007ff01"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"mcrs:custom\",\"pos\":[0,4096,-1]}}",
+      "json": "{\"target\":{\"dimension\":\"mcrs:custom\",\"pos\":[0,4096,-1]}}",
+      "nbt": "0a0a00067461726765740b0003706f73000000030000000000001000ffffffff08000964696d656e73696f6e000b6d6372733a637573746f6d0000",
+      "hash": -219478246,
+      "wire": "010b6d6372733a637573746f6d0000003ffffff00001"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"tracked\":false}",
+      "json": "{\"tracked\":false}",
+      "nbt": "0a010007747261636b65640000",
+      "hash": 1595667667,
+      "wire": "0000"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":{\"palette_id\":\"mcrs:pal\",\"description\":\"Pal\",\"extra\":1},\"pattern\":\"coast\"}",
+      "json": "{\"material\":{\"palette_id\":\"mcrs:pal\",\"description\":\"Pal\"},\"pattern\":\"minecraft:coast\"}",
+      "nbt": "0a0a00086d6174657269616c08000a70616c657474655f696400086d6372733a70616c08000b6465736372697074696f6e000350616c000800077061747465726e000f6d696e6563726166743a636f61737400",
+      "hash": 727484036,
+      "wire": "00086d6372733a70616c08000350616c02"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "\"minecraft:water\"",
+      "json": "{\"potion\":\"minecraft:water\"}",
+      "nbt": "0a080006706f74696f6e000f6d696e6563726166743a776174657200",
+      "hash": 1311226275,
+      "wire": "0100000000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\"}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000101000973686f775f69636f6e010800026964000f6d696e6563726166743a73706565640000",
+      "hash": 1689985785,
+      "wire": "0000010000000001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"hidden_effect\":{\"amplifier\":1,\"duration\":200,\"hidden_effect\":{\"duration\":600}}}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a000000010300086475726174696f6e0000002801000973686f775f69636f6e01010009616d706c6966696572030800026964000f6d696e6563726166743a73706565640000",
+      "hash": 1657509859,
+      "wire": "0000010003280001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_particles\":false}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_particles\":false,\"show_icon\":false}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000101000973686f775f69636f6e000800026964000f6d696e6563726166743a737065656401000e73686f775f7061727469636c6573000000",
+      "hash": 1819228503,
+      "wire": "0000010000000000000000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":255},{\"id\":\"minecraft:speed\",\"amplifier\":256},{\"id\":\"minecraft:speed\",\"amplifier\":300},{\"id\":\"minecraft:speed\",\"amplifier\":-1}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":-1,\"show_icon\":true},{\"id\":\"minecraft:speed\",\"show_icon\":true},{\"id\":\"minecraft:speed\",\"amplifier\":44,\"show_icon\":true},{\"id\":\"minecraft:speed\",\"amplifier\":-1,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000401000973686f775f69636f6e01010009616d706c6966696572ff0800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e010800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e01010009616d706c69666965722c0800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e01010009616d706c6966696572ff0800026964000f6d696e6563726166743a73706565640000",
+      "hash": -716549977,
+      "wire": "00000400ff01000001010000000000010100002c000001010000ff01000001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_name\":\"\"}",
+      "json": "{\"custom_name\":\"\"}",
+      "nbt": "0a08000b637573746f6d5f6e616d65000000",
+      "hash": -1368210399,
+      "wire": "0000000100"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "[{\"id\":\"minecraft:speed\",\"duration\":-5},{\"id\":\"minecraft:speed\",\"duration\":0}]",
+      "json": "[{\"id\":\"minecraft:speed\",\"duration\":-5},{\"id\":\"minecraft:speed\",\"duration\":0}]",
+      "nbt": "090a000000020300086475726174696f6efffffffb0800026964000f6d696e6563726166743a7370656564000300086475726174696f6e000000000800026964000f6d696e6563726166743a737065656400",
+      "hash": 1537392037,
+      "wire": "0200fbffffff0f0000"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":0.0,\"range\":3.4028235E38,\"durability_damage\":0,\"description\":\"\"}",
+      "json": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":0.0,\"range\":3.4028235E38,\"description\":\"\"}",
+      "nbt": "0a08000b736f756e645f6576656e74001b6d696e6563726166743a656e746974792e6974656d2e627265616b05000572616e67657f7fffff08000b6465736372697074696f6e000005000c7573655f6475726174696f6e0000000000",
+      "hash": 2051032354,
+      "wire": "008e05000000007f7fffff00080000"
+    },
+    {
+      "kind": "custom_data",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0a00"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{}\"",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0a00"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{a:1b,b:2s,c:3,d:4L,e:5.0f,f:6.0d,g:\\\"x\\\",h:[I;1,2],i:[B;1b],j:[L;1L],k:[],l:{m:[1,2]},n:true}\"",
+      "json": "{\"a\":1,\"b\":2,\"c\":3,\"d\":4,\"e\":5.0,\"f\":6.0,\"g\":\"x\",\"h\":[1,2],\"i\":[1],\"j\":[1],\"k\":[],\"l\":{\"m\":[1,2]},\"n\":1}",
+      "nbt": "0a010001610102000162000203000163000000030400016400000000000000040500016540a00000060001664018000000000000080001670001780b0001680000000200000001000000020700016900000001010c00016a0000000100000000000000010900016b00000000000a00016c0900016d03000000020000000100000002000100016e0100",
+      "hash": -436886767,
+      "wire": "0a010001610102000162000203000163000000030400016400000000000000040500016540a00000060001664018000000000000080001670001780b0001680000000200000001000000020700016900000001010c00016a0000000100000000000000010900016b00000000000a00016c0900016d03000000020000000100000002000100016e0100"
+    },
+    {
+      "kind": "custom_data",
+      "input": "{\"a\":1,\"b\":1.5,\"c\":true,\"d\":\"x\",\"e\":[1,2],\"f\":{},\"g\":300,\"h\":3000000000}",
+      "json": "{\"a\":1,\"b\":1.5,\"c\":1,\"d\":\"x\",\"e\":[1,2],\"f\":{},\"g\":300,\"h\":3000000000}",
+      "nbt": "0a0100016101050001623fc0000001000163010800016400017809000165010000000201020a0001660002000167012c0400016800000000b2d05e0000",
+      "hash": -335720569,
+      "wire": "0a0100016101050001623fc0000001000163010800016400017809000165010000000201020a0001660002000167012c0400016800000000b2d05e0000"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{mixed:[1b,\\\"a\\\",{}]}\"",
+      "json": "{\"mixed\":[1,\"a\",{}]}",
+      "nbt": "0a0900056d697865640a000000030100000100080000000161000000",
+      "hash": 767856123,
+      "wire": "0a0900056d697865640a000000030100000100080000000161000000"
+    },
+    {
+      "kind": "consumable",
+      "input": "{\"on_consume_effects\":[{\"type\":\"apply_effects\",\"effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"hidden_effect\":{\"amplifier\":1,\"duration\":200}}]}]}",
+      "json": "{\"on_consume_effects\":[{\"effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"show_icon\":true,\"hidden_effect\":{\"amplifier\":1,\"duration\":200,\"show_icon\":true}}],\"type\":\"minecraft:apply_effects\"}]}",
+      "nbt": "0a0900126f6e5f636f6e73756d655f656666656374730a00000001090007656666656374730a000000010300086475726174696f6e0000004d01000973686f775f69636f6e010a000d68696464656e5f6566666563740300086475726174696f6e000000c801000973686f775f69636f6e01010009616d706c69666965720100010009616d706c6966696572070800026964000f6d696e6563726166743a6861737465000800047479706500176d696e6563726166743a6170706c795f656666656374730000",
+      "hash": 1825518151,
+      "wire": "3fcccccd01000101000102074d0001010101c801000101003f800000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"hidden_effect\":{\"amplifier\":1,\"duration\":200}}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a000000010300086475726174696f6e0000004d01000973686f775f69636f6e01010009616d706c6966696572070800026964000f6d696e6563726166743a68617374650000",
+      "hash": -329796532,
+      "wire": "00000102074d0001010000"
     }
   ],
   "errors": [
@@ -1638,6 +1830,141 @@
       "kind": "profile",
       "input": "{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}",
       "error": "Failed to parse either. First: Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; No key name in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; No key id in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; Second: Not a string: {\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "{\"rgb\":16711680}",
+      "error": "Failed to parse either. First: Not a number: {\"rgb\":16711680}; Second: Not a json array: {\"rgb\":16711680}"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[1.0,1.0,1.0,1.0]",
+      "error": "Input is not a list of 3 elements"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"floats\":[\"x\"]}",
+      "error": "Not a number: \"x\""
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"colors\":[\"#FF0000\"]}",
+      "error": "Failed to parse either. First: Not a number: \"#FF0000\"; Second: Not a json array: \"#FF0000\""
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"level\":1}",
+      "error": "Not a string: 1 missed input: {\"level\":1}"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"level\":true}",
+      "error": "Not a string: true missed input: {\"level\":true}"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"pos\":[0,0,0]}}",
+      "error": "No key dimension in MapLike[{\"pos\":[0,0,0]}]"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"overworld\",\"pos\":[0,0,0]},\"tracked\":\"yes\"}",
+      "error": "Not a boolean: \"yes\""
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":\"minecraft:amethyst\",\"pattern\":\"minecraft:no_such_pattern\"}",
+      "error": "Failed to get element minecraft:no_such_pattern from registry minecraft:trim_pattern"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":{\"palette_id\":\"mcrs:pal\"},\"pattern\":\"minecraft:coast\"}",
+      "error": "No key description in MapLike[{\"palette_id\":\"mcrs:pal\"}]"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":\"minecraft:amethyst\"}",
+      "error": "No key pattern in MapLike[{\"material\":\"minecraft:amethyst\"}]"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "\"minecraft:no_such_potion\"",
+      "error": "Failed to parse either. First: Not a JSON object: \"minecraft:no_such_potion\"; Second: Unknown registry key in ResourceKey[minecraft:root / minecraft:potion]: minecraft:no_such_potion"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"amplifier\":1}]}",
+      "error": "No key id in MapLike[{\"amplifier\":1}]"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"duration\":\"long\"}]}",
+      "error": "Not a number: \"long\""
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_name\":5}",
+      "error": "Not a string: 5"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "[{\"duration\":5}]",
+      "error": "No key id in MapLike[{\"duration\":5}]"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "{\"id\":\"minecraft:speed\"}",
+      "error": "Not a json array: {\"id\":\"minecraft:speed\"}"
+    },
+    {
+      "kind": "instrument",
+      "input": "\"minecraft:no_such_horn\"",
+      "error": "Failed to get element minecraft:no_such_horn from registry minecraft:instrument"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":0.0,\"description\":\"x\"}",
+      "error": "Value must be positive: 0.0"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":-0.0,\"range\":1.0,\"description\":\"x\"}",
+      "error": "Value must be non-negative: -0.0"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0,\"durability_damage\":-1,\"description\":\"x\"}",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0}",
+      "error": "No key description in MapLike[{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0}]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"[1,2]\"",
+      "error": "Failed to parse either. First: Not a compound tag: \"[1,2]\"; Second: Expected compound tag, got [1,2]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{a:\"",
+      "error": "Failed to parse either. First: Not a compound tag: \"{a:\"; Second: Expected a valid unquoted string at position 3: {a:<--[HERE]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "5",
+      "error": "Failed to parse either. First: Not a compound tag: 5b; Second: Not a string: 5"
+    },
+    {
+      "kind": "custom_data",
+      "input": "[]",
+      "error": "Failed to parse either. First: Not a compound tag: []; Second: Not a string: []"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_color\":[1.0,0.0,0.0]}",
+      "error": "Not a number: [1.0,0.0,0.0]"
     }
   ],
   "decodes": [
@@ -1810,6 +2137,11 @@
       "kind": "profile",
       "wire": "000000030178013100087465787475726573017400017801320000000000",
       "json": "{\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"textures\",\"value\":\"t\"}]}"
+    },
+    {
+      "kind": "potion_contents",
+      "wire": "0000010003280001010101c8010001010000",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"show_icon\":true}]}"
     }
   ],
   "decode_errors": [
