@@ -52,6 +52,8 @@ use mcrs_minecraft_snbt::write_compound;
 use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
+use crate::common::same;
+use crate::common::same_map;
 use crate::common::stack;
 use crate::common::unhex;
 
@@ -80,7 +82,7 @@ impl Names {
             NameTable::ComponentType => {
                 &["max_stack_size", "damage", "bundle_contents", "custom_data"]
             }
-            NameTable::MapDecorationType => &["player", "red_x"],
+            NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             _ => &[],
         }
     }
@@ -111,28 +113,6 @@ fn with_components(components: &str) -> NbtCompound {
     saved(&format!(
         "{{id:\"minecraft:stone\",components:{{{components}}}}}"
     ))
-}
-
-fn same(left: &NbtTag, right: &NbtTag) -> bool {
-    match (left, right) {
-        (NbtTag::Compound(left), NbtTag::Compound(right)) => same_map(left, right),
-        (NbtTag::List(left), NbtTag::List(right)) => {
-            left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(left, right)| same(left, right))
-        }
-        _ => left == right,
-    }
-}
-
-fn same_map(left: &NbtCompound, right: &NbtCompound) -> bool {
-    left.child_tags.len() == right.child_tags.len()
-        && left
-            .child_tags
-            .iter()
-            .all(|(key, value)| right.get(key).is_some_and(|other| same(value, other)))
 }
 
 fn assert_same(actual: &NbtCompound, expected: &NbtCompound, case: &str) {
@@ -465,10 +445,8 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
 #[test]
 fn a_map_decoration_needs_a_map_with_each_field_and_a_known_type() {
     let bad_value = SavedError::BadValue(BuiltinKey::MapDecorations);
-    let cases: [(&str, SavedError); 4] = [
-        (r#"[]"#, bad_value),
+    let cases: [(&str, SavedError); 2] = [
         (r#"{"+":1b}"#, bad_value),
-        (r#"{"+":{type:"red_x",x:1,z:2}}"#, bad_value),
         (
             r#"{"+":{type:"no_such_type",x:1,z:2,rotation:0}}"#,
             SavedError::UnknownEntry {
@@ -600,7 +578,7 @@ struct PlainError {
     input: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 7] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 8] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
@@ -608,6 +586,7 @@ const PLAIN_KINDS: [(&str, BuiltinKey); 7] = [
     ("rarity", BuiltinKey::Rarity),
     ("repair_cost", BuiltinKey::RepairCost),
     ("map_id", BuiltinKey::MapId),
+    ("map_decorations", BuiltinKey::MapDecorations),
 ];
 
 fn plain_kind(kind: &str) -> Option<BuiltinKey> {
@@ -638,7 +617,7 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         let hex = value
             .nbt
             .as_ref()
-            .expect("each of the seven types is saved");
+            .expect("each of the eight types is saved");
         let bytes = unhex(hex);
         let nbt = with_component(&value.kind, tag_of(&bytes));
         let read = read_saved(&nbt, &Names).expect("the game wrote a valid component");
@@ -653,10 +632,15 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         };
         let key = format!("minecraft:{}", value.kind);
         let written = patch.get(&key).expect("the writer wrote the component");
-        assert_eq!(bytes_of(written), bytes, "{} {hex}", value.kind);
+        let expected = tag_of(&bytes);
+        if let NbtTag::Compound(_) = expected {
+            assert!(same(written, &expected), "{} {hex}", value.kind);
+        } else {
+            assert_eq!(bytes_of(written), bytes, "{} {hex}", value.kind);
+        }
         checked += 1;
     }
-    assert!(checked >= 21, "the golden lost cases: {checked}");
+    assert!(checked >= 24, "the golden lost cases: {checked}");
 
     let mut rejected = 0;
     for error in &golden.errors {
@@ -665,7 +649,9 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         };
         let input = parse_tag(&error.input).expect("the rejected input is valid SNBT");
         let expected = match component {
-            BuiltinKey::Unbreakable | BuiltinKey::Rarity => SavedError::BadValue(component),
+            BuiltinKey::Unbreakable | BuiltinKey::Rarity | BuiltinKey::MapDecorations => {
+                SavedError::BadValue(component)
+            }
             _ => SavedError::OutOfRange(component),
         };
         let nbt = with_component(&error.kind, input);
@@ -678,5 +664,5 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         );
         rejected += 1;
     }
-    assert!(rejected >= 8, "the golden lost error cases: {rejected}");
+    assert!(rejected >= 11, "the golden lost error cases: {rejected}");
 }

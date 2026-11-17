@@ -29,6 +29,7 @@ use serde::Deserialize;
 use crate::common::COMPONENT_TYPES;
 use crate::common::stack;
 use crate::common::unhex;
+use crate::common::var_int;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -58,6 +59,7 @@ impl Names {
         let indexed: &'static [&'static str] = match table {
             NameTable::BlockTag => &["mineable/pickaxe"],
             NameTable::ComponentType => &COMPONENT_TYPES,
+            NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             _ => &[],
         };
         (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
@@ -104,7 +106,7 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 7] = [
+const PLAIN_KINDS: [&str; 8] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -112,6 +114,7 @@ const PLAIN_KINDS: [&str; 7] = [
     "rarity",
     "repair_cost",
     "map_id",
+    "map_decorations",
 ];
 
 fn plain_cases() -> Vec<Recorded> {
@@ -199,9 +202,9 @@ fn component_type(kind: &str) -> ComponentType {
 
 fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let value = unhex(wire);
-    let length = u8::try_from(value.len()).expect("the golden values are short");
     let type_id = u8::try_from(component.0).expect("the type ids of the test are small");
-    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id, length];
+    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id];
+    frame.extend(var_int(value.len()));
     frame.extend(value);
     read_wire_with_length(&mut frame.as_slice(), &Names)
         .expect("the game wrote a valid component")
@@ -247,13 +250,14 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "food",
         "tool",
         "map_id",
+        "map_decorations",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),
             "the goldens lost each case of {kind}"
         );
     }
-    assert!(compared.len() >= 39, "the goldens lost cases: {compared:?}");
+    assert!(compared.len() >= 42, "the goldens lost cases: {compared:?}");
 }
 
 #[test]

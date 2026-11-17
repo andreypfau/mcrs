@@ -24,8 +24,6 @@ use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Lore;
-use mcrs_minecraft_item_stack::MapDecoration;
-use mcrs_minecraft_item_stack::MapDecorationTypeId;
 use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
@@ -63,8 +61,10 @@ use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
+use crate::common::same;
 use crate::common::stack;
 use crate::common::unhex;
+use crate::common::var_int;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -92,7 +92,7 @@ impl Names {
             NameTable::Block => indexed(&["stone", "dirt"]),
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
             NameTable::ComponentType => indexed(&COMPONENT_TYPES),
-            NameTable::MapDecorationType => indexed(&["player", "red_x"]),
+            NameTable::MapDecorationType => indexed(&["player", "red_x", "target_x", "banner_red"]),
             _ => Vec::new(),
         }
     }
@@ -249,29 +249,6 @@ fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str
             "0a 00",
         ),
     ]
-}
-
-#[test]
-fn a_map_decoration_reads_back_from_each_form() {
-    let decoration = MapDecoration {
-        key: "+".into(),
-        kind: MapDecorationTypeId(1),
-        x: 1.5,
-        z: -2.5,
-        rotation: 180.0,
-    };
-    let stack = stack(STONE, 1).set(MapDecorations::new([decoration]).expect("one key"));
-
-    assert_eq!(
-        read_all(&wire(Some(&stack)), read_wire),
-        Ok(Some(stack.clone()))
-    );
-    assert_eq!(
-        read_all(&wire_with_length(Some(&stack)), read_wire_with_length),
-        Ok(Some(stack.clone()))
-    );
-    let saved = write_saved(&stack, &Names).expect("the decoration has a saved form");
-    assert_eq!(read_saved(&saved, &Names), Ok(stack));
 }
 
 #[test]
@@ -510,7 +487,7 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 7] = [
+const DECODED_PLAIN: [&str; 8] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -518,7 +495,31 @@ const DECODED_PLAIN: [&str; 7] = [
     "repair_cost",
     "rarity",
     "map_id",
+    "map_decorations",
 ];
+
+const NBT_FORM_PLAIN: [&str; 1] = ["map_decorations"];
+
+fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: usize) {
+    if !NBT_FORM_PLAIN.contains(&kind) {
+        assert_eq!(hex(written), hex(expected), "{kind}");
+        return;
+    }
+    let tree = |bytes: &[u8]| {
+        NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(bytes)))
+            .expect("the component is one NBT value")
+    };
+    let (written_header, written_tree) = written.split_at(header);
+    let (expected_header, expected_tree) = expected.split_at(header);
+    assert_eq!(hex(written_header), hex(expected_header), "{kind}");
+    assert_eq!(written_tree.len(), expected_tree.len(), "{kind}");
+    assert!(
+        same(&tree(written_tree), &tree(expected_tree)),
+        "{kind}: wrote {}, expected {}",
+        hex(written_tree),
+        hex(expected_tree)
+    );
+}
 
 #[test]
 fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_back() {
@@ -535,26 +536,22 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         };
         let type_id = u8::try_from(type_id).expect("the type ids are below 128");
         let component = unhex(component);
-        let length = u8::try_from(component.len()).expect("the golden components are short");
-        let prefixed = [
-            unhex("01 01 01 00"),
-            vec![type_id, length],
-            component.clone(),
-        ]
-        .concat();
+        let header = [unhex("01 01 01 00"), vec![type_id]].concat();
+        let length = var_int(component.len());
+        let prefixed = [header.clone(), length.clone(), component.clone()].concat();
         let read = read_all(&prefixed, read_wire_with_length).expect("the game wrote it");
-        assert_eq!(
-            hex(&wire_with_length(read.as_ref())),
-            hex(&prefixed),
-            "{}",
-            value.kind
+        assert_same_component(
+            &value.kind,
+            &wire_with_length(read.as_ref()),
+            &prefixed,
+            header.len() + length.len(),
         );
         if !DECODED_PLAIN.contains(&value.kind.as_str()) {
             kept += 1;
             continue;
         }
 
-        let bare = [unhex("01 01 01 00"), vec![type_id], component].concat();
+        let bare = [header.clone(), component].concat();
         let tag = NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(unhex(nbt))))
             .expect("the golden holds one NBT value");
         let mut patch = NbtCompound::new();
@@ -570,10 +567,10 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
             value.kind
         );
         assert_eq!(read, Some(from_saved), "{}", value.kind);
-        assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{}", value.kind);
+        assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (21, 41));
+    assert_eq!((decoded, kept), (24, 41));
 }
 
 #[derive(Clone, Copy)]
