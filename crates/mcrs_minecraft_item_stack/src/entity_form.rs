@@ -7,6 +7,7 @@ use crate::Food;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::Lore;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::Neutral;
@@ -32,6 +33,8 @@ impl EntityForm for Damage {}
 impl EntityForm for Unbreakable {}
 
 impl EntityForm for Food {}
+
+impl EntityForm for MapId {}
 
 impl EntityForm for CustomName {}
 

@@ -246,8 +246,8 @@ fn the_writer_gives_the_canonical_form_of_what_the_reader_accepts() {
     let cases: [(&str, &str); 9] = [
         (r#"{id:"stone"}"#, r#"{id:"minecraft:stone",count:1}"#),
         (
-            r#"{id:"stone",count:3b,components:{"minecraft:max_stack_size":64.5f,"minecraft:max_damage":10000000000.0d,"minecraft:damage":-0.5d,"minecraft:repair_cost":4294967298L,"minecraft:enchantments":{sharpness:3s},"minecraft:attribute_modifiers":[{type:"attack_damage",id:"base",amount:2,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:2b},"minecraft:food":{nutrition:4.9f,saturation:1,can_always_eat:0.5f},"minecraft:tool":{rules:[{blocks:"stone",speed:2b,correct_for_drops:-1}],default_mining_speed:3L,damage_per_block:2.9d,can_destroy_blocks_in_creative:0L}}}"#,
-            r#"{id:"minecraft:stone",count:3,components:{"minecraft:max_stack_size":64,"minecraft:max_damage":2147483647,"minecraft:damage":0,"minecraft:repair_cost":2,"minecraft:enchantments":{"minecraft:sharpness":3},"minecraft:attribute_modifiers":[{type:"minecraft:attack_damage",id:"minecraft:base",amount:2.0d,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:1b},"minecraft:food":{nutrition:4,saturation:1.0f,can_always_eat:1b},"minecraft:tool":{rules:[{blocks:"minecraft:stone",speed:2.0f,correct_for_drops:1b}],default_mining_speed:3.0f,damage_per_block:2,can_destroy_blocks_in_creative:0b}}}"#,
+            r#"{id:"stone",count:3b,components:{"minecraft:max_stack_size":64.5f,"minecraft:max_damage":10000000000.0d,"minecraft:damage":-0.5d,"minecraft:repair_cost":4294967298L,"minecraft:map_id":2.7d,"minecraft:enchantments":{sharpness:3s},"minecraft:attribute_modifiers":[{type:"attack_damage",id:"base",amount:2,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:2b},"minecraft:food":{nutrition:4.9f,saturation:1,can_always_eat:0.5f},"minecraft:tool":{rules:[{blocks:"stone",speed:2b,correct_for_drops:-1}],default_mining_speed:3L,damage_per_block:2.9d,can_destroy_blocks_in_creative:0L}}}"#,
+            r#"{id:"minecraft:stone",count:3,components:{"minecraft:max_stack_size":64,"minecraft:max_damage":2147483647,"minecraft:damage":0,"minecraft:repair_cost":2,"minecraft:map_id":2,"minecraft:enchantments":{"minecraft:sharpness":3},"minecraft:attribute_modifiers":[{type:"minecraft:attack_damage",id:"minecraft:base",amount:2.0d,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:1b},"minecraft:food":{nutrition:4,saturation:1.0f,can_always_eat:1b},"minecraft:tool":{rules:[{blocks:"minecraft:stone",speed:2.0f,correct_for_drops:1b}],default_mining_speed:3.0f,damage_per_block:2,can_destroy_blocks_in_creative:0b}}}"#,
         ),
         (
             r#"{id:"stone",components:{damage:3,"!minecraft:damage":{},"!repair_cost":{},"minecraft:repair_cost":5}}"#,
@@ -578,13 +578,14 @@ struct PlainError {
     input: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 6] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 7] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
     ("unbreakable", BuiltinKey::Unbreakable),
     ("rarity", BuiltinKey::Rarity),
     ("repair_cost", BuiltinKey::RepairCost),
+    ("map_id", BuiltinKey::MapId),
 ];
 
 fn plain_kind(kind: &str) -> Option<BuiltinKey> {
@@ -612,7 +613,10 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         if plain_kind(&value.kind).is_none() {
             continue;
         }
-        let hex = value.nbt.as_ref().expect("each of the six types is saved");
+        let hex = value
+            .nbt
+            .as_ref()
+            .expect("each of the seven types is saved");
         let bytes = unhex(hex);
         let nbt = with_component(&value.kind, tag_of(&bytes));
         let read = read_saved(&nbt, &Names).expect("the game wrote a valid component");
@@ -630,7 +634,7 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         assert_eq!(bytes_of(written), bytes, "{} {hex}", value.kind);
         checked += 1;
     }
-    assert!(checked >= 17, "the golden lost cases: {checked}");
+    assert!(checked >= 21, "the golden lost cases: {checked}");
 
     let mut rejected = 0;
     for error in &golden.errors {

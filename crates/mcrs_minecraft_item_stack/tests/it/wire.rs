@@ -477,13 +477,14 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 6] = [
+const DECODED_PLAIN: [&str; 7] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "repair_cost",
     "rarity",
+    "map_id",
 ];
 
 #[test]
@@ -539,7 +540,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{}", value.kind);
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (17, 8));
+    assert_eq!((decoded, kept), (21, 41));
 }
 
 #[derive(Clone, Copy)]

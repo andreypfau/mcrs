@@ -2,7 +2,7 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 
-pub(crate) const COMPONENT_TYPES: [&str; 29] = [
+pub(crate) const COMPONENT_TYPES: [&str; 49] = [
     "custom_data",
     "max_stack_size",
     "max_damage",
@@ -32,6 +32,26 @@ pub(crate) const COMPONENT_TYPES: [&str; 29] = [
     "use_cooldown",
     "damage_resistant",
     "tool",
+    "weapon",
+    "attack_range",
+    "enchantable",
+    "equippable",
+    "repairable",
+    "glider",
+    "tooltip_style",
+    "death_protection",
+    "blocks_attacks",
+    "piercing_weapon",
+    "kinetic_weapon",
+    "attack_animation",
+    "interact_animation",
+    "additional_trade_cost",
+    "block_transformer",
+    "villager_food",
+    "stored_enchantments",
+    "dye",
+    "dyed_color",
+    "map_id",
 ];
 
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {

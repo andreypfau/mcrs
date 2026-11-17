@@ -26,6 +26,7 @@ use crate::Food;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::Lore;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
@@ -82,6 +83,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.var_int(input)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.var_int(input)?)),
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.var_int(input)?)),
+        BuiltinKey::MapId => Builtin::MapId(MapId(reader.var_int(input)?)),
         BuiltinKey::Unbreakable => Builtin::Unbreakable(Unbreakable),
         BuiltinKey::ItemModel => {
             Builtin::ItemModel(ItemModel::new(reader.identifier(input)?.to_buf()))
@@ -295,7 +297,8 @@ pub(crate) fn write_value<L: NameLookup>(
         Builtin::MaxStackSize(MaxStackSize(number))
         | Builtin::MaxDamage(MaxDamage(number))
         | Builtin::Damage(Damage(number))
-        | Builtin::RepairCost(RepairCost(number)) => put_var_int(output, *number),
+        | Builtin::RepairCost(RepairCost(number))
+        | Builtin::MapId(MapId(number)) => put_var_int(output, *number),
         Builtin::Unbreakable(Unbreakable) => {}
         Builtin::ItemModel(model) => writer.identifier(model.get(), output)?,
         Builtin::Rarity(rarity) => writer.list_id(&Rarity::ALL, *rarity, output)?,

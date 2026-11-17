@@ -15,6 +15,7 @@ use crate::Food;
 use crate::HashError;
 use crate::ItemName;
 use crate::Lore;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
@@ -85,6 +86,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
         Builtin::MaxDamage(MaxDamage(damage)) => walk.int(sink, *damage, POSITIVE),
         Builtin::Damage(Damage(damage)) => walk.int(sink, *damage, NOT_NEGATIVE),
         Builtin::RepairCost(RepairCost(cost)) => walk.int(sink, *cost, NOT_NEGATIVE),
+        Builtin::MapId(MapId(id)) => Ok(sink.leaf(Leaf::Int(*id))),
         Builtin::Unbreakable(Unbreakable) => Ok(sink.fields([])),
         Builtin::ItemModel(model) => Ok(sink.leaf(Leaf::Name(model.get()))),
         Builtin::Rarity(rarity) => Ok(sink.leaf(Leaf::String(rarity.name()))),

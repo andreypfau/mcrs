@@ -33,6 +33,7 @@ use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
 use crate::Kind;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
@@ -271,6 +272,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.int(tag, POSITIVE)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.int(tag, NOT_NEGATIVE)?)),
+        BuiltinKey::MapId => Builtin::MapId(MapId(reader.number(tag)?.to_int())),
         BuiltinKey::Unbreakable => {
             reader.map(tag)?;
             Builtin::Unbreakable(Unbreakable)
