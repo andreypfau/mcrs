@@ -34,14 +34,19 @@ and does not state them again.
   section 0.1, defines them.
 - **Creative flag**: as `client-block-breaking.md`, section 0.1, defines it.
 - **Screen**, **in a world**: as `client-widget.md`, section 0.1, defines them.
+- **GUI unit**, **W**, **H**: as `client-chat.md`, section 0.1, defines them.
+- **Mouse position**: as `client-tooltip.md`, section 0.1, defines it. The pointer is at the mouse
+  position.
 - **Edit box**: as `client-edit-box.md`, section 0.1, defines it.
 - **Inventory screen**: the screen of the vanilla client that shows the inventory menu. A press
   of `key.inventory` opens it.
+- **Recipe book**: the panel of the vanilla client that lists the recipes of the player beside the
+  inventory screen.
+- **Recipe book button**: the button of the inventory screen that shows or hides the recipe book.
 - **Window area**: the part of the inventory screen that the background image of the menu covers.
-  When the recipe book shows, its panel is also a part of the window area. A later specification
-  states the bounds.
-- **Entry area**: the part of the window area that shows one entry of the menu. A later
-  specification states the bounds.
+  CINV-LAY-001 states its bounds.
+- **Entry area**: the part of the window area that shows one entry of the menu. CINV-LAY-002
+  states the entry area of each entry.
 - **Empty area**: the part of the window area that is not in an entry area.
 - **Target entry**: the entry of the open menu whose entry area holds the mouse pointer. When the
   pointer is not in an entry area, there is no target entry.
@@ -56,7 +61,7 @@ and does not state them again.
   the right button 1 and the middle button 2. The fourth mouse button gives 4, the fifth gives 5,
   and each further button gives the next number.
 - **Pointer index**: the slot index that the mouse pointer names. It is the menu index of the
-  target entry, -999 outside the window area, and -1 in the empty area.
+  target entry, -999 outside the window area, and -1 in the empty area (CINV-LAY-003).
 - **Cursor stack**: the stack of the cursor.
 - **Slot packet**: a clientbound `container_set_slot`, `container_set_content`, `set_cursor_item`
   or `set_player_inventory` packet.
@@ -74,12 +79,12 @@ and does not state them again.
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". Each rule states its label, its kind and its confidence.
 
-The observer of the rules of sections 2, 6 and 7 is the server that reads the serverbound
-packets: a vanilla server. The observer of the other rules is a player in normal play who sees the
-inventory screen and the HUD, unless the rule names another observer.
+The observer of the rules of sections 2, 6 and 7, and of CINV-LAY-004, is the server that reads
+the serverbound packets: a vanilla server. The observer of the other rules is a player in normal
+play who sees the inventory screen and the HUD, unless the rule names another observer.
 
 The fixture `inventory_packets` of `tools/fixtures.json` confirms the wire layout of
-CINV-PKT-001. The codecs of the game write it. Section 10 lists the experiments that the other
+CINV-PKT-001. The codecs of the game write it. Section 11 lists the experiments that the other
 rules need.
 
 ### 0.3 ID prefixes
@@ -93,6 +98,7 @@ rules need.
 | `CINV-HSH` | the hashed stack of an unhashable stack |
 | `CINV-CLS` | the close of the inventory menu |
 | `CINV-HND` | the drop and the hand swap outside a screen |
+| `CINV-LAY` | the window area, the entry areas and the pointer index of the inventory screen |
 | `CINV-DEV` | intentional deviations |
 
 ### 0.4 Scope
@@ -107,7 +113,9 @@ In scope:
   `set_player_inventory` in the client;
 - the hashed stack of an unhashable stack;
 - the close of the inventory menu by the client and by the server;
-- the drop key and the swap key outside a screen.
+- the drop key and the swap key outside a screen;
+- the window area, the entry areas and the pointer index of the inventory screen while the
+  recipe book does not show, and the area of the recipe book button.
 
 Out of scope. `client-container-screen.md` states each of these items:
 
@@ -122,10 +130,10 @@ screen.
 
 A later specification states each of these other items:
 
-- the container screens of the other menus, and the bounds of the window area and of an entry
-  area in the inventory screen;
+- the container screens of the other menus;
 - the other parts of the item tooltip, its image and its style;
-- the recipe book, and a mouse press that the recipe book takes;
+- the recipe book: when it shows, its panel, the window area and the pointer index while it
+  shows, and a mouse press that the recipe book takes;
 - the focus of an entry by the keyboard, and the activation key on a focused entry;
 - a click that an item takes for itself (`inventory-transactions.md`, ITX-JAV-008, row 1), and the
   take filter of the craft result;
@@ -147,6 +155,9 @@ A later specification states each of these other items:
 | `key.drop`: default key | Q | CINV-GES-004, CINV-HND-001 |
 | `key.swapOffhand`: default key | F | CINV-GES-003, CINV-HND-002 |
 | `key.pickItem`: default key | the middle mouse button | CINV-GES-001 |
+| Size of the window area | 176 × 166 | CINV-LAY-001 |
+| Size of an entry area | 16 × 16 | CINV-LAY-002 |
+| Corner and size of the recipe book button, relative to the window area | (104, 61), 20 × 18 | CINV-LAY-004 |
 
 ---
 
@@ -209,6 +220,7 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
   - Take a press and a release of the left button on one entry with a cursor stack. The pointer
     does not move. These give one pick up click at the release.
   - A mouse release with no mouse press after the inventory screen opened gives no click.
+  - A mouse release after a press on the recipe book button gives no click (CINV-LAY-004).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -658,13 +670,105 @@ Experiment E17 of `inventory-transactions.md` confirms step 4 (ITX-JAV-025).
 
 ---
 
-## 8. Known vanilla quirks
+## 8. The areas of the inventory screen
+
+The rules of this section apply while the recipe book does not show. A later specification states
+the window area and the pointer index while the recipe book shows. The bounds of an area and the
+pointer test are those of `client-container-screen.md`, CCS-LAY-005 and CCS-LAY-006.
+
+### CINV-LAY-001: The window area
+
+- **Inputs:** W and H.
+- **Behavior:**
+  1. The window area is the rectangle with the left edge `left`, the top edge `top`, the width
+     `iw` = 176 and the height `ih` = 166.
+  2. `left` is `floor((W − 176) / 2)`, and `top` is `floor((H − 166) / 2)`.
+  3. The screen draws the background of an in-game screen (`client-widget.md`, WID-SCR-004).
+  4. The screen then copies the source rectangle (0, 0, 176, 166) of the texture
+     `minecraft:textures/gui/container/inventory.png` to (`left`, `top`), at the same size. One
+     texel is one GUI unit, and the texture is 256 × 256 texels.
+- **Postconditions:**
+  - With W = 427 and H = 240, the window area has the corner (125, 37).
+  - The window area stays at the centre of the screen after a resize (`client-widget.md`,
+    WID-SCR-003).
+  - The status effects that the screen shows at the right of the window area do not move the
+    window area.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
+
+### CINV-LAY-002: The entry areas
+
+- **Inputs:** the entries of the inventory menu (`inventory.md`, INV-MNU-001).
+- **Behavior:** each of the 46 entries has an entry area of 16 × 16 GUI units. The table gives
+  the top left corner of the entry area, relative to (`left`, `top`). `c` is the column and `r` is
+  the row, from 0.
+
+| Menu index | Entry | Corner (x, y) |
+|------------|-------|---------------|
+| 0 | the craft result | (154, 28) |
+| `1 + c + 2·r`, with `c` and `r` in `0..1` | the slot `c + 2·r` of the craft grid | (`98 + 18·c`, `18 + 18·r`) |
+| `5 + r`, with `r` in `0..3` | `P[39 − r]`: head, chest, legs and feet, from the top | (8, `8 + 18·r`) |
+| `9 + 9·r + c`, with `r` in `0..2` and `c` in `0..8` | `P[9 + 9·r + c]` | (`8 + 18·c`, `84 + 18·r`) |
+| `36 + c`, with `c` in `0..8` | `P[c]` | (`8 + 18·c`, 142) |
+| 45 | `P[40]`, off hand | (77, 62) |
+
+- **Postconditions:**
+  - Two entry areas do not overlap. Each entry area is in the window area.
+  - Each entry area exists while the screen is open. An armour entry with the empty stack also
+    has its entry area.
+  - `M[0]` has the corner (`left + 154`, `top + 28`), and `M[44]` has the corner (`left + 152`,
+    `top + 142`).
+
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
+
+### CINV-LAY-003: The pointer index
+
+- **Inputs:** the mouse position (`mx`, `my`), the window area of CINV-LAY-001 and the entry areas
+  of CINV-LAY-002.
+- **Behavior:** the first row whose condition is true gives the pointer index.
+
+| # | Condition | Pointer index |
+|---|-----------|---------------|
+| 1 | the pointer is outside the window area (CCS-LAY-006, edge cases, with `iw` = 176 and `ih` = 166) | -999 |
+| 2 | the pointer is in the entry area of `M[i]` (CCS-LAY-005, step 1) | `i`, and `M[i]` is the target entry |
+| 3 | | -1, and the pointer is in the empty area |
+
+- **Postconditions:**
+  - The gap of 2 GUI units between two entry areas is a part of the empty area.
+  - The picture of the player, from (`left + 26`, `top + 8`) to (`left + 75`, `top + 78`), is a
+    part of the empty area. The title of the screen is also a part of the empty area.
+  - At (`left + 7`, `top + 84`) the pointer index is -1. At (`left + 8`, `top + 84`) it is 9.
+  - At (`left + 175`, `top + 165`) the pointer index is -1. At (`left + 176`, `top + 165`) it is
+    -999.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
+
+### CINV-LAY-004: The recipe book button
+
+- **Inputs:** a mouse press while the pointer is in the area of the recipe book button.
+- **Behavior:**
+  1. The area of the recipe book button is `x ≤ mx < x + 20` and `y ≤ my < y + 18`. The corner
+     (`x`, `y`) is (`left + 104`, `top + 61`).
+  2. A mouse press of the left button in this area gives no click and opens no drag. The press
+     shows the recipe book (section 0.4).
+  3. The next mouse release gives no click, for each button.
+  4. A mouse press of another button in this area has the result of the empty area. Section 1
+     gives the result.
+- **Postconditions:**
+  - The area of the recipe book button is in the empty area. It overlaps no entry area.
+  - This rule comes before CINV-GES-001 and CINV-GES-002.
+
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
+
+---
+
+## 9. Known vanilla quirks
 
 None.
 
 ---
 
-## 9. Intentional deviations
+## 10. Intentional deviations
 
 ### CINV-DEV-001: A slot packet that names no slot
 
@@ -702,7 +806,7 @@ None.
 
 ---
 
-## 10. Unresolved
+## 11. Unresolved
 
 These experiments have not run.
 
@@ -728,3 +832,10 @@ These experiments have not run.
 - **E5** (recorder, vanilla client). Outside a screen, press Q, then Control and Q, then F. Do
   each with a stack in the selected slot and with the empty stack. Do each again as a spectator.
   Record the serverbound packets. Expect CINV-HND-001 and CINV-HND-002.
+- **E6** (recorder, vanilla client). Set a GUI of 427 × 240 GUI units, and open the inventory
+  screen with the recipe book closed. Each entry and the cursor hold the empty stack. Press the
+  left button at the corner of each entry area of CINV-LAY-002. Then press it 1 GUI unit to the
+  left of each corner, and at the points of CINV-LAY-003. Record the slot index of each click.
+  Expect the menu indices of CINV-LAY-002, no click in the empty area, and -999 outside the window
+  area. Then put 5 dirt in the cursor. Press and release the left button at (229, 98). Expect no
+  click (CINV-LAY-004).
