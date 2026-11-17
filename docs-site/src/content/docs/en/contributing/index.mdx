@@ -8,17 +8,22 @@ audience: [contributor, jvm, rust]
 stability: stable
 sources:
   - docs/clean-room.md
+  - docs/spec/README.md
   - README.md
   - .github/pull_request_template.md
   - AGENTS.md
   - .claude/agents/implementer.md
   - .claude/agents/spec-author.md
+  - .claude/agents/Explore.md
+  - .claude/agents/log-reader.md
   - .claude/hooks/cargo-guard.sh
+  - .github/workflows/checks.yml
+  - .github/ISSUE_TEMPLATE/task.yml
   - pr:687
 verified:
   snapshot: 26.4-snapshot-7
-  commit: f50e2fdf6
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -42,7 +47,7 @@ mcrs implements the behavior of the game from specifications and never from the 
 
 A specification author can read any source. The specification they write states behavior only, which means inputs, outputs, order, timing and constants. An implementer writes the code from that specification and reads only four things: `docs/spec/`, public player-facing documentation, artifacts the game produced, and the code of this repository. One person does not take both roles for the same behavior.
 
-The repository also holds no names of classes, methods or fields of the game's code. Six names are exempt because the community uses them as common terms: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+The repository also holds no names of classes, methods or fields of the game's code. Eight names are exempt because the community uses them as common terms: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`.
 
 The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [Clean-room in practice](/docs/en/contributing/clean-room/) retells them.
 
@@ -50,17 +55,17 @@ The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/bl
 
 Many Paper and Fabric developers read decompiled game code every day. That knowledge is useful here, because you can be the specification author for the behavior you know. If you read the game's code for some behavior, you do not write its code here by hand.
 
-You can still deliver the implementation by giving it to an AI agent. You read the specification and make sure that it is correct, and you make sure that the agent has no access to the game's code or to pieces of it. mcrs does not restrict AI contributions. We welcome them, provided that you know how the game is structured. [Clean-room in practice](/docs/en/contributing/clean-room/) has the conditions.
+You can still deliver the implementation by giving it to an AI agent. You read the specification and make sure that it is correct, and you make sure that the agent has no access to the game's code or to pieces of it. mcrs does not restrict AI contributions. We welcome them, provided that you know how the game is structured. The conditions are in the section "Exception: an AI agent writes the code" of [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md#exception-an-ai-agent-writes-the-code).
 
 These precautions make sure that nobody copies code or algorithms from the original game, or from modifications of it, by accident. If you are not sure whether you have read the code about a task, say so in the issue. Nobody will mind.
 
 ## The path of a pull request
 
-1. Find or open an issue. A new game behavior needs two issues. The first asks for the specification, and the second asks for the implementation and cites the rule IDs of the specification. The section "A new behaviour" of `docs/clean-room.md` describes the pair.
-2. Write the specification, or implement an existing one. A test names the rule ID it checks.
+1. Find or open an issue. A new issue uses one of two forms: a task, which asks for the goal, the settled decision, the observable result, what is out of scope, the check and the specification, or a bug report. A new game behavior needs two issues. The first asks for the specification, and the second asks for the implementation and cites the rule IDs of the specification. The section "A new behaviour" of `docs/clean-room.md` describes the pair.
+2. Write the specification, or implement an existing one. Implementation starts only when the specification is ready, which means that its section "Unresolved" is empty and no rule has the label `source_suggested`. A test names the rule ID it checks.
 3. Run the tests with the commands below.
-4. Open a PR. The [pull request template](https://github.com/andreypfau/mcrs/blob/main/.github/pull_request_template.md) asks what you changed and why, how you checked it, and whether the docs are updated.
-5. Wait for CI, which runs `lint`, `clippy`, `test` and `portability`. [Build and test](/docs/en/contributing/build-and-test/) explains each of them.
+4. Open a PR. The [pull request template](https://github.com/andreypfau/mcrs/blob/main/.github/pull_request_template.md) starts with the line `Closes #N` for your issue. It then asks what you changed and why, what a player, a test or a number shows now, how you checked it, and whether the docs are updated. CI fails a PR whose description has no `Closes`, `Fixes`, `Resolves` or `Refs` line, unless the PR has the label `no-issue`.
+5. Wait for CI, which runs `issue-link`, `lint`, `clippy`, `test` and `portability`. [Build and test](/docs/en/contributing/build-and-test/) explains each of them.
 
 ```bash
 cargo nextest run -p <crate>        # one crate
@@ -82,7 +87,7 @@ The instructions for coding agents live in the repository. [AGENTS.md](https://g
 |---|---|
 | [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | Skills that `AGENTS.md` names with "Load `<name>`", such as `rust-style`, `efficient-testing` and `ship`. `.claude/skills/` links to the same folders. |
 | [.agents/rules](https://github.com/andreypfau/mcrs/tree/main/.agents/rules) | One rule file per domain: `codec`, `memory`, `rendering` and `simulation`. The header of a rule lists the crate paths it covers. `.claude/rules/` links to them. |
-| [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | The roles `implementer`, `spec-author` and `reviewer`. |
+| [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | The roles `implementer`, `spec-author` and `reviewer`, and two read-only helpers: `Explore` finds code, and `log-reader` reports the failures in a test or CI log. Each file sets the model of its role. |
 | [.claude/hooks/cargo-guard.sh](https://github.com/andreypfau/mcrs/blob/main/.claude/hooks/cargo-guard.sh) | A Claude Code hook that rejects `cargo test`. [Build and test](/docs/en/contributing/build-and-test/) says why. |
 
 Claude Code loads the skills, the rules and the roles by itself. With another tool you do the same by hand. Where `AGENTS.md` says "Load `<name>`", read `.agents/skills/<name>/SKILL.md`. Before you edit a crate, read the rule of its domain. To give an agent a role, copy the text of that role from `.claude/agents/` into the brief of the agent.
@@ -95,11 +100,9 @@ If your change alters behavior that a page of this site describes, update the pa
 
 ## Tasks for a first PR
 
-These six issues fit a first pull request. [First tasks](/docs/en/contributing/first-tasks/) says what each one asks for and which role it needs.
+These four issues fit a first pull request. [First tasks](/docs/en/contributing/first-tasks/) says what each one asks for and which role it needs.
 
-- A bug: the outbound queue drops state packets.[^308]
 - Typed packets for cookies, transfer and chat.[^295]
-- A status ping example.[^290]
 - An echo chat bot over the network layer.[^293]
 - A packet inspector example.[^289]
 - A report of spec rules that no test names.[^507]
@@ -114,9 +117,7 @@ You can repeat the count with `gh pr list -R andreypfau/mcrs --state merged --li
 
 Questions go to [Discord](https://discord.gg/ged3nMRzwG) or to the issue you work on. Decisions are recorded in issues with the label [decision](https://github.com/andreypfau/mcrs/issues?q=is%3Aissue+label%3Adecision).
 
-[^308]: <Status issue={308} /> The outbound queue drops normal and low packets past 256 entries.
 [^295]: <Status issue={295} /> Typed packets for cookies, transfer, custom query and player chat.
-[^290]: <Status issue={290} /> A status ping example against the embedded server.
 [^293]: <Status issue={293} /> An echo chat bot that uses the network layer only.
 [^289]: <Status issue={289} /> A packet inspector that decodes a recorded session without unknown packets.
 [^507]: <Status issue={507} /> Plans a report of the specification rules that no test checks.
