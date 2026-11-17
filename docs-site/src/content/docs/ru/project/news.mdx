@@ -3,7 +3,7 @@ title: Новости
 description: Что вошло в код, что изменилось для авторов плагинов и чего еще нет, по последнему тегу и по работе после последнего тега.
 sidebar:
   order: 4
-translated_from: f50e2fdf6
+translated_from: 19bc615fa
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -13,7 +13,7 @@ import Status from '~/components/Status.astro';
 
 ## После v0.5.8 (тега пока нет)
 
-Запись охватывает период с 2026-10-14 по 2026-11-10. За это время 6 авторов сделали 874 коммита и влили 156 PR. 123 PR прислал andreypfau, еще 33 - пять других людей.
+Запись охватывает период с 2026-10-14 по 2026-11-17. За это время 14 авторов сделали 1079 коммитов и влили 329 PR. 229 PR прислал andreypfau, еще 100 - 13 других людей.
 
 ### Что влито
 
@@ -22,7 +22,24 @@ import Status from '~/components/Status.astro';
 - Работают физика сущностей, проверки движения и симуляция блоков (<Status pr={648} state="works" />), а также очереди тиков блоков и событий блоков (<Status pr={477} state="works" />).
 - Баны игроков и белый список работают по своим спецификациям (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
 - Перед остановкой сервер отключает и сохраняет каждого игрока (<Status pr={624} state="works" />).
-- Игрок может ломать блоки в творческом режиме (<Status pr={643} state="works" />).
+- Сервер записывает измененные чанки обратно в их файлы регионов, а чистая остановка сохраняет мир (<Status issue={78} />).
+- Сервер сохраняет миры и игроков. Автосохранение идет каждые 6000 тиков, регион, который не удалось прочитать, уходит в папку карантина, состояние структур переживает перезапуск, а чистая остановка сохраняет игроков (<Status pr={744} state="works" />, <Status pr={745} state="works" />). В файле игрока хранятся и его атрибуты (<Status pr={851} state="works" />).
+- Папку без `level.dat` сервер открывает как новый мир, а папку мира блокирует через `session.lock` (<Status pr={969} state="works" />).
+- Игрок может ломать блоки в творческом режиме (<Status pr={643} state="works" />), а в режиме выживания - пустой рукой (<Status pr={735} state="works" />). Предмет-блок можно поставить на грань блока (<Status pr={770} state="works" />), а блок, который потерял опору, ломается (<Status pr={774} state="works" />). Падающие блоки падают (<Status pr={798} state="works" />).
+- Стаки предметов стали типизированными значениями, а выброшенный стак становится сущностью предмета, которую сервер реплицирует (<Status pr={704} state="works" />, <Status pr={705} state="works" />, <Status pr={749} state="works" />). `/summon` умеет создавать сущность предмета (<Status pr={750} state="works" />), а сломанный блок роняет предметы из своей таблицы лута (<Status pr={768} state="works" />).
+- Инвентарь игрока работает на сервере по своей спецификации. Ванильный плагин инвентаря обрабатывает клики, выбрасывание, выбранный слот хотбара и творческий слот, а сам инвентарь сохраняет в файле игрока (<Status pr={759} state="works" />, <Status pr={767} state="works" />, <Status pr={846} state="works" />, <Status pr={954} state="works" />).
+- Таблицы лута вычисляют все условия, все провайдеры чисел, взвешенные записи, а также модификаторы количества, прочности, зачарований и атрибутов предметов (<Status pr={841} state="works" />, <Status pr={850} state="works" />, <Status pr={857} state="works" />, <Status pr={862} state="works" />, <Status pr={866} state="works" />). Предикаты предметов, блоков, сущностей и места работают (<Status pr={838} state="works" />, <Status pr={843} state="works" />, <Status pr={847} state="works" />, <Status pr={854} state="works" />, <Status pr={858} state="works" />).
+- У сущностей появились атрибуты с модификаторами на сервере и на клиенте, и сервер отправляет их клиенту (<Status pr={783} state="works" />, <Status pr={788} state="works" />, <Status pr={793} state="works" />). Коровы, овцы и куры получили цели свиньи (<Status pr={773} state="works" />).
+- Сервер принимает игроков, которых пересылает Velocity через modern forwarding (<Status pr={855} state="works" />), и протокол PROXY от доверенных вышестоящих узлов (<Status pr={927} state="works" />). Он ограничивает число игроков, входы с одного адреса, частоту входов и частоту пакетов (<Status pr={939} state="works" />). Игрок, который зашел с loopback-адреса, становится оператором только в локальном профиле, а бинарник сервера использует публичный (<Status pr={933} state="works" />).
+- У клиента появились меню паузы и экраны настроек. В настройках графики можно на ходу менять дальность прорисовки, ограничение кадров, vsync и полноэкранный режим (<Status pr={747} state="works" />, <Status pr={748} state="works" />, <Status pr={757} state="works" />, <Status pr={760} state="works" />).
+- В клиенте клавиша E открывает инвентарь игрока с предметами от сервера и фигуркой игрока (<Status pr={780} state="works" />, <Status pr={789} state="works" />), а колесо мыши и клавиши 1-9 выбирают слот хотбара (<Status pr={945} state="works" />).
+- Клиент рисует туман мира с опцией Improved Transparency (<Status pr={771} state="works" />), только секции внутри дальности прорисовки (<Status pr={762} state="works" />), текст табличек (<Status pr={698} state="works" />), все глифы шрифта по умолчанию (<Status pr={701} state="works" />) и игроков со скином из их профиля (<Status pr={758} state="works" />).
+- Клиент двигает локального игрока ядром движения сервера (<Status pr={807} state="works" />), а предметы, падающие блоки, подожженный TNT и сферы опыта двигает между двумя обновлениями от сервера (<Status pr={805} state="works" />).
+- Браузерный клиент рисует мир не только через WebGPU, но и через WebGL2 (<Status pr={731} state="works" />), а через WebGPU рисует мобов и текст табличек (<Status pr={769} state="works" />, <Status pr={799} state="works" />). На Linux клиент работает и с Wayland, и с X11 (<Status pr={826} state="works" />).
+- Колонки Края получают биомы из источника биомов Края (<Status pr={717} state="works" />), а три изменения ускоряют генерацию мира (<Status pr={718} state="works" />, <Status pr={721} state="works" />, <Status pr={732} state="works" />).
+- Первые крейты Bedrock Edition читают и пишут проводной формат, пакеты-батчи, рукопожатие и часть игровых пакетов (<Status pr={690} state="works" />). У текста и идентичности игрока тоже есть крейты для Bedrock (<Status pr={689} state="works" />, <Status pr={719} state="works" />).
+- Инструмент probe запускает скриптовых клиентов против сервера и сравнивает mcrs с ванильной трассой (<Status pr={723} state="works" />, <Status pr={864} state="works" />). Новые примеры опрашивают статус сервера, а также читают и правят атрибуты в файле игрока (<Status pr={821} state="works" />, <Status pr={853} state="works" />).
+- Документация для разработчиков лежит на [mc.rs/docs](/docs/ru/start/what-is-mcrs/) (<Status pr={693} state="works" />). В коде вне `examples/` нет комментариев, и проверка отвергает новые (<Status pr={958} state="works" />).
 - Добавлен лендинг mc.rs с переключателем языка (<Status pr={629} state="works" />, <Status pr={633} state="works" />), а CI проверяет, что клиент компилируется под `wasm32` (<Status pr={622} state="works" />).
 - Читатель VarInt и VarLong теперь отвергает биты вне диапазона (<Status pr={653} state="works" />).
 - NBT читает и пишет две кодировки Bedrock, little-endian для хранения и varint для сети, рядом с кодировкой Java (<Status pr={679} state="works" />).
@@ -41,16 +58,25 @@ import Status from '~/components/Status.astro';
 - Ни один крейт библиотеки больше не читает окружение или рабочий каталог ради настроек. Операторы теперь задаются полем `ops` плагина, а настройки клиента - ресурсом `Knobs` (<Status pr={548} state="works" />). Подробности есть в [Переменных окружения](/docs/ru/reference/env-vars/).
 - `Text::to_legacy_lossy` удален. Берите вместо него `plain_text` или `legacy_text` из `mcrs_minecraft_text_flatten`, которые принимают еще и `Language` (<Status pr={680} state="works" />).
 - У методов чтения и записи в `mcrs_minecraft_nbt` больше нет суффикса `_be`, так что вместо `get_u8_be` теперь `get_u8` (<Status pr={679} state="works" />).
+- Workspace перешел с Bevy 0.19.1 на 0.20.1, так что плагину тоже придется перейти. Наблюдатель теперь пишется как `On<Remove<X>>` вместо `On<Remove, X>`, и так же для `Add`, `Insert` и `Discard` (<Status pr={709} state="works" />).
+- Реестры таблиц лута и контекста переехали в `mcrs_minecraft_loot`, реестры типов урона и эффектов мобов - в `mcrs_minecraft_entity`, реестры рецептов - в новый крейт `mcrs_minecraft_recipe`, а реестр меню - в новый крейт `mcrs_minecraft_menu`. Имена прежние, меняются только пути (<Status pr={703} state="works" />).
+- `PlayerDat` из `mcrs_minecraft_save` хранит корень NBT файла игрока, а вместо типизированных полей у него методы `pos`, `rotation` и `dimension` (<Status pr={744} state="works" />).
 
 ### Новое для авторов плагинов
 
 - Плагин может добавлять плагины в мир каждого измерения через `add_dimension_plugin` или в мир одного измерения через `add_dimension_plugin_to` (<Status pr={552} state="works" />).
 - Событие чата можно отменить. Наблюдатель может остановить строку или заменить ее текст до рассылки (<Status pr={636} state="works" />, часть <Status issue={283} />). События входа, выхода, движения и блоков не готовы.
+- Плагин сохраняет компонент в файле игрока через `register_persisted` из `PersistedAppExt`, одним вызовом для хоста и мира каждого измерения (<Status pr={745} state="works" />).
+- Установка блока приходит публичным сообщением `UseItemOnRequest`, а системы ломания собраны в публичный набор `BlockBreakSet` (<Status pr={770} state="works" />). Каждый пакет инвентаря приходит одним публичным сообщением `InventoryInput` (<Status pr={767} state="works" />).
+- У `ServerNetworkPlugin` появились поля `forwarding`, `proxy_upstreams`, `join_limits` и `profile` (<Status pr={855} state="works" />, <Status pr={927} state="works" />, <Status pr={939} state="works" />, <Status pr={933} state="works" />).
+- `ServerThread` запускает App сервера в отдельном потоке, а владелец просит его сохраниться и остановиться (<Status pr={969} state="works" />).
+- Программа без сервера добавляет игрока через `host_living_entity` и задает ему модель и скин через `PlayerModel` и `PlayerSkin` (<Status pr={758} state="works" />).
 
 ### Чего еще нет
 
 - Нет онлайн-режима (<Status issue={82} />).
 - Нет загрузчика плагинов вне сборки сервера, и решения по нему тоже нет.
+- В инвентаре клиента нельзя переложить стак кликом (<Status issue={129} />).
 
 ## v0.5.8, 2026-10-14
 

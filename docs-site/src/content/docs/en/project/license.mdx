@@ -14,8 +14,8 @@ sources:
   - docs/clean-room.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -44,6 +44,6 @@ This page repeats what the repository says about itself. It does not give a lega
 
 mcrs takes the behavior of the game from written specifications and never from the game's code. This way of working is called clean-room, and it splits the work between two people. A spec author may read the game and writes down only behavior. An implementer reads only specs and artifacts that the game produces, and never reads decompiled or mapped game code.
 
-Names from the game's code stay out of the repository. The rule file lists six community terms as the only exceptions: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+Names from the game's code stay out of the repository. The rule file lists eight community terms as the only exceptions: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`.
 
-The rule has one consequence for you as a contributor. If you have read the code of the game for some behavior, you cannot implement that behavior. The full rule is [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [How to contribute](/docs/en/contributing/) explains what to do in that case.
+The rule has one consequence for you as a contributor. If you have read the code of the game for some behavior, you cannot write the implementation of that behavior yourself. You can still deliver it through an AI agent that takes the implementer role, when you check that the specification is correct and the agent has no access to the game's code, in its files, its prompt or its tools. The full rule is [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [How to contribute](/docs/en/contributing/) explains what to do in that case.

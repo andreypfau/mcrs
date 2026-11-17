@@ -24,10 +24,30 @@ sources:
   - pr:645
   - pr:692
   - pr:683
+  - pr:690
+  - pr:693
+  - pr:703
+  - pr:709
+  - pr:731
+  - pr:735
+  - pr:744
+  - pr:745
+  - pr:757
+  - pr:758
+  - pr:767
+  - pr:770
+  - pr:780
+  - pr:855
+  - pr:927
+  - pr:933
+  - pr:939
+  - pr:945
+  - pr:958
+  - pr:969
 verified:
   snapshot: 26.4-snapshot-7
-  commit: f50e2fdf6
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -37,7 +57,7 @@ This page is the change log of mcrs. Each entry says what was merged, what chang
 
 ## Since v0.5.8 (no tag yet)
 
-This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 commits and merged 156 pull requests. 123 of the pull requests are from andreypfau, and 33 are from five other people.
+This entry covers 2026-10-14 to 2026-11-17. In that time 14 authors made 1079 commits and merged 329 pull requests. 229 of the pull requests are from andreypfau, and 100 are from 13 other people.
 
 ### Merged
 
@@ -47,7 +67,23 @@ This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 comm
 - Player bans and the whitelist follow their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
 - The server disconnects and saves every player before shutdown (<Status pr={624} state="works" />).
 - The server writes changed chunks back to their region files, and a clean shutdown saves the world (<Status issue={78} />).
-- A player can break blocks in creative mode (<Status pr={643} state="works" />).
+- The server saves worlds and players. An autosave runs every 6000 ticks, a region it cannot read goes to a quarantine folder, the state of structures survives a restart, and a clean shutdown saves the players (<Status pr={744} state="works" />, <Status pr={745} state="works" />). The player file keeps the attributes of a player too (<Status pr={851} state="works" />).
+- The server opens a folder without `level.dat` as a new world and locks the world folder through `session.lock` (<Status pr={969} state="works" />).
+- A player can break blocks in creative mode (<Status pr={643} state="works" />), and in survival mode with an empty hand (<Status pr={735} state="works" />). A player can place a block item on the face of a block (<Status pr={770} state="works" />), and a block that loses its support breaks (<Status pr={774} state="works" />). Falling blocks fall (<Status pr={798} state="works" />).
+- Item stacks are typed values, and a dropped stack becomes an item entity that the server replicates (<Status pr={704} state="works" />, <Status pr={705} state="works" />, <Status pr={749} state="works" />). `/summon` can make an item entity (<Status pr={750} state="works" />), and a broken block drops the items of its loot table (<Status pr={768} state="works" />).
+- The player inventory works on the server from its specification. The vanilla inventory plugin handles clicks, drops, the selected hotbar slot and the creative slot, and saves the inventory in the player file (<Status pr={759} state="works" />, <Status pr={767} state="works" />, <Status pr={846} state="works" />, <Status pr={954} state="works" />).
+- Loot tables evaluate every condition, every number provider, weighted entries, and the count, damage, enchantment and attribute modifiers of items (<Status pr={841} state="works" />, <Status pr={850} state="works" />, <Status pr={857} state="works" />, <Status pr={862} state="works" />, <Status pr={866} state="works" />). The item, block, entity and location predicates match (<Status pr={838} state="works" />, <Status pr={843} state="works" />, <Status pr={847} state="works" />, <Status pr={854} state="works" />, <Status pr={858} state="works" />).
+- Entities have attributes with modifiers on the server and on the client, and the server sends them to the client (<Status pr={783} state="works" />, <Status pr={788} state="works" />, <Status pr={793} state="works" />). Cows, sheep and chickens get the goals of the pig (<Status pr={773} state="works" />).
+- The server accepts players forwarded by Velocity modern forwarding (<Status pr={855} state="works" />) and the PROXY protocol from trusted upstreams (<Status pr={927} state="works" />). It limits the number of players, the joins per address, the join rate and the packet rate (<Status pr={939} state="works" />). A player who joins from a loopback address is an operator only on the local profile, and the server binary uses the public one (<Status pr={933} state="works" />).
+- The client has a pause menu and option screens. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs (<Status pr={747} state="works" />, <Status pr={748} state="works" />, <Status pr={757} state="works" />, <Status pr={760} state="works" />).
+- In the client, E opens the player inventory with the stacks of the server and the figure of the player (<Status pr={780} state="works" />, <Status pr={789} state="works" />), and the mouse wheel and the keys 1 to 9 select a hotbar slot (<Status pr={945} state="works" />).
+- The client draws the fog of the world with an Improved Transparency option (<Status pr={771} state="works" />), only the sections inside the render distance (<Status pr={762} state="works" />), the text of signs (<Status pr={698} state="works" />), every glyph of the default font (<Status pr={701} state="works" />), and players with the skin of their profile (<Status pr={758} state="works" />).
+- The client moves the local player with the movement kernel of the server (<Status pr={807} state="works" />), and it moves items, falling blocks, primed TNT and experience orbs between two updates of the server (<Status pr={805} state="works" />).
+- The browser client draws the world over WebGL2 as well as WebGPU (<Status pr={731} state="works" />), and it draws mobs and sign text over WebGPU (<Status pr={769} state="works" />, <Status pr={799} state="works" />). On Linux the client runs on Wayland as well as X11 (<Status pr={826} state="works" />).
+- End columns get the biomes of the end source (<Status pr={717} state="works" />), and three changes make world generation faster (<Status pr={718} state="works" />, <Status pr={721} state="works" />, <Status pr={732} state="works" />).
+- The first Bedrock Edition crates read and write the wire format, batches, the handshake and some game packets (<Status pr={690} state="works" />). Text and player identity have Bedrock crates too (<Status pr={689} state="works" />, <Status pr={719} state="works" />).
+- The probe tool runs scripted clients against a server and compares mcrs with a vanilla trace (<Status pr={723} state="works" />, <Status pr={864} state="works" />). New examples ping the status of a server and read and edit the attributes in a player file (<Status pr={821} state="works" />, <Status pr={853} state="works" />).
+- The developer documentation is at [mc.rs/docs](/docs/en/start/what-is-mcrs/) (<Status pr={693} state="works" />). Code outside `examples/` holds no comments, and a check rejects new ones (<Status pr={958} state="works" />).
 - The mc.rs landing page was added, with a language switcher (<Status pr={629} state="works" />, <Status pr={633} state="works" />), and CI checks that the client compiles for `wasm32` (<Status pr={622} state="works" />).
 - The VarInt and VarLong reader now rejects out-of-range bits (<Status pr={653} state="works" />).
 - NBT reads and writes the two Bedrock encodings, little-endian for storage and varint for the network, next to the Java one (<Status pr={679} state="works" />).
@@ -66,16 +102,25 @@ A plugin here is Rust code that is compiled into the server.
 - No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource (<Status pr={548} state="works" />). The details are in [Environment variables](/docs/en/reference/env-vars/).
 - `Text::to_legacy_lossy` is removed. Use `plain_text` or `legacy_text` from `mcrs_minecraft_text_flatten`, which also take a `Language` (<Status pr={680} state="works" />).
 - The reader and the writer of `mcrs_minecraft_nbt` lost the `_be` suffix of their methods, so `get_u8_be` is `get_u8` now (<Status pr={679} state="works" />).
+- The workspace moved from Bevy 0.19.1 to 0.20.1, so a plugin moves too. An observer writes `On<Remove<X>>` in place of `On<Remove, X>`, and the same goes for `Add`, `Insert` and `Discard` (<Status pr={709} state="works" />).
+- The loot table and context registries moved to `mcrs_minecraft_loot`, the damage type and mob effect registries to `mcrs_minecraft_entity`, the recipe registries to the new crate `mcrs_minecraft_recipe`, and the menu registry to the new crate `mcrs_minecraft_menu`. The names stay, and only the paths change (<Status pr={703} state="works" />).
+- `PlayerDat` of `mcrs_minecraft_save` holds the NBT root of the player file and has the methods `pos`, `rotation` and `dimension` in place of typed fields (<Status pr={744} state="works" />).
 
 ### New for plugin authors
 
 - A plugin can add plugins to every dimension world with `add_dimension_plugin`, or to one dimension world with `add_dimension_plugin_to` (<Status pr={552} state="works" />).
 - The chat event is cancellable. An observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} />). Join, leave, movement and block events are not done.
+- A plugin saves a component in the player file with `register_persisted` of `PersistedAppExt`, for the host and every dimension world in one call (<Status pr={745} state="works" />).
+- A block placement arrives as the public message `UseItemOnRequest`, and the break systems are the public set `BlockBreakSet` (<Status pr={770} state="works" />). Every inventory packet arrives as one public `InventoryInput` message (<Status pr={767} state="works" />).
+- `ServerNetworkPlugin` has the fields `forwarding`, `proxy_upstreams`, `join_limits` and `profile` (<Status pr={855} state="works" />, <Status pr={927} state="works" />, <Status pr={939} state="works" />, <Status pr={933} state="works" />).
+- `ServerThread` runs a server App on its own thread, and its owner asks it to save and stop (<Status pr={969} state="works" />).
+- A program with no server adds a player with `host_living_entity` and gives it a model and a skin with `PlayerModel` and `PlayerSkin` (<Status pr={758} state="works" />).
 
 ### Not there yet
 
 - There is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
+- The client cannot move a stack with a click in the inventory (<Status issue={129} />).
 
 ## v0.5.8, 2026-10-14
 
