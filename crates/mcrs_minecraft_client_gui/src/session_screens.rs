@@ -111,7 +111,14 @@ pub(crate) fn follow_session(
 
 fn ended_screen(session: &mut SessionState, reason: &mut DisconnectReason) -> Option<Screen> {
     let mut next = None;
+    let starting = session
+        .local
+        .as_deref()
+        .is_some_and(|local| local.phase == LocalServerPhase::Starting);
     for ended in session.ended.read() {
+        if starting {
+            continue;
+        }
         if !matches!(ended.reason, ConnectionEnd::Left) && reason.0.is_none() {
             reason.0 = Some(Reason::Connection(ended.reason.clone()));
         }
