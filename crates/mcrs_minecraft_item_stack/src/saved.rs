@@ -485,8 +485,6 @@ impl<L: NameLookup> Reader<'_, L> {
         let map = self.map(tag)?;
         let mut decorations: Vec<MapDecoration> = Vec::with_capacity(map.child_tags.len());
         for (key, decoration) in &map.child_tags {
-            // TODO(#881): the specification does not say whether a key that a decoration does not
-            // list is an error. This reader ignores it, as for the other component types.
             let decoration = self.map(decoration)?;
             let kind = self.identifier(self.necessary(decoration, "type")?)?;
             decorations.push(MapDecoration {

@@ -5,8 +5,6 @@ use core::hash::Hasher;
 use crate::MapDecorationTypeId;
 use crate::float_key;
 
-// TODO(#881): the specification does not state the number kinds of `x`, `z` and `rotation`.
-// Double, double and float are provisional until the maintainer answers on the issue.
 #[derive(Clone, Debug)]
 pub struct MapDecoration {
     pub key: Box<str>,

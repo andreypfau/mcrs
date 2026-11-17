@@ -251,8 +251,6 @@ fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str
     ]
 }
 
-// TODO(#881): compare each form with the bytes and the hash that the game writes, once the
-// specification states the number kinds of a decoration and experiment E26 records a decoration.
 #[test]
 fn a_map_decoration_reads_back_from_each_form() {
     let decoration = MapDecoration {
