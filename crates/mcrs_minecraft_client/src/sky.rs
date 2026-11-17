@@ -20,7 +20,8 @@ use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;
-use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_fog::{FogInputs, FogParameters};
 use mcrs_minecraft_model::vanilla_source;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin};
@@ -88,9 +89,7 @@ impl Plugin for SkyPlugin {
             .add_systems(
                 Update,
                 (
-                    clear_sky
-                        .in_set(SessionSet::Clear)
-                        .run_if(entered_configuration),
+                    clear_sky.in_set(SessionSet::Clear).run_if(session_boundary),
                     build_sky_environment
                         .after(SessionSet::Derive)
                         .run_if(resource_exists::<CurrentRegistries>),

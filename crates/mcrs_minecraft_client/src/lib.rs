@@ -32,8 +32,12 @@ pub mod config;
 pub mod dev;
 pub mod entities;
 pub mod frozen_clocks;
+#[cfg(not(target_family = "wasm"))]
+pub mod game_directory;
 pub mod input;
 pub mod light_volume;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub mod local_server;
 pub mod options;
 #[cfg(not(target_family = "wasm"))]
 mod options_file;
@@ -54,11 +58,15 @@ pub mod sky_state;
 pub mod stream;
 pub mod terrain_debug_entry;
 pub mod tint;
+#[cfg(not(target_family = "wasm"))]
+mod title;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
 #[cfg(not(target_family = "wasm"))]
 pub mod window_options;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub mod world_list;
 
 #[derive(Message)]
 pub struct Unsettled;
@@ -139,6 +147,8 @@ impl Plugin for ClientTerrainPlugin {
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
         );
+        #[cfg(not(target_family = "wasm"))]
+        app.add_plugins(title::TitlePanoramaPlugin);
         if let Some(tick) = knobs.frozen_time() {
             app.insert_resource(mcrs_minecraft_render::PinnedTick(tick));
         }

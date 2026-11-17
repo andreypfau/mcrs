@@ -122,7 +122,9 @@ mod tests {
         use super::*;
         use crate::joined_game::JoinedGame;
         use crate::test_session::{OWN_PLAYER, Server, receive};
-        use mcrs_minecraft_network::client::{ClientNetworkPlugin, finish_configuration};
+        use mcrs_minecraft_network::client::{
+            ClientNetworkPlugin, JoinRequest, finish_configuration,
+        };
         use mcrs_minecraft_protocol::{Decode, Packet};
         use mcrs_minecraft_protocol_game::serverbound::ServerboundClientTickEnd;
         use std::net::TcpListener;
@@ -151,14 +153,17 @@ mod tests {
             app.add_plugins((
                 HotbarSyncPlugin,
                 ClientNetworkPlugin {
-                    server: listener.local_addr().unwrap(),
-                    username: "Steve".to_owned(),
-                    profile_id: None,
-                    view_distance: 8,
                     holds_vanilla_pack: false,
                     play: None,
                 },
             ));
+            app.world_mut().write_message(JoinRequest {
+                server: listener.local_addr().unwrap(),
+                username: "Steve".to_owned(),
+                profile_id: None,
+                view_distance: 8,
+            });
+            app.update();
             let (mut server, _information) = Server::join(&listener);
             let connection = (0..1000)
                 .find_map(|_| {

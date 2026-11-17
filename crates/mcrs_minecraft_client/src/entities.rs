@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::settings::WgpuLimits;
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_entity_render::{EntityAssets, EntityRenderPlugin};
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -13,11 +15,21 @@ impl Plugin for ClientEntityRenderPlugin {
         app.add_plugins((EntityRenderPlugin, crate::player_skins::PlayerSkinsPlugin))
             .add_systems(
                 Update,
-                build_entity_assets
-                    .run_if(resource_exists::<CurrentRegistries>)
-                    .run_if(mcrs_minecraft_entity_render::entity_passes),
+                (
+                    clear_entity_assets
+                        .in_set(SessionSet::Clear)
+                        .run_if(session_boundary),
+                    build_entity_assets
+                        .after(SessionSet::Clear)
+                        .run_if(resource_exists::<CurrentRegistries>)
+                        .run_if(mcrs_minecraft_entity_render::entity_passes),
+                ),
             );
     }
+}
+
+fn clear_entity_assets(mut commands: Commands) {
+    commands.remove_resource::<EntityAssets>();
 }
 
 #[derive(Default)]

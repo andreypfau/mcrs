@@ -2,6 +2,7 @@ use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::apply_entity_data::apply_entity_data;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::session::InSession;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -82,6 +83,7 @@ fn on_add_entity(
         Motion::new(placement, packet.pos),
         Age::default(),
         SyncedData::default(),
+        InSession(event.entity),
     ));
     let velocity = packet.movement.0;
     match simulated_motion(&client, position, velocity) {

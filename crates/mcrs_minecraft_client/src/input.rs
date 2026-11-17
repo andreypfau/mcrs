@@ -231,9 +231,10 @@ fn read_hotbar_keys(
 fn grab_cursor_on_click(
     buttons: Res<ButtonInput<MouseButton>>,
     screen: Option<Res<Screen>>,
+    players: Query<(), With<Player>>,
     mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if buttons.just_pressed(MouseButton::Left) && screen_is_none(screen) {
+    if buttons.just_pressed(MouseButton::Left) && !players.is_empty() && screen_is_none(screen) {
         window.grab_mode = CursorGrabMode::Locked;
         window.visible = false;
     }

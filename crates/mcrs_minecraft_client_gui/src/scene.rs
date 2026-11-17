@@ -24,7 +24,7 @@ use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
-use crate::inventory_figure::pose_inventory_figure;
+use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
@@ -81,6 +81,7 @@ pub enum GuiQuad {
     Texels {
         rect: IRect,
         texels: Rect,
+        color: u32,
     },
     Glyph {
         pen: Vec2,
@@ -128,6 +129,7 @@ const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
 const MISSING_GLYPH: &str = "font/missing";
+const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
 const GUI_TEXTURES: [&str; 18] = [
@@ -221,10 +223,6 @@ impl GuiAtlasData {
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
             let (width, height) = page.size();
-            if width > ATLAS_WIDTH {
-                error!("font page {source}: {width} pixels wide, the atlas holds {ATLAS_WIDTH}");
-                continue;
-            }
             images.push((Packed::Page(source), page.pixels().to_vec(), width, height));
         }
         images.push((Packed::Named(BLANK), vec![255; 16], 2, 2));
@@ -240,11 +238,25 @@ impl GuiAtlasData {
             MISSING_GLYPH_SIZE.0,
             MISSING_GLYPH_SIZE.1,
         ));
+        let (cache_width, cache_height) = (
+            (glyph_cache::COLUMNS * CELL) as u32,
+            (glyph_cache::ROWS * CELL) as u32,
+        );
+        images.push((
+            Packed::Named(GLYPH_CACHE),
+            vec![0; (cache_width * cache_height * 4) as usize],
+            cache_width,
+            cache_height,
+        ));
         images.sort_by_key(|(name, _, _, height)| (std::cmp::Reverse(*height), *name));
+        let atlas_width = images
+            .iter()
+            .map(|(_, _, width, _)| *width)
+            .fold(ATLAS_WIDTH, u32::max);
         let (mut x, mut y, mut row) = (0u32, 0u32, 0u32);
         let mut placed = Vec::new();
         for (name, pixels, width, height) in images {
-            if x + width > ATLAS_WIDTH {
+            if x + width > atlas_width {
                 x = 0;
                 y += row;
                 row = 0;
@@ -257,16 +269,15 @@ impl GuiAtlasData {
             x += width;
             row = row.max(height);
         }
-        let glyph_origin = IVec2::new(0, (y + row) as i32);
-        let atlas_height = (y + row + (glyph_cache::ROWS * CELL) as u32).next_power_of_two();
-        let mut pixels = vec![0u8; (ATLAS_WIDTH * atlas_height * 4) as usize];
+        let atlas_height = (y + row).next_power_of_two();
+        let mut pixels = vec![0u8; (atlas_width * atlas_height * 4) as usize];
         let mut regions = HashMap::new();
         let mut page_origins = Vec::new();
         for (name, source, rect) in placed {
             let width = rect.width() as usize;
             for (line, source_row) in source.chunks_exact(width * 4).enumerate() {
                 let start =
-                    ((rect.min.y as usize + line) * ATLAS_WIDTH as usize + rect.min.x as usize) * 4;
+                    ((rect.min.y as usize + line) * atlas_width as usize + rect.min.x as usize) * 4;
                 if let Some(target) = pixels.get_mut(start..start + width * 4) {
                     target.copy_from_slice(source_row);
                 }
@@ -298,12 +309,15 @@ impl GuiAtlasData {
             }
         }
         let missing_glyph = regions.get(MISSING_GLYPH).copied().unwrap_or_default();
+        let glyph_origin = regions
+            .get(GLYPH_CACHE)
+            .map_or(IVec2::ZERO, |region| region.min);
         let chat_modified = regions
             .get("icon/chat_modified")
             .copied()
             .unwrap_or_default();
         Ok(Self {
-            width: ATLAS_WIDTH,
+            width: atlas_width,
             height: atlas_height,
             pixels,
             regions,
@@ -398,12 +412,6 @@ fn load_image(
     let bytes = pack.get(path)?;
     let loaded = scaling.and_then(|scaling| {
         let image = decode_png(bytes, path).map_err(|error| error.to_string())?;
-        if image.1 > ATLAS_WIDTH {
-            return Err(format!(
-                "{} pixels wide, the atlas holds {ATLAS_WIDTH}",
-                image.1
-            ));
-        }
         Ok((scaling, image))
     });
     match loaded {
@@ -749,10 +757,14 @@ fn push_flat_quad(
             uv: blank,
             colors: [color; 4],
         },
-        GuiQuad::Texels { rect, texels } => AtlasQuad {
+        GuiQuad::Texels {
+            rect,
+            texels,
+            color,
+        } => AtlasQuad {
             rect: rect.as_rect(),
             uv: atlas.texel_uv(texels),
-            colors: [WHITE; 4],
+            colors: [color; 4],
         },
         GuiQuad::FillGradient { rect, top, bottom } => AtlasQuad {
             rect: rect.as_rect(),
@@ -802,6 +814,8 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .init_resource::<GlyphCache>()
+            .add_observer(spawn_inventory_figure)
+            .init_resource::<crate::title_draw::TitleScreenState>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
@@ -812,6 +826,10 @@ impl Plugin for GuiPlugin {
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
+                    crate::message_screen::draw.run_if(|screen: Res<Screen>| {
+                        matches!(*screen, Screen::Message(_) | Screen::CreateWorld(_))
+                    }),
+                    crate::title_draw::draw.run_if(resource_equals(Screen::Title)),
                     draw_tooltip,
                     build_gui_batch,
                 )
@@ -819,12 +837,16 @@ impl Plugin for GuiPlugin {
             )
             .add_systems(
                 PostUpdate,
-                pose_inventory_figure
-                    .after(begin_gui_frame)
-                    .before(EntitySlotSystems)
-                    .run_if(resource_exists::<FigureView>.and_then(
-                        resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
-                    )),
+                (
+                    crate::panorama_view::project_panorama_view
+                        .run_if(resource_exists::<mcrs_minecraft_render::PanoramaView>),
+                    pose_inventory_figure
+                        .after(begin_gui_frame)
+                        .before(EntitySlotSystems)
+                        .run_if(resource_exists::<FigureView>.and_then(
+                            resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
+                        )),
+                ),
             );
     }
 }
@@ -910,6 +932,7 @@ mod tests {
                 let corner = GuiQuad::Texels {
                     rect: IRect::from_corners(at, at + 3),
                     texels: Rect::from_corners(texel.as_vec2(), (texel + 3).as_vec2()),
+                    color: WHITE,
                 };
                 assert!(out.contains(&corner), "{corner:?} in {out:?}");
             }

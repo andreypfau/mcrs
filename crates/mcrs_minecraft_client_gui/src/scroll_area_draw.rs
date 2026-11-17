@@ -1,7 +1,7 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{SelectionList, Widget, WidgetKind, WidgetPlacement};
 
-use crate::font::{Font, draw_str};
+use crate::font::draw_text;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::item_decorations::WHITE;
@@ -42,7 +42,7 @@ pub(crate) fn draw_scroll_area(
     }
     out.push(GuiQuad::Clip { rect });
     if let WidgetKind::SelectionList(list) = &widget.kind {
-        draw_rows(menu, widget, list, &atlas.font, out);
+        draw_rows(menu, widget, list, atlas, out);
     }
     let members = menu.widgets.iter().filter(|member| {
         member.visible && member.area.is_some_and(|slot| slot.area == widget.id())
@@ -80,7 +80,11 @@ pub(crate) fn draw_section_label_box(menu: &Menu, widget: &Widget, out: &mut Vec
     if menu.widgets.focused() != Some(widget.id()) {
         return;
     }
-    let IRect { min, max } = irect(widget.rect());
+    draw_outlined_box(irect(widget.rect()), WHITE, out);
+}
+
+pub(crate) fn draw_outlined_box(rect: IRect, outline: u32, out: &mut Vec<GuiQuad>) {
+    let IRect { min, max } = rect;
     let fill = IRect::new(min.x.saturating_add(1), min.y, max.x, max.y);
     out.push(GuiQuad::Fill {
         rect: fill,
@@ -93,7 +97,10 @@ pub(crate) fn draw_section_label_box(menu: &Menu, widget: &Widget, out: &mut Vec
         IRect::new(max.x.saturating_sub(1), min.y, max.x, max.y),
     ];
     for rect in edges {
-        out.push(GuiQuad::Fill { rect, color: WHITE });
+        out.push(GuiQuad::Fill {
+            rect,
+            color: outline,
+        });
     }
 }
 
@@ -101,7 +108,7 @@ fn draw_rows(
     menu: &Menu,
     widget: &Widget,
     list: &SelectionList,
-    font: &Font,
+    atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
     let area = irect(widget.rect());
@@ -130,14 +137,38 @@ fn draw_rows(
             });
         }
     }
-    let texts = menu
-        .row_texts
+    let contents = menu
+        .rows
         .iter()
-        .filter(|text| text.list == widget.id());
-    for text in texts {
-        if let Some(bounds) = shown(text.row) {
-            let inner = bounds.inflate(-ROW_INSET);
-            draw_str(font, inner.min.as_vec2(), &text.text, WHITE, false, out);
+        .filter(|content| content.list == widget.id());
+    for content in contents {
+        let Some(bounds) = shown(content.row) else {
+            continue;
+        };
+        let inner = bounds.inflate(-ROW_INSET);
+        if let Some(region) = content
+            .icon
+            .and_then(|icon| atlas.textures.get(icon as usize))
+        {
+            let side = inner.height();
+            out.push(GuiQuad::Texels {
+                rect: IRect::new(
+                    inner.min.x,
+                    inner.min.y,
+                    inner.min.x.saturating_add(side),
+                    inner.max.y,
+                ),
+                texels: region.as_rect(),
+                color: WHITE,
+            });
+        }
+        for line in &content.lines {
+            draw_text(
+                &atlas.font,
+                inner.min.saturating_add(line.offset),
+                &line.spans,
+                out,
+            );
         }
     }
 }

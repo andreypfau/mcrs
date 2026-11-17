@@ -17,7 +17,7 @@ pub struct LocalGameMode {
 }
 
 impl LocalGameMode {
-    fn spawned(info: &PlayerSpawnInfo) -> Self {
+    pub(crate) fn spawned(info: &PlayerSpawnInfo) -> Self {
         Self {
             current: info.game_mode,
             previous: info.prev_game_mode.0,

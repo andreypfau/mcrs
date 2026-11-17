@@ -6,6 +6,7 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
+use mcrs_minecraft_client_world::camera_section_ready::CameraSectionReady;
 use mcrs_minecraft_client_world::columns::{
     ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent,
 };
@@ -18,10 +19,14 @@ use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::tint::{self, BiomeTints};
 use crate::vanilla::VanillaAssets;
+use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::joined_game::CurrentDimension;
-use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_dimension::CardinalLight;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
@@ -75,6 +80,7 @@ impl Plugin for StreamPlugin {
             .insert_resource(self.pacing)
             .init_resource::<LightOptions>()
             .init_resource::<TerrainShade>()
+            .init_resource::<CameraSectionReady>()
             .add_systems(
                 Update,
                 apply_dimension_shade
@@ -90,6 +96,7 @@ impl Plugin for StreamPlugin {
                     bake_catalog.run_if(in_state(VanillaAssets::Ready)),
                     tint_columns,
                     place_meshes,
+                    project_camera_section_ready,
                     flush_streams,
                     admit_meshing,
                 )
@@ -101,7 +108,7 @@ impl Plugin for StreamPlugin {
                 Update,
                 clear_biome_tints
                     .in_set(SessionSet::Clear)
-                    .run_if(entered_configuration),
+                    .run_if(session_boundary),
             )
             .add_systems(
                 Update,
@@ -333,6 +340,25 @@ impl Loader {
             .floor()
             .as_ivec3()
             .to_array()
+    }
+
+    fn camera_section_drawable(&self, store: &ColumnStore) -> bool {
+        let at = self.camera_section();
+        let Some(extent) = store.extent() else {
+            return false;
+        };
+        let sections = i32::try_from(extent.sections).unwrap_or(i32::MAX);
+        if !(extent.min_section_y..extent.min_section_y.saturating_add(sections)).contains(&at[1]) {
+            return true;
+        }
+        if !self.surrounded(ColumnPos::new(at[0], at[2]), store) {
+            return false;
+        }
+        self.sections.resident(at).is_some()
+            || (self.sections.work(at) == Work::Idle
+                && store
+                    .stored_section(SectionPos::new(at[0], at[1], at[2]))
+                    .is_none())
     }
 
     fn look_from(&mut self, eye: Vec3) {
@@ -1545,6 +1571,18 @@ fn place_meshes(
     loader.remesh_stale(&store, &mut cave);
 }
 
+fn project_camera_section_ready(
+    loader: Res<Loader>,
+    store: Res<ColumnStore>,
+    modes: Query<&LocalGameMode, With<Player>>,
+    mut ready: ResMut<CameraSectionReady>,
+) {
+    let spectator = modes.iter().any(|mode| mode.current == GameMode::Spectator);
+    ready.set_if_neq(CameraSectionReady(
+        spectator || loader.camera_section_drawable(&store),
+    ));
+}
+
 pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     let _flushing = info_span!("stream flush").entered();
     loader.flush_to(&uploads);
@@ -1656,7 +1694,8 @@ mod tests {
         use mcrs_minecraft_network::ConnectionState;
 
         let mut app = App::new();
-        app.add_systems(Update, clear_biome_tints.run_if(entered_configuration));
+        app.add_message::<mcrs_minecraft_network::client::ConnectionEnded>()
+            .add_systems(Update, clear_biome_tints.run_if(session_boundary));
         app.insert_resource(BiomeTints::default());
         let connection = app.world_mut().spawn(ConnectionState::Game).id();
         app.update();

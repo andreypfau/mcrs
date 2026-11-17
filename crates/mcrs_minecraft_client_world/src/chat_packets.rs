@@ -8,7 +8,7 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::chat::{CompletionAction, FilterMask};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundCommandSuggestions, ClientboundCommands, ClientboundCustomChatCompletions,
-    ClientboundDisguisedChat, ClientboundLogin, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
+    ClientboundDisguisedChat, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
     ClientboundPlayerInfoUpdate, ClientboundSetActionBarText, ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol_game::text::{Color, IntoText, RawText, Text};
@@ -28,18 +28,6 @@ const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_environment::registry_keys::TIMELINE.location(),
 ];
 
-pub(crate) fn on_login(
-    _: On<Received<ClientboundLogin>>,
-    mut chat: ResMut<Chat>,
-    mut players: ResMut<OnlinePlayers>,
-) {
-    chat.log.clear();
-    chat.history.reset();
-    chat.completions.clear();
-    chat.player_chats = 0;
-    players.0.clear();
-}
-
 pub(crate) fn on_commands(
     event: On<Received<ClientboundCommands<'static>>>,
     mut tree: ResMut<CommandTree>,
@@ -57,7 +45,7 @@ pub(crate) fn on_commands(
         Err(error) => client::close_connection_later(
             &mut commands,
             event.entity,
-            format!("the command tree is invalid: {error}"),
+            client::ConnectionEnd::Lost(format!("the command tree is invalid: {error}")),
         ),
     }
 }
@@ -172,7 +160,7 @@ pub(crate) fn on_player_chat(
         client::close_connection_later(
             &mut commands,
             event.entity,
-            "multiplayer.disconnect.bad_chat_index".to_owned(),
+            client::ConnectionEnd::Lost("multiplayer.disconnect.bad_chat_index".to_owned()),
         );
         return;
     }

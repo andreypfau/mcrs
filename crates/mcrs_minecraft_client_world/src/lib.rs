@@ -7,6 +7,7 @@ mod attribute_packets;
 pub mod block_breaking;
 pub mod block_prediction;
 pub mod block_target;
+pub mod camera_section_ready;
 pub mod chat;
 pub mod chat_history;
 mod chat_packets;
@@ -30,7 +31,9 @@ mod pong;
 mod received;
 pub mod registries;
 pub mod screen;
+pub mod session;
 pub mod sign;
 #[cfg(test)]
 mod test_session;
 mod walk;
+pub mod world_list;

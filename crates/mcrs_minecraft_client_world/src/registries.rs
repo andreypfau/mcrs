@@ -16,7 +16,8 @@ use mcrs_minecraft_game_registries::registry_load::{RegistryLoadError, load_rece
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ClientNetworkSystems, RegistriesReceived, close_connection_later, finish_configuration,
+    ClientNetworkSystems, ConnectionEnd, ConnectionEnded, RegistriesReceived,
+    close_connection_later, finish_configuration,
 };
 use mcrs_minecraft_network::event;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateTags;
@@ -25,6 +26,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Regist
 use crate::collision_tables::{ClientPhysicsTables, build_collision_tables};
 use crate::joined_game::{self, CurrentDimension};
 use crate::received::{received, received_tags};
+use crate::session::session_boundary;
 
 const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -54,6 +56,7 @@ pub struct ClientRegistriesPlugin {
 impl Plugin for ClientRegistriesPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(WorldClockPlugin)
+            .add_message::<ConnectionEnded>()
             .configure_sets(
                 Update,
                 (
@@ -66,7 +69,7 @@ impl Plugin for ClientRegistriesPlugin {
                 (
                     clear_derived_tables
                         .in_set(SessionSet::Clear)
-                        .run_if(entered_configuration),
+                        .run_if(session_boundary),
                     (
                         derive_clock_markers,
                         seed_session_clocks,
@@ -79,6 +82,7 @@ impl Plugin for ClientRegistriesPlugin {
             .add_observer(load_server_registries)
             .add_observer(replace_server_tags);
         joined_game::add_observers(app);
+        crate::session::add_observers(app);
         crate::clock_sync::add_systems(app);
         crate::pong::add_observers(app);
     }
@@ -136,6 +140,7 @@ fn install(
         }
         Err(error) => {
             error!(%error, "the item definitions do not fit the session registries");
+            commands.remove_resource::<CurrentRegistries>();
             commands.remove_resource::<Items>();
         }
     }
@@ -158,7 +163,7 @@ fn load_server_registries(
             close_connection_later(
                 &mut commands,
                 event.entity,
-                format!("the server's registries cannot be read: {error:#}"),
+                ConnectionEnd::Lost(format!("the server's registries cannot be read: {error:#}")),
             );
             return;
         }
@@ -172,7 +177,7 @@ fn load_server_registries(
         Err(error) => close_connection_later(
             &mut commands,
             event.entity,
-            format!("the server's registries cannot be used:\n{error}"),
+            ConnectionEnd::Lost(format!("the server's registries cannot be used:\n{error}")),
         ),
     }
 }
@@ -192,7 +197,7 @@ fn replace_server_tags(
         close_connection_later(
             &mut commands,
             event.entity,
-            "the server sent tags before its registries".to_owned(),
+            ConnectionEnd::Lost("the server sent tags before its registries".to_owned()),
         );
         return;
     };
@@ -202,7 +207,7 @@ fn replace_server_tags(
         Err(error) => close_connection_later(
             &mut commands,
             event.entity,
-            format!("the server's tags cannot be used:\n{error}"),
+            ConnectionEnd::Lost(format!("the server's tags cannot be used:\n{error}")),
         ),
     }
 }
@@ -234,6 +239,7 @@ fn clear_derived_tables(
     dimensions: Query<Entity, With<CurrentDimension>>,
     mut commands: Commands,
 ) {
+    commands.remove_resource::<CurrentRegistries>();
     commands.remove_resource::<Items>();
     commands.remove_resource::<ClockTimeMarkers>();
     commands.remove_resource::<ClientPhysicsTables>();

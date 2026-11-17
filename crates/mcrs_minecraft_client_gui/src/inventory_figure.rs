@@ -4,12 +4,16 @@ use bevy::window::PrimaryWindow;
 use mcrs_minecraft_client_world::local_motion::LocalMotion;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_client_world::session::InSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{EntityViews, FigureFrame, FigureView, FramePosed};
 use mcrs_minecraft_entity_visual::{
     EntityLight, HostLight, Living, Motion, Placement, SyncedData, host_living_entity,
 };
+use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_network::join::ServerProfile;
 use mcrs_minecraft_pose::{Dimensions, Pose};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use uuid::Uuid;
 
 use crate::inventory_screen::origin;
@@ -43,6 +47,25 @@ pub fn inventory_figure(uuid: Uuid) -> Option<impl Bundle> {
         HostLight,
         FULL_LIGHT,
     ))
+}
+
+pub(crate) fn spawn_inventory_figure(
+    event: On<Received<ClientboundLogin>>,
+    profiles: Query<&ServerProfile>,
+    figures: Query<(), With<InventoryFigure>>,
+    mut commands: Commands,
+) {
+    if !figures.is_empty() {
+        return;
+    }
+    let Some(figure) = profiles
+        .get(event.entity)
+        .ok()
+        .and_then(|profile| inventory_figure(profile.id))
+    else {
+        return;
+    };
+    commands.spawn((figure, InSession(event.entity)));
 }
 
 pub(crate) fn pose_inventory_figure(
@@ -161,6 +184,29 @@ mod tests {
     use crate::item_resolve::light_factor;
 
     const ORIGIN: IVec2 = IVec2::new(125, 37);
+
+    #[test]
+    fn the_figure_of_a_session_ends_with_the_session() {
+        let mut world = World::new();
+        world.add_observer(spawn_inventory_figure);
+        let session = world
+            .spawn(ServerProfile {
+                id: Uuid::nil(),
+                username: "host".to_owned(),
+            })
+            .id();
+        for _ in 0..2 {
+            world.trigger(Received::<ClientboundLogin>::new(
+                session,
+                Vec::new().into(),
+            ));
+            world.flush();
+        }
+        let mut figures = world.query_filtered::<(), With<InventoryFigure>>();
+        assert_eq!(figures.iter(&world).count(), 1, "a second login keeps it");
+        world.despawn(session);
+        assert_eq!(figures.iter(&world).count(), 0);
+    }
 
     fn near(actual: f32, expected: f32, tolerance: f32) -> bool {
         (actual - expected).abs() <= tolerance

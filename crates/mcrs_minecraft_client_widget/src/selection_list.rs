@@ -3,12 +3,13 @@ use crate::list_frame;
 use crate::saturate;
 use crate::scroll_area::ScrollArea;
 
-const ROW_WIDTH: i32 = 220;
+const DEFAULT_ROW_WIDTH: i32 = 220;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionList {
     pub(crate) rows: usize,
     row_height: i32,
+    row_width: i32,
     pub(crate) selected: Option<usize>,
     pub(crate) offset: f64,
 }
@@ -19,9 +20,16 @@ impl SelectionList {
         Self {
             rows,
             row_height,
+            row_width: DEFAULT_ROW_WIDTH,
             selected: None,
             offset: 0.0,
         }
+    }
+
+    #[must_use]
+    pub const fn with_row_width(mut self, row_width: i32) -> Self {
+        self.row_width = row_width;
+        self
     }
 
     #[must_use]
@@ -46,9 +54,9 @@ impl SelectionList {
         }
         let above = i64::try_from(row).unwrap_or(i64::MAX) * i64::from(self.row_height);
         Some(GuiRect::new(
-            list_frame::row_left(area, ROW_WIDTH),
+            list_frame::row_left(area, self.row_width),
             saturate::saturate(i64::from(list_frame::rows_top(area)).saturating_add(above)),
-            ROW_WIDTH,
+            self.row_width,
             self.row_height,
         ))
     }
@@ -56,11 +64,17 @@ impl SelectionList {
     pub(crate) fn scroll_area(&self, area: GuiRect) -> ScrollArea {
         let rows = i64::try_from(self.rows).unwrap_or(i64::MAX);
         let rows_height = rows.saturating_mul(i64::from(self.row_height));
-        list_frame::scroll_area(area, ROW_WIDTH, rows_height, self.row_height, self.offset)
+        list_frame::scroll_area(
+            area,
+            self.row_width,
+            rows_height,
+            self.row_height,
+            self.offset,
+        )
     }
 
     pub(crate) fn row_under(&self, area: GuiRect, x: f64, y: f64) -> Option<usize> {
-        if self.row_height <= 0 || !list_frame::in_rows(area, ROW_WIDTH, x, y) {
+        if self.row_height <= 0 || !list_frame::in_rows(area, self.row_width, x, y) {
             return None;
         }
         let top = f64::from(list_frame::rows_top(area)) - f64::from(self.scroll_area(area).shift());

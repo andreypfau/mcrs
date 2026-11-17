@@ -4,13 +4,26 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetTime;
 use mcrs_minecraft_resource::Id;
 
+use crate::registries::SessionSet;
+use crate::session::session_boundary;
+
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ClientGameTime(pub Option<i64>);
 
 pub(crate) fn add_systems(app: &mut App) {
     app.init_resource::<ClientGameTime>()
         .add_systems(FixedUpdate, count_game_tick.in_set(WorldClockSystems))
+        .add_systems(
+            Update,
+            reset_game_time
+                .in_set(SessionSet::Clear)
+                .run_if(session_boundary),
+        )
         .add_observer(on_set_time);
+}
+
+fn reset_game_time(mut time: ResMut<ClientGameTime>) {
+    time.set_if_neq(ClientGameTime::default());
 }
 
 fn count_game_tick(mut time: ResMut<ClientGameTime>) {

@@ -18,7 +18,7 @@ use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::ClientGraph;
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ConnectionEnded};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::player::MessageSignature;
@@ -34,6 +34,8 @@ use crate::chat_history::{self, CommandHistoryFile};
 use crate::chat_packets;
 use crate::game_mode::PermissionLevel;
 use crate::player::Player;
+use crate::registries::SessionSet;
+use crate::session::session_boundary;
 
 #[derive(Message, Clone, Debug)]
 pub struct SendChat(pub Outgoing);
@@ -237,7 +239,14 @@ impl Plugin for ClientChatPlugin {
             .init_resource::<ChatInput>()
             .add_message::<ChatMessage>()
             .add_message::<SendChat>()
+            .add_message::<ConnectionEnded>()
             .add_systems(FixedUpdate, advance_tick)
+            .add_systems(
+                Update,
+                clear_session_chat
+                    .in_set(SessionSet::Clear)
+                    .run_if(session_boundary),
+            )
             .add_systems(
                 Update,
                 chat_history::finish_history_write.run_if(chat_history::history_writing),
@@ -248,7 +257,6 @@ impl Plugin for ClientChatPlugin {
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             )
-            .add_observer(chat_packets::on_login)
             .add_observer(chat_packets::on_commands)
             .add_observer(chat_packets::on_suggestions)
             .add_observer(chat_packets::on_system_chat)
@@ -259,6 +267,21 @@ impl Plugin for ClientChatPlugin {
             .add_observer(chat_packets::on_player_info_update)
             .add_observer(chat_packets::on_player_info_remove);
     }
+}
+
+fn clear_session_chat(
+    mut chat: ResMut<Chat>,
+    mut players: ResMut<OnlinePlayers>,
+    mut tree: ResMut<CommandTree>,
+    mut input: ResMut<ChatInput>,
+) {
+    chat.log.clear();
+    chat.history.reset();
+    chat.completions.clear();
+    chat.player_chats = 0;
+    players.0.clear();
+    *tree = CommandTree::default();
+    *input = ChatInput::default();
 }
 
 fn advance_tick(mut chat: ResMut<Chat>) {

@@ -23,19 +23,17 @@ pub fn look_direction(yaw: f32, pitch: f32) -> Vec3 {
     )
 }
 
-pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) -> Entity {
+pub fn player_at(position: DVec3, yaw: f32, pitch: f32) -> impl Bundle {
     let physics =
         PhysicsTransform::from_translation(position).with_rotation(Rotation::new(yaw, pitch));
-    world
-        .spawn((
-            Player,
-            physics,
-            OldTransform(physics),
-            Velocity(DVec3::ZERO),
-            Sprint::default(),
-            LastSentMovement::default(),
-            SlotTable::fixed(slots::COUNT),
-            SelectedHotbarSlot::default(),
-        ))
-        .id()
+    (
+        Player,
+        physics,
+        OldTransform(physics),
+        Velocity(DVec3::ZERO),
+        Sprint::default(),
+        LastSentMovement::default(),
+        SlotTable::fixed(slots::COUNT),
+        SelectedHotbarSlot::default(),
+    )
 }

@@ -1,6 +1,7 @@
 use bevy::math::{IRect, IVec2, Rect};
 
 use crate::gui_texture_id::GuiTextureId;
+use crate::item_decorations::WHITE;
 use crate::scene::{GuiAtlasData, GuiQuad};
 
 impl GuiAtlasData {
@@ -31,6 +32,7 @@ fn tile(texels: Rect, rect: IRect, start: IVec2, size: IVec2, out: &mut Vec<GuiQ
             out.push(GuiQuad::Texels {
                 rect: cut,
                 texels: Rect::from_corners(texel(cut.min), texel(cut.max)),
+                color: WHITE,
             });
         }
     }
@@ -89,7 +91,7 @@ mod tests {
             let quads: Vec<Quad> = out
                 .into_iter()
                 .filter_map(|quad| match quad {
-                    GuiQuad::Texels { rect, texels } => Some((
+                    GuiQuad::Texels { rect, texels, .. } => Some((
                         [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
                         [texels.min.x, texels.min.y, texels.max.x, texels.max.y],
                     )),
