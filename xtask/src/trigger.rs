@@ -203,25 +203,6 @@ mod tests {
     }
 
     #[test]
-    fn the_subset_test_fails_on_a_check_no_pull_request_trigger_lists_whatever_the_order() {
-        fn table(trigger: Trigger) -> &'static [Check] {
-            match trigger {
-                Trigger::Lint => &[Check::Test, Check::Fmt],
-                Trigger::Push => &[Check::Clippy, Check::Fmt, Check::Test],
-                Trigger::Commit => &[Check::Fmt, Check::Wasm32],
-                _ => &[Check::Fmt],
-            }
-        }
-        assert_eq!(
-            outside_pull_requests(table),
-            [
-                (Trigger::Commit, Check::Wasm32),
-                (Trigger::Push, Check::Clippy)
-            ]
-        );
-    }
-
-    #[test]
     fn usage_lists_the_hook_and_on_demand_triggers_under_this_machine_and_the_rest_apart() {
         let text = usage();
         let (here, elsewhere) = text

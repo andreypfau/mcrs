@@ -1042,10 +1042,24 @@ fn without_rooms(structures: &ChunkStructures) -> ChunkStructures {
 }
 
 #[test]
-fn a_generated_monument_start_and_references_are_saved_with_the_column() {
+fn a_generated_monument_is_saved_and_its_rooms_are_rebuilt_from_the_seed_once() {
     let (dim, answer) = generated_monument_column();
-    let start_column = answer.column;
+    let column = answer.column;
     let structures = answer.stored.expect("the column was stored").structures;
+    a_generated_monument_start_and_references_are_saved_with_the_column(&dim, column, &structures);
+    a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed(
+        &dim,
+        column,
+        &structures,
+    );
+    a_rebuilt_monument_marks_its_column_changed_once(&dim, column, &structures);
+}
+
+fn a_generated_monument_start_and_references_are_saved_with_the_column(
+    dim: &Dimension,
+    start_column: ColumnPos,
+    structures: &ChunkStructures,
+) {
     let id = ResourceLocationBuf::minecraft("monument").unwrap();
     assert_eq!(
         structures.starts.get(&id).map(|start| start.references),
@@ -1078,13 +1092,13 @@ fn a_generated_monument_start_and_references_are_saved_with_the_column() {
     );
 }
 
-#[test]
-fn a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed() {
+fn a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed(
+    dim: &Dimension,
+    column: ColumnPos,
+    generated: &ChunkStructures,
+) {
     use crate::saved_monuments::rebuild_rooms;
 
-    let (dim, answer) = generated_monument_column();
-    let column = answer.column;
-    let generated = answer.stored.expect("the column was stored").structures;
     let monument = |structures: &ChunkStructures| {
         structures
             .starts
@@ -1095,18 +1109,21 @@ fn a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed() {
                 _ => None,
             })
     };
-    let expected = monument(&generated).expect("the start column holds the monument");
+    let expected = monument(generated).expect("the start column holds the monument");
     assert!(!expected.rooms.is_empty() && !expected.children.is_empty());
 
-    let mut saved = without_rooms(&generated);
+    let mut saved = without_rooms(generated);
     let seed = dim.ctx.router.as_ref().unwrap().world_seed as i64;
     assert!(rebuild_rooms(&mut saved, column, seed));
     assert_eq!(monument(&saved), Some(expected));
     assert!(!rebuild_rooms(&mut saved, column, seed));
 }
 
-#[test]
-fn a_rebuilt_monument_marks_its_column_changed_once() {
+fn a_rebuilt_monument_marks_its_column_changed_once(
+    dim: &Dimension,
+    column: ColumnPos,
+    generated: &ChunkStructures,
+) {
     use crate::saved_monuments::rebuild_saved_monument_rooms;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
@@ -1116,9 +1133,7 @@ fn a_rebuilt_monument_marks_its_column_changed_once() {
     use mcrs_minecraft_engine_world::world_seed::WorldSeed;
     use mcrs_voxel::SectionPos;
 
-    let (dim, answer) = generated_monument_column();
-    let column = answer.column;
-    let structures = without_rooms(&answer.stored.expect("the column was stored").structures);
+    let structures = without_rooms(generated);
 
     let mut world = World::new();
     world.insert_resource(WorldSeed(dim.ctx.router.as_ref().unwrap().world_seed as _));

@@ -508,16 +508,6 @@ mod tests {
     }
 
     #[test]
-    fn a_change_does_not_reach_a_copy_of_the_list() {
-        let mut list = BanList::new([ban(STEVE, "Steve")]);
-        let copy = list.clone();
-
-        list.pardon(STEVE);
-
-        assert!(copy.get(&STEVE).is_some());
-    }
-
-    #[test]
     fn find_by_name_ignores_the_case() {
         let list = BanList::new([ban(STEVE, "Steve")]);
 

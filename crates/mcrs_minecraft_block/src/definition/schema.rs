@@ -50,10 +50,10 @@ pub struct Permutation {
 
 /// The block's properties in the order of the game's block-state report. The
 /// order decides state ids, so it is carried as a sequence and never as a map.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct BlockProperties(pub Vec<BlockProperty>);
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BlockProperty {
     pub name: Box<str>,
     pub values: Vec<PropertyValue>,

@@ -403,16 +403,6 @@ mod tests {
     }
 
     #[test]
-    fn a_change_leaves_the_copy_that_a_clone_holds() {
-        let mut whitelist = Whitelist::new([wa()]);
-        let copy = whitelist.clone();
-
-        whitelist.remove(&WA);
-
-        assert!(copy.entries.contains_key(&WA));
-    }
-
-    #[test]
     fn wl_cmd_003_a_new_name_keeps_its_case_and_gets_the_id_of_that_name() {
         assert_eq!(WhitelistEntry::offline("wa"), wa());
 

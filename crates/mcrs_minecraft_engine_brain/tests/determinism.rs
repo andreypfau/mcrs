@@ -38,6 +38,8 @@ use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 const PIGS: u32 = 2000;
 const TICKS: u64 = 200;
+/// Past the hit at tick 50, so the short run covers the panic of the hit pigs.
+const SHORT_TICKS: u64 = 60;
 const HALF_TILES: i32 = 3;
 const CACTUS: u32 = 7;
 
@@ -186,15 +188,28 @@ impl Run {
     }
 }
 
-#[test]
-fn the_ai_of_a_crowd_gives_equal_ticks_at_1_8_and_16_threads() {
-    let mut runs: Vec<Run> = [1, 8, 16].into_iter().map(Run::new).collect();
+struct Crowd {
+    walked: usize,
+    evaluations: u64,
+}
+
+/// Runs the crowd for `ticks` ticks at each count of `threads`.
+///
+/// # Panics
+///
+/// When `threads` is empty, or when two thread counts give different hashes in a tick.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper reports a failure by panicking"
+)]
+fn assert_thread_counts_agree(ticks: u64, threads: &[usize]) -> Crowd {
+    let mut runs: Vec<Run> = threads.iter().copied().map(Run::new).collect();
     let start = runs[0].positions();
-    for tick in 1..=TICKS {
+    for tick in 1..=ticks {
         let hashes: Vec<u64> = runs.iter_mut().map(|run| run.tick(tick)).collect();
         assert!(
             hashes.iter().all(|hash| *hash == hashes[0]),
-            "tick {tick}: the hashes at 1, 8 and 16 threads differ: {hashes:?}"
+            "tick {tick}: the hashes at {threads:?} threads differ: {hashes:?}"
         );
     }
     let end = runs[0].positions();
@@ -203,9 +218,42 @@ fn the_ai_of_a_crowd_gives_equal_ticks_at_1_8_and_16_threads() {
         .zip(&end)
         .filter(|(from, to)| from.with_y(0.0).distance(to.with_y(0.0)) > 1.0)
         .count();
+    Crowd {
+        walked,
+        evaluations: runs[0].ai.stage().evaluations(),
+    }
+}
+
+#[test]
+fn the_ai_of_a_crowd_gives_equal_ticks_at_1_and_8_threads_in_a_short_run() {
+    let crowd = assert_thread_counts_agree(SHORT_TICKS, &[1, 8]);
     assert!(
-        walked > 20,
-        "the pigs near the player and the hit pigs walk: {walked}"
+        crowd.walked > 0,
+        "the pigs near the player and the hit pigs walk: {}",
+        crowd.walked
     );
-    assert!(runs[0].ai.stage().evaluations() > u64::from(PIGS));
+    assert!(
+        crowd.evaluations > u64::from(PIGS),
+        "every pig is evaluated: {}",
+        crowd.evaluations
+    );
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_ai_of_a_crowd_gives_equal_ticks_at_1_8_and_16_threads() {
+        let crowd = assert_thread_counts_agree(TICKS, &[1, 8, 16]);
+        assert!(
+            crowd.walked > 20,
+            "the pigs near the player and the hit pigs walk: {}",
+            crowd.walked
+        );
+        assert!(
+            crowd.evaluations > u64::from(PIGS),
+            "every pig is evaluated: {}",
+            crowd.evaluations
+        );
+    }
 }

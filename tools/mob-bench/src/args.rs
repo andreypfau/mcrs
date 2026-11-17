@@ -161,18 +161,17 @@ mod tests {
     }
 
     #[test]
-    fn an_option_without_a_value_fails() {
-        let error = parse(&options(&["--server", "mcrs", "--pigs"]))
-            .map(|_| ())
-            .expect_err("no value");
-        assert!(error.to_string().contains("has no value"));
-    }
-
-    #[test]
-    fn an_unknown_option_fails() {
-        let error = parse(&options(&["--speed", "9"]))
-            .map(|_| ())
-            .expect_err("unknown option");
-        assert!(error.to_string().contains("unknown option --speed"));
+    fn a_malformed_command_line_fails_with_its_reason() {
+        let cases: [(&[&str], &str); 2] = [
+            (&["--server", "mcrs", "--pigs"], "has no value"),
+            (&["--speed", "9"], "unknown option --speed"),
+        ];
+        for (words, reason) in cases {
+            let error = parse(&options(words)).map(|_| ()).expect_err(reason);
+            assert!(
+                error.to_string().contains(reason),
+                "{words:?}: {error} does not name {reason:?}"
+            );
+        }
     }
 }

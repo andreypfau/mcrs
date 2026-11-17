@@ -373,32 +373,18 @@ mod tests {
     /// names — the local packing and the section grid disagree on axis order,
     /// so this is not self-evident from either.
     #[test]
-    fn a_step_moves_one_block_along_its_own_axis() {
+    fn a_step_moves_one_block_along_its_own_axis_inside_and_across_a_section_seam() {
         let layout = layout();
-        let start = BlockPos::new(20, 20, 20);
-        let index = index_of(&layout, start);
-        for dir in Direction::all() {
-            let stepped = layout.step(index, dir).expect("inside the area");
-            let expected = BlockPos::new(
-                start.x + dir.normal().x,
-                start.y + dir.normal().y,
-                start.z + dir.normal().z,
-            );
-            assert_eq!(block_of(&layout, stepped), expected, "{dir:?}");
-        }
-    }
-
-    #[test]
-    fn a_step_crossing_a_section_seam_lands_in_the_next_section() {
-        let layout = layout();
-        for (start, dir) in [
+        let inside = Direction::all().map(|dir| (BlockPos::new(20, 20, 20), dir));
+        let across_a_seam = [
             (BlockPos::new(15, 20, 20), Direction::East),
             (BlockPos::new(16, 20, 20), Direction::West),
             (BlockPos::new(20, 15, 20), Direction::Up),
             (BlockPos::new(20, 16, 20), Direction::Down),
             (BlockPos::new(20, 20, 15), Direction::South),
             (BlockPos::new(20, 20, 16), Direction::North),
-        ] {
+        ];
+        for (start, dir) in inside.into_iter().chain(across_a_seam) {
             let stepped = layout
                 .step(index_of(&layout, start), dir)
                 .expect("inside the area");

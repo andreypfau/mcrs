@@ -584,34 +584,64 @@ mod tests {
 
     const CREATIVE_LIMIT: f64 = 6.0;
 
-    #[test]
-    fn brk_rch_001_a_distance_of_six_is_out_of_reach() {
-        let block = BlockPos::new(10, 0, 0);
-        let eye = |gap: f64| DVec3::new(10.0 - gap, 0.5, 0.5);
-
-        assert!(in_reach(eye(5.99), block, CREATIVE_LIMIT));
-        assert!(!in_reach(eye(6.0), block, CREATIVE_LIMIT));
+    struct ReachCase {
+        name: &'static str,
+        block: BlockPos,
+        eye: DVec3,
+        in_reach: bool,
     }
 
     #[test]
-    fn brk_rch_001_from_above_the_distance_is_to_the_top_of_the_cube() {
-        let block = BlockPos::new(0, 0, 0);
-        let eye = |gap: f64| DVec3::new(0.5, 1.0 + gap, 0.5);
+    fn brk_rch_001_the_reach_is_measured_to_the_nearest_point_of_the_cube() {
+        let origin = BlockPos::new(0, 0, 0);
+        let east = BlockPos::new(10, 0, 0);
+        let cases = [
+            ReachCase {
+                name: "a gap of 5.99 to the side",
+                block: east,
+                eye: DVec3::new(10.0 - 5.99, 0.5, 0.5),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a gap of 6 to the side",
+                block: east,
+                eye: DVec3::new(10.0 - 6.0, 0.5, 0.5),
+                in_reach: false,
+            },
+            ReachCase {
+                name: "a gap of 5.95 above the top",
+                block: origin,
+                eye: DVec3::new(0.5, 1.0 + 5.95, 0.5),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a gap of 6.05 above the top",
+                block: origin,
+                eye: DVec3::new(0.5, 1.0 + 6.05, 0.5),
+                in_reach: false,
+            },
+            ReachCase {
+                name: "a diagonal of 4 to the corner",
+                block: origin,
+                eye: DVec3::new(-4.0, 0.5, -4.0),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a diagonal of 4.3 to the corner",
+                block: origin,
+                eye: DVec3::new(-4.3, 0.5, -4.3),
+                in_reach: false,
+            },
+        ];
 
-        assert!(in_reach(eye(5.95), block, CREATIVE_LIMIT));
-        assert!(!in_reach(eye(6.05), block, CREATIVE_LIMIT));
-    }
-
-    #[test]
-    fn brk_rch_001_on_a_diagonal_the_distance_is_to_the_corner_of_the_cube() {
-        let block = BlockPos::new(0, 0, 0);
-
-        assert!(in_reach(DVec3::new(-4.0, 0.5, -4.0), block, CREATIVE_LIMIT));
-        assert!(!in_reach(
-            DVec3::new(-4.3, 0.5, -4.3),
-            block,
-            CREATIVE_LIMIT
-        ));
+        for case in cases {
+            assert_eq!(
+                in_reach(case.eye, case.block, CREATIVE_LIMIT),
+                case.in_reach,
+                "{}",
+                case.name
+            );
+        }
     }
 
     #[test]

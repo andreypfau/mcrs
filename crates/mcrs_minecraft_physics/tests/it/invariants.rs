@@ -1,5 +1,6 @@
 //! Property tests of the invariants of the move procedure, over random worlds of the test table.
-//! A debug build runs a short sweep; a release build runs 10^6 cases for each property.
+//! The default tier checks five worlds of each sweep; `exhaustive` runs 20 000 cases in a debug
+//! build and 10^6 in a release build.
 #![expect(
     clippy::indexing_slicing,
     reason = "the generators index small fixed tables"
@@ -37,6 +38,7 @@ const CASES: u32 = if cfg!(debug_assertions) {
     1_000_000
 };
 const CASES_PER_WORLD: u32 = 64;
+const DEFAULT_TIER_CASES: u32 = 5 * CASES_PER_WORLD;
 const EPSILON: f64 = 1.0e-7;
 
 /// A displacement component: often zero, sometimes tiny, else up to 2 blocks.
@@ -188,9 +190,9 @@ fn probe(case: &Case) -> Probe {
     }
 }
 
-fn run(seed: u64, mut check: impl FnMut(&mut Fixture, &Case)) {
+fn run(seed: u64, cases: u32, mut check: impl FnMut(&mut Fixture, &Case)) {
     let mut fixture = Fixture::new(seed);
-    for index in 0..CASES {
+    for index in 0..cases {
         let case = fixture.case(index);
         check(&mut fixture, &case);
     }
@@ -200,9 +202,8 @@ fn axes(vector: DVec3) -> [f64; 3] {
     vector.to_array()
 }
 
-#[test]
-fn inv_001_002_no_axis_grows_or_turns() {
-    run(1, |fixture, case| {
+fn no_axis_grows_or_turns(cases: u32) {
+    run(1, cases, |fixture, case| {
         let resolved = fixture.resolve(case);
         let r = resolved.displacement;
         for (index, (moved, asked)) in axes(r).into_iter().zip(axes(case.displacement)).enumerate()
@@ -225,9 +226,8 @@ fn inv_001_002_no_axis_grows_or_turns() {
     });
 }
 
-#[test]
-fn inv_003_a_free_box_stays_free() {
-    run(3, |fixture, case| {
+fn a_free_box_stays_free(cases: u32) {
+    run(3, cases, |fixture, case| {
         let colliders = fixture.neighbourhood(case);
         if fixture.overlaps(&colliders, &case.bounds) {
             return;
@@ -243,9 +243,8 @@ fn inv_003_a_free_box_stays_free() {
     });
 }
 
-#[test]
-fn inv_004_005_step_up_lifts_within_the_height_and_gains_distance() {
-    run(4, |fixture, case| {
+fn step_up_lifts_within_the_height_and_gains_distance(cases: u32) {
+    run(4, cases, |fixture, case| {
         let resolved = fixture.resolve(case);
         let Some(step) = resolved.step else {
             return;
@@ -263,9 +262,8 @@ fn inv_004_005_step_up_lifts_within_the_height_and_gains_distance() {
     });
 }
 
-#[test]
-fn inv_006_007_on_ground_after_a_landing() {
-    run(6, |fixture, case| {
+fn on_ground_after_a_landing(cases: u32) {
+    run(6, cases, |fixture, case| {
         let mover = Fixture::mover(case);
         let mut body = Fixture::body(case);
         let colliders = fixture.neighbourhood(case);
@@ -295,9 +293,8 @@ fn inv_006_007_on_ground_after_a_landing() {
     });
 }
 
-#[test]
-fn inv_008_the_move_is_deterministic() {
-    run(8, |fixture, case| {
+fn the_move_is_deterministic(cases: u32) {
+    run(8, cases, |fixture, case| {
         let first = fixture.resolve(case);
         let second = fixture.resolve(case);
         assert_eq!(
@@ -307,9 +304,8 @@ fn inv_008_the_move_is_deterministic() {
     });
 }
 
-#[test]
-fn inv_009_collider_order_changes_little() {
-    run(9, |fixture, case| {
+fn collider_order_changes_little(cases: u32) {
+    run(9, cases, |fixture, case| {
         let query = case.bounds.expand_towards(case.displacement);
         let mut colliders = fixture.colliders(case, query);
         if colliders.len() < 2 {
@@ -329,11 +325,10 @@ fn inv_009_collider_order_changes_little() {
     });
 }
 
-#[test]
-fn inv_010_no_collider_moves_the_whole_request() {
+fn no_collider_moves_the_whole_request(cases: u32) {
     let mut fixture = Fixture::new(10);
     let empty = TestWorld::new();
-    for index in 0..CASES {
+    for index in 0..cases {
         let case = fixture.case(index);
         let view = View::new(&empty, &NoBodies, &fixture.base.tables);
         let resolved = resolve(view, &probe(&case), &mut fixture.base.scratch);
@@ -341,9 +336,8 @@ fn inv_010_no_collider_moves_the_whole_request() {
     }
 }
 
-#[test]
-fn inv_012_edge_back_off_only_shortens() {
-    run(12, |fixture, case| {
+fn edge_back_off_only_shortens(cases: u32) {
+    run(12, cases, |fixture, case| {
         let mover = Mover {
             shift: true,
             keeps_to_edges: true,
@@ -373,9 +367,8 @@ fn inv_012_edge_back_off_only_shortens() {
     });
 }
 
-#[test]
-fn inv_013_a_clipped_axis_loses_its_speed() {
-    run(13, |fixture, case| {
+fn a_clipped_axis_loses_its_speed(cases: u32) {
+    run(13, cases, |fixture, case| {
         let mover = Fixture::mover(case);
         let mut body = Fixture::body(case);
         let outcome = move_body(
@@ -395,11 +388,10 @@ fn inv_013_a_clipped_axis_loses_its_speed() {
     });
 }
 
-#[test]
-fn section_masks_give_the_result_of_reading_every_block() {
+fn masks_match_reading_every_block(cases: u32) {
     let mut fixture = Fixture::new(14);
     let mut masked = TestWorld::new();
-    for index in 0..CASES {
+    for index in 0..cases {
         let case = fixture.case(index);
         if index.is_multiple_of(CASES_PER_WORLD) {
             masked = fixture.base.world.clone();
@@ -438,4 +430,108 @@ fn flg_004_a_move_off_the_ground_clears_the_missed_search() {
     );
     assert!(!body.flags.on_ground);
     assert!(!body.support_missed);
+}
+
+#[test]
+fn inv_001_002_no_axis_grows_or_turns() {
+    no_axis_grows_or_turns(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_003_a_free_box_stays_free() {
+    a_free_box_stays_free(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_004_005_step_up_lifts_within_the_height_and_gains_distance() {
+    step_up_lifts_within_the_height_and_gains_distance(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_006_007_on_ground_after_a_landing() {
+    on_ground_after_a_landing(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_008_the_move_is_deterministic() {
+    the_move_is_deterministic(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_009_collider_order_changes_little() {
+    collider_order_changes_little(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_010_no_collider_moves_the_whole_request() {
+    no_collider_moves_the_whole_request(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_012_edge_back_off_only_shortens() {
+    edge_back_off_only_shortens(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn inv_013_a_clipped_axis_loses_its_speed() {
+    a_clipped_axis_loses_its_speed(DEFAULT_TIER_CASES);
+}
+
+#[test]
+fn section_masks_give_the_result_of_reading_every_block() {
+    masks_match_reading_every_block(DEFAULT_TIER_CASES);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn inv_001_002_no_axis_grows_or_turns() {
+        no_axis_grows_or_turns(CASES);
+    }
+
+    #[test]
+    fn inv_003_a_free_box_stays_free() {
+        a_free_box_stays_free(CASES);
+    }
+
+    #[test]
+    fn inv_004_005_step_up_lifts_within_the_height_and_gains_distance() {
+        step_up_lifts_within_the_height_and_gains_distance(CASES);
+    }
+
+    #[test]
+    fn inv_006_007_on_ground_after_a_landing() {
+        on_ground_after_a_landing(CASES);
+    }
+
+    #[test]
+    fn inv_008_the_move_is_deterministic() {
+        the_move_is_deterministic(CASES);
+    }
+
+    #[test]
+    fn inv_009_collider_order_changes_little() {
+        collider_order_changes_little(CASES);
+    }
+
+    #[test]
+    fn inv_010_no_collider_moves_the_whole_request() {
+        no_collider_moves_the_whole_request(CASES);
+    }
+
+    #[test]
+    fn inv_012_edge_back_off_only_shortens() {
+        edge_back_off_only_shortens(CASES);
+    }
+
+    #[test]
+    fn inv_013_a_clipped_axis_loses_its_speed() {
+        a_clipped_axis_loses_its_speed(CASES);
+    }
+
+    #[test]
+    fn section_masks_give_the_result_of_reading_every_block() {
+        masks_match_reading_every_block(CASES);
+    }
 }

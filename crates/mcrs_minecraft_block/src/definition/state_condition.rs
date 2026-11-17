@@ -260,42 +260,53 @@ mod tests {
             .to_string()
     }
 
-    #[test]
-    fn a_conjunction_compares_each_property() {
-        let source = "q.block_state('facing') == 'south' && q.block_state('level') != 2";
-        assert!(holds(source, &[1, 0, 0]));
-        assert!(!holds(source, &[1, 2, 0]));
-        assert!(!holds(source, &[0, 0, 0]));
+    struct ConditionCase {
+        source: &'static str,
+        state: [u8; 3],
+        holds: bool,
     }
 
     #[test]
-    fn or_binds_looser_than_and() {
-        let source = "q.block_state('facing') == 'north' && q.block_state('level') == 0 \
-             || q.block_state('waterlogged') == true";
-        assert!(holds(source, &[0, 0, 1]));
-        assert!(holds(source, &[1, 2, 0]));
-        assert!(!holds(source, &[1, 2, 1]));
-    }
+    fn a_condition_holds_for_the_states_its_expression_selects() {
+        const CONJUNCTION: &str =
+            "q.block_state('facing') == 'south' && q.block_state('level') != 2";
+        const OR_LOOSER_THAN_AND: &str = "q.block_state('facing') == 'north' \
+             && q.block_state('level') == 0 || q.block_state('waterlogged') == true";
+        const NEGATED_GROUP: &str =
+            "!(q.block_state('facing') == 'north' || q.block_state('level') == 1)";
+        let case = |source, state, holds| ConditionCase {
+            source,
+            state,
+            holds,
+        };
+        let cases = [
+            case(CONJUNCTION, [1, 0, 0], true),
+            case(CONJUNCTION, [1, 2, 0], false),
+            case(CONJUNCTION, [0, 0, 0], false),
+            case(OR_LOOSER_THAN_AND, [0, 0, 1], true),
+            case(OR_LOOSER_THAN_AND, [1, 2, 0], true),
+            case(OR_LOOSER_THAN_AND, [1, 2, 1], false),
+            case(NEGATED_GROUP, [1, 0, 0], true),
+            case(NEGATED_GROUP, [0, 0, 0], false),
+            case(NEGATED_GROUP, [1, 1, 0], false),
+            case("'north' == q.block_state('facing')", [0, 0, 0], true),
+            case(
+                "q.block_state('waterlogged') == false",
+                [0, 0, u8::MAX],
+                false,
+            ),
+            case("q.block_state('facing') != 'north'", [u8::MAX, 0, 0], true),
+        ];
 
-    #[test]
-    fn parentheses_negation_and_a_leading_literal_apply() {
-        let source = "!(q.block_state('facing') == 'north' || q.block_state('level') == 1)";
-        assert!(holds(source, &[1, 0, 0]));
-        assert!(!holds(source, &[0, 0, 0]));
-        assert!(!holds(source, &[1, 1, 0]));
-        assert!(holds("'north' == q.block_state('facing')", &[0, 0, 0]));
-    }
-
-    #[test]
-    fn a_value_the_state_does_not_hold_equals_no_literal() {
-        assert!(!holds(
-            "q.block_state('waterlogged') == false",
-            &[0, 0, u8::MAX]
-        ));
-        assert!(holds(
-            "q.block_state('facing') != 'north'",
-            &[u8::MAX, 0, 0]
-        ));
+        for case in cases {
+            assert_eq!(
+                holds(case.source, &case.state),
+                case.holds,
+                "`{}` at the state {:?}",
+                case.source,
+                case.state
+            );
+        }
     }
 
     #[test]
