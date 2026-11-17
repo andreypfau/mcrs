@@ -3,6 +3,7 @@ use bevy_app::Plugin;
 use bevy_app::Update;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::observer::On;
 use bevy_ecs::query::With;
@@ -14,7 +15,6 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_inventory_menu::EntryPressed;
 use mcrs_minecraft_engine_inventory_menu::MenuButtons;
-use mcrs_minecraft_engine_inventory_menu::MenuClosed;
 use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
 use mcrs_minecraft_engine_inventory_menu::MenuOpened;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
@@ -160,8 +160,8 @@ fn mark_shop_menu(
     }
 }
 
-fn close_shop(closed: On<MenuClosed>, shop_menus: Query<&ShopMenu>, mut commands: Commands) {
-    if let Ok(shop_menu) = shop_menus.get(closed.menu) {
+fn close_shop(removed: On<Remove<ShopMenu>>, shop_menus: Query<&ShopMenu>, mut commands: Commands) {
+    if let Ok(shop_menu) = shop_menus.get(removed.entity) {
         commands.entity(shop_menu.holder).try_despawn();
     }
 }

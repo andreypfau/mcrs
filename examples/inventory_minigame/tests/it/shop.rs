@@ -68,3 +68,25 @@ fn pressing_the_offer_in_the_shop_gives_the_player_the_offered_stack() {
         "closing the shop despawns its holder"
     );
 }
+
+#[test]
+fn the_holder_of_the_shop_goes_with_the_menu_when_the_player_leaves() {
+    let mut app = App::new();
+    app.add_plugins((
+        ItemPlugin::new(ItemTable::leak((0..5).map(|_| Vec::new()))),
+        VanillaInventoryPlugin,
+        ShopPlugin,
+    ));
+    let world = app.world_mut();
+    let player = world.spawn(Player).id();
+    world.flush();
+    world.trigger(OpenShop { entity: player });
+    world.flush();
+    let menu = world.get::<Menus>(player).unwrap().open().unwrap();
+    let holder = world.get::<MenuParts>(menu).unwrap().holder(0).unwrap();
+
+    world.despawn(player);
+    world.flush();
+
+    assert!(world.get_entity(holder).is_err());
+}
