@@ -78,7 +78,6 @@ impl Sample for BucketEntityData {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct MapDecoration {
     #[serde(rename = "type")]
     pub kind: ResourceKeyBuf<MapDecorationType>,

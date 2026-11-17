@@ -159,7 +159,6 @@ impl Serialize for Profile {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ProfileRepr {
     #[serde(default)]
     id: Option<IntArray<4>>,
