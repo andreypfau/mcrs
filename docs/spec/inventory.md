@@ -32,6 +32,10 @@ id.
 - **Menu**: an ordered list of slot references that a player has open. Each entry has a menu index.
 - **Inventory menu**: the menu of INV-MNU-001. Each player always has one.
 - **Open menu**: the menu that the clicks of a player go to (INV-MNU-002).
+- **Container id**: the number that names a menu of a player in the menu packets.
+- **Menu type**: an entry of the `minecraft:menu` registry. The vanilla client selects the screen
+  of a menu by its menu type.
+- **Opener**: the block, the entity or the plugin that opens a menu for a player.
 - **State id**: a number of a menu that the server and the client use to find a lost update
   (INV-SYN-001).
 - **Client view**: what the server knows of the stack that the client holds for a slot
@@ -60,7 +64,7 @@ label (`README.md`, section "Semantics, not accidents").
 | Prefix | Subject |
 |--------|---------|
 | `INV-SLT` | the holders and the slots of a player, their slot limits and filters |
-| `INV-MNU` | the inventory menu |
+| `INV-MNU` | the inventory menu and the open of another menu |
 | `INV-SEL` | the selected slot and the hand actions |
 | `INV-INS` | the insert rule |
 | `INV-CRE` | the creative inventory and the operations that make items |
@@ -184,6 +188,57 @@ all cannot take from `M[0]` (ITX-JAV-011). The inventory menu permits a drag to 
 
 **INV-MNU-006** (`source_suggested`, semantic). A player on the server can always drop items. Thus
 the last condition of ITX-JAV-013 is always true.
+
+### 2.1 The open of another menu
+
+**INV-MNU-007** (`source_suggested`, semantic). The server opens a menu other than the inventory
+menu for a player in these steps:
+
+1. When the open menu is not the inventory menu, the server closes it as INV-CLS-002 states. It
+   sends `container_close` with the container id of that menu. It then does the steps of
+   INV-CLS-001.
+2. The new menu gets its container id (INV-MNU-008).
+3. The server sends `open_screen` for the new menu (INV-MNU-009).
+4. The server sends `container_set_content` for the new menu, with the state id 1 (INV-SYN-001).
+   The client view of each entry of the new menu and of the cursor becomes the sent stack.
+5. When the new menu has data values, the server sends one `container_set_data` packet for each
+   data value.
+6. The new menu becomes the open menu.
+
+The server does the six steps in one tick, before the next comparison of INV-SYN-003. The packets
+are in the order of the steps. When step 1 closes a menu, it empties the cursor before the new
+menu exists. Thus the cursor of the new menu then holds the empty stack.
+
+The vanilla client also accepts `open_screen` without `container_close` before it. With the
+`container_close` of step 1, the vanilla client closes the screen of the replaced menu first. It
+then shows the new screen and puts the mouse pointer at the centre of the window. Section 11, U5,
+states the open while the inventory menu is the open menu.
+
+**INV-MNU-008** (`source_suggested`, semantic). Each player has a menu counter. The counter is
+0 when the player joins. Step 2 of INV-MNU-007 sets the counter to `(counter mod 100) + 1`. The new
+menu gets this value as its container id. Thus the first menu after the join has the container id
+1, and the container ids are 1 through 100 in turn.
+
+A new menu never has the container id of the menu that it replaces. Thus a `container_click` for
+the replaced menu fails check 1 of ITX-JAV-001. The vanilla server sets the counter to 0 again at a
+respawn. A parity test must not compare a container id after a respawn.
+
+**INV-MNU-009** (`source_suggested_black_box_confirmed`, wire). The `open_screen` packet has these
+fields, in this order:
+
+1. the container id, a VarInt;
+2. the menu type, a VarInt: the network id of the entry in the `minecraft:menu` registry;
+3. the title, a text in the wire form of TXT-NBT-003.
+
+The opener gives the title. The vanilla client shows the title in the screen of the menu. For
+example, the vanilla server gives the translatable text `container.chest` to a chest without a
+custom name.
+
+**INV-MNU-010** (`design`, semantic). When the opener gives no title, the title of the menu is the
+empty text (TXT-MOD-004). The `open_screen` packet then carries the bytes `08 0000` as the title.
+The vanilla client then shows no text in the place of the title. Reason: the packet has no form
+without a title. The game has no default title for a menu type, because each opener gives its own
+title. For example, a chest and a barrel have the same menu type and different titles.
 
 ## 3. The selected slot and the hand actions
 
@@ -569,3 +624,10 @@ selected slot that the file holds. The server sends them as INV-SEL-003 and INV-
   helmet to go to the hotbar by row 5. Is this result a quirk that mcrs keeps, or a deviation? Until
   the owner decides, the rule
   states the vanilla result.
+
+- **U5**: INV-MNU-007. The server opens a menu while the inventory menu is the open menu, and the
+  cursor holds a stack. The vanilla server does no step of INV-CLS-001 then. The stack stays on
+  the cursor of the inventory menu, and the `container_set_content` of step 4 carries the empty
+  stack as the cursor. A player has one cursor (INV-SLT-002). Does the stack stay on the cursor of
+  the new menu, as a deviation, or does it enter the player inventory as step 1 of INV-CLS-001
+  states?
