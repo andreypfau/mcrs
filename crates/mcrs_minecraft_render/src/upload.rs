@@ -144,7 +144,7 @@ pub(super) struct UploadParams<'w> {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "spends one byte budget across tint, sprite and geometry uploads, resuming a half-copied geometry upload at the top of the same loop"
+    reason = "one loop resumes a half-copied geometry upload"
 )]
 pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEncoder) {
     let UploadParams {

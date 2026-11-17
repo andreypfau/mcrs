@@ -120,7 +120,7 @@ fn the_handle_of_a_value_sits_at_the_position_of_that_value() {
 }
 
 #[test]
-fn a_press_at_the_centre_of_the_handle_keeps_the_position_and_a_drag_past_the_end_applies_once() {
+fn handle_press_keeps_position_and_drag_past_end_applies_once() {
     let mut screen = slider_screen(Slider::range(30, 110, 70).unwrap());
     assert!(
         drag(&mut screen, 150.0, 0).is_empty(),
@@ -158,7 +158,7 @@ fn the_handle_of_an_integer_slider_jumps_to_the_centre_of_its_part_at_the_releas
 }
 
 #[test]
-fn a_deferred_slider_stores_its_value_in_the_first_frame_600_ms_after_the_last_change() {
+fn deferred_slider_stores_value_600_ms_after_the_last_change() {
     let mut screen = slider_screen(Slider::range(30, 110, 70).unwrap().deferred());
     assert_eq!(press(&mut screen, 110.0, 1000)[..1], [PENDING]);
     screen.mouse_release(PointerButton::Left);
@@ -188,7 +188,7 @@ fn a_deferred_slider_stores_its_value_in_the_first_frame_600_ms_after_the_last_c
 }
 
 #[test]
-fn change_mode_starts_after_tab_and_the_mouse_and_takes_left_and_right_until_an_activation_key() {
+fn change_mode_starts_after_tab_or_mouse_until_activation_key() {
     let (none, shift) = (KeyModifiers::NONE, KeyModifiers::SHIFT);
     let steps = [
         (GuiKey::Tab, none, 1, 5, false, false),

@@ -10,7 +10,7 @@
 //! difference of the wall time of frames with and without the draw, which does not measure the
 //! draw on Metal; `tools/metal-trace` does (section 4.15). Each frame starts with a
 //! compute pass of arithmetic, `MCRS_GPU_HOT` workgroups (16384 by default), that holds the GPU
-//! at its clock, as `PERF.md` measures. It writes the last counter of the entity passes, so the
+//! at its clock. It writes the last counter of the entity passes, so the
 //! passes wait for it. It also times the CPU writes of the slot records in a tick and their
 //! upload.
 //!

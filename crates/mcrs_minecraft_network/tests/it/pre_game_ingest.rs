@@ -310,7 +310,7 @@ fn a_fault_behind_an_acknowledgement_nobody_accepts_is_counted_in_its_state() {
 }
 
 #[test]
-fn an_unknown_id_before_the_game_state_is_counted_and_ends_the_connection_without_despawning() {
+fn unknown_id_before_game_state_is_counted_and_ends_connection() {
     let mut world = server_world();
     let (login, login_tx) = spawn_connection(&mut world, ConnectionState::Login);
     let (configuration, configuration_tx) =

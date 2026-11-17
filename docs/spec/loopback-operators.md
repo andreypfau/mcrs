@@ -3,7 +3,6 @@
 | Field | Value |
 |-------|-------|
 | Status | `ready` |
-| Issue | #913 |
 
 This document states when a player who joins from a loopback address becomes an operator with
 no entry in the op list. This rule is a convenience of mcrs for a game on one machine. The
@@ -42,7 +41,7 @@ This document extends `login.md` and `command-permissions.md`. It uses the clien
 ### 0.2 Provenance and confidence
 
 This document uses the labels of `registry.md`, section 0.3. The rules of sections 1 to 4 are
-decisions of mcrs for issue #913. They have the label `design`. No observer of the vanilla game
+decisions of mcrs. They have the label `design`. No observer of the vanilla game
 can confirm them. Section 5 states the vanilla behaviour and its sources.
 
 ### 0.3 ID prefixes
@@ -81,15 +80,14 @@ Out of scope:
 
 This document does not state the name or the type of the field.
 
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### LOOP-CFG-002: The profile of the server binary
 
 - **Behavior:** the `mcrs` server binary uses the `public` profile, unless its configuration
   selects `local` explicitly.
 - **Behavior:** an environment variable does not select `local` (LOOP-CFG-001). The binary
-  reads its settings only from environment variables until the configuration file of issue
-  #918 exists. Until then, the binary always uses `public`.
+  has no other source of settings, so it always uses `public`.
 
 Provenance: `design` (the owner selected `public` for the binary in the review of 2026-11-16).
 Kind: semantic. Confidence: high.
@@ -117,7 +115,7 @@ Examples:
 | `::ffff:127.0.0.1` | yes |
 | `192.168.1.2`, `10.0.0.1`, `0.0.0.0`, `::`, `::ffff:10.0.0.1`, `fe80::1` | no |
 
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ## 3. The result per profile
 
@@ -134,7 +132,7 @@ Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
 - **Postconditions:** the client receives the level of the player as `command-permissions.md`,
   PERM-LEVEL-003, states. For an automatic operator, that is the `entity_event` 28.
 
-Provenance: `design` (issue #913, "as it does today"). Kind: semantic. Confidence: high.
+Provenance: `design` ("as it does today"). Kind: semantic. Confidence: high.
 
 ### LOOP-GRANT-002: Public profile
 
@@ -146,7 +144,7 @@ Provenance: `design` (issue #913, "as it does today"). Kind: semantic. Confidenc
 - **Postconditions:** a proxy or a tunnel on the machine of the server does not make an
   operator.
 
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### LOOP-GRANT-003: A refused login makes no operator
 
@@ -174,7 +172,7 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 - **Postconditions:** after a restart of the server, the op list holds only the entries of the
   ops file.
 
-Provenance: `design` (the behaviour of mcrs before issue #913). Kind: semantic. Confidence:
+Provenance: `design` (the behaviour of mcrs before this rule). Kind: semantic. Confidence:
 high.
 
 ### LOOP-FILE-002: `op` on an automatic operator
@@ -183,7 +181,7 @@ high.
   other operator.
 - **Behavior:** the `op` does not write the ops file. The player stays an automatic operator.
 
-Provenance: `design` (the owner kept the behaviour of mcrs before issue #913, in the review of
+Provenance: `design` (the owner kept the behaviour of mcrs before this rule, in the review of
 2026-11-16). Kind: semantic. Confidence: high.
 
 ## 5. The vanilla server
@@ -201,34 +199,6 @@ commands in the world. A player who joins a world that is open to LAN gets no le
 address, also when the player joins from the same machine. The `local` profile has no vanilla
 counterpart.
 
-## 6. Checks
-
-### Checks of the implementation
-
-Issue #913 asks for `cargo nextest run -p mcrs_minecraft_engine_server`. The test sets the
-client address of a connection, sends `hello`, and reads the op list. Each row is one check.
-
-| # | Profile | Client address | Op list before the join | Expected result | Rules |
-|---|---------|----------------|-------------------------|-----------------|-------|
-| C1 | `local` | `127.0.0.1` | empty | operator at level `owners`, no exception to the player limit | LOOP-GRANT-001 |
-| C2 | `local` | `127.0.0.1` | the player at level 2 | operator at level 2, entry unchanged | LOOP-GRANT-001 |
-| C3 | `public` | `127.0.0.1` | empty | not an operator | LOOP-GRANT-002 |
-| C4 | `public` | `127.0.0.1` | the player at level 2 | operator at level 2 | LOOP-GRANT-002 |
-| C5 | `local` | `::1` and `::ffff:127.0.0.1` | empty | operator at level `owners` | LOOP-ADDR-001 |
-| C6 | `local` | `192.168.1.20` | empty | not an operator | LOOP-GRANT-001 |
-| C7 | plugin default | `127.0.0.1` | empty | not an operator | LOOP-CFG-001 |
-| C8 | `local` | `127.0.0.1` | empty, then an `op` of another player | the ops file names only the other player | LOOP-FILE-001 |
-| C9 | `local` | socket `127.0.0.1`, forwarded `203.0.113.7` | empty | not an operator | LOOP-ADDR-001 |
-| C10 | `public` | socket `127.0.0.1`, forwarded `127.0.0.1` | empty | not an operator | LOOP-ADDR-001, LOOP-GRANT-002 |
-| C11 | `local`, whitelist check on | `127.0.0.1` | empty, the player not on the whitelist | login refused, op list empty | LOOP-GRANT-003 |
-| C12 | `local` | `127.0.0.1` | empty, then an `op` of that player | `commands.op.failed`; the ops file does not name the player | LOOP-FILE-002 |
-
-C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the
-binary sets no profile, so C7 covers it. C8 to C12 can stay in the integration tests of
-`mcrs_minecraft_server`, which have the ops file, the forwarding setup and the `op` command. C9 is the check of
-the op list in the test of FWD-USE-001 and FWD-USE-002. A PROXY protocol header sets the client
-address before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a header.
-
 ## 7. Intentional deviations
 
 - **Rule:** LOOP-GRANT-001.
@@ -238,8 +208,7 @@ address before the handshake (PXP-USE-001), so C3 and C6 also cover a join behin
   - **Visible to the client:** yes, on the `local` profile only. A player from a loopback
     address receives the level `owners` with no entry in `ops.json`.
   - **Bug reference:** none.
-  - **Test:** a differential test runs mcrs on the `public` profile.
-
+  
 ## 8. Unresolved
 
 None.

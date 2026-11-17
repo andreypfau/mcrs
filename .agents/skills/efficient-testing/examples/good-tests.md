@@ -26,28 +26,6 @@ fn rejects_trailing_bytes() {
 
 This is illustrative: the bytes and result must be adapted to the actual frame format. Prefer confirming that the test fails on the buggy revision and passes on the fix.
 
-## Property-based testing
-
-For an encoder and decoder whose contract requires lossless round trips:
-
-```rust
-use proptest::prelude::*;
-
-proptest! {
-    #[test]
-    fn roundtrip_u16(value in any::<u16>()) {
-        let bytes = encode_u16(value);
-        prop_assert_eq!(decode_u16(&bytes), Ok(value));
-    }
-}
-```
-
-A shared defect in encode/decode can still pass. Pair with an independently specified vector where risk warrants it.
-
-## Metamorphic invariant
-
-If sorting must preserve the multiset of elements, test that output is ordered **and** is a permutation of the input. Checking only ordering could accept an implementation that drops elements.
-
 ## Risk-based test choice
 
 - Rename a private helper with no behavioral change: run existing checks; do not add a test.

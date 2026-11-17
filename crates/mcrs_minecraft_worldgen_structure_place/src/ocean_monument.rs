@@ -222,7 +222,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "lays out the monument's wings, core, chambers and pillars as one run of canvas calls in the reference's order, so it reads against it"
+    reason = "one run of canvas calls in the reference's order"
 )]
 fn building<W: WorldGenVolume>(r: &mut Room<'_, '_, W>) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
@@ -1052,7 +1052,7 @@ fn penthouse<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, rng: &mut WorldgenRando
 
 #[expect(
     clippy::too_many_lines,
-    reason = "builds the walls, lamps and openings of one room for each design in the reference's order, so each case reads against it"
+    reason = "one case per room design in the reference's order"
 )]
 fn simple_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,

@@ -2,7 +2,6 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
 | Protocol version | `1073742169` |
 
 Source of these values: `assets/minecraft/version.json`.
@@ -77,7 +76,7 @@ architecture.
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each experiment is in section 14. No experiment ran.
+section "Semantics, not accidents". No experiment ran.
 
 ### 0.3 Colours, text and arithmetic
 
@@ -119,8 +118,6 @@ section "Semantics, not accidents". Each experiment is in section 14. No experim
 | `WID-CHK` | the checkbox |
 | `WID-TXT` | the one-line and the multi-line text widgets |
 | `WID-LAY` | the layout arithmetic and the standard sizes |
-| `WID-EXP` | experiments |
-| `WID-DEV` | intentional deviations |
 
 ### 0.5 Scope
 
@@ -161,7 +158,7 @@ Out of scope, with the document that states it:
 - **Postconditions:** at most one screen is open. A screen that opens from the game shows no
   highlighted widget until the player moves the mouse or uses a key.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SCR-002: Close a screen
 
@@ -177,7 +174,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   4. Else, the title screen opens.
 - **Postconditions:** a chain of screens closes one level for each Escape.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SCR-003: Re-arrange after a resize or a return
 
@@ -194,7 +191,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** the last input device does not change. A value that a screen of the
   second kind keeps only in a widget returns to its start value.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-02.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SCR-004: Background of a screen
 
@@ -217,7 +214,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 Provenance: `source_suggested`; `black_box_confirmed` for the pixel values of
 `assets/minecraft/textures/gui/menu_background.png` and
 `assets/minecraft/textures/gui/inworld_menu_background.png` of the client jar (16 × 16 pixels,
-each `40000000`). Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
+each `40000000`). Kind: layout. Confidence: medium.
 
 ### WID-SCR-005: Blur behind a screen
 
@@ -265,7 +262,7 @@ offsets, the weights, the division and the linear filter of each input, by
 `assets/minecraft/shaders/post/box_blur.fsh` and `blur.json` of the client jar. The mean of step
 5 is the arithmetic of these samples. `source_suggested` for the option as the source of `r`, for
 the size of the image in pixels of the window and for the edge of step 6. `design` for the radius
-of mcrs. Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
+of mcrs. Kind: layout. Confidence: medium.
 
 ### WID-SCR-006: Separators of a screen with no list
 
@@ -290,7 +287,7 @@ of mcrs. Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
   separator draws one time.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the pixels of the four textures of
-the client jar (32 × 2 pixels each). Kind: layout. Confidence: medium. Experiment: WID-EXP-03.
+the client jar (32 × 2 pixels each). Kind: layout. Confidence: medium.
 
 ### WID-SCR-007: Draw order of a screen
 
@@ -302,7 +299,7 @@ the client jar (32 × 2 pixels each). Kind: layout. Confidence: medium. Experime
 - **Edge cases:** where two widgets overlap, the press goes to the earlier widget
   (WID-PTR-002). That is the widget below.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -330,7 +327,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** after a key moves the focus, no widget is hovered. A move of more than
   7 GUI units, a press or a wheel event makes a widget hovered again.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-PTR-001: The mouse over a widget
 
@@ -344,7 +341,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Edge cases:** a widget with `w` = 0 or `h` = 0 has no point over it. For a widget with
   integer edges, the event position and the mouse position give the same result.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-PTR-002: Press of a mouse button
 
@@ -366,7 +363,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Edge cases:** two presses of the same button on the same screen within 250 ms are a double
   click. The widget gets this flag with the second press. `client-list.md` uses it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-PTR-003: Drag and release
 
@@ -380,7 +377,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** of the widgets of this document, only the slider uses the drag and the
   release (WID-SLD-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-PTR-004: Wheel
 
@@ -396,7 +393,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** the wheel does not change the focus. A wheel event over no widget has no
   effect.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-06.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -412,7 +409,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** an inactive widget and a widget that is not visible never take the focus
   by focus navigation. A text widget is never focused, because it is not active.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-FOC-002: Initial focus
 
@@ -430,7 +427,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     widget.
   - A screen that opens by a mouse press has no focused widget.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-FOC-003: The order in which a screen uses a key
 
@@ -445,7 +442,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   4. An arrow key starts an arrow navigation in its direction (WID-FOC-005).
   5. Other keys have no effect in this document.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-FOC-004: Tab navigation
 
@@ -465,7 +462,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - With one widget that can take the focus, Tab keeps the focus on it.
   - With no widget that can take the focus, the focus clears.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-FOC-005: Arrow navigation
 
@@ -500,7 +497,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - Arrow navigation does not wrap. At the last widget in a direction, the focus does not
     change.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-FOC-006: Fallback of the arrow navigation
 
@@ -525,7 +522,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** the fallback can select a widget that does not overlap `F` on the other
   axis. An example is a widget down and to the right of `F`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -542,7 +539,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** an inactive button shows its tooltip under the mouse. For example, a
   screen can explain with the tooltip why the button is inactive.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-STATE-002: Hovered and highlighted
 
@@ -563,7 +560,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - Two overlapped widgets can both be hovered in one frame.
   - Active or not, the state "hovered" is the same. Only the sprite and the pointer differ.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-05.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-STATE-003: Colour of a caption
 
@@ -578,7 +575,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Edge cases:** the checkbox and the text widgets do not use step 2 (WID-CHK-002,
   WID-TXT-001).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-STATE-004: Shape of the mouse pointer
 
@@ -594,7 +591,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** with no such hovered widget, the pointer has its normal shape. A text
   widget does not change the shape.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -618,8 +615,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** each accepted press plays one click sound, also the second press of a
   double click.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-06,
-WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -642,7 +638,7 @@ WID-EXP-07.
 - **Postconditions:** with `d` = 0, the tooltip shows from the second frame of the hover, when
   that frame is at least 1 ms later. A screen can give a widget a delay, for example 500 ms.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-08.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-TIP-002: Lines of the tooltip of a widget
 
@@ -655,7 +651,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** no line of the tooltip of a widget is wider than 170, except a single
   word that is wider.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-08.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-TIP-003: Position at the mouse
 
@@ -676,7 +672,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Edge cases:** the test of step 4 does not depend on the mouse, only on the widget. Example:
   `bh` = 20, `my` = `by` + 10: `y` = `my + 3`, `k` = 13, `off` = `round(17 − 12·13/20)` = 9.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-08.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-TIP-004: Position below or above a focused widget
 
@@ -689,7 +685,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** the content box starts 4 GUI units below the widget, or ends 4 GUI units
   above it. Its left edge is 3 GUI units right of the left edge of the widget.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-08.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-TIP-005: Tooltip of a widget and other tooltip requests
 
@@ -704,7 +700,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   widget, the tooltip of the focused widget shows. A key can make a tooltip request through
   the focus.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-08.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -722,7 +718,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 - **Postconditions:** a button with no stated size is 150 × 20.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-BTN-002: Sprites of a button
 
@@ -740,7 +736,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 
 Provenance: `source_suggested_black_box_confirmed`: the sprites and their `.mcmeta` files are
 in `assets/minecraft/textures/gui/sprites/widget/` of the client jar. Kind: layout.
-Confidence: medium. Experiment: WID-EXP-04.
+Confidence: medium.
 
 ### WID-BTN-003: Activation of a button
 
@@ -752,7 +748,7 @@ Confidence: medium. Experiment: WID-EXP-04.
 - **Postconditions:** a key other than an activation key does nothing on a button. An
   inactive button takes no key.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-06.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-BTN-004: Caption of a button
 
@@ -768,7 +764,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** a button of 150 × 20 at (0, 0) with a caption of width 40 draws the text
   at (55, 6).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-04.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-BTN-005: Label scroll
 
@@ -784,7 +780,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   - The text moves from one end to the other and back in each period, slowly at each end.
   - Each label scroll of the client uses the same clock, so two captions move together.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-09.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -815,7 +811,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 
 Provenance: `source_suggested`; `black_box_confirmed` for the size of the two icons in
 `assets/minecraft/textures/gui/sprites/icon/` of the client jar. Kind: layout. Confidence:
-medium. Experiment: WID-EXP-10.
+medium.
 
 ### WID-ICON-002: Image button
 
@@ -827,7 +823,7 @@ medium. Experiment: WID-EXP-10.
 - **Postconditions:** a screen that gives the same sprite for both inactive states shows no
   highlight on an inactive image button.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-10.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -854,7 +850,6 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 
 Provenance: `source_suggested_black_box_confirmed`: the keys and the English texts are in
 `assets/minecraft/lang/en_us.json` of the client jar. Kind: layout. Confidence: medium.
-Experiment: WID-EXP-06.
 
 ### WID-CYC-002: Input of a cycle button
 
@@ -871,7 +866,7 @@ Experiment: WID-EXP-06.
      new value at once.
 - **Postconditions:** a press of the right button has no effect (WID-PTR-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-06.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-CYC-003: Tooltip and sprite of a value
 
@@ -882,7 +877,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      sprite of a button.
 - **Postconditions:** the tooltip changes in the same frame as the value.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-06.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -912,7 +907,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 Provenance: `source_suggested_black_box_confirmed`: the sprites and their `.mcmeta` files are
 in `assets/minecraft/textures/gui/sprites/widget/` of the client jar. Kind: layout.
-Confidence: medium. Experiment: WID-EXP-07.
+Confidence: medium.
 
 ### WID-SLD-002: Mouse on a slider
 
@@ -927,7 +922,7 @@ Confidence: medium. Experiment: WID-EXP-07.
 - **Postconditions:** a press at the centre of the handle keeps the position. The ends of the
   slider are 4 GUI units inside its bounds.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SLD-003: Keys on a slider
 
@@ -946,7 +941,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   and Right until the player presses an activation key.
 - **Edge cases:** an option slider replaces step 3 with one step of its value (WID-SLD-005).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SLD-004: Value and caption of a slider
 
@@ -957,7 +952,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   3. In both cases the caption updates from the value.
 - **Postconditions:** a drag past the end does not apply the value again.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SLD-005: Option slider over an integer range
 
@@ -973,7 +968,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** each value has an equal part of the bar. The handle of the value 70 in
   the range [30, 110] is at the position 0.5.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SLD-006: Option slider over a list of values
 
@@ -986,7 +981,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      and 1 for the last value.
 - **Postconditions:** the first and the last value put the handle at the ends of the bar.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WID-SLD-007: When an option slider applies its value
 
@@ -1000,9 +995,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** on an integer slider, the handle jumps to the centre of the part of its
   value when the drag ends.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
-In mcrs, the option Render Distance applies at once (`client-menu.md`, MENU-VAL-007, step 6).
-`client-menu.md`, MENU-DEV-014, states that deviation and when the client sends the value.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1020,7 +1013,7 @@ In mcrs, the option Render Distance applies at once (`client-menu.md`, MENU-VAL-
   4. The height is `max(17, 9 · lines)`, with `lines` the number of label lines.
 - **Postconditions:** a checkbox with a short label is `21 + tw` wide and 17 high.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-11.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-CHK-002: Draw of a checkbox
 
@@ -1045,7 +1038,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 
 Provenance: `source_suggested_black_box_confirmed`: the four sprites are in
 `assets/minecraft/textures/gui/sprites/widget/` of the client jar, with no `.mcmeta`. Kind:
-layout. Confidence: medium. Experiment: WID-EXP-11.
+layout. Confidence: medium.
 
 ### WID-CHK-003: Toggle and tooltip of a checkbox
 
@@ -1058,7 +1051,7 @@ layout. Confidence: medium. Experiment: WID-EXP-11.
   3. When the label has more than 2 lines, the second line ends with `...` (WID-TXT-002).
 - **Postconditions:** a checkbox with a cut label shows the given tooltip text under the mouse.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-11.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1086,7 +1079,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** a text widget aligns only through its cell (WID-LAY-002). The text always
   starts at the left edge of the widget.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-12.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-TXT-002: Multi-line text widget
 
@@ -1104,7 +1097,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   6. The colour and the hover events are as WID-TXT-001 states. The widget is not active.
 - **Postconditions:** an empty text has no line and the height 0.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-12.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -1125,7 +1118,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** a screen can arrange a layout, then align it in the screen
   (WID-LAY-003). The children follow.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-002: Placement of a child in its cell
 
@@ -1141,7 +1134,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Edge cases:** when the child is larger than the available size, the offset is negative.
   `trunc` and `round` then round toward 0 and up.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-003: Align an element in a rectangle
 
@@ -1153,7 +1146,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** this alignment uses `trunc` on both axes, unlike WID-LAY-002. Example: to
   centre 316 × 120 in 427 × 240 gives (55, 60).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-004: Grid
 
@@ -1181,7 +1174,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   bottom 4, and `ax` = 0.5. The gaps are 0. Each column is 158 wide and each row 24 high. The buttons of a row
   are at the offsets 4 and 162. Five rows give the size 316 × 120.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-005: Add children in rows
 
@@ -1195,7 +1188,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** with `n` = 2, a first child with `s` = 2 fills row 0. The next two
   children fill row 1.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-006: Row and column
 
@@ -1209,7 +1202,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** a row of two cells of widths 150 with `g` = 8 is 308 wide. Its height is
   the largest cell height.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-007: Frame
 
@@ -1222,7 +1215,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** the children of a frame overlap. With the default alignment, each child
   is at the centre of the frame.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-008: Equal gaps
 
@@ -1241,7 +1234,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** when `free` ≥ 0, the last cell ends at `L`.
 - **Edge cases:** when `free` < 0, the cells overlap.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-009: Spacer
 
@@ -1250,7 +1243,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   width 0.
 - **Postconditions:** in a row, a spacer of the width 10 adds 10 plus one gap to the width.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-010: Element with a label
 
@@ -1260,7 +1253,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 - **Postconditions:** the top of the element is 9 + 4 = 13 GUI units below the top of the
   label.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-13.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-011: Header, content and footer
 
@@ -1284,7 +1277,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
   - When the content is high, its top can be above `hh`. There is no limit at the top.
   - A header child higher than `hh` makes the header frame higher. The content still uses `hh`.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-14.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### WID-LAY-012: Standard sizes
 
@@ -1307,163 +1300,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WI
 
 - **Postconditions:** `client-menu.md` states the sizes of each menu, with these values.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WID-EXP-14.
-
----
-
-## 14. Experiments
-
-None of these experiments ran. The owner works on the only machine with the game, so no game
-window started for this document. Each experiment uses this setup:
-
-1. Start the vanilla client of the pinned version with the input agent of `tools/vanilla-client`.
-2. Set the window to 854 × 480 pixels and the GUI scale to 2. Then W = 427 and H = 240.
-3. Record each step with `tools/mcrs_minecraft_client_recorder`: the screenshot, and the sound
-   events with their volume and pitch.
-4. Compare with a capture of the same version only (`README.md`, section "Experiments").
-
-### WID-EXP-01: Open and close
-
-1. In a singleplayer world, press Escape. Record the screen and its focused widget.
-2. Open "Options...", then press Escape. Record the screen.
-3. Press Escape again. Record that the game takes the mouse pointer again.
-4. On the title screen, open "Options...", then press Escape. Record that the title screen
-   shows.
-
-Decides: WID-SCR-001, WID-SCR-002.
-
-### WID-EXP-02: Resize
-
-1. Open the "Music & Sound Options" screen. Press Tab two times. Record the focused widget.
-2. Change the GUI scale to 3 with the window open, then back to 2. Record the focused widget.
-3. Do steps 1 and 2 on the pause screen. Record the focused widget.
-
-Decides: WID-SCR-003.
-
-### WID-EXP-03: Background
-
-1. In a world, open the pause screen with the blur option at 0. Record a screenshot.
-2. Do step 1 with the blur option at 5 and at 10, and at the GUI scale 1 and 4.
-3. Open a screen of `client-menu.md` that draws separators and shows no list. Record the rows
-   of pixels at y = 31, 32, 33 and at y = H − 33, H − 32 in GUI units.
-4. Do step 3 on the "Video Settings" screen, which shows a list. Record that each separator
-   row has the same pixels as in step 3.
-5. Open the inventory. Record the gradient at the top and the bottom rows.
-6. Add a resource pack whose two menu background textures are transparent. In a superflat world,
-   look at a wall of white concrete with a vertical edge against black concrete, at the blur
-   option 5. Open the pause screen. Record one row of pixels across the edge, and the first and
-   the last 20 pixels of that row.
-7. Do step 6 at the window sizes 854 × 480 and 1708 × 960, at the same GUI scale.
-
-Decides: WID-SCR-004, WID-SCR-005, WID-SCR-006. Expected for steps 6 and 7: the row across the
-edge is the edge convolved with three boxes of 11 pixels, 31 pixels wide at each window size.
-The edge of the image shows no dark border.
-
-### WID-EXP-04: Press, bounds and state
-
-1. Open "Options...". Move the mouse to the left edge of the "Done" button, then one GUI unit
-   to the left. Record the sprite and the pointer shape at each point.
-2. Press the right button on "Done". Record no sound and no change of screen.
-3. In a world with telemetry off, put the mouse on the inactive "Telemetry Data..." button.
-   Record the grey caption, the sprite, the pointer shape and the tooltip.
-4. Record the position of the caption of each button.
-
-Decides: WID-PTR-001, WID-PTR-002, WID-STATE-001, WID-STATE-003, WID-STATE-004, WID-BTN-001,
-WID-BTN-002, WID-BTN-004, WID-SCR-007.
-
-### WID-EXP-05: Focus navigation
-
-1. From the title screen, open "Options..." with Tab and Enter. Record the focused widget.
-2. Press Tab ten times, then Shift+Tab two times. Record the focused widget after each key.
-3. Press each arrow key from three start widgets. Record the focused widget after each key.
-4. Move the mouse 5 GUI units, then 8 GUI units. Record when the highlight follows the mouse.
-5. Open "Options..." with the mouse. Press Down. Record the focused widget.
-
-Decides: WID-IN-001, WID-FOC-001 to WID-FOC-006, WID-STATE-002.
-
-### WID-EXP-06: Button and cycle button
-
-1. Open "Skin Customization". Press the left button on "Cape: ON". Record the caption and the
-   sound.
-2. Press the left button with Shift. Record the caption.
-3. Turn the wheel up one step and down one step on the button. Record the caption and no
-   sound.
-4. Focus a button with Tab, press Enter and Space. Record the sound before the screen change.
-
-Decides: WID-BTN-003, WID-CYC-001, WID-CYC-002, WID-CYC-003, WID-SND-001, WID-PTR-004.
-
-### WID-EXP-07: Slider
-
-1. Open "Options...". Record the FOV slider at the value 70: the bar, the handle at
-   `x + 71`, and the caption.
-2. Press the left button 10 GUI units right of the handle. Record no sound and the caption.
-3. Drag to the right past the end, then release outside the slider. Record the sound at the
-   release and the snap of the handle.
-4. Focus the slider with Tab. Press Right two times. Record the value after each key.
-5. Press Enter, then Right. Record the focus change and the sprites.
-6. Reach the slider with an arrow key. Press Right. Record the focus change.
-
-Decides: WID-SLD-001 to WID-SLD-007, WID-PTR-003.
-
-### WID-EXP-08: Tooltip of a widget
-
-1. Put the mouse on a button with a tooltip at its top edge, its centre and its bottom edge.
-   Record the position of the content box.
-2. Do step 1 on a button near the bottom of the screen.
-3. Focus the button with Tab, with the mouse on another widget. Record the position.
-4. Record the frame in which the tooltip shows first, and the line breaks of a long tooltip.
-
-Decides: WID-TIP-001 to WID-TIP-005.
-
-### WID-EXP-09: Label scroll
-
-1. Set the language to one with long captions, or use a resource pack with a long caption for
-   "Done".
-2. Record the screenshots over 20 seconds at 10 frames in each second.
-3. Compare the start of the text with WID-BTN-005.
-
-Decides: WID-BTN-005.
-
-### WID-EXP-10: Icon buttons
-
-1. On the title screen, record the language button and the accessibility button.
-2. Record the position of each icon and its sprite in each state.
-
-Decides: WID-ICON-001, WID-ICON-002.
-
-### WID-EXP-11: The checkbox
-
-1. Open a screen with a checkbox, for example the screen to create a world.
-2. Record the box, the label position and the sprite in the four states.
-3. Use a resource pack that makes the label long. Record the lines and the tooltip.
-
-Decides: WID-CHK-001 to WID-CHK-003.
-
-### WID-EXP-12: Text widgets
-
-1. Record the title of the pause screen and of "Options...".
-2. Use a resource pack that makes a title longer than its widget. Record the cut and `...`.
-
-Decides: WID-TXT-001, WID-TXT-002.
-
-### WID-EXP-13: Layout arithmetic
-
-1. Open "Options...". Record the bounds of each button of the grid and of the header.
-2. Compare the bounds with WID-LAY-004 and WID-LAY-011. Expect these values:
-   - the grid of 316 × 120 at (55, 87);
-   - the buttons of the grid at x = 59 and x = 217;
-   - the FOV slider at (59, 29).
-3. Open the pause screen. Record the bounds of each button.
-
-Decides: WID-LAY-001 to WID-LAY-010.
-
-### WID-EXP-14: Header and footer
-
-1. Open "Music & Sound Options". Record the title position and the "Done" button at
-   (113, 214, 200, 20).
-2. Do it at H = 200 with a window of 854 × 400 pixels. Record the top of the content.
-
-Decides: WID-LAY-011, WID-LAY-012.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -1490,9 +1327,7 @@ Decides: WID-LAY-011, WID-LAY-012.
    defect?
 3. An inactive checkbox has the same sprite and a white label (WID-CHK-002). Is that the
    intent?
-4. Closed: a cycle button can use a second list of values while Alt is down. WID-CYC-001
-   states which screens use it.
-5. The list of in-game screens, of screens with their own background, and of option sliders
+4. The list of in-game screens, of screens with their own background, and of option sliders
    that wait 600 ms belongs to `client-menu.md`.
-6. The tab order groups that the vanilla screens use are not stated. Each widget of this
+5. The tab order groups that the vanilla screens use are not stated. Each widget of this
    document uses the group 0.

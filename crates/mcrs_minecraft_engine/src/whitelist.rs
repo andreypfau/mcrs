@@ -282,8 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn wl_file_004_a_reload_of_a_file_without_a_json_array_empties_the_whitelist_and_keeps_the_file()
-     {
+    fn wl_file_004_reload_without_json_array_empties_whitelist() {
         let path = temp_file("wl_file_004_reload");
         std::fs::write(
             &path,

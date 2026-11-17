@@ -166,7 +166,7 @@ fn srgb_texture(
 #[expect(
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    reason = "a Bevy system: one render-world prepare step creates the GUI pass's textures, pipelines, bind group and figure targets in the order each depends on the last"
+    reason = "a render prepare step creates each target in dependency order"
 )]
 pub(super) fn prepare_gui_pass(
     mut commands: Commands,

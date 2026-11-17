@@ -1,9 +1,6 @@
 # Entity physics: collision and gravity
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states how an entity moves in one tick. It states the bounding box, the collision
 shapes and the collision algorithm. It also states gravity, drag, the block effects on motion, the
@@ -12,7 +9,7 @@ new entity type adds a row of data to the table of section 9, and does not add a
 
 The vanilla client simulates the motion of its own player. Thus most rules for the player are of the
 kind "client agreement", and these rules state the precision of each operation. The rules come from
-the reference implementation. No experiment has confirmed them yet. Section 15 gives the experiments.
+the reference implementation.
 
 ## 0. Conventions
 
@@ -134,11 +131,11 @@ the reference implementation. No experiment has confirmed them yet. Section 15 g
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a captured result in section 16.
+- `black_box_confirmed`: shown by an experiment on the game.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
-  with a captured result in section 16.
-- `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 15 attaches an experiment.
+  with an experiment on the game.
+- `source_suggested`: taken from the reference implementation, with no experiment. The
+  confidence is at most medium.
 - `design`: an mcrs choice where the documentation and the reference state nothing. The rule
   states the reason.
 - `unresolved`: not decided. Section 14 collects these items.
@@ -172,7 +169,6 @@ Each rule has an ID with the prefix `PHY`. The second part names the section.
 | `PHY-CMP` | the compatibility policy of each category |
 | `PHY-BLK` | writes of the block domain to entities |
 | `PHY-EXP` | the timing of explosions |
-| `PHY-DEV` | intentional deviations |
 
 ### 0.4 Scope
 
@@ -191,7 +187,7 @@ These subjects are out of scope:
 - the hit detection of projectiles;
 - the movement checks of the server.
 
-Section 12 lists the hooks of these subjects. The movement checks are in `movement-checks.md`, with
+Section 12 lists these subjects. The movement checks are in `movement-checks.md`, with
 the prefix `MVC`.
 
 ### 0.5 Artefacts cited
@@ -202,9 +198,7 @@ the prefix `MVC`.
 - The data pack: the block tags `climbable`, `fall_damage_resetting`, `fences`, `walls`,
   `suppresses_bounce` and `can_glide_through`, and the entity type tags
   `powder_snow_walkable_mobs` and `fall_damage_immune`.
-- `assets/minecraft/version.json`: the version of the corpus. When the author wrote this document,
-  the file stated `26.4-snapshot-4`, not the game version of this document. Section 14 records
-  this as U1.
+- `assets/minecraft/version.json`: the version of the corpus.
 
 No artefact in the repository gives the dimensions of an entity type, the speed factor, the jump
 factor or the bounce restitution of a block. This document states these values as data where it
@@ -1474,8 +1468,6 @@ Postconditions:
 - After a change of the game mode from spectator to creative and back, the flight speed is
   `0.05F` with a vanilla server. Also, the creative flight does not get the speed of the wheel.
 
-Experiment E57 decides this rule and PHY-INP-022.
-
 ## 8. Fall distance
 
 **PHY-FALL-001** (`source_suggested`, client agreement, confidence: medium). The side with local
@@ -1643,8 +1635,8 @@ The parameters of the rows:
   true, set each of `v.x` and `v.z` with an absolute value of at most `1.0E-6` to 0. The reference
   has no such step. In the reference, the ground factor makes `v.x` and `v.z` smaller in each tick
   with `M`, but they do not become zero. With a factor above 0.5, for example `0.98F × 0.6F` on
-  stone, a value stops at the smallest positive f64 value, `4.9E-324`, after about 6000 ticks
-  (E53). PHY-DEV-014 records this step.
+  stone, a value stops at the smallest positive f64 value, `4.9E-324`, after about 6000 ticks. PHY-DEV-014 records this step.
+
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
@@ -2108,7 +2100,7 @@ point. `D` is the vertical drag and `g` the effective gravity.
 A living entity with `g < 0.003 / D` has a different rest state, because the zero cutoff of
 PHY-GRV-008 removes `v.y`. The rest state of the item is periodic. The step "Item, stop" of
 PHY-ORD-005 makes `v.x` and `v.z` of an item zero. On stone, an item that lands with a horizontal
-speed of 0.12 gets to its rest state in 67 ticks (E53). A skip of a rest item must
+speed of 0.12 gets to its rest state in 67 ticks. A skip of a rest item must
 give `v.y` from the phase, not from the last value.
 
 **PHY-SKIP-004** (`source_suggested`, semantic, confidence: medium). A skip of the physics part does
@@ -3046,8 +3038,7 @@ other axis uses fixed values.
 | `z` | `bz + 0.5 + U(-0.25, 0.25)` | `bz + 0.5 + s × (0.5 + w)` | `U(-0.1, 0.1)` | `s × 0.1` |
 
 The random values come from a stream that is a function of the UUID of the item
-(PHY-CMP-013). The block is the source of the new UUID. PHY-DEV-013 records this choice. E54
-confirms the drop at the block. The drop from a face has no experiment yet.
+(PHY-CMP-013). The block is the source of the new UUID. PHY-DEV-013 records this choice.
 
 **PHY-CMP-026** (`source_suggested`, wire, confidence: medium). The entity data of an item entity
 has one value after the values of each entity. Its index is 8. Its serializer id is 7, the item
@@ -3059,8 +3050,7 @@ the stack changes. The client shows an item entity with an empty stack as nothin
 that is too near. Two entities whose distance `m` of PHY-PSH-004 is less than `0.01F` at the start
 of the tick get no push from PHY-CMP-012. In the reference such a pair still separates when it
 moves, because the entities move one after the other (PHY-PSH-006): the earlier entity pushes
-after its own move, when the later entity still stands where it was before its move. E55 shows it:
-a stack of 65 pigs at one point spreads over 100 ticks until no box overlaps another. Without this
+after its own move, when the later entity still stands where it was before its move. In the reference, a stack of 65 pigs at one point spreads until no box overlaps another. Without this
 rule the stack moves as one body and never spreads, because each entity of it gets the same
 pushes.
 
@@ -3082,19 +3072,16 @@ equal positions and previous positions, so the rule adds no push and wakes no en
 
 ## 12. Out of scope
 
-Each subject below has a hook in this model. This document does not state the model behind the
-hook.
+This document does not state the model of each subject below.
 
-| Subject | Hook |
-|---------|------|
-| Fluids: swimming, currents, buoyancy, the jump in a fluid, the fall multiplier of a fluid | PHY-ORD-003 selects the fluid model. PHY-INP-004 gives the jump to the fluid model first. PHY-FALL-001 step 3 uses the fall multiplier. PHY-SHP-003 gives the source shape of a fluid to an entity that can stand on it. |
-| Elytra flight | PHY-ORD-003 selects the elytra model. PHY-BOX-004 gives the pose. |
-| Riptide | PHY-BOX-004 gives the `spin_attack` pose. The impulse is an external impulse (PHY-SRV-007). |
-| Vehicles and riders | PHY-STP-001 gives a ridden living entity a step height of at least 1. PHY-SHP-008 excludes the root vehicle. PHY-ORD-006 lists the vehicle categories. A rider has no travel step of its own. |
-| The geometry of a piston push | PHY-BLK-002 states the move. The selection of the entities that a piston moves, and the stick of slime and honey blocks, are in the block domain. |
-| Fall damage amounts | step 4 of PHY-FALL-001 calls the fall action of the block at the effect position. `entity-damage.md` states the damage (DMG-FALL-001). |
-| Hit detection of projectiles | the move `R` along a ray of PHY-ORD-005. |
-| Movement checks of the server | section 11 and `movement-checks.md`. |
+- Fluids: swimming, currents, buoyancy, the jump in a fluid, the fall multiplier of a fluid.
+- Elytra flight.
+- Riptide. The impulse is an external impulse (PHY-SRV-007).
+- Vehicles and riders.
+- The geometry of a piston push, and the entities that a piston moves.
+- Fall damage amounts (`entity-damage.md`, DMG-FALL-001).
+- Hit detection of projectiles.
+- Movement checks of the server (section 11 and `movement-checks.md`).
 
 ## 13. Intentional deviations
 
@@ -3172,12 +3159,10 @@ the deviations of this section for server-simulated entities. An implementation 
   - The crowd damage uses the same count rule and the same chance of 1 in 4. Only the tick in which an
     entity takes damage can differ, because the count uses the boxes from the start of the tick.
   - A stack of entities at one point spreads as in the reference, with the one push that
-    PHY-CMP-027 keeps. In E55 the reference has 65 different positions from tick 10 and a median
-    distance of 6.03 at tick 100. The pass has them from tick 2 and a median distance of 8.10. In
-    both, no box overlaps another at tick 100.
+    PHY-CMP-027 keeps.
 - **Test:** a differential test compares one pair with a tolerance of `0.1` per tick for the
   velocity. For a crowd, it compares the distribution of the positions and the rate of the crowd
-  damage. It does not compare each position. For E55, it tests that no box overlaps another at the
+  damage. It does not compare each position. For a stack at one point, it tests that no box overlaps another at the
   end.
 
 ### PHY-DEV-005: Writes to other entities at the next tick
@@ -3304,18 +3289,9 @@ for client agreement. A server that computes another result gives false setbacks
 
 ## 14. Unresolved
 
-- **U1**: the corpus in `assets/` is of `26.4-snapshot-4`. This document is of `26.4-snapshot-7`.
-  Before an implementation uses `minecraft:collision_box` and `minecraft:friction`, a maintainer
-  must update the corpus. If the corpus stays the same, a test must show that these components did
-  not change.
-
-  The physics fixtures of the vanilla server under
-  `crates/mcrs_minecraft_collision_table/tests/fixtures/physics/` are also of `26.4-snapshot-4`.
-  Snapshot 4 adds the fall of the tick in the move procedure, before the blocks inside the box. It
-  resets the fall distance for the tag `fall_damage_resetting` only in a move of 1 block or more.
-  Snapshot 7 uses PHY-ORD-001 step 14 and PHY-FALL-004. Thus the fall distances of the fixtures
-  E7, E8 and E17 do not apply to this document. A maintainer must record them again with
-  snapshot 7.
+- **U1**: the physics fixtures of the vanilla server under
+  `crates/mcrs_minecraft_collision_table/tests/fixtures/physics/` predate the fall of PHY-ORD-001
+  step 14 and PHY-FALL-004. A maintainer must record them again.
 - **U2**: no artefact gives the dimensions of each entity type and pose. A `dumpDefinitions`
   task for entity types could write the width, the height, the eye height, the fixed flag and the
   pose dimensions.
@@ -3336,9 +3312,8 @@ for client agreement. A server that computes another result gives false setbacks
   observation confirms it.
 - **U9**: the search for a free position after a size change of a server-simulated entity
   (PHY-BOX-007).
-- **U10**: no tool in the repository records the motion of the vanilla client. The experiments
-  for the player (E9 to E14) need a vanilla client and a proxy that records the serverbound move
-  packets.
+- **U10**: no tool in the repository records the motion of the vanilla client. The rules for the
+  player need a vanilla client and a proxy that records the serverbound move packets.
 - **U11**: two cells of one dimension can accept the same given UUID, because each cell refuses
   only the UUIDs of its own entities (PHY-CMP-024).
 - **U12**: the start values of a new local player that the first player tick reads
@@ -3350,9 +3325,8 @@ for client agreement. A server that computes another result gives false setbacks
   - the fall distance, also after a respawn for a dimension change.
 
   With each key up and a teleport with an empty relative set, each start value gives the same
-  first tick. A key that the player holds across the packet makes the difference. Experiment E56
-  decides the values after a respawn. For a `login`, the client recorder needs a client that joins
-  again (`attributes.md`, section 13, A6).
+  first tick. A key that the player holds across the packet makes the difference. An experiment
+  must decide the values after a respawn and after a `login`.
 - **U13**: a server can send a flight speed above `0.2F` or below 0. In the reference, each wheel
   event with a notch then clamps the value, also an event with `ny` = 0. Thus a horizontal notch
   changes a flight speed of 0.5 to 0.2. A vanilla server always sends `0.05F`, so a player does not
@@ -3362,132 +3336,3 @@ for client agreement. A server that computes another result gives false setbacks
   that its window library gives. The unit and the sign can differ on a platform, for example with
   the reverse scroll of macOS or with a trackpad. `client-controls.md`, section 9, item 1, asks the
   same question for the mouse motion.
-- **U15**: the input agent of `tools/vanilla-client` sets only key mappings. It cannot send a wheel
-  event. Thus E57 needs an extension of the agent or a person at the window.
-
-## 15. Experiments
-
-Start a vanilla server with `tools/vanilla-server/run.sh serve`. Use the game version in the
-table at the top of this document. Set `online-mode=false` and `level-type=minecraft:flat`. Set the
-game rule `spawn_mobs` to false. Connect one scripted client as an operator.
-
-Use `/tick freeze` before each step, and `/tick step 1` to run one tick. After each tick, read
-`Pos`, `Motion`, `OnGround` and `fall_distance` with `/data get entity`. The `Pos` and `Motion`
-values are f64 values. Compare them bit for bit with the model.
-
-| Experiment | Steps | Rules |
-|------------|-------|-------|
-| E1 | Summon an armor stand 10 blocks above stone with `Motion:[0d,0d,0d]`. Step 40 ticks. Do it again with `NoGravity:1b`. Put a pig in a column of glass 1 block wide, give it the effect `slow_falling`, and do it again. | PHY-GRV-001, PHY-GRV-002, PHY-GRV-007, PHY-ORD-004, PHY-FLG-002 |
-| E2 | Summon an armor stand on stone, on ice, on blue ice and on soul sand, with `Motion:[0.5d,0d,0.3d]`. Step until the motion is zero. | PHY-GRV-006, PHY-GRV-008, PHY-GRV-012, PHY-INV-011 |
-| E3 | Summon an item, a falling block of sand, a primed TNT and an experience orb 5 blocks above stone, with a horizontal `Motion`. Step until they rest. Do it again on a slime block. | PHY-ORD-005, PHY-RST-003 |
-| E4 | Summon an armor stand with `Motion:[0.6d,0d,0d]` towards a wall of stone, a fence, a slab, a stair and a carpet, from several distances. Step 5 ticks. | PHY-COL-001 to PHY-COL-005, PHY-RST-002, PHY-SHP-007 |
-| E5 | Summon a zombie on stone in front of a slab, a full block and a snow layer of 2, 3 and 5 layers. Give it `Motion:[0.3d,0d,0d]`. Step 5 ticks. Do it again with the attribute `step_height` at 1.0 and at 0. | PHY-STP-001 to PHY-STP-005, PHY-INV-004 |
-| E6 | Summon an armor stand 6 blocks above a slime block, a bed, a shelf mushroom and a honey block, with the attribute `bounciness` at 0 and at 0.5. Step until it rests. | PHY-RST-001 to PHY-RST-004, PHY-GRV-017 |
-| E7 | Summon an armor stand and an item above cobweb, a sweet berry bush and powder snow. Step 20 ticks. | PHY-MOV-002, PHY-MOV-003, PHY-GRV-014, PHY-FALL-002 |
-| E8 | Summon an armor stand next to a ladder and next to a honey block, 5 blocks up, with a small `Motion` towards the block. Step 30 ticks. | PHY-GRV-015, PHY-GRV-019, PHY-FALL-001 |
-| E9 | With a vanilla client, walk, sprint and sneak on stone and ice for 40 ticks each. Record the serverbound positions. | PHY-INP-001, PHY-INP-002, PHY-INP-006, PHY-INP-007, PHY-GRV-010 |
-| E10 | With a vanilla client, jump on stone, on honey and with `jump_boost` 1. Sprint and jump. | PHY-INP-004, PHY-INP-005, PHY-GRV-013 |
-| E11 | With a vanilla client, sneak towards the edge of a block from 8 directions. | PHY-INP-012, PHY-INV-012 |
-| E12 | With a vanilla client in creative mode, start the flight state, go up and down, sprint, and land. | PHY-INP-013 to PHY-INP-015 |
-| E13 | With a vanilla client, walk into a wall at angles of 5, 8 and 12 degrees while the sprint state is on. | PHY-FLG-003, PHY-INP-009 |
-| E14 | With a vanilla client, crouch under a slab of height 1.5 and stand up. Use the attribute `scale` at 0.5 and 2. | PHY-BOX-001 to PHY-BOX-006, PHY-INP-010, PHY-INP-011 |
-| E15 | Set a world border of size 10. Summon an armor stand with `Motion` towards the border, at 1 and 3 blocks from it. | PHY-SHP-010 |
-| E16 | Summon a boat and a shulker. Give an armor stand `Motion` towards each. Do it again with a minecart. | PHY-SHP-008, PHY-SHP-009 |
-| E17 | Put an armor stand into scaffolding and powder snow from above, with `fall_distance` at 0 and at 3. | PHY-SHP-003, PHY-GRV-016 |
-| E18 | Give an armor stand the attributes `friction_modifier` 0.5 and 2, `air_drag_modifier` 0.5 and 2, `movement_efficiency` 1. Repeat E2. | PHY-GRV-005, PHY-GRV-006, PHY-GRV-012 |
-| E19 | Summon a zombie with `Motion:[0.1d,0d,0.0001d]` and with `[0.002d,0d,0.002d]`. Step 2 ticks. | PHY-GRV-008, PHY-MOV-004 |
-| E20 | Repeat E1, E4 and E5 two times from the same world copy. Compare the results bit for bit. | PHY-INV-008, PHY-INV-009 |
-| E21 | With a vanilla client, send `/tp @s ~1 ~ ~ ~10 ~` while the player falls. Then explode TNT near the player. Record the positions of the next 5 ticks. | PHY-SRV-009, PHY-SRV-010, PHY-SRV-008 |
-| E22 | With a vanilla client and a view distance of 2, walk to the edge of the loaded chunks and drop from a height. | PHY-GRV-020 |
-| E23 | With a vanilla client, double-tap forward, hold sprint while an item is in use, double-tap jump in creative mode, and land. | PHY-INP-017, PHY-INP-018, PHY-INP-019, PHY-ORD-007 |
-| E24 | Put the scripted client on scaffolding and on powder snow. Send a move down into the block, with the shift key off and on. Read whether the server sends a correction. | PHY-SHP-012, PHY-SHP-013 |
-| E25 | Summon a spider and a zombie in cobweb, a fox and a pig in a sweet berry bush, and an item in a sweet berry bush. Drop sand onto powder snow. Summon an armor stand with `Marker:1b` and `Motion:[0.3d,0d,0d]`. Step 10 ticks each. | PHY-ORD-009, PHY-GRV-014, PHY-SHP-003 |
-| E26 | Record the clientbound packets for an item, a falling block, a primed TNT, an armor stand and a zombie that move and come to rest. Read the form of each position update and the ticks between them. | PHY-CMP-001, PHY-CMP-002 |
-| E27 | With a vanilla client, change the `Pos` of an item at rest and of an armor stand by `1.0E-4` and by `1.0E-2` with `/data merge entity`. Take screenshots at a known position. | PHY-CMP-003 |
-| E28 | Summon an armor stand, an item, a primed TNT with a long fuse and an experience orb on stone. Step 12 ticks and read `Motion` after each tick. | PHY-SKIP-001, PHY-SKIP-003 |
-| E29 | Summon two armor stands next to a boat that moves. Repeat with the order of the summons changed. | PHY-RCH-004, PHY-CMP-008 |
-| E30 | Summon three armor stands with `Motion` towards one boat in the order A, B, C, then in the order C, B, A. Summon an armor stand that rides another. Record the positions of each tick. | PHY-ORD-010, PHY-ORD-011 |
-| E31 | Summon an armor stand, a bat, a parrot and a zombie next to a boat that moves. Record which entity the boat stops at. | PHY-ORD-012 |
-| E32 | Step 40 ticks with an item at rest on stone, then run `/data merge entity` with no change in each tick. Compare `Motion` with E28. | PHY-SKIP-005, PHY-RCH-005 |
-| E33 | Freeze the ticks. Put an item at rest on scaffolding with no support, so that a scheduled tick breaks the scaffolding. Step 1 tick and read `Pos` and `Motion`. Put an item at rest on stone, break the stone with the scripted client while the ticks are frozen, step 1 tick and read `Pos`. Summon sand above an armor stand that moves under it. | PHY-CMP-009, PHY-CMP-010, PHY-DEV-003 |
-| E34 | Set the base `movement_speed` of two pigs to 0. Summon them with a horizontal distance of 0.3, then 0.05, then 0.005. Step 1 tick and read `Motion` of each. | PHY-PSH-002, PHY-PSH-004, PHY-PSH-005 |
-| E35 | Summon two pigs with speed 0 in a box of 1 × 1 blocks, in the orders A, B and B, A. Step 5 ticks and read `Pos` and `Motion`. | PHY-PSH-006, PHY-DEV-004 |
-| E36 | Put 30 pigs with speed 0 in a box of 1 × 1 blocks with `max_entity_cramming` at 24, 0 and 31. Count the ticks with damage of the type `cramming`. | PHY-PSH-007 |
-| E37 | Put two pigs in teams with each collision rule. Step 1 tick and read `Motion`. Put a parrot and a bat next to a pig. | PHY-PSH-003, PHY-ORD-009 |
-| E38 | With a vanilla client, stand inside a pig and inside a boat, with and without a team rule `never`. Record the positions of the player. | PHY-PSH-008, PHY-PSH-010 |
-| E39 | Summon a zombie with `NoAI:0b` and give it a side step with a target, then remove the target. Read the input with a debug tool of mcrs, or read `Pos` for 200 ticks. | PHY-INP-020, PHY-SKIP-007 |
-| E40 | Put a pig on a boat that moves. Step 1 tick and read `Pos` of both. | PHY-ORD-014 |
-| E41 | Let a zombie hit a pig that ticks after it, then before it. Read `Motion` of the pig in the next 2 ticks. | PHY-CMP-015, PHY-DEV-005 |
-| E42 | Put two pigs with speed 0 at a horizontal distance of 0.005 and of 0.3. Step 20 ticks and read `Motion`. | PHY-SKIP-006 |
-| E43 | Drop items from a mob, a dispenser and a command in one tick, then save and load the world. Read the order of the items in each later rule that uses an order. | PHY-CMP-013, PHY-CMP-016 |
-| E44 | Put a pig on a piston that pushes up and to the side, and on a slime block that a piston moves. Step 3 ticks and read `Pos` and `Motion`. | PHY-BLK-001, PHY-BLK-002 |
-| E45 | Put one item in reach of a player and of a hopper in one tick. Read which one gets the item. | PHY-CMP-017 |
-| E46 | Move two boats towards each other on ice, with the summons in both orders. Step 10 ticks and read `Pos`. | PHY-CMP-018, PHY-DEV-002 |
-| E47 | Build a TNT cannon with 4 charges and 1 projectile TNT. Step each tick and read `Pos` and `Motion` of the projectile. Shoot a fireball into a crowd of pigs. | PHY-EXP-001, PHY-EXP-002, PHY-CMP-020 |
-| E48 | With a vanilla client, ride a minecart and a boat. Record the positions that the client sends and the positions that the server sends. | PHY-SRV-011 |
-| E49 | Put 40 pigs with speed 0 in a box of 1 × 1 blocks with `max_entity_cramming` at 0. Step 20 ticks and read `Pos`. | PHY-CMP-019, PHY-DEV-008 |
-| E50 | With the scripted client, move the player into a pig in one move packet. Step 1 tick and read `Motion` of the pig. | PHY-CMP-021, PHY-DEV-012 |
-| E51 | Drop 40 different items onto a player with a nearly full inventory in one tick. Read the slots after the tick. | PHY-CMP-017 |
-| E52 | Read the velocity that the server expects for a player that stands in a crowd of pigs and on a slime block. | PHY-CMP-023 |
-| E53 | From the server console, summon an item with `Motion` `[0.1, 0, 0.07]` and `Age` -32768 on stone, ice and a slime block. Read `Motion` and `Pos` after each of the first 400 ticks, then after each 1000 ticks up to 12,000 ticks. | PHY-ORD-005, PHY-SKIP-003, PHY-DEV-014 |
-| E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
-| E55 | Set `max_entity_cramming` to 100. With the tick frozen, summon 64 pigs with the base `movement_speed` 0 at one point on a flat floor, then one more at the offset `(-0.0442, +0.0442)`. Step 200 ticks and read `Pos` of each. | PHY-PSH-006, PHY-CMP-027, PHY-DEV-004 |
-| E56 | Run `tools/mcrs_minecraft_client_recorder/record.sh e56` with `AUTOPLAY=true`. In each step, the input agent holds keys from before a death through an immediate respawn: jump; forward; forward and shift; forward and sprint. The respawn rotation has the yaw 0, so forward moves along `+z`. Read the move packets of the first 3 player ticks after the respawn. A `y` above 100 in the first tick means that the on-ground flag starts true. A first step along `z` of `0.098` means the ground speed, and `0.0196` means the air speed. A factor of 0.3 on that step means that the crouch state starts from the held shift key. Also read the tick of `player_command` with action 1. | PHY-ORD-015, U12, ATR-CLI-004 |
-| E57 | Run the client recorder with a spectator in the air, with the default scroll options. (1) Hold forward for 40 ticks and read the displacement along `z` of the last 10 move packets. (2) Turn the wheel 10 notches away from the player, hold forward again and read the displacement. The expected ratio is about 2. (3) Turn the wheel 40 notches away and read the displacement: the expected ratio to (1) is about 4. (4) Open the spectator menu with the middle button, turn the wheel 10 notches toward the player, and hold forward: the displacement of (3) does not change. (5) Let the menu close. Turn the wheel 50 notches toward the player, wait until the position stops changing, and hold forward: the player does not move. (6) Run `/gamemode creative`, fly, and turn the wheel: read `set_carried_item` and the displacement in flight. (7) Run `/gamemode spectator` and do step 1 again: the displacement is that of (1). Read each packet that the client sends after each wheel turn. | PHY-INP-022, PHY-INP-023, U15 |
-
-The experiment of a supported rule also covers each `source_suggested` rule without a row above:
-
-- E1 to E5 cover PHY-NUM;
-- E2 and E6 cover PHY-FLG-004 and PHY-FLG-005;
-- the experiments of `movement-checks.md` cover PHY-SRV;
-- E4, E5 and E20 cover the invariants.
-
-## 16. Captured results
-
-The results come from a vanilla dedicated server of `26.4-snapshot-7`, with no client. Set
-`pause-when-empty-seconds=-1`, or the server stops its ticks 60 seconds after the start.
-
-**E53**, one item for each block:
-
-| Block | Last change of `Pos` | First tick with each of `v.x` and `v.z` in `[-1.0E-6, 1.0E-6]` | `v.x` at tick 1008 | `v.x` from tick 6036 |
-|-------|----------------------|----------------------------------------------|---------------------------|-----------------------------|
-| `stone` | tick 27 | 67 | `5.37E-61` | `4.9E-324`, the same up to 12,000 ticks |
-| `ice` | tick 318 | before tick 1008 | `2.42E-7` | `2.12E-29`, and smaller after each 1000 ticks |
-| `slime_block` | tick 5 | 13 | `4.9E-323` | 0 from a tick between 1008 and 2013; `v.y` does not rest |
-
-In the first 400 ticks on stone, `v.x` changes in each tick up to tick 7, then only in the ticks
-11, 15, 19 and so on. This is the cycle of 4 ticks. On the slime block, the step action of the
-block makes `v.x` smaller by a factor below 0.5, so the value gets to 0.
-
-**E54**, 1000 drops of dirt from the block at `(10, -50, 30)`. The offset is the position minus
-the block position.
-
-| Value | Smallest | Largest | Mean | Distinct values |
-|-------|----------|---------|------|-----------------|
-| offset `x` | 0.2501 | 0.7500 | 0.5036 | 1000 |
-| offset `y` | 0.1257 | 0.6245 | 0.3734 | 1000 |
-| offset `z` | 0.2502 | 0.7490 | 0.4869 | 1000 |
-| `v.x` | -0.0989 | 0.0996 | 0.0016 | 1000 |
-| `v.y` | 0.2 | 0.2 | 0.2 | 1 |
-| `v.z` | -0.0993 | 0.0998 | 0.0040 | 1000 |
-
-The five bins of 0.1 of offset `x` hold 179, 204, 221, 197 and 199 drops. This agrees with a
-uniform distribution on `[0.25, 0.75)`.
-
-**E55**, 64 pigs at `(0.5, -60, 0.5)` and one at `(0.4558, -60, 0.5442)`. The distance is the
-horizontal distance from `(0.5, 0.5)`. No pig takes damage.
-
-| Tick | Different positions | Pairs of boxes that overlap | Median distance | Largest distance |
-|------|---------------------|-----------------------------|-----------------|------------------|
-| 0 | 2 | 2080 | 0 | 0.063 |
-| 1 | 2 | 2080 | 0 | 1.014 |
-| 2 | 7 | 2016 | 0.012 | 9.572 |
-| 5 | 17 | 1336 | 0.009 | 23.933 |
-| 10 | 65 | 318 | 3.154 | 26.590 |
-| 20 | 65 | 139 | 5.509 | 26.719 |
-| 50 | 65 | 5 | 6.036 | 26.719 |
-| 100 | 65 | 0 | 6.034 | 26.719 |
-| 200 | 65 | 0 | 6.034 | 26.719 |
-
-The pigs that were at one point get different positions only after the first of them moves: the
-pig that the server summoned last pushes the 64, and they leave the point one after the other.

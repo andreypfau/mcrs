@@ -1,9 +1,6 @@
 # Explosions and Primed TNT: behavioural specification
 
-| Field | Value |
-|---|---|
-| Game version | `26.4-snapshot-7` |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the behaviour of primed TNT, the sources that light it and its fuse. It states
 the blocks that an explosion destroys and the entities that it damages and pushes. It also states
@@ -117,7 +114,7 @@ Thus the chain fuse is 10 through 29 ticks.
 A primed TNT that an explosion reaches does not change its fuse. It takes no damage, and it is
 pushed (EXP-KNB-001).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment E2 counts the fuses.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ## 2. Exposure and damage
 
@@ -156,7 +153,7 @@ shape. Fluids do not stop the segment. The result is the count of seen samples d
 
 This reads the blocks before the explosion destroys any block.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment E3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### EXP-DMG-003: The damage amount
 
@@ -181,7 +178,7 @@ These types have the scaling `always`. For a player, the amount changes with the
 
 The damage occurs before the blocks are destroyed (EXP-BLK-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment E3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ## 3. Blocks
 
@@ -243,7 +240,7 @@ BDR-EXL-003 of `block-drops.md` adds the experience of a creaking heart, the hel
 neighbour removals to these steps. After the last position, the collected stacks become item
 entities when the game rule `block_drops` is true. BDR-EXL-002 of `block-drops.md` states the merge.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment E4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### EXP-FIRE-001: Fire after an explosion
 
@@ -268,7 +265,7 @@ horizontal and a vertical part. An entity that is in reach and has `s = 0` gets 
 
 A rejected hit does not stop the push. An invulnerable entity is pushed.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment E3.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### EXP-KNB-002: The packet of an explosion
 
@@ -284,7 +281,7 @@ A projectile of the kind that explosions deflect, for example a `fireball`, gets
 of the explosion as its owner.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. The layout of the fields is in the
-packet report. Experiment E5.
+packet report.
 
 ## 5. Cause chain
 
@@ -332,20 +329,3 @@ None.
   steps rounds. No artefact decides it.
 - **U4.** The effect of the blast protection enchantment (damage and the attribute) is out of scope
   here. `entity-damage.md` section 12 holds the hook.
-
-## 9. Experiments
-
-None of these experiments has been run. Each one needs `tools/vanilla-server` and the recorder.
-
-- **E1.** Ignite one TNT block with flint and steel in survival mode. Record the entity data
-  packet of the fuse and the tick of the explosion packet. Expected: fuse 80, and the packet at
-  tick 80 after the spawn.
-- **E2.** Put a TNT block next to a primed TNT. Record the fuse of the new entity in 1000 trials.
-  Expected: only the values 10 through 29, each with the chance 1/20.
-- **E3.** Put a player at `d` = 2, 4 and 6 blocks from a TNT. Record the health change and the
-  velocity of the packet on each difficulty. Repeat with one stone block between them. Compare with
-  EXP-DMG-001 to EXP-KNB-001.
-- **E4.** Explode TNT on a stone plane and on obsidian. Record the set of removed positions and the
-  drops. Do it in water. Expected: no block change in water.
-- **E5.** Record the `explode` packet for a player in reach, a player at 70 blocks, and a creative
-  flying player.

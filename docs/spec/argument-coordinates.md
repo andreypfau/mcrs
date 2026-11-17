@@ -2,17 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `minecraft:block_pos` 8, `minecraft:vec3` 10, `minecraft:rotation` 29, `minecraft:swizzle` 32 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
-`assets/mcrs/reports/registries.json`, through `commands-packet.md`, CMDP-ARG-001.
 
 This document states four argument types: a position in three axes (`vec3`), a block position
 (`block_pos`), a rotation in two axes (`rotation`), and a set of axes (`swizzle`). It states the
 text that each accepts, the errors and their positions, the suggestions, and how a command
-resolves the value against the source. It does not prescribe an architecture.
+resolves the value against the source.
 
 ## 0. Conventions
 
@@ -42,7 +38,7 @@ resolves the value against the source. It does not prescribe an architecture.
 
 ### 0.2 Provenance and confidence
 
-The labels of `registry.md`, section 0.3, apply. None of the experiments has been run.
+The labels of `registry.md`, section 0.3, apply.
 
 ### 0.3 ID prefixes
 
@@ -216,9 +212,6 @@ at `10.5 64 10.5`, send `teleport ~1 ~ 3`. The new position is `11.5 64 3.5`.
   the table, the result can differ by about 2e-4 at a distance of 5. Without the binary32
   steps, the result can differ in the sixth decimal, and the feedback of `teleport` shows six
   decimals.
-
-  The functions `sin_modern` and `cos_modern` of `mcrs_minecraft_core::mth` have no `+ 0.5`
-  and no sign branch. That form does not apply here.
 - **Postconditions:** a source that no `execute anchored` changed has the anchor `feet`, so
   `p` is the source position (ARG-KW-002).
 
@@ -514,7 +507,7 @@ ARG-COORD-011, ARG-COORD-013 and ARG-COORD-015 have the experiments for the othe
 
 ---
 
-## 8. Open questions
+## 8. Unresolved
 
 - **A chunk that the server keeps but has not completed.** The loaded check of ARG-COORD-013
   passes in the reference when the server keeps the chunk at the level of the full status. The

@@ -1,23 +1,16 @@
 # Falling block: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| World version | `5127` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the falling block: a block that loses the support below it, becomes an
 entity, falls, and becomes a block again or an item. It states which blocks fall and when, the
-start of a fall, the tick of the entity, the landing, the time limit and the packets. It does not
-prescribe an architecture.
+start of a fall, the tick of the entity, the landing, the time limit and the packets.
 
-Scope: the behaviour that issue #97 needs. `entity-physics.md` states the motion of the category
+`entity-physics.md` states the motion of the category
 "falling block" (PHY-ORD-005): gravity, the move, the block effects, the ground rule and the drag.
 `entity-tracking.md` states the spawn bundle, the updates and the removal of an entity.
 `block-simulation.md` states the sets, the shape updates and the scheduled ticks. This document
-refers to the rules of these documents by id. Section 8 lists what this document does not state.
+refers to the rules of these documents by id.
 
 ## 0. Conventions
 
@@ -52,15 +45,12 @@ refers to the rules of these documents by id. Section 8 lists what this document
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
   with an artefact that is cited by path.
 - `source_suggested`: taken from the reference implementation, with no artefact of this version.
-  The confidence is at most medium. Section 10 attaches an experiment.
+  The confidence is at most medium.
 - `documentation`: taken from public documentation or from a public bug report.
 - `design`: a choice of this project or of the owner. The rule states the reason.
 - `unresolved`: not decided. Section 9.3 collects these items.
 
 Each rule states its kind, as `docs/spec/README.md` defines it.
-
-None of the experiments of section 10 ran. The tool `tools/vanilla-server` needs the acceptance of
-the Minecraft EULA in its environment, and the author had no such acceptance.
 
 ### 0.3 Artefacts cited
 
@@ -72,8 +62,7 @@ the Minecraft EULA in its environment, and the author had no such acceptance.
   the dimensions, the tracking range, the update interval and the entity data layout of
   `minecraft:falling_block`.
 - `crates/mcrs_minecraft_collision_table/tests/fixtures/physics/e3_drop_stone.json` and
-  `e3_drop_slime_block.json`: captures of `26.4-snapshot-7` (experiment E3 of `entity-physics.md`).
-  Each has a falling block of `sand` with the drop flag false.
+  `e3_drop_slime_block.json`: captures of a falling block of `sand` with the drop flag false.
 - The data pack of mcrs, `assets/mcrs/datapacks/mcrs/`: the tags of FBK-TRG-002 and the file
   `mcrs/falling_block/concrete_pairs.json`.
 - The data pack of the game: the block tags `minecraft:concrete_powders`, `minecraft:anvil`,
@@ -160,7 +149,6 @@ in this issue. Each has the delay 2.
 | the blocks of the tag `minecraft:anvil` | false | the sounds of FBK-LND-007 |
 | `suspicious_sand`, `suspicious_gravel` | true | the break of FBK-LND-005 |
 
-Section 8 lists the other blocks that fall in the game.
 
 **FBK-TRG-002** (`design`, semantic). The set of gravity blocks and the blocks with the break flag
 come from two block tags of the data pack of mcrs: `mcrs:gravity_blocks` and
@@ -227,8 +215,7 @@ conditions is true:
   slab, is not free.
 
 The state below the bottom of the world is `void_air`, which is free. Thus a gravity block at the
-minimum `y` of a dimension falls out of the world (FBK-TCK-005). Experiments E1 and E2 check this
-rule.
+minimum `y` of a dimension falls out of the world (FBK-TCK-005).
 
 ## 3. The start of a fall
 
@@ -258,15 +245,14 @@ the first tick before step 1 writes the position, in the same server tick, when 
 this list stay the same. Before step 1, the gravity block is still at the cell of the falling block.
 For the blocks of FBK-TRG-001, the first move goes down, the top of that block is above the bottom
 of the box so the collision does not stop a move down, and the block has no effect on an entity in it. Thus no observer of this document sees the
-difference. Experiments E1 and E2 check this rule.
+difference.
 
 **FBK-SPN-002** (`source_suggested`, wire, confidence medium). A viewer receives the spawn bundle of
 the falling block (TRK-SPN-001) before the `block_update` that empties the position. The
 `add_entity` packet has the type 52, the position of FBK-SPN-001, the velocity 0 and the data field
 equal to the network id of the carried state (TRK-SPN-002). `set_entity_data` carries the entry 8
-when the start position is not `(0, 0, 0)`. Result R23 of `block-breaking.md`, from `26.4-snapshot-4`,
-shows this order. In the other order, the client shows an empty position for a short time.
-Experiment E1 checks this rule on this version.
+when the start position is not `(0, 0, 0)`. In the other order, the client shows an empty position for a short time.
+
 
 ## 4. The tick
 
@@ -311,8 +297,7 @@ also finds the water contact:
    stop, the target cell and the result of step 1 stay.
 
 The test of step 2 runs also when step 1 found the water contact. Thus a concrete powder that falls
-faster than one block in each tick does not pass through a thin layer of water. Experiment E5
-checks this rule.
+faster than one block in each tick does not pass through a thin layer of water. 
 
 **FBK-TCK-004** (`design`, semantic). A falling block that does not land in the maximum age drops
 as its item. When the maximum age is more than 0, the on-ground flag and the water contact are false,
@@ -332,10 +317,10 @@ The maximum age is an integer from 0 to 2147483647, with the default 600. The ga
 falling block takes the same value as a setting, with the same default and meaning. With the
 default, a falling block exists for at most 600 ticks before it drops, and it drops in tick 601.
 
-Reason: the owner decided this behaviour on issue #97 (2026-11-09). The reference has the same
+Reason: the owner decided this behaviour. The reference has the same
 behaviour with the fixed value 600. The bug report MC-260073 states the drop of a suspicious block
 in Java Edition, with the resolution "Won't Fix". The bug report MCPE-172500 states that Bedrock
-Edition keeps the block, with the resolution "Works As Intended". Experiment E6 checks this rule.
+Edition keeps the block, with the resolution "Works As Intended".
 
 **FBK-TCK-005** (`source_suggested`, semantic, confidence medium). When the on-ground flag and the
 water contact are false, the age is more than 100, and the `y` of the cell is outside the world
@@ -345,8 +330,7 @@ height. The `y` of the cell is outside the world height when `y <= min` or `y > 
 Thus the lowest block layer of the dimension counts as outside, and the highest layer
 `min + height - 1` counts as inside. The limit 100 is a constant.
 This rule does not read the maximum age: `mcrs:falling_block_max_age = 0` does not disable it.
-Thus a falling block does not fall without an end below the world. The owner accepted this limit
-on issue #97. Experiment E7 checks this rule.
+Thus a falling block does not fall without an end below the world. The owner accepted this limit.
 
 ## 5. The landing
 
@@ -386,7 +370,7 @@ The table gives examples for a falling block that lands on the top of a block in
 | the edge of a block, with the centre of the falling block above a free block | the cell above the free block | the item |
 
 Condition 3 also makes the item for a falling block that lands on an entity, for example a boat.
-Experiment E3 checks the table.
+
 
 **FBK-LND-003** (`source_suggested`, semantic, confidence medium). A state is replaceable at a
 landing when the replaceable test of `block-placing.md` (PLC-TGT-002, PLC-TGT-006, PLC-TGT-007)
@@ -437,7 +421,7 @@ A neighbour holds water when its state is a water block, source or flowing, or w
 water as a property. Thus a waterlogged neighbour counts when its face toward the target cell is not
 sturdy. Examples: a waterlogged bottom slab on a horizontal side counts, because its side face is
 not sturdy. A waterlogged top slab above the target cell does not count, because its bottom face is
-sturdy. Water below the target cell does not count. Experiment E5 checks the concrete condition.
+sturdy. Water below the target cell does not count.
 
 **FBK-LND-005** (`design`, semantic). When the break flag is true, the landing makes no block and
 no item. The server removes the falling block. The server also sends `level_event` with the type
@@ -450,8 +434,7 @@ to `mcrs:breaks_after_fall`. For an anvil, FBK-LND-007 also applies. The game ru
 Reason: the reference sends this event for its own members of the default tag, `suspicious_sand`
 and `suspicious_gravel` (`source_suggested`, confidence medium). The reference sends no event for
 other blocks with the break flag, for example `sand` that `summon` makes with `CancelDrop:1b`. mcrs
-gives the event to each member, because the event shows the break to a viewer. Experiment E8
-checks the default members.
+gives the event to each member, because the event shows the break to a viewer. 
 
 **FBK-LND-006** (`source_suggested`, semantic, confidence medium). When the falling block breaks
 into its item, the server removes it. When the drop flag is true and the game rule
@@ -459,7 +442,7 @@ into its item, the server removes it. When the drop flag is true and the game ru
 entity with a stack of 1 item of the carried block, with no components. The item entity has the
 default form at the position of the falling block (`item-entity.md`, IEN-SPN-008), and the pickup
 delay 10. A block with no item makes no drop. For an anvil, the drop of a landing also sends the
-sound of FBK-LND-007. Experiment E4 checks this rule with the game rule false.
+sound of FBK-LND-007.
 
 **FBK-LND-007** (`source_suggested`, semantic, confidence medium). A falling block of an anvil that
 is not silent sends `level_event` with the data 0 at the target cell to the players of BRK-BRK-006.
@@ -473,7 +456,7 @@ default, so its landing is audible. The events are:
   `minecraft:entity_drops` is false sends no event.
 
 An anvil that ends by a time limit (FBK-TCK-004, FBK-TCK-005) sends no event, also when it makes the
-drop. Experiment E9 checks this rule.
+drop.
 
 ## 6. Packets
 
@@ -497,8 +480,7 @@ between the end of the entity and the new block.
 
 The set of step 2 of FBK-LND-004 also goes through the client sync of SIM-SET-005. A viewer can thus
 receive a second `block_update` with the same state. The second packet has no visible effect. Kind
-of the second packet: unspecified. Result R23 of `block-breaking.md`, from `26.4-snapshot-4`, shows
-the three packets of the list in this order. Experiment E3 checks this rule on this version.
+of the second packet: unspecified.
 
 **FBK-NET-003** (`source_suggested`, wire, confidence medium). Each other end of a falling block
 sends `remove_entities` to each viewer (TRK-REM-001): the removal of FBK-TCK-001, the time limits,
@@ -512,30 +494,12 @@ the break and the drop. The drop of FBK-LND-006 also sends the spawn bundle of t
 - **Rule**: FBK-TCK-004.
 - **Java**: a falling block that does not land in 600 ticks drops as its item (MC-260073).
 - **Bedrock**: a suspicious block that a cobweb holds does not drop (MCPE-172500). The time limit
-  of Bedrock, if it has one, is not known. Experiment B1.
-- **Decision**: the maximum age applies to both editions, with the default 600, until B1 has a
-  result.
+  of Bedrock, if it has one, is not known.
+- **Decision**: the maximum age applies to both editions, with the default 600, until the time limit of Bedrock is known.
 - **Selected by**: world rule `mcrs:falling_block_max_age`.
 - **Visible to the client**: yes. The falling block ends, and an item appears.
 - **Prediction risk**: none. The client does not predict the end of a falling block.
-- **Parity list or bug reference**: MC-260073, MCPE-172500, issue #97.
-
-## 8. What this document does not state
-
-- The damage of a falling block to entities, the damage of an anvil and its change to
-  `chipped_anvil` and `damaged_anvil`, and the damage type of a falling block.
-- The block entity data that a falling block carries, and the loot of a suspicious block.
-- The other blocks that fall: `dragon_egg` (delay 5, and its teleport), `scaffolding`,
-  `pointed_dripstone`, `icicle`, `sulfur_spike` and the other stalactites.
-- The save form of a falling block. The server of mcrs saves no entities (`persistence.md`). The
-  reference saves `BlockState`, `Time`, `DropItem`, `HurtEntities`, `FallHurtAmount`,
-  `FallHurtMax`, `TileEntityData` and `CancelDrop`. A later issue states them.
-- The travel of a falling block through a portal.
-- The game event of the break of a suspicious block, and vibrations.
-- The particles of `falling_dust` below a gravity block. The client makes them without a packet.
-- The change of a concrete powder to concrete when a player places it, or when its neighbour
-  changes.
-- The differences of Bedrock Edition, except the value of section 7.
+- **Parity list or bug reference**: MC-260073, MCPE-172500.
 
 ## 9. Intentional deviations and unresolved items
 
@@ -554,39 +518,16 @@ the break and the drop. The drop of FBK-LND-006 also sends the spawn bundle of t
 ### 9.2 Kept by the owner
 
 FBK-TCK-004 keeps the drop of a suspicious block that a cobweb holds (MC-260073), by the decision of
-issue #97. It has no deviation entry.
+the owner. It has no deviation entry.
 
 FBK-TCK-005 keeps the drop of a falling block outside the world height after 100 ticks. The limit
-does not depend on the maximum age. The owner accepted it on issue #97.
+does not depend on the maximum age. The owner accepted it.
 
 The owner accepted the tags `mcrs:gravity_blocks` and `mcrs:breaks_after_fall` (FBK-TRG-002) and
 the deviation D1.
 
 ### 9.3 Unresolved
 
-- **U1**: ED1. The time limit of a falling block in Bedrock Edition. Measure it on a Bedrock
-  dedicated server (experiment B1).
+- **U1**: ED1. The time limit of a falling block in Bedrock Edition.
 - **U3**: FBK-SPN-002 and FBK-NET-002. The order of the packets rests on captures of
-  `26.4-snapshot-4`. Experiments E1 and E3 check it on this version.
-
-## 10. Experiments
-
-Use a vanilla server of the game version in the table at the top of this document, with
-`online-mode=false`, `level-type=minecraft:flat` and `network-compression-threshold=-1`. Connect one
-scripted client as the viewer `W`, 5 blocks from the area of each experiment. Use `tick freeze` and
-`tick step` to count ticks. Read a falling block with `data get entity`. Record the clientbound
-packets of `W` after each step. None of these experiments ran.
-
-| Experiment | Steps | Rule |
-|------------|-------|------|
-| E1 | Put `sand` on `stone`. Freeze the ticks. Run `setblock` with `air` at the stone. Step 1 tick at a time. Record the tick of `add_entity`, its data field, the order of the spawn bundle and the `block_update` of the sand position, and `Time` and `Motion` in each tick. | FBK-TRG-003, FBK-TRG-004, FBK-SPN-001, FBK-SPN-002 |
-| E2 | Put a column of three `gravel` on `stone`. Remove the stone. Record the tick of each `add_entity`. Do it again with `snow` with 3 layers, with `short_grass` and with `water` below the sand. Do it again at the minimum `y`, with no block below. | FBK-TRG-003, FBK-TRG-004 |
-| E3 | Drop `sand` from 5 blocks onto each block of the table of FBK-LND-002, and onto a boat. Record the block at the target cell, the item entities, and the packets of `W` in the tick of the landing. | FBK-LND-002, FBK-LND-003, FBK-NET-002 |
-| E4 | Set `entity_drops` to false. Drop `sand` onto a bottom slab. Record the item entities. | FBK-LND-006 |
-| E5 | Drop `white_concrete_powder` from 3 blocks into a water source on `stone`. Drop it onto `stone` with a water source on one side, and with a water source below the stone. Summon it with `Motion:[0d,-1.5d,0d]` 3 blocks above a water source of 1 layer on `stone`. Record the final block and the first `block_update`. | FBK-TCK-003, FBK-LND-004, D1 |
-| E6 | Summon falling blocks of `sand` and `suspicious_sand` in the top block of a column of four `cobweb` blocks on `stone`. A `cobweb` is not free (FBK-TRG-004), so a gravity block above it does not fall. Record the tick in which each falling block ends, and the item entities. Do it again above a bubble column of `soul_sand`. | FBK-TCK-004 |
-| E7 | Summon `sand` with `NoGravity:1b` 10 blocks below the minimum `y`, and 10 blocks above the maximum `y`. Step 102 ticks. Record the tick of the end and the item entities. | FBK-TCK-005 |
-| E8 | Drop `suspicious_gravel` from 3 blocks onto `stone`. Record the `level_event` packets, the block and the item entities. Do it again with `entity_drops` false. | FBK-LND-005 |
-| E9 | Drop an `anvil` from 3 blocks onto `stone`, and onto a bottom slab. Do it again with `Silent:1b`. Record the `level_event` packets. | FBK-LND-007 |
-| E10 | Run `summon minecraft:falling_block ~ ~5 ~`, and the same with `{BlockState:{Name:"minecraft:air"}}`. Record the carried state, the spawn bundle and the end of each. | FBK-DAT-004, FBK-TCK-001 |
-| B1 | On a Bedrock dedicated server, put `sand` and `suspicious_sand` above a column of four `cobweb` blocks. Record whether each falling block ends, and after how many ticks. | ED1, U1 |
+  an earlier snapshot.

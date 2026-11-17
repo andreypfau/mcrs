@@ -92,7 +92,7 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "a Bevy render-graph system: each resource and query is its own parameter so the scheduler sees the access"
+    reason = "a Bevy render-graph system: each access is its own parameter"
 )]
 pub(crate) fn propagate_colour(
     _view: ViewQuery<&'static ExtractedView>,

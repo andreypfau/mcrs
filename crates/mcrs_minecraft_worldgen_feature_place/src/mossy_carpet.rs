@@ -191,7 +191,7 @@ mod tests {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "enumerates the carpet states by the base flag and the shape of each of the four sides, so the fixture covers every combination in one table"
+        reason = "one table covers every combination"
     )]
     fn states(attaching: &[VoxelId]) -> MossyCarpetStates {
         let mut by_shape = [AIR; SHAPE_COUNT];

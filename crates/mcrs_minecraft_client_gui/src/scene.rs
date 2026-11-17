@@ -566,7 +566,7 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 #[expect(
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    reason = "a Bevy system: each resource and query is its own parameter, and one pass turns each kind of quad into vertices"
+    reason = "a Bevy system: each access is its own parameter"
 )]
 fn build_gui_batch(
     scene: Res<GuiScene>,

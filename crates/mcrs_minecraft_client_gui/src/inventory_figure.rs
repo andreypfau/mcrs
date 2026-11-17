@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn projection_puts_the_feet_on_their_window_pixel_and_keeps_the_light_on_the_screen() {
+    fn projection_puts_feet_on_their_pixel_and_light_on_screen() {
         let window = UVec2::new(854, 480);
         let feet = figure_points(
             ORIGIN,

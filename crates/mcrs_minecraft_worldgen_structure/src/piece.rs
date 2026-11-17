@@ -2078,7 +2078,7 @@ mod tests {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists one fixture per piece kind with the fields the game writes for it, so the cases read as the kinds"
+        reason = "lists one fixture per piece kind with the fields the game writes for it"
     )]
     fn cases() -> Vec<Case> {
         use Field::*;

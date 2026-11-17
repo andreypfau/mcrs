@@ -38,7 +38,7 @@ impl NetherFossilBlocks {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the fossil's blocks, template and piece, the column's clip and reference, the volume, the random source and the two lists one column's paint fills"
+    reason = "independent inputs of one column's paint"
 )]
 pub fn paint_nether_fossil<W: WorldGenVolume>(
     b: &NetherFossilBlocks,

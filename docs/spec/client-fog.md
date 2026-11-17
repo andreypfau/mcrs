@@ -2,10 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the fog that the client draws over the world when the eye of the camera is
 in air: the environmental fog, the render-distance fog, the fog colour, and how each kind of
@@ -62,8 +59,7 @@ draw takes the fog. The document does not prescribe an architecture.
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The observer of each rule is a player who looks at the
-image, or a screenshot of the image. Each rule has a line `Milestone`. `1` means the first
-release of this document. `later` means a rule that a later release implements.
+image, or a screenshot of the image.
 
 A parity test of this document compares image values with a tolerance of `1/255`, and fog
 values with a tolerance of `1e-4`.
@@ -86,9 +82,9 @@ It is not a mix in linear light.
 | `CFOG-DRAW` | the draws of the world and the fog |
 | `CFOG-SKY` | the sky disc, the other sky elements and the sky occluder |
 | `CFOG-CLOUD` | the clouds |
-| `CFOG-MCRS` | the subset of mcrs |
 | `CFOG-TEST` | parity tests |
 | `CFOG-EXP` | experiments |
+| `CFOG-MCRS` | the subset of mcrs |
 | `CFOG-DEV` | intentional deviations |
 
 ### 0.5 Scope
@@ -107,25 +103,6 @@ Out of scope, one line for each:
 - The sky of the skybox `end`.
 - The geometry of the sun, the moon, the stars and the sunrise fan, and the shape of the clouds.
 
-Improved Transparency also changes these results outside the fog. Each line states what mcrs
-does in milestone 1:
-
-- The translucent layers of a pixel show in the order of their depth (CFOG-TIME-002, step 3).
-  The layers are the translucent terrain, the translucent entities and items, the particles,
-  the shadows, the name tags and the text in the world, the block outline, the crack of a block,
-  the rain and the snow, the world border and the clouds. mcrs: a fixed order (CFOG-MCRS-002,
-  item 1; CFOG-DEV-002).
-- The clouds show behind water and the other translucent blocks. With the option off, they do
-  not: the tooltip `options.graphics.fancy.tooltip` states it. mcrs: yes (CFOG-MCRS-002,
-  item 1).
-- Each change of the option builds each chunk mesh again. mcrs: no (`client-menu.md`,
-  MENU-VAL-012, MENU-DEV-013).
-- The preset `options.graphics.fabulous`, "Fabulous!", of the video settings sets the option to
-  on. The presets "Fast" and "Fancy" set it to off. A change of the option sets the preset to
-  "Custom". mcrs: no, because mcrs has no preset (`client-menu.md`, MENU-VID-002, step 3).
-- The debug key `key.debug.improvedTransparency`, "Toggle Improved Transparency", changes the
-  option. mcrs: no. That key is out of scope.
-
 ### 0.6 Artefacts cited
 
 - The shaders of the client jar: `assets/minecraft/shaders/include/fog.glsl`,
@@ -136,10 +113,6 @@ does in milestone 1:
 - The language file of the client jar: `assets/minecraft/lang/en_us.json`.
 - The data pack of the client jar: `data/minecraft/dimension_type/overworld.json`,
   `data/minecraft/timeline/day.json` and the biome files `data/minecraft/worldgen/biome/*.json`.
-- The frame artefact of `client-frame-capture.md`:
-  `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`. All of its scenes are in the
-  flat world in the plains biome, at the time 6000, in clear weather, with `r = 5` and the
-  field of view 70°. The background frames have only terrain and sky.
 
 ---
 
@@ -172,8 +145,7 @@ does in milestone 1:
   - The near plane of this test uses `O`, not the field of view of the frame.
 - **Edge cases:** a point in a cell of powder snow stops the test before a later point in water.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CFOG-EXP-07.
-Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -198,8 +170,7 @@ Milestone: later.
 - **Postconditions:** a change of an attribute value changes the fog in the frame that reads
   it. The fog is the same for each draw of one frame.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1 for steps 1 to 9,
-with `q = 0` in step 4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CFOG-TIME-002: Clear colour and order of the frame
 
@@ -242,7 +213,7 @@ with `q = 0` in step 4.
 - **Edge cases:** a pixel of the cloud image with `ca = 0` has no cloud. The cloud image gives
   no layer there.
 
-Provenance: `black_box_confirmed` for the first postcondition (frame artefact,
+Provenance: `black_box_confirmed` for the first postcondition (capture of the vanilla client,
 `pig_idle.front.background.png`, the pixels at the horizon, where the last terrain meets the
 sky); `source_suggested` for the order, and for the second and third postconditions
 (`assets/minecraft/shaders/core/oit_composite.fsh`;
@@ -250,10 +221,8 @@ sky); `source_suggested` for the order, and for the second and third postconditi
 transmittance; `assets/minecraft/shaders/include/oit.glsl`, the limit `0.01` of the alpha).
 `assets/minecraft/shaders/core/blit_clouds.fsh` divides the stored colour by the stored alpha,
 and writes the depth of the cloud image. Kind: semantic. Confidence: high for steps 1 and 2,
-medium for step 3. Experiment: CFOG-EXP-01, CFOG-EXP-08.
-Milestone: 1 for steps 1 to 3. In step 3, mcrs composites the layers in a fixed order
-(CFOG-MCRS-002, item 1; CFOG-DEV-002). The owner decided on 2026-11-13 that Improved
-Transparency has its effect from the first release.
+medium for step 3.
+
 
 ---
 
@@ -276,12 +245,11 @@ Transparency has its effect from the first release.
 - **Edge cases:** when `E ≤ 96`, the rain does not lower `ee`. The rain never raises `ee` above
   `E`.
 
-Provenance: `source_suggested_black_box_confirmed`. The frame artefact is consistent with
+Provenance: `source_suggested_black_box_confirmed`. The capture of the vanilla client is consistent with
 `es = 0` and `ee = 1024` in clear weather: in `pig_idle.front.background.png` and
 `pig_walk.step4.background.png`, the removal of the fog of CFOG-MIX-001 from the grass gives
 one colour, about `(84.5, 110.3, 51.8)`, at 6 to 50 blocks. Kind: semantic. Confidence:
-high for `q = 0`, medium for `q > 0`. Experiment: CFOG-EXP-04. Milestone: 1 for `q = 0`, with
-the limit of 512 blocks of CFOG-MCRS-002, item 3 (CFOG-DEV-003). `later` for `q > 0`.
+high for `q = 0`, medium for `q > 0`.
 
 ### CFOG-ENV-002: Rain fog factor
 
@@ -304,7 +272,7 @@ the limit of 512 blocks of CFOG-MCRS-002, item 3 (CFOG-DEV-003). `later` for `q 
   - In a desert in rain, `g = 0.5 · R`. In a cell with a sky light of 8 or less, `g = 0`.
 
 Provenance: `source_suggested`; `design` for the `min` of step 4 (CFOG-DEV-001). Kind: semantic.
-Confidence: medium. Experiment: CFOG-EXP-04. Milestone: later.
+Confidence: medium.
 
 ---
 
@@ -349,12 +317,10 @@ Confidence: medium. Experiment: CFOG-EXP-04. Milestone: later.
 - **Edge cases:** with `r < 4`, the sunrise colour has no effect on the fog colour.
 
 Provenance: `black_box_confirmed` for steps 1 and 5 to 7 at `r = 5` with no sunrise colour: the
-frame artefact shows `(176, 205, 255)`, and the rule gives `(176.05, 205.14, 255)`.
+capture of the vanilla client shows `(176, 205, 255)`, and the rule gives `(176.05, 205.14, 255)`.
 `source_suggested` for steps 2 to 4. In rain, the weather layer of ENVA-LAYER-005 already moves
-`S0` toward gray, and steps 3 and 4 make the sky term dark a second time. The owner decided on
-2026-11-13 to keep steps 3 and 4, as the game does. CFOG-TEST-004 states the result. Kind:
-semantic. Confidence: high for steps 1 and 5 to 7, medium for steps 2 to 4. Experiment:
-CFOG-EXP-01, CFOG-EXP-02, CFOG-EXP-04, CFOG-EXP-05. Milestone: 1.
+`S0` toward gray, and steps 3 and 4 make the sky term dark a second time. CFOG-TEST-004 states the result. Kind:
+semantic. Confidence: high for steps 1 and 5 to 7, medium for steps 2 to 4.
 
 ### CFOG-COL-002: Void darkness and alpha
 
@@ -371,8 +337,7 @@ CFOG-EXP-01, CFOG-EXP-02, CFOG-EXP-04, CFOG-EXP-05. Milestone: 1.
   `a = 0.5625` and the factor is `0.19140625`. In a flat world, the dark part is the last block
   above `min_y`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CFOG-EXP-06.
-Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -391,7 +356,7 @@ Milestone: later.
 - **Postconditions:**
   - The environmental fog uses the spherical distance. The render-distance fog uses the
     cylindrical distance.
-  - The distances are those of the point itself (CFOG-MCRS-003). The vanilla client computes
+  - The distances are those of the point itself (CFOG-DEV-006). The vanilla client computes
     them at the vertices of faces of one block, and interpolates them. For a ramp with the length
     `L > 0`, `ee − es` or `re − rs`, the difference of its value is at most the difference of the
     distance divided by `L`; it is less where a distance is outside the ramp. The fog value, the
@@ -422,18 +387,14 @@ Milestone: later.
       `vr` differs only on a face where `dc` goes above `rs`. With `r ≥ 2`, `rs ≥ 28`, so such
       a face has `h > 26`.
     - Outside these conditions, for example a data pack with `es = 0` and `ee = 1`, the pixel of
-      the vanilla client can differ by far more than `1/255`. The pixel of mcrs is the value of
-      the point itself. That difference is intended (CFOG-DEV-006).
+      the vanilla client can differ by far more than `1/255`. CFOG-DEV-006 records that difference.
 
-    CFOG-SKY-001 states the one draw where mcrs keeps the interpolation.
 - **Edge cases:** when `es ≥ ee` or `rs ≥ re`, the ramp is a step at the start: 0 at or before
   the start, 1 after it.
-- **Note:** in mcrs, `ve = 0` for each point when `A(fog_end_distance) > 512` (CFOG-MCRS-002,
-  item 3; CFOG-DEV-003). Then `v = vr`.
 
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/include/fog.glsl`,
-the functions of the fog value and of the fog mix; frame artefact, as CFOG-ENV-001). Kind:
-semantic. Confidence: high. Experiment: CFOG-EXP-01, CFOG-EXP-02. Milestone: 1.
+the functions of the fog value and of the fog mix; capture of the vanilla client, as CFOG-ENV-001). Kind:
+semantic. Confidence: high.
 
 ---
 
@@ -451,7 +412,7 @@ semantic. Confidence: high. Experiment: CFOG-EXP-01, CFOG-EXP-02. Milestone: 1.
   option on, it has the colour of the sky and the clouds behind it (CFOG-DRAW-002).
 
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/core/terrain.fsh`;
-frame artefact). Kind: semantic. Confidence: high. Milestone: 1.
+capture of the vanilla client). Kind: semantic. Confidence: high.
 
 ### CFOG-DRAW-002: Terrain with Improved Transparency
 
@@ -484,16 +445,12 @@ frame artefact). Kind: semantic. Confidence: high. Milestone: 1.
   - A translucent face takes this rule. CFOG-TIME-002, step 3.5, then composites it with its
     alpha `α`.
   - The draws of CFOG-DRAW-003 do not take this rule.
-- **Note:** in mcrs, `ve = 0` when `A(fog_end_distance) > 512` (CFOG-DEV-003). Then
-  `smoothstep(0.9, 1, ve) = 0`, `b = vr` and `v = vr`.
 
 Provenance: `source_suggested_black_box_confirmed`: `assets/minecraft/shaders/core/terrain.fsh`,
 the variant with improved fog, has steps 1 to 5 and the constant `0.9`. The tooltip
 `options.improvedTransparency.oitWithImprovedFog.tooltip` of `assets/minecraft/lang/en_us.json`
 states that the option blends the sky and the clouds with the render-distance fog.
 `source_suggested` for the set of draws that take the rule. Kind: semantic. Confidence: medium.
-Experiment: CFOG-EXP-08. Milestone: 1. The owner decided on 2026-11-13 that Improved
-Transparency has its effect from the first release.
 
 ### CFOG-DRAW-003: Other draws of the world
 
@@ -525,9 +482,7 @@ Transparency has its effect from the first release.
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/core/entity.fsh`,
 `block.fsh`, `particle.fsh`, `rendertype_lines.fsh`, `text.fsh`, `glint.fsh`,
 `rendertype_lightning.fsh` and `rendertype_beacon_beam.fsh`); `source_suggested` for the
-assignment of each draw to its shader. Kind: semantic. Confidence: medium. Experiment:
-CFOG-EXP-03. Milestone: 1 for the entities, the block entities, the particles and the block
-outline. `later` for the other rows.
+assignment of each draw to its shader. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -563,11 +518,10 @@ outline. `later` for the other rows.
 - **Edge cases:** with `A(sky_fog_end_distance) > 512.25` and `16 · r > 512.25`, the edge of the
   disc is not fully `C`. The image then shows a seam at the edge.
 
-Provenance: `black_box_confirmed` (frame artefact: in the background frames of `pig_idle`,
+Provenance: `black_box_confirmed` (capture of the vanilla client: in the background frames of `pig_idle`,
 `pig_walk` and `pig_lineup`, at the yaws −180°, 135° and 90°, each sampled sky pixel is within
 `1/255` of the rule. With an exact distance for each pixel, the error is 8/255 to 10/255).
 `assets/minecraft/shaders/core/sky.fsh` gives step 5. Kind: semantic. Confidence: high.
-Experiment: CFOG-EXP-01. Milestone: 1.
 
 ### CFOG-SKY-002: The other sky elements
 
@@ -582,7 +536,6 @@ Experiment: CFOG-EXP-01. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/core/stars.fsh`,
 `position_tex.fsh` and `position_color.fsh` have no fog). Kind: semantic. Confidence: medium.
-Milestone: 1.
 
 ### CFOG-SKY-003: Sky occluder
 
@@ -608,7 +561,6 @@ Milestone: 1.
 Provenance: `source_suggested_black_box_confirmed`
 (`assets/minecraft/shaders/core/sky_occluder.fsh`; `"has_sky_occluder": true` in
 `data/minecraft/dimension_type/overworld.json`). Kind: semantic. Confidence: medium.
-Experiment: CFOG-EXP-05. Milestone: 1.
 
 ---
 
@@ -634,7 +586,7 @@ Experiment: CFOG-EXP-05. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/core/clouds.fsh`;
 `assets/minecraft/shaders/core/clouds.vsh` uses the spherical distance). Kind: semantic.
-Confidence: high. Experiment: CFOG-EXP-03. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -656,7 +608,6 @@ Confidence: high. Experiment: CFOG-EXP-03. Milestone: 1.
 | void onset, normal world and flat world | 32, 1 | blocks | CFOG-COL-002 |
 | span of the render-distance fog | `clamp(16 · r / 10, 4, 64)` | blocks | MENU-DIST-001 |
 | background blend start | 0.9 | fog value | CFOG-DRAW-002 |
-| largest environmental end that mcrs draws | 512 | blocks | CFOG-MCRS-002 |
 | sky disc height and radius | 16, 512 | blocks | CFOG-SKY-001 |
 | sky disc angle step | 45 | degrees | CFOG-SKY-001 |
 | sunrise fan limit | 0.001 | alpha | CFOG-SKY-002 |
@@ -670,9 +621,7 @@ Confidence: high. Experiment: CFOG-EXP-03. Milestone: 1.
 
 Each test is in the overworld in the plains biome, with the camera at `y = 80` and the sky light
 15 at the camera cell. The camera looks north. `A(sky_fog_end_distance) = 512`, `c = 128`. The
-values are those of the game. In the overworld, `A(fog_end_distance) = 1024 > 512`, so mcrs has no
-environmental fog (CFOG-DEV-003). A line that starts with "mcrs:" gives the value of mcrs where it
-is not that of the game. Each other value is the same in mcrs.
+values are those of the game.
 
 ### CFOG-TEST-001: Noon in clear weather
 
@@ -681,12 +630,10 @@ is not that of the game. Each other value is the same in mcrs.
   - `F0 = #c0d8ff = (0.752941, 0.847059, 1)`, `S0 = #78a7ff = (0.470588, 0.654902, 1)`,
     `U.a = 0`.
   - `k = 0.14626175`. `C = (0.711644, 0.818954, 1)`, the bytes `(181, 209, 255)`.
-  - `es = 0`, `ee = 1024`, `rs = 172.8`, `re = 192`, `se = 192`, `ce = 2048`. mcrs: the fog
-    parameters have no environmental ramp.
-  - The offset `(100, −20, 50)`: `ds = 113.578`, `dc = 111.803`, `v = 0.110916`. mcrs: `v = 0`.
-  - The offset `(180, 0, 0)`: `ve = 0.175781`, `vr = 0.375`, `v = 0.375`. mcrs: `ve = 0`,
-    `v = 0.375`.
-  - The offset `(150, −100, 0)`: `ds = 180.278`, `dc = 150`, `v = 0.176052`. mcrs: `v = 0`.
+  - `es = 0`, `ee = 1024`, `rs = 172.8`, `re = 192`, `se = 192`, `ce = 2048`.
+  - The offset `(100, −20, 50)`: `ds = 113.578`, `dc = 111.803`, `v = 0.110916`.
+  - The offset `(180, 0, 0)`: `ve = 0.175781`, `vr = 0.375`, `v = 0.375`.
+  - The offset `(150, −100, 0)`: `ds = 180.278`, `dc = 150`, `v = 0.176052`.
   - At the zenith, the sky pixel is `lerp(0.083333, S0, C)`.
 
 ### CFOG-TEST-002: Noon with `r = 5`
@@ -694,13 +641,7 @@ is not that of the game. Each other value is the same in mcrs.
 - **Inputs:** as CFOG-TEST-001, with `r = 5`.
 - **Postconditions:**
   - `k = 0.22156569`. `C = (176.05, 205.14, 255) / 255`, the bytes `(176, 205, 255)`.
-    `rs = 72`, `re = 80`, `se = 80`. `es` and `ee` are those of CFOG-TEST-001. mcrs: the fog
-    parameters have no environmental ramp. The sky disc does not use `ve`, so the sky pixel
-    below is the same in mcrs.
-  - In `pig_lineup.front.background.png`, the camera looks north with the pitch 15° and the
-    field of view 70°. The view ray of the pixel (427, 5) has the elevation 19.4°. It meets the
-    disc at the horizontal distance 45.5 blocks, so `λ = 0.0888`, `d = 60.1` and `v = 0.751`.
-    The rule gives `(162.1, 195.7, 255)`. The frame has `(162, 196, 255)`.
+    `rs = 72`, `re = 80`, `se = 80`. `es` and `ee` are those of CFOG-TEST-001.
 
 ### CFOG-TEST-003: Midnight in clear weather
 
@@ -708,7 +649,7 @@ is not that of the game. Each other value is the same in mcrs.
 - **Postconditions:** the timeline `day` multiplies `F0` by `#0f0f16` and `S0` by `#000000`, and
   `U.a = 0`. `F0 = (0.044291, 0.049827, 0.086275)`, `S0 = (0, 0, 0)`.
   `C = (0.037813, 0.042539, 0.073656)`, the bytes `(10, 11, 19)`. The fog parameters other than
-  `C`, and the fog values of the offsets, are those of CFOG-TEST-001, in the game and in mcrs.
+  `C`, and the fog values of the offsets, are those of CFOG-TEST-001.
 
 ### CFOG-TEST-004: Noon in rain
 
@@ -722,8 +663,6 @@ is not that of the game. Each other value is the same in mcrs.
   - `es = −160`, `ee = 768`. `rs`, `re`, `se` and `ce` are those of CFOG-TEST-001.
   - The offset `(0, 0, 10)`: `v = 0.183190`. The offset `(100, −20, 50)`: `v = 0.294804`. The
     offset `(180, 0, 0)`: `ve = 0.366379`, `vr = 0.375`, `v = 0.375`.
-  - mcrs: `es`, `ee` and the fog values of this test need the rain fog of a later release
-    (section 13, item 4).
 
 ### CFOG-TEST-005: Noon with Improved Transparency
 
@@ -737,8 +676,7 @@ is not that of the game. Each other value is the same in mcrs.
   - `sk = lerp(0.567952, S0, C) = (0.607496, 0.748076, 1)`. The sky image holds the bytes
     `(155, 191, 255)`. The values below use these bytes.
   - At that offset, `ds = 182.483`, `dc = 180`, `ve = 0.178206`, `vr = 0.375`, and
-    `v = b = 0.375`. mcrs: `ve = 0`, and `v = b = 0.375`. `vr` gives the larger value, so the
-    pixels of the next three cases are the same in mcrs.
+    `v = b = 0.375`.
   - With no cloud: `K = (0.607843, 0.749020, 1)`, `Z = (0.672719, 0.792729, 1)`, and the pixel
     is `(0.502270, 0.609773, 0.4375)`. With the option off, the pixel is
     `(0.516867, 0.619608, 0.4375)`.
@@ -748,91 +686,18 @@ is not that of the game. Each other value is the same in mcrs.
   - The offset `(0, 32, −192)` is on the same view ray, with `dc = 192` and `v = b = 1`. With no
     cloud, the pixel is `K`, the bytes `(155, 191, 255)`. With the option off, it is `C`, the
     bytes `(181, 209, 255)`. With the cloud behind the face, it is the bytes `(215, 229, 255)`.
-    mcrs: the same, because `vr = 1`.
   - In rain as CFOG-TEST-004, the offset `(0, 0, 10)` has `ve = 0.183190` and `vr = 0`. Thus
-    `b = 0`, and the pixel is the fog mix of CFOG-MIX-001 step 4, as with the option off. mcrs:
-    this case needs the rain fog (milestone `later`; section 13, item 4).
+    `b = 0`, and the pixel is the fog mix of CFOG-MIX-001 step 4, as with the option off.
 
 ---
 
 ## 11. Experiments
 
-Each experiment uses the scene format of `client-frame-capture.md` and the task
-`captureClientFrames` of `tools/vanilla-oracle`, unless it states another tool. The capture must
-be of `26.4-snapshot-7`.
+### CFOG-EXP-01: The clear frame at `r = 5`
 
-### CFOG-EXP-01: The clear frame at `r = 5` (run)
-
-- **Steps:** read the background frames of the frame artefact. For each sky pixel, compute the
+- **Steps:** read the background frames of the capture. For each sky pixel, compute the
   view ray from the record of the frame. Compare the pixel with CFOG-SKY-001 and CFOG-COL-001.
   For the grass at 6 to 50 blocks, remove the fog of CFOG-MIX-001 from each pixel.
-- **Result:** run on 2026-11-13. The clear colour is `(176, 205, 255)`. Each sampled sky pixel
-  matches CFOG-SKY-001 within `1/255` (CFOG-TEST-002). The grass gives one colour, about
-  `(84.5, 110.3, 51.8)`, after the removal.
-
-### CFOG-EXP-02: The fog colour and the render distance (not run)
-
-- **Steps:** a scene with the time 6000, clear weather and `tick freeze`. Capture the same
-  pose, the pitch 0, at `r` = 2, 4, 8, 12 and 16.
-- **Record:** the pixel just above the horizon. It must be `C` of CFOG-COL-001 for each `r`.
-
-### CFOG-EXP-03: Draws in the fog (not run)
-
-- **Steps:** at `r = 5`, put a pig, a chest, a torch with particles and a sign at 40, 70 and 78
-  blocks from the camera. Capture them with the block outline on a block at 4 blocks.
-- **Record:** each pixel against its background frame. The fog value of each pixel must be that
-  of CFOG-MIX-001.
-
-### CFOG-EXP-04: Rain (not run)
-
-- **Steps:** a scene without `tick freeze`. Run `weather rain`. Capture at 1, 5, 10, 20 and 60
-  ticks after the rain strength reaches 1. Then capture under a stone roof after 40 ticks.
-- **Record:** `C` and the fog on a block at 10 blocks. After 60 ticks, they must be those of
-  CFOG-TEST-004. Under the roof, `es` and `ee` must go back to 0 and 1024.
-
-### CFOG-EXP-05: Sunrise and below the horizon (not run)
-
-- **Steps:** capture at the time 12732, looking west and looking east, with the pitch 0 and the
-  pitch −20, at `r = 12` and at `r = 2`.
-- **Record:** looking west, `C` takes the sunset colour; looking east it does not. With `r = 2`
-  it does not. Below −8°, the pixels with no terrain must be `C`.
-
-### CFOG-EXP-06: Void darkness (not run)
-
-- **Steps:** in a normal world, a spectator at `y = −50` and at `y = −70`, at noon.
-- **Record:** `C` must be the base colour times `0.19140625` at `y = −50`, and black at
-  `y = −70`.
-
-### CFOG-EXP-07: Camera medium (not run)
-
-- **Steps:** use `tools/vanilla-client` and `tools/mcrs_minecraft_client_recorder`. Lower the
-  camera into still water in steps of 0.01 blocks, and into a cell of powder snow above water.
-- **Record:** the first frame with the water fog and with the field of view of CCAM-FOV-005 step
-  3. The surface test must be that of CFOG-TYPE-001.
-
-### CFOG-EXP-08: Improved Transparency (not run)
-
-- **Steps:**
-  1. Make a scene with `r = 12` and the clouds on (`renderClouds` `"true"`). With `fill`, put a
-     wall of stone with its south face 186 blocks north of the camera. The wall is 160 blocks
-     wide and goes from the ground to 40 blocks above the camera. The camera looks north, 10°
-     above the horizon.
-  2. Capture three frames of the same pose: the option `improvedTransparency` `false` with the
-     wall; `true` with the wall; and `true` with no wall.
-  3. Make a scene at the time 12732 with flat terrain. The camera looks west. Capture it with
-     the option `false` and `true`.
-  4. Add a wall of `minecraft:white_stained_glass` 10 blocks north of the camera to the scene
-     of step 1. Capture it with the option `false` and `true`.
-- **Record:**
-  1. For each pixel of the south face in the frames of step 2, compute `v` and `b` from its
-     view ray. Get `rgb` of the face from the frame with the option off and from CFOG-MIX-001.
-  2. Each pixel of the frame with the option on must be that of CFOG-DRAW-002 within `2/255`.
-     `K` is the pixel of the frame with no wall.
-  3. Where `dc ≥ 192`, each pixel of the face must be the pixel of the frame with no wall.
-  4. In step 3, the terrain at the end of the render distance must have the colour of the
-     sunset sky behind it with the option on, and `C` with the option off.
-  5. In step 4, the clouds must show through the glass with the option on. Record whether they
-     show with the option off.
 
 ---
 
@@ -851,8 +716,8 @@ be of `26.4-snapshot-7`.
 
 ### CFOG-DEV-002: mcrs composites the translucent layers in a fixed order
 
-- **Rule:** CFOG-MCRS-002, item 1. This entry records what mcrs does less than CFOG-TIME-002,
-  step 3.6, in milestone 1.
+- **Rule:** CFOG-MCRS-002, item 1. This entry records what mcrs does in place of CFOG-TIME-002,
+  step 3.6.
 - **Reference:** with Improved Transparency on, the client composites the translucent layers of
   each pixel in the order of their depth. The order of the draws has no effect.
 - **Visible to the client:** yes, where two or more translucent layers cover one pixel. For
@@ -863,7 +728,7 @@ be of `26.4-snapshot-7`.
 
 ### CFOG-DEV-003: mcrs draws no environmental fog where it ends beyond 512 blocks
 
-- **Rule:** CFOG-MCRS-002, item 3. The owner decided on 2026-11-13 that mcrs draws no
+- **Rule:** CFOG-MCRS-002, item 3. mcrs draws no
   environmental haze in clear weather, at any render distance. The render distance of mcrs goes
   to 96 chunks, 1536 blocks (`client-menu.md`, the range of Render Distance). With the end at
   1024 blocks, each point beyond 64 chunks is all fog, and nearer terrain loses more contrast
@@ -876,7 +741,7 @@ be of `26.4-snapshot-7`.
   game (CFOG-TEST-001). At and near the end of the render distance, `vr` gives the larger value,
   and the two are the same.
 - **Test:** a differential test in a dimension with `A(fog_end_distance) > 512` compares the fog
-  values of mcrs with `vr` alone. Section 10 gives the values of mcrs on the lines "mcrs:".
+  values of mcrs with `vr` alone.
 
 ### CFOG-DEV-006: mcrs computes the fog distances of each pixel
 
@@ -900,20 +765,20 @@ be of `26.4-snapshot-7`.
    specification that does not exist yet (`environment-attributes.md`, open question 3).
 2. CFOG-ENV-002: this document does not state if `q` keeps its value when the client goes to
    another world or dimension.
-3. CFOG-DEV-002: the owner decides if mcrs composites the translucent layers in the order of
-   their depth, as CFOG-TIME-002 step 3.6 states. The options are:
+3. CFOG-DEV-002: mcrs composites the translucent layers in a fixed order. In the game, the
+   order is that of their depth (CFOG-TIME-002, step 3.6). The options are:
    - (a) a later release adds such a method for Improved Transparency on, and CFOG-DEV-002 then
      goes away;
    - (b) mcrs keeps the fixed order of CFOG-MCRS-002, item 1, and CFOG-DEV-002 stays.
 
-   Recommendation: (a), in its own issue after mcrs draws the particles and the rain and the
-   snow. Until then, the translucent terrain and the clouds are the only translucent layers of
-   mcrs, and the method has little to sort.
-4. CFOG-DEV-003 and the rain fog (CFOG-ENV-002, milestone `later`): in the overworld at `q = 0`,
-   mcrs has no environmental fog. In the game, `q > 0` gives `ve = ramp(ds, S − 160 · q,
-   E − 256 · q)`. When mcrs takes that ramp for each `q > 0`, the fog jumps when rain starts:
-   at `ds = 100`, `ve` goes from 0 to about 0.098. The fog of mcrs must change with no jump in
-   `q`. The release that builds the rain fog decides how. The options are:
+   Recommendation: (a), after mcrs draws the particles and the rain and the snow. Until then,
+   the translucent terrain and the clouds are the only translucent layers of mcrs, and the
+   method has little to sort.
+4. CFOG-DEV-003 and the rain fog (CFOG-ENV-002): in the overworld at `q = 0`, mcrs has no
+   environmental fog. In the game, `q > 0` gives `ve = ramp(ds, S − 160 · q, E − 256 · q)`.
+   When mcrs takes that ramp for each `q > 0`, the fog jumps when rain starts: at `ds = 100`,
+   `ve` goes from 0 to about 0.098. The fog of mcrs must change with no jump in `q`. The
+   options are:
    - (a) when `E > 512`, `ve = q · ramp(ds, es, ee)`, with `es` and `ee` of CFOG-ENV-001. At
      `q = 0` it gives 0. At `q = 1` it gives the fog of the game, so CFOG-TEST-004 applies to
      mcrs;
@@ -930,26 +795,10 @@ be of `26.4-snapshot-7`.
 
 ## 14. The subset of mcrs
 
-### CFOG-MCRS-001: What mcrs drew before the first fog
-
-This is a record of the state of mcrs before the release of CFOG-MCRS-002, not a rule. It does
-not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCRS-002.
-
-- The image is cleared to `A(fog_color)`, with no step of CFOG-COL-001 or CFOG-COL-002.
-- The sky disc is a fan at the height 16 with the radius `A(sky_fog_end_distance)`, not 512. Its
-  fog value is the vertex distance divided by `A(sky_fog_end_distance)`, not by `se`. It mixes
-  toward `A(fog_color)`, not toward `C`.
-- When the camera `y` is below 63, a black disc 4 blocks below the camera covers the lower sky.
-  `26.4-snapshot-7` has no such disc. It has the sky occluder of CFOG-SKY-003.
-- The clouds fade over `A(cloud_fog_end_distance)`, with no limit from Cloud Distance.
-- The terrain, the entities, the particles and the block outline take no fog. MENU-DIST-001
-  steps 5 to 7 are not implemented.
-- mcrs has no option Improved Transparency.
-
-### CFOG-MCRS-002: The first fog of mcrs
+### CFOG-MCRS-002: The fog of mcrs
 
 - **Observer:** a player.
-- **Behavior:** the first release of the fog in mcrs implements the rules with the milestone 1:
+- **Behavior:** the first release of the fog in mcrs implements these rules:
   1. CFOG-TIME-001 with `q = 0`, and CFOG-TIME-002 steps 1 to 3. In place of step 3.6, mcrs
      composites the layers of step 3.5 in this fixed order, each with the over blend:
      1. the cloud image, with the colour `cl / ca` and the alpha `ca`, in each pixel with `ca > 0`
@@ -967,9 +816,9 @@ not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCR
      3. The limit 512 is 16 blocks times 32 chunks, the largest render distance of the game. It
         does not depend on `r`.
   4. MENU-DIST-001 steps 5 to 7;
-  5. CFOG-DRAW-001 steps 1 and 2, CFOG-DRAW-002, and the rows of CFOG-DRAW-003 with the
-     milestone 1;
-  6. CFOG-SKY-001 to CFOG-SKY-003, in place of the black disc of CFOG-MCRS-001;
+  5. CFOG-DRAW-001 steps 1 and 2, CFOG-DRAW-002, and the rows of CFOG-DRAW-003 for the entities,
+     the block entities, the particles and the block outline;
+  6. CFOG-SKY-001 to CFOG-SKY-003, with no black disc below the camera;
   7. CFOG-CLOUD-001;
   8. the option Improved Transparency of `client-menu.md`, MENU-VAL-012.
 - **Postconditions:**
@@ -985,12 +834,11 @@ not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCR
 
 Provenance: `design`. These rules give the render-distance fog with a colour that meets the
 sky at the horizon. The limit of item 3 is CFOG-DEV-003. The rain fog and the void darkness
-come in a later release. Improved
-Transparency is in this release, because the owner decided on 2026-11-13 that the option has
-its effect from the first release. It changes the colour of the far terrain only in some
+are not part of this subset. Improved
+Transparency is part of it. It changes the colour of the far terrain only in some
 scenes: where the sky behind the terrain is not `C`. Examples are terrain above the horizon,
 the sunrise and the sunset, and clouds behind the terrain. The fixed order of item 1 is
-CFOG-DEV-002. Kind: semantic. Confidence: high. Milestone: 1.
+CFOG-DEV-002. Kind: semantic. Confidence: high.
 
 ### CFOG-MCRS-003: Fog distances for each pixel
 
@@ -1005,4 +853,3 @@ length of its ramp. With the ramps of the vanilla data, these conditions hold fo
 Outside them, mcrs gives the value of the point itself and the vanilla client the interpolated
 value (CFOG-DEV-006). A face of mcrs can be longer than one block. The sky disc keeps the
 interpolation of CFOG-SKY-001, because the image shows it. Kind: semantic. Confidence: high.
-Milestone: 1.

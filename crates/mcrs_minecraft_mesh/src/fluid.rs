@@ -313,7 +313,7 @@ fn side_sprite(fluid: Fluid, front_cover: u8) -> u16 {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "emits the top, bottom and side quads of each sloped fluid cell in one loop that shares the cell's corner heights, light and open faces"
+    reason = "one loop shares the cell's corner heights, light and faces"
 )]
 pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     let sloped = std::mem::take(&mut scratch.sloped);

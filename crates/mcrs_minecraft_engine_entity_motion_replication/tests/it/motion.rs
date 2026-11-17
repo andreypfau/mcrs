@@ -269,7 +269,7 @@ fn an_entity_without_an_appearance_waits_unseen_and_spawns_with_it() {
 }
 
 #[test]
-fn the_spawn_of_a_falling_block_shows_its_start_and_the_first_step_follows_as_a_move() {
+fn falling_block_spawn_shows_start_then_first_step_as_move() {
     let mut app = app(|blocks| blocks.stone);
     let start = DVec3::new(0.5, 3.0, 0.5);
     spawn(app.world_mut(), MotionRow::falling_block(), start);

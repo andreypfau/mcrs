@@ -2,17 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 The client resource pack has two kinds of file that give the shape of a block. A blockstate file
 tells which models a block state draws. A block model file gives the elements, the textures and
 the display transforms of a model, and it can take these from a parent model. This document
 states how the client reads both kinds of file, how it selects the models of a block state and
 of a block position, and how it resolves a model and its textures. The conversion of elements
-into faces is in `block-face-bake.md` (BFB). The document does not prescribe an architecture.
+into faces is in `block-face-bake.md` (BFB).
 
 ## 0. Conventions
 
@@ -51,9 +48,7 @@ into faces is in `block-face-bake.md` (BFB). The document does not prescribe an 
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of these rules, which replaces the present code. `later` means a rule that a later release
-implements.
+section "Semantics, not accidents".
 
 ### 0.3 ID prefixes
 
@@ -63,7 +58,7 @@ implements.
 | `BMR-BS` | blockstate files and the selected parts of a state |
 | `BMR-PICK` | the chosen variant of a part at a block position |
 | `BMR-MODEL` | model files, the chain and the resolved model |
-| `BMR-TEST` | parity tests and experiments |
+| `BMR-TEST` | experiments |
 | `BMR-DEV` | intentional deviations |
 
 ---
@@ -87,7 +82,7 @@ implements.
 
 Provenance: `design` (mcrs builds meshes without a wait for a file, so it holds all these files
 in memory; one owner for each path removes the question of priority between layers). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### BMR-PACK-002: Paths of resources
 
@@ -102,7 +97,6 @@ semantic. Confidence: high. Milestone: 1.
   file.
 
 Provenance: `documentation` (the resource pack format). Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -128,7 +122,7 @@ Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: 1185 blocks use `variants`
 and 104 blocks use `multipart`; no file uses both). Kind: semantic. Confidence: high for items 1
-to 4; medium for the postcondition. Milestone: 1. Experiment: BMR-TEST-004.
+to 4; medium for the postcondition. Experiment: BMR-TEST-004.
 
 ### BMR-BS-002: Variant keys
 
@@ -150,7 +144,7 @@ to 4; medium for the postcondition. Milestone: 1. Experiment: BMR-TEST-004.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: 556 blocks use the empty key;
 the parts of all 35 781 states agree with this rule). Kind: semantic. Confidence: high for items
-1, 2 and 5; medium for items 3 and 4 and the postcondition. Milestone: 1. Experiment:
+1, 2 and 5; medium for items 3 and 4 and the postcondition. Experiment:
 BMR-TEST-004.
 
 ### BMR-BS-003: Selected parts from `variants`
@@ -164,7 +158,7 @@ BMR-TEST-004.
 - **Postconditions:** `variants` gives zero parts or one part to each state.
 
 Provenance: `source_suggested_black_box_confirmed` for items 1 and 3 (the artefact); `design`
-for item 2 (BMR-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
+for item 2 (BMR-DEV-001). Kind: semantic. Confidence: high.
 
 ### BMR-BS-004: Conditions of `multipart`
 
@@ -196,7 +190,7 @@ Provenance: `source_suggested_black_box_confirmed` for items 1 to 5 without `!` 
 14 files use `AND`, 2 files use `OR`; the parts of all states agree); `source_suggested` for the
 `!` alternative and for the postconditions (no file of the client resource pack uses them).
 Kind: semantic. Confidence: high for items 1 to 5; medium for item 6 and the postconditions.
-Milestone: 1. Experiment: BMR-TEST-004.
+ Experiment: BMR-TEST-004.
 
 ### BMR-BS-005: Parts and variants
 
@@ -225,7 +219,7 @@ Milestone: 1. Experiment: BMR-TEST-004.
 Provenance: `source_suggested_black_box_confirmed` (the artefact: each variant of each part
 agrees; the client resource pack uses only the weight 2 and the rotations 90, 180 and 270).
 Kind: semantic. Confidence: high for items 1, 2 and 5; medium for items 3, 4 and the
-postconditions. Milestone: 1. Experiment: BMR-TEST-004.
+postconditions. Experiment: BMR-TEST-004.
 
 ### BMR-BS-006: Selected parts of a state
 
@@ -244,7 +238,7 @@ postconditions. Milestone: 1. Experiment: BMR-TEST-004.
 
 Provenance: `source_suggested_black_box_confirmed` for items 1 and 2 (the artefact: the parts of
 all 35 781 states); `source_suggested` for items 3 and 4 and for a file with both fields.
-Kind: semantic. Confidence: high for items 1 and 2; medium for items 3 and 4. Milestone: 1.
+Kind: semantic. Confidence: high for items 1 and 2; medium for items 3 and 4.
 Experiment: BMR-TEST-004.
 
 ---
@@ -264,7 +258,7 @@ Experiment: BMR-TEST-004.
 - **Postconditions:** `seed(0, 0, 0)` is `0`. `seed(1, 64, −3)` is `−62687207132611`.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: the field `seed` of each entry
-of `picks`). Kind: client agreement. Confidence: high. Milestone: 1.
+of `picks`). Kind: client agreement. Confidence: high.
 
 ### BMR-PICK-002: Seed of a state
 
@@ -291,7 +285,7 @@ Provenance: `design` for item 1 (the property test replaces a list of blocks, so
 block of the same shape needs no change of the client);
 `source_suggested_black_box_confirmed` for items 2 and 3 (the artefact: `seed_rule` of 49 blocks, and
 the seeds of `picks` for `minecraft:oak_door`, `minecraft:red_bed`, `minecraft:tall_grass` and
-`minecraft:sunflower` in each state). Kind: client agreement. Confidence: high. Milestone: 1.
+`minecraft:sunflower` in each state). Kind: client agreement. Confidence: high.
 
 ### BMR-PICK-003: Random generator
 
@@ -311,7 +305,7 @@ the seeds of `picks` for `minecraft:oak_door`, `minecraft:red_bed`, `minecraft:t
 
 Provenance: `documentation` (the Java platform); `source_suggested_black_box_confirmed` that the
 client uses it (the artefact: `chosen` of each entry of `picks`). Kind: client agreement.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### BMR-PICK-004: Chosen variant of a part
 
@@ -324,7 +318,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** a part with one variant always gives that variant.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: `picks`). Kind: client
-agreement. Confidence: high. Milestone: 1.
+agreement. Confidence: high.
 
 ### BMR-PICK-005: Chosen variants of a state
 
@@ -343,7 +337,7 @@ agreement. Confidence: high. Milestone: 1.
 Provenance: `source_suggested_black_box_confirmed` (the artefact: 732 entries of `picks`, for
 each block with a weighted part in its default state, at six positions). Kind: client
 agreement. Confidence: high. The multipart block `minecraft:chorus_plant` has weighted parts,
-and its entries of `picks` confirm item 3. Milestone: 1. Experiment: BMR-TEST-004.
+and its entries of `picks` confirm item 3. Experiment: BMR-TEST-004.
 
 ---
 
@@ -377,7 +371,6 @@ and its entries of `picks` confirm item 3. Milestone: 1. Experiment: BMR-TEST-00
 Provenance: `documentation` (the resource pack format) for the fields;
 `source_suggested_black_box_confirmed` for item 3 (the artefact: 110 model files use the object
 form; 371 resolved slots have `force_translucent`). Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ### BMR-MODEL-002: The chain
 
@@ -400,7 +393,7 @@ Milestone: 1.
 Provenance: `source_suggested_black_box_confirmed` for items 1 and 5 (the artefact: `parent` and
 `geometry_from` of 4215 models); `source_suggested` for items 2, 3, 4 and 6 (no model of the
 client resource pack has an absent parent or a cycle). Kind: semantic. Confidence: high for
-items 1 and 5; medium for items 2 to 4 and 6. Milestone: 1. Experiment: BMR-TEST-004.
+items 1 and 5; medium for items 2 to 4 and 6. Experiment: BMR-TEST-004.
 
 ### BMR-MODEL-003: Inherited fields
 
@@ -418,7 +411,6 @@ items 1 and 5; medium for items 2 to 4 and 6. Milestone: 1. Experiment: BMR-TEST
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: `geometry_from`,
 `ambient_occlusion` and `gui_light` of 4215 models). Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ### BMR-MODEL-004: Texture slots
 
@@ -438,7 +430,7 @@ Milestone: 1.
   `minecraft:block/oak_log` resolves `up` through `end`. A cycle of references stays unresolved.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: `textures` and `unresolved` of
-4215 models). Kind: semantic. Confidence: high. Milestone: 1.
+4215 models). Kind: semantic. Confidence: high.
 
 ### BMR-MODEL-005: Texture of a face and the particle texture
 
@@ -454,7 +446,7 @@ Provenance: `source_suggested_black_box_confirmed` (the artefact: `textures` and
 - **Postconditions:** the value `force_translucent` goes with the texture to BFB.
 
 Provenance: `source_suggested` (the model files `minecraft:block/heavy_core` use the face
-texture `all` without `#`). Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+texture `all` without `#`). Kind: semantic. Confidence: medium. Experiment:
 BMR-TEST-004.
 
 ### BMR-MODEL-006: Display transforms
@@ -480,8 +472,7 @@ BMR-TEST-004.
 - **Postconditions:** an array with a length other than 3 is a content error of the file.
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: `display_table` and the
-`display` index of 4215 models). Kind: semantic. Confidence: high. Milestone: 1 for `gui`;
-later for the other contexts, which item rendering in the hand and on the ground uses.
+`display` index of 4215 models). Kind: semantic. Confidence: high.
 
 ### BMR-MODEL-007: Built-in models
 
@@ -517,54 +508,11 @@ later for the other contexts, which item rendering in the hand and on the ground
 
 Provenance: `source_suggested_black_box_confirmed` (the artefact: the models
 `minecraft:builtin/missing`, `minecraft:item/generated` and `minecraft:item/stick`). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ---
 
-## 5. Parity tests
-
-### BMR-TEST-001: Selected parts against the artefact
-
-- **Inputs:** the client resource pack and the artefact.
-- **Behavior:**
-  1. For each block of `blocks` and each entry of `states`, get the selected parts of the state
-     (BMR-BS-006).
-  2. Compare them with the entries of `part_table` that `parts` names, in order. Compare
-     `model`, `x`, `y`, `z`, `uvlock` and `weight` of each variant.
-  3. An entry with `missing` must draw the missing model.
-- **Postconditions:** the test fails when one state does not agree.
-
-Provenance: `source_suggested_black_box_confirmed` (the artefact). Kind: semantic. Confidence:
-high. Milestone: 1.
-
-### BMR-TEST-002: Resolved models against the artefact
-
-- **Inputs:** the client resource pack and the artefact.
-- **Behavior:**
-  1. For each entry of `models`, resolve the model of `id`.
-  2. Compare the model that supplies the elements with `geometry_from`.
-  3. Compare the ambient occlusion flag and `gui_light`.
-  4. Compare each resolved slot with `textures`: the texture identifier and
-     `force_translucent`. Compare the unresolved slots of the chain with `unresolved`.
-  5. Compare the transform of each context with the entry of `display_table` that `display`
-     names, within `1e-6`. A context that the entry does not list has no transform.
-- **Postconditions:** the test fails when one model does not agree.
-
-Provenance: `source_suggested_black_box_confirmed` (the artefact). Kind: semantic. Confidence:
-high. Milestone: 1, with item 5 for `gui` only until the other contexts are implemented.
-
-### BMR-TEST-003: Chosen variants against the artefact
-
-- **Inputs:** the artefact.
-- **Behavior:**
-  1. For each entry of `picks`, calculate the seed of the state at `position` (BMR-PICK-002).
-     Compare it with `seed`.
-  2. Calculate the chosen variants (BMR-PICK-005). Compare the index of each chosen variant in
-     its part with `chosen`.
-- **Postconditions:** the test fails when one entry does not agree.
-
-Provenance: `source_suggested_black_box_confirmed` (the artefact). Kind: client agreement.
-Confidence: high. Milestone: 1.
+## 5. Experiments
 
 ### BMR-TEST-004: Experiments for the content errors
 
@@ -592,7 +540,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** each result changes the label of the rule that it tests to a confirmed
   label, or it changes the rule.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -616,12 +564,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1
   assigns replace the states of a lower pack, and the other states keep the parts of the lower
   pack.
 - **Visible to the client:** only for a resource pack that replaces a file of the client
-  resource pack. mcrs refuses such a pack.
+  resource pack.
 - **Test:** none.
 
 ---
 
-## 7. Open questions
+## 7. Unresolved
 
 1. BMR-BS-001: the reference can log a parse error of a blockstate file and still use a lower
    pack. The order of log lines is not specified.

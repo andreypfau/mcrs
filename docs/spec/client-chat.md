@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states what the vanilla client does to let a player type chat and commands and
 to show received messages. The subjects are the chat screen, the input box, the history, the
 packets that the client sends, the chat log, the overlay message and the options that change
 them. `client-commands.md` states the parse of a command input, the suggestions, and the error
-and usage lines. The document does not prescribe an architecture.
+and usage lines.
 
 ## 0. Conventions
 
@@ -54,8 +51,7 @@ section "Semantics, not accidents".
 
 A colour is a 32-bit ARGB value in hexadecimal. The font has a line height of 9 GUI units. GUI
 text draws with a drop shadow unless a rule says otherwise. The width of a text is the font
-width in GUI units (`client-font.md`, FONT-WID-001). `client-font.md` states the font of
-`26.4-snapshot-7`; this document is not yet checked against it for its own snapshot. The wrap
+width in GUI units (`client-font.md`, FONT-WID-001). The wrap
 of a text component does not have a specification yet (section 7).
 
 ### 0.4 Wire types
@@ -98,18 +94,6 @@ Provenance: `black_box_confirmed` (`assets/mcrs/reports/packets.json`).
 | `CHAT-OPT` | options that change the chat |
 | `CHAT-TIP` | tooltips of the chat screen |
 | `CHAT-DEV` | intentional deviations |
-
-### 0.7 Scope
-
-In scope: the chat screen, the input box, drafts, the history, the send of chat and commands
-in an unsigned session, received chat messages, the chat log, the overlay message, and which
-tooltips the chat screen shows. `client-tooltip.md` states how a tooltip draws.
-
-Out of scope: the signature of messages and the chain of a signed session, chat reports, the
-social interactions screen, narration, what each click event in the chat log does, the
-`delete_chat` packet, titles, and the screen in a bed.
-
----
 
 ## 1. The chat screen
 
@@ -787,7 +771,7 @@ first.
 
 ---
 
-## 7. Open points
+## 7. Unresolved
 
 - The wrap of a text component and the text of a translation with arguments
   have no specification. CHAT-LOG-001 and CHAT-RECV-004 depend on them. The font has one

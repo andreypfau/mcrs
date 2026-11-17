@@ -1,6 +1,6 @@
 ---
 title: News
-description: What was merged, what changed for plugin authors and what is still missing, for each of the last three tags and for the work since the latest tag.
+description: What was merged, what changed for plugin authors and what is still missing, for the latest tag and for the work since the latest tag.
 sidebar:
   order: 4
 kind: reference
@@ -35,8 +35,6 @@ import Status from '~/components/Status.astro';
 
 This page is the change log of mcrs. Each entry says what was merged, what changed for people who write plugins, and what is still missing. A change is marked "Breaking" when old plugin code stops compiling. The newest entry comes first.
 
-The last tag is 27 days old, and 152 pull requests were merged after it, so the first entry covers work that has no tag yet.
-
 ## Since v0.5.8 (no tag yet)
 
 This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 commits and merged 156 pull requests. 123 of the pull requests are from andreypfau, and 33 are from five other people.
@@ -44,7 +42,7 @@ This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 comm
 ### Merged
 
 - Worlds tick as parallel cells behind a muxer thread and a shared data layer (<Status pr={646} state="works" />).
-- The server has mobs with a parallel AI stage, the client renders mobs, and there is a benchmark with 50,000 pigs (<Status pr={651} state="works" />).
+- The server has mobs with a parallel AI stage, the client renders mobs (<Status pr={651} state="works" />).
 - Entity physics, movement checks and block simulation work (<Status pr={648} state="works" />), and so do the block tick and block event queues (<Status pr={477} state="works" />).
 - Player bans and the whitelist follow their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
 - The server disconnects and saves every player before shutdown (<Status pr={624} state="works" />).
@@ -78,25 +76,12 @@ A plugin here is Rust code that is compiled into the server.
 
 - There is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
-- There is no speed claim against another server. The benchmark runs are provisional, as [Performance](/docs/en/project/performance/) explains.
 
 ## v0.5.8, 2026-10-14
 
-Commit `bf147fb2c`, two commits after v0.5.7.
+Commit `bf147fb2c`.
 
 The workspace version is now 0.5.8, and CI runs mutation testing only on demand. Nothing breaks for plugin authors. The crates are still not published (<Status issue={321} />).
-
-## v0.5.7, 2026-10-13
-
-Commit `4fe86dc75`, two commits after v0.5.6.
-
-The `xtask` check now refuses a literal that names any fixture destination directory. The other commit is the version bump. Nothing breaks for plugin authors, because this tag changes only the test tooling. What is missing is the same as in v0.5.8.
-
-## v0.5.6, 2026-10-13
-
-Commit `e57c49ebe`, seven commits after v0.5.5.
-
-Parity tests and fixtures now load oracle dumps, protocol goldens and data goldens through one fixture loader, which resolves them by name and checks their version. There are two new `xtask` checks. The first warns about vanilla claims that are tested against literals outside parity files. The second checks that parity tests compare against fixtures loaded by name. Nothing breaks for plugin authors. What is missing is the same as in v0.5.8.
 
 ## How to follow the changes
 

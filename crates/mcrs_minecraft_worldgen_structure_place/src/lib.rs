@@ -77,7 +77,7 @@ pub(crate) fn ignore_blocks(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the template, its position, rotation, mirror and pivot, the clip, the processor chain, the waterlog and entity flags, the volume, the random source and the two lists of one positional placement"
+    reason = "independent inputs of one positional placement"
 )]
 pub fn place_positional<W: WorldGenVolume>(
     template: &FrozenTemplate,

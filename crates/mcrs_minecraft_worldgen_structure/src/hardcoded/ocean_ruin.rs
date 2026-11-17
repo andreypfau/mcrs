@@ -187,7 +187,7 @@ fn all_positions(rng: &mut LegacyRandom, origin: IVec3) -> Vec<IVec3> {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the ruin's configuration, context and random source, the piece list, and the position, rotation, size flag and integrity of one placement"
+    reason = "independent inputs of one placement"
 )]
 fn add_piece(
     config: &OceanRuinConfig,

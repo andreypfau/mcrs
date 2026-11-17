@@ -166,7 +166,7 @@ pub struct PlayerSessionCounter(u64);
 impl PlayerSessionCounter {
     #[expect(
         clippy::should_implement_trait,
-        reason = "the counter is a resource that hands out sessions, not an iterator, and the server calls this public method by name"
+        reason = "the counter is a resource and the server calls this by name"
     )]
     pub fn next(&mut self) -> PlayerSession {
         self.0 = self.0.checked_add(1).unwrap_or(1);

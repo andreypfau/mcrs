@@ -271,7 +271,7 @@ struct FillBuffers {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard and the cancel token of one column fill"
+    reason = "independent inputs of one column fill"
 )]
 fn fill_column(
     column: &ColumnBlocks,
@@ -363,7 +363,7 @@ fn fill_column(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard, the reused buffers and the cancel token of one dense column fill"
+    reason = "independent inputs of one dense column fill"
 )]
 fn fill_column_dense(
     column: &ColumnBlocks,
@@ -429,7 +429,7 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and the sampled volume with its index and origin, the noise router, the tops, fluid and beard, and the buffers one block fill reuses"
+    reason = "independent inputs of one block fill"
 )]
 fn fill_blocks(
     column: &ColumnBlocks,
@@ -539,7 +539,7 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the noise router with its workspace and the lattice its probes share, the predicates and kind of the heightmap, the column, and the accessor's bottom and height of one height query"
+    reason = "independent inputs of one height query"
 )]
 pub fn base_height(
     router: &NoiseRouter,
@@ -827,7 +827,7 @@ pub fn generate_column(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its section position and list, the noise router, the biomes, the beard and the cancel token of one dense fill"
+    reason = "independent inputs of one dense fill"
 )]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
@@ -889,11 +889,11 @@ pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "one pass over the columns in back2beta's iteration order, interleaving the surface depth, beach and bedrock draws on one random stream"
+    reason = "one pass keeps the draws on one random stream in order"
 )]
 #[expect(
     clippy::excessive_nesting,
-    reason = "branches on back2beta's per-column depth cases inside the one pass, because its surface, beach and bedrock draws interleave on one generator"
+    reason = "the depth cases share one random stream in one pass"
 )]
 pub fn apply_beta_surface(
     column: &ColumnBlocks,

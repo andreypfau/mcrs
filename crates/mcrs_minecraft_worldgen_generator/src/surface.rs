@@ -76,11 +76,11 @@ pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its section position, the tops, biomes and first section, the router, material program, ids and states, and the scratch and carving of one surface pass"
+    reason = "independent inputs of one surface pass"
 )]
 #[expect(
     clippy::too_many_lines,
-    reason = "rewrites every strip of the column from the top down in one pass, so the descent, the pillars and the icebergs read in the reference's order"
+    reason = "rewrites every strip of the column from the top down in one pass"
 )]
 pub fn apply_material_surface(
     column: &ColumnBlocks,
@@ -366,7 +366,7 @@ pub(crate) fn set_block(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its tops, the material program, the strip's chunk, block and height coordinates, the bottom, and the stone and fluid blocks of one eroded-badlands pillar"
+    reason = "independent inputs of one eroded-badlands pillar"
 )]
 fn eroded_badlands(
     column: &ColumnBlocks,
@@ -412,7 +412,7 @@ fn eroded_badlands(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the column and its tops, the material program, the minimum surface level, the strip's coordinates and height, sea level, the fluid, the states and the carving of one frozen-ocean iceberg"
+    reason = "independent inputs of one frozen-ocean iceberg"
 )]
 fn frozen_ocean(
     column: &ColumnBlocks,

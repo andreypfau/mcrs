@@ -1,12 +1,5 @@
 # Predicates: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
-
 This document states what each shared predicate passes for. A predicate is a test that a data pack
 writes as data. Loot conditions, enchantment effects, advancements, item components and commands use
 the same predicates. This document states the result of each predicate for each input. It also
@@ -23,8 +16,7 @@ The scope is these predicates:
 - the entity predicate, with each sub-predicate.
 
 `registry-fields.md`, rules REG-FLD-595 to REG-FLD-646, states how the server decodes each
-predicate. This document refers to those rules by id and does not repeat them. Section 11 lists what
-this document does not state.
+predicate. This document refers to those rules by id and does not repeat them.
 
 ## 0. Conventions
 
@@ -73,13 +65,12 @@ PRED-NUM-002 for the bounds `B` and the value `v`.
 
 ### 0.2 Provenance
 
-- `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 13 lists the experiment of each rule.
+- `source_suggested`: taken from the reference implementation, with no experiment. The
+  confidence is at most medium.
 - `design`: a choice of this project. The rule states the reason.
 - `unresolved`: not decided. Section 12.3 collects these items.
 
-The reference that the author read has the game version above. No experiment of section 13 ran, so
-no rule has the label `black_box_confirmed`. Each rule states its kind, as `docs/spec/README.md`
+Each rule states its kind, as `docs/spec/README.md`
 defines it.
 
 ### 0.3 Artefacts cited
@@ -945,7 +936,7 @@ of each row of this table that applies to its type. A type that no row names has
 | `fireball`, `small_fireball` | 0 (the item of the projectile) |
 
 A host with an entity type that no row names states the slot numbers of that type. When the host
-states no slot number for it, the type has no slot number. Experiment E12 records the rows.
+states no slot number for it, the type has no slot number.
 
 **PRED-ENT-044** (`design`, semantic). A slot that the entity has, but whose stack the host does not
 have, is an absent value. The item predicate fails for that slot (PRED-GEN-004, PRED-ITM-001). The
@@ -1105,22 +1096,7 @@ apply to it. A value of a row that does not apply is not an absent value. The ru
 sub-predicate states the result, for example "fails when the entity is not a sheep". Reason: the
 rules of section 9 must give the same result on each host.
 
-## 11. What this document does not state
-
-- How the server decodes a predicate: `registry-fields.md`, rules REG-FLD-595 to REG-FLD-646.
-- The loot conditions and the loot context: `loot-conditions.md` and `loot.md`. Those documents
-  state which entity, position and origin each loot condition supplies.
-- The advancement triggers and the values that each trigger supplies.
-- The command arguments that use a predicate, for example the item predicate argument of `execute
-  if items`. `command-execute.md` states the commands.
-- How the server computes a host value. Examples are the biome of a block position, the pieces of a
-  structure, the light values, the support position and the open water flag.
-- Which slot numbers an entity of each type has, and which components an entity has.
-- The margin that some entity types add to their bounding box for the view segment of
-  PRED-ENT-042.
-- Feature flags. Each element of the vanilla data pack is enabled.
-
-## 12. Intentional deviations, open questions and unresolved items
+## 12. Intentional deviations and unresolved items
 
 ### 12.1 Intentional deviations
 
@@ -1149,8 +1125,7 @@ rules of section 9 must give the same result on each host.
 
 - **Rule**: PRED-ENT-023, PRED-ENT-024.
 - **Reference**: the vanilla server has no limit of its own on the nesting depth. Its JSON reader
-  refuses a data pack file whose objects and lists nest deeper than a limit of the reader.
-  Experiment E24 records the largest nesting depth that loads. A match has no budget. A predicate
+  refuses a data pack file whose objects and lists nest deeper than a limit of the reader. A match has no budget. A predicate
   that alternates `passenger` and `vehicle`, on an entity with many passengers, can make one tick
   last many seconds. The watchdog of the server (`max-tick-time` of `server.properties`) can then
   stop the server.
@@ -1171,78 +1146,20 @@ rules of section 9 must give the same result on each host.
 - **Test**: a differential test does not use a stack whose `m − d` is outside the range of a 32-bit
   integer.
 
-### 12.2 Open questions
-
-Q1 is closed. `registry-fields.md` now states the decode facts that it asked for: `blocked`
-(REG-FLD-620), `saddle` (REG-FLD-632), the slot range names (REG-FLD-636) and the bounds with `min`
-larger than `max` (REG-FLD-646). Q3 is closed. The owner selected the result of the vanilla server
-for `is_direct`, as PRED-DMG-003 states it.
+### 12.3 Unresolved
 
 - **Q2**: PRED-GEN-004 is a design rule. The vanilla server has no absent value except a position
   that is not loaded and an absent entity. The owner can select a different result for an absent
   value, for example an error that the caller sees.
-
-### 12.3 Unresolved
-
-U1 is closed. PRED-BLK-009 states the order of each kind of property and the names of integer
-values. U7 is closed. PRED-LOC-007 states the timing, and PRED-DEV-002 records the reference.
-
 - **U2**: the fields `is_baby` and `is_fall_flying` of `flags` for an entity that is not a living
   entity (PRED-ENT-014). The reference skips the test, so `is_baby: true` passes for an item entity.
   Each other field of `flags` gives false there. Question to the owner: must both fields give false
-  for such an entity? Experiment E10 records the reference result.
+  for such an entity?
 - **U3**: the reported movement of a player in a tick with no movement packet (PRED-ENT-011). The
-  reference suggests zero. Experiment E9 decides it.
+  reference suggests zero. 
 - **U4**: the margin of the bounding box of a candidate in PRED-ENT-042. Some entity types can have
-  a margin. Experiment E15 decides it for a fireball.
+  a margin.
 - **U5**: the list of the components of each entity type for PRED-ENT-021. The reference suggests
   the custom name, the custom data and components for the variant of some types, for example the
   colour of a sheep.
 - **U6**: the squared form with a negative bound (PRED-NUM-004).
-
-## 13. Experiments
-
-No experiment of this section ran. The tools `tools/vanilla-server` and `tools/vanilla-client` start
-only after a person states the acceptance of the Minecraft EULA in the environment. The environment
-of the author did not have this statement. Each rule from the reference thus has the label
-`source_suggested`.
-
-Each experiment runs against the vanilla server of the game version above (`tools/vanilla-server`),
-with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`). The command
-`execute if predicate <inline predicate>` evaluates a loot condition. The entity of the command is
-`this`, and the position of the command is `origin`. The reply is
-`commands.execute.conditional.pass` or `commands.execute.conditional.fail`. "EP" is the condition
-`minecraft:entity_properties` with `entity: "this"`. "LC" is the condition
-`minecraft:location_check`. Record the reply of each command.
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| E1 | Run `execute positioned ~3 ~ ~ as @p` with EP and `distance.absolute` equal to `{max: 3.0}`, `{max: 2.99}`, `{min: 3.0}`, `{min: -4.0}` and `{}`. Repeat with `horizontal` and with `x`. Run it also with `{min: 3.0, max: 2.0}`, and record that the command fails to parse. | PRED-NUM-002, PRED-NUM-003, PRED-NUM-004, PRED-NUM-005, PRED-DST-001, PRED-ENT-003, PRED-ENT-009 |
-| E2 | Hold a diamond pickaxe with the damage 100 and Efficiency II. Run `execute if items entity @s weapon.mainhand` with `*[damage~{durability:{min:1461}}]`, with `enchantments` elements of each row of PRED-ITM-012, and with `*[custom_data~{}]`. Repeat the last test with an empty hand. Then hold a diamond pickaxe with the damage 2000, and test `durability` `{max: -439}` and `{min: 0}`, and `damage` `{min: 2000}`. Then hold a stick, and a stick with `[!enchantments]`, and test `*[enchantments~[]]` and `*[attribute_modifiers~{}]` with each. | PRED-ITM-002, PRED-ITM-003, PRED-ITM-007, PRED-ITM-010 to PRED-ITM-014 |
-| E3 | Hold a bundle with 3 dirt, 2 stone and 1 stick. Test `bundle_contents` with `contains` of two predicates that one stack satisfies, with `count` and `max: 0`, and with `size`. | PRED-COL-001 to PRED-COL-004, PRED-ITM-015 |
-| E4 | Place a chest with the name `Box`. Run LC with `block` and `nbt: {x: <x>}`, with `components` that hold the custom name, and with `{}` on a stone block. Run LC with `block: {}` at `100000 64 100000`, where no chunk is loaded. | PRED-GEN-001, PRED-BLK-001 to PRED-BLK-004, PRED-NBT-001, PRED-NBT-002, PRED-LOC-001, PRED-LOC-002 |
-| E5 | Place a furnace for each value of `facing`. Run LC with `block.state` equal to `{facing: {min: "north", max: "south"}}` at each furnace. Repeat with `{facing: {min: "south"}}`, `{facing: {min: "up"}}`, `{facing: {min: "west", max: "north"}}`, `{facing: {}}`, `{lit: {min: "false", max: "false"}}`, `{lit: {max: "false"}}` and `{facing: "up"}`. Place a dispenser for each value of `facing`, and run LC with `{facing: {max: "north"}}` at each. Place a pointed dripstone with each `vertical_direction`, and run LC with `{vertical_direction: {max: "down"}}`. Place wheat with `age` 7, and run LC with `{age: "07"}`, `{age: "+7"}`, `{age: {min: "07"}}`, `{age: {max: "-0"}}` and `{age: {max: "2147483648"}}`. | PRED-BLK-006 to PRED-BLK-009 |
-| E6 | Run LC with `fluid` at a water source, at flowing water and at air. Run LC with `light` and with `can_see_sky` under a roof, in the open at noon and at midnight, and in the Nether. Find two open positions at the same height in a desert and in a swamp, and run LC with the same `light` bounds at both, at noon and in rain. | PRED-BLK-010, PRED-LOC-005, PRED-LOC-006, PRED-LOC-007 |
-| E7 | Build a column with a lit campfire. Run LC with `smokey: true` at 1 to 7 blocks over it. Repeat with a hay bale, with a top slab and with a fence over the campfire, and with an unlit campfire. | PRED-LOC-004 |
-| E8 | Stand on soul sand, on a bottom slab over soul sand, and on a fence. Run EP with `stepping_on` and with `movement_affected_by`, each with `block` and with `position.y`. Repeat in a jump. | PRED-ENT-007, PRED-ENT-008 |
-| E9 | Run EP with `movement` bounds from a repeating command block while the client walks, sprints, stands, falls and rides a pig and a boat. Repeat for an armor stand that falls. | PRED-ENT-010, PRED-ENT-011, U3 |
-| E10 | Run EP as an item entity with `flags` equal to `{is_baby: true}`, `{is_baby: false}`, `{is_fall_flying: true}` and `{is_flying: true}`. Run EP as the player with `is_sneaking` in flight with the shift key down. | PRED-ENT-014, U2 |
-| E11 | Run EP as an item entity with `effects: {}`, `equipment: {}`, `vehicle: {}`, `team: ""` and `entity_tags` with an empty `any_of`. Repeat as a zombie. | PRED-GEN-002, PRED-GEN-005, PRED-EFX-001, PRED-ENT-012, PRED-ENT-015 to PRED-ENT-018, PRED-ENT-022 |
-| E12 | Run EP as the player with `slots` for `weapon.*`, `hotbar.*`, `armor.*`, `horse.0` and `player.crafting.*`, each with `{}` and with an item. Summon a zombie with no equipment and a chest minecart with a stone in slot 0. Run EP as the zombie with `{"saddle": {}}` and `{"horse.0": {}}`. Run EP as the minecart with `{"container.30": {}}`, `{"container.*": {"items": "minecraft:stone"}}` and `{"container.*": {"items": "minecraft:dirt"}}`. Expected: pass, fail, fail, pass, fail. For each row of PRED-ENT-045, summon one entity of a type of the row, and run EP with `container.*`, `mob.inventory.*`, `horse.*`, `horse.chest` and `contents`, each with `{}`. | PRED-ITM-001, PRED-ENT-019, PRED-ENT-020, PRED-ENT-045 |
-| E13 | Run EP as a pig with `type_specific/fishing_hook: {}`, `type_specific/sheep: {}` and `type_specific/raider: {}`. Run the last one as a pillager, as a patrol leader and as a raider in a raid. Run `type_specific/cube_mob` as a slime of size 2. | PRED-ENT-031 to PRED-ENT-034 |
-| E14 | Summon a lightning bolt over a pig on grass. Run EP as the bolt from a repeating command block with `blocks_set_on_fire` and `entity_struck`. | PRED-ENT-030 |
-| E15 | Run EP as the player with `looking_at` while the client looks at a pig at 99 and at 101 blocks, through glass, through stone, and past a fireball. Nest `distance` in `looking_at` with an `origin` far from the player. | PRED-ENT-004, PRED-ENT-042, U4 |
-| E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. Lower the food level to 10 and the saturation to 0 with the effect `hunger`. Eat one sweet berry. Test `food.saturation` with `0.4` and with `{min: 0.39, max: 0.41}`. | PRED-NUM-001, PRED-NUM-002, PRED-ENT-040, PRED-ENT-041, PRED-ENT-043, REG-FLD-642 |
-| E17 | Install a data pack whose pig loot table has pools with `damage_source_properties`. Kill pigs with a fall, a sword and an arrow of the player. Record the dropped items. Then kill pigs with an arrow and with a firework rocket from a dispenser, and with TNT that redstone ignites, with pools for `is_direct` `true` and `false`. Expected: true, false, false. Also add pools whose `tags[].id` is `"minecraft:arrow"`, `["minecraft:arrow"]` and `[]`, each with `expected: true`, and kill a pig with an arrow. Expected: pass, pass, fail. | PRED-DMG-001 to PRED-DMG-003, REG-FLD-619 |
-| E18 | Install a data pack with advancements of the trigger `entity_hurt_player` with `dealt`, `taken`, `blocked` and `source_entity.distance`. Take damage with and without a shield. Record the granted advancements. | PRED-DMG-004, PRED-DMG-005 |
-| E19 | Hold a written book, a firework rocket, a potion with a custom effect, a trimmed helmet and a music disc. Test each data component predicate of section 3.3 with `execute if items`. | PRED-ITM-016 to PRED-ITM-023, PRED-EFX-002 |
-| E20 | Run EP with `{}` from the console, with no entity. Run EP as a pig and as the player with `type: "minecraft:pig"`. Summon a pig with `Invulnerable:1b` and the custom name `Bob`. Run EP as that pig with `nbt: "{Invulnerable:1b}"`, with `components: {"minecraft:custom_name": "Bob"}`, and with `type` and `nbt` together. Run EP as the player with `nbt: "{SelectedItem:{}}"`, with an item in the hand and with an empty hand. Run each command two times. | PRED-GEN-003, PRED-ENT-001, PRED-ENT-002, PRED-ENT-005, PRED-ENT-013, PRED-ENT-021 |
-| E21 | In a world with a plains village, run LC with `structures: "minecraft:village_plains"` inside a house, and between two houses inside the box of the village. Stand on a bottom slab at the height `y`. Run EP with `location.position.y` equal to `{min: y + 0.5}` and to `{min: y + 0.51}`. | PRED-LOC-003, PRED-ENT-006 |
-| E22 | Hold a stick with the custom name `A`. Run EP with `equipment.mainhand` equal to `{components: {"minecraft:custom_name": "A"}}`, to `{components: {"minecraft:custom_name": "B"}}`, to `{predicates: {}}`, to `{predicates: {"minecraft:custom_name": "Z"}}` and to `{predicates: {"minecraft:damage": {}}}`. | PRED-ITM-004, PRED-ITM-005, PRED-ITM-006, PRED-ITM-007 |
-| E23 | Put the client in adventure mode. Give it a stone with `can_place_on` `{blocks: "minecraft:dirt"}`, and a pickaxe with `can_break` `{blocks: "minecraft:stone"}`. Place the stone on dirt and on grass. Break a stone and a dirt block. Record the blocks that change, and the block updates that the client receives. | PRED-BLK-005 |
-| E24 | Make four data packs, each with one predicate file: `t:d32`, `t:d33`, `t:d250` and `t:d300`. Each is EP with an entity predicate of the nesting depth 32, 33, 250 and 300: 31, 32, 249 and 299 levels of nested `vehicle`, with the innermost predicate `{}`. Start the server one time with each pack. Record the log of the load. Run `execute if predicate` with each key that loaded, as the player on a stack of 40 pigs. Expected in mcrs: `t:d32` loads, and `t:d33` is a fault of the load (PRED-ENT-023). | PRED-ENT-023, PRED-DEV-003 |
-| E25 | Summon a pig with 30 armor stands as passengers. Run EP as the pig with a predicate of four levels: `passenger`, `vehicle`, `passenger`, `vehicle`. Then nest a fifth level `passenger` with `entity_tags` `{all_of: ["none"]}`. Record the reply, and the time of the tick from `tick query`. Repeat with 50 armor stands. | PRED-ENT-024, PRED-DEV-003 |
-
-## 14. Captured results
-
-None. Section 13 states the reason.

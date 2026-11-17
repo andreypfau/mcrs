@@ -304,10 +304,7 @@ impl Cull {
                 .is_some()
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the view bindings, the draws and the section count of the terrain, the pipeline cache, the pass timestamps, the draw mask and the encoder of one cull"
-    )]
+    #[expect(clippy::too_many_arguments, reason = "independent inputs of one cull")]
     pub fn cull(
         &self,
         binds: &Bindings,
@@ -477,7 +474,7 @@ impl Cull {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the pass, the view bindings and the draws of one layer group, the kernel, the draw mask and the row of the dispatch table"
+        reason = "independent inputs of one layer group"
     )]
     fn cull_indirect<'pass>(
         &'pass self,

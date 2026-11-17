@@ -1,13 +1,5 @@
 # Persistence
 
-| Field | Value |
-| --- | --- |
-| Game version | `26.4-snapshot-7` |
-| World version (`DataVersion`) | `5127` |
-| Protocol version | `1073742169` |
-| Data pack format | `126.0` |
-| Status | `draft` |
-
 This document states what the server keeps in a save and how it reads that save. It does not state
 an upgrade path from another world version. The vanilla game must be able to open a save that the
 server writes. Thus each rule about a file format states the layout that the game reads and writes.
@@ -56,9 +48,7 @@ and the directories `entities` and `poi` of a dimension. The server writes none 
 A dimension key whose path is empty or leaves the dimension directory is refused. The server does
 not map it to a path outside the save.
 
-Provenance: `source_suggested`. Kind: file format. Confidence: high. Test:
-`mcrs_minecraft_server::it::persistence::a_world_edited_on_one_run_comes_back_on_the_next`.
-Experiment P1.
+Provenance: `source_suggested`. Kind: file format. Confidence: high.
 
 ## SAVE-LEVEL-001: The layout of `level.dat`
 
@@ -96,7 +86,7 @@ not read them. The server treats both keys as unknown fields.
 The time of day, the weather, the game rules and the world generation settings are not in
 `level.dat`. They are in saved data files (SAVE-DATA-001).
 
-Provenance: `source_suggested`. Kind: file format. Confidence: high. Experiment P1.
+Provenance: `source_suggested`. Kind: file format. Confidence: high.
 
 ## SAVE-DATA-001: The layout of a saved data file
 
@@ -159,7 +149,7 @@ The game also writes other saved data files, for example the scoreboard, the rai
 border. The server does not read or write them (SAVE-LIMITS-001).
 
 Provenance: `source_suggested` for the files of the game, `design` for `birth_clock.dat`. Kind: file
-format. Confidence: high. Experiment P1.
+format. Confidence: high.
 
 ## SAVE-FILE-002: Atomic replacement and unknown fields
 
@@ -231,7 +221,7 @@ A second process observes a save directory that another process holds:
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by
 `assets/minecraft/lang/en_us.json` of the client jar. Kind: file format for the file, its content
-and the kind of lock; semantic for the rest. Confidence: medium. Experiments P9 and P10.
+and the kind of lock; semantic for the rest. Confidence: medium.
 
 ## SAVE-LOCK-002: The lock of a save directory in mcrs
 
@@ -268,15 +258,12 @@ and the kind of lock; semantic for the rest. Confidence: medium. Experiments P9 
     3) with no lock, before its local server starts. The folder id is new (WORLD-NAME-001), so no
     other process has the folder open.
 
-Provenance: `design`. The owner decided on 2026-11-14 that this release builds the lock, that the
-server gives a typed error for a held world, and that the client shows that error on the screen
-of a failed start. `source_suggested` for the content of step 1 and for the lock of the game
-that step 3 must meet. `design` for the kind of lock of mcrs in steps 3 and 4. On macOS 27, an
-experiment with two processes showed that a `flock` lock and a POSIX record lock conflict in
-both directions, that the lock of the Rust standard library conflicts with a POSIX record lock,
-and that a second handle in the same process sees a `flock` lock as held. That experiment
-decides the system only. Experiments P9 and P10, against the game, have not run. Kind: file
-format for steps 1 and 3; semantic for the rest. Confidence: medium.
+Provenance: `design` for the typed error of step 2 and for the screen of step 9.
+`source_suggested` for the content of step 1 and for the lock of the game that step 3 must meet.
+`design` for the kind of lock of mcrs in steps 3 and 4. On macOS, two processes show that a
+`flock` lock and a POSIX record lock conflict in both directions. In one process, a second handle
+sees a `flock` lock as held. Kind: file format for steps 1 and 3; semantic for the rest.
+Confidence: medium.
 
 ## SAVE-NEW-001: A new world in the game
 
@@ -326,7 +313,7 @@ Before the first save, the folder has no `world_gen_settings.dat`.
 The save keeps no id of the world preset. A reader knows the world type of a saved world only when
 its `dimensions` equal the dimensions of one world preset.
 
-Provenance: `source_suggested`. Kind: file format. Confidence: medium. Experiment P11.
+Provenance: `source_suggested`. Kind: file format. Confidence: medium.
 
 ## SAVE-NEW-002: The first start of a world in mcrs
 
@@ -364,7 +351,6 @@ first start.
 Provenance: `design` for step 1 and for the absence of `level.dat_old` (SAVE-FILE-002).
 `source_suggested` for steps 2 to 5: the game writes `initialized` 1 after the first start and
 the UUID of the host at each save of a local world. Kind: file format. Confidence: medium.
-Experiment P11.
 
 ## SAVE-NEW-003: A save directory with missing files
 
@@ -401,7 +387,7 @@ Provenance: `design`. The reason for the refusal: a world with a `level.dat` and
 damaged world, and a random seed changes its terrain at each column that the world generates
 again. `source_suggested` for the keys of a new world: the vanilla server writes the name of the
 world folder, the game mode of its configuration and commands off. Kind: semantic. Confidence:
-medium. Experiment P1.
+medium.
 
 ## SAVE-VERSION-001: Exact version, no datafixer
 
@@ -421,8 +407,7 @@ The game runs a datafixer for a file of an older version. Thus the server writes
 
 Provenance: `design`. Kind: version policy. Confidence: high. The reason for the partial column
 rule: a vanilla save has such columns at the edge of the generated area. A quarantine of the whole
-region at each load makes copies on disk and helps no one. Test:
-`mcrs_minecraft_region_disk::tests::a_column_of_another_version_is_quarantined`.
+region at each load makes copies on disk and helps no one.
 
 ## SAVE-REGION-001: Region format
 
@@ -445,10 +430,7 @@ The region covers the columns `32 * region_x` through `32 * region_x + 31`, and 
 z axis. The slot of a column is `(x & 31) + (z & 31) * 32`. The arithmetic uses floor division, so
 negative coordinates follow the same rule.
 
-Provenance: `source_suggested`. Kind: file format. Confidence: high. Test:
-`mcrs_minecraft_anvil::tests::every_compression_id_round_trips`,
-`mcrs_minecraft_anvil::tests::external_chunks_come_from_the_mcc_file`, and
-`mcrs_minecraft_region_disk::tests::a_column_on_each_side_of_a_region_boundary_lands_in_its_own_file`.
+Provenance: `source_suggested`. Kind: file format. Confidence: high.
 
 ## SAVE-REGION-002: Streaming and replacement
 
@@ -468,10 +450,7 @@ the old record still refers to the `.mcc` file, and that file holds the new payl
 this state returns the new payload of the same column, or, when its decode fails, follows
 SAVE-QUARANTINE-001. The column stays dirty, and the next flush repairs the state.
 
-Provenance: `design`. Kind: durability. Confidence: high. Test:
-`mcrs_minecraft_anvil::tests::writing_onto_the_file_it_was_read_from_keeps_the_other_chunks`,
-`mcrs_engine_store::store_stage::tests::a_failed_chunk_is_written_once_by_the_next_flush` and
-`mcrs_minecraft_region_disk::tests::a_failing_region_does_not_stop_the_flush_and_the_newest_column_wins`.
+Provenance: `design`. Kind: durability. Confidence: high.
 
 ## SAVE-CHUNK-001: The layout of a column record
 
@@ -609,7 +588,7 @@ type is a separate body of work. Issue #738 adds typed block entities. Until the
 read it. The keys of a column other than the contents of these compounds are all typed.
 
 Provenance: `source_suggested` for the layout, `design` for the exception of the block entities.
-Kind: file format. Confidence: high. Experiment P1.
+Kind: file format. Confidence: high.
 
 ## SAVE-TICK-001: Scheduled ticks
 
@@ -634,9 +613,7 @@ copy this. An entry with a missing key, a key of the wrong type, an unknown id o
 rule does not list fails the load of the column (SAVE-FILE-002).
 
 Provenance: `source_suggested` for the layout, `design` for the load error. Kind: file format.
-Confidence: high for the layout, medium for the skip of the game. Test:
-`mcrs_minecraft_engine::block_simulation::tests::a_periodic_copy_reports_a_tick_scheduled_since_the_column_landed`.
-Experiment P2.
+Confidence: high for the layout, medium for the skip of the game.
 
 ## SAVE-COLUMN-001: Stored column
 
@@ -657,9 +634,7 @@ The live save path writes no light and no `isLightOn` key. A dimension that load
 lights it again from the blocks. The data layer can carry light, and the region round-trip tests
 cover it.
 
-Provenance: `design`. Kind: semantic. Confidence: high. SAVE-CHUNK-001 states the layout. Test:
-`mcrs_minecraft_region_disk::tests::unknown_block_entities_and_structures_round_trip`
-and `mcrs_minecraft_region_disk::tests::a_column_written_to_a_region_reads_back_and_keeps_its_neighbour`.
+Provenance: `design`. Kind: semantic. Confidence: high. SAVE-CHUNK-001 states the layout.
 
 ## SAVE-COLUMN-002: What a cold write keeps
 
@@ -684,9 +659,7 @@ queues, so the world keeps running. It clears the section marks of the columns t
 save-all still writes every loaded column and takes the ticks out. It runs at shutdown only, when
 the dimension stops, so this is safe.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Test:
-`mcrs_minecraft_engine::cold_columns::tests::a_block_entity_that_changed_marks_its_section_but_a_landed_one_does_not`
-and `mcrs_minecraft_engine::block_simulation::tests::a_periodic_copy_reports_a_tick_scheduled_since_the_column_landed`.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ## SAVE-COLUMN-003: Structure state
 
@@ -832,15 +805,11 @@ the int array `bounds` of six values like `BB`, the int `room` and the int `desi
 When a saved monument start has no `mcrs:rooms`, the server builds the room graph from the world
 seed one time. It does this at the first load of that start. It writes `mcrs:rooms` at the next
 save of the column that holds the start. The built graph must equal the graph that generation of the
-same start produces. Experiment P5 confirms the equality with a vanilla world.
+same start produces.
 
 Provenance: `source_suggested` for the layout and the claim count, `design` for `mcrs:rooms`, for
 `mcrs:children` and for the rebuild of the room graph. The reason for the rebuild: a vanilla save
-must give the same monument as generation gives, and the save has no room data. Kind: file format and semantic. Confidence: high. Test:
-`mcrs_minecraft_worldgen_structure::piece::tests::the_monument_building_round_trips_with_its_room_graph`,
-`mcrs_minecraft_region_disk::tests::unknown_block_entities_and_structures_round_trip` and
-`mcrs_minecraft_vanilla_worldgen::generation_tests::a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed`.
-Experiments P3 and P5.
+must give the same monument as generation gives, and the save has no room data. Kind: file format and semantic. Confidence: high.
 
 ## SAVE-POOL-001: The processor list of a saved pool element
 
@@ -870,9 +839,7 @@ Provenance: `source_suggested_black_box_confirmed` for the compound form of an e
 which the pieces of `minecraft:abandoned_camp_forest` in
 `crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/structure_pieces.bin` show.
 `source_suggested` for the read of the list form, for a list with entries and for the write of a
-piece that the server read. Kind: file format. Confidence: high. Test:
-`mcrs_minecraft_worldgen_generator::tests::structure_pieces::exhaustive::structure_pieces_serialise_as_the_reference_writes_them`.
-Experiment P7.
+piece that the server read. Kind: file format. Confidence: high.
 
 ## SAVE-POOL-002: The placed feature of a saved pool element
 
@@ -892,8 +859,7 @@ a processor list. A piece that the server reads from a save and writes again kee
 pools of the vanilla data pack name each placed feature by registry id. An inline placed
 feature comes only from a data pack that adds it.
 
-Provenance: `source_suggested`. Kind: file format. Confidence: high. Test: none yet. Experiment
-P7.
+Provenance: `source_suggested`. Kind: file format. Confidence: high.
 
 ## SAVE-POOL-003: The use of a saved pool element after a load
 
@@ -914,7 +880,7 @@ feature in the data pack form is a load error of the column, and the error names
 skips such a piece and keeps the other pieces of the start (SAVE-COLUMN-003).
 
 Provenance: `source_suggested` for the use of the saved value. `design` for the load error, by
-decision #388 (SAVE-FILE-002). Kind: semantic. Confidence: high. Test: none yet. Experiment P8.
+decision #388 (SAVE-FILE-002). Kind: semantic. Confidence: high.
 
 ## SAVE-COLUMN-004: Write order
 
@@ -932,8 +898,7 @@ The server asks for a save-all one time during the shutdown. Every 6000 host tic
 autosave tick, the periodic write of SAVE-COLUMN-002 runs instead, and the world keeps running. The
 first tick of a world does not count as an autosave tick.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Test:
-`mcrs_minecraft_engine::persistence::tests::autosave_ticks_come_every_interval_and_never_on_the_first`.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ## SAVE-QUARANTINE-001: Quarantine
 
@@ -952,10 +917,7 @@ run. After a successful replacement write, the server clears the in-memory quara
 If the original region cannot be opened at all, the replacement starts a new region file after the
 copy. If it can be opened, the replacement rewrites the damaged record and keeps the other records.
 
-Provenance: `design`. Kind: durability. Confidence: high. Test:
-`mcrs_minecraft_region_disk::tests::a_damaged_region_is_copied_before_a_new_column_replaces_it`,
-`mcrs_minecraft_region_disk::tests::a_region_that_cannot_be_copied_is_not_read_as_missing`, and
-`mcrs_minecraft_region_disk::tests::a_region_that_cannot_be_opened_is_replaced_after_its_copy`.
+Provenance: `design`. Kind: durability. Confidence: high.
 
 ## SAVE-SHUTDOWN-001: Shutdown
 
@@ -977,10 +939,7 @@ The exit status is success only when every write of steps 2 to 4 and every playe
 A write error is logged, does not block the exit, and makes the exit status an error. Provenance:
 `design`. Reason: an operator must see a lost save in the exit status, not only in the log.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Test:
-`mcrs_minecraft_engine_server::shutdown::tests::the_last_shutdown_writes_the_host_state`,
-`mcrs_minecraft_server::it::persistence::a_world_edited_on_one_run_comes_back_on_the_next`, and
-`mcrs_minecraft_engine::persistence::tests::a_departing_player_is_released_when_its_write_finishes_and_a_failure_is_reported`.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ## SAVE-PLAYER-001: Player data
 
@@ -1147,7 +1106,7 @@ Both are required, and each entry is a recipe id. It has eight bytes with the de
 that no recipe has.
 
 An entity save compound is the second exception to the typed layout (SAVE-FILE-002), for the same
-reason as block entities: its keys depend on the entity type, and no rule states them yet. The
+reason as block entities: its keys depend on the entity type, and no rule states them. The
 reader checks only the string `id`, keeps the whole compound as written, and the writer writes it
 as it read it. This applies to `ShoulderEntityLeft`, `ShoulderEntityRight`, `RootVehicle.Entity`,
 each entry of `ender_pearls` and each entry of `Passengers` inside `RootVehicle.Entity`. An entry
@@ -1184,9 +1143,7 @@ the exit. A player file that is missing gives the default player. An unreadable 
 player, and a later save does not overwrite that file. The game writes over an unreadable file.
 
 Provenance: `source_suggested` for the layout, `design` for the snapshot and the unreadable file.
-Kind: file format and semantic. Confidence: high. Test:
-`mcrs_minecraft_engine::persistence::tests::the_autosave_queue_flushes_every_snapshot_before_the_shutdown_barrier`
-and `mcrs_minecraft_save::level::tests::a_refused_player_file_is_left_byte_identical`. Experiment P4.
+Kind: file format and semantic. Confidence: high.
 
 ## SAVE-OWNERSHIP-001: Ownership and eviction
 
@@ -1199,9 +1156,7 @@ the cell releases its sections. A later load takes the column from the data laye
 generator runs. The data layer keeps a dirty column until a flush makes it durable. The number of
 open region files is bounded. A file that a flush does not use is released.
 
-Provenance: `design`. Kind: architecture. Confidence: high. Test:
-`mcrs_minecraft_region_disk::tests::old_region_handles_are_released` and
-`mcrs_minecraft_engine::column_store::tests::a_column_never_written_here_asks_the_disk_before_the_world_generator`.
+Provenance: `design`. Kind: architecture. Confidence: high.
 
 ## SAVE-LIMITS-001: Not covered
 
@@ -1215,22 +1170,19 @@ unreadable (SAVE-CHUNK-001). A save from
 another world version is rejected and not upgraded. The server does not run a datafixer. The order
 in which a full region cache releases files is not part of the contract.
 
-Until experiment P6 runs, the server neither reads nor writes the `poi` directory (see U3).
+The server neither reads nor writes the `poi` directory (see U3).
 
 Provenance: `design`. Kind: scope. Confidence: high. Test: none; this is a stated limit.
 
 ## Unresolved
 
 - **U3.** The game probably builds the points of interest again from the blocks that it loads when
-  the `poi` directory is missing. No experiment confirms it. Decision of the owner: run
-  experiment P6 first. No rule exists yet. SAVE-LIMITS-001 states that, until P6 runs, the server
+  the `poi` directory is missing. No experiment confirms it. No rule exists yet. SAVE-LIMITS-001 states that the server
   neither reads nor writes `poi`.
 
 - **U4.** The game chooses the spawn of a new world at its first start (SAVE-NEW-001, step 3).
-  mcrs keeps the default spawn (SAVE-NEW-002, step 1, and SAVE-DEV-002). A specification of the
-  spawn search must come before its code. Recommendation: write it with the world generation
-  specifications, because the search reads the biomes and the surface. A question to the owner
-  for the order of the work.
+  mcrs keeps the default spawn (SAVE-NEW-002, step 1, and SAVE-DEV-002). No rule states the
+  spawn search of the game. The search reads the biomes and the surface.
 
 ## Intentional deviations
 
@@ -1252,108 +1204,3 @@ Provenance: `design`. Kind: scope. Confidence: high. Test: none; this is a state
   SAVE-PLAYER-001, not on the surface that the game chooses. mcrs places no bonus chest. U4
   holds the open point.
 - **Test:** a differential test does not compare the spawn of a new world.
-
-## Experiments
-
-None of these experiments has been run. Each one except P11 needs `tools/vanilla-server`. P9 to
-P11 also need the vanilla client. In P5, "the server" after step 1 means the mcrs server.
-
-- **P1.** Write a save with the server. Start the vanilla server on it. Record the log. Expected: no
-  error about `level.dat`, the saved data files or a column, and the world loads at the same game
-  time, weather and seed.
-- **P2.** Put a block with a scheduled tick of delay 20 in a column. Save and stop the server. Start
-  the vanilla server and wait. Expected: the tick runs 20 ticks after the column loads.
-- **P3.** Generate a village and a monument. Start the vanilla server on the save. Record the
-  structures that `/locate` finds, and use an exploration map twice. Expected: the structures are
-  found, and the first map claims the start.
-- **P4.** Write a player with items in the slots 0, 8, 9 and 35, and an armor piece. Join with the
-  vanilla server. Expected: each stack is in its slot, and the armor is worn.
-- **P5.** Confirms that the rebuilt room graph of SAVE-COLUMN-003 equals the graph of generation.
-  Repeat these steps for at least 10 seeds.
-  1. Start the vanilla server with the seed `S`. Teleport to the nearest ocean monument that
-     `/locate structure minecraft:ocean_monument` gives. Wait until all columns of the monument are
-     full. Stop the server. This is save A.
-  2. Record the start column, and the block states of the whole bounding box of the monument.
-  3. Copy save A to save B. In save B, delete the records of each column of the bounding box
-     except the start column.
-  4. Start the server on save B. Load the deleted columns. The server generates them with the
-     rebuilt graph. Save and stop.
-  5. Record the block states of the bounding box in save B. Record `mcrs:rooms` of the start.
-  6. Start the server on a new world with the seed `S`. Generate the same start. Save and stop.
-     Record `mcrs:rooms` of the start in this world.
-  Expected: the block states of step 5 equal those of step 2. The `mcrs:rooms` of step 5 equals
-  the `mcrs:rooms` of step 6 in the index, the six openings and the six connections of each room.
-- **P6.** Decides U3. Find out what the game does when the `poi` directory is missing.
-  1. Start the vanilla server on a new world with the seed `S`. Build these items: a bed, a
-     villager job site block, a bell, a lit nether portal, a bee nest and a lodestone. Put each
-     in a separate column. Spawn a villager near the bed and the job site block.
-  2. Run `/locate poi` for each point of interest type that the items make. Record the answers.
-  3. Stop the server. Record the file names and the sizes in the `poi` directory of each
-     dimension. Copy the save as save C.
-  4. In save C, delete the `poi` directory of each dimension. Start the server on save C.
-  5. Run the commands of step 2 again, before and after you move a player near each item. Record
-     the answers.
-  6. Observe the villager for 5 minutes of game time. Record whether it claims the bed and the
-     job site. Enter the nether portal. Record whether the game reuses the portal or builds a new
-     one.
-  7. Stop the server. Record the file names and the sizes in the `poi` directory again.
-  Expected, if U3 holds: the answers of step 5 equal those of step 2, and the game writes the
-  `poi` files again. Record each difference, and the log lines about `poi`.
-- **P7.** Confirms the forms of SAVE-POOL-001 and SAVE-POOL-002 that no fixture shows.
-  1. Make a data pack with four pools and four jigsaw structures. The start pool of each structure
-     is a different pool. Pool A has a
-     `single_pool_element` with the inline list `{"processors": [<one rule processor>]}`. Pool B
-     has the same element with the list form `[<the same processor>]`. Pool C has a
-     `feature_pool_element` with an inline placed feature. Pool D has a `single_pool_element` whose
-     `processors` is the registry id of a processor list of the data pack.
-  2. Start the vanilla server on a new world with this data pack. Generate one start of each pool.
-     Stop the server.
-  3. Record the `pool_element` compound of each piece. Expected: pool A and pool B give the same
-     compound form with the list `processors`. Pool C gives the inline placed feature as a compound.
-     Pool D gives the registry id as a string.
-  4. In the save, replace one `processors` compound with the list form of the same entries. Start
-     the server, load the column, change a block near the piece, save and stop.
-  5. Record the `pool_element` compound again. Expected: the game reads the list form, and it
-     writes the compound form with the same entries in the same order.
-- **P8.** Confirms SAVE-POOL-003.
-  1. With the data pack of P7, generate starts of pool A and pool D with pieces in more than one
-     column. Stop the server before the game places the blocks of each column.
-  2. In the data pack, change the rule processor of pool A, and change the processor list that the
-     registry id of pool D names. Each old and each new processor replaces a block of the piece
-     template, and the old and the new output blocks are different. Start the server and load the
-     other columns.
-  3. Record the blocks of the pieces. Expected: the inline element places the output block of the
-     old processor, and the element with the registry id places the output block of the new list.
-- **P9.** mcrs holds a world, and the game observes it (SAVE-LOCK-001, SAVE-LOCK-002).
-  1. Start the mcrs server on the save directory `W`. Record the size and the bytes of
-     `session.lock`.
-  2. Start the vanilla server on `W`. Record its log, its exit status, and the modification time
-     of each file of `W` before and after.
-  3. Put `W` in the saves folder of a vanilla client. Open "Select World". Record the entry of
-     `W`, its overlay, and the active state of "Play Selected World" and "Delete".
-  4. Press "Delete" for `W` and confirm. Record the toast and the files of `W`.
-  5. Stop the mcrs server. Open "Select World" again. Record the entry of `W`, and the size and
-     the bytes of `session.lock`.
-  Expected: in steps 2 to 4, the game sees `W` as locked and changes no file. In step 5, the
-  entry is not locked, and `session.lock` holds the 3 bytes of SAVE-LOCK-001.
-- **P10.** The game holds a world, and mcrs observes it.
-  1. Start the vanilla server on `W`. Wait for the line that says the server is ready.
-  2. Start the mcrs server on `W`. Record the error that the start returns, its exit status, and
-     the modification time of each file of `W` before and after.
-  3. Put `W` in the saves folder of the mcrs client. Open "Select World". Record the entry of
-     `W` and the active state of its buttons.
-  4. Stop the vanilla server. Start the mcrs server on `W` again. Record that it starts.
-  5. Repeat steps 1 to 4 with a vanilla client that plays `W` in place of the vanilla server.
-  Expected: in steps 2 and 3, mcrs reports `W` as locked and changes no file. In step 4, the
-  start succeeds.
-  Run P9 and P10 on Linux, on macOS and on Windows, because the kind of lock of SAVE-LOCK-002,
-  step 3, is different on each system.
-- **P11.** Decides the files of a new world of the game (SAVE-NEW-001).
-  1. In the vanilla client, create a world with "Create New World" and the defaults. Close the
-     game with the process killed before the local server starts, or copy the folder at the
-     loading screen. Record the files of the folder and the keys of `level.dat`.
-  2. Create a second world and wait until the player is in the world. Press "Save and Quit to
-     Title". Record the files of the folder and the keys of `level.dat`, `level.dat_old` and
-     `data/minecraft/world_gen_settings.dat`.
-  3. Repeat step 2 with "Hardcore", and with "Creative" and the world type "Superflat".
-  Expected: the keys and the files of SAVE-NEW-001.

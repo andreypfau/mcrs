@@ -174,7 +174,7 @@ fn processors(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the portal's blocks, piece and template, the volume, the two lists the placement fills, the column's reference and clip, and the random source"
+    reason = "independent inputs of one column's placement"
 )]
 pub fn place_ruined_portal<W: WorldGenVolume>(
     b: &RuinedPortalBlocks,

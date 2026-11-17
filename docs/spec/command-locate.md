@@ -2,10 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states the tree of `locate`, the result of each search, and the messages. It
 states what a search must find, not how it finds it. It does not prescribe an architecture.
@@ -206,13 +203,10 @@ structure minecraft:stronghold`. The search finds a stronghold near the origin, 
 
 ---
 
-## Open questions
+## Unresolved
 
 - CMD-LOC-006 does not state how to test a chunk for a start. That test is world
-  generation, outside this document. A structure search exists in
-  `mcrs_minecraft_worldgen_structure` and `mcrs_minecraft_worldgen_generator`, under the world
-  generation exception
-  (`docs/clean-room.md`). Its parity with CMD-LOC-006 is not confirmed.
+  generation, outside this document.
 - The reference search ignores a placement of the type `dimension_origin`, so `locate` cannot
   find its structure. No structure set of the vanilla data pack uses this type. Is this a
   defect that a deviation must correct, for a data pack that uses the type?

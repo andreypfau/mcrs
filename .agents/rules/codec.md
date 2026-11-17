@@ -14,17 +14,6 @@ the NBT in the save and the network buffer. Serde plays that role here. A type w
 `Serialize` / `Deserialize` reads from `serde_json`, writes through `mcrs_minecraft_nbt`, and
 crosses the wire without a second parser.
 
-> Never express a shape as a function over `serde_json::Value`. Express it as a
-> `Deserialize` / `Serialize` implementation: derived where the shape is ordinary, hand-written
-> where it is not.
-
-A hand-rolled `parse(&serde_json::Value)` is wrong twice: it reimplements what serde already
-does, and it welds the type to one encoder. Registry snapshots reach the client as **NBT**
-(`mcrs_minecraft_nbt::to_nbt_compound`), so a JSON-shaped field is silently NBT-encoded too.
-NBT is strongly typed (byte, short, int, long, float, double), while
-`serde_json::Value::Number` picks between i64, u64 and f64 from how the text looked. A tick
-count lands in an NBT long where the game writes an int.
-
 - **A value that is either a bare scalar or a full object** is a hand-written `Deserialize` plus
   a symmetric `Serialize`, so the two shapes round-trip unchanged. `TimeMarker` in
   `crates/mcrs_minecraft_environment/src/time_marker.rs` is the model in this repository.

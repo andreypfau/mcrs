@@ -701,7 +701,7 @@ mod exhaustive {
     }
 
     #[test]
-    fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache_at_every_seed() {
+    fn column_blocks_ignore_region_order_and_cache_at_every_seed() {
         for (seed, surfaced) in [(12345, true), (845, true), (845, false)] {
             assert_blocks_independent_of_region_order_and_cache(
                 seed,

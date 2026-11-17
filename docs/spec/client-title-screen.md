@@ -2,7 +2,6 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
 | Protocol version | `1073742169` |
 | Packets | LOGIN, clientbound: `login_disconnect` 0, `key` 1, `login_finished` 2, `custom_query` 4. CONFIGURATION, clientbound: `disconnect` 2. PLAY, clientbound: `disconnect` 32, `game_event` 39, `login` 50 |
 
@@ -11,8 +10,8 @@ for the packet ids.
 
 This document states the title screen of the vanilla client, its panorama and its fade-in. It
 also states the screens that the client shows between the title screen and a world, in both
-directions. For each screen it states the mcrs subset of release 1: the title screen, the entry
-into a world from the world screens, and the return to the title screen. It uses the terms of
+directions. For each screen it states the mcrs subset: the title screen, the entry into a world
+from the world screens, and the return to the title screen. It uses the terms of
 `client-widget.md` and `client-menu.md` and cites their rules. The screens "Select World" and
 "Create New World" are in `client-world-screens.md`. The document does not prescribe
 an architecture.
@@ -50,9 +49,6 @@ an architecture.
 - **Start screens**: the screens that the vanilla client shows after its start and before its
   first title screen: the loading overlay, the accessibility onboarding and the warning screens.
   They are out of scope.
-- **Release 1, 2**: the order in which mcrs builds the screens of this document. Release 1 is
-  the title screen, the world screens of `client-world-screens.md`, and the return to the title
-  screen. Release 2 is the multiplayer screens.
 - **mcrs notice**: the two lines of text that mcrs shows in place of the copyright text
   (TITLE-SCR-007).
 
@@ -63,7 +59,7 @@ section "Semantics, not accidents". The language keys and their English texts ar
 `assets/minecraft/lang/en_us.json` of the client jar. The textures are in
 `assets/minecraft/textures/` of the client jar, or in the asset index of the version where a
 rule says so. The choice of a key or a texture for a widget comes from the reference. No
-experiment of section 10 ran.
+experiment ran.
 
 A rule is `black_box_confirmed` for an English text, a texture size or a resource location only
 where the pinned artefact itself is the evidence. The rule names that artefact.
@@ -78,8 +74,8 @@ The arithmetic of `client-widget.md`, section 0.3, applies: `a / b`, `a % b`, `t
 subtracts a multiple of 360 to the angle `v`, so that the result is in [−180, 180).
 
 `tw` is the width of a text in GUI units, as `client-font.md` states. Each example uses W = 427
-and H = 240, as in the setup of `client-widget.md`, section 14. A centred text with the centre
-`cx` starts at `x = cx − tw / 2`.
+and H = 240, with the window of 854 × 480 pixels and the GUI scale 2. A centred text with the
+centre `cx` starts at `x = cx − tw / 2`.
 
 ### 0.4 ID prefixes
 
@@ -94,7 +90,6 @@ and H = 240, as in the setup of `client-widget.md`, section 14. A centred text w
 | `TITLE-DISC` | an unrequested disconnect and the disconnected screen |
 | `TITLE-QUIT` | the button "Quit Game" |
 | `TITLE-PROP` | the properties of each screen that `client-widget.md` leaves open |
-| `TITLE-EXP` | experiments |
 | `TITLE-DEV` | intentional deviations |
 
 ### 0.5 Scope
@@ -108,8 +103,8 @@ In scope:
 - the message screens "Reading world data...", "Preparing Resources...", "Preparing for world
   creation..." and "Saving world";
 - the level loading screen;
-- the connect screen and the disconnected screen, for their texts and their order. Their mcrs
-  form is release 2, except the disconnected screen of TITLE-DISC-003;
+- the connect screen and the disconnected screen, for their texts and their order. The mcrs
+  subset has only the disconnected screen of TITLE-DISC-003;
 - the first screen after the start of the client;
 - "Quit Game".
 
@@ -198,8 +193,7 @@ Out of scope:
     are out of scope.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file, and for the icon size by the sprite files. Kind: layout. Confidence: medium. Experiment:
-TITLE-EXP-01.
+file, and for the icon size by the sprite files. Kind: layout. Confidence: medium.
 
 ### TITLE-SCR-002: Logo and edition
 
@@ -218,7 +212,7 @@ TITLE-EXP-01.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the texture sizes by the jar:
 `minecraft.png` and `minceraft.png` are 1024 × 256, `edition.png` is 512 × 64. Kind: layout.
-Confidence: medium. Experiment: TITLE-EXP-01.
+Confidence: medium.
 
 ### TITLE-SCR-003: Version text
 
@@ -229,11 +223,11 @@ Confidence: medium. Experiment: TITLE-EXP-01.
      `menu.modded`, " (Modded)".
   3. The text draws at (2, H − 10) in white with the alpha `ceil(α · 255)` and a shadow.
   4. The text is not a widget. A click on it does nothing.
-- **Postconditions:** for the pinned version, the text is "Minecraft 26.4 Snapshot 7", 131 wide,
-  at (2, 230).
+- **Postconditions:** for example, the version name "26.4 Snapshot 7" gives the text "Minecraft
+  26.4 Snapshot 7", 131 wide, at (2, 230).
 
 Provenance: `source_suggested`; `black_box_confirmed` for " (Modded)" by the language file.
-Kind: layout. Confidence: medium. Experiment: TITLE-EXP-01.
+Kind: layout. Confidence: medium.
 
 ### TITLE-SCR-004: Splash text
 
@@ -250,7 +244,7 @@ Kind: layout. Confidence: medium. Experiment: TITLE-EXP-01.
   5. It draws in the colour `FFFF00` with the alpha `α` and a shadow. Its top left is at
      (−tw / 2, −8) about the centre, before the turn and the scale.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-01.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TITLE-SCR-005: Draw order, keys and re-arrange
 
@@ -268,7 +262,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TI
      (WID-SCR-002, step 4). That title screen has no fade (TITLE-FADE-001).
 
 Provenance: `source_suggested`. Kind: layout for the order, semantic for the keys. Confidence:
-medium. Experiment: TITLE-EXP-01.
+medium.
 
 ### TITLE-SCR-006: Title screen (mcrs subset)
 
@@ -300,13 +294,12 @@ medium. Experiment: TITLE-EXP-01.
 - **Edge cases:** Escape on "Select World", on "Accessibility Settings" or on the options screen
   opens the title screen again (WID-SCR-002, step 2).
 
-Provenance: `design` for the set of widgets. The owner decided on 2026-11-14 that
-"Multiplayer", Realms, the splash, "Language..." and the copyright text do not show, and that the
-version text is the vanilla text. "Accessibility Settings" is in the set because
+Provenance: `design` for the set of widgets: "Multiplayer", Realms, the splash, "Language..."
+and the copyright text do not show, and the version text is the vanilla text. "Accessibility Settings" is in the set because
 mcrs has the screen of MENU-ACC-002 (`client-menu.md`, MENU-DEV-002). "Friends" is not in the
 set because mcrs has no friends list. `design` for the rows of step 3 to step 5: the rows keep
 the spacing 24 with no empty row. `source_suggested` for the sizes and the x positions. Kind:
-layout. Confidence: medium. Experiment: TITLE-EXP-01.
+layout. Confidence: medium.
 
 ### TITLE-SCR-007: mcrs notice (mcrs subset)
 
@@ -330,7 +323,8 @@ layout. Confidence: medium. Experiment: TITLE-EXP-01.
   7. The lines draw in white with the alpha `ceil(α · 255)` and a shadow, where TITLE-SCR-005,
      step 1, draws the widgets.
   8. The notice is not a widget. A click on it does nothing, and Tab does not focus it.
-- **Postconditions:** for the pinned version, `tv` = 131 and `L` = 181. The notice has five
+- **Postconditions:** for the version text of the example of TITLE-SCR-003, `tv` = 131 and
+  `L` = 181. The notice has five
   lines. At H = 240:
 
 | Line | Text | Width | Bounds at W = 427 | Bounds at W = 320 |
@@ -348,10 +342,9 @@ layout. Confidence: medium. Experiment: TITLE-EXP-01.
 - **Edge cases:** at the GUI scale 1, a window narrower than 320 window pixels gives W < 320.
   The lines can then overlap the version text, as the vanilla copyright text does.
 
-Provenance: `design`, owner decision of 2026-11-14 for the texts, their order, the right
-alignment, the bottom margin and the condition of step 4. `design` for the gap 4 and the break
-of step 3. The widths come from `client-font.md`. Kind: layout. Confidence: high. Experiment:
-none. Deviation: TITLE-DEV-001.
+Provenance: `design` for the texts, their order, the right alignment, the bottom margin and the
+condition of step 4. `design` for the gap 4 and the break of step 3. The widths come from
+`client-font.md`. Kind: layout. Confidence: high. Deviation: TITLE-DEV-001.
 
 ---
 
@@ -376,7 +369,7 @@ none. Deviation: TITLE-DEV-001.
 - **Postconditions:** at 60 frames each second, the widgets are invisible for 1 s. They then
   become visible during 1 s.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-02.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TITLE-FADE-002: Fade-in (mcrs subset)
 
@@ -390,9 +383,9 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TI
   5. Each draw of the title screen takes the alpha `α`, also the tooltip of a widget
      (TITLE-DEV-009).
 
-Provenance: `source_suggested`; `design` for steps 2 and 5. The owner decided on 2026-11-14 to keep
-step 4 as the game has it: a player who knows the screen can click before the widgets show.
-Kind: layout. Confidence: medium. Experiment: TITLE-EXP-02.
+Provenance: `source_suggested`; `design` for steps 2 and 5. Step 4 is the rule of the game: a
+player who knows the screen can click before the widgets show.
+Kind: layout. Confidence: medium.
 
 ---
 
@@ -417,8 +410,8 @@ Kind: layout. Confidence: medium. Experiment: TITLE-EXP-02.
     which is fully transparent. Thus the vanilla overlay changes no pixel.
 
 Provenance: `source_suggested` for steps 2 to 4; `black_box_confirmed` for the files and their
-sizes by the client jar and by the asset index 36 of the version. Kind: layout. Confidence:
-medium for steps 2 to 4, high for the files. Experiment: TITLE-EXP-03.
+sizes by the client jar and by the asset index of the version. Kind: layout. Confidence:
+medium for steps 2 to 4, high for the files.
 
 ### TITLE-PAN-002: Projection of the panorama
 
@@ -445,8 +438,7 @@ medium for steps 2 to 4, high for the files. Experiment: TITLE-EXP-03.
 - **Postconditions:** while `a` grows, the picture moves from the right to the left of the
   window.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium for step 4 and step 5, which
-TITLE-EXP-03 decides; medium for the rest. Experiment: TITLE-EXP-03.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TITLE-PAN-003: Spin of the panorama
 
@@ -468,7 +460,7 @@ The option "Panorama Scroll Speed" is `options.accessibility.panorama_speed`. It
 It is on the vanilla "Accessibility Settings" screen.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-03.
+file. Kind: layout. Confidence: medium.
 
 ### TITLE-PAN-004: Screens that draw the panorama
 
@@ -487,7 +479,7 @@ file. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-03.
   image (WID-SCR-004). Thus a screen with no world darkens the blurred panorama as a screen in a
   world darkens the blurred world.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-03.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TITLE-PAN-005: Panorama (mcrs subset)
 
@@ -501,7 +493,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TI
 
 Provenance: `design` for step 2, as `client-menu.md`, MENU-ACC-002, states. `design` for step 4:
 mcrs has no resource packs, so only a broken asset set has faces of different sizes.
-`source_suggested` for the rest. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-03.
+`source_suggested` for the rest. Kind: layout. Confidence: medium.
 
 ---
 
@@ -517,7 +509,7 @@ mcrs has no resource packs, so only a broken asset set has faces of different si
      of scope.
 - **Postconditions:** after a quick play, the title screen that shows later has no fade.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-04.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### TITLE-START-002: First screen of the mcrs client
 
@@ -527,8 +519,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   2. No start enters a world first. The player enters a world only from the screens of
      `client-world-screens.md`.
 
-Provenance: `design`, owner decision of 2026-11-14. Kind: semantic. Confidence: high.
-Experiment: none.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -548,9 +539,7 @@ Experiment: none.
   is 87 × 33 at (170, 116), and the text is at (182, 128).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. The box is 4 units below the centre. The owner decided on 2026-11-14 to keep this place,
-so that a differential test compares it. Kind: layout. Confidence: medium. Experiment:
-TITLE-EXP-05.
+file. The box is 4 units below the centre, as in the game. Kind: layout. Confidence: medium.
 
 ### TITLE-LOAD-002: Level loading screen
 
@@ -583,7 +572,7 @@ The colours of the map, as RGB:
 | terrain | `303572` | | |
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English text by the language
-file. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-05.
+file. Kind: layout. Confidence: medium.
 
 ### TITLE-LOAD-003: Close of the level loading screen
 
@@ -605,7 +594,7 @@ file. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-05.
     step 3 occurs.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. `dimension-change.md`,
-DIM-CHG-007, uses the same event 13. Experiment: TITLE-EXP-05.
+DIM-CHG-007, uses the same event 13.
 
 ### TITLE-LOAD-004: Entry into a local world in the vanilla client
 
@@ -623,11 +612,9 @@ DIM-CHG-007, uses the same event 13. Experiment: TITLE-EXP-05.
      close delay is 500 ms.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-05.
+file. Kind: semantic. Confidence: medium.
 
 ### TITLE-LOAD-005: Join of a server in the vanilla client
-
-This rule is the vanilla behaviour that release 2 builds.
 
 - **Inputs:** a join of a server, its parent screen, and the LOGIN packets.
 - **Behavior:**
@@ -649,8 +636,7 @@ This rule is the vanilla behaviour that release 2 builds.
   server..." is 134 wide at (146, 70).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic for the order, layout for the positions. Confidence: medium. Experiment:
-TITLE-EXP-06.
+file. Kind: semantic for the order, layout for the positions. Confidence: medium.
 
 ### TITLE-LOAD-006: Entry into a local world (mcrs subset)
 
@@ -671,7 +657,7 @@ TITLE-EXP-06.
   (TITLE-DEV-013).
 
 Provenance: `source_suggested`; `design` for step 1 (TITLE-DEV-011) and step 3 (TITLE-DEV-003). Kind: semantic.
-Confidence: medium. Experiment: TITLE-EXP-05.
+Confidence: medium.
 
 ---
 
@@ -692,7 +678,7 @@ Confidence: medium. Experiment: TITLE-EXP-05.
 - **Postconditions:** the client has no world. The panorama goes on from its angle before the
   world (TITLE-PAN-003, step 4).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-07.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### TITLE-LEAVE-002: Return to the title screen (mcrs subset)
 
@@ -706,9 +692,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - In a local world, the world folder holds the world as the server saved it.
   - The options file is not written (`client-menu.md`, MENU-SAVE-002).
 
-Provenance: `source_suggested` for step 1; `design` for step 2, because release 1 has no server
+Provenance: `source_suggested` for step 1; `design` for step 2, because mcrs has no server
 list (TITLE-DEV-004) and the frame between the two screens has no use for a player
-(TITLE-DEV-012). Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-07.
+(TITLE-DEV-012). Kind: semantic. Confidence: medium.
 
 ---
 
@@ -731,10 +717,10 @@ list (TITLE-DEV-004) and the frame between the two screens has no use for a play
      its parent, when the session joined a server. Else it is a title screen.
   6. Escape does nothing.
 - **Edge cases:** the buttons "Report to Server" and "Open Report Directory" can also show.
-  Release 2 owns them.
+  They are out of scope.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-08.
+file. Kind: semantic. Confidence: medium.
 
 ### TITLE-DISC-002: Layout of the disconnected screen
 
@@ -751,7 +737,7 @@ file. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-08.
 - **Postconditions:** at W = 427 and H = 240, with a one-line reason: the title is at y = 89,
   the reason is at y = 118, and a button of 200 × 20 is at (113, 139).
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-08.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### TITLE-DISC-003: Unrequested disconnect (mcrs subset)
 
@@ -766,9 +752,8 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TI
 - **Postconditions:** at W = 427 and H = 240, with a one-line reason, "Back to Title Screen" is
   at (113, 139).
 
-Provenance: `design` for step 2 to step 4, because release 1 has no server list
+Provenance: `design` for step 2 to step 4, because mcrs has no server list
 (TITLE-DEV-005). `source_suggested` for the layout. Kind: semantic. Confidence: medium.
-Experiment: TITLE-EXP-08.
 
 ### TITLE-DISC-004: Title of the disconnected screen (mcrs subset)
 
@@ -792,7 +777,7 @@ Experiment: TITLE-EXP-08.
 Provenance: `source_suggested` for steps 1 and 2. `design` for step 3: the vanilla client uses
 this text for a world that it cannot open, and it stops with a crash report for the other
 failures of a local start (TITLE-DEV-013). `black_box_confirmed` for the English texts by the
-language file. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-08.
+language file. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -807,7 +792,7 @@ language file. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-08.
 - **Postconditions:** the title screen is not an options screen or an option sub-screen. Thus
   the stop writes no options file (`client-menu.md`, MENU-SAVE-002).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: TITLE-EXP-09.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 mcrs keeps this rule.
 
 ---
@@ -816,7 +801,7 @@ mcrs keeps this rule.
 
 ### TITLE-PROP-001: Properties of the screens of this document
 
-- **Behavior:** these are the properties that `client-widget.md`, section 16, items 5 and 6,
+- **Behavior:** these are the properties that `client-widget.md`, section 16, items 4 and 5,
   leave open:
 
 | Screen | In-game screen | Background | Escape closes it | Re-arrange (WID-SCR-003) | Tab order group |
@@ -830,113 +815,7 @@ mcrs keeps this rule.
 - **Postconditions:** no screen of this document names an initial widget (WID-FOC-002, step 1).
   No screen of this document draws the separators of WID-SCR-006.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: TITLE-EXP-01.
-
----
-
-## 10. Experiments
-
-None of these experiments ran. Each one needs the game to start, and only the owner can accept
-its licence for a run. Each experiment uses the setup of `client-widget.md`, section 14: the
-vanilla client of the pinned version with the input agent of `tools/vanilla-client`, window
-pixels of 854 × 480, and the GUI scale 2. `tools/mcrs_minecraft_client_recorder` records each
-step. The agent needs a mode that starts the client with no server, for each experiment that
-starts on the title screen.
-
-### TITLE-EXP-01: Title screen
-
-1. Start the client with no quick play. Wait 3 s. Record the screenshot.
-2. Record the bounds of each widget, the logo, the edition and the two texts.
-3. Put the mouse on each icon button. Record its tooltip.
-4. Press Tab ten times. Record the focused widget after each key.
-5. Press Escape. Record that the title screen stays.
-6. Open "Options...", then press Escape. Record the focused widget. Change the GUI scale to 3
-   and back to 2. Record the splash text before and after.
-
-Decides: TITLE-SCR-001 to TITLE-SCR-005, TITLE-PROP-001, and the x positions of TITLE-SCR-006.
-
-### TITLE-EXP-02: Fade-in
-
-1. Start the client with no quick play. Record a screenshot in each frame of the first 3 s of
-   the title screen, with the time of each frame.
-2. Record the alpha of a pixel of the "Singleplayer" caption, of the logo and of the panorama.
-3. Start again. Click "Options..." 500 ms after the first frame. Record the screen that opens.
-4. Return to the title screen from a world. Record the alpha in the first frame.
-
-Decides: TITLE-FADE-001.
-
-### TITLE-EXP-03: Panorama
-
-1. Set "Panorama Scroll Speed" to 0. Start the client. Record the screenshot.
-2. Replace each face with a resource pack of six faces, each with its number and an arrow that
-   points up. Record the screenshot at the spin 0, 90, 180 and 270.
-3. Set the speed to 1. Record the screenshot each second for 10 s. Measure the angle per second.
-4. Open "Options...". Record that the panorama keeps its angle across the change of screen.
-5. Enter a world, wait 10 s, and leave it. Record the angle before and after.
-6. Give a face of another size. Record the screenshot.
-
-Decides: TITLE-PAN-001 to TITLE-PAN-004.
-
-### TITLE-EXP-04: First screen after a quick play
-
-1. Start the vanilla client with a quick play of a world. Record each screen up to the world.
-2. Leave the world. Record whether the title screen fades in.
-
-Decides: TITLE-START-001, and TITLE-FADE-001, step 1.
-
-### TITLE-EXP-05: Entry into a local world
-
-1. On "Select World", press "Play Selected World". Record a screenshot in each frame up to the
-   first frame of the world.
-2. Record the time of each change of screen, and the time of the PLAY `login` packet and of
-   `game_event` 13.
-3. On "Create New World", press "Create New World". Record each screen, and the time from the
-   close condition to the close.
-4. Record the bounds of the message box and of the text "Loading terrain...".
-
-Decides: TITLE-LOAD-001 to TITLE-LOAD-004, and steps 1 and 4 of TITLE-LOAD-006.
-
-### TITLE-EXP-06: Join of a server
-
-1. Start `tools/vanilla-server`. Join it from the server list. Record each status text with the
-   packet that came before it.
-2. Join a port with no server. Record the disconnected screen and the screen that its button
-   opens.
-3. Join, and press "Cancel" during "Logging in...". Record the screen that opens.
-
-Decides: TITLE-LOAD-005.
-
-### TITLE-EXP-07: Leave a world
-
-1. In a singleplayer world, press "Save and Quit to Title". Record each frame up to the title
-   screen.
-2. Join `tools/vanilla-server`, then press "Disconnect". Record each frame up to the next screen,
-   and the packets that the client sends.
-
-Decides: TITLE-LEAVE-001.
-
-### TITLE-EXP-08: Unrequested disconnect
-
-1. Join `tools/vanilla-server`. Run `kick` on the server console. Record the disconnected screen,
-   the bounds of its widgets, and the screen that its button opens.
-2. Stop the server process. Record the reason text.
-3. In a singleplayer world, open to LAN and kick the host from the console, if the game allows
-   it. Record the screens and the caption of the button.
-4. Run `kick` with a reason that has a colour and a bold part, for example
-   `kick @a {"text":"Red","color":"red","bold":true}`. Record the colours of the reason.
-5. Join an address where no server listens. Record the title of the disconnected screen.
-6. Hold a world with a second vanilla client, then press "Play Selected World" on it in the
-   first client. Record the toast and the screen that opens.
-
-Decides: TITLE-DISC-001, TITLE-DISC-002, TITLE-DISC-004.
-
-### TITLE-EXP-09: Quit Game
-
-1. On the title screen, change no option and press "Quit Game". Record the file time of
-   `options.txt`.
-2. Open "Options...", change FOV, press "Done", then press "Quit Game". Record the file time.
-
-Decides: TITLE-QUIT-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -972,7 +851,7 @@ Decides: TITLE-QUIT-001.
 
 - **Rule:** TITLE-LEAVE-002, step 2.
 - **Reference:** after a server, the server list opens (TITLE-LEAVE-001, step 5).
-- **Visible to the client:** yes, after "Disconnect" only. Release 2 adds the server list.
+- **Visible to the client:** yes, after "Disconnect" only. mcrs has no server list.
 - **Test:** a differential test does not compare the screen after "Disconnect".
 
 ### TITLE-DEV-005: The disconnected screen leads to the title screen
@@ -996,8 +875,7 @@ Decides: TITLE-QUIT-001.
 - **Rule:** TITLE-PAN-005, step 4.
 - **Reference:** each face shows the missing texture (TITLE-PAN-001, step 3).
 - **Visible to the client:** only with a broken asset set. mcrs has no resource packs, and the
-  faces of the asset index have one size. The rule of TITLE-PAN-001 comes with the resource
-  packs.
+  faces of the asset index have one size.
 - **Test:** none. The vanilla asset set has faces of one size.
 
 ### TITLE-DEV-008: The rare logo is picked once for each start
@@ -1006,8 +884,7 @@ Decides: TITLE-QUIT-001.
 - **Reference:** each title screen picks the logo when the client makes it (TITLE-SCR-002,
   step 2).
 - **Visible to the client:** in effect no. A player sees the other logo with the chance 0.0001
-  in each start, in place of each title screen. The vanilla rule comes when the title screen
-  keeps its own state for each title screen that opens.
+  in each start, in place of each title screen.
 - **Test:** a differential test does not compare the logo texture.
 
 ### TITLE-DEV-009: A tooltip fades with the title screen
@@ -1016,8 +893,7 @@ Decides: TITLE-QUIT-001.
 - **Reference:** the tooltip of a widget draws at full strength during the fade
   (TITLE-FADE-001, step 3).
 - **Visible to the client:** only when the player holds the mouse on a widget with a tooltip
-  during the first 2 s of the first title screen. The vanilla rule comes when the alpha of the
-  fade applies to each widget and not to the whole screen.
+  during the first 2 s of the first title screen.
 - **Test:** a differential test does not compare the tooltips during the fade.
 
 ### TITLE-DEV-010: The level loading screen does not test a dead player
@@ -1026,8 +902,7 @@ Decides: TITLE-QUIT-001.
 - **Reference:** the screen closes when the player is dead, also when the client cannot draw
   the section of the camera.
 - **Visible to the client:** only when the player joins a world as a dead player and the chunks
-  are slow. The client of this release does not keep the health of the player. The screen then
-  closes at the timeout of 30 s. The rule comes when the client keeps the health.
+  are slow. The screen then closes at the timeout of 30 s.
 - **Test:** a differential test does not join a world as a dead player.
 
 ### TITLE-DEV-011: No "Preparing Resources..." screen
@@ -1035,9 +910,8 @@ Decides: TITLE-QUIT-001.
 - **Rule:** TITLE-LOAD-006, step 1.
 - **Reference:** after "Reading world data...", "Preparing Resources..." shows while the client
   loads the data packs of the world (TITLE-LOAD-004, step 1).
-- **Visible to the client:** yes, for a short time. mcrs loads no data pack of a world in the
-  client. The local server reads the data packs. The screen comes with the data packs of a
-  world.
+- **Visible to the client:** yes, for a short time. The mcrs client loads no data pack of a
+  world. The local server reads the data packs.
 - **Test:** a differential test compares the order of the message screens and ignores
   "Preparing Resources...".
 
@@ -1057,8 +931,8 @@ Decides: TITLE-QUIT-001.
   and the title screen opens (`client-world-screens.md`, WORLD-DEV-009). For the other failures of a local start, the client stops with a
   crash report.
 - **Visible to the client:** only when a local world cannot start. The player sees the
-  disconnected screen and can go back to the title screen. mcrs has no toasts yet, and a crash
-  of the client is a defect for mcrs. The toast comes with the toasts.
+  disconnected screen and can go back to the title screen. mcrs has no toasts, and a crash of
+  the client is a defect for mcrs.
 - **Test:** a differential test does not compare a local start that fails.
 
 ### TITLE-DEV-014: The reason of the disconnected screen has no style
@@ -1067,13 +941,12 @@ Decides: TITLE-QUIT-001.
 - **Reference:** the reason keeps the colours and the styles of its text component
   (TITLE-DISC-002, step 3).
 - **Visible to the client:** only when the server sends a reason with a colour or a style. The
-  multi-line text widget of mcrs takes plain text. The styles come when that widget takes styled
-  text.
+  reason of mcrs is plain text.
 - **Test:** a differential test compares the plain text of the reason.
 
 ---
 
 ## 12. Unresolved
 
-1. Must a later release add the map of the chunk statuses and the progress bar to the level
-   loading screen (TITLE-DEV-003)? A question to the owner.
+1. Must the level loading screen of mcrs show the map of the chunk statuses and the progress bar
+   (TITLE-DEV-003)? A question to the owner.

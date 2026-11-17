@@ -55,7 +55,7 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "culls, shades and lights each quad of each block in one pass over the section, with the face, ambient and fluid decisions inline"
+    reason = "one pass keeps the face, ambient and fluid decisions inline"
 )]
 pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
     for group in scratch.models_by_pass.iter_mut().flatten() {

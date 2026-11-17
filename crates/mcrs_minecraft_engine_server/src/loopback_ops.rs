@@ -95,7 +95,7 @@ mod tests {
     }
 
     #[test]
-    fn loop_grant_001_a_loopback_join_on_local_makes_an_owner_without_the_limit_exception() {
+    fn loop_grant_001_loopback_join_on_local_makes_an_owner() {
         let mut app = server(Some(ServerProfile::Local));
         let op = hello_from(&mut app, "127.0.0.1:50000", "Local").unwrap();
         assert_eq!(op.level, PlayerOpLevel::MAX);

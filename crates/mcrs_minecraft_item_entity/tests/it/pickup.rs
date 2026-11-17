@@ -4,7 +4,7 @@ use mcrs_minecraft_item_entity::pickup_box;
 use mcrs_minecraft_physics::Aabb;
 
 #[test]
-fn ien_pck_001_a_standing_player_reaches_1_40_but_not_1_45_and_2_15_up_but_not_2_30() {
+fn ien_pck_001_standing_player_pickup_reach_bounds() {
     let feet = DVec3::new(0.5, -60.0, 0.5);
     let reach = pickup_box(Aabb::of_body(feet, 0.6, 1.8), None);
     let cases = [

@@ -1759,7 +1759,7 @@ mod tests {
     }
 
     #[test]
-    fn cbk_prd_007_a_predicted_block_takes_the_server_state_only_at_its_acknowledgement() {
+    fn cbk_prd_007_predicted_block_takes_state_at_acknowledgement() {
         let mut app = App::new();
         app.init_resource::<ColumnStore>()
             .init_resource::<Arrivals>()

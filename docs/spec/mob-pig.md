@@ -1,17 +1,13 @@
 # The pig of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Entity type | `minecraft:pig` |
+Version: see `assets/minecraft/version.json`.
 
-Source of the game values: `assets/minecraft/version.json`.
+Entity type: `minecraft:pig`.
 
 This document states what the client draws for a pig: the geometries, the textures of each
 variant, the pose in each frame and the saddle layer. It also states how the oracle artefacts
 of the entity models, the keyframe clips and the poses become files of the entity pack.
-`mob-frog.md` uses these artefact rules. The document does not prescribe an architecture.
+`mob-frog.md` uses these artefact rules.
 
 ## 0. Conventions
 
@@ -55,8 +51,6 @@ of the entity models, the keyframe clips and the poses become files of the entit
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The label `design` of `entity-geometry.md`, section 0.2,
 applies.
-
-Each rule has a line **Milestone**, with the values of `entity-geometry.md`, section 0.2.
 
 ### 0.3 ID prefixes
 
@@ -121,10 +115,7 @@ is out of scope, except where `client-entities.md` states it.
 Provenance: `source_suggested_black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_models.json`: the cube `faces` of
 each layer entry give the vertices and the texture coordinates of the box UV). Kind: semantic.
-Confidence: high. Milestone: 1. Experiment: convert the layer entry `minecraft:pig` / `main`.
-Bake it with `entity-geometry.md`, EGEO-BAKE-001. Convert each baked vertex back to artefact
-space with postcondition 1. Find the artefact face by its `internal_direction`. Each vertex
-and each texture coordinate agree with the `faces` of the artefact within `1e-4`.
+Confidence: high.
 
 ### MPIG-ART-002: A clip entry becomes a clip
 
@@ -149,7 +140,7 @@ and each texture coordinate agree with the `faces` of the artefact within `1e-4`
 Provenance: `source_suggested_black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_animations.json`, with the units
 in its `units` object; `entity_poses.json`, the cases of `minecraft:frog`). Kind: semantic.
-Confidence: medium. Milestone: 2.
+Confidence: medium.
 
 ### MPIG-ART-003: A pose case is a parity test
 
@@ -192,7 +183,7 @@ Confidence: medium. Milestone: 2.
 Provenance: `design` (the tolerance and item 7: the artefact gives the state of each clip, not
 the pose of the entity); `black_box_confirmed` for the content
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -226,9 +217,7 @@ Provenance: `black_box_confirmed` for the indices and the wire types
 `minecraft:pig`; the type ids are those of the entity data codec of
 `crates/mcrs_minecraft_protocol_game/src/entity.rs`); `source_suggested` for the defaults and
 item 3. Kind: wire for the indices and the types; semantic for the defaults. Confidence:
-medium. Milestone: 1. Experiment: summon a pig with no variant and a pig with the variant
-`minecraft:cold` on the vanilla server. Capture the add entity and set entity data packets.
-The first pig has no entry 19. The second has entry 19 with the id of `minecraft:cold`.
+medium.
 
 ---
 
@@ -260,7 +249,7 @@ The first pig has no entry 19. The second has entry 19 with the id of `minecraft
 
 Provenance: `black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_models.json`). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ---
 
@@ -287,7 +276,7 @@ Confidence: high. Milestone: 1.
 
 Provenance: `black_box_confirmed` (the client jar, `data/minecraft/pig_variant/temperate.json`,
 `warm.json` and `cold.json`; the textures under `assets/minecraft/textures/entity/pig/`). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### MPIG-VAR-002: Selection of the geometry and the texture
 
@@ -302,10 +291,7 @@ semantic. Confidence: high. Milestone: 1.
 
 - **Postconditions:** a warm pig uses `geometry.pig`. A cold baby uses `geometry.pig.baby`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
-summon one pig of each variant, as an adult and as a baby, on the vanilla server. Take a
-screenshot of each with the vanilla client. Compare the shape of the body and the texture with
-the table.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### MPIG-VAR-003: A variant that the client does not know
 
@@ -322,8 +308,7 @@ the table.
   know.
 
 Provenance: `design` (the reference cannot receive an unknown id). Kind: semantic. Confidence:
-medium. Milestone: 1. Experiment: none is possible with the vanilla server, because it sends
-only known ids. Use a unit test.
+medium.
 
 ---
 
@@ -353,7 +338,7 @@ Provenance: `source_suggested_black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`: each case of
 `minecraft:pig`, `minecraft:cold_pig`, `minecraft:pig_baby` and the layer `saddle` agrees with
 the table within `2.37e-5` radians, with the constants `38.1704` and `80.2141`). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### MPIG-ANIM-002: The head
 
@@ -366,7 +351,7 @@ semantic. Confidence: high. Milestone: 1.
 
 Provenance: `source_suggested_black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### MPIG-ANIM-003: The play list
 
@@ -382,7 +367,7 @@ Provenance: `source_suggested_black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`: the body rotation of
 each case is the rest rotation of its layer entry, `(π/2, 0, 0)` for `minecraft:pig`,
 `minecraft:cold_pig` and the layer `saddle`, and `(0, 0, 0)` for `minecraft:pig_baby`). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ---
 
@@ -407,9 +392,7 @@ semantic. Confidence: high. Milestone: 1.
   `assets/minecraft/textures/entity/equipment/pig_saddle/saddle.png`.
 
 Provenance: `source_suggested` (the client jar, `assets/minecraft/equipment/saddle.json`, for
-the asset). Kind: semantic. Confidence: medium. Milestone: 1. Experiment: put a saddle on an
-adult pig and on a baby pig on the vanilla server. The vanilla client shows the saddle only on
-the adult.
+the asset). Kind: semantic. Confidence: medium.
 
 ---
 
@@ -438,95 +421,7 @@ the adult.
 Provenance: `black_box_confirmed` for the width, the height, the eye height, the update
 interval and the fire immunity (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json`,
 the type `minecraft:pig`); `source_suggested` for the other values. Kind: semantic.
-Confidence: medium. Milestone: 1. Experiment: place a pig on a flat surface in the vanilla
-client. Measure the diameter of the shadow in a screenshot from above. It is 1.4 blocks.
-
----
-
-## 8. Reference content (informative)
-
-This section shows one entity pack content that satisfies the rules above. It is not a rule.
-The textures come from registry data through `q.variant_asset` and `q.equipment_texture`
-(`molang-queries.md`, MOLQ-STATE-002; `client-entity-definition.md`, CENT-RC-007).
-
-`assets/mcrs/entity/entity/pig.entity.json`:
-
-```json
-{
-  "format_version": "1.10.0",
-  "minecraft:client_entity": {
-    "description": {
-      "identifier": "minecraft:pig",
-      "materials": { "default": "entity_alphatest" },
-      "geometry": {
-        "default": "geometry.pig",
-        "cold": "geometry.pig.cold",
-        "baby": "geometry.pig.baby",
-        "saddle": "geometry.pig.saddle"
-      },
-      "animations": {
-        "walk": "animation.pig.walk",
-        "look_at_target": "animation.pig.look_at_target"
-      },
-      "scripts": { "animate": ["walk", "look_at_target"] },
-      "render_controllers": [
-        "controller.render.pig",
-        { "controller.render.pig_saddle": "q.equipment_texture('saddle', 'pig_saddle') != '' && !q.is_baby" }
-      ]
-    }
-  }
-}
-```
-
-`assets/mcrs/entity/render_controllers/pig.render_controllers.json`:
-
-```json
-{
-  "format_version": "1.8.0",
-  "render_controllers": {
-    "controller.render.pig": {
-      "geometry": "q.is_baby ? Geometry.baby : (q.variant_model == 'cold' ? Geometry.cold : Geometry.default)",
-      "materials": [{ "*": "Material.default" }],
-      "textures": [
-        "q.variant_asset != '' ? q.variant_asset : 'mcrs:missing'"
-      ]
-    },
-    "controller.render.pig_saddle": {
-      "geometry": "Geometry.saddle",
-      "materials": [{ "*": "Material.default" }],
-      "textures": ["q.equipment_texture('saddle', 'pig_saddle')"]
-    }
-  }
-}
-```
-
-`assets/mcrs/entity/animations/pig.animation.json`:
-
-```json
-{
-  "format_version": "1.8.0",
-  "animations": {
-    "animation.pig.walk": {
-      "loop": true,
-      "bones": {
-        "right_hind_leg": { "rotation": ["math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] },
-        "left_front_leg": { "rotation": ["math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] },
-        "left_hind_leg": { "rotation": ["-math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] },
-        "right_front_leg": { "rotation": ["-math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] }
-      }
-    },
-    "animation.pig.look_at_target": {
-      "loop": true,
-      "bones": {
-        "head": { "rotation": ["q.target_x_rotation", "q.target_y_rotation", 0] }
-      }
-    }
-  }
-}
-```
-
-The identifier `mcrs:missing` has no image. It selects the missing texture for a variant that
-the client does not know (MPIG-VAR-003).
+Confidence: medium.
 
 ---
 
@@ -539,7 +434,6 @@ the client does not know (MPIG-VAR-003).
   artefact, the leg rotations of the reference differ from the exact walk swing by at most
   `2.37e-5` radians.
 - **Visible to the client:** no.
-- **Test:** the tolerance of MPIG-ART-003 covers the difference.
 
 ### MPIG-DEV-002: The time of a clip in whole milliseconds
 
@@ -547,18 +441,16 @@ the client does not know (MPIG-VAR-003).
 - **Reference:** the pose of a keyframe clip in the reference is the pose at the clip time
   truncated to a whole millisecond.
 - **Visible to the client:** no. The difference is less than `0.001` s.
-- **Test:** MPIG-ART-003, item 6, gives the truncated time to the client. Without the
-  truncation, a fast channel differs by up to `0.007` in the frog cases.
 
 ---
 
-## 10. Open questions
+## 10. Unresolved
 
 1. The pose artefact has no case for the head of a riding pig or for the names that turn an
    entity upside down. `client-entity-render.md` states these.
 2. No oracle artefact records the client state of a pig tick by tick: the interpolation, the
    body yaw and the walk accumulator of `client-entities.md`. The oracle has no client world
-   without a running game client. The experiments of `client-entities.md` stay proposals.
+   without a running game client.
 3. The clip identifiers of the clip artefact come from the dump task. The names are labels of
    this repository, for example `frog/croak`. A rename in a later game version changes the
    identifier of a clip.

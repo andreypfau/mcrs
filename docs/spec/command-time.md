@@ -2,12 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `brigadier:float` 1, `minecraft:resource_location` 36, `minecraft:time` 43, `minecraft:resource` 46 |
 | Packet | PLAY, clientbound, `set_time`, id 115 |
 
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
+Source of the parser ids:
 `assets/mcrs/reports/registries.json`, registry `minecraft:command_argument_type`. Source of the
 packet id: `assets/mcrs/reports/packets.json`.
 
@@ -567,7 +566,7 @@ medium. Experiment: as an operator in the overworld, send `time set foo:bar`. Th
 
 ---
 
-## Open questions
+## Unresolved
 
 - **Negative total ticks.** The commands never make the total ticks negative. A save can hold
   negative total ticks, because the save format accepts any 64-bit value. The results of

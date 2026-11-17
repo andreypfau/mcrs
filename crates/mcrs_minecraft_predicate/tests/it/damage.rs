@@ -147,7 +147,7 @@ fn the_fields_of_a_damage_source_predicate_test_the_source_pred_dmg_001_to_003()
 }
 
 #[test]
-fn an_entity_predicate_of_a_damage_source_predicate_has_the_bound_of_nesting_pred_ent_023() {
+fn damage_source_entity_predicate_has_nesting_bound_pred_ent_023() {
     let mut nested = "{}".to_owned();
     for _ in 1..33 {
         nested = format!(r#"{{"vehicle": {nested}}}"#);

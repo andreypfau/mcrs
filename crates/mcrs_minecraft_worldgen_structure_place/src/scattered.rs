@@ -74,7 +74,7 @@ impl DesertPyramidBlocks {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "paints the pyramid's shell, chambers, floor pattern and chests as one run of canvas calls in the reference's order, so it reads against it"
+    reason = "one run of canvas calls in the reference's order"
 )]
 pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     b: &DesertPyramidBlocks,

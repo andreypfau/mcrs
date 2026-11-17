@@ -1,10 +1,6 @@
 # Experience: player points, experience orbs and experience drops
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| World version (`DataVersion`) | `5127` |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the experience of a player: the stored values, the level formula and the
 operations that add points. It states the experience orb: its value, its spawn, its motion, its
@@ -13,9 +9,6 @@ and a player drop on death. It states the packets that a client sees and the dat
 
 Mending is out of scope. A pickup always gives the whole value of the orb to the points of the
 player (XP-PCK-004).
-
-No experiment ran for this document. Each rule comes from the reference implementation and from
-public documentation. Section 15 lists the proposed experiments.
 
 ## 0. Conventions
 
@@ -65,10 +58,6 @@ Each rule has an ID with the prefix `XP`. The second part names the section.
 | `XP-NET` | the packets that a client sees |
 | `XP-SAV` | the data that a save keeps |
 | `XP-DEV` | intentional deviations |
-
-### 0.4 Scope
-
-This document states the rules above. Section 13 lists the subjects that are out of scope.
 
 ### 0.5 Artefacts cited
 
@@ -185,8 +174,7 @@ in the first 100 ticks of a player entity plays no sound. Section 14.2 lists thi
 
 **XP-ADD-005** (`source_suggested`, semantic, confidence: high). The sources of points that this
 document states are the pickup of an orb (XP-PCK-003) and the operations of XP-ADD-001 to
-XP-ADD-003. Each other source spawns an orb or calls the operation "add points". Section 13 lists
-these sources.
+XP-ADD-003. Each other source spawns an orb or calls the operation "add points".
 
 ## 4. Value of an orb and split of an amount
 
@@ -529,19 +517,6 @@ fields:
 A `Count` that is 0 or less is read as 1. The merge group is not saved, because it follows from the
 network id (XP-SPN-002). An orb with the value 0 gives 0 points in a pickup.
 
-## 13. What this document does not state
-
-| Subject | Reason |
-|---------|--------|
-| Mending, and the repair of an item from the value of an orb | Out of scope (XP-PCK-004). |
-| The experience bottle, the furnace, the grindstone, the breeding orb, villager and trader orbs, fishing, the fox, the turtle, the ender dragon and the sculk catalyst | Each is a source that calls the spawn or the add. The spec of its domain states the amount. |
-| The cost of an enchantment, and the enchantment seed in use | The enchanting spec states them. |
-| The scoreboard criteria `xp` and `level`, and the death screen score | The scoreboard spec states them. |
-| The command syntax and the messages of the experience command | A command spec states them (XP-ADD-003). |
-| The texture of an orb, and the client sound and particle details | The client renders them from the value. |
-| The experience of the death of a boss, and the experience that a player can take by other items | Out of scope. |
-| The order of the death of a player and the screen of death | `entity-damage.md` and the respawn spec. |
-
 ## 14. Intentional deviations, open points and unresolved items
 
 ### 14.1 Intentional deviations
@@ -555,41 +530,14 @@ No entry. The reference behaviours that this document does not copy are in the u
 - **U2**: The total is not a function of the level (XP-STA-002). The owner decides whether a set of
   the level must change the total.
 - **U3**: The exact search that moves an orb out of a solid block at the spawn (XP-SPN-002 step 5).
-  The experiment E7 decides it.
+ 
 - **U4**: The invulnerabilities of an orb, and the time that an orb survives in lava or fire
-  (XP-ORB-005). The experiment E6 decides it.
+  (XP-ORB-005).
 - **U5**: The values of `need(level)` for a level above about 238 million. The reference uses 32-bit
   arithmetic there. This document states no result.
-- **U6**: The reference has more than one call that drops the experience of a dying player. One
-  experiment (E4) must show that a player drops the reward one time.
+- **U6**: The reference has more than one call that drops the experience of a dying player. The reward must drop one time for a player.
 - **U7**: The eye of the orb is 0.425 above its box bottom (XP-ORB-001). This is the default eye
-  height of an entity that has no own value. The experiment E8 confirms it.
+  height of an entity that has no own value.
 - **U8**: The reference lets the orb keep a followed player that is dying, until that player is
   removed (XP-ATT-001). The effect is small, because the orbs of that death keep no such player.
   The owner decides whether a dying player must stop the attraction.
-
-### 14.3 Reference behaviour that this document does not copy
-
-- A baby zombie that has its reward computed two times gives 2.5 times 2.5 times the base value
-  from the second call. The reward is computed once for a death, so no rule is needed.
-- The sculk catalyst computes the reward before the drop, and the random parts can differ from the
-  drop. This is out of scope.
-
-## 15. Experiments
-
-No experiment ran. Each experiment needs a vanilla server, and the first six need a player that the
-input agent of `tools/vanilla-client` plays.
-
-| ID | Steps | Rules |
-|----|-------|-------|
-| E1 | Set the level 0. Run `experience add @s 7 points`. Record `set_experience`. Repeat with 100, 1000 and -3 points. Record the progress as f32 bytes, the level and the total. | XP-ADD-001, XP-NET-001, XP-LVL-001 |
-| E2 | Run `experience set @s 5 levels`, then `experience add @s 3 levels`, then `experience add @s -9 levels`. Record the packets and `XpTotal`. | XP-ADD-002, XP-STA-002 |
-| E3 | Summon one zombie with `NoAI` next to a player. Kill it with `damage` as that player. Count the orbs, and record the values. Repeat 50 times for the distribution of the reward. Repeat with a baby zombie, a zombie that wears a helmet, a chicken and a slime of size 4. | XP-DRP-002, XP-DRP-003, XP-VAL-001 |
-| E4 | Set the level 10, then kill the player with `keep_inventory` false. Record the orbs. Repeat with level 50, `keep_inventory` true, and spectator mode. | XP-DRP-005, XP-DRP-006, U6 |
-| E5 | Summon an orb with `Value:7s` and `Count:3` at the feet of a player. Record the ticks of the three `take_item_entity` packets and the `set_experience` packets. | XP-PCK-001 to XP-PCK-003 |
-| E6 | Summon an orb in lava, in a cactus, in fire and near a TNT blast. Record the tick of `remove_entities`. | XP-ORB-005, U4 |
-| E7 | Summon an orb with the box inside a block and with a velocity of 0. Record its positions in the first 10 ticks. | XP-SPN-002, XP-ORB-001 |
-| E8 | Drop an orb into 2 blocks of water. Record its positions in 40 ticks. Compare with the model of XP-ORB-001 and XP-ORB-002 for the eye height 0.425. | XP-ORB-001, U7 |
-| E9 | Place 100 orbs of the value 1 in one block, one after another, with an amount of 1 each time and with an amount of 100 in one spawn. Wait 60 ticks and count the orbs. | XP-SPN-001, XP-MRG-001, XP-MRG-002 |
-| E10 | Summon an orb at 7.9 blocks from a player and record its velocity in 10 ticks. Repeat at 8.1 blocks. | XP-ATT-001, XP-ATT-002 |
-| E11 | Save a player with `XpP:0.5f`, `XpLevel:3`, `XpTotal:20`, `XpSeed:5` and `Score:9`. Load it, and record the packet and the data after a save. | XP-SAV-001 |

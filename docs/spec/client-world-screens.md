@@ -1,21 +1,9 @@
 # Singleplayer world screens of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| World version (`DataVersion`) | `5127` |
-| Version series | `main` |
-| Stable version | no |
-
-Source of these values: `assets/minecraft/version.json`, fields `id`, `name`, `world_version`,
-`series_id` and `stable`.
-
 This document states the singleplayer screens of the vanilla client: "Select World", "Create New
 World" and the confirmation of a delete. It states the folders and the files that these screens
 read and write, and what they give to the entry into a world. For each screen it states the mcrs
-subset of this release. The owner decided on 2026-11-14 that this release has the title screen,
-the world list and the creation of a world, and that "Singleplayer" opens "Select World". The
-document uses the terms of `client-widget.md`, `client-list.md`, `client-edit-box.md`,
+subset. The document uses the terms of `client-widget.md`, `client-list.md`, `client-edit-box.md`,
 `client-menu.md` and `client-title-screen.md`, and cites their rules. It does not prescribe an
 architecture.
 
@@ -48,8 +36,11 @@ architecture.
   (WORLD-DIR-002).
 - **Entry**: a row of the world list that shows one summary (section 3).
 - **Unreadable world**: a world folder whose summary the client cannot read (WORLD-DIR-003).
+- **Client version**: the version of `assets/minecraft/version.json`. Its world version is the
+  field `world_version`, its version series `series_id`, its version name `name`, and it is
+  stable when `stable` is true.
 - **Incompatible world**: in mcrs, a world folder whose `DataVersion` is not the world version of
-  the header (WORLD-DIR-004).
+  the client version (WORLD-DIR-004).
 - **Disabled entry**: an entry whose world the player cannot start from the list.
 - **Selection key**: Enter, Space or keypad Enter. **Confirmation key**: Enter or keypad Enter.
 - **World preset**: an entry of the registry `minecraft:worldgen/world_preset` of the data pack.
@@ -61,7 +52,7 @@ section "Semantics, not accidents". The language keys and their English texts ar
 `assets/minecraft/lang/en_us.json` of the client jar. The sprites are in
 `assets/minecraft/textures/gui/sprites/` of the client jar. The world preset tags are in
 `data/minecraft/tags/worldgen/world_preset/` of the data pack. The choice of a key, a sprite or a
-tag for a widget comes from the reference. No experiment of section 13 ran.
+tag for a widget comes from the reference. No experiment ran.
 
 A rule is `black_box_confirmed` for an English text, a sprite size or a tag only where the pinned
 artefact itself is the evidence. The rule names that artefact.
@@ -74,7 +65,7 @@ client, the vanilla server or mcrs.
 
 The arithmetic of `client-widget.md`, section 0.3, applies: `a / b`, `a % b`, `trunc`, `floor`,
 `round` and `lerp`. `tw` is the width of a text in GUI units, as `client-font.md` states. Each
-example uses W = 427 and H = 240, as in the setup of `client-widget.md`, section 14.
+example uses W = 427 and H = 240, with the window of 854 × 480 pixels and the GUI scale 2.
 
 `i32` and `i64` are the signed integers of 32 and 64 bits in two's complement. A wrap to `i32`
 keeps the low 32 bits.
@@ -97,7 +88,6 @@ keeps the low 32 bits.
 | `WORLD-SEED` | the seed that the text of the seed box gives |
 | `WORLD-WRITE` | what "Create New World" writes, and the next screen |
 | `WORLD-PROP` | the properties of each screen that `client-widget.md` leaves open |
-| `WORLD-EXP` | experiments |
 | `WORLD-DEV` | intentional deviations |
 
 ### 0.5 Scope
@@ -173,7 +163,7 @@ Out of scope:
   which is out of scope.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English text by the language file.
-Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
+Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-002: Fields of a summary
 
@@ -209,7 +199,7 @@ Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
 - **Postconditions:** the client reads no other field for the list. A `level.dat` with more
   fields than this table is not unreadable.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-003: Unreadable world in the vanilla client
 
@@ -226,7 +216,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** the player can delete an unreadable world.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
+file. Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-004: Saves folder and summaries (mcrs subset)
 
@@ -246,8 +236,8 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
      It ignores the compounds `Data.Player` and `Data.WorldGenSettings`.
   6. WORLD-DIR-003, steps 1 to 3, apply. "Play Selected World" is not active for an unreadable
      world (WORLD-LIST-006).
-  7. A world whose world version is not the world version of the header is an incompatible
-     world. Its storage version 19132 also makes it incompatible.
+  7. A world whose world version is not the world version of the client version is an
+     incompatible world. Its storage version 19132 also makes it incompatible.
   8. An experimental world is an incompatible world (WORLD-DEV-006).
 
 | Platform | Default game directory |
@@ -263,12 +253,10 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-02.
     mcrs does not convert it and does not write to it.
 - **Edge cases:** a world folder that is a symbolic link is a world folder. No warning shows.
 
-Provenance: `design` for steps 1 and 2: owner decision of 2026-11-14. `design` for step 7: mcrs
-has no datafixer, and a `DataVersion` mismatch is a loud error (project instruction). `design`
-for step 8: owner decision of 2026-11-14. `design` for step 4: owner decision of 2026-11-14 that
-this release builds the lock of a world folder, so the vanilla behaviour applies
-(`client-menu.md`, MENU-DEV-002). `source_suggested` for the rest. Kind: semantic. Confidence:
-medium. Experiment: WORLD-EXP-02, WORLD-EXP-10.
+Provenance: `design` for steps 1, 2 and 8. `design` for step 7: mcrs has no datafixer, and a
+`DataVersion` mismatch is a loud error. `design` for step 4: mcrs has the lock of a world folder,
+so the vanilla behaviour applies (`client-menu.md`, MENU-DEV-002). `source_suggested` for the rest. Kind: semantic. Confidence:
+medium.
 
 ---
 
@@ -316,7 +304,7 @@ medium. Experiment: WORLD-EXP-02, WORLD-EXP-10.
 - **Edge cases:** the title is at `x = 113 + trunc((200 − tw) / 2)` when `tw` ≤ 200.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
+file. Kind: layout. Confidence: medium.
 
 ### WORLD-LIST-002: Active state of the buttons
 
@@ -335,7 +323,7 @@ file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
 - **Postconditions:** a press on an inactive button does nothing (`client-widget.md`,
   WID-BTN-003).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-LIST-003: Load of the list
 
@@ -356,8 +344,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   world opens "Create New World".
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English text by the language file.
-Kind: semantic for steps 1, 3, 4 and 5, layout for step 2. Confidence: medium. Experiment:
-WORLD-EXP-02.
+Kind: semantic for steps 1, 3, 4 and 5, layout for step 2. Confidence: medium.
 
 ### WORLD-LIST-004: Order and search
 
@@ -376,7 +363,7 @@ WORLD-EXP-02.
 - **Postconditions:** `q = "WORLD"` shows a world with the name "My world" and a world with the
   folder id `world_2`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-03.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-LIST-005: Keys, focus and close of "Select World"
 
@@ -390,7 +377,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      summaries again.
 - **Postconditions:** a player can type into the search box at once after the screen opens.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-LIST-006: Select World (mcrs subset)
 
@@ -410,12 +397,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Postconditions:** at W = 427 and H = 240, "Delete" is at (138, 212) and "Back" is at
   (296, 212). The cells at (59, 212) and (217, 212) are empty.
 
-Provenance: `design` for step 1. The owner decided on 2026-11-14 that "Singleplayer" opens
-"Select World". `design` for steps 2 to 4 (`client-menu.md`, MENU-DEV-002): mcrs has no "Edit
+Provenance: `design` for step 1. `design` for steps 2 to 4 (`client-menu.md`, MENU-DEV-002): mcrs has no "Edit
 World" screen, no re-create and no recovery screen. `design` for the empty cells of step 3:
-owner decision of 2026-11-14. A widget that is not in the subset leaves its cell empty, and the
+a widget that is not in the subset leaves its cell empty, and the
 other widgets keep their vanilla bounds. `source_suggested` for the rest. Kind: layout.
-Confidence: medium. Experiment: WORLD-EXP-01.
+Confidence: medium.
 
 ### WORLD-LIST-007: Error screen of a saves folder that the client cannot read
 
@@ -438,8 +424,7 @@ Confidence: medium. Experiment: WORLD-EXP-01.
   - At W = 427 and H = 240, "Cancel" is at (113, 140).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout for steps 2, 3 and 5, semantic for the rest. Confidence: medium. Experiment:
-WORLD-EXP-02.
+file. Kind: layout for steps 2, 3 and 5, semantic for the rest. Confidence: medium.
 
 ---
 
@@ -467,7 +452,7 @@ WORLD-EXP-02.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the texture
 `assets/minecraft/textures/misc/unknown_server.png` of the client jar. Kind: layout. Confidence:
-medium. Experiment: WORLD-EXP-01.
+medium.
 
 ### WORLD-ENTRY-002: Info line and disabled entries
 
@@ -478,7 +463,7 @@ medium. Experiment: WORLD-EXP-01.
         Minecraft.", in `FFFF5555`;
      2. a storage version 19132: `selectWorld.conversion`, "Must be converted!", in
         `FFFF5555`;
-     3. a version series that is not the version series of the header:
+     3. a version series that is not the version series of the client version:
         `selectWorld.incompatible.info`, "Incompatible version: %s", with the version name, in
         `FFFF5555`;
      4. else the parts of step 2.
@@ -493,7 +478,7 @@ medium. Experiment: WORLD-EXP-01.
   3. An empty version name shows `selectWorld.versionUnknown`, "unknown".
   4. The version name is italic when the world needs a backup question (WORLD-PLAY-001, step
      3). It is in `FFFF5555` when the world version is newer than the world version of the
-     header.
+     client version.
   5. A part with no colour of its own is in `FF808080`.
   6. A disabled entry is a locked world, a world with the storage version 19132, or a world of
      another version series.
@@ -501,7 +486,7 @@ medium. Experiment: WORLD-EXP-01.
   Mode, Version: 26.4 Snapshot 7".
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
+file. Kind: layout. Confidence: medium.
 
 ### WORLD-ENTRY-003: Overlay of the icon
 
@@ -530,8 +515,7 @@ file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the sprites in
 `assets/minecraft/textures/gui/sprites/world_list/` of the client jar (each 32 × 32 pixels) and
-for the English texts by the language file. Kind: layout. Confidence: medium. Experiment:
-WORLD-EXP-01.
+for the English texts by the language file. Kind: layout. Confidence: medium.
 
 ### WORLD-ENTRY-004: Input on an entry
 
@@ -545,7 +529,7 @@ WORLD-EXP-01.
   4. A press of another button on an entry does nothing.
 - **Postconditions:** one press on the icon of a world starts it. No double click is needed.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-01.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-ENTRY-005: Entries (mcrs subset)
 
@@ -576,7 +560,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   4. The disabled entries are the locked worlds, the incompatible worlds and the unreadable
      worlds. A hardcore world is not disabled.
   5. No world needs a backup question, because each world that starts has the world version of
-     the header.
+     the client version.
 - **Postconditions:**
   - A world of 1.21.4 shows "Incompatible version: 1.21.4" in red, and "Play Selected World" is
     not active for it. "Delete" is active for it.
@@ -587,12 +571,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     time, not the time in UTC.
   - A world with `GameType` 7 shows "Survival Mode" (WORLD-DIR-002).
 
-Provenance: `design` for step 2: owner decision of 2026-11-14 (WORLD-DEV-007). `design` for
-step 1: the world list of this release draws one texture and the text lines of each row
-(WORLD-DEV-010). `design` for steps 3 to 5 (WORLD-DIR-004, steps 4, 7 and 8). The locked world
-follows the vanilla rule, because mcrs has the lock (`client-menu.md`, MENU-DEV-002). The hardcore
-world starts by the owner decision of 2026-11-14 (WORLD-DEV-008). `source_suggested` for the rest.
-Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01, WORLD-EXP-10.
+Provenance: `design` for step 2 (WORLD-DEV-007). `design` for step 1 (WORLD-DEV-010). `design` for steps 3 to 5 (WORLD-DIR-004, steps 4, 7 and 8). The locked world
+follows the vanilla rule, because mcrs has the lock (`client-menu.md`, MENU-DEV-002). A hardcore
+world starts (WORLD-DEV-008). `source_suggested` for the rest.
+Kind: layout. Confidence: medium.
 
 ---
 
@@ -623,7 +605,7 @@ Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01, WORLD-EXP-10.
 - **Postconditions:** a world of the pinned version that is not experimental shows no question.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the keys by the language file. Kind:
-semantic. Confidence: medium. Experiment: WORLD-EXP-04.
+semantic. Confidence: medium.
 
 ### WORLD-PLAY-002: Play Selected World (mcrs subset)
 
@@ -647,10 +629,8 @@ semantic. Confidence: medium. Experiment: WORLD-EXP-04.
   the world of that folder.
 
 Provenance: `design` for step 2: WORLD-DIR-004 disables each world that would need a question,
-and the low disk space check is not in the subset. `design` for step 6 (WORLD-DEV-009): the owner
-decided on 2026-11-14 that the server gives a typed error for a held world and that the client
-shows it on the screen of a failed start. `source_suggested` for the rest. Kind: semantic.
-Confidence: medium. Experiment: WORLD-EXP-04, WORLD-EXP-10.
+and the low disk space check is not in the subset. `design` for step 6 (WORLD-DEV-009). `source_suggested` for the rest. Kind: semantic.
+Confidence: medium.
 
 ---
 
@@ -678,7 +658,7 @@ Confidence: medium. Experiment: WORLD-EXP-04, WORLD-EXP-10.
   or the world is unreadable.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-05.
+file. Kind: layout. Confidence: medium.
 
 ### WORLD-DEL-002: Effect of a delete in the vanilla client
 
@@ -699,7 +679,7 @@ file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-05.
   New World" (WORLD-LIST-003, step 4). A delete of a locked world removes no file.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-05.
+file. Kind: semantic. Confidence: medium.
 
 ### WORLD-DEL-003: Delete (mcrs subset)
 
@@ -712,17 +692,14 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-05.
      continues to draw.
   3. While the removal runs, "Select World" shows with the loading entry of WORLD-LIST-003. When
      the removal ends, the list reads the summaries again.
-  4. No toast shows. A world folder that the removal did not remove shows in the list again. A
-     later release adds the toast of WORLD-DEL-002, step 5.
+  4. No toast shows. A world folder that the removal did not remove shows in the list again.
 - **Postconditions:**
   - A delete of a large world does not stop the frames of the client.
   - A delete of a world that another process holds removes no file. The entry shows again as a
     locked world.
 
 Provenance: `design` for steps 2 to 4: the client never waits on the disk in a frame, and mcrs
-has no toast. The owner decided on 2026-11-14 that this release shows no toast and that a later
-release adds it. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
-Experiment: WORLD-EXP-05, WORLD-EXP-10.
+has no toast. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -739,7 +716,7 @@ Experiment: WORLD-EXP-05, WORLD-EXP-10.
   4. The close of "Edit World" opens "Select World" again and reads the summaries again.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-06.
+file. Kind: semantic. Confidence: medium.
 
 ### WORLD-EDIT-002: Re-Create in the vanilla client
 
@@ -757,7 +734,7 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-06.
 - **Postconditions:** "Create New World" then makes a new world folder. The old world stays.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-06.
+file. Kind: semantic. Confidence: medium.
 
 ### WORLD-EDIT-003: Edit and Re-Create (mcrs subset)
 
@@ -766,8 +743,7 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-06.
 
 Provenance: `design` (`client-menu.md`, MENU-DEV-002). mcrs has no "Edit World" screen. A
 re-create needs the world type of a saved world, and a save keeps only its dimensions
-(`persistence.md`, SAVE-NEW-001). The owner decided on 2026-11-14 that a later release adds
-"Re-Create". Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
+(`persistence.md`, SAVE-NEW-001). Kind: layout. Confidence: medium.
 
 ---
 
@@ -805,8 +781,7 @@ re-create needs the world type of a saved world, and a save keeps only its dimen
   at (217, 214). The tabs start at x 28, 152 and 276.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout for steps 2 to 5, semantic for the rest. Confidence: medium. Experiment:
-WORLD-EXP-07.
+file. Kind: layout for steps 2 to 5, semantic for the rest. Confidence: medium.
 
 ### WORLD-CREATE-002: Frame of "Create New World" (mcrs subset)
 
@@ -830,7 +805,7 @@ The number of frames of the message screen is `unspecified`: when the world type
 the activation, the message screen can show for no frame. `design` for step 2: the vanilla
 client reads the data pack of its jar and stops with a crash report when that read fails, which
 a player does not meet in normal play. `source_suggested` for the rest. Kind: layout for steps 3
-and 4, semantic for the rest. Confidence: medium. Experiment: WORLD-EXP-07.
+and 4, semantic for the rest. Confidence: medium.
 
 ### WORLD-GAME-001: Widgets of the vanilla "Game" tab
 
@@ -852,7 +827,7 @@ and 4, semantic for the rest. Confidence: medium. Experiment: WORLD-EXP-07.
         "Experiments", 210 × 20. It opens the experiments screen.
   2. The captions of the cycle buttons have the form "name and value" (WID-CYC-001).
   3. The tab places the grid as TAB-AREA-001, step 3, states.
-- **Postconditions:** with the pinned version, which is not stable, the grid is 210 × 145. At
+- **Postconditions:** with a client version that is not stable, the grid is 210 × 145. At
   W = 427 and H = 240 it is at (108, 30):
 
 | Widget | Bounds |
@@ -866,7 +841,7 @@ and 4, semantic for the rest. Confidence: medium. Experiment: WORLD-EXP-07.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language file,
 and for "not stable" by the field `stable` of `assets/minecraft/version.json`. Kind: layout.
-Confidence: medium. Experiment: WORLD-EXP-07.
+Confidence: medium.
 
 ### WORLD-GAME-002: Game modes and the locks
 
@@ -892,7 +867,7 @@ Confidence: medium. Experiment: WORLD-EXP-07.
   world with the difficulty hard, commands off and no bonus chest.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-07.
+file. Kind: semantic. Confidence: medium.
 
 ### WORLD-GAME-003: "Game" tab (mcrs subset)
 
@@ -916,12 +891,10 @@ file. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-07.
   (108, 99), (108, 127) and (108, 155) are empty.
 
 Provenance: `design` for step 1 (`client-menu.md`, MENU-DEV-002): mcrs has no difficulty, the
-host of a local world is always an operator, and mcrs has no experiments. `design` for step 2:
-owner decision of 2026-11-14 on the empty cells. `design` for steps 3 and 4: the owner decided
-on 2026-11-14 that "Hardcore" is in the subset and that the default is "Survival". "Hardcore" is
-a stated exception to MENU-DEV-002, because mcrs does not have the rules of hardcore yet
-(WORLD-DEV-008). `source_suggested` for the rest. Kind: layout. Confidence: medium. Experiment:
-WORLD-EXP-07.
+host of a local world is always an operator, and mcrs has no experiments. `design` for the
+empty cells of step 2. `design` for steps 3 and 4: "Hardcore" is in the subset, and the default
+is "Survival". "Hardcore" is a stated exception to MENU-DEV-002, because mcrs does not have the
+rules of hardcore (WORLD-DEV-008). `source_suggested` for the rest. Kind: layout. Confidence: medium.
 
 ### WORLD-GEN-001: Widgets of the vanilla "World" tab
 
@@ -961,7 +934,7 @@ WORLD-EXP-07.
 | its switch | (324, 132, 44, 20) |
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-07.
+file. Kind: layout. Confidence: medium.
 
 ### WORLD-GEN-002: World types
 
@@ -981,8 +954,7 @@ file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-07.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the tags
 `data/minecraft/tags/worldgen/world_preset/normal.json` and `extended.json` of the data pack,
-and for the English texts by the language file. Kind: semantic. Confidence: medium. Experiment:
-WORLD-EXP-07.
+and for the English texts by the language file. Kind: semantic. Confidence: medium.
 
 ### WORLD-GEN-003: "World" tab (mcrs subset)
 
@@ -998,9 +970,8 @@ WORLD-EXP-07.
 
 Provenance: `design` for step 1 (`client-menu.md`, MENU-DEV-002): mcrs has no preset editor, and
 its world generation reads neither switch. `design` for step 3: the debug world type is not a
-world that a player expects. `design` for the empty cells of step 2: owner decision of
-2026-11-14. `source_suggested` for the rest. Kind: layout. Confidence: medium. Experiment:
-WORLD-EXP-07.
+world that a player expects. `design` for the empty cells of step 2.
+`source_suggested` for the rest. Kind: layout. Confidence: medium.
 
 ### WORLD-MORE-001: The vanilla "More" tab
 
@@ -1011,14 +982,13 @@ WORLD-EXP-07.
   69 and 97.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-07.
+file. Kind: layout. Confidence: medium.
 
 ### WORLD-MORE-002: "More" tab (mcrs subset)
 
 - **Behavior:** the tab is not in the subset. The screens that its buttons open are out of scope.
 
 Provenance: `design` (`client-menu.md`, MENU-DEV-002). Kind: layout. Confidence: medium.
-Experiment: WORLD-EXP-07.
 
 ---
 
@@ -1056,7 +1026,7 @@ Experiment: WORLD-EXP-07.
 - **Edge cases:** the test of step 5 is the test of the file system. On a file system with no
   regard to case, `new world` is taken when `New World` exists.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-08.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### WORLD-SEED-001: Seed of the text of the seed box
 
@@ -1082,7 +1052,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 | `9223372036854775808` | the hash of the text, because the value does not fit in `i64` |
 | `0x10` | the hash of the text |
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WORLD-EXP-08.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1115,7 +1085,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   `data/minecraft/world_gen_settings.dat` after the first save of the local server.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the keys by the language file. Kind:
-semantic. Confidence: medium. Experiment: WORLD-EXP-09.
+semantic. Confidence: medium.
 
 ### WORLD-WRITE-002: Create (mcrs subset)
 
@@ -1155,17 +1125,16 @@ semantic. Confidence: medium. Experiment: WORLD-EXP-09.
 - **Postconditions:**
   - The new world is in "Select World" the next time it opens. Its info line shows the game
     mode, "Commands" for a world that is not a hardcore world, and the version name of the
-    header.
+    client version.
   - The vanilla client of the pinned version can open the folder.
 
-Provenance: `design` for steps 1, 3 and 5. Step 5 has no toast because mcrs has no toasts yet
+Provenance: `design` for steps 1, 3 and 5. Step 5 has no toast because mcrs has no toasts
 (WORLD-DEV-013). `source_suggested` for step 2. `allowCommands` is 1 because the host of a local
 world in mcrs is always an operator (WORLD-DEV-005). The row "Hardcore" is the vanilla row of
-WORLD-GAME-002, by the owner decision of 2026-11-14 (WORLD-DEV-008). `initialized` is 0 because
-a missing `initialized` reads as 1, and the server then does not complete a new world. The local
-server of mcrs reads its seed and its dimensions from `world_gen_settings.dat`, so the client
-must write that file. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
-Experiment: WORLD-EXP-09.
+WORLD-GAME-002 (WORLD-DEV-008). `initialized` is 0 because
+a missing `initialized` reads as 1, and the server then does not complete a new world. The server
+reads the seed and the dimensions from `world_gen_settings.dat` (`persistence.md`, SAVE-NEW-003),
+so the client writes that file. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1173,7 +1142,7 @@ Experiment: WORLD-EXP-09.
 
 ### WORLD-PROP-001: Properties of the screens of this document
 
-- **Behavior:** these are the properties that `client-widget.md`, section 16, items 5 and 6,
+- **Behavior:** these are the properties that `client-widget.md`, section 16, items 4 and 5,
   leave open. No screen of this document is shown in a world, so no screen pauses a game.
 
 | Screen | In-game screen | Background | Escape closes it | Re-arrange (WID-SCR-003) | Initial focus |
@@ -1183,7 +1152,7 @@ Experiment: WORLD-EXP-09.
 | Create New World | no | TAB-AREA-001, step 6, and the footer line of WORLD-CREATE-001, step 5 | yes, as "Cancel" | builds its widgets again with the same values | name box |
 | Message screens | no | TITLE-LOAD-001 | no | builds its widgets again | none |
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: WORLD-EXP-01.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -1193,20 +1162,19 @@ The other documents state these points of this document:
 
 1. `client-title-screen.md`, TITLE-SCR-006, step 2: "Singleplayer" opens "Select World"
    (WORLD-LIST-006).
-2. `client-title-screen.md`, section 0.1, "Release 1, 2": the world screens are in release 1.
-3. `client-title-screen.md`, TITLE-LOAD-006: the entry starts from "Play Selected World" or
+2. `client-title-screen.md`, TITLE-LOAD-006: the entry starts from "Play Selected World" or
    "Create New World" (WORLD-PLAY-002, WORLD-WRITE-002). Its edge case names the screen of a
    failed start. That screen also shows a world that another process holds (WORLD-PLAY-002,
    step 6).
-4. `client-list.md`, LIST-GEO-002: the world list has the row width 270, so its rows run from
+3. `client-list.md`, LIST-GEO-002: the world list has the row width 270, so its rows run from
    x 78 to 348 at W = 427.
-5. `client-widget.md`, WID-CYC-001: the vanilla "World Type" uses a second list of values while
+4. `client-widget.md`, WID-CYC-001: the vanilla "World Type" uses a second list of values while
    Alt is down (WORLD-GEN-002). No screen of mcrs uses it (WORLD-GEN-003).
-6. `persistence.md`, SAVE-LOCK-001 and SAVE-LOCK-002: the lock of a world folder.
+5. `persistence.md`, SAVE-LOCK-001 and SAVE-LOCK-002: the lock of a world folder.
    `persistence.md`, SAVE-NEW-001 to SAVE-NEW-003: the files of a new world.
-7. `client-menu.md`, section 0.1, "Options file": the options file is in the game directory
+6. `client-menu.md`, section 0.1, "Options file": the options file is in the game directory
    (WORLD-DIR-004, step 1).
-8. `client-title-screen.md`, TITLE-DISC-004: the title of the disconnected screen after a failed
+7. `client-title-screen.md`, TITLE-DISC-004: the title of the disconnected screen after a failed
    start of a local world (WORLD-CREATE-002, WORLD-PLAY-002, WORLD-WRITE-002).
 
 ---
@@ -1229,7 +1197,7 @@ The other documents state these points of this document:
   WORLD-GEN-001 and WORLD-MORE-001.
 - **Visible to the client:** yes. "Edit", "Re-Create", "Difficulty", "Allow Cheats",
   "Experiments", "Customize", the two switches and the tab "More" do not show. Their cells stay
-  empty, and the other widgets keep their vanilla bounds. A later release adds "Re-Create".
+  empty, and the other widgets keep their vanilla bounds.
 - **Test:** a differential test compares the bounds of each widget of mcrs with the rules of the
   mcrs subset.
 
@@ -1246,7 +1214,6 @@ The other documents state these points of this document:
 - **Reference:** the delete runs in the frame. The window stops to draw until the folder is gone
   or the last attempt fails. A failure shows a toast.
 - **Visible to the client:** yes. The loading entry shows during the delete, and no toast shows.
-  The owner decided on 2026-11-14 that a later release adds the toast.
 - **Test:** a differential test compares the list after the delete, not the frames during it.
 
 ### WORLD-DEV-005: A new world has commands on
@@ -1260,7 +1227,7 @@ The other documents state these points of this document:
 
 ### WORLD-DEV-006: An experimental world does not start
 
-- **Rule:** WORLD-DIR-004, step 8. Owner decision of 2026-11-14.
+- **Rule:** WORLD-DIR-004, step 8.
 - **Reference:** the entry shows "Experimental" in yellow, and the world starts after a
   question.
 - **Visible to the client:** yes, for a world with a feature flag that is not
@@ -1270,7 +1237,7 @@ The other documents state these points of this document:
 
 ### WORLD-DEV-007: The date of an entry has one form
 
-- **Rule:** WORLD-ENTRY-005, step 2. Owner decision of 2026-11-14.
+- **Rule:** WORLD-ENTRY-005, step 2.
 - **Reference:** the date has the short form of the locale of the system. The runtime of the
   game puts U+202F before "AM" or "PM" in the English form.
 - **Visible to the client:** yes. A player whose system locale is not en-US sees the en-US
@@ -1281,13 +1248,12 @@ The other documents state these points of this document:
 ### WORLD-DEV-008: A hardcore world has no hardcore rules
 
 - **Rule:** WORLD-GAME-003, steps 3 and 4, WORLD-WRITE-002, step 3, and WORLD-ENTRY-005, steps 3
-  and 4. Owner decision of 2026-11-14: "Hardcore" is in the subset as a value, before mcrs has
-  its rules. This is a stated exception to `client-menu.md`, MENU-DEV-002.
+  and 4. "Hardcore" is in the subset as a value, and mcrs does not have its rules. This is a stated exception to `client-menu.md`, MENU-DEV-002.
 - **Reference:** in a hardcore world, a death ends the world for the player, the difficulty
   stays hard and locked in play, and the hearts have the hardcore form.
 - **Visible to the client:** yes, in play. mcrs stores `hardcore` 1, `difficulty` `hard` and
-  `allowCommands` 0, and the list shows "Hardcore Mode". These values have no effect in play
-  yet: a death acts as in a world that is not hardcore, the difficulty has no effect, the hearts
+  `allowCommands` 0, and the list shows "Hardcore Mode". These values have no effect in
+  play: a death acts as in a world that is not hardcore, the difficulty has no effect, the hearts
   have the normal form, and the host stays an operator.
 - **Test:** a differential test compares the files and the list for a hardcore world. It does
   not compare the play in a hardcore world.
@@ -1311,8 +1277,7 @@ The other documents state these points of this document:
   with the full text.
 - **Visible to the client:** yes. Each entry shows the icon of an unknown server. The icon square
   shows no sprite and no tooltip, and one press on it only selects the entry. A cut world name
-  shows no tooltip. The list of this release draws one texture and the text lines of a row. A
-  later release adds the world icons, the overlay with its input, and the tooltips of cut texts.
+  shows no tooltip.
 - **Test:** a differential test compares the texts of an entry and their bounds. It does not
   compare the icon square, the tooltips or a press on the icon.
 
@@ -1320,9 +1285,8 @@ The other documents state these points of this document:
 
 - **Rule:** WORLD-LIST-006, step 6.
 - **Reference:** the hint "Search..." is grey and italic (`client-edit-box.md`, EDIT-HINT-001).
-- **Visible to the client:** yes, while the search box is empty. The client of this release
-  draws no italic text (`client-font.md`, FONT-DRAW-002). The hint becomes italic when the font
-  of the client draws italic.
+- **Visible to the client:** yes, while the search box is empty. The mcrs client draws no italic
+  text (`client-font.md`, FONT-DRAW-002).
 - **Test:** a differential test compares the text and the colour of the hint, not its shear.
 
 ### WORLD-DEV-012: The name box has no "Save folder" tooltip
@@ -1331,8 +1295,7 @@ The other documents state these points of this document:
 - **Reference:** the name box has the tooltip "Save folder: %s" with the folder id of
   WORLD-NAME-001 in italic. The client computes it again at each change of the name box.
 - **Visible to the client:** yes, while the mouse is on the name box or the box has the focus.
-  No tooltip shows. The folder id needs a test of the saves folder at each change of the name. A
-  later release adds that test and the tooltip.
+  No tooltip shows. The folder id needs a test of the saves folder at each change of the name.
 - **Test:** a differential test does not compare the tooltip of the name box. It compares the
   folder id of the world that the create makes.
 
@@ -1343,142 +1306,17 @@ The other documents state these points of this document:
   of "Create New World" opens (WORLD-WRITE-001, step 6).
 - **Visible to the client:** yes, only when the client cannot make the world folder or write its
   files. The disconnected screen shows the title "Failed to access world" and the reason. Its
-  button opens the title screen. mcrs has no toasts yet. A later release with the toasts can
-  show the vanilla toast and the parent screen.
+  button opens the title screen. mcrs has no toasts.
 - **Test:** a differential test does not compare a create that fails.
-
----
-
-## 13. Experiments
-
-None of these experiments ran. Each one except WORLD-EXP-08 needs the game to start, and only the
-owner can accept its licence for a run. Each one uses the setup of `client-widget.md`, section
-14: the vanilla client of the pinned version with the input agent of `tools/vanilla-client`,
-window pixels of 854 × 480, and the GUI scale 2. `tools/mcrs_minecraft_client_recorder` records
-each step. The language is `en_us`.
-
-### WORLD-EXP-01: Select World and its entries
-
-1. Prepare a saves folder with three worlds of the pinned version: one survival world with
-   commands off, one creative world, one hardcore world. Set their `LastPlayed` to three
-   different times. Give one world an `icon.png` of 64 × 64 pixels.
-2. Start the client. Press "Singleplayer". Wait until the list shows. Record a screenshot and
-   the bounds of each widget.
-3. Record the content of each entry: the three texts, their positions and colours.
-4. Press on the second entry. Record the active state of each button.
-5. Move the mouse onto the icon of each entry. Record the sprite and the tooltip.
-6. Press Tab ten times. Record the focused widget after each key.
-7. Press on the icon of the first entry. Record the screens until the world shows.
-8. Repeat step 2 at window pixels of 1280 × 720. Record the bounds.
-
-### WORLD-EXP-02: Load of the list and unusual folders
-
-1. Start the client with an empty saves folder. Press "Singleplayer". Record the screens.
-   Press "Cancel". Record the screen.
-2. Add a folder with only `region/`, a world whose `level.dat` holds random bytes, a world with
-   only `level.dat_old`, and a world of an older `DataVersion` and series `main`. Press
-   "Singleplayer". Record the screenshot and each entry.
-3. Replace the saves folder with a file. Press "Singleplayer". Record the screenshot, the bounds
-   of the title, of each reason line and of "Cancel", and the colours of the background at the
-   top and at the bottom. Press Escape, then "Cancel". Record the screen after each.
-4. Prepare 500 worlds. Press "Singleplayer". Record a screenshot every 100 ms until the entries
-   show.
-
-### WORLD-EXP-03: Search
-
-1. Prepare worlds with the names `My world`, `Alpha` and `Beta`, and the folder ids `world_2`,
-   `alpha` and `b`.
-2. Type `WORLD` into the search box. Record the entries.
-3. Select `Alpha`. Type `al`. Record the selection. Type `x`. Record the selection and the
-   buttons.
-4. Resize the window. Record the value of the search box and the entries.
-
-### WORLD-EXP-04: Play Selected World
-
-1. Select a world of the pinned version. Press "Play Selected World". Record each screen and its
-   time until the world shows.
-2. Select a world of an older version of the same series. Press "Play Selected World". Record
-   the question screen and its buttons. Press "Back". Record the screen.
-
-### WORLD-EXP-05: Delete
-
-1. Select a world. Press "Delete". Record the screenshot and the bounds of each widget.
-2. Press Escape. Record the screen and the list.
-3. Press "Delete" again, then "Delete" on the confirmation. Record the screens and the content
-   of the saves folder.
-4. Delete the last world. Record the screen.
-5. Hold a file of a world open in another process on a system that locks open files. Delete the
-   world. Record the time until the list shows, and the toast.
-
-### WORLD-EXP-06: Edit and Re-Create
-
-1. Select a world. Press "Edit". Record the screens. Press "Cancel". Record the screen.
-2. Select a creative world with a seed of 12345. Press "Re-Create". Record the values of each
-   tab.
-
-### WORLD-EXP-07: Create New World
-
-1. Press "Create New World". Record the screens before it opens. Record whether a text shows
-   the title "Create New World".
-2. Record the bounds and the captions of each widget of each tab, and the tooltip of each widget.
-3. Press Tab twenty times. Record the focused widget after each key.
-4. Select "Hardcore". Record the captions and the active state of each widget of the "Game" and
-   "World" tabs. Select "Creative", then "Survival". Record "Allow Cheats".
-5. On the "World" tab, record each value of "World Type". Hold Alt and press "World Type"
-   until the values repeat. Record them.
-6. Press Escape. Record the screen.
-7. Press "Create New World", then press "Create New World" on the screen two times in one frame
-   with the input agent. Record the screens and the folders that the saves folder holds after.
-8. Make the saves folder read-only. Press "Create New World" on the screen. Record the toast and
-   the screen that opens.
-
-### WORLD-EXP-08: Folder id and seed
-
-This experiment needs no start of the game. A task of `tools/vanilla-oracle` calls the rules of
-the game for the folder id and the seed, and writes the results as a fixture.
-
-1. For each name box value of WORLD-NAME-001, and for `COM1.txt`, `  a  `, `x<y>z`, an empty
-   text and a text of 32 characters, record the folder id with an empty saves folder. Record it
-   again with the first result already in the folder.
-2. For each seed text of WORLD-SEED-001, and for `+5`, `-0`, `٣`, `1e3`, `Minecraft` and a text of
-   32 characters, record the seed.
-
-### WORLD-EXP-09: What Create New World writes
-
-1. Create a world with the name ` Test `, "Creative", "World Type" "Superflat" and the seed
-   `abc`. Stop the client after the world shows.
-2. Record the folder id and the content of `level.dat` and
-   `data/minecraft/world_gen_settings.dat` as SNBT.
-3. Repeat with "Hardcore" and an empty seed.
-
-### WORLD-EXP-10: A locked world in the list
-
-`persistence.md`, experiments P9 and P10, record the lock between the vanilla game and mcrs. This
-experiment records the screens of the vanilla client.
-
-1. Start a vanilla client A and enter a world `W`.
-2. Start a vanilla client B with the same game directory. Press "Singleplayer". Record the
-   entry of `W`, its overlay, its tooltip, and the active state of each button.
-3. In B, select `W`. Press "Delete", then "Delete" on the confirmation. Record the toast, the
-   time until the list shows, and the content of the world folder.
-4. In A, press "Save and Quit to Title". In B, press "Back", then "Singleplayer". Record the
-   entry of `W`, and the content of `session.lock`.
-
----
-
-## 14. Data for tests
-
-The fixtures of a test of WORLD-NAME-001 and WORLD-SEED-001 are the tables of their
-postconditions until WORLD-EXP-08 writes a fixture.
 
 ---
 
 ## 15. Unresolved
 
-1. The owner decided on 2026-11-14 that a widget that is not in the subset leaves its cell
-   empty (WORLD-LIST-006, WORLD-GAME-003, WORLD-GEN-003). Does this also apply to the menu tab
+1. A widget that is not in the subset leaves its cell empty (WORLD-LIST-006, WORLD-GAME-003,
+   WORLD-GEN-003). Does this also apply to the menu tab
    bar of "Create New World", which has no tab "More" (WORLD-CREATE-002)? The options:
-   - two tabs of 186 that fill the bar, as WORLD-CREATE-002 states now. The tabs start at x 28
+   - two tabs of 186 that fill the bar, as WORLD-CREATE-002 states. The tabs start at x 28
      and 214 at W = 427;
    - the three vanilla places of 124, with the third place empty. The tabs start at x 28 and
      152.

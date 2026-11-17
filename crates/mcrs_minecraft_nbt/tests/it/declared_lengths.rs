@@ -419,7 +419,7 @@ impl<'de> Deserialize<'de> for PayloadLength {
 }
 
 #[test]
-fn an_array_read_with_its_kind_goes_to_the_input_once_a_step_and_not_once_an_element() {
+fn array_read_goes_to_the_input_once_per_step_not_per_element() {
     #[derive(Deserialize)]
     struct Measured {
         data: PayloadLength,

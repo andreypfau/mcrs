@@ -1,11 +1,6 @@
 # Hunger: food level, saturation, exhaustion, regeneration and eating
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` |
-| World version (`DataVersion`) | `5127` |
-| Protocol version | `1073742169` |
-| Data pack format | `126.0` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the hunger state of a player. It states the three values of the state and the
 sources of exhaustion. It states the natural regeneration, the starvation damage, the eat of food
@@ -39,8 +34,7 @@ document uses the terms of that document and does not state them again.
 ### 0.2 Provenance
 
 The labels are those of `docs/spec/registry.md`, section 0.3, and the kinds are those of
-`docs/spec/README.md`. Each rule states its label, its kind and its confidence. No experiment of
-section 9 has run. A rule that only the reference supports has the label `source_suggested`.
+`docs/spec/README.md`. Each rule states its label, its kind and its confidence.  A rule that only the reference supports has the label `source_suggested`.
 
 ### 0.3 ID prefix
 
@@ -400,28 +394,6 @@ the four values as top-level fields of the player compound:
 The server writes all four fields. A reader that finds a field of the wrong tag type uses the
 default for that field. The server does not clamp the values that it reads (U2).
 
-## 9. Experiments
-
-None of these experiments has run. Each one runs on a vanilla server of `26.4-snapshot-7` with the
-console and an offline client that records the clientbound packet 106. Use `tick freeze` and `tick
-step` for single ticks and `data get entity <player> foodLevel` for the values. A value that
-the command does not show can be read from the saved player file.
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| H1 | Set `difficulty normal`. Give a player the food level 20 and the saturation 5. Do not move. Step 200 ticks. Record the saved exhaustion, the saturation and the packets. | HNG-STA-001, HNG-NET-001 |
-| H2 | Set `foodExhaustionLevel` to 4.0, 4.001 and 40 in the saved player file while the player is offline, one value for each login. Step 3 ticks each time. Read the exhaustion, the saturation and the food level after each tick. | HNG-TICK-001, HNG-STA-002 |
-| H3 | Repeat H2 with the saturation 0 on `peaceful`, `easy` and `hard`. | HNG-TICK-001 |
-| H4 | Set the health 10, the food level 20 and the saturation 6. Step 40 ticks. Record the health, the exhaustion and the packets in each tick. Repeat with the saturation 3, and with the saturation 0 and the food level 18 for 200 ticks. | HNG-REG-001, HNG-REG-002 |
-| H5 | Repeat H4 with the food level 17 and with `/gamerule natural_health_regeneration false`. | HNG-REG-002, HNG-REG-005 |
-| H6 | On `peaceful`, set the health 5, the food level 5 and the saturation 0. Step 100 ticks. Record the health, food level and saturation in each tick. Repeat with the rule false. | HNG-REG-004, HNG-REG-005, U1 |
-| H7 | Set the food level 0, the health 20, and the difficulty `easy`, `normal` and `hard` in turn. Step 1000 ticks each time. Record the health in each tick and the packets 25 and 106. Repeat on `peaceful` with the rule false. | HNG-STV-001, HNG-STV-002, HNG-NET-003 |
-| H8 | Give a player an apple, a golden apple, a `dried_kelp`, a `honey_bottle` and a stew, at the food level 20 and 10, and in creative mode. Use each item with the input agent of `tools/vanilla-client`. Record the tick of the finish, the food level, the saturation, the stack count and the packets. | HNG-EAT-001 to HNG-EAT-005 |
-| H9 | Release the use at the tick 20 of an apple. Change the held slot at the tick 20 of an apple. Record the hunger state and the stack. | HNG-EAT-004 |
-| H10 | Set the food level 20, the saturation 5, with the exhaustion 0. Walk, sneak, sprint 10 blocks, jump, sprint-jump, swim 10 blocks on the surface and under water. Read the saved exhaustion after each step. | HNG-EXH-002, HNG-EXH-003 |
-| H11 | Hit a zombie and a pig with a fist, and hit a zombie twice in the cooldown. Hit with a sword on a creative player target. Break a stone block with a pickaxe. Take the damage types of the table of HNG-EXH-006 by `/damage` with the amounts 0.5 and 5, also with absorption. Read the exhaustion. | HNG-EXH-004 to HNG-EXH-006 |
-| H12 | Set the saturation 5 and the exhaustion 4.0 in the saved player file while the player is offline. Log in and step a tick, so that the saturation changes from 5 to 4. Then repeat with the saturation 1, so that it changes from 1 to 0. Record the packets 106. | HNG-NET-001, HNG-NET-002 |
-
 ## 10. Intentional deviations
 
 None. This document states no behaviour that differs from the reference.
@@ -437,10 +409,9 @@ None. This document states no behaviour that differs from the reference.
   of -3 then stays until the next change. The question to the owner: state a clamp, or keep the
   stored value?
 - **U3.** The condition of the attack exhaustion (HNG-EXH-004) is "the hit is not rejected". The
-  rule for a target that is not a living entity needs experiment H11. The rule for a second hit
-  in the cooldown that is a partial hit needs H11 also.
-- **U4.** The tick of the first `set_health` after the join needs a capture of experiment H1 and of the
-  join sequence. The packet after a respawn needs the same capture. The login specification can fix its
+  rule for a target that is not a living entity is not known. The rule for a second hit
+  in the cooldown that is a partial hit is not known.
+- **U4.** The tick of the first `set_health` after the join is not known. The packet after a respawn has the same open point. The login specification can fix its
   place among the packets of the join.
 - **U5.** The server does not check the sprint permission at a food level of 6 or less. A modified
   client can sprint and so can cause the exhaustion of HNG-EXH-002. The question to the owner:

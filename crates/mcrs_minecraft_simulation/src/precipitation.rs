@@ -81,7 +81,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_group_draw_has_the_rate_of_one_gate_per_slot_and_never_more_than_k_hits_per_column() {
+    fn group_draw_has_one_gate_rate_per_slot_and_at_most_k_hits() {
         const COLUMNS: i32 = 64;
         const SPEED: u32 = 3;
         const STEPS: u32 = 100_000;

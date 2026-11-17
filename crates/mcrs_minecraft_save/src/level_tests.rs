@@ -665,7 +665,7 @@ fn every_file_kind_tagged(data_version: Option<NbtTag>) -> [Result<(), SaveError
 }
 
 #[test]
-fn a_data_version_other_than_the_world_version_is_rejected_by_name_on_every_file_kind() {
+fn foreign_data_version_is_rejected_by_name_on_every_file_kind() {
     let current = VERSION.world_version;
     for found in [4903, current - 1, current + 1] {
         for result in every_file_kind_at(found) {

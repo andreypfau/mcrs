@@ -5,10 +5,8 @@ description: The Rust style of mcrs - crate size and layout, modules, imports, t
 
 # Rust style for mcrs
 
-The goals are readability over writeability, code that tools and large
-mechanical changes can handle, and alignment with the Rust ecosystem: std
-naming, the Rust API Guidelines and rustfmt. Every rule here must pay for
-itself. CLAUDE.md wins on conflict.
+AGENTS.md wins on conflict. This file holds only what clippy and rustfmt do not
+enforce and what the model would not do by default.
 
 ## Errors and panics
 
@@ -49,28 +47,21 @@ itself. CLAUDE.md wins on conflict.
   re-exported. Prefer the first option.
 - **Layering beats convenience.** A lower crate never depends on a higher one
   just for a helper. Move the helper down instead.
-- **About 500 lines** for a file and **about 80 lines** for a function are the
-  points to look for a split by meaning. Do not split a flat `match` only to
-  meet a number.
+- **About 500 lines** for a file is the point to look for a split by meaning. A
+  function over 100 lines fails clippy (`too-many-lines-threshold`). Do not
+  split a flat `match` only to meet a number.
 - A new crate gets `[lints] workspace = true` and `[lib] doctest = false`, an
   entry in `[workspace.dependencies]`, and `#![no_std]` + `alloc`, or a
   commit message that names the dependency that needs `std`. A crate without Bevy goes in
   `NO_BEVY_PACKAGES` in `xtask/src/checks.rs`.
 
-## Formatting
-
-- Run `cargo fmt`. Use `#[rustfmt::skip]` only for manual alignment or
-  generated code, never for personal taste.
-
 ## Imports
 
 - One module per `use`. Never write `use a::{b::C, d::E}`. Merge the `use`
   lines that name the same module.
-- Import types and use them unqualified, as `Limits` and not
-  `mcrs_command::Limits`. Call free functions through their module:
-  `mem::swap`, `fmt::Display`, `suggest::recycle`, `dim::deliver`. Exceptions:
-  a name that collides (`io::Error`, or `Dimension` as `DimensionKey`), and
-  very common names.
+- Import types and use them unqualified. Call free functions through their
+  module: `mem::swap`, `dim::deliver`. Exception: a name that collides
+  (`io::Error`).
 - Scope a trait import locally unless the whole file uses it.
 - No glob imports, with these exceptions:
   - `use super::*` in an inline test module.
@@ -83,8 +74,7 @@ itself. CLAUDE.md wins on conflict.
 ## Types and signatures
 
 - **Use an enum instead of a bool parameter** when `f(x, true)` does not say
-  what `true` means. Examples: `ForkMode`, `Polarity { If, Unless }`,
-  `Feedback`, `Step { Char, Word }`. Two named functions are also fine.
+  what `true` means. Two named functions are also fine.
 - **Use named fields instead of tuples.** A return of 2 or more values that
   are not a pair by nature (`(min, max)` of a range can stay) becomes a
   struct. So does a tuple inside a table row, inside a `Vec`, or inside an
@@ -103,15 +93,6 @@ itself. CLAUDE.md wins on conflict.
   caller needs ownership or random access, or the `Vec` already exists.
 - `impl Into<T>` parameters are only for library APIs where the call site
   really matters.
-- **Implement the std trait** instead of a custom method: `FromStr` and not
-  `from_name`, `From<u8>` and not `from_id`, `PartialEq<str>` and not
-  `eq_str`, `AsRef<[T]>` and not `Deref`. `Deref` is for smart pointers only.
-  `len()` implies `is_empty()`. A type with `new()` implements `Default`, and
-  so does an options struct. An important `From` impl is paired with a named
-  constructor.
-- **Derive traits** where a derive works. A library type gets `Clone`,
-  `Debug` and `PartialEq` up front. It gets `Copy` if it will stay `Copy`. A
-  map key also gets `Eq` and `Hash`, plus `Ord` when the order is clear.
 - **Define a trait only for generics or for extension.** Never define one just
   to group methods.
 - **Public errors** implement `Display` and `core::error::Error` (short plain
@@ -124,30 +105,16 @@ itself. CLAUDE.md wins on conflict.
   crate lists the known variants and ends with a wildcard.
 - **`#[must_use]`** goes on pure functions and on lazy types. It does not go
   on functions that return `Result`, which is already `#[must_use]`.
-- **Generics over trait objects.** A layer-4 engine is generic over the set
-  that the application supplies: `CommandPlugin<S: CommandSet>`, with no
-  default that names vanilla.
-- Mark a function `const fn` only if it will stay `const`. Overload an
-  operator only for its mathematical or logical meaning. Run no code before
-  `main`.
+- A layer-4 engine is generic over the set that the application supplies, with
+  no default that names vanilla.
 
 ## Naming
 
-- Use the std conventions: `as_`/`to_`/`into_`, getters without `get_`,
-  `foo_mut`, `set_foo`, `take_foo`, `replace_foo`. Constructors are `new`,
-  `new_with_foo`, `try_new` and `from_foo`.
 - An extension trait ends in `Ext`, for example `AppCommandsExt`.
 - Do not abbreviate and do not drop letters. No single-letter names except
-  trivial closures and loop indices. `registrar`, not `r`; `selector`, not
-  `s`; `cos_yaw`, not `cy`.
-- A generic parameter is short and hints at its bound, like `S: CommandSet`
-  or `L: Lookup`. `T` and `U` are for unconstrained types.
-- Do not shadow std or prelude names. A type named `Send`, `Box` or `Result`
-  is wrong.
+  trivial closures and loop indices.
 - A type does not reuse the name of a type that its users import from another
   crate. That forces the user to qualify one of them.
-- A lifetime name says what it borrows when more than one lifetime is in
-  play.
 
 ## Documentation and comments
 
@@ -162,10 +129,8 @@ itself. CLAUDE.md wins on conflict.
 
 ## Implementation
 
-- Do not overuse type inference. Annotate the variable rather than using a
-  turbofish on `into()`, `parse()` or `collect()`.
-- Prefer `if let` / `let`-`else` over check-then-unwrap and over long
-  `and_then`/`flatten` chains.
+- Annotate the variable rather than using a turbofish on `into()`, `parse()`
+  or `collect()`.
 - Keep iterator chains short. Do not build a chain in a `for` header. Do not
   use `for_each`.
 - Every `assert!` and `debug_assert!` gets a message that says why the
@@ -173,8 +138,6 @@ itself. CLAUDE.md wins on conflict.
 - Prefer plain code to `macro_rules!`, and generics to a macro that stamps
   out types. A macro is acceptable only for long repeated `From` or trait
   impls. A macro never takes a function body as `tt`.
-- Use `format!`/`write!` instead of `+` on more than two strings, and instead
-  of `str::replace` for substitution.
 - No `catch_unwind`. No unstable features.
 
 ## Review checklist
@@ -192,7 +155,3 @@ Run the checklist on `git diff origin/main...HEAD` and report findings as
 5. Public API: `#[non_exhaustive]`, `#[must_use]`, `Display`/`Error` on errors.
 6. Imports and names: qualification, globs, `Ext`, abbreviations, shadowing.
 7. Implementation: chains, `for_each`, assert messages, macros, `SAFETY`.
-
-For a large diff, fan out one reviewer per crate group with this checklist. Run
-fixes one at a time in the worktree: two builds in one target directory slow
-each other down.

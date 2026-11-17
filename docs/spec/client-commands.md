@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states what the vanilla client does with a command while the player types it in
 the chat screen. The client parses the input against the tree that the server sent. It colours
 the input, shows suggestions, shows usage and error lines, and asks the server for suggestions
 where the tree tells it to. `client-chat.md` states the chat screen, the history and the packets
-that send the input. The document does not prescribe an architecture.
+that send the input.
 
 ## 0. Conventions
 
@@ -75,17 +72,6 @@ A colour is a 32-bit ARGB value in hexadecimal. The named text colours are:
 | `CCMD-HINT` | error, usage and restriction lines |
 | `CCMD-HL` | the colours of the command input |
 | `CCMD-DEV` | intentional deviations |
-
-### 0.5 Scope
-
-In scope: the client parse in the chat screen, the suggestion state, server requests, the
-suggestion list, hint lines and the colours of the input.
-
-Out of scope: the grammar of each argument type (`command-parser.md` and `argument-*.md`), the
-packet layouts of `commands-packet.md`, the narration of the screen, and the command block
-editor. The editor uses the same mechanisms with other parameters.
-
----
 
 ## 1. The client tree
 
@@ -626,7 +612,7 @@ after `as` is gray.
 
 ---
 
-## 9. Open points
+## 9. Unresolved
 
 - The command block editor uses the same mechanisms with other values: no auto flag, the list
   below the box, and 7 rows. A separate document can state it.

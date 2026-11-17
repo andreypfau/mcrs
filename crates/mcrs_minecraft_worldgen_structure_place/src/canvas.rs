@@ -147,7 +147,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the random source, the probability, the box's two corners, the edge and fill blocks, and the air-skip and inside-only flags of the reference's probabilistic box fill"
+        reason = "independent inputs of one probabilistic box fill"
     )]
     pub fn generate_maybe_box<R: Random>(
         &mut self,
@@ -276,7 +276,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the random source, the dispenser's blocks, its position and its loot table, which the reference passes as separate values"
+        reason = "the reference passes these as separate values"
     )]
     pub fn create_dispenser<R: Random>(
         &mut self,

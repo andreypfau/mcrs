@@ -12,13 +12,12 @@ The executable takes three directories:
 
 1. The data pack: a directory that holds `pack.mcmeta` and `data/`.
 2. The vanilla directory: the `data/minecraft` tree of the pinned client jar.
-   `mcrs_minecraft_fixtures::vanilla_dir` gives it after
+   `mcrs_minecraft_fixtures::vanilla_dir` (`tools/mcrs_minecraft_fixtures`) gives it after
    `cargo run -p mcrs_minecraft_client_jar --example fetch`.
 3. The assets directory: the `assets` directory of this repository. It holds
-   the data pack report in `mcrs/reports/datapack.json`, which declares the
-   registries, and the block definitions in `mcrs/block_definition`. The bake
-   needs the block definitions because a table names blocks and block state
-   properties, and the bake checks each name against them.
+   the block definitions in `mcrs/block_definition`. The bake needs them
+   because a table names blocks and block state properties, and the bake
+   checks each name against them.
 
 The exit status tells the result:
 

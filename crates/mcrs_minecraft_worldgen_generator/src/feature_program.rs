@@ -324,7 +324,7 @@ fn rungs_of(steps: &[Vec<Nested>], structures: &[FrozenStructure]) -> Arc<[Range
 impl FeatureProgram {
     #[expect(
         clippy::too_many_lines,
-        reason = "resolves every name the feature tables carry in one pass, from the climate and resolver to the trees and the steps, so an unresolved asset is reported where the build reaches it"
+        reason = "one pass reports an unresolved asset where the build reaches it"
     )]
     pub fn build(
         tables: &FeatureTables,
@@ -614,10 +614,7 @@ impl Generator {
         }
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one arm per generator kind, each placing a feature the way the reference's feature of that kind does"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one arm per generator kind")]
     pub fn place<W: WorldGenVolume>(
         &self,
         run: &mut Run,
@@ -1062,7 +1059,7 @@ fn compile_structures(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "compiles each feature type to its generator with one arm per type, so every arm reads against the reference's feature of that type"
+    reason = "compiles each feature type to its generator with one arm per type"
 )]
 fn compile_generator(
     feature: &Feature,
@@ -2101,7 +2098,7 @@ pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "builds the property list of every carpet state in both directions with the boolean spelled in place, so each state reads as it is looked up"
+    reason = "boolean spelled in place so each state reads as it is looked up"
 )]
 fn mossy_carpet_states(resolver: &Resolver<'_>) -> Compiled<Option<MossyCarpetStates>> {
     const BLOCK: Block = Block::PaleMossCarpet;

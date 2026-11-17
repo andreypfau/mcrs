@@ -2,11 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Packets | PLAY, clientbound: `respawn` 84, `change_difficulty` 10, `entity_event` 34, `commands` 16, `player_position` 73, `set_chunk_cache_center` 96, `player_abilities` 65, `initialize_border` 44, `set_time` 115, `set_default_spawn_position` 99, `game_event` 39, `ticking_state` 130, `ticking_step` 131, `container_set_content` 18, `set_held_slot` 107, `update_mob_effect` 135, `post_effects` 83, `set_health` 106, `set_experience` 105, `remove_entities` 78 |
 
-Source of the version values: `assets/minecraft/version.json`. Source of the packet ids:
+Version: see `assets/minecraft/version.json`. Source of the packet ids:
 `assets/mcrs/reports/packets.json`.
 
 This document states what occurs when a teleport moves an entity from one dimension to another.
@@ -237,7 +235,7 @@ in the Nether, and its network id differs.
 
 ---
 
-## 3. Open questions
+## 3. Unresolved
 
 - DIM-CHG-003: the position of the spawn packets of entities of the new dimension against steps
   7 to 18 is not measured. Experiment: capture the packets of the experiment of DIM-CHG-003 with

@@ -47,7 +47,7 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the frozen structures and program, the run and region, the starts of one step, the clip and the decoration seed of one step's placement"
+    reason = "independent inputs of one step's placement"
 )]
 pub fn place_structures<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -104,11 +104,11 @@ fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the frozen structures and program, the run and region, the start, the clip, the random source and the liquid settings of one structure start"
+    reason = "independent inputs of one structure start"
 )]
 #[expect(
     clippy::too_many_lines,
-    reason = "places each piece of one start in piece order and then runs the structure's after-place hook, as the reference's placeInChunk does"
+    reason = "pieces place in piece order, then the after-place hook runs"
 )]
 pub fn place_start<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -429,7 +429,7 @@ pub fn place_start<W: WorldGenVolume>(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the program, the run and region, the element with its position, reference, rotation and clip, the random source and the liquid settings of one jigsaw element's placement"
+    reason = "independent inputs of one jigsaw element's placement"
 )]
 pub fn place_element<W: WorldGenVolume>(
     program: &FeatureProgram,

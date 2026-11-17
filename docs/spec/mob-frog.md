@@ -1,17 +1,12 @@
 # The frog of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Entity type | `minecraft:frog` |
+Version: see `assets/minecraft/version.json`.
 
-Source of the game values: `assets/minecraft/version.json`.
+Entity type: `minecraft:frog`.
 
 This document states what the client draws for a frog: the geometry, the texture of each
 variant, the keyframe clips, the conditions that start and stop each clip, and the visibility
-of the croak sac. The rules for the oracle artefacts are in `mob-pig.md`, section 1. The
-document does not prescribe an architecture.
+of the croak sac. The rules for the oracle artefacts are in `mob-pig.md`, section 1.
 
 ## 0. Conventions
 
@@ -36,9 +31,6 @@ document does not prescribe an architecture.
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The label `design` of `entity-geometry.md`, section 0.2,
 applies.
-
-Each rule has a line **Milestone**, with the values of `entity-geometry.md`, section 0.2. The
-frog is milestone 2.
 
 ### 0.3 ID prefixes
 
@@ -90,9 +82,7 @@ and the shadow shape are in `client-entity-render.md`.
 Provenance: `black_box_confirmed` for the indices and the wire types
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json`, the type
 `minecraft:frog`); `source_suggested` for the defaults. Kind: wire for the indices and the
-types; semantic for the defaults. Confidence: medium. Milestone: 2. Experiment: summon a frog
-with the variant `minecraft:warm` on the vanilla server. Capture the set entity data packets.
-Entry 18 has the id of `minecraft:warm`.
+types; semantic for the defaults. Confidence: medium.
 
 ---
 
@@ -132,7 +122,7 @@ Entry 18 has the id of `minecraft:warm`.
 
 Provenance: `black_box_confirmed`
 (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_models.json`). Kind: semantic.
-Confidence: high. Milestone: 2.
+Confidence: high.
 
 ---
 
@@ -161,8 +151,7 @@ Confidence: high. Milestone: 2.
 
 Provenance: `black_box_confirmed` for 3 (the client jar, `data/minecraft/frog_variant/`, and
 `assets/minecraft/textures/entity/frog/`); `design` for 4. Kind: semantic.
-Confidence: medium. Milestone: 2. Experiment for 4: none is possible with the vanilla server.
-Use a unit test.
+Confidence: medium.
 
 ---
 
@@ -199,7 +188,7 @@ Provenance: `source_suggested_black_box_confirmed`
 each frog case within `5.3e-7`. The sample uses the times of `mob-pig.md`, MPIG-ART-003,
 item 6, the clip weights of MPIG-ART-003, item 7, and the weights of section 5 for `walk` and
 `swim`. It does not compare the head scale of MFROG-DEV-001). Kind: semantic. Confidence:
-high. Milestone: 2.
+high.
 
 ---
 
@@ -225,10 +214,7 @@ high. Milestone: 2.
 
 Provenance: `source_suggested_black_box_confirmed` (the cases with a start tick for `jump`,
 `croak` or `tongue` in `crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`
-give the pose for each time after the start). Kind: semantic. Confidence: medium. Milestone: 2.
-Experiment: put a frog and a small slime in a closed room on the vanilla server. Record the
-entity data packets of the frog and a video of the vanilla client. Each tongue movement starts
-in the tick in which the pose `using_tongue` arrives.
+give the pose for each time after the start). Kind: semantic. Confidence: medium.
 
 ### MFROG-ANIM-002: The walk and the swim
 
@@ -250,7 +236,7 @@ in the tick in which the pose `using_tongue` arrives.
 
 Provenance: `source_suggested_black_box_confirmed` (the cases with `walk_speed` greater than 0
 in `crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`). Kind: semantic.
-Confidence: medium. Milestone: 2.
+Confidence: medium.
 
 ### MFROG-ANIM-003: The idle swim
 
@@ -262,9 +248,7 @@ Confidence: medium. Milestone: 2.
      becomes 0.
 - **Postconditions:** a frog that stops in the water starts the idle swim from its start.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 2. Experiment:
-put a frog in still water on the vanilla server. Push it, and let it stop. The idle swim starts
-approximately 23 ticks after the push, when the walk speed is below `1e-5`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### MFROG-ANIM-004: The play list
 
@@ -280,9 +264,7 @@ approximately 23 ticks after the push, when the walk speed is below `1e-5`.
 
 Provenance: `source_suggested_black_box_confirmed` for 1 and 3 (the cases with a croak start
 and a walk speed of `0.6` in `crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`);
-`source_suggested` for 2. Kind: semantic. Confidence: medium. Milestone: 2. Experiment for 2:
-stand in front of a frog on the vanilla server and walk around it. The head of the frog does
-not turn to the player.
+`source_suggested` for 2. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -301,7 +283,7 @@ not turn to the player.
 Provenance: `source_suggested_black_box_confirmed` (the field `visible` of
 `root/root/body/croaking_body` in the frog cases of
 `crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`). Kind: semantic.
-Confidence: high. Milestone: 2.
+Confidence: high.
 
 ---
 
@@ -333,83 +315,7 @@ the target walk speed is `min(25 · d, 1)`, where `d` is the distance of the lat
 Provenance: `black_box_confirmed` for the width, the height, the eye height, the update
 interval and the fire immunity (`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json`,
 the type `minecraft:frog`); `source_suggested` for the other values. Kind: semantic.
-Confidence: medium. Milestone: 2. Experiment: let a frog walk on a flat surface on the vanilla server. Record its positions for each tick.
-Compute the walk speed with the factor `25`. The legs of the vanilla client move with the
-full walk pose after the second tick of the walk.
-
----
-
-## 8. Reference content (informative)
-
-This section shows one entity pack content that satisfies the rules above. It is not a rule.
-A converter writes the `bones` of the six clips from the clip artefact (MFROG-CLIP-001). The
-texture comes from registry data through `q.variant_asset` (`molang-queries.md`,
-MOLQ-STATE-002; `client-entity-definition.md`, CENT-RC-007).
-
-`assets/mcrs/entity/entity/frog.entity.json`:
-
-```json
-{
-  "format_version": "1.10.0",
-  "minecraft:client_entity": {
-    "description": {
-      "identifier": "minecraft:frog",
-      "materials": { "default": "entity_alphatest" },
-      "geometry": { "default": "geometry.frog" },
-      "animations": {
-        "jump": "animation.frog.jump",
-        "croak": "animation.frog.croak",
-        "tongue": "animation.frog.tongue",
-        "walk": "animation.frog.walk",
-        "swim": "animation.frog.swim",
-        "idle_water": "animation.frog.idle_water"
-      },
-      "scripts": {
-        "animate": [
-          { "jump": "q.pose == 'long_jumping'" },
-          { "croak": "q.pose == 'croaking'" },
-          { "tongue": "q.pose == 'using_tongue'" },
-          { "walk": "q.is_in_water ? 0 : math.min(q.modified_move_speed * 2.5, 1)" },
-          { "swim": "q.is_in_water ? math.min(q.modified_move_speed * 2.5, 1) : 0" },
-          { "idle_water": "q.is_in_water && q.modified_move_speed <= 0.00001" }
-        ]
-      },
-      "render_controllers": ["controller.render.frog"]
-    }
-  }
-}
-```
-
-`assets/mcrs/entity/render_controllers/frog.render_controllers.json`:
-
-```json
-{
-  "format_version": "1.8.0",
-  "render_controllers": {
-    "controller.render.frog": {
-      "geometry": "Geometry.default",
-      "materials": [{ "*": "Material.default" }],
-      "textures": [
-        "q.variant_asset != '' ? q.variant_asset : 'mcrs:missing'"
-      ],
-      "part_visibility": [{ "croaking_body": "q.pose == 'croaking'" }]
-    }
-  }
-}
-```
-
-The settings of one clip in `assets/mcrs/entity/animations/frog.animation.json`:
-
-```json
-{
-  "animation.frog.walk": {
-    "loop": true,
-    "animation_length": 1.25,
-    "anim_time_update": "q.modified_distance_moved * 0.075",
-    "bones": { "...": "from the clip artefact" }
-  }
-}
-```
+Confidence: medium.
 
 ---
 
@@ -424,8 +330,6 @@ The settings of one clip in `assets/mcrs/entity/animations/frog.animation.json`:
   the clip.
 - **Visible to the client:** yes, but hardly. The head is 1.7% larger for 0.5 s while the frog
   uses its tongue.
-- **Test:** a test that compares with `entity_poses.json` skips the scale of
-  `root/root/body/head` in the cases with a start tick for `tongue`.
 
 ### MFROG-DEV-002: The start of a pose clip
 
@@ -433,8 +337,6 @@ The settings of one clip in `assets/mcrs/entity/animations/frog.animation.json`:
 - **Reference:** the reference starts a pose clip at the start of the tick in which the pose
   arrives. The first frame after the start can show the clip at a time of up to one tick.
 - **Visible to the client:** no. The difference is at most `0.05` s.
-- **Test:** a test that compares a sequence of frames with the reference accepts a time offset
-  of one tick for each pose clip.
 
 ### MFROG-DEV-003: Rules of the keyframe sample
 
@@ -446,11 +348,10 @@ The settings of one clip in `assets/mcrs/entity/animations/frog.animation.json`:
 - **Visible to the client:** no, for the frog. No frog clip has one of these cases
   (MFROG-CLIP-001, postconditions 1 and 2; no two frog clips scale one bone). The frog cases
   of the pose artefact agree within `5.3e-7` (MFROG-CLIP-001).
-- **Test:** no test skips a case for this entry.
 
 ---
 
-## 10. Open questions
+## 10. Unresolved
 
 1. `query.modified_move_speed` of `molang-queries.md`, MOLQ-WALK-001, is the walk speed with the
    partial tick. The reference tests the idle swim condition with the walk speed of the latest
