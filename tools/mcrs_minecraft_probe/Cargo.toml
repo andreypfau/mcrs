@@ -16,7 +16,6 @@ test = false
 [lints]
 workspace = true
 
-# std: tokio for the TCP clients
 [dependencies]
 anyhow.workspace = true
 mcrs_minecraft_command_tree.workspace = true

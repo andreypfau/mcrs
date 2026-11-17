@@ -16,7 +16,6 @@ struct GuiUniform {
 @group(0) @binding(3) var atlas2: texture_2d_array<f32>;
 @group(0) @binding(4) var atlas3: texture_2d_array<f32>;
 @group(0) @binding(5) var atlas_sampler: sampler;
-// The terrain's sprite tables: storage buffers on the full path, integer textures on the minimal.
 @if(MINIMAL) @group(0) @binding(6) var animations: texture_2d_array<u32>;
 @else @group(0) @binding(6) var<storage, read> animations: array<u32>;
 @if(MINIMAL) @group(0) @binding(7) var sprites: texture_2d_array<u32>;
@@ -64,9 +63,6 @@ const GLINT_BIT: u32 = 0x40000000u;
 const ALPHA_CUTOUT: f32 = 0.1;
 const GLINT_ROTATION: f32 = 0.17453292;
 const GLINT_SCALE: f32 = 8.0;
-// Vanilla projects the glint from stitched-atlas UVs, so a 16px sprite spans
-// 16/atlas_px of it; the atlas width stands in as a constant and the sprite's
-// position in the atlas (a per-item phase offset) is not modelled.
 const GLINT_ATLAS_PX: f32 = 2048.0;
 
 struct VertexIn {
@@ -133,8 +129,6 @@ fn to_linear(c: vec3<f32>) -> vec3<f32> {
     return select(pow((c + 0.055) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
 }
 
-// Vanilla multiplies the vertex colour and adds the glint on the stored (sRGB) texel bytes,
-// so the arithmetic happens in that space and only the final value goes back to linear.
 @fragment
 fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
     if (in.sprite & GUI_ATLAS_BIT) != 0u {
@@ -144,7 +138,6 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
     }
     let entry = sprite_entry(in.sprite & 0xFFFFu);
     let array = entry.array_layer >> 16u;
-    // The terrain atlas already hands back the stored bytes.
     var color = sample_sprite(entry, in.uv) * in.color;
     if color.a < ALPHA_CUTOUT {
         discard;

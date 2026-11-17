@@ -93,8 +93,6 @@ pub(crate) fn dispatch(
 
     let krate = quote!(::mcrs_minecraft_registries);
     let serde = quote!(::serde);
-    // A registry value is read and written in its named form only. Bounds over its mode would
-    // recurse through a field that holds the value itself.
     let named = input
         .generics
         .type_params()

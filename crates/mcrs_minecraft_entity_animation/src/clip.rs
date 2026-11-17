@@ -3,43 +3,33 @@ use mcrs_molang::Expression;
 
 use crate::channel::Channel;
 
-/// What a clip does when its time passes its length.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum LoopMode {
-    /// The clip finishes and adds nothing more.
     #[default]
     Once,
     Loop,
     HoldOnLastFrame,
 }
 
-/// How the time of an instance changes in a frame.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TimeUpdate {
-    /// `query.anim_time + query.delta_time`: the time is the change of the entity clock since
-    /// the start of the instance, in seconds.
     Clock,
     Expression(Expression),
 }
 
-/// The channels of one bone in one clip.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipBone {
-    /// The index of the bone in [`crate::Rig::bones`].
     pub bone: usize,
     pub rotation: Option<Channel>,
     pub position: Option<Channel>,
     pub scale: Option<Channel>,
-    /// `relative_to.rotation` is `"entity"`.
     pub relative_to_entity: bool,
 }
 
-/// A compiled clip of an animation file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Clip {
     pub identifier: String,
     pub loop_mode: LoopMode,
-    /// The length in seconds; `0` for a clip that never finishes.
     pub length: f32,
     pub time_update: TimeUpdate,
     pub blend_weight: Expression,
@@ -50,7 +40,6 @@ pub struct Clip {
 }
 
 impl Clip {
-    /// Compiles a clip. `bone` gives the index of a bone name in lower case.
     pub(crate) fn compile(
         identifier: &str,
         object: &JsonObject,

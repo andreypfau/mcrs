@@ -17,8 +17,6 @@ use crate::request_ids::CLICK_REQUEST;
 use crate::request_ids::CLOSE_REQUEST;
 use crate::request_ids::HAND_DROP_REQUEST;
 
-/// Launches each stack that a drop took out of a holder of a player as an item entity
-/// (IEN-SPN-001): the rest of a menu close, or a throw with the player as its thrower.
 pub(crate) fn launch_drops(
     mut drops: MessageReader<RequestDrop>,
     parents: Query<&ChildOf>,
@@ -45,8 +43,6 @@ pub(crate) fn launch_drops(
     }
 }
 
-/// Launches `stack` from the hand of the player at `transform`. A throw has the player as its
-/// thrower; the rest of a menu close has none (IEN-SPN-001).
 pub(crate) fn launch_from_player(
     stack: &mut EntityCommands,
     transform: Option<&Transform>,

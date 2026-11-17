@@ -7,8 +7,6 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use crate::InventoryInput;
 use mcrs_minecraft_vanilla_inventory::HandAction;
 
-/// Writes the [`InventoryInput::Hand`] of each `player_action` packet with a drop key or the hand
-/// swap.
 pub(crate) fn decode_hand_action(
     received: On<Received<ServerboundPlayerAction>>,
     mut inputs: MessageWriter<InventoryInput>,

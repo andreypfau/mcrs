@@ -1,7 +1,3 @@
-//! The client sync of block changes: a set that notifies clients marks its position, and a
-//! broadcast sends each marked section in one packet, with the states the section holds then.
-//! A block of another type drops the block entity of the block that it replaced.
-
 use std::borrow::Cow;
 
 use bevy_ecs::message::{MessageReader, MessageWriter};
@@ -25,7 +21,6 @@ use crate::bus::PacketPayload;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
 
-/// The positions that sets marked for the clients since the last broadcast, by section.
 #[derive(Resource, Default)]
 pub struct BroadcastMarks {
     sections: FxHashMap<SectionPos, Vec<BlockPos>>,
@@ -44,9 +39,6 @@ impl BroadcastMarks {
         }
     }
 
-    /// Sends one packet for each marked section in a column that the muxer subscribes to: a
-    /// `block_update` for one position, else a `section_blocks_update`, with the states that
-    /// `blocks` holds now. Clears every mark; a section that no client sees sends nothing.
     pub fn broadcast<V: BlockVolume>(
         &mut self,
         blocks: &V,
@@ -96,8 +88,6 @@ impl BroadcastMarks {
     }
 }
 
-/// Removes the block entity at each position that a block of another type took this tick, so
-/// the column no longer carries it. A new state of the same block keeps its block entity.
 pub fn remove_replaced_block_entities(
     mut placed: MessageReader<BlockPlaced>,
     sections: Query<&SectionBlockEntities>,

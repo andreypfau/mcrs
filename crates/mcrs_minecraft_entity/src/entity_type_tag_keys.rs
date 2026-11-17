@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const ACCEPTS_IRON_GOLEM_GIFT: TagKey<'static, crate::entity_type_keys::EntityType> =

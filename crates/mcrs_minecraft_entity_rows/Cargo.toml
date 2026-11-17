@@ -10,7 +10,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the rows and the grid live in Vec, BTreeMap and hash maps
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
 bevy_tasks = { workspace = true, optional = true }
@@ -26,5 +25,4 @@ mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 
 [features]
 default = []
-# The row store as a Bevy resource, and the compute pool of Bevy as the executor of the pass.
 bevy = ["dep:bevy_ecs", "dep:bevy_tasks"]

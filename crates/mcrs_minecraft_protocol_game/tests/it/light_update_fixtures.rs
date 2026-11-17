@@ -1,7 +1,3 @@
-//! Fixtures in `fixtures/clientbound_light_update_*.bin` contain the packet PAYLOAD ONLY
-//! (no leading VarInt(packet_id) prefix). Tests that need framed-wire round-trips prepend
-//! the packet-id themselves.
-
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::LightData;
 use mcrs_minecraft_protocol_game::chunk::LightChunk;

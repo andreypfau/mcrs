@@ -6,7 +6,6 @@ pub(crate) const SCROLLBAR_WIDTH: i32 = 6;
 const MIN_THUMB_HEIGHT: i64 = 32;
 const ROW_MARGIN: i64 = 2;
 
-/// The geometry of one scroll area with its stored scroll offset.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ScrollArea {
     pub(crate) rect: GuiRect,
@@ -90,7 +89,6 @@ impl ScrollArea {
         }
     }
 
-    /// LIST-SEL-003 for a row from `top` to `bottom` at the scroll offset 0.
     pub(crate) fn revealed_row(self, top: i32, bottom: i32, keyboard: bool) -> f64 {
         let area_top = i64::from(self.rect.y);
         let area_bottom = area_top + i64::from(self.rect.height);
@@ -112,7 +110,6 @@ impl ScrollArea {
         self.clamp(offset)
     }
 
-    /// SCRL-PANEL-002 for a widget from `top` to `bottom` at the scroll offset 0.
     pub(crate) fn revealed_widget(self, top: i32, bottom: i32, keyboard: bool) -> f64 {
         let shift = libm::floor(self.stored) as i64;
         let area_top = i64::from(self.rect.y);

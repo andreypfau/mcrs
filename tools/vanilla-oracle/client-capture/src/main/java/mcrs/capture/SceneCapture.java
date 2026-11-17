@@ -28,7 +28,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.Vec3;
 
-/// Runs every scene of `tools/scenes` in a vanilla client and writes its frames and records.
 public final class SceneCapture implements FabricClientGameTest {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 	private static final String PLAYER = "Capture";

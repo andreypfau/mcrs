@@ -19,8 +19,6 @@ pub(crate) const CONTROLS: WidgetId = WidgetId(5);
 const HEADER_HEIGHT: i32 = 61;
 const NORMAL_FOV: u8 = 70;
 
-/// The widgets of the options screen on a screen of the size `screen`, with the FOV slider at
-/// `fov` (MENU-OPT-003).
 pub(crate) fn options_screen(
     screen: GuiExtent,
     language: &ClientLanguage,
@@ -114,7 +112,6 @@ pub(crate) fn options_screen(
     ])
 }
 
-/// The caption of the FOV slider at `fov` (MENU-VAL-001).
 fn fov_caption(language: &ClientLanguage, fov: u8) -> String {
     let value = match fov {
         NORMAL_FOV => language.get("options.fov.min").to_owned(),
@@ -124,7 +121,6 @@ fn fov_caption(language: &ClientLanguage, fov: u8) -> String {
     option_caption(language, "options.generic_value", "options.fov", &value)
 }
 
-/// Stores the value of the FOV slider after its change (MENU-VAL-001).
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV
         && let WidgetKind::Slider(slider) = widget.kind

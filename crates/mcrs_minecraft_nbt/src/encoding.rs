@@ -4,12 +4,7 @@ use std::io::{Read, Write};
 
 use crate::{BYTE_ID, DOUBLE_ID, Error, FLOAT_ID, INT_ID, LONG_ID, SHORT_ID};
 
-/// The byte-level form of NBT: byte order, length prefixes, string encoding
-/// and whether integers are fixed-width or zigzag varints.
-///
-/// The provided methods are the forms that more than one encoding shares.
 pub trait NbtEncoding: Debug {
-    /// The payload size of a primitive tag, when this encoding fixes it.
     #[inline]
     fn fixed_size(tag_id: u8) -> Option<i64> {
         match tag_id {
@@ -69,16 +64,12 @@ pub trait NbtEncoding: Debug {
     }
 }
 
-/// Big-endian NBT with modified UTF-8 strings: Java Edition.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BigEndian;
 
-/// Little-endian NBT with UTF-8 strings: Bedrock Edition world storage.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct LittleEndian;
 
-/// Little-endian NBT whose ints, longs and lengths are varints: Bedrock
-/// Edition packets.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct NetworkLittleEndian;
 
@@ -195,8 +186,6 @@ fn write_varint<W: Write>(w: &mut W, mut value: u64) -> Result<(), Error> {
     w.write_all(&[value as u8]).map_err(Error::Incomplete)
 }
 
-/// Reads an unsigned varint of at most `bits` bits. A group that carries a
-/// bit past `bits`, or a continuation past the last group, is malformed.
 fn read_varint<R: Read>(r: &mut R, bits: u32) -> Result<u64, Error> {
     let mut value = 0u64;
     let mut shift = 0;

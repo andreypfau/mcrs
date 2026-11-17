@@ -2,7 +2,6 @@ use crate::{BlockPos, SectionPos};
 use core::fmt::Debug;
 use glam::{DVec3, IVec2};
 
-/// The X and Z position of a chunk column.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct ColumnPos {
     pub x: i32,
@@ -20,7 +19,6 @@ impl ColumnPos {
         Self { x, z }
     }
 
-    /// Saturates at `i32::MAX` for columns too far apart to square in an `i32`.
     pub const fn distance_squared(self, other: Self) -> i32 {
         let diff_x = other.x.saturating_sub(self.x);
         let diff_z = other.z.saturating_sub(self.z);
@@ -30,14 +28,11 @@ impl ColumnPos {
             .saturating_add(diff_z.saturating_mul(diff_z))
     }
 
-    /// The larger of the distances along the two axes, saturating at `i32::MAX`.
     pub fn chebyshev_distance(self, other: Self) -> i32 {
         let distance = self.x.abs_diff(other.x).max(self.z.abs_diff(other.z));
         i32::try_from(distance).unwrap_or(i32::MAX)
     }
 
-    /// The columns within `radius` of this one on both axes, a square `2 * radius + 1` wide.
-    /// Columns past the `i32` range are left out.
     pub fn square(self, radius: i32) -> impl Iterator<Item = Self> {
         (radius.saturating_neg()..=radius)
             .filter_map(move |dz| self.z.checked_add(dz))

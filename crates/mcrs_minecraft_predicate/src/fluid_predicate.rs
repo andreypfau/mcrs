@@ -8,8 +8,6 @@ use crate::baked_fluid_predicate::{BakedFluidPredicate, FluidStates};
 use crate::id_bits::id_bits;
 use crate::predicate_issue::PredicateIssue;
 
-/// A test of the fluid state at a block position, as a data pack writes it (`M = Named`) or with
-/// its references resolved (`M = Resolved`).
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub struct FluidPredicate<M: Refs = Resolved> {
     fluids: Option<M::Set<Fluid>>,
@@ -32,8 +30,6 @@ impl<'de> Deserialize<'de> for FluidPredicate<Named> {
 }
 
 impl FluidPredicate {
-    /// The matching form: the entry set as a bit per fluid, and the state test as a bit per
-    /// pair of level and source flag.
     pub(crate) fn bake(
         &self,
         registries: &Registries,

@@ -32,7 +32,6 @@ pub(crate) fn write_lighting_uniform(
     );
 }
 
-/// What a fullscreen fragment computes for a pixel, mirrored on the CPU for testing.
 #[cfg(test)]
 fn reconstruct(relative_from_clip: Mat4, pixel: Vec2, viewport: Vec2, depth: f32) -> Vec3 {
     let ndc = (pixel + 0.5) / viewport * Vec2::new(2.0, -2.0) + Vec2::new(-1.0, 1.0);
@@ -49,8 +48,6 @@ mod tests {
 
     const VIEWPORT: Vec2 = Vec2::new(1280.0, 720.0);
 
-    /// The continuous pixel a projected point lands on, in the coordinates the fragment stage
-    /// numbers pixels by.
     fn pixel_and_depth(clip_from: Mat4, point: Vec3) -> (Vec2, f32) {
         let ndc = clip_from.project_point3(point);
         let pixel = (ndc.xy() * Vec2::new(0.5, -0.5) + 0.5) * VIEWPORT - 0.5;

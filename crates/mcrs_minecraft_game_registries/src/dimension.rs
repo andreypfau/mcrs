@@ -45,7 +45,6 @@ const LEADING: [ResourceKey<'static, Dimension>; 3] = [
     mcrs_minecraft_dimension::dimension_keys::THE_END,
 ];
 
-/// The vanilla dimension list of a save or a world preset, which must hold the overworld.
 pub fn bake(
     base: &Dimensions,
     registries: &Registries,
@@ -64,9 +63,6 @@ pub fn bake(
     Ok(baked)
 }
 
-/// `base` with the data pack's dimensions over it, the vanilla dimensions first when present.
-/// The first entry is where a player with no saved dimension spawns, so the list must not be
-/// empty.
 pub fn bake_list(
     base: &Dimensions,
     registries: &Registries,

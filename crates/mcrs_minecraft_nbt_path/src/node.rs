@@ -77,8 +77,6 @@ impl Node {
         }
     }
 
-    /// Pushes the tags that the node gives from `tag`, after it creates the missing tag. Returns
-    /// whether it also gives array elements, which exist only as new tags.
     pub(crate) fn get_or_create<'t>(
         &self,
         tag: &'t mut NbtTag,

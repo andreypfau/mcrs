@@ -13,18 +13,14 @@ use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::BlockStateId;
 
-/// The tables of the falling block, from the block definitions, the tags and the concrete pairs.
-/// Without it the plugin does nothing.
 #[derive(Resource, Debug)]
 pub(crate) struct FallingBlockRules {
     pub(crate) table: FallingBlockTable,
     pub(crate) settings: Settings,
-    /// The item of each block, by block index: the first item that places it.
     items: Box<[Option<Kind>]>,
 }
 
 impl FallingBlockRules {
-    /// The item of the block of `state`, or `None` for a block with no item.
     pub(crate) fn item_of(
         &self,
         definitions: &BlockDefinitions,
@@ -35,7 +31,6 @@ impl FallingBlockRules {
     }
 }
 
-/// Builds the rules from the plugin's `settings` and `concrete_pairs` and the loaded registries.
 pub(crate) fn build_rules(
     settings: Settings,
     concrete_pairs: &[PackConcretePairs],

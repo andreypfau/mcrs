@@ -44,7 +44,6 @@ fn to_value_gives_back_the_spawned_stack() {
     }
 }
 
-/// Each row is a spawned stack and a value that differs from its value in one entry.
 #[test]
 fn equals_value_holds_for_the_value_of_the_stack_and_fails_for_a_changed_entry() {
     let rows = [

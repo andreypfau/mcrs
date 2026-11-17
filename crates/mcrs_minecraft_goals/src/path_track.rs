@@ -8,8 +8,6 @@ use mcrs_minecraft_brain::Turn;
 use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_voxel::BlockPos;
 
-/// The one path of a mob as its brain sees it: the ticket of the last path intent and whether
-/// that intent gave a route. Each goal reads and writes this path (GOAL-NAV-005).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PathTrack {
     issued: Ticket,
@@ -24,8 +22,6 @@ enum Route {
 }
 
 impl PathTrack {
-    /// The mob has a path that is not done: the last intent has a route, and it is pending or the
-    /// host still runs it.
     #[must_use]
     pub fn is_running(&self, view: &MobView) -> bool {
         match self.route {
@@ -36,7 +32,6 @@ impl PathTrack {
         }
     }
 
-    /// A request to the point `target` (GOAL-NAV-001); no route gives no path.
     pub fn request<W: GoalWorld + ?Sized>(
         &mut self,
         turn: &Turn<'_, W>,

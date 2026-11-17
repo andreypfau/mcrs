@@ -1,11 +1,4 @@
-//! The GPU side of the entity rendering: the slot records of each mob, the static tables of the
-//! models, the pose programs, the entity cull, pose, expand and draw passes, and the impostors
-//! of small mobs, the skins of players, and the assets they draw from the entity pack of the
-//! repository.
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames.
 #![recursion_limit = "256"]
-
-// std: bevy
 
 mod counts_readback;
 mod cpu_inputs;

@@ -48,11 +48,8 @@ pub use section_draw::SectionDraw;
 pub const SECTION_SIZE: usize = mcrs_voxel::SectionPos::SIZE;
 pub const SECTION_VOLUME: usize = mcrs_voxel::SectionPos::VOLUME;
 
-/// Most quads a group holds. The cull tests a group as one box, so a small group hugs its quads
-/// and hides behind terrain that a whole section's worth of them would reach past.
 pub const GROUP_QUADS: usize = 32;
 
-/// Range of contiguous groups in a resident [`DrawKind`] bucket prepared for indirect rendering.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
 pub struct Draw {
     pub kind: DrawKind,
@@ -88,7 +85,6 @@ pub const fn face_normal(face: usize) -> [i32; 3] {
     }
 }
 
-/// The coordinate of `point` along `axis`, the third axis standing for any past the second.
 #[inline]
 fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
     let [x, y, z] = point;
@@ -160,7 +156,6 @@ impl Sink {
     }
 }
 
-/// A box in blocks from a section's corner, grown to take in quads as `quad.wesl` places them.
 struct Bounds {
     lo: [f32; 3],
     hi: [f32; 3],
@@ -179,9 +174,6 @@ impl Bounds {
         }
     }
 
-    /// The rectangle spans the quad's size along its face's u and v axes from its corner. A
-    /// fluid surface drops below the plane it names and is pulled in off the face behind it,
-    /// both along the normal and by less than a block.
     fn cover_greedy(&mut self, word: u32) {
         let word = word as u64;
         let corner = [QUAD_X, QUAD_Y, QUAD_Z].map(|field| field.get(word) as f32);
@@ -231,8 +223,6 @@ impl Bounds {
     }
 }
 
-/// A section's mesh reads the blocks and light of the section and the blocks around it.
-/// A block the world cannot give is air.
 pub fn mesh_section(
     world: &(impl BlockVolume + LightVolume),
     catalog: &[BlockInfo],
@@ -290,14 +280,12 @@ pub fn mesh_section(
     }
 }
 
-/// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSection {
     let mut blocks = Box::new([mcrs_voxel::BlockStateId::AIR; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
-                // A test catalog row is any u16, so every one of them is a state.
                 let state = mcrs_voxel::BlockStateId::checked(pick(x, y, z), 1 << 16);
                 blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] =
                     state.unwrap_or(mcrs_voxel::BlockStateId::AIR);
@@ -307,8 +295,6 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSectio
     OneSection(blocks)
 }
 
-/// The section at the origin, alone in its column: the rows beside it in the
-/// column are dark, and everything past the column is open sky.
 #[cfg(test)]
 pub struct OneSection(Box<[mcrs_voxel::BlockStateId; SECTION_VOLUME]>);
 
@@ -368,7 +354,6 @@ impl Batch {
     }
 }
 
-/// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
 pub fn mesh_world(
     world: &(impl BlockVolume + LightVolume),
@@ -597,7 +582,6 @@ mod tests {
             outer: [[u16::MAX; 16]; 6],
             inner: [[u16::MAX; 16]; 6],
         }));
-        // One layer: the floor is covered whole, each side along its lowest two rows.
         let mut sides = [[0u16; 16]; 6];
         sides[0] = [u16::MAX; 16];
         for (side, rows) in sides.iter_mut().enumerate().skip(2) {

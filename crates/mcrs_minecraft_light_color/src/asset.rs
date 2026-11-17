@@ -11,7 +11,6 @@ impl<'de> Deserialize<'de> for LightColor {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let text = String::deserialize(d)?;
         let invalid = || de::Error::custom(format!("expected a `#rrggbb` colour, got `{text}`"));
-        // `from_str_radix` alone would accept a sign such as `#+6d9e6`.
         let hex = text
             .strip_prefix('#')
             .filter(|hex| hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit()))

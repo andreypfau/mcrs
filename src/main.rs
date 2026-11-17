@@ -26,8 +26,6 @@ use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::muxer::column_views=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
-// The server loop runs outside `block_on`: the network owns runtimes of its own, and tokio
-// panics when one drops inside an async context, as on an exit before the first tick.
 fn main() -> AppExit {
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
@@ -79,7 +77,6 @@ fn serve() -> AppExit {
             }
         },
     );
-    // A default here changes who the server takes a player's address from, so it must not start.
     if let Some(error) = unreadable_proxy_setting {
         bevy_log::error!(
             "MCRS_{}={:?} is not {}; the server does not start",
@@ -140,8 +137,6 @@ fn serve() -> AppExit {
     mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
 }
 
-/// Logs an error that Bevy would panic on, such as a command for an entity that left the world,
-/// so that the server keeps ticking.
 fn log_instead_of_panic(error: BevyError, context: ErrorContext) {
     match error.severity() {
         Severity::Panic => bevy_ecs::error::error(error, context),
@@ -149,7 +144,6 @@ fn log_instead_of_panic(error: BevyError, context: ErrorContext) {
     }
 }
 
-/// [`log_instead_of_panic`] in a dimension world.
 #[derive(Clone)]
 struct LogInsteadOfPanicPlugin;
 
@@ -187,8 +181,6 @@ fn network(settings: &ServerSettings) -> Result<ServerNetworkPlugin, EmptyForwar
     })
 }
 
-/// The English language of the installed client jar, for the console answers. Without the jar,
-/// an answer reads as its translation key and its arguments.
 fn english() -> Language {
     let Some(jar) = locate(&candidates(), &RELEASE.jar, &Progress::default()) else {
         bevy_log::warn!("no client jar; the console writes translation keys, not English");
@@ -210,8 +202,6 @@ fn english() -> Language {
     })
 }
 
-/// `RUST_LOG` replaces the default filter, so it can lower the levels that the default raises for
-/// the server's own crates; bevy alone only adds it on top of them.
 fn log_filter(rust_log: Option<&str>) -> String {
     rust_log
         .map(str::trim)
@@ -220,8 +210,6 @@ fn log_filter(rust_log: Option<&str>) -> String {
         .to_owned()
 }
 
-/// The first argument names a world folder whose saved chunks the server reads; without one it
-/// generates.
 fn world_folder() -> Option<PathBuf> {
     let path = std::env::args_os().nth(1).map(PathBuf::from)?;
     if !path.is_dir() {

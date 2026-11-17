@@ -556,7 +556,7 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 11 | The width of the count. STK-CNT-003 lets a wire reader accept a count above 255. | Decided: `Count` holds 8 bits. A decoder rejects a larger count with an error. `spec/item-stack.md` records this as a deviation. |
 | 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Decided: sections 10.1 and 10.2 name the target crate of each group. |
 | 13 | A write to an item component and `mergeable` in one system need `ParamSet`. | Accept it. A later `get_mut` on the param removes the limit without a break of the API. |
-| 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
+| 14 | A request holds a fixed number of operations inline. | Keep it. The transaction specification gives the real maximum. |
 | 15 | Questions Q1–Q7 and undecided points U1–U5 of `spec/item-stack.md` section 10. | Their answers belong to the specification. Q6 (float equality) changes point 1 and the merge check. |
 | 16 | 28 experiments of `spec/item-stack.md` section 11 are not run. | Run them before the codec step is complete. A codec rule without a captured result stays marked in its test. |
 | 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | Decided, and replaced by section 10.3.4: a text holds `ItemHover` and `DialogRef`, and `mcrs_minecraft_text::Text` is the one text type. The dialog lives in the crate `mcrs_minecraft_dialog`, above `mcrs_minecraft_item_stack`. |

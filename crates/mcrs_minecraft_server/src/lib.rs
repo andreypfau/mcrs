@@ -31,9 +31,6 @@ pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
 
-/// The vanilla server: the engine's server plugins with every vanilla member, each one a
-/// member that can be disabled or replaced through [`PluginGroup::build`]. A member that needs
-/// another one panics at build and names it.
 pub struct MinecraftServerPlugins {
     pub core: ServerCorePlugin,
     pub worlds: DimensionWorldsPlugin,
@@ -46,7 +43,6 @@ impl Default for MinecraftServerPlugins {
         Self {
             core: ServerCorePlugin {
                 builtin_assets: mcrs_minecraft_worldgen_builtin::asset,
-                // The beta presets name the noise settings the world generation registries build.
                 local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
                 ..Default::default()
             },
@@ -58,8 +54,6 @@ impl Default for MinecraftServerPlugins {
 }
 
 impl MinecraftServerPlugins {
-    /// A server running inside another process: loopback only, an OS-assigned
-    /// port, and the task pools left to the host app.
     pub fn embedded() -> Self {
         let defaults = Self::default();
         Self {
@@ -99,7 +93,6 @@ impl PluginGroup for MinecraftServerPlugins {
     }
 }
 
-/// The entity pass and the tile events of its mobs in every dimension world.
 pub struct VanillaEntityPhysicsPlugin;
 
 impl Plugin for VanillaEntityPhysicsPlugin {
@@ -109,7 +102,6 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     }
 }
 
-/// The attribute instances of the players and the mob rows in every dimension world.
 pub struct VanillaEntityAttributesPlugin;
 
 impl Plugin for VanillaEntityAttributesPlugin {
@@ -119,8 +111,6 @@ impl Plugin for VanillaEntityAttributesPlugin {
     }
 }
 
-/// The modifier of the sprint state on `movement_speed` in every dimension world. It edits the
-/// instances of [`VanillaEntityAttributesPlugin`].
 pub struct VanillaSprintAttributePlugin;
 
 impl Plugin for VanillaSprintAttributePlugin {
@@ -129,8 +119,6 @@ impl Plugin for VanillaSprintAttributePlugin {
     }
 }
 
-/// The range modifiers of creative mode in every dimension world. It edits the instances of
-/// [`VanillaEntityAttributesPlugin`].
 pub struct VanillaCreativeRangePlugin;
 
 impl Plugin for VanillaCreativeRangePlugin {
@@ -139,8 +127,6 @@ impl Plugin for VanillaCreativeRangePlugin {
     }
 }
 
-/// The AI of the mobs in every dimension world, with the brains of `mcrs_minecraft_goals`; a hit
-/// by a damage type of the tag `panic_causes` makes a mob panic (GOAL-PNC-002).
 pub struct VanillaMobBrainPlugin;
 
 impl Plugin for VanillaMobBrainPlugin {
@@ -152,8 +138,6 @@ impl Plugin for VanillaMobBrainPlugin {
     }
 }
 
-/// The item stacks of the player files, in the host and in every dimension world. The item table
-/// comes from the registries that the server loads.
 pub struct VanillaItemPlugin;
 
 impl Plugin for VanillaItemPlugin {
@@ -163,8 +147,6 @@ impl Plugin for VanillaItemPlugin {
     }
 }
 
-/// Block placing in every dimension world. It reads the held item from the slots that
-/// [`VanillaItemEntityPlugin`] gives each player.
 pub struct VanillaBlockPlacePlugin;
 
 impl Plugin for VanillaBlockPlacePlugin {
@@ -173,8 +155,6 @@ impl Plugin for VanillaBlockPlacePlugin {
     }
 }
 
-/// Chat in every dimension world, and the operator messages of commands delivered to the
-/// operators.
 pub struct VanillaChatPlugin;
 
 impl Plugin for VanillaChatPlugin {

@@ -16,16 +16,11 @@ struct EditTarget<'a> {
 }
 
 impl Widgets {
-    /// Whether the focused widget is an active, editable edit box in edit mode: the screen and
-    /// the game then act on no key binding but Escape, fullscreen and screenshot (EDIT-KEY-005).
     #[must_use]
     pub fn captures_keyboard(&self) -> bool {
         self.editing_box().is_some_and(|edit| edit.editable)
     }
 
-    /// Characters that the player typed, which go into the focused edit box while it captures
-    /// the keyboard; returns whether the box used them (EDIT-LEN-001, EDIT-FOCUS-002,
-    /// EDIT-STATE-001).
     pub fn type_text(
         &mut self,
         text: &str,
@@ -50,7 +45,6 @@ impl Widgets {
         true
     }
 
-    /// Pastes `text` from the clipboard into the focused edit box in edit mode (EDIT-KEY-003).
     pub fn paste(
         &mut self,
         text: &str,
@@ -66,8 +60,6 @@ impl Widgets {
         edit.scroll(rect, width);
     }
 
-    /// The text that a copy puts into the clipboard: the selection of the focused edit box in
-    /// edit mode, or none when it is empty (EDIT-KEY-003, EDIT-KEY-004).
     #[must_use]
     pub fn copy(&self) -> Option<&str> {
         self.editing_box()
@@ -75,8 +67,6 @@ impl Widgets {
             .filter(|selected| !selected.is_empty())
     }
 
-    /// Copies the selection of the focused edit box in edit mode and deletes it when the box is
-    /// editable; returns the text for the clipboard (EDIT-KEY-003, EDIT-KEY-004).
     pub fn cut(
         &mut self,
         width: &impl Fn(&str) -> i32,
@@ -95,16 +85,12 @@ impl Widgets {
         Some(selected)
     }
 
-    /// Selects the whole value of the focused edit box in edit mode (EDIT-KEY-001).
     pub fn select_all(&mut self) {
         if let Some(target) = self.editing_box_mut() {
             target.edit.select_all();
         }
     }
 
-    /// Lets the screen change the value, the cursor or the options of the edit box `id`
-    /// (EDIT-API-002); the view then follows the cursor, and a value notification follows when
-    /// `change` returns true (EDIT-API-001).
     pub fn change_edit_box(
         &mut self,
         id: WidgetId,

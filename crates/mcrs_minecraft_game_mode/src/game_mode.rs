@@ -55,7 +55,6 @@ impl fmt::Display for GameMode {
     }
 }
 
-/// A name that no [`GameMode`] has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownGameMode;
 
@@ -78,8 +77,6 @@ impl FromStr for GameMode {
     }
 }
 
-/// An optional [`GameMode`] on the wire as a VarInt: `0` is `None`, otherwise
-/// the mode id plus one.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug, From, Into)]
 pub struct OptGameMode(pub Option<GameMode>);
 

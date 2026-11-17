@@ -1,7 +1,3 @@
-//! The packet edge of the player inventory: decodes the inventory packets, applies them through
-//! the gameplay of `mcrs_minecraft_vanilla_inventory`, and keeps each client in agreement.
-// std: mcrs_minecraft_engine
-
 mod apply_click;
 mod apply_inventory_input;
 mod claimed_slot;

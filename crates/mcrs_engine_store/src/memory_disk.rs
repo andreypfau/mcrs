@@ -8,8 +8,6 @@ use rustc_hash::FxHashMap;
 use crate::disk_store::DiskStore;
 use crate::versioned_chunk::{VersionedChunk, keep_latest};
 
-/// A disk store that keeps its chunks in memory only, so the data layer of a world without a
-/// save lives in memory. `E` is the error type that another disk of the same chunks shares.
 #[derive(Debug)]
 pub struct MemoryDisk<K, C, E = Infallible> {
     chunks: FxHashMap<K, VersionedChunk<C>>,

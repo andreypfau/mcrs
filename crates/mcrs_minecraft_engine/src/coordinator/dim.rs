@@ -17,11 +17,6 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::dim_tick::DimOutput;
 use crate::to_muxer::{Destination, DimClosed, DimDelivered, RoutedDeparture};
 
-/// Takes what the dimension worlds handed over in their last tick, the cells in the order they
-/// ticked: records their column traces, grants the entity id ranges they ask for, keeps the
-/// players they report, hands the messages between the cells of a dimension on, applies the
-/// clock changes they made, picks the destination of each player that left them, and hands the
-/// rest of each dimension, its cells merged, to the muxer.
 pub(crate) fn take_dim_outputs(world: &mut World) {
     let taken = world
         .get_resource_mut::<DimCells>()
@@ -113,19 +108,14 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
     }
 }
 
-/// What the cells of the dimension of `label` handed over in one tick, merged.
 struct DimMerged {
     label: Entity,
     output: DimOutput,
 }
 
-/// Marks the host entity that labels a dimension world. The entity carries the key of the
-/// dimension and no other state: it gives the dimension a host-unique name.
 #[derive(bevy_ecs::component::Component)]
 pub struct DimSubAppHandle;
 
-/// Stops the dimension worlds of the `DimDespawnQueue`, tells the muxer, and despawns their
-/// label entities.
 pub(crate) fn drain_dim_despawn_queue(app: &mut App) {
     let Some(mut queue) = app.world_mut().get_resource_mut::<DimDespawnQueue>() else {
         return;
@@ -153,7 +143,6 @@ pub(crate) fn drain_dim_despawn_queue(app: &mut App) {
             running.remove(entity);
         }
 
-        // The `OnRemove<DimSubAppHandle>` observer queues an entity that is despawned already.
         match world.get_entity_mut(entity) {
             Ok(entity_mut) => entity_mut.despawn(),
             Err(_) => debug!(

@@ -6,7 +6,6 @@ mod effective_state;
 mod equipped;
 mod fixture;
 mod placement;
-// Miri isolation forbids the directories these tests write the player files to.
 #[cfg(not(miri))]
 mod player_file;
 mod request;

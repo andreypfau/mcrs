@@ -18,7 +18,6 @@ use crate::predicate_scratch::PredicateScratch;
 use crate::predicate_tables::PredicateTables;
 use crate::slots_predicate::BakedSlotTest;
 
-/// An entity predicate in its matching form; [`crate::EntityPredicate::bake`] makes it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedEntityPredicate {
     pub(crate) entity_type: Option<FixedBitSet>,
@@ -54,15 +53,9 @@ pub(crate) enum LivingTest {
     Living,
 }
 
-/// The most nested entities that one top-level match evaluates; past it the match fails.
-/// `passenger` and `vehicle` that alternate would otherwise visit each passenger at each level.
 const MAX_NESTED_MATCHES: u32 = 1 << 16;
 
 impl BakedEntityPredicate {
-    /// Fails for an absent `entity`, also for `{}`. `world` reads the dimension of the caller;
-    /// only `distance` reads `origin`, and it fails when `origin` is absent. Each nested
-    /// predicate receives the same `origin`. The match fails when it evaluates more than 65 536
-    /// nested entities.
     #[must_use]
     pub fn matches<W: LocationView + EntityView>(
         &self,
@@ -117,9 +110,6 @@ impl BakedEntityPredicate {
             && self.matches_relatives(context, entity, scratch)
             && match self.deferred {
                 DeferredTest::Absent => true,
-                // chisle: `components` and `predicates` fail until the data component predicates
-                // match an entity, and `raider` and a `type_specific` field off its default until
-                // the host gives the values of each entity kind.
                 DeferredTest::Unmatched => false,
             }
     }
@@ -250,20 +240,16 @@ impl BakedEntityPredicate {
     }
 }
 
-/// The values that each nested predicate receives unchanged.
 struct Context<'a, W> {
     world: &'a W,
     origin: Option<DVec3>,
     tables: PredicateTables<'a>,
 }
 
-/// Starts the budget of nested entity tests of one match.
 fn start_budget(scratch: &mut PredicateScratch) {
     scratch.nested_matches = 0;
 }
 
-/// `false` when the match that [`start_budget`] started needed more nested entity tests than its
-/// budget.
 fn within_budget(scratch: &PredicateScratch) -> bool {
     scratch.nested_matches <= MAX_NESTED_MATCHES
 }

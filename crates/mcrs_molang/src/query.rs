@@ -7,16 +7,12 @@ use hashbrown::HashMap;
 use crate::diagnostic::ErrorKind;
 use crate::value::{Milestone, Rate, ValueType};
 
-/// The consumers in which an expression runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UseContext {
-    /// A permutation condition of a block definition. An unknown query is a load error.
     Block,
-    /// A script, animation, controller or render controller of a client entity.
     Entity,
 }
 
-/// The consumers in which a query is valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum QueryScope {
     Block,
@@ -34,7 +30,6 @@ impl QueryScope {
     }
 }
 
-/// A literal in the source text.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Literal<'a> {
     Number(f32),
@@ -42,19 +37,15 @@ pub enum Literal<'a> {
     String(&'a str),
 }
 
-/// An argument of a query call, as the compiler sees it at load.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Argument<'a> {
     Literal(Literal<'a>),
-    /// An argument whose value is known only when the expression runs.
     Dynamic,
 }
 
-/// An index into the query values of a subject.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct QuerySlot(pub u16);
 
-/// A query reference that the host resolved at load.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct QueryBinding {
     pub slot: QuerySlot,
@@ -62,17 +53,13 @@ pub struct QueryBinding {
     pub rate: Rate,
 }
 
-/// The answer of a host for a query name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resolution {
     Bound(QueryBinding),
-    /// No declaration has the name.
     Unknown,
-    /// The declaration does not include the context of use.
     OutOfContext,
 }
 
-/// A load error that a host reports for a query reference.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueryError {
     pub kind: ErrorKind,
@@ -89,13 +76,9 @@ impl QueryError {
     }
 }
 
-/// The part of a consumer that declares queries and context values, and supplies their values
-/// in the slots that it gives at load.
 pub trait QueryHost {
     fn use_context(&self) -> UseContext;
 
-    /// Resolves `query.<name>(<arguments>)`. A host can give each set of literal arguments its
-    /// own slot.
     fn resolve_query(
         &mut self,
         name: &str,
@@ -103,8 +86,6 @@ pub trait QueryHost {
         milestone: Milestone,
     ) -> Result<Resolution, QueryError>;
 
-    /// Checks a comparison of a query result with a literal, for example that the literal is a
-    /// value of a block property.
     fn check_comparison(
         &self,
         binding: QueryBinding,
@@ -114,23 +95,18 @@ pub trait QueryHost {
         Ok(())
     }
 
-    /// Resolves `context.<name>`. `None` means that the consumer does not supply it.
     fn resolve_context(&mut self, name: &str) -> Option<QueryBinding> {
         let _ = name;
         None
     }
 }
 
-/// The arguments that a query declaration takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Arguments {
-    /// No argument list, or an empty one.
     None,
-    /// A fixed number of literal arguments; each set of values gets its own slot.
     Literals(u8),
 }
 
-/// One query that a host supplies.
 #[derive(Clone, Debug, PartialEq)]
 pub struct QueryDeclaration {
     pub name: Box<str>,
@@ -142,7 +118,6 @@ pub struct QueryDeclaration {
 }
 
 impl QueryDeclaration {
-    /// A query of the entity scope that the first milestone supports.
     #[must_use]
     pub fn entity(name: &str, result: ValueType, arguments: Arguments, rate: Rate) -> Self {
         Self {
@@ -156,7 +131,6 @@ impl QueryDeclaration {
     }
 }
 
-/// An owned literal argument, the key of a query slot.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LiteralKey {
     Number(u32),
@@ -173,15 +147,12 @@ impl From<Literal<'_>> for LiteralKey {
     }
 }
 
-/// A query slot of a [`QueryRegistry`]: a declaration with one set of literal arguments.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SlotKey {
     pub declaration: usize,
     pub arguments: Vec<LiteralKey>,
 }
 
-/// A table of query declarations that gives one slot to each query reference with distinct
-/// literal arguments. The host samples each slot of [`QueryRegistry::slots`] for each subject.
 #[derive(Clone, Debug)]
 pub struct QueryRegistry {
     context: UseContext,
@@ -205,14 +176,12 @@ impl QueryRegistry {
         }
     }
 
-    /// Adds a declaration. A later declaration with the same name replaces the earlier one.
     pub fn declare(&mut self, declaration: QueryDeclaration) {
         let name = declaration.name.to_ascii_lowercase().into_boxed_str();
         self.by_name.insert(name, self.declarations.len());
         self.declarations.push(declaration);
     }
 
-    /// Declares a context value that the consumer supplies for each run.
     pub fn declare_context(&mut self, name: &str, value_type: ValueType) {
         self.contexts
             .push((name.to_ascii_lowercase().into_boxed_str(), value_type));
@@ -223,7 +192,6 @@ impl QueryRegistry {
         self.declarations.get(index)
     }
 
-    /// The slots in slot order. A context value has the declaration index `usize::MAX`.
     pub fn slots(&self) -> impl Iterator<Item = (QuerySlot, &SlotKey)> {
         (0u16..).map(QuerySlot).zip(&self.slots)
     }

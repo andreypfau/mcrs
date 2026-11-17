@@ -42,9 +42,6 @@ enum MovePacket {
     Rot,
 }
 
-/// What the server was last told, which is what this tick's position and look
-/// are judged against. Empty until the first teleport is accepted: a vanilla
-/// server disconnects a client that moves before the server has placed it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct LastSentMovement(Option<SentMovement>);
 
@@ -73,18 +70,15 @@ impl LastSentMovement {
     }
 }
 
-/// The look a run asked for, kept through the teleports the server answers a join with.
 #[derive(Resource, Clone, Copy)]
 pub struct LookOverride {
     pub yaw: f32,
     pub pitch: f32,
 }
 
-/// The position a run asked for, in place of the first absolute teleport the server sends.
 #[derive(Resource, Clone, Copy)]
 pub struct PositionOverride(pub DVec3);
 
-/// One tick of local-player movement.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalPlayerTick;
 
@@ -144,8 +138,6 @@ fn apply_server_teleport(
     velocity.0 = state.body.velocity;
 }
 
-/// Moves to where the server says, then confirms with the position that move
-/// landed on.
 fn accept_teleports(
     mut commands: Commands,
     player: Single<
@@ -176,8 +168,6 @@ fn accept_teleports(
             if let Some(position) = position.take() {
                 motion.0.body.position = position;
                 transform.translation = position;
-                // The server answers the mismatch with its own destination,
-                // which the client has to accept instead of overriding again.
                 commands.remove_resource::<PositionOverride>();
             }
             if let Some(look) = look.as_deref() {
@@ -194,8 +184,6 @@ fn accept_teleports(
     }
 }
 
-/// Without it the server's view of the player never moves, so it never streams
-/// the columns the player is flying towards.
 fn send_movement(
     player: Single<(&PhysicsTransform, &LocalMotion, &mut LastSentMovement), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &ConnectionState)>>,
@@ -234,8 +222,6 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
     old_transform.0 = *transform;
 }
 
-/// Adds or removes the sprint modifier only when the sprint state changes (ATR-SRC-002), so a
-/// `movement_speed` entry that drops it keeps it dropped until the next change (ATR-CLI-002).
 fn give_sprint_modifier(
     mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {

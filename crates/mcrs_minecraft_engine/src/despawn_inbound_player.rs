@@ -11,11 +11,6 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 
-/// Per-dim consumer that despawns the in-dim player entity when an
-/// `InboundPlayerDespawn` arrives for its session on a disconnect, so the
-/// dimension stops streaming chunks toward that connection. The players near it hear that it
-/// left. The player file is queued for the I/O pool, and the host hears of the release once the
-/// file is on disk.
 pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     index: Res<DimPlayerIndex>,

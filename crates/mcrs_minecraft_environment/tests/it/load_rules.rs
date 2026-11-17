@@ -1,5 +1,3 @@
-//! What a data pack may write, and what the reader makes of it.
-
 use mcrs_minecraft_registries::Named;
 use serde_json::json;
 

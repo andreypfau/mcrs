@@ -6,7 +6,6 @@ use serde::Deserialize;
 use crate::entity_predicate::EntityPredicate;
 use crate::player_predicate::PlayerPredicate;
 
-/// A sub-predicate that tests the values of one kind of entity.
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub(crate) enum TypeSpecificPredicate<M: Refs = Resolved> {
     Lightning(LightningPredicate<M>),
@@ -49,14 +48,10 @@ pub(crate) struct SheepPredicate {
     sheared: Option<bool>,
 }
 
-/// What the match of a type-specific sub-predicate needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TypeSpecificScope {
-    /// Each entity passes.
     Every,
-    /// An entity passes when it has one of these types.
     EntityTypes(&'static [EntityType]),
-    /// The test reads a value that the entity view does not give yet.
     Unmatched,
 }
 
@@ -93,7 +88,6 @@ impl TypeSpecificPredicate {
         }
     }
 
-    /// The entity predicate that `entity_struck` or `looking_at` nests.
     pub(crate) fn nested(&self) -> Option<&EntityPredicate> {
         match self {
             TypeSpecificPredicate::Lightning(lightning) => lightning.entity_struck.as_deref(),

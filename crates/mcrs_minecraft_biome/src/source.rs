@@ -5,13 +5,6 @@ use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, dispatch, registry_value};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
-// ===========================================================================
-// Beta biome lookup — enum, cascade, table
-// ===========================================================================
-
-/// Discriminant order is the contract for the `biomes` list order in the
-/// `mcrs:beta` biome_source JSON. The JSON entry at index N must correspond to
-/// the BetaLandBiome variant whose discriminant equals N.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BetaLandBiome {
     IceDesert = 0,
@@ -68,8 +61,6 @@ pub fn build_beta_lookup_table() -> [[BetaLandBiome; 64]; 64] {
     })
 }
 
-/// Resolve a land biome via the precomputed 64x64 quantized lookup, mirroring
-/// BiomeBase.getBiomeFromLookup: i=(int)(temp*63), j=(int)(rain*63).
 pub fn beta_biome_from_climate(
     table: &[[BetaLandBiome; 64]; 64],
     temp: f32,
@@ -80,10 +71,6 @@ pub fn beta_biome_from_climate(
     let [.., last] = row;
     *row.get((rain * 63.0) as usize).unwrap_or(last)
 }
-
-// ===========================================================================
-// Biome sources
-// ===========================================================================
 
 #[registry_value]
 #[dispatch(registry = crate::biome_source_keys::BiomeSourceType, unsupported(Checkerboard))]
@@ -97,8 +84,6 @@ pub enum BiomeSource<M: Refs = Resolved> {
     },
     #[dispatch(id = "mcrs:beta")]
     Beta {
-        // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
-        // order must match those discriminant values.
         #[serde(rename = "biomes")]
         land_biomes: [M::Id<crate::Biome>; 11],
         #[serde(skip, default = "beta_lookup")]
@@ -203,10 +188,6 @@ fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     Ok(Some(entries))
 }
 
-// ===========================================================================
-// Tests
-// ===========================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,7 +286,6 @@ mod tests {
             "Expected all 11 land buckets to be reachable, got {:?}",
             seen
         );
-        // Verify each specific bucket is present
         for expected in 0u8..=10 {
             assert!(
                 seen.contains(&expected),
@@ -317,53 +297,28 @@ mod tests {
 
     #[test]
     fn beta_biome_lookup_table() {
-        // temp < 0.1 → IceDesert
         assert_eq!(beta_get_biome(0.05, 0.5), BetaLandBiome::IceDesert);
 
-        // temp=0.97, rain_adjusted = rain*temp; test Savanna: temp in [0.5,0.95), rain*temp < 0.2
-        // temp=0.6, rain=0.1 → rain*temp=0.06 < 0.2, temp >= 0.5, temp < 0.95 → Savanna
         assert_eq!(beta_get_biome(0.6, 0.1), BetaLandBiome::Savanna);
 
-        // Desert: temp >= 0.95, rain*temp < 0.2
-        // temp=0.96, rain=0.1 → rain*temp=0.096 < 0.2, temp >= 0.95 → Desert
         assert_eq!(beta_get_biome(0.96, 0.1), BetaLandBiome::Desert);
 
-        // SeasonalForest: temp >= 0.97, rain*temp in [0.45, 0.9)
-        // temp=0.98, rain=0.5 → rain*temp=0.49 ≥ 0.45 and < 0.9 → SeasonalForest
         assert_eq!(beta_get_biome(0.98, 0.5), BetaLandBiome::SeasonalForest);
 
-        // Rainforest: temp >= 0.97, rain*temp >= 0.9
-        // temp=0.98, rain=0.95 → rain*temp=0.931 ≥ 0.9 → Rainforest
         assert_eq!(beta_get_biome(0.98, 0.95), BetaLandBiome::Rainforest);
 
-        // Tundra: temp < 0.5, rain*temp < 0.2 (and temp >= 0.1)
-        // temp=0.3, rain=0.5 → rain*temp=0.15 < 0.2, temp < 0.5 → Tundra
         assert_eq!(beta_get_biome(0.3, 0.5), BetaLandBiome::Tundra);
 
-        // Swampland: rain*temp > 0.5, temp < 0.7
-        // temp=0.6, rain=0.9 → rain*temp=0.54 > 0.5, temp < 0.7 → Swampland
         assert_eq!(beta_get_biome(0.6, 0.9), BetaLandBiome::Swampland);
 
-        // Taiga: temp >= 0.5, rain*temp >= 0.2, rain*temp <= 0.5 (or temp < 0.7), temp < 0.5 fails → need temp in [0.5, 0.7) and rain not swampland
-        // Actually Taiga: temp < 0.5 — wait let's re-check: after swampland check, if temp < 0.5 → Taiga
-        // temp=0.4, rain=0.9 → rain*temp=0.36 >= 0.2, rain*temp <= 0.5 (0.36 not > 0.5), temp < 0.5 → Taiga
         assert_eq!(beta_get_biome(0.4, 0.9), BetaLandBiome::Taiga);
 
-        // Shrubland: temp >= 0.5, temp < 0.97, rain*temp < 0.35
-        // temp=0.7, rain=0.4 → rain*temp=0.28 < 0.35, temp < 0.97 → Shrubland
         assert_eq!(beta_get_biome(0.7, 0.4), BetaLandBiome::Shrubland);
 
-        // Forest: temp >= 0.5, temp < 0.97, rain*temp >= 0.35
-        // temp=0.7, rain=0.6 → rain*temp=0.42 >= 0.35, rain*temp <= 0.5 (not swampland since 0.42 ≤ 0.5), temp < 0.97 → Forest
         assert_eq!(beta_get_biome(0.7, 0.6), BetaLandBiome::Forest);
 
-        // Plains: temp >= 0.97, rain*temp < 0.45
-        // temp=0.98, rain=0.4 → rain*temp=0.392 < 0.45 → Plains
         assert_eq!(beta_get_biome(0.98, 0.4), BetaLandBiome::Plains);
 
-        // Confirm rain is multiplied by temp before comparisons:
-        // temp=0.3, rain=0.8 → rain*temp=0.24 >= 0.2, rain*temp <= 0.5 (no swampland), temp < 0.5 → Taiga
-        // Without multiplication: rain=0.8 > 0.5 and temp=0.3 < 0.7 → Swampland (wrong)
         assert_eq!(beta_get_biome(0.3, 0.8), BetaLandBiome::Taiga);
     }
 }

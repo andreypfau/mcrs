@@ -2,7 +2,6 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 
-/// The type ids of the specification, from 0 to 28.
 pub(crate) const COMPONENT_TYPES: [&str; 29] = [
     "custom_data",
     "max_stack_size",
@@ -35,19 +34,11 @@ pub(crate) const COMPONENT_TYPES: [&str; 29] = [
     "tool",
 ];
 
-/// # Panics
-///
-/// Panics when `count` is zero.
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {
     let count = Count::new(count).expect("the test counts are not zero");
     ItemStack::new(Kind(kind), count)
 }
 
-/// The bytes of `hex`, which may hold whitespace between the digits.
-///
-/// # Panics
-///
-/// Panics when `hex` holds a character that is not a hex digit or whitespace.
 pub(crate) fn unhex(hex: &str) -> Vec<u8> {
     let digits: Vec<char> = hex.chars().filter(|digit| !digit.is_whitespace()).collect();
     digits

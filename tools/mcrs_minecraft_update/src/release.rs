@@ -62,7 +62,6 @@ pub fn client(package: &[u8]) -> Result<Download, String> {
     Ok(package.downloads.client)
 }
 
-/// The asset index the package descriptor names.
 pub fn asset_index(package: &[u8]) -> Result<Download, String> {
     let package: IndexRef = serde_json::from_slice(package)
         .map_err(|error| format!("the package descriptor has no asset index: {error}"))?;
@@ -80,7 +79,6 @@ struct IndexObject {
     size: u64,
 }
 
-/// The objects of the font folder of an asset index, as the JSON `font_objects.json` holds them.
 pub fn font_objects(index: &[u8]) -> Result<String, String> {
     let index: Index = serde_json::from_slice(index)
         .map_err(|error| format!("the asset index is not an index: {error}"))?;
@@ -112,8 +110,6 @@ pub fn check(url: &str, sha1: &str, size: Option<u64>, bytes: &[u8]) -> Result<(
     }
 }
 
-/// The verified client jar of `id` in the launcher directory `dir`, fetched with `fetch` when it
-/// is not already there.
 pub fn jar(
     dir: &Path,
     id: &str,

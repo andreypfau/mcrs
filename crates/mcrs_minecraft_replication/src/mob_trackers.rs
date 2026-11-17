@@ -29,25 +29,15 @@ use mcrs_minecraft_registries::Wire;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
 
-/// The mobs whose latest state a client that caught up receives in one tick.
 const RESENDS_PER_TICK: usize = 1024;
 
-/// The mobs of one world. Its updates come at the end of each tick for each held mob, not from
-/// the tile blobs (TRK-UPD-009). The [`HoldSet`] of the codec says which client holds each one.
 #[derive(Debug, Default)]
 pub(crate) struct MobTrackers {
     mobs: FxHashMap<EntityId, Mob>,
     scratch: BytesMut,
-    /// The signals of the tick, as records, in the order of their causes.
     signals: Vec<(EntityId, Bytes)>,
-    /// The viewers that held each mob that left the world in this tick. They get its signals
-    /// before its removal.
     farewells: FxHashMap<EntityId, Vec<ViewerId>>,
-    /// The viewers whose connection holds more bytes than their client reads. They get no move
-    /// of a mob until they catch up.
     behind: BTreeSet<ViewerId>,
-    /// The mobs whose updates each client missed. It gets their latest state once it catches up,
-    /// and no relative move before that.
     missed: BTreeMap<ViewerId, BTreeSet<EntityId>>,
 }
 
@@ -56,7 +46,6 @@ struct Mob {
     kind: &'static EntityTypeData,
     uuid: Uuid,
     looks: MobLooks,
-    /// The field "data" of `add_entity`.
     spawn_data: VarInt,
     tracker: MobTracker,
     attributes: SubjectAttributes,
@@ -109,7 +98,6 @@ impl MobTrackers {
         };
     }
 
-    /// Queues `signal` of `subject` for the clients that hold it at the end of the tick.
     pub(crate) fn signal(
         &mut self,
         subject: EntityId,
@@ -152,8 +140,6 @@ impl MobTrackers {
         Ok(())
     }
 
-    /// Appends the signals of the tick of each mob of `subjects` that left the world, for the
-    /// client of `viewer`, before the removal of the mobs.
     pub(crate) fn farewell(
         &self,
         viewer: ViewerId,
@@ -195,8 +181,6 @@ impl MobTrackers {
         }
     }
 
-    /// Forgets `subject` and takes it out of `holds`. The muxer removes it from each client that
-    /// holds it.
     pub(crate) fn despawn(&mut self, subject: EntityId, holds: &mut HoldSet) {
         if self.mobs.remove(&subject).is_none() {
             return;
@@ -210,9 +194,6 @@ impl MobTrackers {
         self.farewells.insert(subject, holders);
     }
 
-    /// The tracking range of `subject` in blocks (TRK-RNG-001), at the
-    /// `entity-broadcast-range-percentage` of 100. The view distance of the viewer does not limit
-    /// it (TRK-DEV-004).
     pub(crate) fn tracking_range(&self, subject: EntityId) -> Option<u32> {
         let mob = self.mobs.get(&subject)?;
         Some(mob.kind.tracking_range.saturating_mul(BLOCKS_PER_COLUMN))
@@ -223,8 +204,6 @@ impl MobTrackers {
         Some(mob.tracker.latest().position.to_array())
     }
 
-    /// Appends the spawn bundle of `subject` for the client of `viewer` (TRK-SPN-001), at tick
-    /// `tick`, between two `delimiter`s, and records the hold in `holds`.
     pub(crate) fn gain(
         &mut self,
         viewer: ViewerId,
@@ -251,8 +230,6 @@ impl MobTrackers {
         Ok(())
     }
 
-    /// Ends what the client of `viewer` missed of `subject`, which it no longer holds; false when
-    /// `subject` is not a mob.
     pub(crate) fn lose(&mut self, viewer: ViewerId, subject: EntityId) -> bool {
         if !self.mobs.contains_key(&subject) {
             return false;
@@ -263,16 +240,12 @@ impl MobTrackers {
         true
     }
 
-    /// The viewer no longer subscribes: it holds no mob any more.
     pub(crate) fn forget(&mut self, viewer: ViewerId, holds: &mut HoldSet) {
         holds.release_where(viewer, |subject| self.mobs.contains_key(&subject));
         self.behind.remove(&viewer);
         self.missed.remove(&viewer);
     }
 
-    /// Runs the tracker tick of each held mob, and owes the bytes of each update to each viewer
-    /// that holds the mob. A viewer that is behind misses the update; a viewer that caught up
-    /// gets the latest state of the mobs it missed, a share in each tick.
     pub(crate) fn finish_tick(&mut self, tick: u64, holds: &HoldSet, delivery: &mut Delivery) {
         let Self {
             mobs,
@@ -320,7 +293,6 @@ impl MobTrackers {
     }
 }
 
-/// Owes each viewer that is not behind the latest state of some of the mobs it missed.
 fn resend_missed(
     mobs: &FxHashMap<EntityId, Mob>,
     behind: &BTreeSet<ViewerId>,
@@ -441,7 +413,6 @@ mod tests {
         }
     }
 
-    /// TRK-DATA-004, ATR-NET-002, ATR-NET-004.
     #[test]
     fn the_spawn_bundle_holds_only_the_instances_that_differ_from_the_type() {
         let mut world = World::spawned(at(0.5));

@@ -158,8 +158,6 @@ pub fn child_kind(entry: &ItemEntry) -> Option<DataComponentType> {
         .find(|kind| entry.prototype.get_value(*kind).is_some())
 }
 
-// The campfire's four slots are not in the block corpus, so its
-// stacks accept the codec bound; upgrade by dumping block-entity slot counts.
 pub fn container_slots(entry: &ItemEntry) -> usize {
     entry
         .container_slots
@@ -229,7 +227,6 @@ fn child_value(
     }
 }
 
-/// The stacks a child kind's value holds, or `None` for a kind that holds none.
 pub fn child_targets(value: &ItemComponentValue) -> Option<Vec<Option<&ItemStackValue>>> {
     Some(match value {
         ItemComponentValue::Container(container) => container

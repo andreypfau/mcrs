@@ -2,13 +2,10 @@ use core::fmt;
 
 use crate::attribute_keys::Attribute;
 
-/// The numeric id of an attribute as the wire holds it, which can name no entry of the registry
-/// `minecraft:attribute` (ATR-CLI-006).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AttributeId(pub i32);
 
 impl AttributeId {
-    /// The attribute of this id, or `None` when the registry has no entry of the id.
     #[must_use]
     pub fn resolve(self) -> Option<Attribute> {
         let number = u16::try_from(self.0).ok()?;

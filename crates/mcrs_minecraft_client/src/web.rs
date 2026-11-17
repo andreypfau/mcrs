@@ -24,9 +24,6 @@ const BLOB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/web_assets.bin"));
 
 const SPAWN: DVec3 = DVec3::new(0.5, 80.0, 0.5);
 
-/// The browser has no asset folder to point `AssetPlugin` at, so the corpus
-/// baked in by `build.rs` is unpacked into an in-memory tree and registered as
-/// the default source before `AssetPlugin` builds.
 pub fn register_asset_source(app: &mut App) {
     let mut raw = Vec::new();
     flate2::read::DeflateDecoder::new(BLOB)
@@ -64,9 +61,6 @@ fn take(bytes: &[u8]) -> (&[u8], &[u8]) {
     rest.split_at(len)
 }
 
-/// `?server=` is the WebTransport URL and `?cert=` the hex SHA-256 of the
-/// certificate the server minted at startup, which it prints on its own
-/// listening line. There is no discovery endpoint to fetch them from.
 fn server(knobs: &Knobs) -> Option<mcrs_minecraft_network::client::ServerAddress> {
     let (url, hash) = (knobs.server()?, knobs.server_certificate()?);
     match target_from_query(url, hash) {
@@ -78,8 +72,6 @@ fn server(knobs: &Knobs) -> Option<mcrs_minecraft_network::client::ServerAddress
     }
 }
 
-/// The browser has no environment, so the knobs the native binary reads from
-/// `MCRS_*` variables are taken from the query string instead: `?time=6000`.
 fn query_knobs() -> Knobs {
     let Some(entries) = web_sys::window()
         .and_then(|window| window.location().search().ok())
@@ -100,9 +92,6 @@ fn query_knobs() -> Knobs {
 #[derive(Resource)]
 struct FrozenTicks(i64);
 
-/// The browser entry point. There is no world folder and no save to read, so
-/// the clocks come from the registry, and the world reaches the browser over
-/// WebTransport rather than off disk.
 pub fn run() {
     console_error_panic_hook::set_once();
 
@@ -123,9 +112,6 @@ pub fn run() {
     .insert_resource(AdvanceTime(frozen_at.is_none()))
     .insert_resource(WeatherLevel::default());
 
-    // With no save to seed them, the clocks appear only when the session's
-    // registries arrive, which is later than this, so a frozen time has to be
-    // applied there instead.
     if let Some(ticks) = frozen_at {
         app.insert_resource(FrozenTicks(ticks)).add_systems(
             Update,
@@ -167,8 +153,6 @@ pub fn run() {
     app.run();
 }
 
-/// The browser draws the same columns the native client does, from a smaller
-/// arena: a WebGPU context has far less room than a desktop one.
 const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
     arena_scale: 1,
     groups: 1 << 20,

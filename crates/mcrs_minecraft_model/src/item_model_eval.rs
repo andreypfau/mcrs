@@ -17,8 +17,6 @@ use crate::item_model_asset::{
 };
 use mcrs_minecraft_item_key::item_keys::Item;
 
-/// A stack entity and the corpus that names its item, as the model selectors see it: its
-/// effective components and its child stacks.
 pub struct EntityStack<'w, 'l, L> {
     pub entity: EntityRef<'w>,
     pub items: &'l Items,
@@ -49,8 +47,6 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         has_component(self.entity, self.items, kind)
     }
 
-    /// The value is not the prototype's, a
-    /// tombstone included.
     fn has_non_default(&self, kind: DataComponentType) -> bool {
         has_non_default(self.entity, self.items, kind)
     }
@@ -107,8 +103,6 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         if let Some(EnchantmentGlintOverride(foil)) = self.get::<EnchantmentGlintOverride>() {
             return foil;
         }
-        // The only vanilla override is the compass with a lodestone
-        // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
         if self.item().as_str() == Item::Compass.as_static_str()
             && self.has(DataComponentType::LodestoneTracker)
         {
@@ -117,8 +111,6 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         self.is_enchanted()
     }
 
-    /// A bundle's fill fraction: each child weighs `count / max_stack_size`, a
-    /// nested bundle its own weight plus 1/16, and a hive with bees a full slot.
     fn bundle_weight(&self) -> f32 {
         self.children()
             .iter()
@@ -140,14 +132,9 @@ fn opaque(color: i32) -> u32 {
     color as u32 | 0xFF00_0000
 }
 
-/// Answers a model tree's selectors for one stack. Properties that depend on
-/// the viewer, the world or the swing are the constants the GUI shows.
 pub struct Evaluator<'a, S> {
     pub stack: S,
-    /// What a selector names an entry the stack holds by; without them such a selector matches
-    /// no case.
     pub registries: Option<&'a Registries>,
-    /// The grass colormap sample at a temperature and downfall.
     pub grass: &'a dyn Fn(f32, f32) -> Option<[f32; 4]>,
 }
 
@@ -288,8 +275,6 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 .stack
                 .get::<DyedColor>()
                 .map_or(default.0 as u32, |DyedColor(rgb)| opaque(rgb.0)),
-            // Without the custom colour a potion shows the base colour;
-            // averaging effect colours needs the potion and mob_effect tables in the corpus.
             TintSource::Potion { default } => opaque(
                 self.stack
                     .get::<PotionContents>()

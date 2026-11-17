@@ -18,7 +18,6 @@ use crate::row::RowKey;
 use crate::row::bit;
 use crate::row::bits;
 
-/// Reads everything of a stack: its kind, its count and its effective components.
 #[derive(SystemParam)]
 pub struct Stacks<'w, 's> {
     rows: StackRows<'w, 's>,
@@ -37,8 +36,6 @@ impl<'w> Stacks<'w, '_> {
         self.counts.get(stack).ok().copied()
     }
 
-    /// The effective component of type `T`, or `None` when `T` is not an item component type of
-    /// the world.
     #[must_use]
     pub fn get<T: ItemComponent + Component>(&mut self, stack: Entity) -> Option<&'w T> {
         self.kind(stack)?;
@@ -65,9 +62,6 @@ impl<'w> Stacks<'w, '_> {
         ComponentState::of(cells.effective(column), cells.removed(), prototype)
     }
 
-    /// The value form of the stack. Spawned with [`spawn_stack`], it gives an equal stack.
-    ///
-    /// [`spawn_stack`]: crate::ItemCommandsExt::spawn_stack
     #[must_use]
     pub fn to_value(&mut self, stack: Entity) -> Option<ItemStack> {
         let kind = self.kind(stack)?;
@@ -81,8 +75,6 @@ impl<'w> Stacks<'w, '_> {
         Some(value)
     }
 
-    /// True when [`to_value`](Self::to_value) gives a stack equal to `value`. A stack without a
-    /// custom or an undecoded component is compared in place and builds no value.
     #[must_use]
     pub fn equals_value(&mut self, stack: Entity, value: &ItemStack) -> bool {
         if self.kind(stack) != Some(value.kind) || self.count(stack) != Some(value.count) {
@@ -119,8 +111,6 @@ impl<'w> Stacks<'w, '_> {
                 })
             });
         }
-        // chisle: a stack with a custom or an undecoded component builds its value on each call,
-        // so the sync allocates in each tick for it; an in-place `gives` for those rows lifts it.
         self.to_value(stack).as_ref() == Some(value)
     }
 

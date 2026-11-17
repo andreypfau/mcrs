@@ -5,7 +5,6 @@ use bevy_ecs::component::ComponentId;
 use bevy_ecs::component::Components;
 use bevy_ecs::world::World;
 
-/// The id of the component `T` in one world.
 pub(crate) struct Column<T> {
     id: ComponentId,
     value: PhantomData<fn() -> T>,
@@ -20,8 +19,8 @@ impl<T> Clone for Column<T> {
 impl<T> Copy for Column<T> {}
 
 impl<T> Column<T> {
-    /// # Safety
-    /// `id` is the id of `T` in each world whose cells are read through the column.
+    // SAFETY: the caller guarantees that `id` is the id of `T` in each world whose cells are read
+    // through the column.
     pub(crate) unsafe fn assume(id: ComponentId) -> Self {
         Self {
             id,

@@ -3,7 +3,6 @@ use mcrs_minecraft_text::{Color, Style, TextTypes};
 
 use crate::BedrockDrops;
 
-/// Active Bedrock style state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct BedrockStyle {
     pub(crate) color: Option<NamedColor>,
@@ -13,7 +12,6 @@ pub(crate) struct BedrockStyle {
 }
 
 impl BedrockStyle {
-    /// Updates this style with the canonical style, recording dropped attributes.
     #[must_use]
     pub(crate) fn update_with<I: TextTypes>(
         self,
@@ -51,7 +49,6 @@ impl BedrockStyle {
     }
 }
 
-/// Appends Bedrock formatting code transitions between two style states.
 pub(crate) fn write_bedrock_change(out: &mut String, from: BedrockStyle, to: BedrockStyle) {
     let flags = |s: BedrockStyle| [(s.obfuscated, 'k'), (s.bold, 'l'), (s.italic, 'o')];
 
@@ -65,7 +62,6 @@ pub(crate) fn write_bedrock_change(out: &mut String, from: BedrockStyle, to: Bed
         out.push_str("§r");
     }
 
-    // A color code in Bedrock clears active formatting flags, just like in Java.
     let cleared = lost || from.color != to.color;
     if cleared && let Some(color) = to.color {
         out.push('§');
@@ -80,10 +76,6 @@ pub(crate) fn write_bedrock_change(out: &mut String, from: BedrockStyle, to: Bed
     }
 }
 
-/// Rewrites literal text by removing Java formatting codes that have conflicting
-/// meanings in Bedrock Edition (`§m` for strikethrough, `§n` for underline).
-///
-/// In Bedrock, `§m` is Redstone color and `§n` is Copper color.
 #[must_use]
 pub(crate) fn rewrite_literal_text(input: &str, drops: &mut BedrockDrops) -> String {
     let mut out = String::with_capacity(input.len());

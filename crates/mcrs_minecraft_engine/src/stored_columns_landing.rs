@@ -23,16 +23,13 @@ use crate::heightmap::PendingColumnHeightmaps;
 use crate::stored_column::{ColumnRecord, ColumnStructures, RawBlockEntities};
 use mcrs_minecraft_region_disk::stored_column::{StoredColumn, StoredSection};
 
-/// The section came back from the data layer, so the data layer already holds its blocks.
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct TakenFromStore;
 
-/// Column facts of a landed column, waiting for the column entity to exist.
 #[derive(Resource, Default, Debug)]
 pub struct PendingColumnFacts(pub FxHashMap<(Entity, ColumnPos), (ColumnStructures, ColumnRecord)>);
 
-/// Puts the facts of each landed column on its column entity, once `reconcile_columns` made it.
 pub(crate) fn attach_column_facts(
     mut pending: ResMut<PendingColumnFacts>,
     indices: Query<&ColumnIndex>,
@@ -48,9 +45,6 @@ pub(crate) fn attach_column_facts(
     }
 }
 
-/// Sends the data layer a request for each column whose sections a ticket loads, before they
-/// are generated. A section that the data layer did not hold comes back as `Loading` and goes
-/// on to generation.
 pub(crate) fn fetch_loading_columns(
     mut stages: ParamSet<(MessageReader<SectionStageChanged>, SectionStages)>,
     mut loading: Local<Vec<SectionStageChanged>>,
@@ -72,8 +66,6 @@ pub(crate) fn fetch_loading_columns(
     }
 }
 
-/// Lands each answer of the data layer: in the sections that wait to take the column back, and
-/// in the answers that the production of cold columns waits on.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -108,7 +100,6 @@ pub(crate) fn land_stored_columns(
             continue;
         }
         let missing = !matches!(answer, StoreOutput::Found { .. });
-        // A column that neither its owner nor the data layer holds is generated.
         if missing
             && store
                 .reads
@@ -123,7 +114,6 @@ pub(crate) fn land_stored_columns(
         };
         let answer = match answer {
             StoreOutput::Found { key, chunk } => {
-                // The production of cold columns keeps a copy; else the sections take the column.
                 let kept = match read.produced {
                     Produced::Yes => Some(chunk.clone()),
                     Produced::No => None,
@@ -165,8 +155,6 @@ pub(crate) fn land_stored_columns(
     }
 }
 
-/// Sends the sections of a read that found no column back to loading. The generation drops a
-/// column only once it left every view, so then the sections go too.
 fn drop_sections(read: &ColumnRead, stages: &mut SectionStages) {
     let next = match read.from {
         ReadFrom::Store => SectionStage::Loading,
@@ -179,7 +167,6 @@ fn drop_sections(read: &ColumnRead, stages: &mut SectionStages) {
     }
 }
 
-/// The sections of one column that wait for an answer, and where the answer came from.
 struct Landing<'a> {
     dim: Entity,
     index: &'a mut SectionIndex,
@@ -190,10 +177,6 @@ struct Landing<'a> {
     from: ReadFrom,
 }
 
-/// Puts the blocks of `stored` into the sections that wait for them, with its block entities,
-/// heightmaps and scheduled ticks. The dimension lights the sections itself, since the data layer
-/// may light the version again at any time and what the dimension simulates must not depend on
-/// when that happened.
 fn land_column(
     mut landing: Landing<'_>,
     stored: StoredColumn,

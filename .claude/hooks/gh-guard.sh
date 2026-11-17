@@ -1,6 +1,4 @@
 #!/bin/sh
-# PreToolUse hook for Bash: `gh pr merge` waits for the review bot. Runs only when the owner
-# tool `pr-review` is on PATH; a contributor without it merges as usual.
 py=python3
 python3 -c '' >/dev/null 2>&1 || py='py -3'
 exec $py -c '

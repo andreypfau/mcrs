@@ -16,8 +16,6 @@ use crate::row::RowKey;
 
 const MAX_ROWS: usize = 128;
 
-/// The rows of the item component types of a world: each built-in type at the index of its key,
-/// then the entries without a type, then each registered custom type.
 #[derive(Resource)]
 pub(crate) struct ItemComponents {
     rows: Vec<Row>,

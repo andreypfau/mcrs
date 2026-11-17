@@ -3,7 +3,6 @@ use std::{fmt, io, str};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// A value that did not encode or decode, with the fields that led to it.
 pub struct Error(Box<Repr>);
 
 struct Repr {
@@ -14,33 +13,17 @@ struct Repr {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// The writer refused the bytes.
     Io(io::Error),
-    /// The input ends before the value does.
     UnexpectedEnd,
-    /// Bytes are left in the input after the value.
     TrailingBytes(usize),
     VarIntTooLong,
     NegativeLength(i32),
-    /// A length past what the value allows: elements, bytes or UTF-16 units, as the value counts.
-    TooLong {
-        len: usize,
-        max: usize,
-    },
+    TooLong { len: usize, max: usize },
     InvalidUtf8(str::Utf8Error),
     DuplicateKey,
-    /// A value that contains values of its own kind deeper than `max` levels.
-    TooDeep {
-        max: u32,
-    },
-    /// An enum discriminant that names no variant.
-    UnknownTag {
-        ty: &'static str,
-        tag: i32,
-    },
-    /// A value its own type refuses.
+    TooDeep { max: u32 },
+    UnknownTag { ty: &'static str, tag: i32 },
     Invalid(Cow<'static, str>),
-    /// A nested codec refused the value, such as NBT inside a packet.
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
@@ -57,7 +40,6 @@ impl Error {
         &self.0.kind
     }
 
-    /// The fields that led to the error, the outermost first.
     pub fn context(&self) -> impl Iterator<Item = &str> {
         self.0.context.iter().rev().map(|c| &**c)
     }
@@ -138,7 +120,6 @@ impl std::error::Error for Error {
     }
 }
 
-/// Adds a field name to an error, or turns a missing value into one.
 pub trait Context<T> {
     fn context(self, context: impl Into<Cow<'static, str>>) -> Result<T>;
 
@@ -165,7 +146,6 @@ impl<T> Context<T> for Option<T> {
     }
 }
 
-/// Returns an [`ErrorKind::Invalid`] error with a formatted message.
 #[macro_export]
 macro_rules! bail {
     ($($arg:tt)+) => {
@@ -173,7 +153,6 @@ macro_rules! bail {
     };
 }
 
-/// Returns an [`ErrorKind::Invalid`] error with a formatted message unless the condition holds.
 #[macro_export]
 macro_rules! ensure {
     ($cond:expr, $($arg:tt)+) => {

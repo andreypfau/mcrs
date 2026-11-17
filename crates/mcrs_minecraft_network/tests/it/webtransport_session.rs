@@ -14,8 +14,6 @@ use wtransport::stream::BiStream;
 use wtransport::tls::Sha256Digest;
 use wtransport::{ClientConfig, Connection, Endpoint};
 
-/// The endpoint and the session handle are dropped together with the stream:
-/// releasing either of them tears the QUIC connection down under the server.
 struct WebTransportPeer {
     _endpoint: Endpoint<Client>,
     _session: Connection,

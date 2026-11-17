@@ -18,14 +18,12 @@ pub enum Toggle {
     On,
 }
 
-/// The switches a player controls: "Force Unicode Font" and "Japanese Glyph Variants".
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FontOptions {
     pub uniform: Toggle,
     pub jp: Toggle,
 }
 
-/// The options a provider needs on or off; a missing entry passes always.
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Filter {
@@ -41,7 +39,6 @@ impl Filter {
         agrees(self.uniform, options.uniform) && agrees(self.jp, options.jp)
     }
 
-    /// Each entry of `over` replaces the entry of the same name.
     fn overridden_by(self, over: Self) -> Self {
         Self {
             uniform: over.uniform.or(self.uniform),
@@ -69,7 +66,6 @@ struct Definition {
 }
 
 impl Definition {
-    /// The field rules that serde cannot state.
     fn check(&self) -> Result<(), String> {
         self.providers
             .iter()
@@ -88,7 +84,6 @@ enum Provider {
     Space(SpaceSpec),
     Unihex(UnihexSpec),
     Reference(ReferenceSpec),
-    /// A kind this client does not read (`ttf`, or one it has never heard of): skipped.
     #[serde(other)]
     Other,
 }
@@ -100,7 +95,6 @@ struct SpaceSpec {
     advances: HashMap<CodePoint, f32>,
 }
 
-/// A string of exactly one code point.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct CodePoint(pub(crate) char);
 
@@ -122,7 +116,6 @@ struct ReferenceSpec {
     id: String,
 }
 
-/// The glyph sources of the font `id`, with each reference replaced by the sources it names.
 pub(crate) fn sources(pack: &ResourceSet, id: &str) -> Result<Vec<Source>, String> {
     resolve(pack, id, &mut Vec::new())
 }
@@ -138,8 +131,6 @@ fn resolve(pack: &ResourceSet, id: &str, loading: &mut Vec<String>) -> Result<Ve
     let bytes = pack
         .read(&file)
         .map_err(|error| format!("the font {id}: {error}"))?;
-    // FONT-DEF-001, step 4: a file that is not valid JSON, or whose provider has an invalid field,
-    // is ignored as a whole with a warning.
     let definition = match serde_json::from_slice::<Definition>(bytes)
         .map_err(|error| error.to_string())
         .and_then(|definition| definition.check().map(|()| definition))

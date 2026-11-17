@@ -7,16 +7,12 @@ use crate::world::dimension::InDimension;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionStage {
     Loading,
-    /// Waits for the data layer to hand back the last version of its column.
     Fetching,
     Generating,
     Loaded,
     Unloading,
 }
 
-/// Written for every stage a section enters, its spawn included. The stage stays
-/// the truth: by the time a reader gets to the message the section may have moved
-/// on again, so a reader that keeps state decides from the stage it finds.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SectionStageChanged {
     pub section: Entity,
@@ -65,7 +61,6 @@ impl SectionStages<'_, '_> {
         self.sections.get(section).ok().map(|(stage, _, _)| *stage)
     }
 
-    /// For a section spawned through `Commands`, whose stage no query can see yet.
     pub fn spawned(&mut self, section: Entity, pos: SectionPos, dim: Entity, stage: SectionStage) {
         self.changes
             .write(SectionStageChanged::spawned(section, pos, dim, stage));

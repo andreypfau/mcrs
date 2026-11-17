@@ -26,7 +26,6 @@ const BOARDED: Slopes = Slopes::BOARDED;
 const BARE: Slopes = Slopes::BARE;
 
 impl Village {
-    /// What a spot on open ground turns into once its piece is placed.
     fn turf(self) -> &'static str {
         if self.zombie { DIRT } else { GRASS }
     }
@@ -71,8 +70,6 @@ fn ridged_roof(c: &mut Canvas, gable: Gable, slopes: Slopes) {
     c.roof(gable, OAK_STAIRS, Some(&K.planks), slopes);
 }
 
-/// A cobblestone wall standing free of the block above it: a post joined low
-/// to `sides`.
 fn low_wall(sides: &[Direction]) -> Cell {
     wall_joined(Block::CobblestoneWall.as_static_str(), sides, &[])
 }
@@ -95,9 +92,6 @@ fn crop_plot(c: &mut Canvas, at: [i32; 3], length: i32) {
     c.fill(&S.water, x + 2, y, rows);
 }
 
-/// Four fence posts under a wool canopy between slab eaves, over a plank
-/// counter `length` long on the axis `along`, with a torch on each end of the
-/// counter if `lit`.
 fn market_stall(
     c: &mut Canvas,
     at: [i32; 3],
@@ -137,9 +131,6 @@ fn market_stall(
     }
 }
 
-/// A 5x5 room with its corner post at `at`: a cobblestone sill round a plank
-/// floor, a door on the west and a window in each other wall. `flanks` stand
-/// either side of the side windows and of the back one.
 fn cottage(
     c: &mut Canvas,
     v: Village,
@@ -164,8 +155,6 @@ fn street_cottage(c: &mut Canvas, v: Village, walls: (&Cell, &Cell), flanks: [Op
     entrance(c, v, [0, 0, 3], OAK_STEP);
 }
 
-/// A hip roof five of whose corner stairs are turned a quarter from the
-/// regular ring.
 fn cottage_hip_roof(c: &mut Canvas) {
     c.hip_roof(OAK_STAIRS, Some(&K.planks), [0, 4, 0], [6, 6], 3);
     c.each(&stairs(OAK_STAIRS, East), &[[1, 5, 1], [2, 6, 2]]);
@@ -226,7 +215,6 @@ fn small_house_4(c: &mut Canvas, v: Village) {
     }
 }
 
-/// Path widening by one cell a row from two cells at `[3, 0]` to four.
 fn path_fan(c: &mut Canvas) {
     for z in 0..3 {
         c.solid(&S.path, [2 - z, 0, z], [3, 0, z]);
@@ -310,8 +298,6 @@ pub(super) fn straight_01_of(c: &mut Canvas, v: Village) {
     decorations(c, v, GRASS, &[[12, 4], [11, 6], [4, 7], [2, 13], [11, 13]]);
 }
 
-/// A street along the west edge, `length` long, with places for houses on
-/// its east side over `sockets`.
 pub(super) fn straight_with_houses(c: &mut Canvas, v: Village, length: i32, sockets: [i32; 2]) {
     street(c, v, &[[1, 0], [1, length - 1]]);
     path(c, Z, 1, [0, length - 1]);
@@ -444,23 +430,15 @@ fn trapdoor(facing: Direction, half: &str) -> Cell {
     super::trapdoor(Block::OakTrapdoor.as_static_str(), facing, half, true)
 }
 
-/// A cobblestone step whose corner turns towards a neighbour that is not
-/// there yet.
 fn corner_step(facing: Direction, shape: &str) -> Cell {
     corner_stairs(COBBLE_STAIRS, facing, shape)
 }
 
-/// The steps either side of an entrance, their corners turned towards the
-/// step the entrance becomes.
 fn stoop(c: &mut Canvas, [x, y, z]: [i32; 3]) {
     c.place(&corner_step(South, "outer_left"), x, y, z - 1);
     c.place(&corner_step(North, "outer_right"), x, y, z + 1);
 }
 
-/// The lowest row of a roof slope along x, broken by dormers `planks` wide:
-/// no stair in front of a dormer, an upside-down one either side of it and
-/// under the row at both ends, and the plank face of the dormer one level up.
-/// `at` is the height, the eave row and the row behind it.
 fn dormered_eave(
     c: &mut Canvas,
     length: [i32; 2],

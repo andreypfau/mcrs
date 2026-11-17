@@ -1,15 +1,11 @@
 use mcrs_minecraft_numeric as numeric;
 
-/// The bounds a value can take. Only ever widened: a bound narrower than the
-/// truth would let the optimiser delete a reachable branch.
 #[derive(Clone, Copy, Debug)]
 pub struct Interval {
     min: f32,
     max: f32,
 }
 
-/// NaI compares equal to itself so that structurally identical stack entries
-/// still deduplicate.
 impl PartialEq for Interval {
     fn eq(&self, other: &Self) -> bool {
         (self.min == other.min && self.max == other.max) || (self.is_nai() && other.is_nai())
@@ -17,8 +13,6 @@ impl PartialEq for Interval {
 }
 
 impl Interval {
-    /// "Not an Interval": nothing is known. Every ordering test against NaN is
-    /// false, so a node carrying it survives every elimination the optimiser makes.
     pub const NAI: Self = Self {
         min: f32::NAN,
         max: f32::NAN,
@@ -29,8 +23,6 @@ impl Interval {
         max: f32::INFINITY,
     };
 
-    /// The reference throws on an inverted or NaN pair. Nothing downstream can
-    /// act on an inverted interval soundly, so it degrades to NaI instead.
     pub fn of(min: f32, max: f32) -> Self {
         if min.is_nan() || max.is_nan() || max < min {
             debug_assert!(false, "invalid interval [{min}; {max}]");
@@ -104,8 +96,6 @@ impl Interval {
         }
     }
 
-    /// Zero times an infinite bound is zero here, not NaN: an endpoint pinned to
-    /// zero contributes nothing however far the other side reaches.
     fn mul_bound(left: f32, right: f32) -> f32 {
         if left != 0.0 && right != 0.0 {
             left * right
@@ -313,9 +303,6 @@ impl Interval {
         }
     }
 
-    /// A negative base only yields a real value at integer exponents, so the
-    /// hull is taken over the integers the exponent spans — and over their
-    /// neighbours, because consecutive integers alternate in sign.
     fn negative_base_pow(base: f32, exponent: Self) -> Self {
         let exponent_min_int = exponent.min.ceil();
         let exponent_max_int = exponent.max.floor();
@@ -431,8 +418,6 @@ mod test {
         (interval.min(), interval.max())
     }
 
-    /// The two-corner shortcut this replaced answered -2 for the upper bound,
-    /// excluding the reachable value 1 * -1.
     #[test]
     fn multiplication_takes_the_hull_of_all_four_corners() {
         let product = Interval::of(1.0, 2.0) * Interval::of(-3.0, -1.0);

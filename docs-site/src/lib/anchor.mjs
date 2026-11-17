@@ -1,4 +1,3 @@
-// A multi-line anchor matches consecutive lines: the first part ends the first line, the others start the next lines.
 function matchAt(lines, i, anchor) {
   const parts = anchor.split("\n");
   if (parts.length === 1) return lines[i].includes(anchor);

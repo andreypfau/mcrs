@@ -53,7 +53,6 @@ fn served(root: &Path, local_pack: &str) -> (Registries, NetworkSnapshot) {
     (registries, synced.0)
 }
 
-/// The registry data packets the server encoded, decoded as a client reads them.
 pub(crate) fn sent(network: &NetworkSnapshot, known: bool) -> Vec<ClientboundRegistryData<'_>> {
     network
         .registry_data(known)

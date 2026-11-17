@@ -1,4 +1,3 @@
-# One row per area. state works needs an evidence command or a PERF.md section. Checked on commit 51d45c26a.
 - id: worldgen
   title: { en: World generation, ru: Генерация мира }
   works:

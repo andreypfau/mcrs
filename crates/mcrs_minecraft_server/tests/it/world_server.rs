@@ -1,6 +1,3 @@
-//! An embedded server with generated worlds, and the steps that tests take in its dimension
-//! worlds between ticks.
-
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -36,9 +33,6 @@ pub const OVERWORLD: &str = "minecraft:overworld";
 
 const PATIENCE: Duration = Duration::from_secs(120);
 
-/// How a test server runs its worlds. The muxer always runs inline, so a test reads the views
-/// where the muxer serves them. The worlds generate the beta overworld: 8 sections high, about
-/// three times cheaper than the vanilla preset, which also builds the nether and the end.
 pub struct WorldServer {
     pub worlds: Placement,
     pub cells: u32,
@@ -58,7 +52,6 @@ impl Default for WorldServer {
 }
 
 impl WorldServer {
-    /// Builds the server, ticks it to `Playing` and spawns its dimensions.
     pub fn start(self) -> App {
         let mut plugins = MinecraftServerPlugins::embedded();
         plugins.core.asset_path = Some(ASSETS.to_owned());
@@ -82,7 +75,6 @@ impl WorldServer {
     }
 }
 
-/// The world of every cell of `label`, in the order of the cells.
 pub fn cell_worlds(app: &mut App, label: Entity) -> Vec<&mut World> {
     app.world_mut()
         .resource_mut::<DimCells>()
@@ -92,9 +84,6 @@ pub fn cell_worlds(app: &mut App, label: Entity) -> Vec<&mut World> {
         .collect()
 }
 
-/// Ticks until the world of `label` can generate: its first cell holds the context that the
-/// generation of the world runs with. Nothing generates before a player arrives, so the ticks
-/// it takes are no part of a scenario.
 pub fn wait_for_generation(app: &mut App, label: Entity) {
     let deadline = Instant::now() + PATIENCE;
     while !cell_worlds(app, label)
@@ -110,7 +99,6 @@ pub fn wait_for_generation(app: &mut App, label: Entity) {
     }
 }
 
-/// Waits between ticks until the generation, light and store steps of every cell have ended.
 pub fn wait_for_steps(app: &mut App, label: Entity) {
     block_on(app.world_mut().resource_mut::<DimCells>().stores_answered());
     if let Some(mut generation) = app.world_mut().get_resource_mut::<WorldGeneration>() {
@@ -126,16 +114,12 @@ pub fn wait_for_steps(app: &mut App, label: Entity) {
     }
 }
 
-/// Runs one tick, waits for the steps it started and returns the packets it wrote for the
-/// clients. The writes of the steps reach every run at the same tick, so two runs differ only
-/// by what they tick.
 pub fn lockstep_tick(app: &mut App, label: Entity) -> Vec<OutboundPlayerPacket> {
     let packets = crate::host_app::tick(app);
     wait_for_steps(app, label);
     packets
 }
 
-/// Ticks until `done` holds in the first cell of `label`.
 pub fn tick_until(app: &mut App, label: Entity, what: &str, done: impl Fn(&mut World) -> bool) {
     let deadline = Instant::now() + PATIENCE;
     while !done(crate::host_app::world(app, label)) {
@@ -159,8 +143,6 @@ pub fn dimension_of(world: &mut World) -> Entity {
         .expect("the dimension entity")
 }
 
-/// Spawns a player of `session` straight into `world`, with no client behind it, that sees
-/// `view_distance` columns far.
 pub fn spawn_viewer(
     world: &mut World,
     session: PlayerSession,
@@ -183,7 +165,6 @@ pub fn spawn_viewer(
         .id()
 }
 
-/// The cell of `label` that holds the player of `session`, by index, and the player.
 pub struct Holder {
     pub cell: usize,
     pub player: Entity,
@@ -205,8 +186,6 @@ pub fn holder(app: &mut App, label: Entity, session: PlayerSession) -> Option<Ho
     found
 }
 
-/// Writes a block as the player of `actor` would: into the world that holds it, whoever owns
-/// the column.
 pub fn place(
     app: &mut App,
     label: Entity,
@@ -229,7 +208,6 @@ pub fn place(
         });
 }
 
-/// Moves the player of `session` by `by`.
 pub fn walk(app: &mut App, label: Entity, session: PlayerSession, by: DVec3) {
     let Holder { cell, player } = holder(app, label, session).expect("the walker is in the world");
     let mut worlds = cell_worlds(app, label);
@@ -240,7 +218,6 @@ pub fn walk(app: &mut App, label: Entity, session: PlayerSession, by: DVec3) {
         .translation += by;
 }
 
-/// Where the player of `session` stands.
 pub fn position(app: &mut App, label: Entity, session: PlayerSession) -> DVec3 {
     let Holder { cell, player } = holder(app, label, session).expect("the player is in the world");
     let mut worlds = cell_worlds(app, label);

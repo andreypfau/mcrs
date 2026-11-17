@@ -1,6 +1,3 @@
-//! Textured quads in world space, drawn into the world image over the lit frame against the
-//! opaque world's depth, before the present pass copies that image to the view target.
-
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
 use bevy::core_pipeline::schedule::Core3d;
@@ -25,9 +22,6 @@ use crate::shared_types::{TEXT_FRAME_SIZE, TextFrame};
 use crate::terrain::Terrain;
 use crate::{DEPTH_COMPARE, WorldPass};
 
-/// One corner of a quad: the block it belongs to and its place inside that block, a point of the
-/// texture, a linear colour, and the block and sky light to look up in the lightmap of the
-/// terrain. The block and the offset stay apart so that no absolute coordinate reaches f32.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct TextVertex {
@@ -35,13 +29,9 @@ pub struct TextVertex {
     pub offset: [f32; 3],
     pub uv: [f32; 2],
     pub color: [f32; 3],
-    /// Block light and sky light on the scale of the lightmap: a level times 16.
     pub light: [f32; 2],
 }
 
-/// The triangles to draw, six vertices to a quad, and the texture they sample. The pass keeps
-/// what it uploaded while `revision` stays the same. The list is copied into the render world
-/// when the resource changes, so a writer touches it only when the vertices change.
 #[derive(Resource, Clone, Default, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct WorldText {
@@ -85,7 +75,6 @@ struct TextPass {
     capacity: u64,
     revision: Option<u64>,
     count: u32,
-    /// The view against the origin of the camera section, written every frame.
     view_buffer: Buffer,
     view: Option<BindGroup>,
     texture: Option<(AssetId<Image>, TextureViewId, BindGroup)>,
@@ -207,7 +196,6 @@ fn prepare_text(
         return;
     }
     if pass.buffer.is_none() || pass.capacity < bytes.len() as u64 {
-        // Room to grow, so a sign appearing does not reallocate every time.
         let capacity = (bytes.len() as u64 * 2).next_power_of_two();
         pass.buffer = Some(device.create_buffer(&BufferDescriptor {
             label: Some("world text vertices"),

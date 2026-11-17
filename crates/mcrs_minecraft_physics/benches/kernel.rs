@@ -1,4 +1,3 @@
-//! The kernel targets of the physics design note, on one core with a warm cache.
 #![expect(
     clippy::indexing_slicing,
     reason = "a dense test world indexes its sections"
@@ -46,7 +45,6 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// Sections in a flat array, as the engine stores them: 4 × 4 × 4 sections from the origin.
 struct DenseWorld {
     sections: Vec<DenseSection>,
 }

@@ -15,9 +15,6 @@ use crate::fixture::restore;
 use crate::fixture::saved;
 use crate::fixture::stacks;
 
-/// INV-CLS-003: a leave and a dimension change put the cursor stack, then the craft grid, into the
-/// player inventory by the insert rule before the write. Each rest that finds no room becomes one
-/// item entity with the pickup delay 40 (IEN-SPN-001).
 #[test]
 fn inv_cls_003_a_leave_folds_the_cursor_and_the_craft_grid_into_the_inventory() {
     for reason in [CaptureCause::Leave, CaptureCause::DimensionChange] {
@@ -76,8 +73,6 @@ fn inv_cls_003_a_leave_folds_the_cursor_and_the_craft_grid_into_the_inventory() 
     }
 }
 
-/// INV-SLT-002: a cell crossing carries the cursor and the craft grid to the restore in the other
-/// world, and leaves the player inventory of the file as it is. A later leave ends the carry.
 #[test]
 fn inv_slt_002_a_cell_crossing_carries_the_cursor_and_the_craft_grid() {
     let mut from = app();

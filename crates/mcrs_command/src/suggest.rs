@@ -2,8 +2,6 @@ use crate::span::Span;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
-/// The text of a suggestion: borrowed parts, written one after the other. A caller gives up
-/// to two; the list puts the input before its start in front.
 #[derive(Clone, Copy, Debug)]
 pub struct SuggestionText<'t>([&'t str; 3]);
 
@@ -38,7 +36,6 @@ impl PartialEq<&str> for SuggestionText<'_> {
     }
 }
 
-/// A text that replaces the input from byte `start` to the end, with an optional tooltip.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct Suggestion<'t, T> {
@@ -61,26 +58,20 @@ fn fold(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
     chars.flat_map(char::to_lowercase)
 }
 
-/// Whether the two texts are equal after a lowercase fold.
 pub fn eq_ignore_case(a: impl Iterator<Item = char>, b: impl Iterator<Item = char>) -> bool {
     fold(a).eq(fold(b))
 }
 
-/// Whether `text` starts with `prefix` after a lowercase fold.
 pub fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
     let mut text = fold(text.chars());
     fold(prefix.chars()).all(|c| text.next() == Some(c))
 }
 
-/// Empties a buffer and gives its elements another type, most often the same type with another
-/// lifetime. The allocation stays when the two types have one layout, so a buffer of borrows
-/// outlives the borrows it held.
 #[must_use]
 pub fn recycle<T, U>(buffer: Vec<T>) -> Vec<U> {
     buffer.into_iter().filter_map(|_| None).collect()
 }
 
-/// Collects the suggestions for the input up to the cursor, from one start.
 pub struct SuggestionBuilder<'t, 'o, T> {
     input: &'t str,
     start: usize,
@@ -108,12 +99,10 @@ impl<'t, 'o, T> SuggestionBuilder<'t, 'o, T> {
         self.input.get(self.start..).unwrap_or_default()
     }
 
-    /// A builder at another start whose suggestions join this one.
     pub fn at(&mut self, start: usize) -> SuggestionBuilder<'t, '_, T> {
         SuggestionBuilder::new(self.input, start, self.out)
     }
 
-    /// Adds a suggestion at the builder's start, unless it equals the remaining input.
     pub fn suggest(&mut self, text: SuggestionText<'t>, tooltip: Option<T>) {
         if text != self.remaining() {
             self.out.push(Suggestion {
@@ -124,7 +113,6 @@ impl<'t, 'o, T> SuggestionBuilder<'t, 'o, T> {
         }
     }
 
-    /// Suggests each text that `matches` the remaining input, called as `matches(text, remaining)`.
     pub fn suggest_matching(
         &mut self,
         texts: impl IntoIterator<Item = &'t str>,
@@ -138,7 +126,6 @@ impl<'t, 'o, T> SuggestionBuilder<'t, 'o, T> {
     }
 }
 
-/// The suggestions of a request, built into one list over the input.
 #[derive(Debug)]
 pub struct SuggestionList<'b, 't, T> {
     pub span: Span,
@@ -147,7 +134,6 @@ pub struct SuggestionList<'b, 't, T> {
 }
 
 impl<'b, 't, T> SuggestionList<'b, 't, T> {
-    /// Sorts and deduplicates the suggestions in place and returns them as one list.
     #[must_use]
     pub fn build(input: &'t str, suggestions: &'b mut Vec<Suggestion<'t, T>>) -> Self
     where
@@ -188,8 +174,6 @@ impl<'b, 't, T> SuggestionList<'b, 't, T> {
         }
     }
 
-    /// Each suggestion expanded to the span of the list: the input before its own start, then
-    /// its text.
     pub fn iter(&self) -> impl Iterator<Item = (SuggestionText<'t>, Option<&'b T>)> + '_ {
         self.suggestions.iter().map(|suggestion| {
             (

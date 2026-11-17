@@ -1,7 +1,3 @@
-//! A player file written by vanilla reads,
-//! re-writes, and comes back structurally equal, with every unmodelled root key
-//! intact. Compound key order is not compared: vanilla's own compound is a hash map.
-
 use std::path::Path;
 use std::sync::LazyLock;
 

@@ -1,5 +1,3 @@
-/// Whether a bone pattern of `materials` or `part_visibility` matches `bone`. `*` matches any
-/// sequence of characters; letter case does not count.
 #[must_use]
 pub fn matches_bone(pattern: &str, bone: &str) -> bool {
     let pattern = pattern.to_ascii_lowercase();

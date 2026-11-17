@@ -31,10 +31,6 @@ use crate::Slots;
 use crate::item_components::ItemComponents;
 use crate::request_scratch::RequestScratch;
 
-/// Stacks as entities over the prototypes of `table`.
-///
-/// It keeps [`Equipped`] on the stack in the [`Selected`] slot of each holder, in [`ItemSet`] of
-/// the schedule that [`ItemPlugin::in_schedule`] names, `FixedUpdate` by default.
 pub struct ItemPlugin {
     pub table: ItemTable,
     schedule: InternedScheduleLabel,
@@ -49,7 +45,6 @@ impl ItemPlugin {
         }
     }
 
-    /// Runs [`ItemSet`] in `schedule`.
     #[must_use]
     pub fn in_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         self.schedule = schedule.intern();
@@ -57,11 +52,6 @@ impl ItemPlugin {
     }
 }
 
-/// The stacks of a world and the codec of `EnderItems` in the player file, without the systems of
-/// [`ItemPlugin`]. The codecs of the stacks of a player are in
-/// [`PlayerItemFilePlugin`](crate::PlayerItemFilePlugin). The world gets its [`ItemTable`] and
-/// its `CurrentRegistries` elsewhere, such as from its loaded registries, and a codec fails until
-/// it has both.
 #[derive(Clone, Copy, Default)]
 pub struct ItemPersistencePlugin;
 
@@ -92,12 +82,8 @@ impl Plugin for ItemPlugin {
 
 type HolderChanged = (With<Selected>, Or<(Changed<Selected>, Changed<Slots>)>);
 
-/// An equipped stack whose placement changed since the last run, or that has none.
 type EquippedMoved = (With<Equipped>, Or<(Changed<InSlot>, Without<InSlot>)>);
 
-/// Visits the stacks that can have become equipped or stopped being equipped: the selected stack
-/// of a changed holder, every stack of a holder whose selection changed, and each equipped stack
-/// that moved.
 fn project_equipped(
     mut commands: Commands,
     changed: Query<(Entity, Ref<Selected>, &Slots), HolderChanged>,
@@ -134,8 +120,6 @@ fn project_equipped(
     }
 }
 
-/// The second remover of [`Equipped`]: the removal of [`Selected`] is a temporal fact that a fixed
-/// step which does not run in the frames of the removal never sees.
 fn unequip_unselected(
     unselected: On<Remove<Selected>>,
     mut commands: Commands,

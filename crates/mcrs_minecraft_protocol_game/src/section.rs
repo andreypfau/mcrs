@@ -12,28 +12,16 @@ pub fn direct_bits(registry_len: usize) -> u32 {
 pub use self::direct_bits as biome_direct_bits;
 pub use self::direct_bits as block_direct_bits;
 
-/// Which of the palette configurations a container of a given size lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteForm {
     Single,
-    /// Values are indices into the palette list.
-    Indirect {
-        bits: u32,
-    },
-    /// Values are registry ids and the palette list is absent.
-    Direct {
-        bits: u32,
-    },
+    Indirect { bits: u32 },
+    Direct { bits: u32 },
 }
 
-/// The wire half of `Strategy`: the widths at which a section container reaches
-/// the network, which the stored form does not share.
 pub trait NetworkSectionKind: SectionKind {
     const MAX_INDIRECT_BITS: u32;
 
-    /// The form the network format uses, where a palette past
-    /// `MAX_INDIRECT_BITS` is dropped in favour of raw registry ids packed at
-    /// `direct_bits`.
     #[inline]
     fn network_form(palette_len: usize, direct_bits: u32) -> PaletteForm {
         match ceillog2(palette_len) {
@@ -45,9 +33,6 @@ pub trait NetworkSectionKind: SectionKind {
         }
     }
 
-    /// The width the packed longs are stored at for a declared bits-per-entry
-    /// byte, which a sender is free to state narrower than the configuration it
-    /// selects.
     #[inline]
     fn wire_storage_bits(declared: u8, direct_bits: u32) -> u32 {
         match declared as u32 {
@@ -59,13 +44,10 @@ pub trait NetworkSectionKind: SectionKind {
     }
 }
 
-/// A value a section container holds, which fixes the widths and the entry
-/// count its wire form is written at.
 pub trait SectionEntry: Copy + Into<u16> {
     type Section: NetworkSectionKind;
 }
 
-/// A section entry that can be read back from its registry id alone.
 pub trait SectionValue: SectionEntry {
     fn from_registry_id(id: u16) -> Result<Self>;
 }

@@ -58,8 +58,6 @@ pub struct StrongholdBlocks {
     pub iron_door_west_upper: Oriented,
     pub button_north: Oriented,
     pub button_south: Oriented,
-    /// Indexed by `Direction::HORIZONTAL` (north first), then by whether the
-    /// frame holds an eye.
     pub portal_frame: [[Oriented; 2]; 4],
     pub spawner: VoxelId,
     pub chest: ChestStates,
@@ -150,7 +148,6 @@ impl StrongholdBlocks {
         })
     }
 
-    /// `SmoothStoneSelector.next` on an edge cell.
     fn smooth_stone<R: Random>(&self, rng: &mut R) -> &Oriented {
         let selection = rng.next_f32();
         if selection < 0.2 {
@@ -165,8 +162,6 @@ impl StrongholdBlocks {
     }
 }
 
-/// `generateBox` with the smooth stone selector: mixed stone bricks on the
-/// faces, cave air inside.
 fn walls<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -184,7 +179,6 @@ fn walls<W: WorldGenVolume, R: Random>(
     });
 }
 
-/// `generateSmallDoor`.
 fn door<W: WorldGenVolume>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -231,7 +225,6 @@ fn door<W: WorldGenVolume>(
     }
 }
 
-/// Each type's `postProcess` for one column.
 pub fn paint_stronghold<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     kind: StrongholdKind,

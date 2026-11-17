@@ -9,8 +9,6 @@ use crate::entity_predicate::EntityPredicate;
 use crate::id_bits::id_bits;
 use crate::predicate_issue::PredicateIssue;
 
-/// A test of a damage source, as a data pack writes it (`M = Named`) or with its references
-/// resolved (`M = Resolved`).
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub struct DamageSourcePredicate<M: Refs = Resolved> {
     tags: Vec<DamageTagPredicate<M>>,
@@ -68,8 +66,6 @@ impl<'de> Deserialize<'de> for DamageTagPredicate<Named> {
 }
 
 impl DamageSourcePredicate {
-    /// The matching form: each entry set expanded to ids, and each entity predicate baked as
-    /// [`EntityPredicate::bake`] does, with its own bound of nesting.
     pub fn bake<L: NameLookup>(
         &self,
         registries: &Registries,

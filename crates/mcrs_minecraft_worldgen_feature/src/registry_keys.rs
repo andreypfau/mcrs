@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const POS_RULE_TEST: RegistryKey<crate::pos_rule_test_keys::PosRuleTestType> =
@@ -96,7 +94,6 @@ impl Registered for crate::trunk_placer_type_keys::TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
 }
 
-/// The static registries of this crate, which the catalog does not list.
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         RULE_TEST_TYPE.location(),

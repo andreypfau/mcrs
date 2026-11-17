@@ -50,8 +50,6 @@ pub(crate) fn apply(worlds: &mut Worlds, edit: EditOps) {
     dim_mail::edit_ops(worlds.world_mut(), edit);
 }
 
-/// The profile of the online player with `name`, else of a listed operator with it, else the
-/// offline profile of the name.
 fn profile(targets: &CommandTargets, ops: &OpList, name: &str) -> OpListEntry {
     let players = targets.players();
     let online = players

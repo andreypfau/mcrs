@@ -74,7 +74,6 @@ macro_rules! zigzag_var_int {
     };
 }
 
-// The last byte keeps only the bits that are left of the integer: 32 - 28 = 4, 64 - 63 = 1.
 unsigned_var_int!(
     VarU32,
     u32,

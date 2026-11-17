@@ -72,8 +72,6 @@ pub enum SmallDoor {
     IronDoor,
 }
 
-/// A registry entry of a saved pool element. The save holds the id of the entry. An inline
-/// value does not load.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryId(pub ResourceLocationBuf);
 
@@ -108,15 +106,9 @@ fn read_registry_id<E: serde::de::Error>(key: &str, text: &str) -> Result<Regist
         .map_err(|_| E::custom(format!("`{key}`: `{text}` is not a resource location")))
 }
 
-/// The processor list of a saved single pool element. An inline list reads from the compound
-/// with the list `processors` or from the bare list, and writes as the compound.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SavedProcessors {
-    /// The id of a `worldgen/processor_list` entry.
     Reference(RegistryId),
-    /// The processors of an inline list, each in its data pack form.
-    // chisle: anvil cannot depend on the processor model in mcrs_minecraft_worldgen_feature; a type
-    // parameter for the payload lifts this.
     Inline(Vec<NbtCompound>),
 }
 
@@ -185,7 +177,6 @@ pub struct SavedSingleElement {
     pub override_liquid_settings: Option<LiquidSettings>,
 }
 
-/// The saved form of a jigsaw pool element.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "element_type", deny_unknown_fields)]
 pub enum SavedPoolElement {
@@ -237,8 +228,6 @@ fn deserialize_direction<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u
     deserializer.deserialize_any(Direction)
 }
 
-/// The saved form of a structure piece, chosen by its `id`. A key that the save leaves out reads
-/// as its default.
 #[dispatch(registry = crate::structure_piece_keys::StructurePieceType, key = "id")]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -659,7 +648,6 @@ pub enum SavedPiece {
     },
 }
 
-/// The ocean ruin kind, stored as the upper-case name of the kind.
 mod biome_type {
     use super::*;
 
@@ -692,12 +680,10 @@ impl Serialize for IntArray<'_> {
     }
 }
 
-/// A list of int arrays.
 fn nbt_int_arrays<S: Serializer>(boxes: &[[i32; 6]], serializer: S) -> Result<S::Ok, S::Error> {
     serializer.collect_seq(boxes.iter().map(IntArray))
 }
 
-/// What every stronghold piece writes after the common piece keys: its entry door.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DoorTag {
@@ -718,8 +704,6 @@ pub struct StairsDownTag {
     pub source: bool,
 }
 
-/// The ocean monument piece: the grid fields plus the room graph that the vanilla format leaves
-/// out.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MonumentBuildingTag {
@@ -735,7 +719,6 @@ pub struct MonumentBuildingTag {
     pub children: Vec<MonumentChildTag>,
 }
 
-/// One room of the room graph that `mcrs:rooms` lists.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MonumentRoomTag {
@@ -746,8 +729,6 @@ pub struct MonumentRoomTag {
     pub connections: [i32; 6],
 }
 
-/// One room piece of the monument that `mcrs:children` lists. The key `room` is present for
-/// every kind except `wing` and `penthouse`, and `design` for `simple` and `wing`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MonumentChildTag {
@@ -810,7 +791,6 @@ pub enum MonumentChildTag {
     },
 }
 
-/// The common piece keys without the id: what every grid piece writes.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GridTag {

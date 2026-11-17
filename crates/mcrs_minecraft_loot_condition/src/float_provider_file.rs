@@ -14,8 +14,6 @@ use crate::nbt_path::nbt_path;
 use crate::provider_form::{NumberValue, ProviderForm};
 use crate::provider_set_file::ProviderSetFile;
 
-/// A context float provider as a data pack writes it (REG-FLD-723): a number, the key of a
-/// named provider, or an object of a type of the float family.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(transparent)]
 pub struct FloatProviderFile(pub(crate) ProviderForm<f32, TypedFloat>);

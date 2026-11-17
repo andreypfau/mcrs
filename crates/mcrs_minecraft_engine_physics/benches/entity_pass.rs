@@ -1,7 +1,3 @@
-//! One tick of 50,000 walkers and 50,000 items on 32 × 32 tiles, on every core: the merge point,
-//! the freeze, the pass and the tile moves. Half of the walkers walk; the items rest after their
-//! fall, as in the steady state of a world.
-
 use bevy_tasks::TaskPoolBuilder;
 use bevy_tasks::available_parallelism;
 use criterion::Criterion;

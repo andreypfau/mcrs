@@ -25,8 +25,6 @@ use mcrs_voxel::BlockPos;
 use crate::Falling;
 use crate::PendingFall;
 
-/// Applies each start that its review kept: the leftover at the start position, with all the flags
-/// of a set, and the falling block with its motion and its appearance (FBK-SPN-001).
 pub(crate) fn begin_falls(
     mut commands: Commands,
     pending: Query<(Entity, &PendingFall)>,

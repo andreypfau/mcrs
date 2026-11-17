@@ -45,5 +45,4 @@ mcrs_minecraft_worldgen_feature = { path = ".", default-features = false, featur
 [features]
 default = ["fast"]
 fast = ["mcrs_minecraft_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast"]
-# A window over an owned box, for tests of anything that takes a `WindowAccess`.
 test-support = []

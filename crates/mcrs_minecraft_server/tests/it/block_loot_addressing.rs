@@ -16,9 +16,6 @@ fn table_of(blocks: &BlockDefinitions, block: &str) -> Option<String> {
         .map(|table| table.as_str().to_owned())
 }
 
-/// The corpus names the table; nothing guesses it from the block's own name.
-/// Two blocks may share one table, and keying by the table rather than by the
-/// block is what makes that a single entry instead of two copies.
 #[test]
 fn the_corpus_names_each_loot_table_once() {
     let blocks = corpus();
@@ -52,8 +49,6 @@ fn the_corpus_names_each_loot_table_once() {
 mod exhaustive {
     use super::*;
 
-    /// Every interned table resolves to an asset path that exists, which is what
-    /// the warm-up asks the asset server for.
     #[test]
     fn every_interned_table_names_an_asset_that_exists() {
         let blocks = corpus();

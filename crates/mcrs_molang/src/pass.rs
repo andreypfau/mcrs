@@ -1,7 +1,3 @@
-//! Rewrites that keep the bits of every result, for every input: constant folding through the
-//! same functions that the VMs call, exact identities, value numbering, select formation and
-//! dead code removal. No pass reassociates, contracts or drops a NaN, an infinity or a `-0.0`.
-
 use alloc::vec;
 use alloc::vec::Vec;
 use core::mem;
@@ -14,7 +10,6 @@ use crate::math::{self, BinaryFn, TernaryFn, UnaryFn};
 use crate::query::QuerySlot;
 use crate::value::ValueType;
 
-/// The most instructions, constants aside, that one arm of a select may evaluate eagerly.
 const SELECT_ARM_LIMIT: usize = 8;
 
 pub(crate) fn optimize(function: &mut Function) {
@@ -61,9 +56,7 @@ enum Outcome {
     Keep,
     Drop,
     Replace(ValueId),
-    /// A `return` ran; the instruction is in the list already.
     Returned,
-    /// An inlined region ended with a `return`; the instruction itself is gone.
     Stop,
 }
 
@@ -84,7 +77,6 @@ impl Numbering {
         Region { insts, yields }
     }
 
-    /// Returns whether a `return` ended the instruction list.
     fn insts(
         &mut self,
         function: &mut Function,
@@ -224,8 +216,6 @@ impl Numbering {
         })
     }
 
-    /// Folds constants and applies the exact identities. `None` means that the instruction
-    /// stays, possibly rewritten.
     fn simplify(&self, function: &Function, op: &mut Op, value_type: ValueType) -> Option<Outcome> {
         let constant = |id: ValueId| function.constant(id);
         let bits = |id: ValueId| match function.op(id) {
@@ -309,7 +299,6 @@ fn is_left_identity(function: BinaryFn, k: f32) -> bool {
     }
 }
 
-/// Whether the value is always `0.0` or `1.0`.
 fn is_boolean(function: &Function, id: ValueId) -> bool {
     match function.op(id) {
         Some(Op::Const(value)) => value.to_bits() == 0 || value.to_bits() == 1.0f32.to_bits(),
@@ -333,8 +322,6 @@ fn is_boolean(function: &Function, id: ValueId) -> bool {
     }
 }
 
-/// Turns an `If` whose arms are pure and short into the arms' instructions and a `Select` for
-/// each result. Both arms then run for every lane, which no input can observe.
 fn form_selects(function: &mut Function, region: &mut Region) {
     let insts = mem::take(&mut region.insts);
     let mut out = Vec::with_capacity(insts.len());

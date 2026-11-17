@@ -4,7 +4,6 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
 
-/// The layout of one file of the item definitions.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ItemDefinition {
     #[serde(rename = "minecraft:item")]

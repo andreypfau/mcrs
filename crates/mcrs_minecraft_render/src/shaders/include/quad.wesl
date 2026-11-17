@@ -23,13 +23,11 @@ const CORNERS_PER_QUAD: u32 = 4u;
 const MODEL_WORDS_PER_VERTEX: u32 = 3u;
 const GREEDY_EDGE_OVERLAP: f32 = 1.0 / 128.0;
 
-// Match the original triangles 1-2-0 and 0-2-3, including non-affine UVs.
 fn model_quad_uv(p: vec2<f32>, uv0: vec2<f32>, uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>) -> vec2<f32> {
     return uv0 + (uv3 - uv0) * p.x + (uv1 - uv0) * p.y
         + (uv0 + uv2 - uv1 - uv3) * min(p.x, p.y);
 }
 
-/// Two triangles a quad, wound over its corners as 1, 2, 0 and 0, 2, 3.
 fn corner_index(vertex: u32) -> u32 {
     switch vertex % VERTICES_PER_QUAD {
         case 0u: { return 1u; }
@@ -89,8 +87,6 @@ struct GreedyCorner {
     quad_uv: vec2<f32>,
 }
 
-/// One corner of a greedy quad against the camera's section. The cull uses a conservative
-/// overlap even for quads drawn without it.
 fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, corner: u32, overlap: f32) -> GreedyCorner {
     let local = vec3<f32>(
         f32(bits(words[QUAD_X_WORD], QUAD_X_SHIFT, QUAD_X_BITS)),
@@ -103,28 +99,22 @@ fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, c
         f32(bits(words[QUAD_H_WORD], QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
     );
 
-    // Fluids sit below the top of their block, so the surface drops and the sides shorten.
     let drop = f32(bits(words[QUAD_DROP_WORD], QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
     var quad_uv = corner_uv(corner);
     if (face >= 2u) {
         quad_uv.y = max(quad_uv.y, drop / size.y);
     }
     let fluid = bits(words[QUAD_FLUID_WORD], QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
-    // Cover rasterization gaps where neighbouring quads meet with different edge subdivisions.
     let margin = select(0.0, overlap, fluid == 0u && drop == 0.0);
     let c = quad_uv * size + (quad_uv * 2.0 - vec2<f32>(1.0)) * margin;
     var world = origin + (local + face_u_dir(face) * c.x + face_v_dir(face) * c.y) * scale;
     if (face == 1u) {
         world.y -= drop;
     }
-    // A fluid face shares a plane with the block face behind it, so it is pulled in slightly.
     world -= face_normal(face) * (FLUID_INSET * f32(fluid));
     return GreedyCorner(world, quad_uv);
 }
 
-/// A model vertex's position in its section from the words holding its x, y and z. Positions
-/// are stored in steps of a block and biased so a model may lean into its neighbours by the
-/// overhang the mesher allowed for.
 fn model_position(x: u32, y: u32, z: u32) -> vec3<f32> {
     return vec3<f32>(
         f32(bits(x, MODEL_X_SHIFT, MODEL_X_BITS)),

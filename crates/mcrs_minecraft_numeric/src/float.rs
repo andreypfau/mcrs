@@ -1,6 +1,5 @@
 use core::ops::{Add, Div, Mul, Sub};
 
-/// An IEEE 754 float in which [`lerp`] and [`remap_clamped`] compute.
 pub trait Float:
     Copy
     + PartialOrd
@@ -9,9 +8,7 @@ pub trait Float:
     + Mul<Output = Self>
     + Div<Output = Self>
 {
-    /// The value `0`.
     const ZERO: Self;
-    /// The value `1`.
     const ONE: Self;
 }
 

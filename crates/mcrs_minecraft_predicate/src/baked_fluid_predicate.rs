@@ -12,7 +12,6 @@ pub(crate) struct BakedFluidPredicate {
 }
 
 impl BakedFluidPredicate {
-    /// Fails at a position that is not loaded, also for `{}`.
     #[must_use]
     pub(crate) fn matches<W: LocationView>(&self, world: &W, pos: BlockPos) -> bool {
         if !world.is_loaded(pos) {
@@ -28,8 +27,6 @@ impl BakedFluidPredicate {
     }
 }
 
-/// The pairs of level and source flag that a state test passes, a bit each. The empty fluid has
-/// no properties, so a state test with an entry fails for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct FluidStates(u16);
 

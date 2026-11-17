@@ -18,16 +18,10 @@ pub enum ParameterRange {
     Range([f64; 2]),
 }
 
-/// Climate coordinates are compared as fixed point, not floats: the reference
-/// multiplies by ten thousand and truncates, and the search is exact integer
-/// arithmetic from there on. The multiply happens in f32 because that is the
-/// width the codec reads, and rounding it in f64 would land on a different
-/// integer for some values.
 pub fn quantize_coord(coord: f32) -> i64 {
     (coord * 10000.0) as i64
 }
 
-/// One climate coordinate's accepted span, quantized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Parameter {
     pub min: i64,
@@ -47,8 +41,6 @@ impl Parameter {
         }
     }
 
-    /// The union of two spans, which is how the reference widens a slice to
-    /// cover several of its neighbours.
     pub fn union(self, other: Parameter) -> Self {
         Parameter {
             min: self.min.min(other.min),
@@ -56,13 +48,10 @@ impl Parameter {
         }
     }
 
-    /// Whether the two spans share more than a bound, or are the same span.
     pub fn overlaps(self, other: Parameter) -> bool {
         self == other || self.min.max(other.min) < self.max.min(other.max)
     }
 
-    /// How far `target` lies outside the span, zero when inside it. The upper
-    /// bound is exclusive, so a point span is never a zero-distance match.
     #[inline]
     pub fn distance(self, target: i64) -> i64 {
         (target - self.max + 1).max(self.min - target).max(0)
@@ -78,8 +67,6 @@ impl From<&ParameterRange> for Parameter {
     }
 }
 
-/// The climate a biome accepts. `offset` is a flat penalty that lets one entry
-/// lose a tie to another whose spans fit equally well.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParameterPoint {
     pub temperature: Parameter,
@@ -132,7 +119,6 @@ impl From<&ClimateParameters> for ParameterPoint {
     }
 }
 
-/// The climate actually sampled at a position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetPoint {
     pub temperature: i64,
@@ -163,8 +149,6 @@ impl TargetPoint {
     }
 }
 
-/// The seven-dimensional point a search compares against: the six sampled
-/// coordinates, plus a zero the offset penalty is measured from.
 type Coords = [i64; 7];
 
 impl ParameterPoint {
@@ -210,8 +194,6 @@ fn bound_distance(space: &[Parameter; 7], target: &Coords) -> i64 {
         .sum()
 }
 
-/// An R-tree node over the parameter space. A subtree's own space is the union
-/// of its children's, which is what lets a search skip a whole branch.
 #[derive(Debug, Clone)]
 enum Node<T> {
     Leaf {
@@ -232,18 +214,11 @@ impl<T> Node<T> {
     }
 }
 
-/// The tree laid out breadth first, so a node's children sit next to each other,
-/// and stored one array per axis, so a node's children are measured in one pass
-/// over contiguous bounds. The order within a node is the order the tree built,
-/// which is what decides a tie.
 #[derive(Debug, Clone, Default)]
 struct Tree {
     min: [Vec<i64>; 6],
     max: [Vec<i64>; 6],
-    /// The squared distance along the offset axis, which measures from zero
-    /// whatever the target, so it is known before any search.
     offset: Vec<i64>,
-    /// The entry a leaf answers with. A subtree carries children instead.
     value: Vec<u32>,
     children_start: Vec<u32>,
     children_count: Vec<u32>,
@@ -299,8 +274,6 @@ where
     tree
 }
 
-/// The nearest leaf under the subtree `at`, given a candidate to beat. A branch
-/// whose own bound is already further than the candidate is not entered at all.
 fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
     let (Some(&start), Some(&count)) = (tree.children_start.get(at), tree.children_count.get(at))
     else {
@@ -360,9 +333,6 @@ fn union_space<T>(children: &[Node<T>]) -> Option<[Parameter; 7]> {
     Some(space)
 }
 
-/// Sort by how far the node sits from the origin overall. This is the order a
-/// node's own children end up in, and it is a different key from the one the
-/// bucketing uses.
 fn sort_by_total_magnitude<T>(nodes: &mut [Node<T>]) {
     nodes.sort_by_cached_key(|node| {
         node.space()
@@ -372,8 +342,6 @@ fn sort_by_total_magnitude<T>(nodes: &mut [Node<T>]) {
     });
 }
 
-/// Sort by the centre of `dimension`, then by the centres of the dimensions
-/// after it, wrapping around.
 fn sort_nodes<T>(nodes: &mut [Node<T>], dimension: usize, absolute: bool) {
     let key = |node: &Node<T>| -> [i64; 7] {
         let space = node.space();
@@ -387,8 +355,6 @@ fn sort_nodes<T>(nodes: &mut [Node<T>], dimension: usize, absolute: bool) {
     nodes.sort_by_cached_key(key);
 }
 
-/// How many nodes go in each bucket: the largest power of the branching factor
-/// that still leaves more than one bucket.
 fn bucket_size(count: usize, children_per_node: usize) -> usize {
     children_per_node
         .pow(((count as f64 - 0.01).ln() / (children_per_node as f64).ln()).floor() as u32)
@@ -410,8 +376,6 @@ fn bucketed_cost<T>(children: &[Node<T>], per_bucket: usize) -> i64 {
         .sum()
 }
 
-/// Group the nodes along whichever dimension gives the tightest bounds, so a
-/// search prunes as much as possible. No children build no node.
 fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Option<Node<T>> {
     if children.len() == 1 {
         return children.pop();
@@ -447,8 +411,6 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Option
             children: bucket,
         });
     }
-    // The reference orders the buckets before descending into them, along the
-    // dimension it bucketed on, so the child order is the bucketing's order.
     sort_nodes(&mut buckets, best_dimension, true);
     let subtrees: Vec<Node<T>> = buckets
         .into_iter()
@@ -463,7 +425,6 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Option
     })
 }
 
-/// A biome table, searched by nearest climate.
 #[derive(Debug, Clone)]
 pub struct ParameterList<T> {
     values: Vec<(ParameterPoint, T)>,
@@ -471,7 +432,6 @@ pub struct ParameterList<T> {
 }
 
 impl<T> ParameterList<T> {
-    /// An empty table answers no lookup.
     pub fn new(values: Vec<(ParameterPoint, T)>) -> Self {
         let leaves = values
             .iter()
@@ -487,8 +447,6 @@ impl<T> ParameterList<T> {
         ParameterList { values, tree }
     }
 
-    /// The same climates answering with other values. The tree depends on the
-    /// climates alone, so it is shared rather than rebuilt.
     pub fn map_values<U>(&self, mut f: impl FnMut(&T) -> U) -> ParameterList<U> {
         ParameterList {
             values: self
@@ -526,22 +484,15 @@ impl<T> ParameterList<T> {
         self.values.is_empty()
     }
 
-    /// The entry whose climate fits `target` best, if the table has any.
     pub fn find_value(&self, target: TargetPoint) -> Option<&T> {
         self.find_value_from(target, &mut None)
     }
 
-    /// [`Self::find_value`] seeded with `last`, the slot the previous query
-    /// answered. Climate drifts slowly between neighbouring cells, so that leaf
-    /// is usually the answer or next to it, and its distance prunes most of the
-    /// tree before the walk starts.
     pub fn find_value_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<&T> {
         let slot = self.find_slot_from(target, last)?;
         self.values.get(slot).map(|(_, value)| value)
     }
 
-    /// [`Self::find_value_from`], answering with the entry's index into
-    /// [`Self::values`] rather than the entry.
     pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<usize> {
         let coords = target.coords();
         let seed = last.and_then(|slot| {
@@ -556,9 +507,6 @@ impl<T> ParameterList<T> {
         Some(slot)
     }
 
-    /// The same answer by scanning every entry, which is what the tree has to
-    /// agree with. Ties go to the earlier entry here; the tree visits its own
-    /// sorted order, so a tie can land elsewhere and the tree is the authority.
     pub fn find_value_brute_force(&self, target: TargetPoint) -> Option<&T> {
         let (mut best, rest) = self.values.split_first()?;
         let mut best_fitness = best.0.fitness(target);
@@ -595,8 +543,6 @@ mod tests {
         assert_eq!(quantize_coord(1.0), 10000);
         assert_eq!(quantize_coord(-1.0), -10000);
         assert_eq!(quantize_coord(0.05), 500);
-        // 0.26666668 * 10000 lands just under 2666.667, and truncation is what
-        // the reference does with it.
         assert_eq!(quantize_coord(0.266_666_68), 2666);
         assert_eq!(quantize_coord(0.5), 5000);
     }
@@ -672,9 +618,6 @@ mod tests {
         assert_eq!(only_depth.fitness(target), 10000 * 10000 + 5);
     }
 
-    /// The tree only prunes, so it has to reach the same entry a full scan
-    /// does. Ties can land elsewhere, since the tree walks its own sorted
-    /// order, and the tree is the authority there.
     #[test]
     fn the_index_agrees_with_a_full_scan() {
         let mut rng = 0x2545F4914F6CDD1Du64;
@@ -708,8 +651,6 @@ mod tests {
         let mut last = None;
         for step in 0..2000 {
             let target = TargetPoint::new(next(), next(), next(), next(), next(), next());
-            // Every other query carries the previous answer in, which the seed
-            // may only use to prune, never to settle on a worse leaf.
             let indexed = if step % 2 == 0 {
                 *table.find_value(target).unwrap()
             } else {
@@ -717,7 +658,6 @@ mod tests {
             };
             let scanned = *table.find_value_brute_force(target).unwrap();
             if indexed != scanned {
-                // Only a tie may differ, and then both must fit equally well.
                 assert_eq!(
                     table.values()[indexed].0.fitness(target),
                     table.values()[scanned].0.fitness(target),
@@ -729,9 +669,6 @@ mod tests {
         assert_eq!(checked, 2000);
     }
 
-    /// The explicit `biomes` form of a multi-noise source carries the same
-    /// spans through the JSON codec, so a parsed entry and a built one must
-    /// quantize identically.
     #[test]
     fn a_parsed_entry_matches_a_built_one() {
         let parsed: ClimateParameters = serde_json::from_str(

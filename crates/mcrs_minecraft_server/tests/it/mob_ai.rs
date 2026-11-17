@@ -1,6 +1,3 @@
-//! The AI of summoned farm animals in a dimension world: an animal near a player strolls, and a
-//! hit by a cactus makes a pig panic and run.
-
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
@@ -19,7 +16,6 @@ use crate::commands::load_stone_column;
 use crate::host_app::{self, PlayServer};
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
-/// The goal of the panic in the goal list of the pig.
 const PANIC: usize = 0;
 
 fn start() -> (PlayServer, Entity) {
@@ -66,8 +62,6 @@ fn horizontal_distance(from: DVec3, to: DVec3) -> f64 {
     (to - from).with_y(0.0).length()
 }
 
-/// GOAL-STR-001, AIT-VAN-020: with a player that stands near them, summoned pigs on a stone floor
-/// start a random stroll within a minute of game time.
 #[test]
 fn pigs_near_a_player_stroll_on_the_floor() {
     let (mut server, operator) = start();
@@ -96,8 +90,6 @@ fn pigs_near_a_player_stroll_on_the_floor() {
     );
 }
 
-/// GOAL-PNC-001, GOAL-PNC-002: a pig with no player near it stands still; a hit of 0 by a cactus
-/// starts its panic, and it runs.
 #[test]
 fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
     let (mut server, operator) = start();
@@ -135,9 +127,6 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
     );
 }
 
-/// GOAL-STR-004, GOAL-WAKE-020, TRK-SUM-007: a pig of `{PersistenceRequired:1b}` stops its
-/// strolls under a spectator, and a hit of 0 by drown each 80 ticks makes it stroll again without
-/// a panic and without a push.
 #[test]
 fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
     const HIT: &str = "execute as @e[type=minecraft:pig] run damage @s 0 minecraft:drown";
@@ -190,8 +179,6 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
     assert!(farthest > 0.5, "the hits make the pig stroll again");
 }
 
-/// GOAL-ANI-002 to GOAL-ANI-004, TRK-TYPE-002: a summoned cow, sheep and chicken get the type data
-/// and the brain of their type, and each type strolls near a player within a minute.
 #[test]
 fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
     let animals: [(&str, &EntityTypeData); 3] = [

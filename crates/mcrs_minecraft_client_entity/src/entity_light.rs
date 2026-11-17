@@ -7,7 +7,6 @@ use mcrs_minecraft_entity_visual::{
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
-/// The block that the [`EntityLight`] of the entity was last sampled at.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LightSampledAt(BlockPos);
 
@@ -26,10 +25,6 @@ fn sample(columns: &ColumnStore, at: BlockPos) -> EntityLight {
     }
 }
 
-/// Samples the light at the eye of each entity that has no light yet, or whose eye is in another
-/// block than the one that its light was sampled at.
-// chisle: a light change at an eye that does not move is not seen; a message of the column store
-// for each changed light lifts it.
 pub(crate) fn write_entity_light(
     columns: Res<ColumnStore>,
     mut entities: Query<

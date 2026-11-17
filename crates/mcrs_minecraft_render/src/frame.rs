@@ -17,8 +17,6 @@ use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_mesh::face_shade;
 use mcrs_minecraft_mesh::{DrawKind, SECTION_SIZE};
 
-/// The camera split into the section it stands in and where it stands inside that section, so
-/// the terrain shaders never need an absolute world coordinate in f32.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct CameraOrigin {
@@ -35,13 +33,11 @@ impl CameraOrigin {
         }
     }
 
-    /// Subtracted in i32, so a block at the edge of the world still lands where it belongs.
     pub fn relative(&self, block: IVec3) -> Vec3 {
         (block - self.section * SECTION_SIZE as i32).as_vec3()
     }
 }
 
-/// The directional shade table of the dimension the camera is in.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct TerrainShade(pub CardinalLight);
@@ -84,7 +80,6 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
     clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
 }
 
-/// Publishes the view of the frame for the passes of the render world.
 pub(super) fn write_frame_view(
     mut commands: Commands,
     origin: Option<Res<CameraOrigin>>,
@@ -120,8 +115,6 @@ pub(super) fn write_camera(
         return;
     };
     let section = frame_view.camera_section;
-    // The tint window wraps, so only the camera section's place inside it matters, and that
-    // stays exact in i32 where the section's absolute position would not in f32.
     let tint_origin = [
         -(section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32) as f32,
         -(section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32) as f32,
@@ -141,7 +134,6 @@ pub(super) fn write_camera(
             ],
             hiz_levels: terrain.hiz_levels(&occlusion),
             viewport: frame_view.viewport.to_array(),
-            // Terrain renders to the full depth attachment with the default viewport.
             raster_viewport: views
                 .iter()
                 .next()
@@ -151,8 +143,6 @@ pub(super) fn write_camera(
                 }),
             quad_cull: quad_cull.0 as u32,
             shade_table: face_shade::shader_index(shade.0),
-            // chisle: only the section cull of the full path reads it; the minimal path draws
-            // each held column. A test of the section in its vertex stage lifts this.
             render_distance: u32::from(render_distance.0),
             fog_color: fog.color,
             fog_environmental: [fog.environmental.start, fog.environmental.end],
@@ -184,9 +174,6 @@ mod tests {
         assert_ne!(far.as_vec3() - eye.as_vec3(), truth);
     }
 
-    /// A block a render distance away, seen from the far edge of the world. Against an f64
-    /// ground truth the camera-relative projection holds to a ten-thousandth of a pixel, while
-    /// the same projection built on absolute f32 coordinates drifts by more than one.
     #[test]
     fn the_relative_projection_survives_a_coordinate_f32_cannot_hold() {
         let eye = DVec3::new(30_000_000.9, 16_777_216.9, -30_000_000.9);

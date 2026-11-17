@@ -1,9 +1,3 @@
-//! Ranks the farms and machines of a save by the server load they cause.
-//!
-//! `mcrs_minecraft_hotspots <world>` reads every column and entity file of the three vanilla
-//! dimensions, joins neighbouring hot columns into sites and prints the top sites for each load.
-//! Each further `<dimension> <x> <z>` triple prints the load within the simulation distance of
-//! that block.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -22,12 +16,9 @@ use scan::{ChunkLoad, Part};
 
 const DIMENSIONS: [&str; 3] = ["overworld", "the_nether", "the_end"];
 const TOP: usize = 15;
-/// Hot columns closer than this many columns form one site.
 const GAP: i32 = 2;
-/// The default `simulation-distance` of a dedicated server, in columns.
 const SIMULATION: i32 = 10;
 
-/// Entities that never move, so they add no entity physics.
 const STILL: [&str; 5] = [
     "minecraft:item_frame",
     "minecraft:glow_item_frame",
@@ -79,7 +70,6 @@ impl Load {
         }
     }
 
-    /// The value from which a column counts as hot: well above a plain built-up column.
     fn hot(self) -> u32 {
         match self {
             Self::Entities => 24,

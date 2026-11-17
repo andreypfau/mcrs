@@ -1,12 +1,3 @@
-//! Layer 2 against recordings of `tools/mcrs_minecraft_client_recorder`. A vanilla client in the
-//! conformance tests C1 to C7 of `docs/spec/movement-checks.md` and in the player experiments of
-//! `docs/spec/entity-physics.md` raises no flag. A client with a cheat module, in
-//! `tests/fixtures/cheats/<module>`, raises a flag when the module changes the movement.
-//!
-//! The replay takes the time of each event at the proxy as the time of the server: a change goes
-//! out when the proxy passed it to the client, and the client ticks before its application predict
-//! without it.
-
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -46,10 +37,8 @@ const HONEST: [&str; 2] = [
     "../mcrs_minecraft_physics/tests/fixtures/player",
 ];
 
-/// The cheat modules that change the movement that layer 2 predicts.
 const PREDICTED_CHEATS: [&str; 5] = ["fly", "speed", "no_fall", "phase", "step"];
 
-/// A faster tick rate passes layer 2: the tick rate check of layer 1 sees it.
 const UNPREDICTED_CHEATS: [&str; 1] = ["timer"];
 
 #[test]
@@ -132,7 +121,6 @@ fn each_recording_of_a_predicted_cheat_module_is_flagged() {
     );
 }
 
-/// The `.txt` files under the directory `relative` to the crate, in subdirectories too, sorted.
 fn recordings(relative: &str) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     let mut directories = vec![Path::new(env!("CARGO_MANIFEST_DIR")).join(relative)];
@@ -180,11 +168,9 @@ struct Tally {
     predicted: usize,
     coarse: usize,
     flags: Vec<String>,
-    /// The accepted state after each client tick.
     accepted: Vec<PlayerState>,
 }
 
-/// The server side of a recording: its world, layer 2 and the state the changes carry.
 struct Server {
     blocks: TestBlocks,
     tables: Tables,
@@ -195,13 +181,9 @@ struct Server {
     effects: MotionEffects,
     rotation: Orientation,
     tick: ClientTick,
-    /// The changes that the client applied: the answer to the probe after each is in.
     applied: u64,
 }
 
-/// Sends each clientbound event at its time, and feeds the serverbound events in the order of
-/// the client. The probe after a change gives the tick that applied it, so a change is applied
-/// from the tick after its place in the recording on.
 fn replay(recording: &Recording) -> Result<Tally, String> {
     let blocks = TestBlocks::new();
     let mut world = TestWorld::new();
@@ -284,7 +266,6 @@ fn teleport_of(teleport: &mcrs_minecraft_client_ticks::Teleport) -> Result<Telep
 }
 
 impl Server {
-    /// The server writes a clientbound event: a teleport is pending, a change is in its window.
     fn send(&mut self, event: &Event) -> Result<(), String> {
         let change = match event {
             Event::Teleport(teleport) => {
@@ -327,7 +308,6 @@ impl Server {
         Ok(())
     }
 
-    /// The client applied a clientbound event; a teleport answers the outcome of its accept.
     fn apply(&mut self, event: &Event) -> Result<Outcome, String> {
         match event {
             Event::Teleport(teleport) => {
@@ -359,7 +339,6 @@ impl Server {
         outcome
     }
 
-    /// A serverbound packet of the tick.
     fn packet(&mut self, event: &Event) {
         let tick = &mut self.tick;
         match event {

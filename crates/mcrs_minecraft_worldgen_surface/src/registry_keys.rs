@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const MATERIAL_CONDITION: RegistryKey<crate::proto::MaterialConditionHolder> =
@@ -27,7 +25,6 @@ impl Registered for crate::material_rule_type_keys::MaterialRuleType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
 }
 
-/// The static registries of this crate, which the catalog does not list.
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         MATERIAL_CONDITION_TYPE.location(),

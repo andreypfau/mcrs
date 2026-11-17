@@ -10,9 +10,6 @@ use mcrs_voxel::BlockPos;
 use crate::scattered::{DesertPyramidBlocks, collapsed_roof_pos, potential_suspicious_sand};
 use crate::woodland_mansion::WoodlandMansionBlocks;
 
-/// `DesertPyramidStructure.afterPlace` for one column: the marked roof cell,
-/// then the cellar's sand, five to eight cells of it suspicious, in a shuffle
-/// drawn positionally at the piece's centre.
 pub fn desert_pyramid<W: WorldGenVolume>(
     b: &DesertPyramidBlocks,
     volume: &mut W,
@@ -60,9 +57,6 @@ pub fn desert_pyramid<W: WorldGenVolume>(
     }
 }
 
-/// `WoodlandMansionStructure.afterPlace` for one column: under every cell of
-/// the column that is inside a piece and not empty at the start's floor,
-/// cobblestone fills down through air and liquid to the first solid block.
 pub fn woodland_mansion<W: WorldGenVolume>(
     b: &WoodlandMansionBlocks,
     volume: &mut W,

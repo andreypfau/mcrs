@@ -5,7 +5,6 @@ use serde::Serialize;
 
 const OWNER_LEVEL: u8 = 4;
 
-/// One entry of the operator file of the vanilla server.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Operator {
@@ -16,8 +15,6 @@ pub(crate) struct Operator {
 }
 
 impl Operator {
-    /// The console command `op` asks the account service for the name, so the file is written
-    /// with the profile id that a server in offline mode gives the player.
     pub(crate) fn new(name: &str) -> Self {
         Self {
             uuid: offline_profile_id(name),
@@ -28,7 +25,6 @@ impl Operator {
     }
 }
 
-/// The profile id that a server in offline mode gives the player `name`, in its text form.
 pub(crate) fn offline_profile_id(name: &str) -> String {
     let digest = Md5::digest(format!("OfflinePlayer:{name}").as_bytes());
     Builder::from_md5_bytes(digest.into())

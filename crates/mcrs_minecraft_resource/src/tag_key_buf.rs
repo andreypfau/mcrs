@@ -4,7 +4,6 @@ use core::marker::PhantomData;
 
 use crate::{ResourceLocationBuf, TagKey};
 
-/// An owned reference to a tag of the registry `R`, such as one read from a data pack.
 pub struct TagKeyBuf<R> {
     location: ResourceLocationBuf,
     _marker: PhantomData<fn() -> R>,
@@ -29,13 +28,11 @@ impl<R> TagKeyBuf<R> {
         &self.location
     }
 
-    /// The borrowed form.
     #[inline]
     pub fn as_key(&self) -> TagKey<'_, R> {
         TagKey::new(self.location.as_location())
     }
 
-    /// The canonical `namespace:path` text.
     #[inline]
     pub fn as_str(&self) -> &str {
         self.location.as_str()

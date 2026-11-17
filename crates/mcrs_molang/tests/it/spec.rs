@@ -54,7 +54,6 @@ fn run_with(source: &Source<'_>, optimize: bool) -> Run {
     }
 }
 
-/// Runs the direct lowering and the optimised program, which must agree bit for bit.
 fn run_source(source: &Source<'_>) -> Run {
     let reference = run_with(source, false);
     let optimized = run_with(source, true);

@@ -147,7 +147,6 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
     *server.world_in(dim).get::<Transform>(player).unwrap()
 }
 
-/// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
 pub(crate) fn load_stone_column(server: &mut PlayServer) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
@@ -215,7 +214,6 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
     );
 }
 
-/// A block entity in the section of the stone column that holds `pos`.
 fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
     use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntityPos, InSection};
     use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
@@ -236,7 +234,6 @@ fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
     ));
 }
 
-/// The tree the player receives on joining, decoded from the frame the server encoded once.
 fn sent_tree(packets: &[PacketPayload]) -> ClientboundCommands<'_> {
     let bytes = packets
         .iter()
@@ -354,7 +351,6 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(context, error_context("echo ", "0", "echo 0"));
 }
 
-/// The context line of an error at the end of `before`, with `rest` after it.
 fn error_context(before: &str, rest: &str, line: &str) -> Text {
     use mcrs_minecraft_protocol_game::text::Color;
     let mut context = before.to_owned().into_text();
@@ -926,7 +922,6 @@ fn execute_tests_the_saved_data_of_a_block_entity() {
 
 const THIRD: Uuid = Uuid::from_u128(3);
 
-/// The operator and a guest in the Overworld, and the player `Nether` in the Nether.
 fn two_dimensions(limits: Limits) -> (PlayServer, Entity, Entity) {
     let mut server = start_in(
         &[
@@ -1109,7 +1104,6 @@ fn clock(server: &PlayServer, clock: &str) -> ClockTime {
         .unwrap()
 }
 
-/// The `set_time` of a change to the overworld clock that leaves it at `total_ticks`.
 fn overworld_update(server: &PlayServer, total_ticks: i64) -> ClientboundSetTime {
     ClientboundSetTime {
         game_time: 0,
@@ -1172,7 +1166,6 @@ fn time_changes_and_reads_the_overworld_clock() {
     );
     assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, 20);
 
-    // (command line, the message, the total ticks after it, whether it sends `set_time`)
     let cases: Vec<(&str, Text, i64, bool)> = vec![
         (
             "time set 1000",
@@ -1420,7 +1413,6 @@ fn child_names(tree: &ClientboundCommands<'_>, node: &CommandNode<'_>) -> Vec<St
         .collect()
 }
 
-/// The properties and the suggestion type of an argument node.
 fn argument_wire<'a>(node: &CommandNode<'a>) -> (ParserProperties<'a>, Option<String>) {
     let CommandNodeKind::Argument {
         parser,
@@ -1895,8 +1887,6 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
     );
 
     command(&mut server, op, "tp @p[name=!Op] ~ ~ ~");
-    // The Nether leaves the player in the tick after the order, and the Overworld takes it in
-    // the tick after that.
     server.ticks_all(1);
     assert!(server.player_in(nether, nether_player).is_none());
     assert_eq!(
@@ -2030,7 +2020,6 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     );
 }
 
-/// The tree the operator receives, through the wire and into the client tree.
 fn client_tree_of(
     packets: &[PacketPayload],
 ) -> mcrs_minecraft_command_argument_vanilla::ClientGraph {
@@ -2134,8 +2123,6 @@ fn teleport_ids(packets: &[PacketPayload]) -> Vec<i32> {
         .collect()
 }
 
-/// Accepts each of `ids` at the position the player has in `dim`, as a client that computed the
-/// destination of the teleport.
 fn accept_teleports(server: &mut PlayServer, dim: Entity, anchor: Entity, ids: &[i32]) {
     use mcrs_minecraft_protocol_game::serverbound::ServerboundAcceptTeleportation;
     let at = transform_in(server, dim, anchor).translation;

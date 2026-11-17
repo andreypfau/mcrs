@@ -9,11 +9,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::ResourceLocationBuf;
 
-/// A namespaced resource identifier, `namespace:path`, borrowed from the text it was read from.
-///
-/// A bare `path` reads in the `minecraft` namespace without an allocation. [`rl!`](crate::rl)
-/// builds one at compile time. [`ResourceLocationBuf`] is the owned form; both forms hash and
-/// compare by the namespace and the path, and order by the path and then the namespace.
 #[derive(Clone, Copy)]
 pub struct ResourceLocation<'a> {
     namespace: &'a str,
@@ -22,7 +17,6 @@ pub struct ResourceLocation<'a> {
 
 const DEFAULT_NAMESPACE: &str = "minecraft";
 
-/// The namespace and the path of `text`; a missing or empty namespace is `minecraft`.
 fn split_namespace(text: &str) -> (&str, &str) {
     match text.split_once(':') {
         Some(("", path)) => (DEFAULT_NAMESPACE, path),
@@ -31,8 +25,6 @@ fn split_namespace(text: &str) -> (&str, &str) {
     }
 }
 
-/// The namespace and the path of `text`, or `None` when either has a character an identifier
-/// does not allow.
 pub fn parse_parts(text: &str) -> Option<(&str, &str)> {
     let (namespace, path) = split_namespace(text);
     (valid_namespace(namespace.as_bytes()) && valid(path.as_bytes(), true))
@@ -76,9 +68,6 @@ pub(crate) fn check(namespace: &str, path: &str) -> Result<(), String> {
 }
 
 impl ResourceLocation<'static> {
-    /// Const constructor for a literal that is already in canonical form: refuses unless `s` is
-    /// `namespace:path` with a non-empty namespace in `[a-z0-9_.-]` (not `..`) and a path in
-    /// `[a-z0-9_.-/]`. `rl!` turns the refusal into a compile error.
     pub const fn new_static(s: &'static str) -> Result<Self, &'static str> {
         let bytes = s.as_bytes();
         let mut colon = 0;
@@ -118,7 +107,6 @@ impl ResourceLocation<'static> {
 }
 
 impl<'a> ResourceLocation<'a> {
-    /// Both halves are checked and nothing is defaulted, so an empty namespace stays empty.
     pub fn new(namespace: &'a str, path: &'a str) -> Result<Self, InvalidResourceLocation> {
         check(namespace, path).map_err(|reason| InvalidResourceLocation {
             input: format!("{namespace}:{path}"),
@@ -127,8 +115,6 @@ impl<'a> ResourceLocation<'a> {
         Ok(ResourceLocation { namespace, path })
     }
 
-    /// A missing or empty namespace is `minecraft`; the namespace is the text before the first
-    /// `:` and the path everything after it. Reading allocates only to report an error.
     pub fn read(text: &'a str) -> Result<Self, InvalidResourceLocation> {
         let (namespace, path) = split_namespace(text);
         check(namespace, path).map_err(|reason| InvalidResourceLocation {
@@ -138,7 +124,6 @@ impl<'a> ResourceLocation<'a> {
         Ok(ResourceLocation { namespace, path })
     }
 
-    /// The parts of a location that was checked when it was stored.
     pub(crate) const fn from_checked_parts(namespace: &'a str, path: &'a str) -> Self {
         ResourceLocation { namespace, path }
     }
@@ -153,17 +138,14 @@ impl<'a> ResourceLocation<'a> {
         self.path
     }
 
-    /// The owned form, with one allocation.
     pub fn to_buf(self) -> ResourceLocationBuf {
         ResourceLocationBuf::from(self)
     }
 
-    /// The length of the canonical `namespace:path` text in bytes.
     pub const fn len(self) -> usize {
         self.namespace.len() + 1 + self.path.len()
     }
 
-    /// A location is never empty: its text holds at least the `:`.
     pub const fn is_empty(self) -> bool {
         false
     }
@@ -183,7 +165,6 @@ impl PartialEq for ResourceLocation<'_> {
 
 impl Eq for ResourceLocation<'_> {}
 
-/// Compares against the canonical `namespace:path` text.
 impl PartialEq<str> for ResourceLocation<'_> {
     fn eq(&self, other: &str) -> bool {
         other
@@ -212,7 +193,6 @@ impl PartialOrd for ResourceLocation<'_> {
     }
 }
 
-/// The path first, then the namespace, both byte-wise: the total order of identifiers.
 impl Ord for ResourceLocation<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.path, self.namespace).cmp(&(other.path, other.namespace))
@@ -244,8 +224,6 @@ impl Serialize for ResourceLocation<'_> {
     }
 }
 
-/// Reads only text the input lends, such as a JSON string without escapes; an owned string
-/// fails, because the location would outlive it.
 impl<'de> Deserialize<'de> for ResourceLocation<'de> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct Borrowed;
@@ -266,7 +244,6 @@ impl<'de> Deserialize<'de> for ResourceLocation<'de> {
     }
 }
 
-/// A `ResourceLocation<'static>` from a `namespace:path` literal, validated at compile time.
 #[macro_export]
 macro_rules! rl {
     ($s:literal) => {

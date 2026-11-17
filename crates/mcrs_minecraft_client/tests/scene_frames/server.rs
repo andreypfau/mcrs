@@ -10,8 +10,6 @@ use crate::scene::World;
 
 const START_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// A vanilla dedicated server that runs the world of one scene. The harness types commands at
-/// its console, so each command has the permissions of the console.
 pub struct VanillaServer {
     process: Child,
     console: ChildStdin,
@@ -20,7 +18,6 @@ pub struct VanillaServer {
 }
 
 impl VanillaServer {
-    /// Starts `jar` in `work`, which holds nothing else, and waits until the world is ready.
     pub fn start(jar: &Path, work: &Path, world: &World) -> Self {
         assert_eq!(
             world.kind, "flat_default",
@@ -72,7 +69,6 @@ impl VanillaServer {
             .expect("the server console takes a command");
     }
 
-    /// Waits for a line of the console output that contains `wanted`.
     pub fn expect_line(&mut self, wanted: &str, timeout: Duration) {
         assert!(
             self.wait_for_line(wanted, timeout),
@@ -80,8 +76,6 @@ impl VanillaServer {
         );
     }
 
-    /// Answers whether a line of the console output that contains `wanted` came within
-    /// `timeout`.
     pub fn wait_for_line(&mut self, wanted: &str, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
         loop {
@@ -134,8 +128,6 @@ fn properties(port: u16, seed: &str, generate_structures: bool) -> String {
     )
 }
 
-/// The port is free when this returns; nothing else on the machine is expected to take it before
-/// the server binds it.
 fn free_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
         .and_then(|listener| listener.local_addr())
@@ -143,7 +135,6 @@ fn free_port() -> u16 {
         .port()
 }
 
-/// Copies each line of `output` to the file `copy` and to the returned channel.
 fn forward_lines(output: impl std::io::Read + Send + 'static, copy: PathBuf) -> Receiver<String> {
     let (sender, receiver) = mpsc::channel();
     std::thread::spawn(move || {
@@ -153,7 +144,6 @@ fn forward_lines(output: impl std::io::Read + Send + 'static, copy: PathBuf) -> 
             if let Some(file) = file.as_mut() {
                 let _ = writeln!(file, "{line}");
             }
-            // The pipe is drained to the end even with no reader, or the server blocks on it.
             let _ = sender.send(line);
         }
     });

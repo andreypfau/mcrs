@@ -17,7 +17,6 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
 
-/// The biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
     pub eroded_badlands: Id<Biome>,
     pub frozen_ocean: Id<Biome>,
@@ -63,16 +62,6 @@ impl SurfaceStates {
     }
 }
 
-/// Whether a column buffer covers the dimension rather than a slice of it.
-///
-/// The descent starts one block above each strip's highest non-air block, and
-/// that height is read off the sections the buffer holds. Given a slice, the cut
-/// is what the descent enters at, with no depth above it — so the top of the
-/// slice is surfaced as if it were the sky, and a sheet of grass over dirt lands
-/// in the middle of the rock. The stored biomes and the ore-vein prefill region are
-/// cut the same way, and the rules that lay the bedrock floor are never reached.
-/// Sections past the noise range are the End's, which the dimension carries and
-/// the noise does not fill.
 pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
     let bottom = min_y >> 4;
     let top = bottom + (height >> 4);
@@ -85,12 +74,6 @@ pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
         && y_sections.last().is_some_and(|&last| last + 1 >= top)
 }
 
-/// Rewrite every strip of a filled column from the top down, carving it as it
-/// goes where `carving` is given.
-///
-/// The surface gradients read the tops the fill left, so a pillar or an
-/// iceberg changes neither its neighbours' steepness nor their gradient rules;
-/// a strip's own descent still starts above its pillar.
 #[expect(
     clippy::too_many_arguments,
     reason = "the column and its section position, the tops, biomes and first section, the router, material program, ids and states, and the scratch and carving of one surface pass"
@@ -232,8 +215,6 @@ pub fn apply_material_surface(
                             set_block(column, tops, min_y, x, y, z, substance);
                             return;
                         }
-                        // Carving the top of a run away bares the block under
-                        // it, which is surfaced again as if it were the top.
                         if carved_top {
                             if state == Some(states.dirt) {
                                 eval.update_y(1, depth_below, water_level, y);
@@ -275,9 +256,6 @@ pub fn apply_material_surface(
     }
 }
 
-/// What the descent hands its visitor: each solid run as it is entered, with
-/// the depth its top block has — fluid above does not reset it — then every
-/// solid block of it, and every air or fluid block between runs.
 pub(crate) enum Visit {
     Run {
         top: i32,
@@ -297,16 +275,6 @@ pub(crate) enum Visit {
     },
 }
 
-/// Walk one strip from `height` down to the bottom of the dimension, handing
-/// every solid block its two depths and the water level above it, and each
-/// solid run its top, its bottom, the ceiling its depth below counts from and
-/// the water level over it as it is entered. Any of `fluids` counts as fluid,
-/// as the reference reads any non-empty fluid state: lava from the field's
-/// floor is not rock to surface.
-///
-/// A position this dispatch does not carry is skipped rather than ending the
-/// descent. A run that reaches the floor has no ceiling under it, so its depth
-/// below counts from far beneath the world and no ceiling rule fires there.
 pub(crate) fn descend_strip(
     column: &ColumnBlocks,
     x: i32,
@@ -371,9 +339,6 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
     }
 }
 
-/// Writes through the strip's height, which the gradients of the strips after
-/// it read. Carving the top block away lowers the height to the next block
-/// below it, exactly as raising it does the other way.
 pub(crate) fn set_block(
     column: &ColumnBlocks,
     tops: &mut [i32; 256],
@@ -399,8 +364,6 @@ pub(crate) fn set_block(
     }
 }
 
-/// The pillars of eroded badlands, built before the rule pass so the rules
-/// paint them.
 #[expect(
     clippy::too_many_arguments,
     reason = "the column and its tops, the material program, the strip's chunk, block and height coordinates, the bottom, and the stone and fluid blocks of one eroded-badlands pillar"
@@ -420,9 +383,6 @@ fn eroded_badlands(
 ) {
     let air = VoxelId::default();
     let sample = |which, scale: f64| noise_2d(program, which, block_x, block_z, scale);
-    // The reference mixes the widths deliberately: this product is a double and
-    // the next is a float, and evaluating either in the other width moves the
-    // pillar.
     let buffer = (f64::from(sample(SurfaceNoise::BadlandsSurface, 1.0)) * 8.25)
         .abs()
         .min(f64::from(sample(SurfaceNoise::BadlandsPillar, 0.2) * 15.0));
@@ -450,8 +410,6 @@ fn eroded_badlands(
     }
 }
 
-/// The icebergs of frozen ocean, built after the rule pass so the rules do not
-/// touch them, and never where the carvers opened the column.
 #[expect(
     clippy::too_many_arguments,
     reason = "the column and its tops, the material program, the minimum surface level, the strip's coordinates and height, sea level, the fluid, the states and the carving of one frozen-ocean iceberg"
@@ -487,10 +445,6 @@ fn frozen_ocean(
     }
     let roof = (f64::from(sample(SurfaceNoise::IcebergPillarRoof, 1.17)) * 1.5).abs();
     let mut top = (iceberg * iceberg * 1.2).min((roof * 40.0).ceil() + 14.0);
-    // The reference lowers `top` by two where the surface biome is warm enough
-    // to melt the iceberg slightly, which needs a per-biome temperature nothing
-    // here can reach at generation time; until it can, every iceberg in deep
-    // frozen ocean is two blocks taller than vanilla's.
     if top <= 2.0 {
         return;
     }

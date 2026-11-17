@@ -17,16 +17,12 @@ use mcrs_minecraft_physics::floor_block;
 use crate::BodyGrid;
 use crate::TileBodies;
 
-/// The edge of a bucket in blocks; a tile holds `BUCKETS × BUCKETS` buckets.
 const BUCKET: i32 = 1;
 const BUCKETS: usize = (TILE_WIDTH.get() / BUCKET.unsigned_abs()) as usize;
 
-/// The front buffer of the body grid as the bodies that a step reads: the rows of each tile sorted
-/// by bucket, so a query reads only the buckets that its box can reach.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FrontGrid<'a> {
     pub(crate) grid: &'a BodyGrid,
-    /// The largest half width of a body in the grid.
     pub(crate) reach: f32,
 }
 
@@ -58,9 +54,6 @@ impl BodyView for FrontGrid<'_> {
     }
 }
 
-/// The grid row of a living row: every living entity is a body that pushes, and one that is
-/// alive can be pushed (PHY-ORD-012, DMG-DTH-004). The previous position is the start of the
-/// path of its last tick, while the row still stands at the end of that path.
 #[must_use]
 pub(crate) fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option<GridRow> {
     let living = state.living?;
@@ -89,8 +82,6 @@ pub(crate) fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) ->
     })
 }
 
-/// Writes `bodies` into `out` in the order of the front buffer of `tile`: by bucket, then by
-/// UUID.
 pub(crate) fn sort_bodies(tile: TileKey, bodies: &[GridRow], out: &mut TileBodies) {
     let mut order: Vec<(usize, EntityKey, usize)> = bodies
         .iter()
@@ -116,7 +107,6 @@ fn bucket(tile: TileKey, position: DVec3) -> usize {
     z * BUCKETS + x
 }
 
-/// The bucket of `position` in `tile` on `x` and `z`, clamped to the tile.
 fn bucket_xz(tile: TileKey, position: DVec3) -> [usize; 2] {
     let width = TILE_WIDTH.get().cast_signed();
     let local = |value: f64, origin: i32| {

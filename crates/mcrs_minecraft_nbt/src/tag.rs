@@ -13,7 +13,6 @@ use crate::{
     NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, get_nbt_string,
 };
 
-/// Equality compares a float and a double by bit pattern, with each NaN equal to each NaN.
 #[derive(Clone, Debug)]
 #[repr(u8)]
 pub enum NbtTag {
@@ -97,8 +96,6 @@ impl Hash for NbtTag {
 }
 
 impl NbtTag {
-    /// Whether `actual` holds this tag: a compound needs its keys, and a list needs a match for
-    /// each of its elements; other tags are equal.
     pub fn matches(&self, actual: &NbtTag) -> bool {
         match (self, actual) {
             (NbtTag::Compound(expected), NbtTag::Compound(actual)) => expected.matches(actual),
@@ -115,10 +112,8 @@ impl NbtTag {
         }
     }
 
-    /// Returns the numeric id associated with the data type.
     pub const fn get_type_id(&self) -> u8 {
-        // Safety: Since Self is repr(u8), it is guaranteed to hold the discriminant in the first byte
-        // See https://doc.rust-lang.org/reference/items/enumerations.html#pointer-casting
+        // SAFETY: `NbtTag` is `repr(u8)`, so its first byte is the discriminant.
         unsafe { *(self as *const Self as *const u8) }
     }
 
@@ -433,23 +428,17 @@ impl NbtTag {
     }
 }
 
-/// A list's element type and count.
 pub(crate) fn read_list_header<R: Read + Seek, E: NbtEncoding>(
     reader: &mut NbtReadHelper<R, E>,
 ) -> Result<(u8, usize), Error> {
     let element_type = reader.get_u8()?;
     let len = E::read_collection_length(&mut reader.reader)?;
-    // Every other element type takes input to read or to skip, so only this
-    // one could run a list to its declared count from a header.
     if element_type == END_ID && len > 0 {
         return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
     }
     Ok((element_type, len))
 }
 
-/// A mixed list is written as compounds with every non-compound element
-/// wrapped as `{"": value}`; a compound that already looks like a wrapper is
-/// wrapped again so the reader's single unwrap gives it back unchanged.
 fn is_wrapper(compound: &NbtCompound) -> bool {
     matches!(compound.child_tags.as_slice(), [(key, _)] if key.is_empty())
 }
@@ -494,8 +483,6 @@ impl From<bool> for NbtTag {
     }
 }
 
-/// A human-readable format has no array tags: `JsonOps` writes them as plain
-/// lists of signed numbers.
 impl Serialize for NbtTag {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let plain_lists = serializer.is_human_readable();

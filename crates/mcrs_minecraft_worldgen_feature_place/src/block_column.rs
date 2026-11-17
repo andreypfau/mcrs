@@ -12,19 +12,14 @@ pub struct ColumnLayer {
     pub provider: StateProvider,
 }
 
-/// One `block_column` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledBlockColumn {
     pub layers: Vec<ColumnLayer>,
     pub direction: Direction,
     pub allowed_placement: Predicate,
-    /// Which end of the column loses the cells a blocked run takes away: the
-    /// tip when set, otherwise the base.
     pub prioritize_tip: bool,
 }
 
-/// `BlockColumnFeature.place`: every layer's height first, then the free-space
-/// walk that may shorten them, then one provider draw per cell.
 pub fn place_block_column<W: WorldGenVolume>(
     cfg: &CompiledBlockColumn,
     volume: &mut W,
@@ -41,8 +36,6 @@ pub fn place_block_column<W: WorldGenVolume>(
         return false;
     }
 
-    // The reference tests the cell one step past the origin first and never
-    // tests the origin itself, so a column always writes its own first cell.
     let mut probe = at + cfg.direction.normal();
     for reached in 0..total {
         if !cfg.allowed_placement.test(volume, probe) {
@@ -121,8 +114,6 @@ mod tests {
         }
     }
 
-    /// The heights are drawn in layer order, before anything is read or
-    /// written, and the providers draw once per cell afterwards.
     #[test]
     fn the_layer_heights_are_drawn_first_and_the_column_writes_bottom_up() {
         let cfg = config(true);
@@ -145,9 +136,6 @@ mod tests {
         assert_eq!(volume.writes, expected);
     }
 
-    /// A blocked cell shortens the column, and `prioritize_tip` decides which
-    /// layer gives the cells up: the first layer when the tip has priority,
-    /// the last layer when it does not.
     #[test]
     fn a_blocked_run_takes_its_cells_from_the_base_or_from_the_tip() {
         for (prioritize_tip, expected) in [(true, vec![TIP]), (false, vec![STEM])] {
@@ -162,8 +150,6 @@ mod tests {
         }
     }
 
-    /// Zero total height is the one refusal, and the heights are already drawn
-    /// by then.
     #[test]
     fn a_column_of_no_height_places_nothing() {
         let mut cfg = config(false);
@@ -178,7 +164,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Downward columns walk the other way, tip first.
     #[test]
     fn a_downward_column_grows_below_the_origin() {
         let mut cfg = config(true);

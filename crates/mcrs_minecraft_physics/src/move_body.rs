@@ -29,13 +29,8 @@ use crate::support::MOVEMENT_OFFSET;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 
-/// The largest angle in radians between the intended direction and the move for a minor
-/// collision: `0.13962634F`, 8 degrees.
 const MINOR_ANGLE: f32 = 0.139_626_34;
 
-/// Moves the body by `displacement`: the stuck multiplier, the edge back-off, the collision with
-/// step-up, the flags and the supporting block, the velocity after a collision and the speed
-/// factor.
 pub fn move_body<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     mover: &Mover,
@@ -119,7 +114,6 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// Finds the supporting block after a move that changed the vertical flags.
 fn find_support<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     mover: &Mover,
@@ -150,7 +144,6 @@ fn find_support<W: CollisionWorld, B: BodyView>(
     body.support_missed = found.missed;
 }
 
-/// Sets the collision flags and returns true when the vertical flags changed.
 fn set_flags(
     flags: &mut MoveFlags,
     mover: &Mover,
@@ -172,8 +165,6 @@ fn set_flags(
     vertical_changed
 }
 
-/// True when the angle between the intended direction and the horizontal move is less than 8
-/// degrees. A quotient above 1 from rounding gives NaN and false, as the client computes it.
 fn is_minor(intent: DVec3, moved: DVec3) -> bool {
     let intent_squared = intent.length_squared();
     let moved_squared = moved.length_squared();
@@ -184,8 +175,6 @@ fn is_minor(intent: DVec3, moved: DVec3) -> bool {
     cosine.acos() < f64::from(MINOR_ANGLE)
 }
 
-/// The velocity after a collision: the clipped components lose their speed, or bounce with the
-/// restitution.
 fn collide_velocity<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -237,7 +226,6 @@ fn collide_velocity<W: CollisionWorld>(
     bounced.then_some(effect)
 }
 
-/// Multiplies the horizontal velocity by the speed factor of the blocks under the entity.
 fn apply_speed_factor<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -249,7 +237,6 @@ fn apply_speed_factor<W: CollisionWorld>(
     body.velocity.z *= factor;
 }
 
-/// The speed factor of the blocks under the body, mixed with `efficiency`.
 pub(crate) fn speed_factor<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -268,7 +255,6 @@ pub(crate) fn speed_factor<W: CollisionWorld>(
     factor
 }
 
-/// The friction of the block under the body.
 pub(crate) fn friction_below<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -278,7 +264,6 @@ pub(crate) fn friction_below<W: CollisionWorld>(
     table.state(state_at(world, below)).motion.friction
 }
 
-/// The block under the body for an offset, from its supporting block.
 pub(crate) fn offset_block<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,

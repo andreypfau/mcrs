@@ -5,19 +5,11 @@ use crate::access::{Denied, Unavailable, Volume};
 use crate::block::{BlockVolume, BlockVolumeMut, SectionBlocks, SectionBlocksMut};
 use crate::visit::SectionVolume;
 
-/// A store that keeps block states per position rather than per section: an overlay, a
-/// map, a box that is not section-aligned. Implementing it makes the store a
-/// [`BlockVolume`] whose section handles read through it.
-///
-/// `voxel` is asked only for positions inside a section the store grants, and answers for
-/// every cell of that section, including those outside the bounds.
 pub trait VoxelStore: Volume {
     fn voxel(&self, at: BlockPos) -> BlockStateId;
 }
 
 pub trait VoxelStoreMut: VoxelStore {
-    /// Answers the state the write replaced. A write to a cell outside the bounds is
-    /// dropped.
     fn set_voxel(&mut self, at: BlockPos, state: BlockStateId) -> BlockStateId;
 }
 

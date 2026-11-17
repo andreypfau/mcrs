@@ -11,8 +11,6 @@ use crate::fixture::entry;
 use crate::fixture::split;
 use crate::fixture::stone;
 
-/// The craft result is excluded, a full stack waits for the second visit, and a slot that the
-/// first visit empties is not taken again.
 fn scattered() -> Player {
     Player::new()
         .carrying(stone(10))

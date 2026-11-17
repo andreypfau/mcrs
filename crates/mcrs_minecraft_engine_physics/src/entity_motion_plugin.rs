@@ -25,10 +25,6 @@ use mcrs_minecraft_physics::Side;
 
 use crate::PhysicsTables;
 
-/// The motion of the moving entities of a dimension world that are not living. In
-/// `DomainInput` it keeps the tiles of the changed blocks; in [`MotionPass`], inside `Simulate`, it
-/// steps each entity with a `MotionState`, a `MotionKind` and no `MotionHold` over the blocks of
-/// the dimension, then lists the `Movers`. The entities move once [`PhysicsTables`] exists.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionPlugin;
 

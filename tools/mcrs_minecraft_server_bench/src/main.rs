@@ -1,12 +1,3 @@
-//! Loads one dedicated server, mcrs or vanilla, with protocol bots and writes one JSON report.
-//!
-//! ```text
-//! mcrs_minecraft_server_bench <mcrs|vanilla> <bots> <walk|explore|idle|mixed> <out.json> \
-//!     [--warmup 60] [--measure 120] [--explore-speed 0.8] -- <server command>
-//! ```
-//!
-//! See `README.md` for the method.
-
 mod bot;
 mod server;
 
@@ -23,14 +14,11 @@ use bot::{Behaviour, BotReport, Plan};
 use mcrs_minecraft_bench_support::{Kind, Line, ServerProcess, TickWindow, answers_status, round};
 use server::Usage;
 
-/// The port `run.sh` gives both servers.
 const PORT: u16 = 25565;
 const JOIN_INTERVAL: Duration = Duration::from_secs(1);
 const READY_TIMEOUT: Duration = Duration::from_secs(600);
 const STOP_GRACE: Duration = Duration::from_secs(60);
 const QUERY_INTERVAL: Duration = Duration::from_secs(5);
-/// Vanilla's game rules set to what mcrs does not do yet; `respawn_radius 0` puts every bot on
-/// one spawn point, as mcrs does.
 const VANILLA_RULES: [&str; 4] = [
     "gamerule locator_bar false",
     "gamerule spawn_mobs false",
@@ -237,8 +225,6 @@ fn count(log: &[Line], needle: &str) -> usize {
     log.iter().filter(|line| line.text.contains(needle)).count()
 }
 
-/// The means of the windows' averages and percentiles, the highest window P99, and TPS as 20
-/// while the average fits in a tick, else 1000 / average.
 fn mspt(windows: &[TickWindow]) -> Option<Mspt> {
     if windows.is_empty() {
         return None;
@@ -274,8 +260,6 @@ fn usage_summary(usage: &[Usage], measure: Duration) -> Option<UsageSummary> {
     })
 }
 
-/// The equal-work checks: columns a second, columns no bot had before the window a second,
-/// columns resent while held, pull-backs, and the ticks a bot waited for its own column.
 fn work(reports: &[BotReport], measure: Duration) -> Work {
     let seconds = measure.as_secs_f64();
     let sum = |pick: fn(&BotReport) -> u64| reports.iter().map(pick).sum::<u64>();

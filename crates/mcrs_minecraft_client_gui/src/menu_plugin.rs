@@ -7,8 +7,6 @@ use crate::menu_event::MenuEvent;
 use crate::menu_input::{menu_deferred, menu_keys, menu_pointer};
 use crate::menu_input_systems::MenuInputSystems;
 
-/// The input of the open [`Menu`] and its [`MenuEvent`]s, for an app with
-/// [`crate::scene::GuiPlugin`], which draws the menu.
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
@@ -75,8 +73,6 @@ mod tests {
     const SLIDER: WidgetId = WidgetId(11);
     const LAST_ROW: WidgetId = WidgetId(13);
 
-    /// An option list of four rows in an area that shows three: a cycle button and a slider in
-    /// row 0, a button in each other row.
     fn open_option_list(mut commands: Commands) {
         let screen = GuiExtent::new(427, 240);
         let mut widgets = Widgets::new(screen, GuiInput::new(GuiPoint::new(0, 0)));

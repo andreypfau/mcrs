@@ -55,7 +55,6 @@ bitflags::bitflags! {
         const REDSTONE_CONDUCTOR = 1 << 11;
         const STICKY = 1 << 12;
         const LEGACY_SOLID = 1 << 13;
-        /// The state has the occlusion shade `0.2` rather than `1.0`.
         const SHADES_CORNERS = 1 << 14;
     }
 }
@@ -94,9 +93,6 @@ impl FluidState {
     }
 }
 
-/// Everything the corpus states about one block state, resolved. Shapes are
-/// interned, so a slot is a fixed-size record and shape identity is a `u32`
-/// comparison.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct BlockStateData {
     pub light_emission: u8,
@@ -122,8 +118,6 @@ impl BlockStateData {
     pub const SHADED_OCCLUSION_SHADE: f32 = 0.2;
     pub const OPEN_OCCLUSION_SHADE: f32 = 1.0;
 
-    /// The shade this state casts on the corners of the faces beside it under smooth light.
-    /// The corpus states only `0.2` and `1.0`.
     #[must_use]
     pub fn occlusion_shade(&self) -> f32 {
         if self.flags.contains(BlockStateFlags::SHADES_CORNERS) {
@@ -161,8 +155,6 @@ impl BlockEntry {
         )
     }
 
-    /// The state that differs from `id` in one property. One property is one digit of the state id,
-    /// so this is arithmetic over the layout rather than a search.
     pub fn with(
         &self,
         id: BlockStateId,
@@ -179,7 +171,6 @@ impl BlockEntry {
         self.state_at(offset - current * stride + target * stride)
     }
 
-    /// The state's value for one property.
     pub fn value_of(&self, id: BlockStateId, property: &str) -> Option<&PropertyValue> {
         if !self.owns(id) {
             return None;
@@ -190,8 +181,6 @@ impl BlockEntry {
         property.values.get(current as usize)
     }
 
-    /// [`BlockEntry::with`] against a value stated as text, as a datapack and a
-    /// save state it.
     pub fn with_text(&self, id: BlockStateId, property: &str, text: &str) -> Option<BlockStateId> {
         let value = self
             .properties
@@ -205,9 +194,6 @@ impl BlockEntry {
         self.with(id, property, &value)
     }
 
-    /// The state id for a full set of property values, in any order. `None` if
-    /// a property is not the block's, a value is not the property's, or the
-    /// set does not name every property.
     pub fn state_id(&self, values: &[(&str, PropertyValue)]) -> Option<BlockStateId> {
         if values.len() != self.properties.0.len() {
             return None;
@@ -221,8 +207,6 @@ impl BlockEntry {
         self.state_at(offset)
     }
 
-    /// The property and the state-id stride of its digit: the product of the
-    /// value counts of every property after it.
     fn digit(&self, property: &str) -> Option<(&BlockProperty, u16)> {
         let index = self.properties.index_of(property)?;
         let (property, later) = self.properties.0.get(index..)?.split_first()?;
@@ -231,9 +215,6 @@ impl BlockEntry {
     }
 }
 
-/// The per-state table: the corpus is the truth, this is the materialization
-/// of it, and it is the only one. Building it costs one pass over the corpus at
-/// startup; reading it costs one array index.
 #[derive(Debug)]
 pub struct BlockDefinitions {
     states: Vec<BlockStateData>,
@@ -250,19 +231,14 @@ pub struct BlockDefinitions {
 }
 
 const _: () = assert!(size_of::<Id<Block>>() == 2);
-/// One per block state, so every byte here is multiplied by the whole corpus.
 const _: () = assert!(size_of::<BlockStateData>() <= 52);
 
 impl BlockDefinitions {
-    /// A state id another table issued, past this one's end, reads as an
-    /// unclaimed slot: no shape, no flags, nothing to drop.
     #[inline]
     pub fn state(&self, id: BlockStateId) -> &BlockStateData {
         self.states.get(id.index()).unwrap_or(&UNCLAIMED)
     }
 
-    /// A shape id this table did not intern, such as an unclaimed slot's, is
-    /// the empty shape.
     #[inline]
     pub fn shape(&self, id: ShapeId) -> &[Aabb] {
         self.shapes.get(id.0 as usize).map_or(&[], |shape| shape)
@@ -290,13 +266,11 @@ impl BlockDefinitions {
         self.states.len()
     }
 
-    /// The support predicate of the state (SUP-DATA-001), when it has one.
     pub fn placement_filter(&self, id: BlockStateId) -> Option<&PlacementFilter> {
         let index = self.filter_of.get(&id)?;
         self.filters.get(usize::from(*index))
     }
 
-    /// The shape the face tests of a support predicate read (SUP-FACE-002).
     pub fn support_shape(&self, id: BlockStateId) -> ShapeId {
         self.support_of
             .get(&id)
@@ -328,24 +302,17 @@ impl BlockDefinitions {
         self.block(identifier).map(|block| block.default_state_id)
     }
 
-    /// Air for a block past this table's end.
     #[inline]
     pub fn default_state_of(&self, block: Id<Block>) -> BlockStateId {
         self.entry(block)
             .map_or(BlockStateId::AIR, |block| block.default_state_id)
     }
 
-    /// The block a state belongs to. Every state in the table has one:
-    /// `Builder::finish` refuses a table with a state no block claimed, so
-    /// this is `None` only for a state id past the table's end.
     #[inline]
     pub fn owner(&self, id: BlockStateId) -> Option<&BlockEntry> {
         self.entry(self.block_index(id)?)
     }
 
-    /// The block's id in the registries report, which is also its position in
-    /// the table and the number the protocol names it by. Block tags are
-    /// resolved against it, so a state's tag membership is two array reads.
     #[inline]
     pub fn block_index(&self, id: BlockStateId) -> Option<Id<Block>> {
         self.owners.get(id.index()).copied()
@@ -374,9 +341,6 @@ impl BlockDefinitions {
 }
 
 impl BlockDefinitions {
-    /// The state id of `block` with `properties`, each unspecified property taking the block's
-    /// default. A property the block lacks, or a value the property lacks, is ignored the way the
-    /// block state codec ignores it.
     pub fn state_id_of(
         &self,
         block: &ResourceLocationBuf,
@@ -391,8 +355,6 @@ impl BlockDefinitions {
         Some(id.number())
     }
 
-    /// The block of state `id` and every property, or none when `id` is the block's default
-    /// state, since that is the state a bare block id names.
     pub fn properties_of(&self, id: u16) -> Option<(ResourceLocationBuf, Vec<(String, String)>)> {
         let id = BlockStateId::checked(id, self.states.len())?;
         let entry = self.owner(id)?;
@@ -413,14 +375,11 @@ impl BlockDefinitions {
     }
 }
 
-/// Each sound set the corpus names, by the id it interned, as an entry of the
-/// loaded `block_sound_set` registry.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct BlockSoundSets(Box<[Id<BlockSoundSet>]>);
 
 impl BlockSoundSets {
-    /// Fails with the first sound set `id_of` does not know.
     pub fn resolve(
         blocks: &BlockDefinitions,
         id_of: impl Fn(&ResourceKeyBuf<BlockSoundSet>) -> Option<Id<BlockSoundSet>>,
@@ -438,8 +397,6 @@ impl BlockSoundSets {
     }
 }
 
-/// The corpus as every world sees it. A dimension sub-app is handed a clone at
-/// spawn, so the table is shared rather than rebuilt or copied per dimension.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct Blocks(pub Arc<BlockDefinitions>);
@@ -534,8 +491,6 @@ pub fn load_block_definitions(
     Ok((definitions, report))
 }
 
-/// The definitions the files state, one file per block, against the block names numbered by
-/// their position. The report's `elapsed` is left zero.
 pub fn build_block_definitions<S: AsRef<str>>(
     blocks: &[S],
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
@@ -570,9 +525,6 @@ pub fn build_block_definitions<S: AsRef<str>>(
     Ok((definitions, report))
 }
 
-/// Fills a slot until its block claims it. `Builder::finish` refuses a table
-/// with a slot no block claimed, so a reader sees it only for a state id past
-/// the table's end.
 const UNCLAIMED: BlockStateData = BlockStateData {
     light_emission: 0,
     light_dampening: 0,
@@ -608,8 +560,6 @@ struct Builder {
     ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
-    /// Blocks of one family share their properties and their conditions, so each pair is
-    /// compiled and evaluated once.
     condition_states:
         hashbrown::HashMap<BlockProperties, FxHashMap<Box<str>, Box<[bool]>>, FxBuildHasher>,
 }
@@ -716,8 +666,6 @@ impl Builder {
 
         let components = file.block.components;
 
-        // Taken for the body so that the permutations can borrow their states while the
-        // states are registered; an error ends the load, so the map is not put back then.
         let mut condition_states = std::mem::take(&mut self.condition_states);
         let by_condition = match condition_states.entry_ref(&properties) {
             EntryRef::Occupied(entry) => entry.into_mut(),
@@ -739,7 +687,6 @@ impl Builder {
         }
         let mut permutations = Vec::with_capacity(file.block.permutations.len());
         for permutation in &file.block.permutations {
-            // The loop above put every condition of the file in the map.
             if let Some(matching) = by_condition.get(permutation.condition.as_str()) {
                 permutations.push((&**matching, &permutation.components));
             }
@@ -763,8 +710,6 @@ impl Builder {
             self.owners.resize(end, None);
         }
 
-        // Bedrock knows its air block by identifier and states no component for
-        // it; Java's three air blocks are the same fact.
         let air = [Block::Air, Block::CaveAir, Block::VoidAir]
             .map(Block::id)
             .contains(&id);
@@ -826,9 +771,6 @@ impl Builder {
         Ok(())
     }
 
-    /// Fails with the name of a component it needs that the state leaves
-    /// unstated. [`Components::missing`] has already run against these
-    /// components, so this does not fail on a definition the builder accepts.
     #[expect(
         clippy::too_many_lines,
         reason = "resolves one state's components in the reference's declaration order, so each reads against it"
@@ -1017,7 +959,6 @@ impl Builder {
     }
 }
 
-/// Whether `condition` holds in each state of a block with `properties`, by state index.
 fn matching_states(
     condition: &str,
     properties: &BlockProperties,
@@ -1050,9 +991,6 @@ fn intern<T: Clone + PartialEq>(table: &mut Vec<T>, value: &T) -> u16 {
     }
 }
 
-/// The shape covers the whole block. The boxes
-/// of a shape never overlap, so covering the cube is the same as filling
-/// its volume without leaving it.
 fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     const EPSILON: f32 = 1.0 / 4096.0;
     let mut volume = 0.0;
@@ -1076,9 +1014,6 @@ fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
 }
 
-/// Whether the block is solid when the corpus states no `mcrs:solid`: the
-/// collision shape's bounds are either large enough on average or a full block
-/// tall (SUP-SOLID-001).
 fn legacy_solid(boxes: &[ModelBox]) -> bool {
     let Some((first, rest)) = boxes.split_first() else {
         return false;
@@ -1093,9 +1028,6 @@ fn legacy_solid(boxes: &[ModelBox]) -> bool {
     size.element_sum() / 3.0 >= 0.7291666666666666 || size.y >= 1.0
 }
 
-/// Bedrock states a box in sixteenths, from the block centre on X and Z and
-/// the block bottom on Y. The engine's own convention is Java's: a 0..1 box
-/// from the block's lower corner.
 fn to_engine_aabb(value: &ModelBox) -> Aabb {
     let min = Vec3::new(
         (value.origin[0] + 8.0) / 16.0,

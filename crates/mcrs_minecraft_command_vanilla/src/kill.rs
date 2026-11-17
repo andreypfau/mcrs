@@ -34,9 +34,6 @@ pub(crate) fn build(
     Ok(KillCommand { targets })
 }
 
-/// CMD-KILL-002 to CMD-KILL-006: each mob that the selector finds takes a hit of
-/// `generic_kill` with the largest f32 amount, in the order of the selector. The kill of a player
-/// has no specification yet, so a player victim counts and takes no hit.
 pub(crate) fn run(
     In(call): In<Call<(), KillCommand>>,
     context: VanillaContext,

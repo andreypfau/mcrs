@@ -4,8 +4,6 @@ use crate::source_state::SourceState;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 
-/// What one run of a handler leaves for its world: its effects in the order of writing, then its
-/// messages. The world empties it after the run.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct CommandOutbox {
     pub(crate) effects: Vec<ApplyNext>,

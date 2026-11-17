@@ -8,8 +8,6 @@ use crate::shared_bindings::hiz;
 
 const THREADS: u32 = 8;
 
-/// The last frame's depth as a pyramid, each level the farthest depth of the level below, so
-/// the cull can ask whether a box is behind everything drawn over its footprint.
 pub(super) struct Hiz {
     texture: Texture,
     pub view: TextureView,
@@ -60,8 +58,6 @@ impl Hiz {
         self.levels.len() as u32
     }
 
-    /// Fits the pyramid to the depth texture, answering whether the pyramid was rebuilt and so
-    /// has to be bound again.
     pub fn fit(
         &mut self,
         depth: &ViewDepthStencilTexture,

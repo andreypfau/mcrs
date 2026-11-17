@@ -1,5 +1,3 @@
-/// A hit on a living entity: the amount and the network id of the damage type. The source has no
-/// entity and no position.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Hit {

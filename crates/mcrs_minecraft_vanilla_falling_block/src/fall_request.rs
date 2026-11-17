@@ -10,20 +10,12 @@ use mcrs_voxel::BlockStateId;
 use crate::PendingFall;
 use crate::falling_block_rules::FallingBlockRules;
 
-/// Starts the fall of `state` at `pos` of the dimension world, whatever the block below and
-/// whether the block is a gravity block (FBK-SPN-001). The sender states the state that `pos`
-/// holds; the start sets the block of its fluid there. The first request of a tick for a position
-/// becomes a [`PendingFall`] in the same tick; the plugin drops the other requests of that tick
-/// for that position.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FallRequest {
-    /// The block position that falls.
     pub pos: BlockPos,
-    /// The state that `pos` holds.
     pub state: BlockStateId,
 }
 
-/// A request with the order in which it arrived in the tick.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Arrival {
     order: usize,

@@ -1,11 +1,8 @@
 use core::num::NonZeroU32;
 
-/// The settings of the falling block that the host passes in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Settings {
-    /// The maximum age of FBK-TCK-004: a falling block that is older and has not landed drops.
-    /// `None` disables that limit.
     pub max_age: Option<NonZeroU32>,
 }
 

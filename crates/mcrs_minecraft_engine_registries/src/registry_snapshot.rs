@@ -36,13 +36,6 @@ pub fn install_registries(world: &mut World, registries: Registries, blocks: Blo
     world.insert_resource(Versioned::new(Arc::new(snapshot)));
 }
 
-/// Adds the item table to the installed snapshot, so each dimension world gets it with the
-/// registries.
-///
-/// # Errors
-///
-/// Fails when [`install_registries`] has not run: the dimension worlds would get no table and
-/// every inventory codec would fail at save.
 pub fn install_item_table(
     world: &mut World,
     table: ItemTable,
@@ -57,7 +50,6 @@ pub fn install_item_table(
     Ok(())
 }
 
-/// The item table was installed before the registries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("the item table is installed before the registries")]
 pub struct RegistriesNotInstalled;
@@ -68,15 +60,11 @@ pub fn extract_registries(main: &World, sub: &mut World) {
     }
 }
 
-/// Installs a snapshot that the host handed over, such as one in the input of a dimension tick.
 pub fn apply_registries(world: &mut World, snapshot: Versioned<RegistrySnapshot>) {
     snapshot.value().insert_into(world);
     world.insert_resource(snapshot);
 }
 
-/// Swaps only the `Registries`. The old `Blocks` and `Items` stay from the previous snapshot,
-/// so a dimension would see the new `Registries` beside items resolved against the old ones:
-/// tests only.
 #[cfg(feature = "test-support")]
 pub fn replace_registries(world: &mut World, registries: Registries) {
     let mut snapshot =

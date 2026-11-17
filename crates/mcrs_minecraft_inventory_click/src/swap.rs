@@ -30,7 +30,6 @@ pub(crate) fn swap<M: Menu<Slot = S::Slot>, S: Slots>(
     let hotbar = view.slots.inventory(key).ok_or(ClickError::NoSuchSlot)?;
     let hotbar = view.load(hotbar)?;
     let target = view.entry(index)?;
-    // A swap of a slot with itself changes nothing, and the planner rejects it as `same_slot`.
     if target.slot == hotbar.slot {
         return Ok(());
     }
@@ -71,8 +70,6 @@ fn fill<S: Slots>(
     })
 }
 
-/// Moves the stack of `target` into the player inventory by the insert rule, and drops the part
-/// that finds no room.
 fn insert_held<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     target: &Seat<S>,
@@ -85,7 +82,6 @@ fn insert_held<M: Menu<Slot = S::Slot>, S: Slots>(
         let Some(slot) = view.slots.inventory(index) else {
             return Slot::Other;
         };
-        // The source cannot receive its own items.
         if slot == target.slot {
             return Slot::Other;
         }

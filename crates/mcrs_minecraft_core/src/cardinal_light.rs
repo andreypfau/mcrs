@@ -1,8 +1,6 @@
 use crate::Direction;
 use serde::{Deserialize, Serialize};
 
-/// The directional shade factors of a dimension type, one table per value of its
-/// `cardinal_light`.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CardinalLight {
     #[default]

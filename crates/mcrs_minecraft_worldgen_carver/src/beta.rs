@@ -7,7 +7,6 @@ use crate::water::WaterMask;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
-/// `MapGenCaves`: what one source chunk carves into the target chunk.
 pub fn carve_beta_caves<R: Random>(
     chunk_x: i32,
     chunk_z: i32,
@@ -90,12 +89,8 @@ pub fn carve_beta_caves<R: Random>(
     }
 }
 
-/// Beta sizes a tunnel off the same field its source loop walks, so the radius
-/// the loop shares with the modern carvers is the one the length derives from.
 const TUNNEL_LENGTH: i32 = SOURCE_RADIUS * 16 - 16;
 
-/// Beta draws the length from the tunnel's own generator, before the split
-/// point and the steepness; the modern carvers draw it from the source's.
 fn tunnel_length(rng: &mut LegacyRandom) -> i32 {
     TUNNEL_LENGTH - rng.next_i32_bound(TUNNEL_LENGTH / 4)
 }
@@ -117,8 +112,6 @@ mod tests {
     use super::*;
     use crate::carve_ellipsoid;
 
-    /// The mask marks the Y the ellipsoid test accepts, which sits within the
-    /// vertical radius and never below the floor level.
     #[test]
     fn the_ellipsoid_marks_only_its_own_interior() {
         let mut mask = CarvingMask::new(1, 120);

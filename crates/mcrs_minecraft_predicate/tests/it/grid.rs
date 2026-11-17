@@ -28,7 +28,6 @@ pub fn smoke() -> &'static SmokeTable {
     &SMOKE
 }
 
-/// The id of `name` in the registry `registry`; panics when the test registries lack it.
 pub fn id<R>(registry: &str, name: &str) -> Id<R> {
     let location = |text: &str| ResourceLocationBuf::read(text).expect("a resource location");
     let number = registries()
@@ -37,7 +36,6 @@ pub fn id<R>(registry: &str, name: &str) -> Id<R> {
     Id::checked(number, usize::MAX).expect("a registry id")
 }
 
-/// The state of `block` with `properties`; panics when the corpus lacks the block.
 pub fn state(block: &str, properties: &[(&str, &str)]) -> BlockStateId {
     let entry = definitions().block(block).expect("a vanilla block");
     properties
@@ -49,8 +47,6 @@ pub fn state(block: &str, properties: &[(&str, &str)]) -> BlockStateId {
         })
 }
 
-/// A world of the listed blocks: a position is loaded when it holds a block or is in `stateless`.
-/// Each other value is the same at each loaded position.
 #[derive(Default)]
 pub struct Grid {
     pub blocks: Vec<(BlockPos, BlockStateId)>,

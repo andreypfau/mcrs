@@ -19,8 +19,6 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 
 const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
-/// The engine's own server on a thread, with no world generation, light, command or chat
-/// plugin. Dropping it stops the server loop, a failed test included.
 pub struct RunningServer {
     pub address: SocketAddr,
     stop: Arc<AtomicBool>,
@@ -29,9 +27,6 @@ pub struct RunningServer {
 }
 
 impl RunningServer {
-    /// # Panics
-    ///
-    /// When the server thread does not start.
     pub fn start(network: ServerNetworkPlugin) -> Self {
         let mut app = App::new();
         app.add_plugins((
@@ -69,11 +64,6 @@ impl RunningServer {
         }
     }
 
-    /// Joins a bot and answers its connection in the play state.
-    ///
-    /// # Panics
-    ///
-    /// When the join fails.
     pub async fn join(&self) -> RawConnection {
         let io = PacketIo::connect(self.address).await.unwrap();
         let joined = join(
@@ -94,9 +84,6 @@ impl RunningServer {
         joined.connection
     }
 
-    /// # Panics
-    ///
-    /// When the server does not stop after `AppExit`.
     pub fn stop(mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.finished

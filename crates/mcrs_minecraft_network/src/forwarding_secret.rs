@@ -17,7 +17,6 @@ const FORWARDING_QUERY_ID: i32 = 0;
 const SIGNATURE_LEN: usize = 32;
 const MAX_FORWARDED_PROPERTIES: i32 = 16;
 
-/// The `custom_query` that asks a proxy for the forwarded player.
 #[must_use]
 pub fn forwarding_query() -> CustomQuery<'static> {
     CustomQuery {
@@ -27,7 +26,6 @@ pub fn forwarding_query() -> CustomQuery<'static> {
     }
 }
 
-/// The secret a proxy shares with this server, as its UTF-8 bytes, never empty.
 #[derive(Clone)]
 pub struct ForwardingSecret(Box<[u8]>);
 
@@ -56,7 +54,6 @@ pub struct ForwardedPlayer {
     pub properties: Vec<Property>,
 }
 
-/// Why a forwarding answer is refused, in the order the checks run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ForwardingRefusal {
     UnexpectedAnswer,
@@ -83,7 +80,6 @@ impl ForwardingRefusal {
 }
 
 impl ForwardingSecret {
-    /// The key is the secret's bytes as they are, untrimmed.
     pub fn new(secret: &str) -> Result<Self, EmptyForwardingSecret> {
         if secret.is_empty() {
             return Err(EmptyForwardingSecret);
@@ -91,7 +87,6 @@ impl ForwardingSecret {
         Ok(Self(secret.as_bytes().into()))
     }
 
-    /// Checks the answer to [`forwarding_query`] and reads the player it forwards.
     pub fn check(
         &self,
         answer: &ServerboundCustomQueryAnswer<'_>,
@@ -200,7 +195,6 @@ mod tests {
         Bounded::<&str, 1_000_000>(text).encode(out).unwrap();
     }
 
-    /// The signed data of version 4 for `name`, with `count` properties of these field lengths.
     fn player(name: &str, count: usize, field: [usize; 3]) -> Vec<u8> {
         let mut data = vec![4];
         string("203.0.113.7", &mut data);

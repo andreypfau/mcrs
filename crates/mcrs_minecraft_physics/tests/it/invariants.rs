@@ -1,6 +1,3 @@
-//! Property tests of the invariants of the move procedure, over random worlds of the test table.
-//! The default tier checks five worlds of each sweep; `exhaustive` runs 20 000 cases in a debug
-//! build and 10^6 in a release build.
 #![expect(
     clippy::indexing_slicing,
     reason = "the generators index small fixed tables"
@@ -41,7 +38,6 @@ const CASES_PER_WORLD: u32 = 64;
 const DEFAULT_TIER_CASES: u32 = 5 * CASES_PER_WORLD;
 const EPSILON: f64 = 1.0e-7;
 
-/// A displacement component: often zero, sometimes tiny, else up to 2 blocks.
 fn component(rng: &mut TestRng) -> f64 {
     match rng.below(8) {
         0 | 1 => 0.0,
@@ -140,7 +136,6 @@ impl Fixture {
         found.into_iter().map(|found| found.collider).collect()
     }
 
-    /// The colliders near the box before and after any move of the case.
     fn neighbourhood(&self, case: &Case) -> Vec<Collider> {
         let reach = case.bounds.expand_towards(case.displacement);
         let up = f64::from(case.step_height);

@@ -3,7 +3,6 @@ use mcrs_minecraft_numeric as numeric;
 
 use crate::angle;
 
-/// A position with a yaw and a pitch, in blocks and degrees.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Placement {
     pub position: DVec3,
@@ -21,7 +20,6 @@ impl Placement {
         }
     }
 
-    /// The placement a fraction `t` of the way to `to`; the yaw follows the shorter arc.
     #[must_use]
     pub fn towards(&self, to: &Placement, t: f32) -> Placement {
         Placement {
@@ -40,7 +38,6 @@ impl Placement {
     }
 }
 
-/// A yaw and a pitch in degrees.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rotation {
     pub yaw: f32,

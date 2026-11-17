@@ -1,7 +1,6 @@
 use mcrs_minecraft_protocol::packets::table::game_serverbound::NAMES;
 use mcrs_minecraft_protocol::packets::table::row_of;
 
-/// Evaluated in a `const` item, so a name outside the play table fails the build.
 const fn id(name: &str) -> i32 {
     let row = row_of(NAMES, name);
     assert!(row.is_some(), "the name is not a row of the play table");

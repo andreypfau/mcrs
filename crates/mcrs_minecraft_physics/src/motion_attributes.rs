@@ -1,4 +1,3 @@
-/// The attribute values of a living entity that its motion reads, as f64 values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MotionAttributes {
     pub gravity: f64,
@@ -14,7 +13,6 @@ pub struct MotionAttributes {
 }
 
 impl Default for MotionAttributes {
-    /// The defaults of the attributes; `movement_speed` is the base of a player.
     fn default() -> Self {
         Self {
             gravity: 0.08,

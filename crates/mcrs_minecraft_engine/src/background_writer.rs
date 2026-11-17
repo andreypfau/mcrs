@@ -2,18 +2,14 @@ use bevy_tasks::futures::check_ready;
 use bevy_tasks::futures_lite::future::block_on;
 use bevy_tasks::{IoTaskPool, Task};
 
-/// One batch of file writes that the I/O pool runs.
 pub(crate) trait WriteJob: Send + 'static {
     type Output: Send + 'static;
 
-    /// Takes the values that `newer` carries over those of `self`.
     fn merge(&mut self, newer: Self);
 
     fn run(self) -> Self::Output;
 }
 
-/// The jobs on their way to the disk: one run at a time on the I/O pool, and the jobs that come
-/// while it runs wait as one merged job. Without a pool the job runs at once.
 pub(crate) struct BackgroundWriter<J: WriteJob> {
     pending: Option<J>,
     writing: Option<Task<J::Output>>,
@@ -37,7 +33,6 @@ impl<J: WriteJob> BackgroundWriter<J> {
         self.start(sink);
     }
 
-    /// Collects a finished run and starts the job that waits.
     pub(crate) fn reap(&mut self, mut sink: impl FnMut(J::Output)) {
         if let Some(task) = &mut self.writing
             && let Some(done) = check_ready(task)

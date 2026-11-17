@@ -38,14 +38,6 @@ impl<'a> Default for ChunkData<'a> {
     }
 }
 
-/// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks)
-/// for one 16×16×16 chunk.
-///
-/// Encoded on the wire as `VarInt(2048) + 2048 bytes` as the light arrays of the light data.
-/// We keep it as a newtype so a `Cow<'_, [LightChunk]>` keeps zero-copy semantics
-/// while the per-element prefix is emitted automatically.
-///
-/// Public protocol documentation calls this structure a "light section".
 #[derive(Clone, Copy)]
 pub struct LightChunk(pub [u8; 2048]);
 
@@ -129,8 +121,6 @@ pub struct LightData<'a> {
     pub block_light_arrays: Cow<'a, [LightChunk]>,
 }
 
-/// A bit set on the wire: the words as
-/// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
 fn encode_bit_set(words: &[u64], mut w: impl Write) -> Result<()> {
     let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
     while bytes.last() == Some(&0) {
@@ -226,8 +216,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for ChunkBlockUpdateEntry {
     }
 }
 
-/// The network form drops the palette list past `MAX_INDIRECT_BITS` and packs
-/// registry ids directly; the save keeps a palette at every size.
 pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     direct_bits: u32,
@@ -390,11 +378,6 @@ impl ChunkSection {
 }
 
 impl<'a> ChunkData<'a> {
-    /// The column's sections, in wire order from the dimension's lowest section
-    /// upwards. `section_count` comes from the dimension's height,
-    /// `block_state_count` from the block states the reader knows and
-    /// `biome_registry_len` from the registry the connection received: the blob
-    /// carries none of them and nothing in it can recover them.
     pub fn sections(
         &self,
         section_count: usize,

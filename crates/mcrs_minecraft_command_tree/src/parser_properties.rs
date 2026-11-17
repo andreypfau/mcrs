@@ -5,28 +5,17 @@ use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::io::Write;
 
-/// The properties that follow a parser id on the wire.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParserProperties<'a> {
-    /// The parser has no properties.
     None,
-    /// `brigadier:float`.
     Float(NumberRange<f32>),
-    /// `brigadier:double`.
     Double(NumberRange<f64>),
-    /// `brigadier:integer`.
     Integer(NumberRange<i32>),
-    /// `brigadier:long`.
     Long(NumberRange<i64>),
-    /// `brigadier:string`.
     String(StringMode),
-    /// `minecraft:entity`: whether it takes one entity and whether only players.
     Entity { single: bool, players_only: bool },
-    /// `minecraft:score_holder`: whether the argument takes more than one holder.
     ScoreHolder { multiple: bool },
-    /// The registry of a resource or tag argument.
     Registry(ResourceLocation<'a>),
-    /// `minecraft:time`: the minimum, in ticks, always present.
     Time(i32),
 }
 

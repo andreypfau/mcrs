@@ -9,7 +9,6 @@ use crate::{corpus, names, registries};
 
 pub type Files = BTreeMap<String, String>;
 
-const HEADER: &str = "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n";
 const NAMESPACE: &str = "minecraft:";
 const NO_CONSTANTS: [&str; 2] = ["minecraft:recipe", "minecraft:advancement"];
 const PREFIXES: [(&str, &str); 2] = [("minecraft", ""), ("brigadier", "BRIGADIER_")];
@@ -21,12 +20,9 @@ pub struct Owner {
     pub value: ValueType,
 }
 
-/// A registry is keyed by a type its owner writes, or a static registry by the
-/// enum of its entries the generator writes into the owner's keys module.
 pub enum ValueType {
     Defined(&'static str),
     Enum(&'static str),
-    /// The enum in a `no_std` owner: lookup, the wire codec and serde come with its feature `std`.
     NoStdEnum(&'static str),
 }
 
@@ -41,8 +37,6 @@ const NO_STD_ENUM_MACRO: &str = "#[cfg(feature = \"std\")]\n\
 const KEYS_CRATE: &str = "mcrs_minecraft_keys";
 const CATALOG_CRATE: &str = "mcrs_minecraft_registry_catalog";
 
-/// The module of an owning crate that holds its registry keys, beside the `<registry>_keys`
-/// and `<registry>_tag_keys` modules of the entries.
 const REGISTRY_KEYS: &str = "registry_keys";
 
 struct Target {
@@ -290,9 +284,6 @@ pub fn generate(
     Ok(files)
 }
 
-/// rustfmt checks a file given by path without its parent module, so a
-/// `#[rustfmt::skip]` there cannot shield a generated source: it is written
-/// formatted.
 pub fn rustfmt(path: &str, text: &str) -> Result<String, String> {
     let mut child = Command::new("rustfmt")
         .args(["--edition", "2024", "--emit", "stdout"])
@@ -323,8 +314,6 @@ pub fn rustfmt(path: &str, text: &str) -> Result<String, String> {
     String::from_utf8(output.stdout).map_err(|error| format!("{path}: rustfmt: {error}"))
 }
 
-/// The owners whose manifest names the catalog: the catalog cannot depend on
-/// them, so they bind their own types beside it.
 pub fn above_catalog(root: &Path, owners: &[Owner]) -> Result<BTreeSet<String>, String> {
     let mut above = BTreeSet::new();
     for owner in owners {
@@ -366,8 +355,6 @@ pub fn write(root: &Path, files: &Files) -> Result<(), String> {
     }
 }
 
-/// The `pub mod` lines an owning crate's `lib.rs` lacks for the key modules written into it.
-/// The generator writes the modules but never the hand-written `lib.rs`.
 fn undeclared(root: &Path, files: &Files) -> Result<Vec<String>, String> {
     let mut missing = Vec::new();
     let mut libs: BTreeMap<String, String> = BTreeMap::new();
@@ -392,7 +379,6 @@ fn undeclared(root: &Path, files: &Files) -> Result<Vec<String>, String> {
     Ok(missing)
 }
 
-/// The crate and module of a key source the generator writes into an owning crate.
 fn owned_module(path: &str) -> Option<(&str, &str)> {
     let rest = path.strip_prefix("crates/")?;
     let (krate, file) = rest.split_once("/src/")?;
@@ -401,8 +387,6 @@ fn owned_module(path: &str) -> Option<(&str, &str)> {
     (owned && !module.contains('/') && module.ends_with("_keys")).then_some((krate, module))
 }
 
-/// A source written before the generator formatted its output is kept while
-/// only its layout differs, so a regeneration touches only changed content.
 fn holds(root: &Path, path: &str, text: &str) -> bool {
     let Ok(held) = fs::read_to_string(root.join(path)) else {
         return false;
@@ -443,8 +427,7 @@ fn stale(root: &Path, files: &Files) -> Result<Vec<String>, String> {
             let generated = path
                 .file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.ends_with("_keys.rs"))
-                && fs::read_to_string(&path).is_ok_and(|text| text.starts_with(HEADER));
+                .is_some_and(|name| name.ends_with("_keys.rs"));
             if let (true, Ok(relative)) = (generated, path.strip_prefix(root)) {
                 on_disk.push(relative.to_string_lossy().replace('\\', "/"));
             }
@@ -581,10 +564,8 @@ fn by_protocol_id<'r>(
     Ok(by_id.into_iter().flatten().collect())
 }
 
-/// The entries of a static registry no crate keys by a type: one location
-/// per entry and the list of them by protocol id.
 fn static_names_module(registry: &str, report: &registries::Registry) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_resource::{{ResourceLocation, rl}};\n\n");
+    let mut out = String::from("use mcrs_minecraft_resource::{ResourceLocation, rl};\n\n");
     let names = by_protocol_id(registry, report)?;
     let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
     for (constant, name) in &constants {
@@ -606,7 +587,7 @@ fn enum_module(
     marker: &str,
     report: &registries::Registry,
 ) -> Result<String, String> {
-    let mut out = format!("{HEADER}\n{invocation} {{\n    pub enum {marker};\n");
+    let mut out = format!("{invocation} {{\n    pub enum {marker};\n");
     let names = by_protocol_id(registry, report)?;
     let mut seen: BTreeMap<String, &str> = BTreeMap::new();
     for (constant, name) in constants(registry, names.into_iter(), &[])? {
@@ -650,7 +631,7 @@ fn named_constants(
     } else {
         "ResourceLocation"
     };
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_resource::{{{import}, rl}};\n\n");
+    let mut out = format!("use mcrs_minecraft_resource::{{{import}, rl}};\n\n");
     for (constant, name) in constants(registry, names.iter().map(String::as_str), &[])? {
         let init = match value {
             Some(_) => format!("{key}::new(rl!(\"{name}\"))"),
@@ -663,8 +644,7 @@ fn named_constants(
 
 fn registry_file(target: &Target) -> String {
     format!(
-        "{HEADER}\n\
-         use mcrs_minecraft_resource::{{ResourceLocation, rl}};\n\
+        "use mcrs_minecraft_resource::{{ResourceLocation, rl}};\n\
          \n\
          {definitions}",
         definitions = target.definitions,
@@ -672,7 +652,7 @@ fn registry_file(target: &Target) -> String {
 }
 
 fn registry_keys_file(target: &Target) -> String {
-    let mut out = format!("{HEADER}\n");
+    let mut out = String::new();
     let mut statics = target.statics.clone();
     statics.sort_by_key(|&(protocol_id, _)| protocol_id);
     let imports = match statics.is_empty() {
@@ -687,7 +667,7 @@ fn registry_keys_file(target: &Target) -> String {
     ));
     if !statics.is_empty() {
         out.push_str(
-            "\n/// The static registries of this crate, which the catalog does not list.\n\
+            "\n\
              pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[\n",
         );
         for (_, line) in statics {
@@ -699,7 +679,7 @@ fn registry_keys_file(target: &Target) -> String {
 }
 
 fn lib_file(modules: &[String]) -> String {
-    let mut out = format!("{HEADER}\n");
+    let mut out = String::new();
     for module in modules {
         out.push_str(&format!("#[rustfmt::skip]\npub mod {module};\n"));
     }
@@ -708,11 +688,10 @@ fn lib_file(modules: &[String]) -> String {
 }
 
 fn catalog_file(statics: &[String]) -> String {
-    let mut out = format!(
-        "{HEADER}\n\
-         use mcrs_minecraft_resource::ResourceLocation;\n\
+    let mut out = String::from(
+        "use mcrs_minecraft_resource::ResourceLocation;\n\
          \n\
-         pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[\n"
+         pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[\n",
     );
     for line in statics {
         out.push_str(line);
@@ -723,8 +702,7 @@ fn catalog_file(statics: &[String]) -> String {
 
 fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
     let mut out = format!(
-        "{}\n\
-         [package]\n\
+        "[package]\n\
          name = \"{CATALOG_CRATE}\"\n\
          description = \"The entries of every static registry\"\n\
          version.workspace = true\n\
@@ -738,8 +716,7 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
          workspace = true\n\
          \n\
          [dependencies]\n\
-         mcrs_minecraft_resource.workspace = true\n",
-        HEADER.replacen("//", "#", 1).trim_end()
+         mcrs_minecraft_resource.workspace = true\n"
     );
     for krate in static_owners {
         out.push_str(&format!("{krate}.workspace = true\n"));
@@ -880,9 +857,7 @@ mod tests {
         );
         assert_eq!(
             files[CATALOG_LIB],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::ResourceLocation;\n\
+            "use mcrs_minecraft_resource::ResourceLocation;\n\
              \n\
              pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[(\n\
              \x20   mcrs_minecraft_keys::BLOCK,\n\
@@ -891,9 +866,7 @@ mod tests {
         );
         assert_eq!(
             files["src/lib.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             #[rustfmt::skip]\n\
+            "#[rustfmt::skip]\n\
              pub mod biome;\n\
              #[rustfmt::skip]\n\
              pub mod block;\n\
@@ -904,18 +877,14 @@ mod tests {
         );
         assert_eq!(
             files["src/registry.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
+            "use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
              pub const BLOCK: ResourceLocation<'static> = rl!(\"minecraft:block\");\n\
              pub const BIOME: ResourceLocation<'static> = rl!(\"minecraft:worldgen/biome\");\n"
         );
         assert_eq!(
             files["src/block.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
+            "use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
              pub const AIR: ResourceLocation<'static> = rl!(\"minecraft:air\");\n\
              pub const STONE: ResourceLocation<'static> = rl!(\"minecraft:stone\");\n\
@@ -924,9 +893,7 @@ mod tests {
         );
         assert_eq!(
             files["src/biome.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
+            "use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
              pub const PLAINS: ResourceLocation<'static> = rl!(\"minecraft:plains\");\n"
         );
@@ -1125,9 +1092,7 @@ mod tests {
         assert!(files["src/lib.rs"].contains("pub mod block_tags;"));
         assert_eq!(
             files["src/block_tags.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
+            "use mcrs_minecraft_resource::{ResourceLocation, rl};\n\
              \n\
              pub const LOGS: ResourceLocation<'static> = rl!(\"minecraft:logs\");\n"
         );
@@ -1450,9 +1415,7 @@ mod tests {
         assert!(!files.contains_key("src/biome.rs"));
         assert_eq!(
             files["crates/mcrs_minecraft_biome/src/registry_keys.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             use mcrs_minecraft_resource::{Registered, RegistryKey, rl};\n\
+            "use mcrs_minecraft_resource::{Registered, RegistryKey, rl};\n\
              \n\
              pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
              impl Registered for crate::Biome {\n\
@@ -1489,9 +1452,7 @@ mod tests {
 
         assert_eq!(
             files["crates/mcrs_minecraft_food/src/fruit_keys.rs"],
-            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
-             \n\
-             mcrs_minecraft_registries::static_registry! {\n\
+            "mcrs_minecraft_registries::static_registry! {\n\
              \x20   pub enum Fruit;\n\
              \x20   Zebra = \"minecraft:zebra\",\n\
              \x20   Apple = \"minecraft:apple\",\n\
@@ -1647,11 +1608,11 @@ mod tests {
         let files = Files::from([
             (
                 "crates/mcrs_minecraft_biome/src/registry_keys.rs".to_owned(),
-                HEADER.to_owned(),
+                String::new(),
             ),
             (
                 "crates/mcrs_minecraft_biome/src/biome_keys.rs".to_owned(),
-                HEADER.to_owned(),
+                String::new(),
             ),
         ]);
 
@@ -1675,9 +1636,8 @@ mod tests {
         fs::write(keys.join("src/stale.rs"), "old").unwrap();
         fs::write(keys.join("src/notes.txt"), "kept").unwrap();
         fs::write(keys.join("src/lib.rs"), "old").unwrap();
-        fs::write(owner.join("registry_keys.rs"), HEADER).unwrap();
-        fs::write(owner.join("gone_keys.rs"), HEADER).unwrap();
-        fs::write(owner.join("hand_keys.rs"), "// hand-written\n").unwrap();
+        fs::write(owner.join("registry_keys.rs"), "").unwrap();
+        fs::write(owner.join("gone_keys.rs"), "").unwrap();
         let (registries, datapack, names) = reports(&[("minecraft:block", BLOCK)], &[]);
         let files = generate(
             &registries,
@@ -1706,7 +1666,6 @@ mod tests {
         assert!(!keys.join("src/stale.rs").exists());
         assert!(!owner.join("registry_keys.rs").exists());
         assert!(!owner.join("gone_keys.rs").exists());
-        assert!(owner.join("hand_keys.rs").exists());
         assert_eq!(
             fs::read_to_string(keys.join("src/notes.txt")).unwrap(),
             "kept"

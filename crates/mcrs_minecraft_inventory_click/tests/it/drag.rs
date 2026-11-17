@@ -28,8 +28,6 @@ fn quick_craft(player: &Player, state: &mut Drag, button: u8, clicked: Clicked) 
     send(player, state, ClickKind::Drag, button, clicked).expect("each drag packet names an entry")
 }
 
-/// The operations of the end packet of a drag of `kind` over `slots`. Panics when another packet
-/// gives operations or when the drag is not idle after the end packet.
 fn drag(player: &Player, kind: u8, slots: &[Clicked]) -> Vec<Operation> {
     let mut state = Drag::new();
     let mut before_end = quick_craft(player, &mut state, button(kind, 0), Clicked::Outside);

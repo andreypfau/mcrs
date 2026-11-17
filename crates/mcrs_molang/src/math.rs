@@ -1,19 +1,13 @@
-//! The one implementation of each operator and function. Both VMs and the constant folder call
-//! these functions, so a folded value and a run value have the same bits.
-
 use crate::value::Milestone;
 
 const DEGREES_TO_RADIANS: f32 = core::f32::consts::PI / 180.0;
 const RADIANS_TO_DEGREES: f32 = 180.0 / core::f32::consts::PI;
 const APPROX_EQ_TOLERANCE: f32 = 0.000_000_1;
 
-/// The element that an index selects: NaN and the infinities select the first element, and
-/// each other index is truncated, limited below by `0` and wrapped by the length.
 #[must_use]
 pub(crate) fn table_element(elements: &[u64], index: f32) -> Option<u64> {
     let position = if index.is_finite() {
         let truncated = libm::truncf(index).max(0.0);
-        // `as` saturates, and the remainder keeps the position inside the table.
         (truncated as u64 % elements.len().max(1) as u64) as usize
     } else {
         0
@@ -43,14 +37,12 @@ pub fn divide(dividend: f32, divisor: f32) -> f32 {
     }
 }
 
-/// The smaller value; a NaN operand gives the other operand.
 #[inline]
 #[must_use]
 pub fn min(a: f32, b: f32) -> f32 {
     if b < a || a.is_nan() { b } else { a }
 }
 
-/// The larger value; a NaN operand gives the other operand.
 #[inline]
 #[must_use]
 pub fn max(a: f32, b: f32) -> f32 {
@@ -90,7 +82,6 @@ fn lerp(start: f32, end: f32, t: f32) -> f32 {
     start + ((end - start) * t)
 }
 
-/// A function of one number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnaryFn {
     Negate,
@@ -147,7 +138,6 @@ impl UnaryFn {
     }
 }
 
-/// A function of two numbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryFn {
     Add,
@@ -160,9 +150,7 @@ pub enum BinaryFn {
     GreaterEqual,
     Equal,
     NotEqual,
-    /// `1.0` when both operands are truthy, with no laziness.
     BothTruthy,
-    /// `1.0` when one operand is truthy, with no laziness.
     EitherTruthy,
     ApproxEqual,
     Min,
@@ -199,7 +187,6 @@ impl BinaryFn {
         }
     }
 
-    /// Whether the operation commutes with exactly equal bits, so that CSE can sort operands.
     #[must_use]
     pub const fn commutes(self) -> bool {
         matches!(
@@ -214,7 +201,6 @@ impl BinaryFn {
     }
 }
 
-/// The direction of an easing function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EaseDirection {
     In,
@@ -222,7 +208,6 @@ pub enum EaseDirection {
     InOut,
 }
 
-/// The shape of an easing function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EaseShape {
     Quad,
@@ -285,7 +270,6 @@ fn bounce(u: f32) -> f32 {
     }
 }
 
-/// An easing function `math.ease_<direction>_<shape>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Easing {
     pub direction: EaseDirection,
@@ -333,7 +317,6 @@ impl Easing {
     }
 }
 
-/// A function of three numbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TernaryFn {
     Clamp,
@@ -358,21 +341,17 @@ impl TernaryFn {
     }
 }
 
-/// The number of arguments of the `math.` function `name`, or `None` when the language has no
-/// such function. `math.pi` has no argument list and gives `Some(0)`.
 #[must_use]
 pub fn math_arity(name: &str) -> Option<usize> {
     MathName::lookup(name).map(MathName::arity)
 }
 
-/// A `math.` name after the lookup.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum MathName {
     Pi,
     Unary(UnaryFn),
     Binary(BinaryFn),
     Ternary(TernaryFn),
-    /// A random function; the compiler does not implement random streams.
     Random(u8),
 }
 

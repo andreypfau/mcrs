@@ -1,6 +1,3 @@
-//! A requested fall of sand reaches a viewer as a falling block that the motion pass moves, and
-//! lands on the floor as sand.
-
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
@@ -37,7 +34,6 @@ enum Path {
     Stepped,
 }
 
-/// What the viewer decoded of one entity, in the order the packets came.
 #[derive(Debug, PartialEq)]
 enum Seen {
     Delimiter,
@@ -190,8 +186,6 @@ fn place(server: &mut PlayServer, pos: BlockPos, state: BlockStateId) {
         });
 }
 
-/// The index of the `add_entity` of the falling block, which FBK-SPN-002 requires at `start` with
-/// the velocity 0.
 fn falling_block_add(seen: &[Seen], start: DVec3) -> usize {
     let found = seen.iter().enumerate().find_map(|(at, seen)| match *seen {
         Seen::Add {
@@ -213,9 +207,6 @@ fn falling_block_add(seen: &[Seen], start: DVec3) -> usize {
     add
 }
 
-/// FBK-NET-001, TRK-UPD-015, TRK-UPD-005, TRK-UPD-007: the falling block is added with the state
-/// of sand and no motion in its bundle, then the viewer gets its downward motion and linear moves,
-/// and its removal once it lands as sand on the stone.
 #[test]
 fn fbk_net_001_requested_sand_falls_to_a_viewer_and_lands_on_the_floor() {
     let mut app = host_app::make_host_app();
@@ -231,7 +222,6 @@ fn fbk_net_001_requested_sand_falls_to_a_viewer_and_lands_on_the_floor() {
         .0
         .default_state("minecraft:sand")
         .unwrap();
-    // High enough that the fall outlasts the update interval of 20 ticks (TRK-TYPE-005).
     let start = BlockPos::new(4, 100, 4);
     place(&mut server, start, sand);
     viewer.receive(server.ticks(viewer_anchor, 2));

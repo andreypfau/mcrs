@@ -33,8 +33,6 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
 use tracing::{error, warn};
 
-/// `Send` everywhere but the browser, where a WebTransport stream is a JS
-/// object bound to the single thread that made it.
 #[cfg(not(target_family = "wasm"))]
 pub trait MaybeSend: Send {}
 #[cfg(not(target_family = "wasm"))]
@@ -47,9 +45,6 @@ impl<T> MaybeSend for T {}
 #[cfg(not(target_family = "wasm"))]
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// A duplex byte stream that can be torn into independently owned halves, so
-/// the reader and writer loops need no shared lock. TCP, a native WebTransport
-/// bidirectional stream and the browser's own are the implementations.
 pub trait ByteStream: AsyncRead + AsyncWrite + Unpin + MaybeSend + 'static {
     type Reader: AsyncRead + Unpin + MaybeSend + 'static;
     type Writer: AsyncWrite + Unpin + MaybeSend + 'static;
@@ -78,15 +73,9 @@ const READ_BUF_SIZE: usize = 4096;
 
 pub(crate) const OUTBOUND_CHANNEL_CAPACITY: usize = 4;
 
-/// Who sends the packets that a connection reads, which sets how many decoded packets wait for
-/// the game loop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Inbound {
-    /// A server reads an untrusted client, so a small queue bounds the memory of a flood.
     FromClient,
-    /// A client reads its server. The game loop takes the waiting packets once a frame, so the
-    /// queue holds what a crowd of mobs sends in a slow frame; a small one caps the reading rate
-    /// at the queue times the frame rate, the server's writer stalls, and the server kicks.
     FromServer,
 }
 
@@ -139,9 +128,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         self.enc.set_compression(threshold);
     }
 
-    /// The un-typed counterpart to [`PacketIo::recv_packet`], for a phase whose
-    /// next packet is not known in advance. The body is owned, so the caller
-    /// can decode it and keep using `self` in the same expression.
     pub async fn recv_frame(&mut self) -> anyhow::Result<(i32, Bytes)> {
         loop {
             if let Some(frame) = self.dec.try_next_packet()? {
@@ -157,9 +143,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         }
     }
 
-    /// Waits for the peer to close after the write side shuts down. Dropping the stream
-    /// at once can lose the last packet: TCP resets a socket with unread input, and a
-    /// WebTransport session abandons unsent stream data when it closes.
     pub async fn close(mut self) -> io::Result<()> {
         self.stream.shutdown().await?;
         let mut scratch = [0; READ_BUF_SIZE];
@@ -175,8 +158,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         self.flush().await
     }
 
-    /// Writes a frame that a [`PacketEncoder`] already produced for this connection's compression
-    /// setting.
     pub(crate) async fn send_encoded(&mut self, frame: &[u8]) -> anyhow::Result<()> {
         self.stream.write_all(frame).await?;
         Ok(())
@@ -188,8 +169,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
         Ok(())
     }
 
-    /// Refuses a frame of another id, or one with bytes past the packet, as the game's decoder
-    /// does.
     pub async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
     where
         P: Packet + Decode<'a>,
@@ -276,7 +255,6 @@ impl<S> WritePacket for PacketIo<S> {
     }
 }
 
-/// Decodes a packet that must take up the whole body.
 pub(crate) fn decode_body<'a, P: Decode<'a> + Packet>(body: &'a [u8]) -> anyhow::Result<P> {
     let mut r = body;
     let packet =
@@ -298,7 +276,6 @@ async fn read_until_closed<R: AsyncRead + Unpin>(
         () = connection.closed() => {}
     }
     drop(connection);
-    // TCP resets a socket closed with unread input, and the reset can erase the last packet.
     let drain = async {
         let mut scratch = [0; READ_BUF_SIZE];
         while matches!(reader.read(&mut scratch).await, Ok(n) if n != 0) {}
@@ -377,9 +354,6 @@ async fn reader_loop<R: AsyncRead + Unpin>(
     }
 }
 
-/// Frames, compresses and writes what the connection hands over, so none of that work runs on
-/// the thread that produced the packets. It sleeps on `signal`, never on the channel, so the
-/// connection chooses when a send wakes it.
 async fn writer_loop<W: AsyncWrite + Unpin>(
     mut rx: mpsc::Receiver<OutboundBatch>,
     sink: W,
@@ -389,7 +363,6 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
     let mut writer = BufWriter::with_capacity(64 * 1024, sink);
     let mut chunks = Vec::new();
     loop {
-        // Read before the channel: a close seen here comes after every send of the connection.
         let closed = signal.is_closed();
         match rx.try_recv() {
             Ok(batch) => {
@@ -424,40 +397,27 @@ pub struct RawConnection {
     switch_mode: SwitchMode,
     announced_compression: Option<CompressionThreshold>,
     awaits_login_acknowledgement: bool,
-    /// What was written and not yet taken by the writer, sent ahead of anything newer: a slow
-    /// socket delays what it is sent and never loses it.
     queue: WriterQueue,
-    /// When the writer last took a batch, or when the connection began.
     handed_at: Instant,
     signal: Arc<WriterSignal>,
     inbound_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
     play_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
 }
 
-/// What one hand-over to the writer did.
 struct HandOver {
-    /// At least one batch went into the channel, so the writer has something to wake for.
     sent: bool,
-    /// Every batch went; `false` when the writer is behind or gone.
     room: bool,
 }
 
-/// The reader task splits frames ahead of the systems that act on them, so it applies a
-/// compression switch itself, before it splits the next frame.
 enum InboundSwitch {
     Now(CompressionThreshold),
-    /// Switches right after the next frame with this packet id, which can share a read with
-    /// the compressed frames that follow it.
     After {
         packet_id: i32,
         threshold: CompressionThreshold,
     },
-    /// Runs layer 0 of the movement checks from the frame after the next `finish_configuration`
-    /// to the `configuration_acknowledged` that leaves the play state.
     CheckPlay,
 }
 
-/// Where the reader is in the play state, for layer 0 of the movement checks.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PlayChecks {
     Off,
@@ -486,10 +446,6 @@ impl Drop for RawConnection {
 }
 
 impl RawConnection {
-    /// Construct a mock with separate inbound control: the caller drives
-    /// the inbound channel (for bridge_inbound tests).
-    ///
-    /// Returns `(RawConnection, outgoing_rx, inbound_tx)`.
     #[cfg(not(target_family = "wasm"))]
     pub fn new_for_test_full(
         outgoing_capacity: usize,
@@ -513,9 +469,6 @@ impl RawConnection {
         (raw, OutboundReceiver::new(outgoing_rx), inbound_tx)
     }
 
-    /// Hands everything written so far to the writer, behind anything still waiting. Answers
-    /// `false` when the writer is behind, which is the backpressure signal the bridge reads;
-    /// what it had no room for is kept.
     pub fn send_written(&mut self) -> bool {
         self.queue.close();
         let handed = self.send_unsent();
@@ -525,15 +478,12 @@ impl RawConnection {
         handed.room
     }
 
-    /// [`Self::send_written`], with the wake of the writer left to [`WriterWakes::wake_all`].
     #[cfg(not(target_family = "wasm"))]
     pub fn send_written_deferred(&mut self, wakes: &mut WriterWakes) -> bool {
         self.queue.close();
         self.flush_unsent_deferred(wakes)
     }
 
-    /// Sends what is waiting, in order, as far as the writer has room, with the wake of the
-    /// writer left to [`WriterWakes::wake_all`].
     #[cfg(not(target_family = "wasm"))]
     pub fn flush_unsent_deferred(&mut self, wakes: &mut WriterWakes) -> bool {
         let handed = self.send_unsent();
@@ -565,14 +515,10 @@ impl RawConnection {
         self.queue.closed_bytes()
     }
 
-    /// The time since the writer last took a batch: a slow client keeps it short, a dead socket
-    /// lets it grow.
     pub fn since_handover(&self) -> std::time::Duration {
         self.handed_at.elapsed()
     }
 
-    /// Writes the compression packet of LOGIN. In the immediate mode both directions switch
-    /// here; the client sends nothing between its hello and its first compressed frame.
     pub fn announce_compression(&mut self, threshold: CompressionThreshold) {
         let Some(switches) = &self.inbound_switch else {
             warn!("compression announced after login_finished; ignored");
@@ -590,7 +536,6 @@ impl RawConnection {
         }
     }
 
-    /// No compression switch follows `login_finished`.
     pub fn finish_login(&mut self, profile: GameProfile<'_>, session_id: Uuid) {
         let switches = self.inbound_switch.take();
         self.play_switch = switches.clone();
@@ -609,9 +554,6 @@ impl RawConnection {
                         .with_compression(self.announced_compression.is_some()),
                 });
                 if let Some(threshold) = self.announced_compression {
-                    // The client reads every frame after `login_finished` as compressed
-                    // (LOGIN-SW-004). A frame the server writes before the acknowledgement
-                    // arrives, which a slow network makes likely, must be compressed too.
                     self.queue.switch_compression(threshold);
                     if let Some(switches) = switches {
                         let _ = switches.send(InboundSwitch::After {
@@ -625,26 +567,20 @@ impl RawConnection {
         }
     }
 
-    /// Makes the reader run layer 0 of the movement checks on each play-state frame after the
-    /// next `finish_configuration` of the client. Call it as `finish_configuration` is written.
     pub fn check_play_moves(&mut self) {
         if let Some(switches) = &self.play_switch {
             let _ = switches.send(InboundSwitch::CheckPlay);
         }
     }
 
-    /// Call once the `login_acknowledged` that answers `login_finished` is accepted.
     pub fn login_acknowledged(&mut self) {
         self.awaits_login_acknowledgement = false;
     }
 
-    /// In the acknowledged mode, the time between `login_finished` and its acknowledgement, in
-    /// which the client is not in the configuration state yet.
     pub fn awaits_login_acknowledgement(&self) -> bool {
         self.awaits_login_acknowledgement
     }
 
-    /// Sets the mode of a connection made by [`Self::new_for_test_full`], before its login.
     #[cfg(not(target_family = "wasm"))]
     pub fn with_switch_mode(mut self, switch_mode: SwitchMode) -> Self {
         self.switch_mode = switch_mode;
@@ -655,35 +591,22 @@ impl RawConnection {
         self.signal.disconnected()
     }
 
-    /// Serializes the packet; the writer frames and compresses it.
     pub fn append<P: Encode + Packet>(&mut self, pkt: &P) -> anyhow::Result<()> {
         self.queue.append(pkt)
     }
 
-    /// Queues `records` without a copy: packets with their ids, each behind its length as a
-    /// big-endian `u32`, which other connections may share. The writer frames each packet. Returns
-    /// how many packets `records` holds; it ends at a length that runs past its end.
     pub fn append_records(&mut self, records: Bytes) -> usize {
         self.queue.append_records(records)
     }
 
-    /// Queues `records` as [`Self::append_records`] does, behind every other packet that the
-    /// writer has not taken yet, now or later, until a [`Self::fence`]. The records keep their
-    /// own order. Use it for entity bytes that a client may get after its columns.
     pub fn append_deferred(&mut self, records: Bytes) -> usize {
         self.queue.append_deferred(records)
     }
 
-    /// Puts the deferred records in order before the next packet, which they must precede: a
-    /// respawn, a login or a disconnect, after which the client no longer holds their entities.
     pub fn fence(&mut self) {
         self.queue.fence();
     }
 
-    /// Queues a packet that `encode_with_id` wrote once for every connection that receives it,
-    /// without a copy. A packet that `frames` counted for more than one connection goes as the
-    /// frame that `frames` makes once for this connection's threshold, so it is compressed once
-    /// for all of them.
     pub fn append_shared(
         &mut self,
         packet: Bytes,
@@ -697,7 +620,6 @@ impl RawConnection {
         Ok(found.append)
     }
 
-    /// True once the reader has stopped, even while frames it read are still queued.
     pub fn reader_closed(&self) -> bool {
         self.recv.is_closed()
     }
@@ -710,7 +632,6 @@ impl RawConnection {
         }
     }
 
-    /// Hands everything written so far to the writer, keeping what it has no room for yet.
     pub fn flush(&mut self) -> anyhow::Result<()> {
         self.send_written();
         anyhow::ensure!(!self.outgoing.is_closed(), "connection closed");

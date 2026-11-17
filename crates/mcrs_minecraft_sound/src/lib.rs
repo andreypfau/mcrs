@@ -16,7 +16,6 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_wire::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-/// A sound event named by its key, or written out in place.
 pub type Sound<M> = Ref<M, sound_event_keys::SoundEvent, SoundEventValue>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]

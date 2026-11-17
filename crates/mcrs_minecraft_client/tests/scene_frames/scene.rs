@@ -40,7 +40,6 @@ pub struct Pose {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraPose {
-    /// The eye position, in blocks.
     pub position: [f64; 3],
     pub yaw: f32,
     pub pitch: f32,

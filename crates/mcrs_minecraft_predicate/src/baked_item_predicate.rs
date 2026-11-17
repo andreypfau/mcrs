@@ -13,8 +13,6 @@ use crate::predicate_issue::PredicateIssue;
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
 
-/// An item predicate in its matching form: each entry set as a bit per id, and each exact
-/// component as a component of the value-form stack.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedItemPredicate {
     items: Option<FixedBitSet>,
@@ -24,11 +22,6 @@ pub struct BakedItemPredicate {
 }
 
 impl BakedItemPredicate {
-    /// Bakes `predicate` with the registries that resolved it. `names` gives the numeric ids that
-    /// the components of the value-form stack hold, as the stack codec reads them.
-    ///
-    /// A match compares the item, enchantment and attribute ids of a stack with the ids of
-    /// `registries`, so the stacks and the item table must come from the same registry set.
     pub fn bake<L: NameLookup>(
         predicate: &ItemPredicate,
         registries: &Registries,
@@ -61,8 +54,6 @@ impl BakedItemPredicate {
         })
     }
 
-    /// True when `subject` passes each test of the predicate. `table` gives the prototype
-    /// components of the item of the stack. A match allocates nothing.
     #[must_use]
     pub fn matches(&self, subject: ItemSubject<'_>, table: &ItemTable) -> bool {
         match subject {
@@ -73,8 +64,6 @@ impl BakedItemPredicate {
         }
     }
 
-    /// As [`matches`](Self::matches) for `stack` with `count` in place of the count of `stack`, for
-    /// a count that a stack cannot hold. A match allocates nothing.
     #[must_use]
     pub fn matches_count(&self, stack: &ItemStack, count: i32, table: &ItemTable) -> bool {
         self.test(stack.kind.0, count, ComponentHolder::Stack { stack, table })

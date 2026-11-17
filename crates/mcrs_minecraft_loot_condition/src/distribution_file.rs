@@ -1,8 +1,6 @@
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-/// The `distribution` of `weighted_list` (REG-FLD-732): a non-empty list whose weights are not
-/// negative, with their sum in `1..=2^31 − 1`.
 #[derive(Debug, Clone)]
 pub(crate) struct DistributionFile<P> {
     pub(crate) total: i32,

@@ -7,9 +7,6 @@ use mcrs_minecraft_protocol_game::entity_data_index::{
 };
 use mcrs_minecraft_protocol_game::text::{Text, TextContent};
 
-/// Stores in `synced` the entries that an entity of the type of `data` has. An entry of an index
-/// that the type does not have, or of another wire type, changes nothing. A type with no `data`
-/// has only the entries of an entity.
 pub fn apply_entity_data<'a>(
     synced: &mut SyncedData,
     data: Option<&EntityTypeData>,

@@ -1,11 +1,8 @@
-//! The paths of the move packets and of the position syncs, as positions from a base.
-
 use glam::DVec3;
 use mcrs_minecraft_entity_visual::{PacketPath, PathStep};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
 use mcrs_minecraft_protocol_game::position_delta;
 
-/// The path of a move packet. Each step of a stepped delta decodes from the step before it.
 #[must_use]
 pub fn motion_path(base: DVec3, motion: &VecDelta) -> PacketPath {
     match motion {
@@ -33,7 +30,6 @@ pub fn motion_path(base: DVec3, motion: &VecDelta) -> PacketPath {
     }
 }
 
-/// The path of a position sync, which carries absolute positions.
 #[must_use]
 pub fn sync_path(path: &PositionPath) -> PacketPath {
     match path {

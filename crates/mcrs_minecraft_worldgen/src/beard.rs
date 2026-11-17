@@ -65,8 +65,6 @@ pub struct Beard {
 }
 
 impl Beard {
-    /// `pieces` in start order, then piece order within each start, each paired
-    /// with its structure's adaptation.
     pub fn collect<J>(
         chunk: ColumnPos,
         pieces: impl IntoIterator<Item = (TerrainAdaptation, BeardPiece<J>)>,
@@ -152,8 +150,6 @@ impl Beard {
         }
     }
 
-    /// Adds the term into `out`, indexed like `grid`, writing only the lattice
-    /// points of the affected box.
     pub fn fill(&self, grid: &SampleGrid, out: &mut [f32]) {
         assert_eq!(out.len(), grid.len(), "the buffer must cover the grid");
         let Some(affected) = self.affected.filter(|_| self.intersects(grid)) else {
@@ -247,9 +243,6 @@ fn beard_contribution(
         .map_or(0.0, |weight| value * weight)
 }
 
-/// Where `minecraft:beardifier` sits in a `final_density` graph. The fill adds
-/// the term after evaluating the graph, which equals the graph only when the
-/// beardifier is an operand of the outermost `add` and nowhere else.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BeardifierPlacement {
     Absent,
@@ -549,7 +542,6 @@ mod tests {
             IVec3::new(0, -64, 0),
             IVec3::new(4, 8, 4),
         );
-        // Adding the zero term turns -0.0 into +0.0, which marks exactly the written indices.
         let mut out = vec![-0.0f32; grid.len()];
         beard.fill(&grid, &mut out);
         let written: Vec<_> = (0..5)

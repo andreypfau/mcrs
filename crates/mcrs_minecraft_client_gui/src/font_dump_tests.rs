@@ -1,5 +1,3 @@
-//! The default font against the dump of the game, `tests/fixtures/vanilla/font.json`.
-
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -91,7 +89,6 @@ static FONTS: LazyLock<[Font; 3]> = LazyLock::new(|| {
     ]
 });
 
-/// The font of a configuration; the font `minecraft:uniform` is the default one with `uniform`.
 fn font_of(config: usize) -> &'static Font {
     match config {
         0 => &FONTS[0],
@@ -118,7 +115,6 @@ enum Class {
     Missing,
 }
 
-/// Which provider a glyph came from, named by the kind and the place among the bitmap providers.
 fn class_of(font: &Font, ch: char) -> Class {
     match font.glyph(ch).image.map(|image| image.source) {
         None => Class::Space,
@@ -151,7 +147,6 @@ fn expected_class(config: &Config, index: usize) -> Class {
     }
 }
 
-/// FONT-PROV-002: the options of a configuration are the options of its font.
 #[test]
 fn the_options_of_each_configuration_load_its_font() {
     for (at, config) in DUMP.configs.iter().enumerate() {
@@ -167,8 +162,6 @@ fn the_options_of_each_configuration_load_its_font() {
     }
 }
 
-/// FONT-ORD-002, FONT-PROV-003, FONT-PROV-005, FONT-PROV-007, FONT-GLY-001 to 003, FONT-DRAW-001:
-/// the provider, the advances, the offsets, the picture size and the box of each dumped glyph.
 #[test]
 fn every_dumped_glyph_has_the_provider_advances_offsets_and_box_of_the_game() {
     for (at, config) in DUMP.configs.iter().enumerate() {
@@ -207,7 +200,6 @@ fn every_dumped_glyph_has_the_provider_advances_offsets_and_box_of_the_game() {
     }
 }
 
-/// FONT-ORD-002, FONT-SET-001: the winning provider of every code point of the basic plane.
 #[test]
 fn every_code_point_of_the_basic_plane_is_drawn_by_the_provider_the_game_picks() {
     let config = &DUMP.configs[0];
@@ -229,7 +221,6 @@ fn every_code_point_of_the_basic_plane_is_drawn_by_the_provider_the_game_picks()
     assert_eq!(checked, 65536 - 2048);
 }
 
-/// FONT-PROV-005: the advance of every glyph of each bitmap texture.
 #[test]
 fn every_bitmap_glyph_has_the_advance_of_the_game() {
     let config = &DUMP.configs[0];
@@ -252,7 +243,6 @@ fn every_bitmap_glyph_has_the_advance_of_the_game() {
     }
 }
 
-/// FONT-PROV-007, FONT-PROV-008: how many glyphs of the Unifont archive have each width.
 #[test]
 fn the_unifont_archive_has_the_glyph_widths_of_the_game() {
     let (_, archive) = font_of(0)
@@ -273,7 +263,6 @@ fn the_unifont_archive_has_the_glyph_widths_of_the_game() {
     assert_eq!(counts.into_iter().collect::<Vec<_>>(), dumped);
 }
 
-/// FONT-WID-001: the width of each measured text, summed exactly and rounded up once.
 #[test]
 fn texts_measure_like_the_game() {
     let font = font_of(0);
@@ -303,7 +292,6 @@ fn texts_measure_like_the_game() {
     }
 }
 
-/// FONT-SET-001, FONT-SET-002: the scripts the game draws are drawn, not missing.
 #[test]
 fn cyrillic_greek_accented_latin_and_cjk_have_pictures() {
     let font = font_of(0);

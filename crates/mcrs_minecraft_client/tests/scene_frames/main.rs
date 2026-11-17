@@ -1,18 +1,3 @@
-//! Runs the scenes of `tools/scenes` with the mcrs client and judges its frames against the
-//! frames of the vanilla client, with the FLIP error.
-//!
-//! The scene tests need java, the vanilla server jar (`tools/vanilla-server/run.sh fetch`),
-//! `MINECRAFT_EULA=true` and a GPU:
-//!
-//! ```sh
-//! tools/vanilla-server/run.sh fetch
-//! MINECRAFT_EULA=true cargo test -p mcrs_minecraft_client --features scene --test scene_frames -- \
-//!     --ignored --test-threads=1
-//! ```
-//!
-//! The frames go to `target/scene-frames/<scene>/<frame>.png`, and the report of each scene and
-//! the FLIP error images to `target/scene-frames/report/`. `judge_captured_frames` then judges
-//! the frames of all scenes again, with no server, into `report/all.txt`.
 #![expect(
     clippy::expect_used,
     clippy::panic,
@@ -42,9 +27,6 @@ const SCENES: [&str; 6] = [
     "pig_grid",
 ];
 
-/// `MCRS_SCENE_ENTITIES` picks where the entities come from: `summon` (the full mode, from the
-/// server), `record` (the render mode, from the record of the vanilla client) or `skip` (none,
-/// the default, for the terrain alone). A scene with a pose step always runs in the render mode.
 fn capture_and_judge(scene: &str) {
     let paths = Paths::new();
     let entities = match std::env::var("MCRS_SCENE_ENTITIES").as_deref() {
@@ -85,7 +67,6 @@ fn every_scene_file_is_a_scene_the_harness_runs() {
     }
 }
 
-/// Judges the frames that the scene tests left, without a server.
 #[test]
 #[ignore = "needs the frames of a run of the scene tests"]
 fn judge_captured_frames() {

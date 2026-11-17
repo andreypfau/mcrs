@@ -4,42 +4,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::OptionsError;
 
-/// Degrees.
 pub const FOV_RANGE: RangeInclusive<u8> = 30..=110;
-/// Columns.
 pub const VIEW_DISTANCE_RANGE: RangeInclusive<u8> = 2..=96;
-/// Columns; the view distance of `None`.
 pub const VIEW_DISTANCE_DEFAULT: u8 = 96;
-/// Frames per second; the end sets no limit.
 pub const MAX_FRAMERATE_RANGE: RangeInclusive<u16> = 10..=260;
-/// Frames per second between two values of `max_framerate`.
 pub const MAX_FRAMERATE_STEP: u16 = 10;
 
-/// The video options of the client, with the meaning of the vanilla option of the same name. In
-/// JSON, an absent field keeps its default.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
 pub struct ClientOptions {
-    /// Degrees, in `FOV_RANGE`.
     pub fov: u8,
-    /// In `[0, 1]`.
     pub fov_effect_scale: f32,
     pub smooth_light: bool,
     pub clouds: bool,
-    /// From 0 (Moody) through 0.5 (the default) to 1 (Bright).
     pub brightness: f32,
-    /// Columns, in `VIEW_DISTANCE_RANGE`; `None` is `VIEW_DISTANCE_DEFAULT`.
     pub view_distance: Option<u8>,
-    /// `0` picks the largest scale that keeps 320 x 240 GUI units on screen.
     pub gui_scale: u32,
-    /// The turn of the mouse, in `[0, 1]`; 0.5 turns the player 0.15 degree for each unit of
-    /// motion.
     pub sensitivity: f32,
     pub vsync: bool,
     pub fullscreen: bool,
-    /// Frames per second, in `MAX_FRAMERATE_RANGE` and a multiple of `MAX_FRAMERATE_STEP`.
     pub max_framerate: u16,
     pub improved_transparency: bool,
 }
@@ -64,7 +49,6 @@ impl Default for ClientOptions {
 }
 
 impl ClientOptions {
-    /// Checks that each field lies in its range.
     pub fn validate(&self) -> Result<(), OptionsError> {
         if !FOV_RANGE.contains(&self.fov) {
             return Err(OptionsError::Fov(self.fov));

@@ -27,9 +27,6 @@ use crate::close_place::close_place;
 use crate::from_holders::from_holders;
 use crate::hand_launch::hand_launch;
 
-/// The stacks of the holders of the player for a capture with `cause`, or `None` when it has no
-/// inventory. A leave and a dimension change first close the inventory menu (INV-CLS-003); a
-/// cause that this crate does not know captures as an autosave.
 #[expect(
     clippy::type_complexity,
     reason = "one query reads each part of the player that a capture needs"
@@ -75,8 +72,6 @@ pub(crate) fn capture_holders(
     Some(values)
 }
 
-/// Makes the holders of the player hold what the close gave: the player inventory with the
-/// stacks that entered it, and the cursor, the craft grid and the craft result empty.
 fn apply_close(
     commands: &mut Commands,
     player: Entity,
@@ -98,7 +93,6 @@ fn apply_close(
         .load_inventory(vec![None]);
 }
 
-/// Throws each rest from the player as one item entity (IEN-SPN-001, IEN-SPN-006).
 fn drop_rests(commands: &mut Commands, rests: Vec<ItemStack>, transform: Transform, source: u128) {
     for rest in rests {
         commands

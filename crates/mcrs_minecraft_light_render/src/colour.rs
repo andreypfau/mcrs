@@ -15,8 +15,6 @@ use crate::volume::{BRICK_SIDE, Volume};
 
 const WORKGROUP: u64 = 64;
 
-/// Queued once. The deferred path does not wait for them: until they build, every section reads
-/// the vanilla tint.
 #[derive(Resource, Default)]
 pub(crate) struct ColourPipelines {
     stages: Option<[CachedComputePipelineId; 3]>,
@@ -73,7 +71,6 @@ pub(crate) fn prepare_colour_pipelines(
     }
 }
 
-/// Group `g` reads `lanes[1 - g]` and writes `lanes[g]`.
 fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) -> [BindGroup; 2] {
     let layout = cache.get_bind_group_layout(&colour_layout());
     let [first, second] = &volume.scratch.lanes;
@@ -93,8 +90,6 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
     })
 }
 
-/// Page entries are written after the pass is recorded: queue writes land before the frame's
-/// commands, and this pass runs before lighting, so no entry names a slot not yet filled.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy render-graph system: each resource and query is its own parameter so the scheduler sees the access"

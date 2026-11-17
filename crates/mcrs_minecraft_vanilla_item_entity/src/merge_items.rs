@@ -22,16 +22,8 @@ use crate::Owner;
 use crate::max_count::max_count;
 use crate::step_items::Stepped;
 
-/// The width and the height of the box of an item entity (IEN-DAT-005).
 pub(crate) const ITEM_SIZE: f32 = 0.25;
 
-/// Queues a merge of each item entity that looks for partners with each partner in reach, in
-/// the order of the UUIDs. Each merge checks its conditions when it applies, after the merges
-/// before it, so the result does not depend on the order of the entities (IEN-MRG-006).
-// chisle: each looking item scans every item of the world; a tile index lifts it when many
-// thousand items lie in one dimension.
-/// The item entities that took part in a merge in this tick: each takes part in at most one
-/// (IEN-MRG-006).
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Merged(FxHashSet<Entity>);
 
@@ -67,7 +59,6 @@ struct Pair {
     second: Entity,
 }
 
-/// Merges two item entities when they can (IEN-MRG-002, IEN-MRG-004, IEN-MRG-005).
 fn merge_pair(
     In(pair): In<Pair>,
     mut commands: Commands,

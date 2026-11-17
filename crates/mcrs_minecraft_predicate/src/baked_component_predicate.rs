@@ -15,7 +15,6 @@ use mcrs_minecraft_item::component::predicate::ComponentPredicateEntry;
 use mcrs_minecraft_item::component::predicate::DamagePredicate;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 
-/// One entry of `predicates` in its matching form.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum BakedComponentPredicate {
     Present(DataComponentType),
@@ -54,13 +53,7 @@ impl BakedComponentPredicate {
                     })
                     .transpose()?,
             ),
-            // The subject of a holder without custom data is the empty compound, which only the
-            // empty compound matches.
             ComponentPredicate::CustomData(expected) if expected.0.is_empty() => Self::Always,
-            // chisle: the value-form stack has no custom_data, stored_enchantments,
-            // potion_contents, container, bundle_contents, firework_explosion, fireworks,
-            // writable_book_content, written_book_content, trim, jukebox_playable or
-            // villager/variant, so these tests fail; lifted when the stack crate models each one.
             ComponentPredicate::CustomData(_)
             | ComponentPredicate::StoredEnchantments(_)
             | ComponentPredicate::PotionContents(_)

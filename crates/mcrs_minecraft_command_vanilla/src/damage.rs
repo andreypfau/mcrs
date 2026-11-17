@@ -61,9 +61,6 @@ pub(crate) fn build(
     })
 }
 
-/// The network id of the damage type `name`: its position in the registry that the clients got.
-/// A type the registry does not hold fails the command, since another id would hurt with an
-/// unrelated type.
 pub(crate) fn damage_type_id(
     context: &VanillaContext,
     name: ResourceLocation<'_>,
@@ -78,8 +75,6 @@ pub(crate) fn damage_type_id(
         .ok_or_else(CommandFailure::failed)
 }
 
-/// CMD-DMG-001 to CMD-DMG-004, for a mob target and a source with no entity and no position: one
-/// hit of the amount and the damage type, `minecraft:generic` by default.
 pub(crate) fn run(
     In(call): In<Call<(), DamageCommand>>,
     context: VanillaContext,
@@ -102,8 +97,6 @@ pub(crate) fn run(
                 vec![],
             ));
         };
-        // A hit that the cooldown rejects still resets the idle time (CMD-DMG-003), so it goes
-        // to the row before the command fails.
         output.effect(
             &mut hits,
             HitMob {

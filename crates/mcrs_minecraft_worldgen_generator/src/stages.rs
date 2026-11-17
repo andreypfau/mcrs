@@ -56,20 +56,12 @@ use mcrs_minecraft_heightmap::{
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
-/// Everything a column stage reads that is the same for every column of one
-/// dimension, built once when the dimension spawns. Every field is a handle,
-/// so a clone per dispatch is a refcount.
 #[derive(Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct FillContext {
-    /// `None` for a flat dimension, which fills no density graph.
     pub router: Option<Arc<NoiseRouter>>,
-    /// `None` for a router compiled without material rules, whose columns get no surface.
     pub material: Option<Arc<MaterialProgram>>,
     pub blocks: Arc<BlockDefinitions>,
-    /// The section list every column of the dimension is generated over: a
-    /// delta names a cell by its index in it, so it is one list, not one per
-    /// dispatch.
     pub y_sections: Arc<[i32]>,
     pub biome: Option<Arc<BiomeSource>>,
     pub predicates: HeightmapPredicates,
@@ -77,7 +69,6 @@ pub struct FillContext {
     pub structures: Option<Arc<StructureIndex>>,
 }
 
-/// What the fill and the run do to a column past the density fill.
 #[derive(Clone)]
 pub struct ColumnProgram {
     pub generator: ColumnGenerator,
@@ -86,8 +77,6 @@ pub struct ColumnProgram {
     pub features: Option<Arc<FeatureProgram>>,
 }
 
-/// Where Beta and the modern generator part, chosen by the dimension's biome
-/// source: the surface, and what a carved block becomes.
 #[derive(Clone)]
 pub enum ColumnGenerator {
     Beta(Arc<BetaCaveBlockIds>),
@@ -95,15 +84,12 @@ pub enum ColumnGenerator {
         surface: Option<(Arc<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
-    /// Fixed layers, with no noise, surface, carver or feature.
     Flat(Arc<FlatLayers>),
 }
 
-/// What a dimension generates its columns from.
 pub enum GeneratorSetup {
     Noise {
         router: Arc<NoiseRouter>,
-        /// `None` for a router compiled without material rules, whose columns get no surface.
         material: Option<Arc<MaterialProgram>>,
     },
     Flat(Arc<FlatLayers>),
@@ -125,8 +111,6 @@ impl ColumnProgram {
 }
 
 impl FillContext {
-    /// One context for a dimension, with every table its stages read resolved
-    /// here and never again per column.
     #[expect(
         clippy::too_many_arguments,
         reason = "the router, material rules, blocks, sections and biome source of one dimension and each optional table its column stages are built from, every one its own input"
@@ -244,8 +228,6 @@ impl FillContext {
         }
     }
 
-    /// The vertical extent the column stages read: the router's, or the section list's for a
-    /// dimension with no router.
     pub fn height_context(&self) -> HeightContext {
         match self.router.as_deref() {
             Some(router) => extent(router),
@@ -271,16 +253,11 @@ impl FillContext {
         self.program.features.as_deref()
     }
 
-    /// How many rungs of run-and-merge the dimension's columns climb. A
-    /// dimension that decorates nothing climbs none and goes from filled
-    /// straight to delivered.
     pub fn rungs(&self) -> usize {
         self.features().map_or(0, |program| program.rungs().len())
     }
 }
 
-/// One dense buffer per worker, reused column after column: a fresh one costs an
-/// allocation the size of the whole column.
 fn with_column_buffer<T>(f: impl FnOnce(&mut ColumnBlocks) -> T) -> T {
     thread_local! {
         static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
@@ -296,8 +273,6 @@ pub fn extent(router: &NoiseRouter) -> HeightContext {
     }
 }
 
-/// The terrain descent, over the dense buffer the fill still holds: the two
-/// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
 pub fn build_terrain_heightmaps(
     column: &ColumnBlocks,
     predicates: &HeightmapPredicates,
@@ -319,12 +294,6 @@ fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeigh
     build_terrain_heightmaps(column, &ctx.predicates)
 }
 
-/// `Filled`: the terrain of one column, its packed palettes and its maps.
-///
-/// A column the save already holds returns here whole, with the block entities
-/// it was saved with, and never runs its own program again; it is still a
-/// legitimate input to its neighbours' runs. `None` means the column was
-/// cancelled part-way.
 #[expect(
     clippy::too_many_lines,
     reason = "loads a saved column or runs the column's stages in order, so the order its neighbours rely on reads in one place"
@@ -368,8 +337,6 @@ pub fn fill_column(
         )?
     };
 
-    // The carvers draw against the dimension, not against the slice of
-    // sections a dispatch happens to carry.
     let height = extent(router);
     let world_seed = router.world_seed as i64;
     let mut ws = Workspace::new();
@@ -445,9 +412,6 @@ pub fn fill_column(
         ColumnGenerator::Flat(_) => return None,
     }
 
-    // The reference keeps the two `_WG` maps live through the carvers and
-    // freezes them only when the terrain step ends, so a cave that opens the
-    // surface lowers them.
     let terrain = terrain_maps(ctx, column);
 
     Some(pack(ctx, col, column, &filled.biomes, terrain))
@@ -495,12 +459,6 @@ fn pack(
     }
 }
 
-/// The 3×3 one unit's program reads and writes.
-///
-/// Reads answer, in order: the unit's own earlier write, then the filled block
-/// of the snapshot that holds the position, then — outside the 3×3 — air. Writes
-/// go to the dense centre buffer or to the target column's delta; a write past
-/// the 3×3 is a data error and is dropped.
 pub struct ColumnRegion<'a> {
     center: ColumnPos,
     layout: ColumnLayout,
@@ -511,18 +469,12 @@ pub struct ColumnRegion<'a> {
     maps: Option<ColumnHeightmapSet>,
     own: Vec<(u32, VoxelId)>,
     ring: [FxHashMap<u32, VoxelId>; 9],
-    /// What the generators asked the world to remember about a block they
-    /// wrote; they travel with the writes, in the delta of the column that
-    /// holds them.
     block_entities: Vec<GeneratedBlockEntity>,
-    /// What the generators spawned, routed the same way by position.
     entities: Vec<GeneratedEntity>,
-    /// The ticks the generators asked for, routed the same way by position.
     ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl<'a> ColumnRegion<'a> {
-    /// `blocks` must already hold the centre snapshot unpacked.
     pub fn new(
         snapshots: &'a RegionSnapshots,
         blocks: &'a ColumnBlocks,
@@ -565,8 +517,6 @@ impl<'a> ColumnRegion<'a> {
         ))
     }
 
-    /// The live centre map, or the ring column's frozen one; the two terrain
-    /// maps are frozen for every column of the region.
     pub fn map_height(&self, kind: HeightmapName, x: i32, z: i32) -> Option<i32> {
         let (slot, lx, lz) = self.locate(BlockPos::new(x, 0, z))?;
         let snapshot = &self.snapshots[slot];
@@ -588,7 +538,6 @@ impl<'a> ColumnRegion<'a> {
         Some(heights.get(lx, lz))
     }
 
-    /// The stored biome of the block, with the height clamped to the column.
     fn stored_biome(&self, p: BlockPos) -> Result<u16, Unavailable> {
         let slot = region_slot(
             self.center,
@@ -610,8 +559,6 @@ impl<'a> ColumnRegion<'a> {
         Ok(u16::from(biome))
     }
 
-    /// One delta per column this unit wrote into, its own included: the merge of
-    /// each target applies them in ascending rank, last write standing.
     pub fn finish(self) -> Vec<(ColumnPos, ColumnDelta)> {
         let source_rank = rank(self.center);
         let mut writes: [Vec<(u32, VoxelId)>; 9] = self.ring.map(|w| w.into_iter().collect());
@@ -709,7 +656,6 @@ impl Volume for ColumnRegion<'_> {
     }
 }
 
-/// What the snapshot held in a cell before this unit wrote it.
 fn filled_voxel(snapshot: &FilledSnapshot, section: usize, local: LocalPos) -> VoxelId {
     snapshot.sections[section]
         .as_ref()
@@ -802,7 +748,6 @@ impl BiomeVolume for ColumnRegion<'_> {
 impl BlockEntityVolume for ColumnRegion<'_> {
     type BlockEntity = GeneratedBlockEntity;
 
-    /// The unit's own write, then the one the snapshot of the column holds.
     fn block_entity(&self, at: BlockPos) -> Result<Option<&GeneratedBlockEntity>, Unavailable> {
         self.access(SectionPos::from(at)).check_read()?;
         if let Some(own) = self
@@ -832,7 +777,6 @@ impl BlockEntityVolumeMut for ColumnRegion<'_> {
         Ok(set_held(&mut self.block_entities, at, entity))
     }
 
-    /// The unit's own write only, like a removal.
     fn block_entity_mut(
         &mut self,
         at: BlockPos,
@@ -855,9 +799,6 @@ impl ScheduleTicks<GenerationKinds> for ColumnRegion<'_> {
 }
 
 impl WorldGenVolume for ColumnRegion<'_> {
-    /// Only a generator asks, and a dimension without a program runs none; a
-    /// default here would answer every state question with the empty set and
-    /// place blocks that belong nowhere.
     fn world(&self) -> &WorldStates {
         &self
             .ctx
@@ -889,8 +830,6 @@ impl WorldGenVolume for ColumnRegion<'_> {
     }
 }
 
-/// `Run`: the steps of one rung of a column's own program against its 3×3
-/// region, which holds every earlier rung of all nine columns already merged.
 pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
     let col = region.center();
     let Some(program) = ctx.features() else {
@@ -900,9 +839,6 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         return;
     };
 
-    // The region's biomes are the distinct palette entries of all nine
-    // snapshots, and a biome the source cannot answer with has no slot, which
-    // is the reference's intersection with `possibleBiomes`.
     let mut slots: Vec<usize> = Vec::new();
     for snapshot in region.snapshots {
         for section in snapshot.sections.iter().flatten() {
@@ -961,7 +897,6 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
     });
 }
 
-/// `setDecorationSeed`: the unit seed every object of one column is offset from.
 pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> i64 {
     let mut rng = WorldgenRandom::new(world_seed as u64);
     let a = rng.next_java_long() | 1;
@@ -972,10 +907,6 @@ pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> 
         ^ world_seed
 }
 
-/// `Merged`: the column's own writes and the eight incoming deltas, applied in
-/// the order given — ascending rank, as the store hands them out — then the
-/// four maps rebuilt because a neighbour's write can raise them, and the block
-/// entities settled against the blocks that stand.
 pub fn merge_column(
     snapshot: &FilledSnapshot,
     deltas: &[Arc<ColumnDelta>],
@@ -987,9 +918,6 @@ pub fn merge_column(
         col: snapshot.col,
         y_sections: snapshot.y_sections.clone(),
         sections: snapshot.sections.clone(),
-        // The two `_WG` maps are the terrain's, and the reference stops
-        // updating them once the terrain step is done; a rung reads them, so
-        // they travel with the column rather than being dropped at the merge.
         terrain: snapshot.terrain.clone(),
         maps: snapshot.maps.clone(),
         source: snapshot.source,
@@ -1038,9 +966,6 @@ pub fn merge_column(
     merged
 }
 
-/// `WorldGenRegion.setBlock` drops the block entity at a position whenever the
-/// new state has none, so the entity that stands is the last one written on a
-/// block that can still hold it.
 fn settle_block_entities<'a>(
     entities: impl Iterator<Item = &'a GeneratedBlockEntity>,
     merged: &FilledSnapshot,
@@ -1069,7 +994,6 @@ fn settle_block_entities<'a>(
     settled
 }
 
-/// [`fill_column`] over the worker's own reused buffer.
 pub fn fill_pooled(
     ctx: &FillContext,
     col: ColumnPos,
@@ -1078,7 +1002,6 @@ pub fn fill_pooled(
     with_column_buffer(|column| fill_column(ctx, col, column, cancel))
 }
 
-/// Unpack the centre snapshot into a worker's dense buffer and run one rung.
 pub fn run_region(
     ctx: &FillContext,
     snapshots: &RegionSnapshots,
@@ -1095,18 +1018,11 @@ pub fn run_region(
     })
 }
 
-/// The section list of a flat dimension: exactly the sections of its dimension type.
 pub fn flat_y_sections(min_y: i32, section_count: u32) -> Arc<[i32]> {
     let bottom = min_y >> SectionPos::BITS;
     (bottom..bottom + section_count as i32).collect()
 }
 
-/// The section list every column of one dimension is generated over.
-///
-/// One list for the whole dimension, not one per dispatch: a delta names a cell
-/// by its index in this list, so two columns that disagreed on it would write
-/// past each other, and the three stages of one column would not line up
-/// section for section.
 pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32) -> Arc<[i32]> {
     let config_bottom = min_y >> SectionPos::BITS;
     let noise_bottom = router.noise.min_y >> SectionPos::BITS;
@@ -1149,8 +1065,6 @@ mod tests {
         crate::tests::region_of(center, |col| flat_snapshot(col, y_sections, fill))
     }
 
-    /// Pinned to the stream seeds `structure_geometry.bin` carries for world
-    /// seed 0x5EED, step 4, index 19.
     #[test]
     fn the_decoration_seed_is_the_reference_chain() {
         for (chunk_x, chunk_z, stream_seed) in [
@@ -1263,8 +1177,6 @@ mod tests {
         let snapshot = flat_snapshot(col, &y_sections, VoxelId(1));
         let cell = cell_index(0, LocalPos::new(5, 6, 7));
         let mut store = StagingStore::default();
-        // Ranks 7, 2 and 5 of the 3×3 around the origin, pushed in an order
-        // that is neither their rank nor their position.
         for source in [
             ColumnPos::new(-1, 1),
             ColumnPos::new(0, -1),
@@ -1298,8 +1210,6 @@ mod tests {
         );
     }
 
-    /// A saved column merges against no deltas at all, so anything the save
-    /// held has only the snapshot to arrive in.
     #[test]
     fn a_merge_carries_the_block_entities_the_snapshot_arrived_with() {
         let y_sections: Arc<[i32]> = Arc::from(vec![0i32]);
@@ -1341,9 +1251,6 @@ mod tests {
     mod exhaustive {
         use super::*;
 
-        /// A cave that opens the surface lowers `WORLD_SURFACE_WG`: the reference
-        /// keeps the pair live through the carvers, so at the fill the terrain
-        /// maps and the final maps are one descent over the same blocks.
         #[test]
         #[expect(
             clippy::excessive_nesting,

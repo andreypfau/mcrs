@@ -13,8 +13,6 @@ use mcrs_minecraft_worldgen_structure::Structure;
 use std::collections::BTreeSet;
 use thiserror::Error;
 
-/// Registers the structure template asset and its loader. Every other worldgen
-/// registry is a registry of the loaded registries.
 pub struct WorldgenAssetsPlugin;
 
 impl Plugin for WorldgenAssetsPlugin {
@@ -41,16 +39,12 @@ fn column<T: RegistryValue + Send + Sync + 'static>(
         })
 }
 
-/// The structure templates a template pool names, in its elements and in the
-/// features it writes inline.
 pub fn pool_templates(pool: &TemplatePool) -> BTreeSet<ResourceLocationBuf> {
     let mut names = TemplateNames::default();
     names.visit_template_pool(pool);
     names.0
 }
 
-/// Every structure template that a feature, a placed feature, a structure or a
-/// template pool of `registries` names.
 pub fn named_templates(
     registries: &Registries,
 ) -> Result<BTreeSet<ResourceLocationBuf>, MissingColumn> {

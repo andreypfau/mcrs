@@ -11,7 +11,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: mcrs_minecraft_block
 [dependencies]
 glam.workspace = true
 mcrs_minecraft_block.workspace = true

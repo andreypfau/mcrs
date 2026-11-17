@@ -1,6 +1,3 @@
-//! The keys of the menu registry and the layout of the inventory menu.
-// std: mcrs_minecraft_registries
-
 mod inventory_menu;
 mod menu_range;
 mod menu_slot;

@@ -13,33 +13,21 @@ use mcrs_command::BuildError;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
-/// Why a command, or one of its nodes, is not in the command tree.
 #[derive(Debug, thiserror::Error)]
 pub enum RegistrationError {
-    /// A node of the command conflicts with the tree; nothing of the command is added.
     #[error("the command tree does not take the command: {0}")]
     Tree(#[from] BuildError),
-    /// The app has no tree to add to: the [`CommandPlugin`](crate::CommandPlugin) of the set is
-    /// not added, or the app already finished.
     #[error("commands are added after CommandPlugin and before the app finishes")]
     NoTree,
-    /// The tree holds as many commands as a handler key can count.
     #[error("the command tree holds as many handlers as a handler key can count")]
     TooManyCommands,
-    /// A command has more branches than a branch index can count.
     #[error("the command has more branches than a branch index can count")]
     TooManyBranches,
-    /// A branch redirects through a modifier, and the command registers no modifier handler.
     #[error("a branch of the command has a modifier and the command has no modifier handler")]
     UnhandledModifier,
 }
 
-/// Adds commands and command effects to an [`App`] that has the
-/// [`CommandPlugin`](crate::CommandPlugin).
 pub trait AppCommandsExt {
-    /// Registers a command in the tree of the set `A`: `build` adds its nodes and returns the
-    /// handles its handler reads, and every dimension world runs `handler` when one of its
-    /// branches runs. Nothing is registered when `build` returns an error.
     fn add_command<A, B, C, S, M>(
         &mut self,
         build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
@@ -52,8 +40,6 @@ pub trait AppCommandsExt {
         S: IntoSystem<In<Call<B, C>>, CommandResult, M> + Clone + Send + Sync + 'static,
         M: 'static;
 
-    /// Registers a command whose redirects have modifiers: every dimension world runs
-    /// `modify` for a source when a stage of a chain follows one of them.
     fn add_modifying_command<A, B, C, S, M, D, N>(
         &mut self,
         build: impl FnOnce(&mut CommandRegistrar<'_, A, B>) -> Result<C, BuildError>,
@@ -69,33 +55,24 @@ pub trait AppCommandsExt {
         D: IntoSystem<In<Call<B, C>>, ModifyResult, N> + Clone + Send + Sync + 'static,
         N: 'static;
 
-    /// Registers a command effect type: every dimension world gets an
-    /// [`EffectQueue<E>`](crate::EffectQueue), and the world applies each effect that a
-    /// handler writes with `apply`, in the order of writing across all effect types. A later
-    /// registration of the same type replaces `apply`.
     fn add_command_effect<E: Send + Sync + 'static>(
         &mut self,
         apply: fn(&mut Worlds<'_>, E),
     ) -> &mut Self;
 }
 
-/// The nodes of one command in the tree: the handles its builder returned, its key and its
-/// branches.
 struct Registration<B, C> {
     handles: C,
     key: HandlerKey,
     branches: Vec<BranchUse<B>>,
 }
 
-/// Whether a command registers a handler for its modifiers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Modifiers {
     Unhandled,
     Handled,
 }
 
-/// Adds the nodes of one command to the tree, or nothing when `build` returns an error or a
-/// branch has a modifier that nothing handles. `None` when the command has no executable node.
 fn register<A, B, C>(
     app: &mut App,
     modifiers: Modifiers,
@@ -238,8 +215,6 @@ impl AppCommandsExt for App {
     }
 }
 
-/// Registers the handler of a command in each dimension, under its key, in the table of its
-/// output: a [`CommandResult`] or a [`ModifyResult`].
 struct HandlerPlugin<B, C, S, M> {
     handles: C,
     key: HandlerKey,

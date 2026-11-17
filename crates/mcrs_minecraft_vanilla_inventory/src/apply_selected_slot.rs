@@ -8,7 +8,6 @@ use mcrs_minecraft_inventory_player::HOTBAR;
 
 use crate::PlayerHolders;
 
-/// Makes a hotbar slot the selected slot, and ignores each other value (INV-SEL-002).
 pub(crate) fn apply_selected_slot(
     In((player, slot)): In<(Entity, u8)>,
     mut players: Query<&mut Selected, With<PlayerHolders>>,

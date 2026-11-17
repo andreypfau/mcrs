@@ -11,12 +11,8 @@ use crate::instance::Instance;
 use crate::instance_change::InstanceChange;
 use crate::instance_modifier::InstanceModifier;
 
-/// The attribute instances of one entity that differ from those of a new entity of its type
-/// (`attributes.md`, section 3). An attribute of the set of the type with no entry has the base
-/// of the type and no modifier. Each call takes the bases of the type of the entity.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AttributeSet {
-    /// In the order of the numeric ids of the attributes.
     instances: Vec<Instance>,
 }
 
@@ -33,7 +29,6 @@ impl AttributeSet {
         }
     }
 
-    /// The base value, or `None` when the attribute is not in the set of the type.
     #[must_use]
     pub fn base(&self, bases: AttributeBases, attribute: Attribute) -> Option<f64> {
         let type_base = bases.base(attribute)?;
@@ -43,7 +38,6 @@ impl AttributeSet {
         )
     }
 
-    /// The value of ATR-VAL-001, or `None` when the attribute is not in the set of the type.
     #[must_use]
     pub fn value(&self, bases: AttributeBases, attribute: Attribute) -> Option<f64> {
         let type_base = bases.base(attribute)?;
@@ -57,12 +51,10 @@ impl AttributeSet {
         })
     }
 
-    /// The instances that differ from a new entity of the type, in the order of the numeric ids.
     pub fn instances(&self) -> impl Iterator<Item = &Instance> {
         self.instances.iter()
     }
 
-    /// Stores `base` as given, outside the range too (ATR-INS-002).
     pub fn set_base(
         &mut self,
         bases: AttributeBases,
@@ -79,8 +71,6 @@ impl AttributeSet {
         })
     }
 
-    /// Puts `modifier` at the end of the sequence; an error when its identifier is present
-    /// (ATR-INS-004).
     pub fn add_modifier(
         &mut self,
         bases: AttributeBases,
@@ -96,8 +86,6 @@ impl AttributeSet {
         })?
     }
 
-    /// Leaves an equal modifier in place; puts any other at the end of the sequence in place of
-    /// the modifier of its identifier (ATR-INS-004).
     pub fn set_modifier(
         &mut self,
         bases: AttributeBases,
@@ -120,7 +108,6 @@ impl AttributeSet {
         })
     }
 
-    /// Removes the modifier of `id`; `Unchanged` when the instance has none (ATR-INS-004).
     pub fn remove_modifier(
         &mut self,
         bases: AttributeBases,
@@ -136,7 +123,6 @@ impl AttributeSet {
         })
     }
 
-    /// Removes every modifier of the instance and keeps its base; `Unchanged` when it has none.
     pub fn clear_modifiers(
         &mut self,
         bases: AttributeBases,
@@ -151,7 +137,6 @@ impl AttributeSet {
         })
     }
 
-    /// The instance of `attribute`, or `None` when it has the base of the type and no modifier.
     #[must_use]
     pub fn instance(&self, attribute: Attribute) -> Option<&Instance> {
         self.instances
@@ -159,8 +144,6 @@ impl AttributeSet {
             .find(|instance| instance.attribute == attribute)
     }
 
-    /// Applies `edit` to the instance of `attribute`, and keeps an entry only for an instance
-    /// that differs from a new one of the type.
     fn change<R>(
         &mut self,
         bases: AttributeBases,

@@ -1,6 +1,3 @@
-//! The handshake and the custom payloads, against the bytes the game writes for them. They share
-//! the join packets' golden file with the play packets the game crate checks.
-
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;

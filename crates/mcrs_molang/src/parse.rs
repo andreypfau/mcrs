@@ -9,8 +9,6 @@ use crate::syntax::{
 };
 use crate::value::ResourceKind;
 
-/// Parses an expression. The parser records each syntax error and continues at the next `;`
-/// or closing brace, so one call reports every error of the text.
 pub fn parse(source: &str) -> Result<Syntax, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     if !source.is_ascii() {
@@ -46,7 +44,6 @@ fn report_non_ascii(source: &str, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-/// The parse of the current statement stopped at an error that is already recorded.
 struct Failed;
 
 type Parsed<T> = Result<T, Failed>;
@@ -185,7 +182,6 @@ impl Parser<'_> {
         }
     }
 
-    /// Skips to the next `;` or terminator of the current nesting level.
     fn recover(&mut self, terminator: Terminator) {
         let mut depth = 0usize;
         loop {
@@ -627,7 +623,6 @@ struct StatementList {
     saw_semicolon: bool,
 }
 
-/// The binary levels from the lowest precedence to the highest.
 const LEVELS: [&[(Punct, BinaryOp)]; 6] = [
     &[(Punct::OrOr, BinaryOp::Or)],
     &[(Punct::AndAnd, BinaryOp::And)],

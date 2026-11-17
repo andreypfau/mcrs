@@ -10,8 +10,6 @@ use crate::joined_game::JoinedGame;
 use crate::local_player::Sprint;
 use crate::player::Player;
 
-/// Gives the local [`Player`] the attribute instances of a new player, which does not sprint
-/// (ATR-CLI-005).
 pub(crate) fn on_login(
     _event: On<Received<ClientboundLogin>>,
     mut player: Query<(Entity, Option<&mut Sprint>), With<Player>>,
@@ -30,8 +28,6 @@ pub(crate) fn on_login(
     }
 }
 
-/// Makes the local [`Player`] a new player, which does not sprint and keeps its modifiers only by
-/// the bit of the packet (ATR-CLI-005).
 pub(crate) fn on_respawn(
     event: On<Received<ClientboundRespawn>>,
     mut player: Query<(Option<&mut AttributeInstances>, Option<&mut Sprint>), With<Player>>,
@@ -53,8 +49,6 @@ pub(crate) fn on_respawn(
     }
 }
 
-/// Applies the entries of an `update_attributes` for the own entity id to the local [`Player`]
-/// (ATR-CLI-002), and skips an entry with an unknown attribute id (ATR-CLI-006).
 pub(crate) fn on_update_attributes(
     event: On<Received<ClientboundUpdateAttributes<'static>>>,
     connections: Query<&JoinedGame>,

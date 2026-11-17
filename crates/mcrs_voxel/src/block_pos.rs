@@ -49,7 +49,6 @@ impl BlockPos {
         self.offset(0, -1, 0)
     }
 
-    /// The centre of the bottom face.
     #[must_use]
     pub fn bottom_centre(self) -> DVec3 {
         DVec3::new(

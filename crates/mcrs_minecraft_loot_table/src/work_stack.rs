@@ -6,19 +6,13 @@ use mcrs_minecraft_item_stack::{
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_predicate::{BakedItemPredicate, ItemSubject};
 
-/// A stack while the evaluation makes it: its count can be 0, negative or above the maximum
-/// stack size until the division (LOOT-EVL-011, LOOT-OUT-001). The item and the component patch
-/// stay while the count is 0 or less (LOOT-MOD-011).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct WorkStack<'a> {
-    /// The item and the component patch; `None` is the item `minecraft:air`. The count of the
-    /// value has no meaning. A stack of the context stays borrowed until the first write.
     item: Option<Cow<'a, ItemStack>>,
     pub(crate) count: i32,
 }
 
 impl<'a> WorkStack<'a> {
-    /// One `kind` with no component patch.
     pub(crate) fn one(kind: Kind) -> Self {
         Self {
             item: carrier(kind),
@@ -26,7 +20,6 @@ impl<'a> WorkStack<'a> {
         }
     }
 
-    /// `stack` as a work stack; `None` is the empty stack, which has the item `minecraft:air`.
     pub(crate) fn copy(stack: Option<&'a ItemStack>) -> Self {
         match stack {
             Some(stack) => Self {
@@ -40,7 +33,6 @@ impl<'a> WorkStack<'a> {
         }
     }
 
-    /// LOOT-MOD-011: the count, 0 for an empty work stack.
     pub(crate) fn count(&self) -> i32 {
         match self.read() {
             Some(_) => self.count,
@@ -48,8 +40,6 @@ impl<'a> WorkStack<'a> {
         }
     }
 
-    /// The stack that a modifier reads: `None` for an empty work stack, which reads as
-    /// `minecraft:air` with no component (LOOT-MOD-011).
     pub(crate) fn read(&self) -> Option<&ItemStack> {
         self.item.as_deref().filter(|_| self.count > 0)
     }
@@ -58,8 +48,6 @@ impl<'a> WorkStack<'a> {
         self.read().map(|stack| stack.kind)
     }
 
-    /// True when the work stack, with its count, passes `filter`; an empty work stack tests as
-    /// the empty stack.
     pub(crate) fn passes(&self, filter: &BakedItemPredicate, items: &ItemTable) -> bool {
         match self.read() {
             Some(stack) => filter.matches_count(stack, self.count, items),
@@ -67,8 +55,6 @@ impl<'a> WorkStack<'a> {
         }
     }
 
-    /// Writes `value` to the component patch, also of an empty work stack, and keeps the patch in
-    /// normal form (STK-PAT-006): a value equal to the component of the prototype leaves no entry.
     pub(crate) fn set<T: ItemComponent + 'static>(&mut self, value: T, items: &ItemTable) {
         let Some(stack) = self.item.take() else {
             return;
@@ -83,8 +69,6 @@ impl<'a> WorkStack<'a> {
         });
     }
 
-    /// Replaces the item; the count and the component patch stay, in normal form against the
-    /// prototype of `kind` (STK-PAT-004).
     pub(crate) fn set_kind(&mut self, kind: Kind, items: &ItemTable) {
         let Some(stack) = self.item.take() else {
             return;
@@ -101,19 +85,16 @@ impl<'a> WorkStack<'a> {
         self.item = Some(Cow::Owned(kept.cloned().fold(empty, ItemStack::with_entry)));
     }
 
-    /// Replaces the work stack with `kind`, `count` and an empty component patch.
     pub(crate) fn replace(&mut self, kind: Kind, count: i32) {
         self.item = carrier(kind);
         self.count = count;
     }
 
-    /// The empty stack, with no item and no component patch (LOOT-MOD-014).
     pub(crate) fn discard(&mut self) {
         self.item = None;
         self.count = 0;
     }
 
-    /// The effective maximum stack size (STK-CNT-002); no component gives 1.
     fn max_stack_size(&self, items: &ItemTable) -> u8 {
         self.item
             .as_deref()
@@ -122,9 +103,6 @@ impl<'a> WorkStack<'a> {
             .unwrap_or(1)
     }
 
-    /// Adds the stacks of the division (LOOT-OUT-001) to `stacks`: `None` for the item
-    /// `minecraft:air` and for a count of 0 or less, else stacks of the maximum stack size, at
-    /// least 1, in order and then the rest, each with the component patch.
     pub(crate) fn divide(&self, items: &ItemTable, stacks: &mut Vec<Option<ItemStack>>) {
         let Some(source) = self.read() else {
             stacks.push(None);
@@ -149,8 +127,6 @@ fn carrier<'a>(kind: Kind) -> Option<Cow<'a, ItemStack>> {
     Count::new(1).map(|one| Cow::Owned(ItemStack::new(kind, one)))
 }
 
-/// STK-PAT-004: false for a value equal to the component of `prototype` and for a removal of a
-/// type that `prototype` does not have.
 fn has_effect(entry: &PatchEntry, prototype: &[Builtin]) -> bool {
     match entry {
         PatchEntry::Value(value) => !prototype.contains(value),
@@ -159,7 +135,6 @@ fn has_effect(entry: &PatchEntry, prototype: &[Builtin]) -> bool {
     }
 }
 
-/// `stack` without the patch entry of `T`.
 fn without<T: ItemComponent>(stack: Cow<'_, ItemStack>) -> Cow<'_, ItemStack> {
     if !stack.patch().iter().any(T::is_entry_of) {
         return stack;
@@ -174,8 +149,6 @@ mod tests {
     use super::*;
     use mcrs_minecraft_item_stack::{Damage, RepairCost};
 
-    /// STK-PAT-004, STK-PAT-006: a change of the item drops a value equal to the component of the
-    /// new prototype and a removal of a type that it does not have; other entries stay.
     #[test]
     fn stk_pat_004_set_kind_normalizes_the_patch_against_the_new_prototype() {
         let items = ItemTable::leak([Vec::new(), vec![Builtin::MaxStackSize(MaxStackSize(16))]]);

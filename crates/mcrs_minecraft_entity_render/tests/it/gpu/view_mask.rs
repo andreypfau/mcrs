@@ -1,8 +1,3 @@
-//! The cull of a view keeps only the slots whose view set holds the bit of the view.
-//!
-//! ```sh
-//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
-//! ```
 use crate::support;
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, CullRecord, EntityFrameCounts, EntityLibrary, EntityViews,

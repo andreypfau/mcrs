@@ -6,42 +6,32 @@ use crate::entity_library::TextureImage;
 use crate::frame_queries::VariantEntry;
 use crate::skin_image::{SKIN_SIDE, SkinImage};
 
-/// The skins that the entity textures hold at once. An entity past them draws the default skin
-/// of its model.
-// chisle: a fixed set of 256 layers of 64 by 64; a texture array that grows lifts it.
 pub const SKIN_SLOTS: u16 = 256;
 
-/// The arm model of a player entity (`docs/spec/client-player-render.md`). Without a
-/// [`PlayerSkin`], the entity draws the default skin of its model.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerModel {
     Wide,
     Slim,
 }
 
-/// The skin image of a player entity with a [`PlayerModel`].
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct PlayerSkin(pub SkinImage);
 
-/// The skin layer of the entity textures that holds the image of a [`PlayerSkin`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SkinSlot(pub(crate) u16);
 
-/// The texels of a skin layer that the render world writes.
 #[derive(Clone, Debug)]
 pub(crate) struct SkinUpload {
     pub(crate) variant: u16,
     pub(crate) image: SkinImage,
 }
 
-/// The skin layers in use and the writes that the next frame sends.
 #[derive(Resource, Default)]
 pub(crate) struct SkinSlots {
     free: Vec<u16>,
     next: u16,
     uploads: Vec<SkinUpload>,
     generation: Option<u32>,
-    /// An entity found no free layer, so a layer that frees goes to it.
     waiting: bool,
 }
 
@@ -61,13 +51,10 @@ impl SkinSlots {
     }
 }
 
-/// The texture identifier of a skin layer.
 pub(crate) fn skin_identifier(slot: u16) -> String {
     format!("mcrs:skin/{slot}")
 }
 
-/// The skin layers, in slot order. A layer with no texels starts transparent, so each skin face
-/// has the cutout and draws with the alpha test.
 pub(crate) fn skin_textures() -> impl Iterator<Item = TextureImage> {
     (0..SKIN_SLOTS).map(|slot| TextureImage {
         identifier: skin_identifier(slot),
@@ -77,8 +64,6 @@ pub(crate) fn skin_textures() -> impl Iterator<Item = TextureImage> {
     })
 }
 
-/// The variant entry that the render controllers of a player read: the model type, and the
-/// texture of its skin layer as the asset, or `""` while the entity has none.
 pub(crate) fn skin_entry(
     model: PlayerModel,
     slot: Option<&SkinSlot>,
@@ -102,9 +87,6 @@ pub(crate) fn skin_entry(
     }
 }
 
-/// Gives each entity with a [`PlayerSkin`] a skin layer and sends its texels to the render world.
-/// New entity assets start with empty layers, so each skin goes again. An entity that found no
-/// free layer tries again when one frees. An entity that loses its [`PlayerSkin`] frees its layer.
 pub(crate) fn assign_skins(
     mut commands: Commands,
     assets: Option<Res<EntityAssets>>,
@@ -240,7 +222,6 @@ mod tests {
         assert_eq!(layer(&app), [wide, first_skin]);
         assert_eq!(uploads(&app), 1, "a new model sends the same texels again");
 
-        // CPR-HOST-001, item 5: a player that loses its skin frees its layer.
         *app.world_mut().get_mut::<PlayerModel>(entity).unwrap() = PlayerModel::Slim;
         app.world_mut().entity_mut(entity).remove::<PlayerSkin>();
         app.update();

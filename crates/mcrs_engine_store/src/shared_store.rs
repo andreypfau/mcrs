@@ -7,17 +7,9 @@ use crate::store_answer::StoreAnswer;
 use crate::store_input::StoreInput;
 use crate::store_stage::{StageOutput, StoreStage};
 
-/// One data layer that several parts reach, such as the cells of one world, at the far end of
-/// one link. Each answer goes back to the part that asked.
-///
-/// The stage sees the inputs of all parts in the order they are sent, so a `Get` that one part
-/// sends after another part sent a `Put` of the same key sees that `Put`.
 pub struct SharedStore<D: DiskStore, R> {
     link: Link<StoreStage<D>>,
-    /// The part that sent each `Get` that is not answered yet, oldest first. The stage answers
-    /// each `Get` once and in order.
     askers: VecDeque<R>,
-    /// The answers that arrived while a flush waited, not handed out yet.
     ready: VecDeque<StoreAnswer<R, D::Key, D::Chunk>>,
     flushes_owed: usize,
     last_flush_ok: bool,
@@ -41,7 +33,6 @@ impl<D: DiskStore, R: Copy> SharedStore<D, R> {
         self.link.send(input);
     }
 
-    /// Hands out every answer that arrived, in the order of the requests.
     pub fn answers(&mut self) -> impl Iterator<Item = StoreAnswer<R, D::Key, D::Chunk>> + '_ {
         self.collect();
         self.ready.drain(..)
@@ -63,21 +54,15 @@ impl<D: DiskStore, R: Copy> SharedStore<D, R> {
         }
     }
 
-    /// Waits until the data layer has answered every request sent so far, and hands out none of
-    /// the answers.
     pub async fn answered(&mut self) {
         self.link.answered().await;
     }
 
-    /// Asks the data layer to write every chunk that it holds, and does not wait for it.
     pub fn request_flush(&mut self) {
         self.flushes_owed += 1;
         self.link.send(StoreInput::Flush);
     }
 
-    /// Waits until the data layer has answered every flush requested so far. Returns whether the
-    /// last one made every chunk durable. It is false when the data layer stopped before it
-    /// answered.
     pub async fn flushed(&mut self) -> bool {
         self.link.answered().await;
         self.collect();

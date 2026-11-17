@@ -14,16 +14,6 @@ use crate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
 use super::build_settings_router as build_router;
 use super::ladder::structure_dimension;
 
-/// Whole-cell elimination and the fluid field's lemmas settle most of a chunk
-/// from the corner lattice and the region tables alone, without ever evaluating
-/// `final_density` or running the search inside those cells. This pins the
-/// result, blocks and fluid ticks both, to what the block-by-block fill through
-/// the naive search would have produced.
-///
-/// The fill settles each strip's highest non-air block as it writes, per cell
-/// class, so a second pass over the column is never owed. Whole-cell classes
-/// answer for a 4x4 footprint at once, which is the part that can be wrong
-/// without any block being wrong.
 #[test]
 fn cell_elimination_matches_the_block_by_block_fill() {
     let router = build_router("overworld", 845);
@@ -101,10 +91,6 @@ fn cell_elimination_matches_the_block_by_block_fill() {
     );
 }
 
-/// Around a village the fill sums `final_density` and the terrain adaptation
-/// term before the aquifer settles a block, so every block is the one the
-/// block-by-block fill of that sum picks, cells the interval bound would have
-/// eliminated included.
 #[test]
 fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
     bearded_columns_match_the_block_by_block_fill_of_the_summed_density(0);

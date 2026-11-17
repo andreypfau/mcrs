@@ -8,8 +8,6 @@ use crate::tree::provider::StateProvider;
 use mcrs_minecraft_core::dist_manhattan;
 use mcrs_voxel::BlockPos;
 
-/// One `stepped_column_cluster` feature with every name it carries already
-/// resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledSteppedColumnCluster {
     pub block: StateProvider,
@@ -22,12 +20,6 @@ pub struct CompiledSteppedColumnCluster {
     pub height: IntProvider,
 }
 
-/// `SteppedColumnClusterFeature.place`: a count of columns scattered over a
-/// square around the origin, each stepping down as it leaves its own centre.
-///
-/// The scatter is drawn lazily, three bounded ints per column and the column's
-/// own reach right after, so a column outside the cluster's height still costs
-/// its position.
 pub fn place_stepped_column_cluster<W>(
     config: &CompiledSteppedColumnCluster,
     volume: &mut W,
@@ -101,8 +93,6 @@ where
     placed_any
 }
 
-/// A cell at the column's own centre has a step limit of zero, which both
-/// searches read as no budget at all, so the centre never seeds a column.
 fn find_surface<W: WorldGenVolume>(
     config: &CompiledSteppedColumnCluster,
     volume: &W,
@@ -194,13 +184,11 @@ mod tests {
         }
     }
 
-    /// A floor of stone under the whole cluster, so any cell can seed a column.
     fn floor() -> FakeVolume {
         let cells = (-8..=8).flat_map(|x| (-8..=8).map(move |z| ((x, AT.y - 1, z), STONE)));
         FakeVolume::with(cells)
     }
 
-    /// Nothing under the origin is a refusal, and it costs no draw.
     #[test]
     fn a_cluster_over_air_refuses_before_it_draws() {
         let config = config(
@@ -223,9 +211,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Each column spends three bounded ints for its position — the y span is
-    /// one cell wide and still draws — and one more for its reach whenever the
-    /// position is inside the cluster's height.
     #[test]
     fn every_column_draws_three_positions_and_a_reach() {
         let config = config(
@@ -256,8 +241,6 @@ mod tests {
         assert_eq!(rng, replay, "a simple provider draws nothing per block");
     }
 
-    /// A reach of zero leaves only the column's own centre, whose step limit is
-    /// zero, so the cluster writes nothing at all.
     #[test]
     fn a_column_of_no_reach_writes_nothing() {
         let config = config(
@@ -278,9 +261,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// A cluster reach of zero pins the one column on the origin, so its ring
-    /// is exactly known: four cells one step out stack the full height, four
-    /// diagonals lose one to the halved step, and the centre stays empty.
     #[test]
     fn a_column_steps_down_as_it_leaves_its_own_centre() {
         let config = config(

@@ -46,8 +46,6 @@ impl GpuTimings {
             .percentiles(slot, last, &[0.5, 0.95])
     }
 
-    /// Timing a pass costs an encoder of its own to reset its queries, so passes are timed only
-    /// while something reads the figures.
     pub fn want(&self, on: bool) {
         self.0.wanted.store(on, Ordering::Relaxed);
     }
@@ -73,8 +71,6 @@ impl GpuTimings {
 #[derive(Default)]
 struct Shared {
     wanted: AtomicBool,
-    /// Frames timed since timing was last switched on; the ring holds older frames until every
-    /// slot has been written again.
     warm: AtomicU32,
     frame: AtomicU32,
     samples: Mutex<Samples<SLOTS, WINDOW>>,
@@ -83,8 +79,6 @@ struct Shared {
 }
 
 impl Shared {
-    /// Metal writes no timestamp around a render pass, so a slot can stay blank forever while
-    /// its neighbour resolves every frame; one silent pass must not blind the others.
     fn push(&self, ms: [Option<f32>; SLOTS]) {
         let Ok(mut samples) = self.samples.lock() else {
             return;
@@ -162,7 +156,6 @@ impl<const N: usize, const W: usize> Samples<N, W> {
         self.percentiles(slot, W, &[0.5]).map(|p| p[0])
     }
 
-    /// Quantiles over the newest `last` samples, each clamped to the last sample held.
     fn percentiles<const Q: usize>(
         &self,
         slot: usize,
@@ -199,16 +192,13 @@ pub const PREPARE: usize = 2;
 pub const RENDER: usize = 3;
 pub const CLEANUP: usize = 4;
 pub const ACQUIRE: usize = 5;
-/// The frame's own work: every stage added up, the acquire wait taken back out.
 pub const ENGINE: usize = 6;
 pub const CPU_NAMES: [&str; 7] = [
     "main", "extract", "prepare", "render", "cleanup", "acquire", "engine",
 ];
 pub(crate) const CPU_SLOTS: usize = CPU_NAMES.len();
 
-/// Room for a second of frames at the rate being aimed for.
 pub const CPU_WINDOW: usize = 4096;
-/// A figure stands on the frames of the last second, which is how vanilla counts its fps.
 pub const WINDOW_SECS: f32 = 1.0;
 
 const FRAME_START: usize = 0;
@@ -217,10 +207,6 @@ const RENDER_LAST: usize = 2;
 const ACQUIRE_START: usize = 3;
 const MARKS: usize = 4;
 
-/// Wall time of each stage of the frame, main world and render world alike, as medians over the
-/// same window the GPU slots use. Without pipelined rendering the stages run back to back, so
-/// they and the frame period add up; with it the extract slot also holds the wait for the render
-/// thread and the stages overlap instead of summing.
 #[derive(Resource, Clone, Default)]
 pub struct CpuTimings(Arc<CpuShared>);
 
@@ -253,7 +239,6 @@ impl FrameStarts {
         self.written += 1;
     }
 
-    /// How many of the newest frames began within the window.
     fn recent(&self, now: Instant) -> usize {
         let Some((newer, older)) = self.at.split_at_checked(self.written % CPU_WINDOW) else {
             return 0;
@@ -354,8 +339,6 @@ pub(crate) fn prepared(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
 }
 
-/// The swapchain acquire blocks until the display hands a drawable back, so on a machine whose
-/// presentation is throttled this is the wait that hides inside the prepare stage.
 pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
     cpu.mark(ACQUIRE_START, Some(Instant::now()));
 }
@@ -380,8 +363,6 @@ pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
     }
 }
 
-/// Every system dispatched costs something whether or not it finds work, so the count per
-/// schedule is a number the frame budget has to know.
 pub(crate) fn log_system_counts(world: &mut World) {
     let schedules = world.resource::<Schedules>();
     let mut counts: Vec<(String, usize)> = schedules

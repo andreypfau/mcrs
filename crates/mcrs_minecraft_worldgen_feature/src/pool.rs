@@ -46,7 +46,6 @@ pub enum PoolElement {
     Empty {},
 }
 
-// The newtype variants hand this the whole map, so it must refuse unknown keys itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SingleElement {
@@ -58,7 +57,6 @@ pub struct SingleElement {
 }
 
 impl SingleElement {
-    /// No processor list is an empty list written in place, not a reference.
     pub fn new(
         location: impl Into<ResourceLocationBuf>,
         processors: Option<Holder<StructureProcessorList>>,

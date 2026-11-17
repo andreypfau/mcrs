@@ -1,9 +1,3 @@
-//! The entity pass of a dimension world in Bevy. The row store of
-//! [`mcrs_minecraft_entity_rows`] is a resource, generic over the mob column that the AI of the
-//! application supplies; systems lend it to the merge point, the freeze and the pass. Items and experience
-//! orbs are rows only, with no ECS entity. Mobs are rows with a cold side table; the
-//! changes of the tick wait in [`MobChanges`] for the systems of [`MobPublish`].
-
 mod entity_motion_plugin;
 mod entity_physics_plugin;
 mod entity_writes;

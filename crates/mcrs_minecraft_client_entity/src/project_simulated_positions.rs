@@ -2,8 +2,6 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity_visual::Motion;
 
-/// Writes the position and the on-ground flag of each simulated entity whose motion changed into
-/// its [`Motion`], which the tick and the renderer read.
 pub(crate) fn project_simulated_positions(
     mut entities: Query<(&MotionState, &mut Motion), Changed<MotionState>>,
 ) {

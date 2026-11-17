@@ -14,9 +14,6 @@ struct Case {
     json: serde_json::Value,
     hash: i32,
     wire: String,
-    /// Vanilla emits `state` and NBT compounds in hash order, so an unordered
-    /// case compares through the decoded value and the order-independent hash
-    /// instead of its bytes.
     ordered: bool,
 }
 
@@ -213,8 +210,6 @@ fn predicate_errors_read_like_vanilla() {
     }
 }
 
-/// A predicate the wire carries in a shape its codec refuses fails to decode
-/// instead of passing through.
 #[test]
 fn malformed_predicate_values_are_refused_on_the_wire() {
     for (wire, expected) in [
@@ -249,9 +244,6 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     );
 }
 
-/// `-0.0` and `0.0` are distinct bounds, so this range is not a point. It
-/// stays out of the golden table because vanilla's own wire folds every zero
-/// into one tag and loses the sign.
 #[test]
 fn a_double_range_between_the_two_zeros_is_kept() {
     let input = "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":-0.0,\"max\":0.0}}]}}}}";
@@ -263,9 +255,6 @@ fn a_double_range_between_the_two_zeros_is_kept() {
     assert_eq!(hash_ops::hash(&named(&value)).unwrap(), 816994624);
 }
 
-/// Partial predicates are a map, so two predicate lists that differ only in
-/// order are the same value; the NBT predicate compares by key rather than
-/// by position.
 #[test]
 fn predicate_order_does_not_affect_equality() {
     let lookup = lookup();

@@ -1,4 +1,3 @@
-//! Static registries as enums of their entries, numbered by protocol id.
 #![no_std]
 
 #[cfg(feature = "std")]

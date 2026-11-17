@@ -14,9 +14,6 @@ pub(crate) enum Target<T> {
     Prototype,
 }
 
-/// Gives the stack the effective component `target` of type `T`, and writes
-/// [`SlotChanged`](crate::SlotChanged) when a stored value changes. It does nothing to an entity
-/// without a [`Kind`].
 pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, target: Target<T>) {
     let Some(&kind) = entity.get::<Kind>() else {
         return;

@@ -1,5 +1,3 @@
-//! A world edited on one server run is read back by the next one.
-
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 

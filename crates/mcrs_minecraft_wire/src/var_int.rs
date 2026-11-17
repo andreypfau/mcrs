@@ -4,7 +4,6 @@ use std::ops::{Deref, DerefMut};
 use crate::impls::take;
 use crate::{Decode, Encode, ErrorKind, Result};
 
-/// An `i32` encoded with variable length.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
@@ -44,12 +43,8 @@ impl From<u8> for VarInt {
 }
 
 impl VarInt {
-    /// The maximum number of bytes a VarInt could occupy when read from and
-    /// written to the Minecraft protocol.
     pub const MAX_SIZE: usize = 5;
 
-    /// Returns the exact number of bytes this varint will write when
-    /// [`Encode::encode`] is called, assuming no error occurs.
     pub const fn written_size(self) -> usize {
         match self.0 {
             0 => 1,
@@ -59,8 +54,6 @@ impl VarInt {
 }
 
 impl Encode for VarInt {
-    // Adapted from VarInt-Simd encode
-    // https://github.com/as-com/varint-simd/blob/0f468783da8e181929b01b9c6e9f741c1fe09825/src/encode/mod.rs#L71
     fn encode(&self, mut w: impl Write) -> Result<()> {
         let x = self.0 as u64;
         let stage1 = (x & 0x000000000000007f)
@@ -74,13 +67,13 @@ impl Encode for VarInt {
         let unused_bytes = (leading - 1) >> 3;
         let bytes_needed = 8 - unused_bytes;
 
-        // set all but the last MSBs
         let msbs = 0x8080808080808080;
         let msbmask = 0xffffffffffffffff >> (((8 - bytes_needed + 1) << 3) - 1);
 
         let merged = stage1 | (msbs & msbmask);
         let bytes = merged.to_le_bytes();
 
+        // SAFETY: `stage1` uses at most 36 bits, so `bytes_needed` is between 1 and 5 of 8 bytes.
         w.write_all(unsafe { bytes.get_unchecked(..bytes_needed as usize) })?;
 
         Ok(())
@@ -88,8 +81,6 @@ impl Encode for VarInt {
 }
 
 impl Decode<'_> for VarInt {
-    /// Decodes a variable-length integer, failing if it exceeds five bytes or contains
-    /// out-of-range bits in the fifth byte.
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let mut val = 0;
         for i in 0..Self::MAX_SIZE {

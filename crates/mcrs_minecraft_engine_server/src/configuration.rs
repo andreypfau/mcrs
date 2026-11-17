@@ -49,9 +49,6 @@ use tracing::{debug, info};
 
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 
-/// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
-/// and is awaiting the client's `ServerboundSelectKnownPacks` response
-/// before the rest of the Configuration data is sent.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_datapack::KnownPack>);
@@ -79,10 +76,6 @@ impl Plugin for ConfigurationStatePlugin {
     }
 }
 
-/// Where a joining player stands: the position and the rotation of its file, else the level
-/// spawn, else a fixed point above the origin.
-// chisle: no spawn search, so a missing `Pos` is the block of the level spawn as it is, possibly
-// inside terrain; the search of the default position in SAVE-PLAYER-001 replaces this.
 fn join_placement(
     snapshot: &PersistedSnapshot,
     spawn: Option<&RespawnData>,
@@ -107,25 +100,6 @@ fn join_placement(
     })
 }
 
-/// Step 1 of the Configuration handshake: detect entry into
-/// `ConnectionState::Configuration`, send the brand and `ClientboundSelectKnownPacks`.
-///
-/// The `Without<AwaitingKnownPacks>` filter ensures the server does not
-/// re-trigger the negotiation while a previous negotiation is still in
-/// flight (e.g. a stray `Changed<ConnectionState>` event from a separate
-/// system mutating other connection components).
-///
-/// Runs in `FixedPreUpdate` and reacts to `Changed<ConnectionState>`. The edge
-/// is set by the `handle_login_acknowledged` observer, which fires during
-/// inbound packet processing in `FixedPostUpdate`. `Changed<T>` is evaluated
-/// against this system's own last-run tick, not a single frame's edge, so it
-/// cannot miss the transition even when several fixed ticks elapse in one
-/// main-loop frame: the change set in one tick's `FixedPostUpdate` is observed
-/// at the next tick's `FixedPreUpdate`.
-///
-/// An embedded client connects before the registries are built, so the
-/// negotiation waits for `AppState::Playing`; a skipped system keeps its
-/// last-run tick, so the earlier transition is still seen as a change.
 pub fn start_configuration() -> ScheduleConfigs<ScheduleSystem> {
     on_configuration_enter.run_if(in_state(AppState::Playing))
 }
@@ -152,8 +126,6 @@ pub fn offered_pack(pack: &mcrs_minecraft_datapack::KnownPack) -> KnownPack<'_> 
     }
 }
 
-/// Whether the client may fill entries from the offered packs: only when its reply repeats the
-/// offer exactly. An empty offer negotiates nothing.
 pub fn negotiated(offered: &[mcrs_minecraft_datapack::KnownPack], reply: &[KnownPack]) -> bool {
     !offered.is_empty()
         && offered.len() == reply.len()
@@ -189,10 +161,6 @@ fn on_configuration_enter(
     }
 }
 
-/// Step 2 of the Configuration handshake: triggered by
-/// `ServerboundSelectKnownPacks`. Writes the registry data and update tags the load encoded, then
-/// `ClientboundFinishConfiguration`. Removes the `AwaitingKnownPacks` marker so
-/// the connection is eligible for future reconfiguration.
 pub fn on_known_packs_response(
     event: On<Received<ServerboundSelectKnownPacks<'static>>>,
     mut query: Query<(Entity, &mut ServerSideConnection, &AwaitingKnownPacks)>,
@@ -256,7 +224,6 @@ pub fn on_configuration_ack(
         *state = ConnectionState::Game;
         return;
     }
-    // The game switches its side to play before this check, so it refuses with a play packet.
     if let Some(mut con) = con {
         disconnect(&mut con, ConnectionState::Game, duplicate_login_reason());
     }
@@ -265,9 +232,6 @@ pub fn on_configuration_ack(
         .remove::<ServerSideConnection>();
 }
 
-/// Handles `ServerboundConfigurationAcknowledged` sent during Game state.
-/// This is the client's response to `ClientboundStartConfiguration` during reconfiguration.
-/// Transitions the connection back to Configuration so registries can be re-sent.
 fn on_game_configuration_ack(
     event: On<Received<ServerboundConfigurationAcknowledged>>,
     mut query: Query<(Entity, &mut ConnectionState)>,
@@ -279,8 +243,6 @@ fn on_game_configuration_ack(
     *state = ConnectionState::Configuration;
 }
 
-/// The muxer asks where each joining player spawns, the coordinator places it, and the muxer
-/// sends the spawn, in one update.
 pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {
     (
         request_initial_player_spawn,
@@ -290,12 +252,6 @@ pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {
         .chain()
 }
 
-/// Runs each Update tick. For every connection in the game state whose session is still
-/// unplaced, asks the coordinator where its player spawns, with the dimension that the save of
-/// the player names. The muxer then sends the spawn and marks the session as joining.
-///
-/// While no dimension takes input yet (dims still loading), the session stays unplaced and asks
-/// again next tick.
 pub fn request_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     sessions: Query<(&Session, &SessionPlacement, &GameProfile)>,

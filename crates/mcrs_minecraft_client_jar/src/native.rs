@@ -21,7 +21,6 @@ const READ: usize = 64 << 10;
 pub const WORKERS: usize = 4;
 pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
-/// The Unifont archive is 1.5 MB: a link must be allowed minutes for it, not seconds.
 const OBJECT_BODY_TIMEOUT: Duration = Duration::from_secs(60);
 const OBJECT_ATTEMPTS: u32 = 4;
 
@@ -45,14 +44,12 @@ pub fn official_dir() -> Option<PathBuf> {
     return home().map(|home| home.join(".minecraft"));
 }
 
-/// Where the official launcher keeps the pinned release, which a download fills.
 pub(crate) fn download_dir() -> Result<PathBuf, VanillaDataError> {
     official_dir()
         .map(|dir| dir.join("versions").join(RELEASE.id))
         .ok_or(VanillaDataError::NoLauncherDir)
 }
 
-/// Where launchers keep an installed client jar of the pinned release, most likely first.
 pub fn candidates() -> Vec<PathBuf> {
     let id = RELEASE.id;
     let installed = format!("versions/{id}/{id}.jar");
@@ -91,8 +88,6 @@ fn third_party_launcher_jars(_id: &str, _installed: &str) -> Vec<PathBuf> {
     Vec::new()
 }
 
-/// The first of `paths` whose size and SHA-1 are the artifact's. Anything else, including a
-/// patched or half-written jar, is skipped rather than trusted.
 pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Option<Vec<u8>> {
     paths.iter().find_map(|path| {
         if fs::metadata(path).ok()?.len() != artifact.size {
@@ -120,9 +115,6 @@ pub(crate) fn read_counting(path: &Path, progress: &Progress) -> std::io::Result
     Ok(bytes)
 }
 
-/// The picked `assets/` files of the pinned client jar, from whichever launcher installed it or,
-/// failing that, downloaded into the official launcher's directory. Font files go to `fonts`
-/// first. A download returns once the assets are in; the [`Remainder`] completes the jar.
 pub fn resolve(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
@@ -142,11 +134,6 @@ pub fn resolve(
     }
 }
 
-/// The asset index layer's font files, laid over the jar's by path. Each comes from the official
-/// launcher's object store when it holds it, else from `objects`, a server laid out as
-/// [`crate::OBJECTS`], into that store. The
-/// objects are fetched side by side, each retried with a growing wait; one that still fails fails
-/// the layer, since the definition without its archive does not load.
 pub fn font_assets(objects: &str) -> Result<Files, String> {
     let store = official_dir().map(|dir| dir.join("assets").join("objects"));
     std::thread::scope(|scope| {
@@ -189,8 +176,6 @@ fn font_object(
     Ok(bytes)
 }
 
-/// The object from the object server, checked against its pinned digest; a slow link gets a long
-/// time to read the body, and a cut or wrong answer is asked for again.
 fn fetch_object(object: &AssetObject, objects: &str) -> Result<Vec<u8>, String> {
     let url = object.url(objects);
     let agent = agent_with(OBJECT_BODY_TIMEOUT);
@@ -244,8 +229,6 @@ fn local(
         .map_err(VanillaDataError::MalformedJar)
 }
 
-/// Downloads the release's jar into `dir` as a sparse `.part` file, which a `.ranges` sidecar
-/// makes resumable, and returns the picked assets once they are in.
 pub fn download(
     release: &'static Release<'static>,
     dir: &Path,
@@ -395,7 +378,6 @@ impl Shared {
         self.changed.notify_all();
     }
 
-    /// Writes what arrives for `range` at its own offset, advancing `reached` as it goes.
     fn fetch(
         &self,
         agent: &ureq::Agent,
@@ -463,15 +445,11 @@ fn agent_with(body: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
         .timeout_recv_response(Some(Duration::from_secs(15)))
-        // ureq has no idle timeout, so a stalled socket would hang forever; capping each request
-        // costs nothing because the next one resumes where this one stopped.
         .timeout_recv_body(Some(body))
         .build()
         .into()
 }
 
-/// One request, no retry: a caller that is given a wrong address must see the error. The body
-/// is not checked against anything.
 pub fn get(url: &str) -> Result<Vec<u8>, String> {
     agent()
         .get(url)
@@ -521,9 +499,6 @@ fn work(shared: &Shared, id: usize) {
     }
 }
 
-/// The part of a download still running after the assets are in: the rest of the jar, then
-/// the move into place and the version JSON next to it. Dropping it stops the workers; the
-/// sidecar keeps what they fetched.
 pub struct Remainder {
     shared: Arc<Shared>,
     workers: Vec<JoinHandle<()>>,
@@ -576,8 +551,6 @@ impl Drop for Remainder {
     }
 }
 
-/// Writes the version JSON the official launcher expects next to the jar, unless a valid one
-/// is already there.
 fn write_json(release: &Release, path: &Path, progress: &Progress, first_backoff: Duration) {
     if locate(&[path.to_owned()], &release.json, progress).is_some() {
         return;
@@ -625,8 +598,6 @@ fn retry<T>(
     }
 }
 
-// The native source blocks inside `wait` instead of returning pending, so a single poll always
-// completes and this never spins.
 fn block_on<F: Future>(future: F) -> F::Output {
     let mut future = pin!(future);
     let mut context = Context::from_waker(Waker::noop());

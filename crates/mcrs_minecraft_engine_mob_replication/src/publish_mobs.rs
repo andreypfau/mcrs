@@ -26,13 +26,8 @@ use uuid::Uuid;
 
 use crate::mob_state::mob_state;
 
-/// Below this count of moves a task of [`publish_mobs`] costs more than it saves.
 const MOVES_PER_TASK: usize = 1024;
 
-/// Records the tile events of the mobs of the tick: a spawn with the state of the start of its
-/// tracker, the signals, a move for each row whose visible state changed, a change of tile, and
-/// the removal at the end of a death. A mob that spawned in this tick spawns in the tile it ends
-/// the tick in.
 pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
     rows: Res<RowStore<M>>,
     mobs: Res<Mobs>,
@@ -184,8 +179,6 @@ fn publish_removals<M>(rows: &RowStore<M>, mobs: &Mobs, events: &mut TileEvents)
     }
 }
 
-/// The move events of a run of moved rows, by tile in the order of the run, and the ids of the
-/// moved rows that a writer also touched.
 struct MoveBatches {
     tiles: Vec<(TileKey, Vec<SubjectEvent<ReplicationData>>)>,
     touched: Vec<EntityId>,
@@ -225,8 +218,6 @@ fn move_batches<M>(
     out
 }
 
-/// The states of the moved rows after the tile moves. The moved rows come in tile order, so it
-/// keeps the last tile of the pass that it looked up.
 struct MovedStates<'rows, M> {
     rows: &'rows RowStore<M>,
     last: Option<LastTile<'rows, M>>,
@@ -242,7 +233,6 @@ impl<'rows, M> MovedStates<'rows, M> {
         Self { rows, last: None }
     }
 
-    /// The state of the moved row `at`; `None` when the row left the world.
     fn state(&mut self, at: Placed) -> Option<&'rows EntityState> {
         let tile = match &self.last {
             Some(last) if last.key == at.tile => last.rows,

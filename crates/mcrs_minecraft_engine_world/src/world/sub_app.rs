@@ -7,8 +7,6 @@ use bevy_ecs::schedule::SystemSet;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
-/// The host entity that labels this dimension world: the one name of the dimension that the
-/// host and every dimension world share.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DimensionLabel(pub Entity);
 
@@ -21,29 +19,12 @@ pub struct DimSpawnRequest {
 #[derive(Resource, Default)]
 pub struct DimSpawnQueue(pub Vec<DimSpawnRequest>);
 
-/// The system that turns the dimension list into spawn requests.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DimSpawnEnqueue;
 
-/// The host label entities of the dimension worlds to tear down: the [`DimensionLabel`]s, **not**
-/// the `Dimension` entities inside the worlds. The host drains it between ticks, stops each
-/// world and despawns its label entity.
 #[derive(Resource, Default)]
 pub struct DimDespawnQueue(pub Vec<Entity>);
 
-/// Plugins that the world of every dimension, or of one dimension by its key, adds after its own
-/// plugins and resources and before its dimension entity spawns. [`AddDimensionPlugins`] fills it
-/// before the dimensions spawn; a dimension that is already live does not get a later plugin. Each
-/// world builds its own clone of a plugin, in the order the plugins were added.
-///
-/// A unique plugin for one dimension replaces the unique plugins of the same name for every
-/// dimension in that world. A non-unique plugin for one dimension adds to them. A unique plugin
-/// whose name the world already has is skipped with an error.
-///
-/// A dimension world does not run the stock `Main`. It runs the startup schedules on its first
-/// tick, then `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once
-/// per host tick. It has no `StateTransition`, `TimePlugin` or `Time` resource: a dimension counts
-/// ticks, so nothing it simulates can depend on the wall clock.
 #[derive(Resource, Default)]
 pub struct DimensionPlugins(Vec<DimensionPluginEntry>);
 
@@ -51,14 +32,11 @@ struct DimensionPluginEntry {
     only: Option<ResourceKeyBuf<Dimension>>,
     name: String,
     unique: bool,
-    // Bevy rejects a duplicate by `Plugin::name`, but `SubApp::is_plugin_added` looks up the
-    // type name, which a plugin with its own name does not register.
     added: fn(&SubApp, &str) -> bool,
     add: Box<dyn Fn(&mut SubApp) + Send + Sync>,
 }
 
 impl DimensionPlugins {
-    /// The key of the dimension of each plugin that is added to one dimension alone.
     pub fn dimensions(&self) -> impl Iterator<Item = &ResourceKeyBuf<Dimension>> {
         self.0.iter().filter_map(|plugin| plugin.only.as_ref())
     }

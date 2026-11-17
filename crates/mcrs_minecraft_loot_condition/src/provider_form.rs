@@ -5,8 +5,6 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-/// A provider as a data pack writes it (REG-FLD-722, REG-FLD-723): a bare number, the key of a
-/// named provider, or an object with a `type`.
 #[derive(Debug, Clone)]
 pub(crate) enum ProviderForm<C, T> {
     Constant(C),
@@ -14,7 +12,6 @@ pub(crate) enum ProviderForm<C, T> {
     Inline(Box<T>),
 }
 
-/// The number type of a provider family.
 pub(crate) trait Number: Sized {
     const EXPECTING: &'static str;
 
@@ -66,7 +63,6 @@ impl Number for f32 {
     }
 }
 
-/// The `value` of the object form of `constant` (REG-FLD-724).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct NumberValue<C>(pub(crate) C);
 
@@ -83,7 +79,6 @@ impl<'de, C: Number> Deserialize<'de> for NumberValue<C> {
     }
 }
 
-/// A type with no file form, so that [`NumberValue`] accepts only numbers.
 #[derive(Debug)]
 enum Never {}
 

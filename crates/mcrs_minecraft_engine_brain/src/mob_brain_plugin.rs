@@ -52,24 +52,17 @@ use crate::EntityRows;
 use crate::HotTick;
 use crate::MobAi;
 
-/// The ticks between two log lines of the AI cost.
 const LOG_PERIOD: u64 = 200;
 
-/// The AI of the mobs of a dimension world with the brains `B`: the hot side between the client
-/// input and the entity pass, and the stage in `Simulate`, beside the pass, on the compute pool.
 #[derive(Clone, Copy, Debug)]
 pub struct MobBrainPlugin<B> {
     pub max_lag: u8,
     pub delay: AiDelay,
-    /// The brain of a mob that comes into the world, from its type; `None` for a type without AI.
     pub brain_for: fn(&'static EntityTypeData) -> Option<B>,
-    /// The damage type tag whose members make a mob panic when they hit it.
     pub panic_causes: TagKey<'static, DamageType>,
 }
 
 impl<B> MobBrainPlugin<B> {
-    /// The AI with the default lag and delay, in which each mob without `NoAI` gets the brain that
-    /// `brain_for` makes for its type, and a hit by a member of `panic_causes` makes a mob panic.
     #[must_use]
     pub fn new(
         brain_for: fn(&'static EntityTypeData) -> Option<B>,
@@ -84,13 +77,9 @@ impl<B> MobBrainPlugin<B> {
     }
 }
 
-/// The steps of the AI in a tick.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MobBrainSet {
-    /// The snapshot, the application of the due decisions and the intents, after the client
-    /// input and before the entity pass.
     Prepare,
-    /// The stage of the tick, beside the entity pass.
     Stage,
 }
 
@@ -126,8 +115,6 @@ where
         );
     }
 
-    /// A dimension world has its [`WorldSeed`] before its plugins build; a world without one
-    /// keys the AI by the seed 0.
     fn finish(&self, app: &mut App) {
         let seed = StageSeed(
             app.world()
@@ -145,7 +132,6 @@ where
     }
 }
 
-/// The system that sets the panic causes of the AI to the members of the tag `panic_causes`.
 fn set_panic_causes<B: Send + Sync + 'static>(
     panic_causes: TagKey<'static, DamageType>,
 ) -> impl FnMut(Res<CurrentRegistries>, ResMut<MobAi<B>>) {
@@ -240,7 +226,6 @@ fn run_stage<B>(
     }
 }
 
-/// The sums of the AI stats over the ticks since the last log line.
 #[derive(Debug, Default)]
 struct AiWindow {
     ticks: u64,

@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 mcrs_minecraft_registries::static_registry! {
     pub enum StatType;
     Mined = "minecraft:mined",

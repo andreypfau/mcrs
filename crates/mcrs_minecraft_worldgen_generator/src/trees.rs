@@ -50,8 +50,6 @@ fn empty_mask(blocks: &BlockDefinitions) -> FixedBitSet {
     FixedBitSet::with_capacity(blocks.state_count())
 }
 
-/// Every state of every block that declares `property`, and what each declares
-/// for it.
 pub(super) fn with_property<'a>(
     blocks: &'a BlockDefinitions,
     property: &'a str,
@@ -159,8 +157,6 @@ fn boolean_mask(blocks: &BlockDefinitions, property: &str, wanted: bool) -> Stat
     Arc::new(mask)
 }
 
-/// For every state of every block declaring `property`, the state with each of
-/// `values` set; a value the block refuses leaves the state as it is.
 fn property_table<const N: usize>(
     blocks: &BlockDefinitions,
     property: &str,
@@ -182,8 +178,6 @@ fn property_table<const N: usize>(
         .collect()
 }
 
-/// `LeavesBlock.getOptionalDistanceAt`, plus the state each distance writes
-/// back: the tag answers 0 and is never rewritten, a `distance` answers itself.
 fn leaf_distances(blocks: &BlockDefinitions, resolver: &Resolver<'_>) -> Compiled<LeafDistances> {
     let mut table = LeafDistances::default();
     let by_distance = property_table(blocks, "distance", ["1", "2", "3", "4", "5", "6", "7"]);
@@ -202,20 +196,13 @@ fn leaf_distances(blocks: &BlockDefinitions, resolver: &Resolver<'_>) -> Compile
     Ok(table)
 }
 
-/// Which faces of a state's collision shape can hold something up, as the
-/// reference's `SupportType` reads them.
 pub(crate) struct FaceSupport {
-    /// `SupportType.FULL` upwards.
     sturdy_up: FixedBitSet,
-    /// A non-empty upward face, which is all a sea pickle asks of its floor.
     any_up: FixedBitSet,
-    /// `SupportType.CENTER` downwards, which is what hangs a spore blossom.
     pub(crate) center_down: FixedBitSet,
-    /// `SupportType.CENTER` upwards, which is what a mushroom stands on.
     center_up: FixedBitSet,
 }
 
-/// `SupportType.CENTER`: the middle 2/16 of the face has to be covered.
 fn covers_center(mask: &FaceMask) -> bool {
     const LO: usize = FACE_RESOLUTION * 7 / 16;
     const HI: usize = FACE_RESOLUTION * 9 / 16;
@@ -275,7 +262,6 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
         let Some(block) = blocks.block_index(entry.default_state_id) else {
             continue;
         };
-        // A family wins: the corpus filter of `small_dripleaf` covers only its dry states.
         if family_of(entry.identifier.as_str()).is_none()
             && let Some(conditions) = short_form(blocks, entry.default_state_id)
         {
@@ -289,9 +275,6 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
         };
         let rule = match rule_of(resolver, entry, family, &faces, &not_air) {
             Ok(rule) => rule,
-            // A shape this build cannot answer — a fluid tag, say — leaves the
-            // block with no rule, so a placement testing it fails the compile
-            // by name rather than placing on a guess.
             Err(error) if error.is_unsupported() => {
                 tracing::warn!(block = entry.identifier.as_str(), %error, "no canSurvive rule");
                 continue;
@@ -303,10 +286,6 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
     Ok(rules)
 }
 
-/// One condition against one vertical face is the only shape the placement
-/// filter is read in; anything else is refused at load rather than approximated.
-/// The placement filter of `state` in the short form; a block whose filter has the predicate
-/// form keeps the rule of its family.
 pub(crate) fn short_form(
     blocks: &BlockDefinitions,
     state: BlockStateId,
@@ -672,8 +651,6 @@ fn block_states_of(
     states.iter().map(|state| r.resolve(state)).collect()
 }
 
-/// `NoiseBasedStateProvider`'s constructor: one legacy source per noise field,
-/// each reseeded from the provider's own `seed` rather than the world's.
 fn sampler(seed: i64, noise: &mcrs_minecraft_noise::proto::NoiseParam) -> SharedNoise {
     let mut random = LegacyRandom::new(seed as u64);
     Arc::new(normal_noise::create(noise, &mut random))

@@ -2,8 +2,6 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 pub(crate) const RING_SLOTS: u8 = 32;
 
-/// The slot from 0 to 31 that a modifier identifier takes first in the ring that orders one
-/// step of the value computation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HomeSlot(u8);
 

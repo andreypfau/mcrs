@@ -1,5 +1,3 @@
-//! Sign text layout (`docs/spec/client-sign-text.md`): glyph quads in block space for a pass.
-
 use bevy::math::{DMat4, DVec3, IVec2, Vec2, Vec3};
 use mcrs_minecraft_block_entity::{SignText, Text as StoredText};
 use mcrs_minecraft_client_world::sign::{SignFamily, SignMount};
@@ -12,14 +10,9 @@ use crate::language::ClientLanguage;
 use crate::scene::GuiQuad;
 use crate::text::{Wrap, text_spans, wrap};
 
-/// SIGN-LIGHT-001 item 1: block light 15, sky light 15.
 pub const FULL_BRIGHT_LIGHT: u32 = 15_728_880;
-/// SIGN-COL-002 item 3.
 pub const BLACK_GLOW_OUTLINE: u32 = 0xFFF0_EBCC;
-/// SIGN-COL-003: the squared distance, in blocks, under which a glowing sign has its outline.
 pub const OUTLINE_DISTANCE_SQUARED: f64 = 256.0;
-/// How far the line stands before its outline copies, in text units. A pass that cannot offset
-/// depth draws the outline behind the line with this (SIGN-LIGHT-001 item 3).
 const LINE_LIFT: f64 = 0.02;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,7 +21,6 @@ pub enum Side {
     Back,
 }
 
-/// SIGN-LAY-001: the line height in text units.
 pub fn line_height(family: SignFamily) -> i32 {
     match family {
         SignFamily::Standing => 10,
@@ -36,7 +28,6 @@ pub fn line_height(family: SignFamily) -> i32 {
     }
 }
 
-/// SIGN-LAY-001: the maximum line width in text units.
 pub fn max_line_width(family: SignFamily) -> i32 {
     match family {
         SignFamily::Standing => 90,
@@ -44,8 +35,6 @@ pub fn max_line_width(family: SignFamily) -> i32 {
     }
 }
 
-/// SIGN-PLACE-001: the matrix from the text plane of one side to block space. `angle` is the
-/// angle `A` in degrees.
 pub fn text_matrix(family: SignFamily, mount: SignMount, angle: f32, side: Side) -> DMat4 {
     let turn = DMat4::from_rotation_y(-f64::from(angle).to_radians());
     let back = match side {
@@ -79,12 +68,10 @@ pub fn text_matrix(family: SignFamily, mount: SignMount, angle: f32, side: Side)
     }
 }
 
-/// SIGN-LAY-002: where line `index` starts on the text plane, for a line `width` units wide.
 pub fn line_origin(index: i32, height: i32, width: i32) -> IVec2 {
     IVec2::new(-(width / 2), index * height - (4 * height) / 2)
 }
 
-/// SIGN-COL-001: the bright and the dark ARGB colour of a dye. An unknown name is `black`.
 pub fn dye_colors(dye: &str) -> (u32, u32) {
     let bright: u32 = match dye {
         "white" => 0xFFFF_FFFF,
@@ -108,29 +95,24 @@ pub fn dye_colors(dye: &str) -> (u32, u32) {
     (bright, 0xFF00_0000 | dark(16) | dark(8) | dark(0))
 }
 
-/// How the player looks at the world: a spyglass in use stretches the outline range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sight {
     Naked,
     Spyglass,
 }
 
-/// Whether a glowing sign is near enough to show its outline.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutlineRange {
     Near,
     Far,
 }
 
-/// Whether the text of a side glows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Glow {
     Plain,
     Glowing,
 }
 
-/// SIGN-COL-003: whether the outline of a glowing sign shows. `camera` is the position of the
-/// camera entity, when there is one.
 pub fn outline_range(camera: Option<DVec3>, block: BlockPos, sight: Sight) -> OutlineRange {
     let near = sight == Sight::Spyglass
         || camera.is_some_and(|camera| {
@@ -148,16 +130,13 @@ pub fn outline_range(camera: Option<DVec3>, block: BlockPos, sight: Sight) -> Ou
     }
 }
 
-/// The colours and the light of the lines of one side.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Paint {
-    /// The colour of a code point whose style sets none.
     pub color: u32,
     pub outline: Option<u32>,
     pub light: u32,
 }
 
-/// SIGN-COL-002 and SIGN-LIGHT-001. `block_light` is the packed light of the block position.
 pub fn paint(dye: &str, glow: Glow, range: OutlineRange, block_light: u32) -> Paint {
     let (bright, dark) = dye_colors(dye);
     if glow == Glow::Plain {
@@ -183,12 +162,10 @@ pub fn dye_is_black(dye: &str) -> bool {
     dye_colors(dye).0 == 0xFF00_0000
 }
 
-/// The packed light of `block` and `sky` levels.
 pub fn packed_light(block: u8, sky: u8) -> u32 {
     u32::from(block) * 16 + u32::from(sky) * 1_048_576
 }
 
-/// SIGN-LINE-001 item 1 and 2: the four messages of a side.
 pub fn selected(side: &SignText, filtering: bool) -> &[StoredText] {
     match (&side.filtered_messages, filtering) {
         (Some(filtered), true) => filtered,
@@ -200,13 +177,11 @@ fn component(stored: &StoredText) -> Text {
     match stored {
         StoredText::Plain(text) => Text::text(text.clone()),
         StoredText::Rich(tag) => {
-            // One unreadable line shows empty so the other lines of the sign still draw.
             mcrs_minecraft_nbt::from_tag(tag.clone()).unwrap_or_else(|_| "".into_text())
         }
     }
 }
 
-/// One line of a sign: its spans, its width and where it starts on the text plane.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
     pub spans: Vec<Span>,
@@ -214,9 +189,6 @@ pub struct Line {
     pub origin: IVec2,
 }
 
-/// SIGN-LINE-001 and SIGN-LAY-002: the four lines of a side. `color` is the default colour of
-/// the side (`Paint::color`). A message wraps at the maximum width and its first row is the line;
-/// a message with no row is an empty line.
 pub fn lines(
     side: &SignText,
     filtering: bool,
@@ -256,8 +228,6 @@ pub fn lines(
         .collect()
 }
 
-/// A glyph drawn on a sign: the corners in block space, in the order top left, top right, bottom
-/// right, bottom left of the text plane, and the picture to sample.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SignQuad {
     pub corners: [Vec3; 4],
@@ -278,10 +248,6 @@ const OUTLINE_OFFSETS: [IVec2; 8] = [
     IVec2::new(1, 1),
 ];
 
-/// SIGN-COL-002 items 7 and 8, SIGN-FONT-002: the quads of the lines of one side. The outline
-/// copies come first, so the line lies over them. A glyph is drawn as the GUI draws it
-/// (`client-font.md`, FONT-DRAW-001) without a shadow; a code point the font lacks draws the
-/// missing glyph.
 pub fn quads(font: &Font, lines: &[Line], matrix: &DMat4, paint: &Paint, out: &mut Vec<SignQuad>) {
     let mut glyphs = Vec::new();
     for line in lines {
@@ -733,7 +699,6 @@ mod tests {
             };
             let mut out = Vec::new();
             quads(font, &[line], &DMat4::IDENTITY, &paint, &mut out);
-            // eight outline copies, then the line: `a`, the missing glyph, and bold `ж` twice.
             assert_eq!(out.len(), 9 * 4);
             assert!(out[..32].iter().all(|quad| quad.color == 0xFF11_2233));
             let line = &out[32..];

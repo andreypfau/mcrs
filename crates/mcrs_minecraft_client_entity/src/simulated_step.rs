@@ -12,8 +12,6 @@ use crate::client_tables::ClientTables;
 use crate::motion_tick::MotionTick;
 use crate::ticked::ticked;
 
-/// Holds each simulated entity that does not step in this tick: one that did not tick, and an
-/// orb in its first tick after the add. Only a change of that answer inserts or removes the hold.
 pub(crate) fn hold_entities_that_do_not_step(
     mut commands: Commands,
     entities: Query<(Entity, &ClientEntity, Ref<Age>, Has<MotionHold>), With<MotionState>>,
@@ -33,8 +31,6 @@ pub(crate) fn hold_entities_that_do_not_step(
     }
 }
 
-/// Wakes the entities near each block that changed and each column that arrived since the last
-/// tick.
 pub(crate) fn stir_changed_blocks(
     mut changes: MessageReader<ColumnChange>,
     mut stirred: ResMut<StirredTiles>,
@@ -51,8 +47,6 @@ pub(crate) fn stir_changed_blocks(
     stirred.replace(tiles);
 }
 
-/// Steps each simulated entity that ticks over the blocks of the client. A block of a column
-/// that is not loaded is air.
 pub(crate) fn step_simulated_entities(
     columns: Res<ColumnStore>,
     tables: Res<ClientTables>,

@@ -11,8 +11,6 @@ use mcrs_minecraft_volume::{
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-/// The writes of one tile task, kept apart from the world that the other tasks of its colour
-/// read at the same time.
 #[derive(Debug, Default)]
 pub(crate) struct Overlay {
     sections: FxHashMap<SectionPos, FxHashMap<u16, BlockStateId>>,
@@ -24,14 +22,10 @@ impl Overlay {
     }
 }
 
-/// The world as one tile task sees it: the region of its tile, under the writes of the task.
-/// Every section outside the region is [`Access::Foreign`].
 pub(crate) struct OverlaidVolume<'a, W: BlockVolume> {
     pub(crate) world: &'a W,
     pub(crate) region: Region,
     pub(crate) overlay: &'a mut Overlay,
-    /// The world section of the last read: the reads of a handler stay mostly in one section,
-    /// and finding a section costs several cache misses.
     pub(crate) last: Cell<Option<(SectionPos, W::Section<'a>)>>,
 }
 
@@ -66,8 +60,6 @@ impl<'a, W: BlockVolume> BlockVolume for OverlaidVolume<'a, W> {
     fn block(&self, at: BlockPos) -> Result<BlockStateId, Unavailable> {
         let section = SectionPos::from(at);
         let base = match self.last.take() {
-            // The region and the world do not change while the task runs: a section read once
-            // stays readable.
             Some((held, base)) if held == section => base,
             _ if !self.region.holds(section) => return Err(Unavailable::Foreign),
             _ => {
@@ -94,7 +86,6 @@ impl<W: BlockVolume> BlockVolumeMut for OverlaidVolume<'_, W> {
     where
         Self: 'b;
 
-    /// Refused: a write goes through [`set_block`](Self::set_block) into the overlay.
     fn section_mut(&mut self, _at: SectionPos) -> Result<Self::SectionMut<'_>, Denied> {
         Err(Denied::ReadOnly)
     }
@@ -118,7 +109,6 @@ impl<W: BlockVolume + SimulatedSections> SimulatedSections for OverlaidVolume<'_
     }
 }
 
-/// A section of the world under the writes of a task.
 pub(crate) struct OverlaidSection<'a, S> {
     base: S,
     blocks: Option<&'a FxHashMap<u16, BlockStateId>>,

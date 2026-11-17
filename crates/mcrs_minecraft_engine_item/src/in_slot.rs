@@ -11,12 +11,6 @@ use crate::SlotRef;
 use crate::Slots;
 use crate::slot_changed::write_slot_changed;
 
-/// The slot of a holder that holds the stack. Only the placement commands of this crate make one.
-///
-/// An insert that names an occupied slot takes the slot from the stack in it, which stays alive
-/// without placement. An insert that names a slot that does not exist is removed again. An insert
-/// removes [`Dropped`]. The despawn of the stack empties its slot. Each insert and each removal
-/// that changes the content of a slot writes [`SlotChanged`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[component(immutable, on_insert = occupy, on_discard = vacate)]
 pub struct InSlot {
@@ -29,7 +23,6 @@ impl InSlot {
         Self { holder, index }
     }
 
-    /// The entity whose [`Slots`] hold the stack.
     #[must_use]
     pub fn holder(&self) -> Entity {
         self.holder
@@ -92,8 +85,6 @@ fn vacate(mut world: DeferredWorld, context: HookContext) {
     }
 }
 
-/// Removes `slot` from `stack` when the stack still names it and the slot holds another stack or
-/// does not exist.
 fn detach(world: &mut World, stack: Entity, slot: InSlot) {
     let holds = (world.get::<Slots>(slot.holder))
         .and_then(|slots| slots.get(usize::from(slot.index)))

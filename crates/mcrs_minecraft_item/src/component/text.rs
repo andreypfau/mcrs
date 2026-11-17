@@ -119,8 +119,6 @@ fn black() -> DyeColor {
     DyeColor::Black
 }
 
-/// `filtered_messages` is absent whenever it equals `messages`, on read and
-/// on write alike, so two texts that render the same compare equal.
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize)]
 pub struct SignText<M: Refs = Resolved> {

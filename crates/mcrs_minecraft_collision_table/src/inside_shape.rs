@@ -3,8 +3,6 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::InsideBoxes;
 
-/// The inside shape of PHY-RCH-008 for a block by its name without the namespace. `cauldron` holds the collision boxes
-/// of the empty cauldron; `out` receives the boxes of a shape that is not the full cube.
 pub(crate) fn inside_shape<'a, 'p>(
     path: &str,
     value_of: impl Fn(&str) -> Option<&'p PropertyValue>,

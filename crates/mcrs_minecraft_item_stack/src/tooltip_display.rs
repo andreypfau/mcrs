@@ -8,8 +8,6 @@ use crate::ComponentType;
 use crate::Neutral;
 use crate::entity_form::EntityForm;
 
-/// What the tooltip of the stack does not show.
-// The hidden types hold no type two times. Equality and the hash read them as a set.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct TooltipDisplay {
@@ -18,8 +16,6 @@ pub struct TooltipDisplay {
 }
 
 impl TooltipDisplay {
-    /// A tooltip that hides the components of these types, in the order of the input. A type that
-    /// occurs again is dropped.
     #[must_use]
     pub fn hiding(hidden_components: impl IntoIterator<Item = ComponentType>) -> Self {
         let mut seen: BTreeSet<ComponentType> = BTreeSet::new();
@@ -33,7 +29,6 @@ impl TooltipDisplay {
         }
     }
 
-    /// The types whose components the tooltip does not show, in the order of the input.
     #[must_use]
     pub fn hidden_components(&self) -> &[ComponentType] {
         &self.hidden_components
@@ -67,8 +62,6 @@ impl Hash for TooltipDisplay {
     }
 }
 
-// A sum of the bare ids gives one hash to each set with the same sum, so each id is spread over
-// 64 bits first.
 fn mixed(component_type: ComponentType) -> u64 {
     let mut bits = u64::from(component_type.0).wrapping_add(0x9e37_79b9_7f4a_7c15);
     bits = (bits ^ (bits >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);

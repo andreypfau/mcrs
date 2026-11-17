@@ -8,7 +8,6 @@ const LAYER_0: [Finding; 5] = [
     Finding::UnknownAbilityFlags,
 ];
 
-/// The findings of layer 0 for one packet, as a set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Reports(u16);
 

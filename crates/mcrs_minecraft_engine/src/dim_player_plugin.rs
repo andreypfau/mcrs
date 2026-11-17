@@ -30,9 +30,6 @@ use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
-/// Plugin for per-dimension worlds. Registers only the bus-driven and
-/// simulation systems that are safe to run inside a DimWorld — no
-/// `ServerSideConnection` or other host-only resource is accessed.
 pub struct DimPlayerPlugin;
 
 impl Plugin for DimPlayerPlugin {
@@ -92,8 +89,6 @@ impl Plugin for DimPlayerPlugin {
                     game_mode::send_game_mode.after(AnswerOpLevel),
                 )
                     .chain(),
-                // A player spawned and despawned in one drain must be saved and removed, or it
-                // lingers and its autosaves overwrite the next session's file.
                 despawn_inbound_player
                     .after(consume_inbound_player_spawn)
                     .after(game_mode::send_game_mode),
@@ -127,7 +122,6 @@ mod tests {
     fn a_despawn_is_handled_after_a_spawn_drained_in_the_same_tick() {
         let mut app = App::new();
         app.add_plugins(DimPlayerPlugin);
-        // This closes a cycle exactly when the spawn is ordered before the despawn.
         app.add_systems(
             Update,
             (|| {})

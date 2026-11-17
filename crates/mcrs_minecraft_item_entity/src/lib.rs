@@ -1,7 +1,3 @@
-//! The rules of an item entity without Bevy: its counters and lifetime, its start values for
-//! each cause, its pickup into a player inventory and its merge with another item entity.
-// std: mcrs_minecraft_physics
-
 mod cause;
 mod hand_form;
 mod item_entity;

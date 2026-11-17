@@ -10,34 +10,15 @@ use std::num::NonZeroUsize;
 use crate::data_pack::DataPack;
 use crate::runner::DEFAULT_TPS;
 
-/// The tick, the task pools, the asset server, and the registries with the block and item
-/// definitions.
 pub struct ServerCorePlugin {
-    /// Clear when the server shares a process with another Bevy app, which
-    /// then owns the process-global task pools.
     pub owns_task_pools: bool,
-    /// Absolute path to the asset corpus, for a server that cannot resolve
-    /// `assets` from its own working directory or executable location.
     pub asset_path: Option<String>,
-    /// Where the game's data pack is read from.
     pub data_pack: DataPack,
-    /// The assets built in code, layered under the packs.
     pub builtin_assets: BuiltinAsset,
-    /// The local packs of the pack root that the registries load and the assets layer, by
-    /// directory name.
     pub local_packs: Vec<String>,
-    /// Where the worlds tick: [`Placement::Inline`] ticks every world on the server thread, one
-    /// after another, with deterministic schedules; [`Placement::Thread`] gives each world a
-    /// thread of its own, the default.
     pub worlds: Placement,
-    /// How many cells each dimension world has: one, the default, or a static division of its
-    /// columns by region.
     pub cells: WorldCells,
-    /// Where the muxer, which decides the entity bytes of each player, runs:
-    /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
-    /// the default.
     pub muxer: Placement,
-    /// The thread count of the compute pool; `None` keeps the default that `worlds` implies.
     pub compute_threads: Option<NonZeroUsize>,
 }
 

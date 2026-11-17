@@ -1,6 +1,3 @@
-//! The players of every dimension world as commands find them: each world reports its own
-//! players after every tick, and a world that runs commands gets those of the other worlds.
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::resource::Resource;
@@ -15,10 +12,8 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use crate::ability::PlayerGameMode;
 use crate::game_profile::GameProfile;
 
-/// One player of the dimension `dim` at the end of a tick.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RosterRow {
-    /// The label of the dimension that holds the player.
     pub dim: Entity,
     pub session: PlayerSession,
     pub uuid: Uuid,
@@ -27,8 +22,6 @@ pub struct RosterRow {
     pub mode: GameMode,
 }
 
-/// The players of the other dimension worlds at the end of the last tick, in this world. A world
-/// gets them in the input of a tick that runs commands; in another tick it holds none.
 #[derive(Resource, Default)]
 pub struct ForeignPlayers(pub(crate) Vec<RosterRow>);
 
@@ -38,7 +31,6 @@ impl ForeignPlayers {
     }
 }
 
-/// The players of this world at the end of this tick, for the output of the tick.
 #[derive(Resource, Default)]
 pub(crate) struct OwnPlayers(pub(crate) Vec<RosterRow>);
 
@@ -54,7 +46,6 @@ type RosterQuery<'w, 's> = Query<
     With<Player>,
 >;
 
-/// Reports the players of this world, last in the tick.
 pub(crate) fn report_own_players(
     label: Res<DimensionLabel>,
     players: RosterQuery,

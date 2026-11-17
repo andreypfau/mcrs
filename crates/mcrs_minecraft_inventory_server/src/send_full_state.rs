@@ -19,8 +19,6 @@ use crate::menu_content::menu_content;
 use crate::wire_names::WireNames;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
-/// Sends each restored player its selected slot and the content of its inventory menu with the
-/// cursor, and records them as its client view (INV-SEL-003, INV-SYN-005).
 #[expect(
     clippy::too_many_arguments,
     reason = "the send reads the holders, the stacks and the wire names, and writes the view"

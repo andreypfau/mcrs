@@ -30,8 +30,6 @@ fn a_sign_update_round_trips() {
     assert_eq!(decoded(&buf), packet);
 }
 
-/// A type id past the registry and NBT that does not parse both reach the client as an update
-/// without data, never as a frame that ends the connection.
 #[test]
 fn a_frame_the_client_cannot_read_decodes_without_data() {
     let pos = BlockPos::new(4, 5, 6);

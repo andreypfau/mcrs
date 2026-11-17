@@ -9,24 +9,18 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
 
-/// The structure ids are kept as written: this layer has no structure registry,
-/// so an id it does not name is for the caller to reject.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChunkStructures {
     pub starts: BTreeMap<ResourceLocationBuf, StructureStart>,
-    /// The chunks holding a start of the structure that reaches into this one.
     pub references: BTreeMap<ResourceLocationBuf, BTreeSet<ColumnPos>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructureStart {
     pub references: i32,
-    /// The saved pieces, each typed by its own `id`; never empty once loaded.
     pub pieces: Vec<SavedPiece>,
 }
 
-/// A saved structure entry that did not load. The rest of the chunk loads
-/// without it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DroppedStructure {
     StartId(String),
@@ -42,8 +36,6 @@ const MAX_REFERENCE_DISTANCE: u32 = 8;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Structures<'a> {
-    /// Written as each start's `ChunkX`/`ChunkZ`; the game writes the chunk
-    /// holding the start there, so the read value carries nothing more.
     pub(crate) pos: ColumnPos,
     pub(crate) kept: Cow<'a, ChunkStructures>,
     pub(crate) dropped: Vec<DroppedStructure>,
@@ -101,8 +93,6 @@ struct ReadStructures {
     references: ById<Vec<i64>>,
 }
 
-/// A map keyed by structure id whose value is read only when its key is an id, so that an entry
-/// dropped for its id cannot fail the column with an error in its value.
 struct ById<T> {
     kept: Vec<(ResourceLocationBuf, T)>,
     invalid: Vec<String>,

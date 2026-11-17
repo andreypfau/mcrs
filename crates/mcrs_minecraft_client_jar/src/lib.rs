@@ -41,19 +41,16 @@ pub struct Artifact<'a> {
     pub size: u64,
 }
 
-/// A release's client jar and what the launcher keeps next to it.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Release<'a> {
     pub id: &'a str,
     #[serde(borrow)]
     pub jar: Artifact<'a>,
-    /// The jar's central directory and end record, which are its last bytes.
     #[serde(borrow)]
     pub directory: Artifact<'a>,
     #[serde(borrow)]
     pub json: Artifact<'a>,
-    /// A [`FontHint`] as JSON; only a hint, checked against the jar before it is trusted.
     #[serde(skip)]
     pub font_hint: &'a str,
 }
@@ -70,8 +67,6 @@ pub struct Progress {
     pub status: Mutex<String>,
 }
 
-/// A lock that a panicked holder left behind still guards plain progress and queue
-/// state, which every writer leaves consistent between statements.
 pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -91,7 +86,6 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
 
 pub type Files = Vec<(String, Vec<u8>)>;
 
-/// The SHA-1 and the size of a jar's central directory and end record, which are its last bytes.
 pub fn directory_digest(jar: &[u8]) -> Result<(String, u64), String> {
     let start = Directory::of(jar)?.start() as usize;
     let directory = jar
@@ -120,7 +114,6 @@ fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
         .map(u32::from_le_bytes)
 }
 
-/// One central directory record and the offset just past it.
 fn record(bytes: &[u8]) -> Option<(Entry, usize)> {
     let name_len = u16_at(bytes, 28)? as usize;
     let end = 46 + name_len + u16_at(bytes, 30)? as usize + u16_at(bytes, 32)? as usize;
@@ -168,7 +161,6 @@ impl Directory {
         self.entries.iter().find(|entry| entry.name == name)
     }
 
-    /// An entry's bytes: its local header, data and descriptor, up to the next entry.
     pub(crate) fn extent(&self, entry: &Entry) -> Range<u64> {
         let next = self
             .offsets
@@ -176,8 +168,6 @@ impl Directory {
         entry.offset..self.offsets.get(next).copied().unwrap_or(self.start)
     }
 
-    /// Reads the records of a central directory that starts at `start` in the zip and runs
-    /// through `bytes` up to its end record.
     pub fn parse(bytes: &[u8], start: u64) -> Result<Self, String> {
         let mut entries = Vec::new();
         let mut rest = bytes;
@@ -208,8 +198,6 @@ impl Directory {
         Self::parse(bytes, start)
     }
 
-    /// The byte ranges holding the `assets/` entries whose path below `assets/` is picked, each
-    /// from its local header up to the next entry, merged where they touch.
     pub fn spans(&self, mut pick: impl FnMut(&str) -> bool) -> Vec<Range<u64>> {
         let mut picked = Vec::new();
         let mut folders = Vec::new();
@@ -220,8 +208,6 @@ impl Directory {
                 _ => {}
             }
         }
-        // Folder entries sit between every two directories of files; bridging them keeps a
-        // run of textures one request instead of one per directory.
         let mut extents: Vec<Range<u64>> = picked.iter().cloned().chain(folders).collect();
         extents.sort_unstable_by_key(|extent| extent.start);
         let mut spans = merge(extents);
@@ -233,15 +219,12 @@ impl Directory {
         self.start
     }
 
-    /// The picked entries of `zip`, keyed by their full entry name and checked against their
-    /// CRC-32. Folder entries are never returned.
     pub fn read(&self, zip: &[u8], pick: impl FnMut(&str) -> bool) -> Result<Files, String> {
         self.inflated(zip, pick)
             .map(|file| file.map(|(name, bytes)| (name.to_owned(), bytes)))
             .collect()
     }
 
-    /// [`Directory::read`] one entry at a time, so a caller holds one inflated file at once.
     pub fn inflated<'a>(
         &'a self,
         zip: &'a [u8],
@@ -259,9 +242,6 @@ impl Directory {
             })
     }
 
-    /// The picked `assets/` files, keyed by their path below `assets/` and checked against
-    /// their CRC-32. `chunks` are `(offset, bytes)` pieces of the zip that each hold whole
-    /// entries; nothing outside them is read.
     pub fn unpack(
         &self,
         chunks: &[(u64, &[u8])],
@@ -349,7 +329,6 @@ pub(crate) mod tests {
             .unwrap()
     }
 
-    /// A small jar laid out like the client's: classes, then assets, then more classes.
     pub fn sample_jar() -> Vec<u8> {
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
         let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);

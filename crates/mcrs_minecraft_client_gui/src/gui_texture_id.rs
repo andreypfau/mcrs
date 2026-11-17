@@ -1,4 +1,3 @@
-/// A texture of the widgets, resolved to its place in the GUI atlas at load.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GuiTextureId {
     MenuBackground,
@@ -13,7 +12,6 @@ pub enum GuiTextureId {
 }
 
 impl GuiTextureId {
-    /// Every texture, in the order of declaration.
     pub(crate) const ALL: [Self; 9] = [
         Self::MenuBackground,
         Self::InworldMenuBackground,
@@ -26,7 +24,6 @@ impl GuiTextureId {
         Self::TabHeaderBackground,
     ];
 
-    /// The path `p` of the texture `minecraft:p`.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {

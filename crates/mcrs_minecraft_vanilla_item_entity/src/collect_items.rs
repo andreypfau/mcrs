@@ -40,13 +40,9 @@ use crate::max_count::max_count;
 use crate::merge_items::ITEM_SIZE;
 use crate::step_items::Stepped;
 
-/// The item entities that a collector won in this tick: no other collector takes from them.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Claimed(Vec<Entity>);
 
-/// Queues the pickup of each item entity in reach of a collector, in the order of the item
-/// UUIDs, then of the collector UUIDs. The first collector that takes an item wins the item
-/// entity (IEN-PCK-001, IEN-PCK-002, IEN-PCK-007).
 pub(crate) fn collect_items(
     mut commands: Commands,
     stepped: Res<Stepped>,
@@ -96,7 +92,6 @@ pub(crate) fn collect_items(
 struct Offer {
     stack: Entity,
     collector: Entity,
-    /// The bit `n` is set when the place gate of the slot `n` of the collector refuses the stack.
     refused: u64,
 }
 
@@ -106,7 +101,6 @@ fn refuses(refused: u64, index: u16) -> bool {
         .is_some_and(|bits| bits & 1 == 1)
 }
 
-/// The slots of `collector` whose place gate refuses `stack` (INV-INS-003), as a mask.
 fn refused_slots(world: &World, stack: Entity, collector: Entity) -> u64 {
     let Some(policy) = world.get::<SlotPolicy>(collector) else {
         return 0;
@@ -128,8 +122,6 @@ fn refused_slots(world: &World, stack: Entity, collector: Entity) -> u64 {
         })
 }
 
-/// Inserts the items of a dropped stack into the slots of a collector (IEN-PCK-003 to
-/// IEN-PCK-006).
 fn pick_up(
     In(offer): In<Offer>,
     mut commands: Commands,
@@ -238,8 +230,6 @@ fn pick_up(
     });
 }
 
-/// Leaves the `rest` that found no room in the item entity, or destroys it for a creative
-/// collector (IEN-PCK-005, IEN-PCK-006).
 fn keep_or_destroy(
     commands: &mut Commands,
     counts: &mut Query<&mut Count>,

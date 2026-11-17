@@ -56,7 +56,6 @@ import org.joml.Vector3fc;
 import org.joml.Vector4f;
 import org.joml.Vector4fc;
 
-/** Samples the environment attribute arithmetic, the timeline tracks and the clocks of the game. */
 @SuppressWarnings({"unchecked", "rawtypes"})
 public final class EnvironmentOracle {
     private static final String[] TIMELINES = {"day", "moon", "villager_schedule", "early_game"};

@@ -1,7 +1,6 @@
 use glam::IVec3;
 use mcrs_voxel::{BlockPos, SectionPos};
 
-/// An inclusive box in block coordinates.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BoundingBox {
     pub min: BlockPos,
@@ -63,7 +62,6 @@ impl BoundingBox {
         }
     }
 
-    /// Smallest section-aligned box containing this one.
     pub fn section_aligned(self) -> Self {
         Self::of_section(SectionPos::from(self.min))
             .union(Self::of_section(SectionPos::from(self.max)))
@@ -96,7 +94,6 @@ impl BoundingBox {
         self.distance_to(pos) == 0
     }
 
-    /// L1 distance from a point to the nearest cell of the box.
     pub fn distance_to(self, pos: BlockPos) -> i32 {
         let below = (*self.min - *pos).max(IVec3::ZERO);
         let above = (*pos - *self.max).max(IVec3::ZERO);

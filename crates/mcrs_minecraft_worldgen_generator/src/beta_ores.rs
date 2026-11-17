@@ -35,7 +35,6 @@ impl BetaOreBlockIds {
             coal: blocks.default_state_of(Block::CoalOre.id()),
             iron: blocks.default_state_of(Block::IronOre.id()),
             gold: blocks.default_state_of(Block::GoldOre.id()),
-            // REDSTONE_ORE default state carries lit=false, matching Beta placement
             redstone: blocks.default_state_of(Block::RedstoneOre.id()),
             diamond: blocks.default_state_of(Block::DiamondOre.id()),
             lapis: blocks.default_state_of(Block::LapisOre.id()),
@@ -77,8 +76,6 @@ fn place_clay<V: BlockVolumeMut, R: Random>(
     }
 }
 
-/// `WorldGenClay`: a vein of the ore shape that turns sand to clay, started
-/// only from a water block, and drawing nothing when it does not start.
 fn place_clay_vein<V: BlockVolumeMut, R: Random>(
     origin: BlockPos,
     ids: &BetaOreBlockIds,
@@ -100,12 +97,6 @@ fn place_clay_vein<V: BlockVolumeMut, R: Random>(
     );
 }
 
-/// Beta's populate step for one column against the region it runs in, so the
-/// half of a vein that crosses the border survives.
-///
-/// Populate seed formula mirrors ChunkProviderGenerate.getChunkAt lines 317–320.
-/// The pre-ore lake and dungeon draws are skipped; vein positions diverge from the
-/// reference as a result, so distribution (count + Y-range) is the parity target here.
 pub fn apply_beta_ores_in<V: BlockVolumeMut>(
     volume: &mut V,
     chunk_x: i32,
@@ -117,9 +108,6 @@ pub fn apply_beta_ores_in<V: BlockVolumeMut>(
     place_all_ores(volume, chunk_x, chunk_z, &mut rng, ids);
 }
 
-/// Place all nine resource types in Beta order using an externally-supplied RNG
-/// (already seeded with the populate seed). Split from `apply_beta_ores_in` so the
-/// distribution test can drive it with an instrumented RNG to pin the draw count.
 pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
     volume: &mut V,
     chunk_x: i32,
@@ -131,9 +119,6 @@ pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
     let origin_x = chunk_x * 16;
     let origin_z = chunk_z * 16;
 
-    // Beta placement order from ChunkProviderGenerate.getChunkAt lines 344–406,
-    // as (block, count, vein size, Y bound). Clay leads, and is drawn apart from
-    // the rest because it only settles under water.
     place_clay(10, origin_x, origin_z, ids, volume, rng);
 
     for (state, count, size, y_bound) in [
@@ -153,7 +138,6 @@ pub fn place_all_ores<V: BlockVolumeMut, R: Random>(
         place_ore(&config, count, y_bound, origin_x, origin_z, volume, rng);
     }
 
-    // Lapis 1×6, draw order x, then Y = nextInt(16) + nextInt(16), then z (Beta order)
     let lapis_x = origin_x + rng.next_i32_bound(16);
     let lapis_y = rng.next_i32_bound(16) + rng.next_i32_bound(16);
     let lapis_z = origin_z + rng.next_i32_bound(16);

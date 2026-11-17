@@ -1,15 +1,7 @@
-//! Relative positions of the move packets ([`VecDelta`](crate::clientbound::VecDelta)): each
-//! axis in steps of 1/4096 block from a base (TRK-WIRE-001). The server encodes and the client
-//! decodes with the same rounding, so the two ends agree on every position.
-
 use glam::DVec3;
 
-/// The steps of one block in a relative move.
 pub const STEPS_PER_BLOCK: f64 = 4096.0;
 
-/// The steps from `from` to `to` on each axis, or `None` when an axis moves more than an `i16`
-/// holds. Both ends round to the step grid, as [`decode`] does, so the rounding of one delta
-/// never carries into the next.
 #[must_use]
 pub fn encode(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
     let axis = |from: f64, to: f64| {
@@ -23,8 +15,6 @@ pub fn encode(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
     ])
 }
 
-/// The position that `delta` gives from `base`. An axis with a delta of 0 keeps the axis of
-/// `base` exactly.
 #[must_use]
 pub fn decode(base: DVec3, delta: [i16; 3]) -> DVec3 {
     let axis = |base: f64, delta: i16| {
@@ -41,8 +31,6 @@ pub fn decode(base: DVec3, delta: [i16; 3]) -> DVec3 {
     )
 }
 
-/// The step of the grid nearest to `coordinate`. Halfway rounds up, also below zero: `round`
-/// would take -2.5 to -3.
 fn grid(coordinate: f64) -> f64 {
     (coordinate * STEPS_PER_BLOCK + 0.5).floor()
 }

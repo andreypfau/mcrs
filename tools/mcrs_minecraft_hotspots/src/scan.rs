@@ -11,12 +11,10 @@ use serde::Deserialize;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Part {
     RandomTick,
-    /// Ticks randomly, but grows in natural terrain too, so it does not mark a farm.
     Terrain,
     Redstone,
 }
 
-/// A name that starts with `_` matches every block that ends with it.
 pub const TRACKED: &[(&str, Part)] = &[
     ("wheat", Part::RandomTick),
     ("carrots", Part::RandomTick),
@@ -80,7 +78,6 @@ pub struct ChunkLoad {
     pub block_entities: BTreeMap<String, u32>,
     pub block_ticks: BTreeMap<String, u32>,
     pub fluid_ticks: u32,
-    /// The count of each block of `TRACKED`, after the count of all other blocks.
     pub tracked: Vec<u32>,
 }
 
@@ -112,7 +109,6 @@ impl ChunkLoad {
     }
 }
 
-/// Maps a tracked block to its row of `TRACKED` plus one, and every other block to 0.
 struct Tracked;
 
 impl PaletteLookup<VoxelId> for Tracked {
@@ -167,7 +163,6 @@ fn count_entity(entity: &SavedEntity, into: &mut BTreeMap<String, u32>) {
     }
 }
 
-/// The decompressed record of each present slot of the region files in `dir`.
 fn records(dir: &Path) -> impl Iterator<Item = (ColumnPos, Option<Vec<u8>>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
         .into_iter()
@@ -187,7 +182,6 @@ fn records(dir: &Path) -> impl Iterator<Item = (ColumnPos, Option<Vec<u8>>)> {
         })
 }
 
-/// The load of every saved column of the dimension at `dir`.
 pub fn scan(dir: &Path) -> HashMap<ColumnPos, ChunkLoad> {
     let mut chunks: HashMap<ColumnPos, ChunkLoad> = HashMap::new();
     let mut failed = 0;

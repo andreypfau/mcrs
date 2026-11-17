@@ -70,7 +70,6 @@ impl NbtCompound {
         Ok(())
     }
 
-    /// [`NbtTag::matches`] for a compound: `actual` can have more keys.
     pub fn matches(&self, actual: &NbtCompound) -> bool {
         self.child_tags.iter().all(|(key, expected)| {
             actual
@@ -79,8 +78,6 @@ impl NbtCompound {
         })
     }
 
-    /// Merges `source` into this compound: two compound values merge, any other value of
-    /// `source` replaces the value here by a copy. The other keys stay.
     pub fn merge(&mut self, source: &NbtCompound) {
         let mut pending: Vec<(&mut NbtCompound, &NbtCompound)> = vec![(self, source)];
         while let Some((target, source)) = pending.pop() {
@@ -236,7 +233,6 @@ impl Extend<(String, NbtTag)> for NbtCompound {
     }
 }
 
-// Rust's AsRef is currently not reflexive so we need to implement it manually
 impl AsRef<NbtCompound> for NbtCompound {
     fn as_ref(&self) -> &NbtCompound {
         self

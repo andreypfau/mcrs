@@ -1,5 +1,3 @@
-/// A key that the widgets of a screen use (WID-FOC-003). The screen handles Escape before its
-/// widgets.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GuiKey {
@@ -15,7 +13,6 @@ pub enum GuiKey {
     Delete,
     Home,
     End,
-    /// A digit key of the top row or of the keypad, from 0 to 9.
     Digit(u8),
 }
 

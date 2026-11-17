@@ -18,16 +18,12 @@ use crate::render_world::{
 };
 use crate::slot_upload::SlotArena;
 
-/// The systems that keep the slot of each client entity, in `PostUpdate`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntitySlotSystems;
 
-/// The compute passes of the figure view, in `Core3d` after the entity passes of the world view.
-/// A host pass that draws the figure with [`crate::FigureDraw`] runs after this set.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FigureViewSystems;
 
-/// Whether this device runs the entity passes, in the main world and the render world alike.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct EntityPasses(bool);
 
@@ -36,16 +32,10 @@ impl EntityPasses {
     pub(crate) const ON: Self = Self(true);
 }
 
-/// A run condition: the device runs the entity passes.
 pub fn entity_passes(passes: Option<Res<EntityPasses>>) -> bool {
     passes.is_some_and(|passes| passes.0)
 }
 
-/// Draws the client entities of the types that [`crate::EntityAssets`] holds with the entity
-/// passes. The embedder inserts [`crate::EntityAssets`] when its pack and registries are ready,
-/// and adds the terrain renderer, whose gbuffer and depth pyramid the passes use.
-// chisle: the passes need compute and storage buffers in the vertex stage, so on WebGL2 and in
-// WebGPU compatibility mode the plugin draws nothing; `docs/entity-render.md`, section 6, lifts it.
 pub struct EntityRenderPlugin;
 
 impl Plugin for EntityRenderPlugin {

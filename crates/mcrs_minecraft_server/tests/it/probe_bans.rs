@@ -23,7 +23,6 @@ const PROBE: &str = concat!(
     "/../../tools/mcrs_minecraft_probe"
 );
 
-// The embedded server answers on loopback in a few ticks; the recorded trace keeps 1 s.
 const QUIET: Duration = Duration::from_millis(250);
 
 struct EmbeddedHost {

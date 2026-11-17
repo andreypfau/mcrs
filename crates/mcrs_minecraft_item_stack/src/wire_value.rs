@@ -50,13 +50,10 @@ const DISPLAY_OVERRIDE: i32 = 2;
 
 const BLOCK_TAG: i32 = 0;
 
-/// Appends `value` as a VarInt.
 pub(crate) fn put_var_int(output: &mut Vec<u8>, value: i32) {
-    // A write into a `Vec` does not fail.
     let _ = VarInt(value).encode(output);
 }
 
-/// Reads a VarInt and gives a decode error to `error`.
 pub(crate) fn read_var_int(
     input: &mut &[u8],
     error: impl FnOnce(&mcrs_minecraft_wire::Error) -> WireError,
@@ -74,7 +71,6 @@ pub(crate) fn put_length(output: &mut Vec<u8>, length: usize) -> Result<(), Wire
     Ok(())
 }
 
-/// Reads the wire form of one component.
 pub(crate) fn read_value<L: NameLookup>(
     component: BuiltinKey,
     input: &mut &[u8],
@@ -286,7 +282,6 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 }
 
-/// Appends the wire form of one component.
 pub(crate) fn write_value<L: NameLookup>(
     value: &Builtin,
     names: &L,

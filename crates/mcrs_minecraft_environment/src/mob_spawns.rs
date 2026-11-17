@@ -7,11 +7,6 @@ use mcrs_minecraft_value_provider::IntProvider;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
-/// The `minecraft:gameplay/natural_mob_spawns` attribute argument.
-///
-/// A category absent from `spawns_by_category` is undefined and falls through
-/// to the layer below; a category present but empty suppresses it, which is how
-/// `deep_dark` and `the_void` silence the dimension's spawns.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct MobSpawnSettings {
     pub spawn_costs: BTreeMap<ResourceLocationBuf, SpawnCost>,
@@ -66,8 +61,6 @@ impl<'de> Deserialize<'de> for MobSpawnSettings {
 }
 
 impl MobSpawnSettings {
-    /// Every category defined and empty, which silences the spawns of the
-    /// layers below instead of falling through to them.
     pub fn no_spawns() -> Self {
         MobSpawnSettings {
             spawn_costs: BTreeMap::new(),

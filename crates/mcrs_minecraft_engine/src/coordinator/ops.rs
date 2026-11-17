@@ -23,7 +23,6 @@ pub struct OpListEntry {
 }
 
 impl OpListEntry {
-    /// An operator at the top level, which the `op` command and a loopback join give.
     pub fn owner(uuid: Uuid, name: String) -> Self {
         Self {
             uuid,
@@ -39,8 +38,6 @@ fn clamped_level<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Er
     Ok(level.clamp(0, PlayerOpLevel::MAX as i32) as u8)
 }
 
-/// The operators. The operators of a loopback join stay out of the file, so they end with the
-/// process; until then a later join from any address finds them.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct OpList {
     entries: Arc<FxHashMap<Uuid, OpListEntry>>,
@@ -65,15 +62,12 @@ pub enum OpListError {
     },
 }
 
-/// A change to the operators. The host owns the list, applies the change, writes the file and
-/// tells every dimension.
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
 pub enum EditOps {
     Add(OpListEntry),
     Remove(Uuid),
 }
 
-/// The host side of the operators: it applies the edits that the dimensions send.
 pub struct OpListHostPlugin;
 
 impl Plugin for OpListHostPlugin {
@@ -102,7 +96,6 @@ impl OpList {
         }
     }
 
-    /// The operators of the file at `path`, which each later edit writes back.
     pub fn read(path: &Path) -> Result<Self, OpListError> {
         Ok(Self {
             path: Some(Arc::from(path)),
@@ -110,7 +103,6 @@ impl OpList {
         })
     }
 
-    /// The entries of the ops file at `path`; none when the file does not exist.
     pub fn read_entries(path: &Path) -> Result<Vec<OpListEntry>, OpListError> {
         let bytes = match std::fs::read(path) {
             Ok(bytes) => bytes,
@@ -132,7 +124,6 @@ impl OpList {
         self.entries.get(uuid)
     }
 
-    /// The operator with `name`, in any case.
     pub fn find_by_name(&self, name: &str) -> Option<&OpListEntry> {
         self.entries
             .values()
@@ -144,8 +135,6 @@ impl OpList {
             .map_or(default.0, |entry| PlayerOpLevel(entry.level))
     }
 
-    /// Returns whether the operators changed. An add of an operator that is listed changes
-    /// nothing.
     pub fn apply(&mut self, edit: &EditOps) -> bool {
         match edit {
             EditOps::Add(entry) => self.add(entry.clone()),
@@ -157,8 +146,6 @@ impl OpList {
         }
     }
 
-    /// Makes `entry` an operator for the life of the process, unless it is one. The file does
-    /// not hold it.
     pub fn grant_loopback(&mut self, entry: OpListEntry) -> bool {
         let id = entry.uuid;
         if !self.add(entry) {

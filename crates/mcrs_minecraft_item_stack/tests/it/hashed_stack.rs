@@ -36,7 +36,6 @@ const UNBREAKABLE_TYPE: ComponentType = ComponentType(4);
 const CUSTOM_NAME_TYPE: ComponentType = ComponentType(6);
 const REPAIR_COST_TYPE: ComponentType = ComponentType(19);
 
-/// The ids of the goldens. Each name is in the namespace `minecraft`.
 struct Names;
 
 impl Names {
@@ -82,7 +81,6 @@ fn hashed(stack: Option<&ItemStack>) -> Option<HashedStack> {
     hash_stack(stack, &Names, &mut HashScratch::default()).expect("the test stack has a hash")
 }
 
-/// One component that the game saved and hashed.
 struct Recorded {
     case: String,
     kind: String,
@@ -130,7 +128,6 @@ fn plain_cases() -> Vec<Recorded> {
         .collect()
 }
 
-/// Lines `<case> wire = <hex>` and `<case> hash = <number>`.
 fn record_cases() -> Vec<Recorded> {
     const CASES: [(&str, &str); 5] = [
         ("tooltip_default", "tooltip_display"),
@@ -159,7 +156,6 @@ fn record_cases() -> Vec<Recorded> {
         .collect()
 }
 
-/// Blocks `sample minecraft:<kind> <input>` with indented lines `wire <hex>` and `hash <number>`.
 fn registry_ref_cases() -> Vec<Recorded> {
     const KINDS: [&str; 3] = ["enchantments", "attribute_modifiers", "tool"];
     let golden = fixture("item_registry_refs").text();
@@ -197,7 +193,6 @@ fn component_type(kind: &str) -> ComponentType {
     ComponentType(u16::try_from(id).expect("the type id fits"))
 }
 
-/// A stack of stone with the one component, read from the wire form with length prefix.
 fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let value = unhex(wire);
     let length = u8::try_from(value.len()).expect("the golden values are short");
@@ -256,8 +251,6 @@ fn a_component_has_the_hash_that_the_game_recorded() {
     assert!(compared.len() >= 35, "the goldens lost cases: {compared:?}");
 }
 
-/// The fields of `container_click` before each hashed stack: the window, the state, the slot,
-/// the button, the mode and the number of changed slots, then the slot of each changed slot.
 #[test]
 fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     let golden = fixture("inventory_packets").text();

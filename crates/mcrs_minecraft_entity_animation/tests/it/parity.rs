@@ -1,6 +1,3 @@
-//! Compares the pose of the pig and the frog with each case of the pose artefact, within the
-//! pose tolerance: 1e-3 radian, 1e-3 model unit and 1e-4 of scale.
-
 use glam::Vec3;
 use mcrs_minecraft_entity_animation::{
     EntityAnimation, EntityQuery, Pose, PoseBinding, QuerySource, Rig,
@@ -16,7 +13,6 @@ const ROTATION_TOLERANCE: f64 = 1e-3;
 const POSITION_TOLERANCE: f64 = 1e-3;
 const SCALE_TOLERANCE: f64 = 1e-4;
 
-/// The clips whose start tick the case gives, with the value of `query.pose` while they play.
 const STARTED_CLIPS: [(&str, Option<&str>); 4] = [
     ("jump", Some("long_jumping")),
     ("croak", Some("croaking")),
@@ -24,7 +20,6 @@ const STARTED_CLIPS: [(&str, Option<&str>); 4] = [
     ("idle_water", None),
 ];
 
-/// The walk clips of the frog and the factor of their `anim_time_update`.
 const WALK_CLIPS: [(&str, f32); 2] = [("walk", 0.075), ("swim", 0.05)];
 
 struct CaseQueries<'a> {
@@ -63,8 +58,6 @@ impl QuerySource for CaseQueries<'_> {
     }
 }
 
-/// A time truncated to a whole millisecond. The guard keeps a decimal time that binary cannot
-/// hold, such as 0.85 s, at its own millisecond.
 fn whole_milliseconds(seconds: f64) -> f32 {
     ((seconds * 1000.0 + 1e-6).floor() / 1000.0) as f32
 }
@@ -117,7 +110,6 @@ fn geometry_of(case: &PoseCase) -> &'static str {
     }
 }
 
-/// Sets the weight and the time of the clips that the case starts, as the pose artefact states.
 fn set_case_clips(rig: &Rig, entity: &mut EntityAnimation, inputs: &Inputs) {
     for (clip, _) in STARTED_CLIPS {
         let Some(entry) = rig.entry(clip) else {

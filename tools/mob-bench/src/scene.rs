@@ -1,27 +1,19 @@
-//! The scene as console lines: the settings, the forceloaded areas, the pen and the pigs.
-
 use glam::DVec3;
 
 use crate::adapter::PlayerMode;
 
-/// The block the pigs stand in on vanilla's default superflat (grass block at y = -61).
 pub const FLOOR_Y: i32 = -60;
-/// Vanilla's `forceload add` refuses an area of more than 256 chunks.
 const FORCELOAD_SIDE_CHUNKS: i32 = 16;
-/// Forceloaded beyond each area so that a pig at its edge still ticks.
 const FORCELOAD_MARGIN: i32 = 16;
 pub const SAMPLE_PREFIX: &str = "mbs";
 pub const WATCHER_NAME: &str = "mobbench";
 
-/// Whether the pigs of a population run their AI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ai {
     On,
-    /// `NoAI:1b`: no AI step, so no stroll and no change of the idle time.
     Off,
 }
 
-/// A square of blocks `min_x..min_x + size`, `min_z..min_z + size`.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 pub struct Area {
     pub min_x: i32,
@@ -40,24 +32,20 @@ impl Area {
     }
 }
 
-/// The fenced pen: 250 × 250 blocks, so 50,000 pigs stand at 0.8 a block.
 pub const PEN: Area = Area {
     min_x: -125,
     min_z: -125,
     size: 250,
 };
 
-/// The open area of the free roam phase: 640 × 640 blocks, 0.12 pigs a block at 50,000.
 pub const ROAM: Area = Area {
     min_x: 380,
     min_z: -320,
     size: 640,
 };
 
-/// Where the watcher hovers in the crowd phases: outside the west fence, at the pen's middle.
 pub const PEN_WATCH: DVec3 = DVec3::new(-130.5, -58.0, 0.5);
 
-/// The game rules and world settings, equal on every server.
 #[must_use]
 pub fn settings() -> Vec<String> {
     [
@@ -76,7 +64,6 @@ pub fn settings() -> Vec<String> {
     .to_vec()
 }
 
-/// `forceload add` lines that cover `area` and its margin, at most 256 chunks a line.
 #[must_use]
 pub fn forceload(area: Area) -> Vec<String> {
     let low = |min: i32| (min - FORCELOAD_MARGIN).div_euclid(16);
@@ -102,7 +89,6 @@ pub fn forceload(area: Area) -> Vec<String> {
     lines
 }
 
-/// Four `fill` lines: a ring of oak fence one block outside `area`.
 #[must_use]
 pub fn fence(area: Area) -> Vec<String> {
     let (low_x, low_z) = (area.min_x - 1, area.min_z - 1);
@@ -118,16 +104,9 @@ pub fn fence(area: Area) -> Vec<String> {
     .to_vec()
 }
 
-/// The first int of every pig's UUID (`mbs` in ASCII); the second is the generation of the
-/// population, the last the pig's index. Vanilla refuses a UUID of a pig killed earlier in the run
-/// (`Unable to summon entity due to duplicate UUIDs`), so each population gets new ones.
 const UUID_HIGH: u32 = 0x006d_6273;
-/// Steps through the pig indices so that one round of panic hits reaches pigs all over the area;
-/// coprime with
-/// any pig count that is not a multiple of 7919.
 const STIR_STEP: usize = 7919;
 
-/// The UUID of pig `index` of population `generation`, as the console writes it.
 #[must_use]
 pub fn pig_uuid(generation: u32, index: usize) -> String {
     format!(
@@ -138,7 +117,6 @@ pub fn pig_uuid(generation: u32, index: usize) -> String {
     )
 }
 
-/// The pig index of named sample `sample`.
 #[must_use]
 pub fn sample_index(count: usize, samples: usize, sample: usize) -> usize {
     let stride = count
@@ -147,12 +125,6 @@ pub fn sample_index(count: usize, samples: usize, sample: usize) -> usize {
     sample * stride + stride / 2
 }
 
-/// One `summon` line a pig, on an even grid over `area`. Each pig gets a UUID from its index, so
-/// the console can address it without an entity selector: a selector scans every entity, which
-/// takes Horizon about 5 s at 50,000 pigs. The named samples also get the custom name `mbs<i>`,
-/// so that `data get` answers name the pig they describe. A compound with a key skips the first
-/// spawn setup, so every pig is an adult of the default variant (TRK-SUM-003); neither key changes
-/// the idle time (GOAL-STR-004).
 #[must_use]
 pub fn summons(area: Area, generation: u32, count: usize, samples: usize, ai: Ai) -> Vec<String> {
     let side = (count as f64).sqrt().ceil().max(1.0) as usize;
@@ -187,10 +159,6 @@ pub const KILL_PIGS: &str = "kill @e[type=minecraft:pig]";
 pub const COUNT_PIGS: &str = "execute if entity @e[type=minecraft:pig]";
 pub const COUNT_SPECTATORS: &str = "execute if entity @a[gamemode=spectator]";
 
-/// Panic round `round`: one line a pig for `hit` of the `count` pigs, 0 damage of type `cactus`
-/// each. `cactus` is in `panic_causes`, so each hit pig panics, with no health loss and no
-/// knockback. Panic does not spread; the neighbours move only when the panicking pigs push them.
-/// Each round hits the next `hit` pigs of a fixed spread-out order.
 #[must_use]
 pub fn panic_hits(generation: u32, round: usize, hit: usize, count: usize) -> Vec<String> {
     (0..hit.min(count))
@@ -240,8 +208,6 @@ mod tests {
             assert!(area <= 256, "{line} names {area} chunks");
             chunks += area;
         }
-        // x: 364 in chunk 22 to 1035 in chunk 64, 43 chunks; z: -336 in chunk -21 to 335 in
-        // chunk 20, 42 chunks.
         assert_eq!(chunks, 43 * 42);
     }
 
@@ -277,7 +243,6 @@ mod tests {
             assert!((-125.0..125.0).contains(&parts[0]), "{line}");
             assert!((-125.0..125.0).contains(&parts[2]), "{line}");
         }
-        // [I;7168627,2,0,1234]: the ints in order are the 32-bit groups of the hex form.
         assert_eq!(pig_uuid(2, 1234), "006d6273-0000-0002-0000-0000000004d2");
     }
 }

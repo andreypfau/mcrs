@@ -56,7 +56,6 @@ const STANDING_EYE_HEIGHT: f64 = 1.62;
 const BREAK_EVENT: i32 = 2001;
 const EXTINGUISH_EVENT: i32 = 1009;
 const HIGHEST_STAYING_LEVEL: i32 = 8;
-// 255 on the wire: the byte reads as -1 in this signed field.
 pub(crate) const DESTRUCTION_NONE: i8 = -1;
 
 #[derive(Message)]
@@ -68,7 +67,6 @@ pub struct BlockActionRequest {
     pub sequence: VarInt,
 }
 
-/// The systems that break blocks for the block actions of the tick, after the moves of the tick.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BlockBreakSet;
 
@@ -140,9 +138,6 @@ fn send_acks(
     );
 }
 
-/// The reach limit of BRK-RCH-001: the value of `block_interaction_range` plus 1. A player
-/// without [`AttributeInstances`] has the base of the type `player`; `None` when that base is
-/// missing.
 #[must_use]
 pub fn reach(attributes: Option<&AttributeInstances>) -> Option<f64> {
     let range = match attributes {
@@ -167,8 +162,6 @@ pub fn eye_position(player: DVec3) -> DVec3 {
     player + DVec3::new(0.0, STANDING_EYE_HEIGHT, 0.0)
 }
 
-/// An event at `pos` for the clients that hold its column, but `except`. The muxer picks them,
-/// because the players of the other cells of the world are not in this one.
 pub(crate) fn observed(
     pos: BlockPos,
     payload: PacketPayload,
@@ -181,7 +174,6 @@ pub(crate) fn observed(
     }
 }
 
-/// The crack of `breaker` at `pos`, for the other clients.
 pub(crate) fn destruction(breaker: PlayerSession, pos: BlockPos, progress: i8) -> ColumnChange {
     observed(
         pos,
@@ -194,7 +186,6 @@ pub(crate) fn destruction(breaker: PlayerSession, pos: BlockPos, progress: i8) -
     )
 }
 
-/// An abort at `pos` removes the crack there, and first the crack of a dig at another position.
 fn remove_cracks(
     changes: &mut MessageWriter<ColumnChange>,
     breaker: PlayerSession,
@@ -295,8 +286,6 @@ pub(crate) struct Hit {
     pub(crate) dimension: Entity,
 }
 
-/// Writes the break of `hit` and of its other part: the events, and the requests for the new
-/// states. Returns each position that changes with its new state.
 pub(crate) fn break_block(
     definitions: &BlockDefinitions,
     block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
@@ -325,8 +314,6 @@ pub(crate) fn break_block(
 
     if let Some((other, other_state)) = paired_part(block_at, definitions, hit.state, hit.pos) {
         events.push((other.pos, other_state));
-        // The part that is not the main part goes first: the removal of the main part for
-        // support (SUP-VEG-002) then drops what the table of the main part gives.
         let at = usize::from(!other.hit_is_main);
         changed.insert(at, (other.pos, other_state));
         if other.hit_is_main {
@@ -355,9 +342,6 @@ pub(crate) fn break_block(
     new_states
 }
 
-/// The drops of a survival break of `hit` that changed `new_states`. The hit part drops when the
-/// empty main hand harvests it (BRK-LOOT-001); the other part of a block of two parts is a
-/// removal, which drops either way (LOOT-SRC-006).
 pub(crate) fn harvest(
     definitions: &BlockDefinitions,
     hit: &Hit,
@@ -380,9 +364,6 @@ pub(crate) fn harvest(
     })
 }
 
-/// Handles the block actions of the tick: a creative start breaks its block, and a survival
-/// action starts, changes or ends the dig of its player. A block in a column of another cell
-/// changes one tick later, when its owner applies the write.
 #[expect(
     clippy::too_many_lines,
     reason = "the checks of one request run in the order that the specification states"
@@ -435,7 +416,6 @@ fn break_blocks(
         let Some(view) = world.get(dimension.0) else {
             continue;
         };
-        // A block that an earlier request of the tick broke reads as its new state.
         let block_at = |pos: BlockPos| match broken.get(&pos) {
             Some(&state) => Ok(state),
             None => view.block(pos),

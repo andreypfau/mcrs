@@ -14,7 +14,6 @@ use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::read_world_gen_settings;
 use tracing::{error, info};
 
-/// The dimension list the server plugin was given, which replaces the save's and the preset's.
 #[derive(Resource, Clone)]
 pub(crate) struct PluginDimensions(pub Dimensions);
 

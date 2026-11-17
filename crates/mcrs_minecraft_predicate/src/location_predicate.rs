@@ -15,8 +15,6 @@ use crate::id_bits::{id_bits, members};
 use crate::light_predicate::LightPredicate;
 use crate::predicate_issue::PredicateIssue;
 
-/// A test of a position of the dimension, as a data pack writes it (`M = Named`) or with its
-/// references resolved (`M = Resolved`).
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub struct LocationPredicate<M: Refs = Resolved> {
     position: PositionBounds,
@@ -80,8 +78,6 @@ impl<'de> Deserialize<'de> for LocationPredicate<Named> {
 }
 
 impl LocationPredicate {
-    /// The matching form: each entry set expanded to ids and the block predicate to block states.
-    /// A dimension key that the registry does not have never matches.
     pub fn bake(
         &self,
         registries: &Registries,

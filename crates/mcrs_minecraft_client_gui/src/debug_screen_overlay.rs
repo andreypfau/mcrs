@@ -7,9 +7,6 @@ use crate::debug_screen::DebugOverlay;
 const MARGIN: f32 = 2.0;
 const BACKGROUND: Color = Color::srgba(0.314, 0.314, 0.314, 0.565);
 const TEXT: Color = Color::srgb(0.878, 0.878, 0.878);
-/// The vanilla font is a 9-pixel bitmap this client cannot draw yet, so the
-/// columns are laid out as two text blocks in Bevy's default font instead of a
-/// per-line fill behind a per-line string.
 const FONT_SIZE: f32 = 16.0;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
@@ -50,8 +47,6 @@ pub fn spawn(mut commands: Commands) {
     }
 }
 
-/// F3 is both the overlay key and the debug modifier, so the overlay toggles
-/// on release, and only when no F3 combination fired while it was held.
 #[derive(Resource, Default)]
 pub struct DebugModifier {
     pub used: bool,

@@ -8,15 +8,10 @@ use crate::attribute_keys::Attribute;
 use crate::saved_modifier::SavedModifier;
 use crate::tolerant::{Lenient, Tolerant};
 
-/// An attribute compound of the save (`persistence.md`): the attribute, its stored base value
-/// and its permanent modifiers in the order of the sequence (ATR-SAV-001).
 #[derive(Clone, Debug, Serialize)]
 pub struct SavedAttribute {
-    /// The attribute; a load leaves out a compound whose `id` names none (ATR-SAV-002).
     pub id: Attribute,
-    /// The stored base value; a load reads a missing or bad `base` as 0.
     pub base: f64,
-    /// The permanent modifiers; the save leaves the field out when there is none.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub modifiers: Vec<SavedModifier>,
 }

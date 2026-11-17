@@ -1,7 +1,3 @@
-//! The moving entities that are not living, such as items, falling blocks, primed TNT and
-//! experience orbs, as Bevy components: one parallel pass steps each of them with the physics
-//! kernel over any block source and lists the entities that moved.
-
 mod motion_hold;
 mod motion_kind;
 mod motion_pass_plugin;

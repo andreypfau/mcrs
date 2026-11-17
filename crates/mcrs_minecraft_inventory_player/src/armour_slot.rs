@@ -1,5 +1,3 @@
-/// An armour slot of the player inventory, named as the `slot` of the `minecraft:equippable`
-/// component names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ArmourSlot {
     Feet,
@@ -9,7 +7,6 @@ pub enum ArmourSlot {
 }
 
 impl ArmourSlot {
-    /// The index of this slot in the player inventory.
     #[must_use]
     pub const fn index(self) -> u16 {
         match self {
@@ -20,7 +17,6 @@ impl ArmourSlot {
         }
     }
 
-    /// The armour slot at `index` of the player inventory.
     #[must_use]
     pub const fn from_index(index: u16) -> Option<Self> {
         match index {

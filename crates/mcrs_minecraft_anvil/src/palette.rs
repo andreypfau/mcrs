@@ -11,9 +11,6 @@ fn slice(text: &str, span: Span) -> &str {
     &text[span.0 as usize..(span.0 + span.1) as usize]
 }
 
-/// One text buffer and one span per entry, rather than an owned `String` per
-/// name and a map per property set. A region holds roughly three quarters of a
-/// million palette entries, so the difference is allocator traffic, not bytes.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockStateList {
     text: String,
@@ -32,7 +29,6 @@ impl BlockStateList {
         self.entries.len()
     }
 
-    /// The name and properties of entry `index`.
     pub fn get(&self, index: usize) -> Option<(&str, Properties<'_>)> {
         let entry = self.entries.get(index)?;
         let start = entry.props.0 as usize;
@@ -69,9 +65,6 @@ impl BlockStateList {
     }
 }
 
-/// Vanilla resolves a state by asking the block for each property it declares,
-/// so lookup is by key and the stored order never matters. Entries are few, so
-/// a scan beats anything with a hash.
 #[derive(Debug, Clone, Copy)]
 pub struct Properties<'a> {
     text: &'a str,
@@ -101,9 +94,6 @@ impl<'a> Properties<'a> {
     }
 }
 
-/// Turns a palette entry into a registry id while the decoder still holds the
-/// name as borrowed text. Implemented by whoever owns the registry; this crate
-/// never sees one.
 pub trait PaletteLookup<V> {
     fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<V>;
 }
@@ -114,8 +104,6 @@ impl<'de> Deserialize<'de> for BlockStateList {
     }
 }
 
-/// An entry without properties is a bare name, which is how vanilla writes a
-/// block's default state and every biome; any other is `{ id, properties }`.
 impl Serialize for BlockStateList {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut seq = serializer.serialize_seq(Some(self.len()))?;
@@ -202,7 +190,6 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
         f.write_str("a block state or a biome name")
     }
 
-    /// A biome palette is a list of bare names.
     fn visit_str<E: Error>(self, value: &str) -> Result<(), E> {
         let name = self.palette.push_str(value);
         let props = (self.palette.props.len() as u32, 0);
@@ -265,8 +252,6 @@ impl Visitor<'_> for FieldVisitor {
     }
 }
 
-/// Appends one string to the arena and answers where it landed, so the value
-/// never becomes an owned `String` on the way.
 struct TextSeed<'p> {
     text: &'p mut String,
 }

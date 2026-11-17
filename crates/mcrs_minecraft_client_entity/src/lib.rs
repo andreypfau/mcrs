@@ -1,7 +1,3 @@
-//! The packet side of the client entities that the server adds: the packets that add, move and
-//! change an entity, and the network id of each entity.
-// std: bevy_ecs
-
 mod add_entity_data;
 mod apply_entity_data;
 mod client_tables;

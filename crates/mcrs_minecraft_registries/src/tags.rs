@@ -105,7 +105,6 @@ impl<R> Tags<R> {
         }
     }
 
-    /// An absent tag is `None`, and code that names it treats it as empty.
     pub fn id<'k>(&self, key: impl Into<TagKey<'k, R>>) -> Option<TagId<R>> {
         self.table.id(key.into().location())
     }

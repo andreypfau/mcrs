@@ -1,6 +1,3 @@
-//! Writes the geometry files of the mobs from the model artefact, and checks that the files in
-//! the repository are current.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -69,25 +66,20 @@ const PLAYER: [Source; 2] = [
     },
 ];
 
-/// A bone with no box that the player model adds to the bones of the artefact.
 struct AddedBone {
     name: &'static str,
     parent: Option<&'static str>,
     pivot: [f64; 3],
 }
 
-/// The parent that a root bone of the artefact gets.
 struct Reparent {
     bone: &'static str,
     parent: &'static str,
 }
 
-/// The bones and the parents of a player model that the artefact does not give.
 struct Skeleton {
-    /// Placed before the bones of the artefact.
     frame: [AddedBone; 2],
     reparents: [Reparent; 6],
-    /// Placed after the bones of the artefact.
     attachments: [AddedBone; 4],
 }
 
@@ -208,7 +200,6 @@ fn geometry_file(artefact: &ModelArtefact, sources: &[Source]) -> String {
     })
 }
 
-/// Each generated file, keyed by its path below `assets/`.
 fn generate() -> BTreeMap<PathBuf, String> {
     let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     let directory = Path::new(GEOMETRY_DIRECTORY);
@@ -226,8 +217,6 @@ fn assets() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
 }
 
-/// The geometry files directly in the geometry directory; the subdirectories have other
-/// generators.
 fn checked_in() -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(assets().join(GEOMETRY_DIRECTORY)) else {
         return Vec::new();

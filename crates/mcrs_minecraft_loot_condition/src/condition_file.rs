@@ -18,8 +18,6 @@ use crate::one_or_many::OneOrMany;
 use crate::range_file::RangeFile;
 use crate::scores_file::ScoresFile;
 
-/// A loot condition as a data pack writes it: the key of a registered predicate, or an inline
-/// object.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(transparent)]
 pub struct ConditionFile(pub(crate) ConditionForm);
@@ -37,7 +35,6 @@ impl mcrs_minecraft_resource::RegistryValue for ConditionFile {
 
 mcrs_minecraft_registries::resolve_as_is!(ConditionFile);
 
-/// The terms of `any_of` and `all_of` (REG-FLD-701): a `#` tag of predicates, or conditions.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum Terms {
@@ -59,8 +56,6 @@ impl TryFrom<String> for PredicateTag {
     }
 }
 
-/// The inline condition types of REG-FLD-702 to REG-FLD-719. An unknown type fails the decode;
-/// a field that a type does not name is ignored (REG-ENTRY-003).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
 pub(crate) enum TypedCondition {

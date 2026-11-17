@@ -28,7 +28,6 @@ pub(crate) fn add_observers(app: &mut bevy_app::App) {
         .add_observer(on_set_entity_motion);
 }
 
-/// Applies a relative move to the entity `network_id`.
 fn relative_move(
     network_id: i32,
     motion_delta: Option<&VecDelta>,
@@ -140,7 +139,6 @@ fn on_position_sync(
         pitch: packet.look.pitch,
     };
     let current = moved.current().position;
-    // A frozen entity stays in the ticking area: a capture shows a frozen pig that keeps its path.
     if !in_ticking_area(columns.as_deref(), current) || snaps(current, end) {
         moved.snap(Placement::new(end, rotation.yaw, rotation.pitch), end);
     } else {

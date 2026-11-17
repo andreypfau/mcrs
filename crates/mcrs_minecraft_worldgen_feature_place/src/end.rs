@@ -84,7 +84,6 @@ pub struct CompiledEndPodium {
     pub bedrock: VoxelId,
     pub end_stone: VoxelId,
     pub end_portal: VoxelId,
-    /// The four wall torch states, in `Direction::HORIZONTAL` order.
     pub wall_torch: [VoxelId; 4],
 }
 
@@ -135,8 +134,6 @@ pub fn place_end_podium<W: WorldGenVolume>(
     true
 }
 
-/// `dropPreviousAndSetBlock` when `replacing`, which skips a cell that already
-/// holds the block; the drop itself is a level effect worldgen never sees.
 fn set_replacing<W: WorldGenVolume>(
     replacing: bool,
     volume: &mut W,
@@ -229,18 +226,12 @@ pub struct CompiledEndSpikes {
     pub obsidian: VoxelId,
     pub bedrock: VoxelId,
     pub fire: VoxelId,
-    /// Iron bars indexed by `north << 3 | south << 2 | west << 1 | east`.
     pub iron_bars: [VoxelId; 16],
 }
 
 const NUMBER_OF_SPIKES: i32 = 10;
 const SPIKE_DISTANCE: f64 = 42.0;
 
-/// The ring the End generates when the feature carries no explicit list: ten
-/// sizes shuffled from the world seed, laid on a circle of radius 42.
-///
-/// The shuffle is keyed by `nextLong() & 65535` of a legacy source over the
-/// world seed, so only 65536 rings exist however many seeds there are.
 pub fn seed_spikes(world_seed: i64) -> Vec<EndSpike> {
     let key = LegacyRandom::new(world_seed as u64).next_java_long() & 65535;
     let mut rng = LegacyRandom::new(key as u64);
@@ -332,15 +323,11 @@ fn place_spike<W: WorldGenVolume>(
         }
     }
 
-    // The crystal's yaw: an entity worldgen has no channel for, whose draw
-    // still has to be spent so nothing after it moves.
     let _yaw = rng.next_f32() * 360.0;
     volume.set(
         BlockPos::new(spike.center_x, spike.height, spike.center_z),
         config.bedrock,
     );
-    // The cell below the fire is the bedrock written on the line above, which is
-    // sturdy upwards, so `BaseFireBlock.getState` never reaches its neighbour scan.
     volume.set(
         BlockPos::new(spike.center_x, spike.height + 1, spike.center_z),
         config.fire,
@@ -371,9 +358,6 @@ mod tests {
         std::array::from_fn(|i| VoxelId(100 + i as u16))
     }
 
-    /// The stamp is a 5×5 obsidian floor one below the origin with three air
-    /// layers over it, and a cell already holding the target is left alone —
-    /// so over empty space only the floor is written.
     #[test]
     fn an_end_platform_floors_five_by_five_and_skips_what_already_matches() {
         let config = CompiledEndPlatform { obsidian: OBSIDIAN };
@@ -416,8 +400,6 @@ mod tests {
         );
     }
 
-    /// Every write stays inside one column of the origin, the footprint the
-    /// scheduler bounds a feature to.
     #[test]
     fn the_fixed_stamps_stay_inside_one_column_of_their_origin() {
         let mut volume = FakeVolume::default();
@@ -439,9 +421,6 @@ mod tests {
         }
     }
 
-    /// The pillar is four bedrock high with a torch on each side of its third
-    /// cell, the rim is bedrock at the origin's level, and an inactive podium
-    /// leaves air where an active one puts the portal.
     #[test]
     fn an_end_podium_builds_its_pillar_rim_and_torches() {
         let mut volume = FakeVolume::default();
@@ -480,8 +459,6 @@ mod tests {
         assert_eq!(active.get(BlockPos::new(1, 0, 0)), END_PORTAL);
     }
 
-    /// An active podium re-reads before writing, so a cell that already holds
-    /// the target block is skipped; an inactive one writes unconditionally.
     #[test]
     fn an_active_podium_skips_cells_that_already_match() {
         let mut volume = FakeVolume::default();
@@ -504,8 +481,6 @@ mod tests {
         }
     }
 
-    /// The 3×5×3 stamp: the gateway block at the origin, bedrock in the arms
-    /// above and below it, air on the origin's own layer and in the corners.
     #[test]
     fn an_end_gateway_stamps_its_frame_and_records_its_exit() {
         let mut volume = FakeVolume::default();
@@ -547,8 +522,6 @@ mod tests {
         );
     }
 
-    /// One draw for the starting radius and one per layer, the layers descending
-    /// from the origin, and every cell inside the radius the layer carries.
     #[test]
     fn an_end_island_shrinks_a_layer_per_draw() {
         let config = CompiledEndIsland {
@@ -589,8 +562,6 @@ mod tests {
         );
     }
 
-    /// The reference's ring for a world seed of zero, which is a pure function
-    /// of the seed rather than of the feature's own source.
     #[test]
     fn the_seeded_spikes_lie_on_the_radius_forty_two_ring() {
         let spikes = seed_spikes(0);
@@ -633,9 +604,6 @@ mod tests {
         }
     }
 
-    /// A spike raises an obsidian column to its height, caps it with bedrock and
-    /// fire under the crystal, cages it in bars when guarded, and spends exactly
-    /// one float on the crystal's yaw.
     #[test]
     fn a_guarded_spike_raises_its_column_and_draws_one_float() {
         let spike = EndSpike {
@@ -687,8 +655,6 @@ mod tests {
         );
     }
 
-    /// A spike whose centre falls in another chunk is skipped whole, draws
-    /// included, and an ungarded one writes no bars.
     #[test]
     fn a_spike_outside_the_origins_chunk_is_skipped_entirely() {
         let config = spikes_config(vec![EndSpike {
@@ -723,8 +689,6 @@ mod tests {
         );
     }
 
-    /// The platform covers the nine chunks around the origin chunk and nothing
-    /// further, with one cobblestone marker at (8, 8).
     #[test]
     fn the_void_start_platform_covers_its_nine_chunks() {
         let config = CompiledVoidStartPlatform {

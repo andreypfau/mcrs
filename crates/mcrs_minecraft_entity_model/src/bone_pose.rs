@@ -3,17 +3,14 @@ use glam::{Affine3A, Vec3};
 use crate::baked_geometry::{BakedBone, BakedGeometry};
 use crate::space;
 
-/// The pose values of one bone in internal space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BonePose {
     pub position: Vec3,
-    /// The rotation in degrees.
     pub rotation: Vec3,
     pub scale: Vec3,
 }
 
 impl BonePose {
-    /// The pose with no animation: no offset, the rest rotation and a scale of 1.
     #[must_use]
     pub fn rest(bone: &BakedBone) -> Self {
         Self {
@@ -23,7 +20,6 @@ impl BonePose {
         }
     }
 
-    /// `T(t) · T(p) · R(r) · S(s) · T(−p)` for a bone with the pivot `p`.
     #[must_use]
     pub fn local_transform(&self, pivot: Vec3) -> Affine3A {
         Affine3A::from_translation(self.position)
@@ -35,8 +31,6 @@ impl BonePose {
 }
 
 impl BakedGeometry {
-    /// The model transform of each bone. `poses` gives the pose of the bones by index; a bone
-    /// past its end takes its rest pose.
     #[must_use]
     pub fn model_transforms(&self, poses: &[BonePose]) -> Vec<Affine3A> {
         let mut transforms: Vec<Affine3A> = Vec::with_capacity(self.bones.len());

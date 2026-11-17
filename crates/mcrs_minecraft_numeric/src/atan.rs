@@ -3,8 +3,6 @@ use core::mem;
 
 use crate::atan_table::{ARCSINE_BITS, COSINE_OF_ARCSINE_BITS};
 
-/// An estimate of `1 / √x` for `x > 0`, with a relative error below 0.2 %. It is not
-/// `1 / x.sqrt()`.
 #[must_use]
 pub fn inverse_sqrt_estimate(x: f64) -> f64 {
     let bits = x.to_bits() as i64;
@@ -13,9 +11,6 @@ pub fn inverse_sqrt_estimate(x: f64) -> f64 {
     guess * (1.5 - half * guess * guess)
 }
 
-/// The angle of the point `(x, y)` from the positive x axis, in radians. It is within `1e-5` of
-/// the exact arctangent when `x² + y²` is a normal number, and it is not the arctangent of a
-/// standard library.
 #[must_use]
 pub fn atan2(y: f64, x: f64) -> f64 {
     const ROUNDING_OFFSET: f64 = 17_592_186_044_416.0;

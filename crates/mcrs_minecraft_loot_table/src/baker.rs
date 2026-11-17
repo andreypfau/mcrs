@@ -24,9 +24,6 @@ use crate::modifier_file::ModifierFile;
 use crate::table::{Entry, EntryKind, Pool, Span, Table};
 use crate::table_links::{self, ChainPlace, Edge, TableLinks};
 
-/// Bakes each table of the registry `loot_table` of `registries`, at the index of its id, then
-/// each entry of the registry `item_modifier`, then each inline table, and adds the problems of
-/// the load to `issues`.
 pub(crate) fn bake(
     definitions: &BlockDefinitions,
     registries: &Registries,
@@ -80,14 +77,12 @@ pub(crate) fn bake(
     tables
 }
 
-/// What each baker of one load shares.
 struct Load<'a> {
     definitions: &'a BlockDefinitions,
     registries: &'a Registries,
     entries: &'a NamedEntries,
     files: Option<&'a Registry<LootTableFile>>,
     modifier_files: Option<&'a Registry<ModifierFile>>,
-    /// The index of the first entry of the registry `item_modifier` in the list of the load.
     first_modifier: usize,
 }
 
@@ -115,7 +110,6 @@ impl<'a> Load<'a> {
     }
 }
 
-/// The tables and the item modifiers of the registries, in the order of the list of the load.
 struct Graph {
     names: Vec<ResourceLocationBuf>,
     tables: Vec<Table>,
@@ -150,14 +144,12 @@ impl Graph {
     }
 }
 
-/// The inline tables of the load, which sit after the tables of the registry.
 struct Inline {
     first: usize,
     tables: Vec<Table>,
     links: Vec<TableLinks>,
 }
 
-/// The lists of the table that the bake makes.
 #[derive(Default)]
 struct Parts {
     entries: Vec<Entry>,
@@ -193,8 +185,6 @@ struct Baked {
     chains: Vec<ChainPlace>,
 }
 
-/// Turns the file form of one table of the registry and of its inline tables into tables of
-/// ids, and checks each part against the type of the table (LOOT-CTX-013).
 pub(crate) struct Baker<'a, 'i> {
     pub(crate) registries: &'a Registries,
     files: Option<&'a Registry<LootTableFile>>,
@@ -210,7 +200,6 @@ pub(crate) struct Baker<'a, 'i> {
 }
 
 impl Baker<'_, '_> {
-    /// Bakes `file` with each path after `prefix`.
     fn table(&mut self, file: &LootTableFile, prefix: &str) -> Baked {
         let outer = mem::take(&mut self.parts);
         let pools = file
@@ -241,7 +230,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// Bakes `files` into consecutive places of the entry list, with their children after them.
     pub(crate) fn entries(&mut self, files: &[EntryFile], parent: Option<u32>, path: &str) -> Span {
         let start = index_of(self.parts.entries.len());
         for _ in files {
@@ -299,8 +287,6 @@ impl Baker<'_, '_> {
             }
             EntryKindFile::Dynamic { name } => DynamicName::from_location(name.as_location())
                 .map_or(EntryKind::Empty, EntryKind::Dynamic),
-            // chisle: `slots` makes nothing, checks no field of a typed slot source and resolves no
-            // key until the item predicate, container components and `slot_source` registry exist.
             EntryKindFile::Empty | EntryKindFile::Slots { .. } => EntryKind::Empty,
             EntryKindFile::Alternatives { children } => {
                 let last = children.len().saturating_sub(1);
@@ -331,7 +317,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// LOOT-CTX-016: a composite entry without children is a problem.
     fn children(&mut self, children: &[EntryFile], index: u32, path: &str) -> Span {
         if children.is_empty() {
             self.problems
@@ -340,8 +325,6 @@ impl Baker<'_, '_> {
         self.entries(children, Some(index), &format!("{path}.children"))
     }
 
-    /// Adds the items of a `tag` entry to the item list, in the member order of a tag and the
-    /// order of a list (LOOT-EVL-009).
     fn items(&mut self, set: &ItemSetFile, path: &str) -> Span {
         let start = index_of(self.parts.items.len());
         let path = format!("{path}.items");
@@ -381,8 +364,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// Adds the tables of a `loot_table` entry to the list of nested tables, in the member order
-    /// of a tag and the order of a list (LOOT-EVL-010).
     fn tables(&mut self, set: &TableSetFile, path: &str) -> Span {
         let start = index_of(self.parts.nested.len());
         let path = format!("{path}.value");
@@ -441,8 +422,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// The index of the table `name`; `None`, with a problem, for a table that the load does not
-    /// hold.
     pub(crate) fn table_key(&mut self, name: &ResourceLocationBuf, path: &str) -> Option<usize> {
         let id = self
             .files
@@ -454,7 +433,6 @@ impl Baker<'_, '_> {
         id.map(Id::index)
     }
 
-    /// Adds `table` to the list of nested tables and gives its slot.
     pub(crate) fn nest(&mut self, table: Option<usize>, path: &str) -> u32 {
         let slot = self.parts.nested.len();
         let table = table.and_then(|table| u32::try_from(table).ok());

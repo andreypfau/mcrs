@@ -13,9 +13,6 @@ use crate::coordinator::dim::DimSubAppHandle;
 use crate::to_coordinator::JoinRequested;
 use crate::to_muxer::JoinPlaced;
 
-/// Places each joining player in the running dimension that its save names, or in the first
-/// dimension of the list when the save names none or a dimension that does not run. A request
-/// that finds no running dimension gets no answer, and the muxer asks again.
 pub fn place_joining_players(
     mut requests: MessageReader<JoinRequested>,
     live_dims: Query<(Entity, &ResourceKeyBuf<DimensionKey>), With<DimSubAppHandle>>,

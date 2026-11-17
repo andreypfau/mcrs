@@ -1,7 +1,3 @@
-//! The Minecraft side of entity replication: the codec of the muxer for players and mobs, and the pure
-//! functions and plain state under it that turn the state of a subject into packets. Each packet
-//! is a record: its length, then its id and its body, not framed.
-
 mod attribute_state;
 mod delivery;
 mod delta_base;

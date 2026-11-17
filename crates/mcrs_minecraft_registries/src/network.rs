@@ -7,7 +7,6 @@ use crate::diagnostics::{Diagnostic, Diagnostics};
 use crate::registries::{Kind, Table};
 use crate::tags::TagTable;
 
-/// The bodies of the configuration packets that carry the registries, without their packet ids.
 #[derive(Debug)]
 pub struct NetworkSnapshot {
     registries: Box<[SyncedRegistry]>,
@@ -21,8 +20,6 @@ struct SyncedRegistry {
 }
 
 impl NetworkSnapshot {
-    /// Encodes what the configuration phase sends of `registries`. No registry outside the
-    /// `minecraft` namespace is sent, so a vanilla client never receives one.
     pub fn new(registries: &Registries) -> Result<Self, Diagnostics> {
         let mut synced = Vec::new();
         let mut synced_tags: Vec<(&ResourceLocationBuf, &TagTable)> = Vec::new();
@@ -58,8 +55,6 @@ impl NetworkSnapshot {
         })
     }
 
-    /// One registry data body per synced registry, in the declared order. With `known`, an entry
-    /// whose winning pack has a known-pack identity leaves its data out.
     pub fn registry_data(&self, known: bool) -> impl Iterator<Item = &[u8]> {
         self.registries.iter().map(move |registry| {
             if known {
@@ -70,14 +65,11 @@ impl NetworkSnapshot {
         })
     }
 
-    /// The update tags body: the tags of every static and synced registry that has one.
     pub fn tags(&self) -> &[u8] {
         &self.tags
     }
 }
 
-/// Each entry of `table` encoded as network NBT, and whether its winning pack has a known-pack
-/// identity.
 fn registry_data(
     registries: &Registries,
     table: &Table,
@@ -147,7 +139,6 @@ fn update_tags(tagged: &[(&ResourceLocationBuf, &TagTable)]) -> Box<[u8]> {
     out.into_boxed_slice()
 }
 
-/// A count or an id never exceeds what a registry can number, which fits a `VarInt`.
 fn var_int(out: &mut Vec<u8>, value: usize) {
     let mut value = value as u32;
     loop {

@@ -14,9 +14,6 @@ pub struct CompiledReplaceSingleBlock {
     pub targets: Vec<Replacement>,
 }
 
-/// `ReplaceBlockFeature.place`: the first entry whose rule matches the block at
-/// the origin writes, and the rest are not tested. It always reports success,
-/// so a sequence holding one does not end on it.
 pub fn place_replace_single_block<W: WorldGenVolume>(
     cfg: &CompiledReplaceSingleBlock,
     volume: &mut W,

@@ -11,8 +11,6 @@ pub(super) enum FieldTy {
     Vec3I32,
     Mat4x4F32,
     Vec4F32Array(usize),
-    /// Three scalar `i32`s in WGSL stored as `[i32; 3]` in Rust so stride stays 12 bytes rather
-    /// than rounding up to `vec3`'s 16-byte alignment.
     ScalarI32x3([&'static str; 3]),
 }
 
@@ -83,36 +81,21 @@ impl FieldTy {
 
 pub(super) struct FieldDef {
     pub name: &'static str,
-    pub doc: Option<&'static str>,
     pub ty: FieldTy,
 }
 
 const fn field(name: &'static str, ty: FieldTy) -> FieldDef {
-    FieldDef {
-        name,
-        doc: None,
-        ty,
-    }
-}
-
-const fn documented_field(name: &'static str, doc: &'static str, ty: FieldTy) -> FieldDef {
-    FieldDef {
-        name,
-        doc: Some(doc),
-        ty,
-    }
+    FieldDef { name, ty }
 }
 
 pub(super) struct ConstDef {
     pub name: &'static str,
-    pub doc: Option<&'static str>,
     pub value: u32,
 }
 
 pub(super) struct StructDef {
     pub rust_name: &'static str,
     pub wgsl_name: &'static str,
-    pub doc: Option<&'static str>,
     pub size_const: Option<(&'static str, &'static str)>,
     pub words_const: Option<&'static str>,
     pub min_stride_bytes: usize,
@@ -143,9 +126,6 @@ impl StructDef {
 
     pub(super) fn emit_rust(&self, out: &mut String) {
         for constant in self.consts {
-            if let Some(doc) = constant.doc {
-                let _ = writeln!(out, "/// {doc}");
-            }
             let _ = writeln!(
                 out,
                 "{} const {}: u32 = {};",
@@ -154,11 +134,6 @@ impl StructDef {
         }
         if !self.consts.is_empty() {
             out.push('\n');
-        }
-        if let Some(doc) = self.doc {
-            for line in doc.lines() {
-                let _ = writeln!(out, "/// {line}");
-            }
         }
         let derives = if self.has_floats() {
             "Copy, Clone, Default, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable"
@@ -172,11 +147,6 @@ impl StructDef {
         for field in self.fields {
             let aligned = offset.next_multiple_of(field.ty.align());
             emit_rust_padding(out, offset, aligned);
-            if let Some(doc) = field.doc {
-                for line in doc.lines() {
-                    let _ = writeln!(out, "    /// {line}");
-                }
-            }
             let _ = writeln!(out, "    pub {}: {},", field.name, field.ty.rust_ty());
             offset = aligned + field.ty.size();
         }
@@ -251,7 +221,6 @@ pub(super) const DRAW_ARG_ROWS: &[(&str, &str)] = &[
 pub(super) const PARAMS_STRUCT: StructDef = StructDef {
     rust_name: "Params",
     wgsl_name: "Params",
-    doc: Some("Per-draw culling and draw-indirect parameters."),
     size_const: Some(("pub(crate)", "PARAMS_SIZE")),
     words_const: None,
     min_stride_bytes: 0,
@@ -268,16 +237,10 @@ pub(super) const PARAMS_STRUCT: StructDef = StructDef {
     consts: &[
         ConstDef {
             name: "PARAMS_MODEL",
-            doc: Some(
-                "The draw's quads are models, with four corners of their own rather than a greedy rectangle.",
-            ),
             value: 1,
         },
         ConstDef {
             name: "PARAMS_QUAD_CULL",
-            doc: Some(
-                "The draw writes depth and culls back faces, so a quad is tested on its own: blended quads keep the order the blend needs and go through by group.",
-            ),
             value: 2,
         },
     ],
@@ -286,10 +249,6 @@ pub(super) const PARAMS_STRUCT: StructDef = StructDef {
 pub(super) const CAMERA_STRUCT: StructDef = StructDef {
     rust_name: "CameraUniform",
     wgsl_name: "Camera",
-    doc: Some(
-        "The frame's view, expressed against the origin of the section the camera stands in. Nothing\n\
-         here is an absolute world coordinate: at the edge of the world f32 has no block left to give.",
-    ),
     size_const: Some(("pub(crate)", "CAMERA_SIZE")),
     words_const: None,
     min_stride_bytes: 0,
@@ -318,7 +277,6 @@ pub(super) const CAMERA_STRUCT: StructDef = StructDef {
 pub(super) const SECTION_DESC_STRUCT: StructDef = StructDef {
     rust_name: "SectionDesc",
     wgsl_name: "SectionDesc",
-    doc: Some("GPU section descriptor placed once per resident section slot."),
     size_const: Some(("pub(crate)", "SECTION_BYTES")),
     words_const: Some("SECTION_WORDS"),
     min_stride_bytes: 0,
@@ -335,7 +293,6 @@ pub(super) const SECTION_DESC_STRUCT: StructDef = StructDef {
 pub(super) const SPRITE_ENTRY_STRUCT: StructDef = StructDef {
     rust_name: "SpriteEntry",
     wgsl_name: "SpriteEntry",
-    doc: Some("Sprite lookup entry pointing to its static array layer and animation index."),
     size_const: None,
     words_const: Some("SPRITE_WORDS"),
     min_stride_bytes: 0,
@@ -351,7 +308,6 @@ pub(super) const SPRITE_ENTRY_STRUCT: StructDef = StructDef {
 pub(super) const ANIMATION_FRAME_STRUCT: StructDef = StructDef {
     rust_name: "AnimationFrame",
     wgsl_name: "AnimationFrame",
-    doc: None,
     size_const: None,
     words_const: Some("ANIMATION_WORDS"),
     min_stride_bytes: 16,
@@ -368,7 +324,6 @@ pub(super) const ANIMATION_FRAME_STRUCT: StructDef = StructDef {
 pub(super) const RECONSTRUCTION_STRUCT: StructDef = StructDef {
     rust_name: "Reconstruction",
     wgsl_name: "Reconstruction",
-    doc: None,
     size_const: Some(("pub(crate)", "RECONSTRUCTION_SIZE")),
     words_const: None,
     min_stride_bytes: 0,
@@ -384,10 +339,6 @@ pub(super) const RECONSTRUCTION_STRUCT: StructDef = StructDef {
 pub(super) const SKY_STRUCT: StructDef = StructDef {
     rust_name: "SkyUniform",
     wgsl_name: "Sky",
-    doc: Some(
-        "The per-frame GPU block. Its colours are in linear light, but `disc` and `fog`, which are image\n\
-         values; the shader turns the linear ones into image values before the world image blends them.",
-    ),
     size_const: Some(("pub(crate)", "SKY_SIZE")),
     words_const: None,
     min_stride_bytes: 0,
@@ -404,12 +355,7 @@ pub(super) const SKY_STRUCT: StructDef = StructDef {
         field("sky_light", FieldTy::Vec4F32),
         field("block_light", FieldTy::Vec4F32),
         field("ambient", FieldTy::Vec4F32),
-        documented_field(
-            "occluder",
-            "The two elevations in degrees over which the occluder fades in, then 1 when the frame has\n\
-             a sky occluder and 0 when it has none.",
-            FieldTy::Vec4F32,
-        ),
+        field("occluder", FieldTy::Vec4F32),
     ],
     consts: &[],
 };
@@ -417,7 +363,6 @@ pub(super) const SKY_STRUCT: StructDef = StructDef {
 pub(super) const TEXT_FRAME_STRUCT: StructDef = StructDef {
     rust_name: "TextFrame",
     wgsl_name: "TextFrame",
-    doc: None,
     size_const: Some(("pub(crate)", "TEXT_FRAME_SIZE")),
     words_const: None,
     min_stride_bytes: 0,

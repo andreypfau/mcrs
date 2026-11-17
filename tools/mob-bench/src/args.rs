@@ -7,12 +7,9 @@ use crate::adapter::{PlayerMode, Target};
 use crate::phase::Phase;
 use crate::stir;
 
-/// Whether a watcher client joins the run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Client {
-    /// This harness's own protocol client, of mcrs's protocol version.
     Watcher,
-    /// One `horizon-bots` client with the `stand` behaviour, for a server of 26.3's protocol.
     Bot,
     None,
 }
@@ -41,7 +38,6 @@ pub struct Args {
     pub stimulus_period: Duration,
     pub stimulus_warmup: Duration,
     pub stir_mode: stir::Mode,
-    /// The game mode of the client's player; a spectator has no influence on the pigs.
     pub player_mode: PlayerMode,
     pub contended_cores: f64,
     pub java: String,

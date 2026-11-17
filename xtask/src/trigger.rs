@@ -1,5 +1,6 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Check {
+    Comments,
     Parity,
     Fmt,
     Clippy,
@@ -15,6 +16,7 @@ pub enum Check {
 impl Check {
     pub const fn name(self) -> &'static str {
         match self {
+            Check::Comments => "comments",
             Check::Parity => "parity",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
@@ -30,7 +32,7 @@ impl Check {
 
     #[cfg(test)]
     pub const fn is_git_only(self) -> bool {
-        matches!(self, Check::Parity)
+        matches!(self, Check::Comments | Check::Parity)
     }
 }
 
@@ -77,7 +79,9 @@ impl Trigger {
     pub const fn description(self) -> &'static str {
         match self {
             Trigger::Edit => "after a file is written: formatting of the changed files",
-            Trigger::Commit => "before a commit: fixture parity, formatting",
+            Trigger::Commit => {
+                "before a commit: no comments outside examples, fixture parity, formatting"
+            }
             Trigger::Push => {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
@@ -125,8 +129,8 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push => &[Parity, Fmt],
-        Trigger::Lint => &[Parity, Fmt, Keys],
+        Trigger::Commit | Trigger::Push => &[Comments, Parity, Fmt],
+        Trigger::Lint => &[Comments, Parity, Fmt, Keys],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Layers, ExampleDependencies, Wasm32, NoStd],

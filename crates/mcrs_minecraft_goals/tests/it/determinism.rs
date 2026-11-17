@@ -1,6 +1,3 @@
-//! The stage gives the same pigs and brains in each tick for any thread count and task split
-//! (AIT-INV-001, AIT-INV-002), and the sleeping stage gives the decisions of the polling one.
-
 use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::DamageCause;
@@ -63,8 +60,6 @@ fn run_on(
         .collect()
 }
 
-/// Compares the hash of each tick under every `(threads, tiles_per_task)` layout with the serial
-/// run, and returns the decisions that the serial run makes.
 fn assert_thread_layouts_agree(ticks: u32, layouts: &[(usize, usize)]) -> u64 {
     let (serial, decisions) = {
         let mut pen = PigPen::new(scene(), stage_config(WakeMode::Sleep));
@@ -97,8 +92,6 @@ fn assert_thread_layouts_agree(ticks: u32, layouts: &[(usize, usize)]) -> u64 {
     decisions
 }
 
-/// C-G5: a group of pigs takes a hit at `hit_tick`, and a player walks through the pen, so idle
-/// times reset, strolls end by the idle time and pigs look at the player.
 fn walk_and_hit(pen: &mut PigPen, tick: u64, hit_tick: u64) {
     let mut players: Vec<PlayerRow> = (0..2)
         .map(|index| PlayerRow {

@@ -14,7 +14,6 @@ use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 use crate::saved_sink::TAG_MARKER;
 
-/// Builds the saved form as an NBT tree.
 pub(crate) struct TagSink;
 
 impl SavedSink for TagSink {

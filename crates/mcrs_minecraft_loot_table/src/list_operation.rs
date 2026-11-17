@@ -1,7 +1,6 @@
 use serde::de;
 use serde::{Deserialize, Deserializer};
 
-/// A list operation (REG-FLD-769), written in the object that holds it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum ListOperation {
@@ -18,7 +17,6 @@ pub enum ListOperation {
     Append,
 }
 
-/// A standalone list operation (REG-FLD-770) with at most `MAX` values.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct StandaloneList<T, const MAX: usize = { usize::MAX }> {

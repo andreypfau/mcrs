@@ -4,7 +4,6 @@ use std::ops::RangeInclusive;
 
 pub const SECTION_WIDTH: i32 = SectionPos::SIZE as i32;
 
-/// A vertical block column, identified by its horizontal position.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct BlockColumn {
     pub x: i32,
@@ -20,7 +19,6 @@ impl BlockColumn {
     }
 }
 
-/// A light value, always in `0..=15`.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 pub struct LightLevel(u8);
 
@@ -28,9 +26,6 @@ impl LightLevel {
     pub const ZERO: Self = Self(0);
     pub const MAX: Self = Self(15);
 
-    /// Clamps into the valid range rather than panicking: light arithmetic
-    /// saturates everywhere else too, and a panic here would be a denial of
-    /// service triggerable by a badly configured block table.
     pub const fn new(value: u8) -> Self {
         Self(if value > 15 { 15 } else { value })
     }
@@ -47,21 +42,11 @@ impl LightLevel {
         Self(self.0.saturating_sub(amount))
     }
 
-    /// Combined brightness as gameplay and rendering see it.
-    ///
-    /// `sky_darken` is applied here and never stored, so that a weather change
-    /// costs nothing. Callers that must be independent of time of day — crop
-    /// growth, passive spawning — pass zero.
     pub fn brightness(block: Self, sky: Self, sky_darken: u8) -> Self {
         block.max(sky.saturating_sub(sky_darken))
     }
 }
 
-/// Vertical extent of the world, in sections.
-///
-/// Light is tracked one section beyond the world in each direction. The extra
-/// sections give sky light somewhere to come from and block light somewhere to
-/// die.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct LightBounds {
     pub min_section_y: i32,
@@ -96,30 +81,18 @@ impl LightBounds {
         self.min_light_section_y()..=self.max_light_section_y()
     }
 
-    /// Lowest block Y that belongs to the world itself.
     pub const fn min_block_y(self) -> i32 {
         self.min_section_y * SECTION_WIDTH
     }
 
-    /// Highest block Y that belongs to the world itself.
     pub const fn max_block_y(self) -> i32 {
         self.max_section_y * SECTION_WIDTH + SECTION_WIDTH - 1
     }
 
-    /// True for positions above or below the world, where there are no blocks
-    /// at all — as opposed to positions inside it that merely are not loaded.
     pub const fn is_outside(self, y: i32) -> bool {
         y < self.min_block_y() || y > self.max_block_y()
     }
 
-    /// The run of cells whose sky source flag moved when a column's floor went
-    /// from `old` to `new`, clamped into the light range.
-    ///
-    /// A column the world has not scanned yet reports [`LightWorld::NO_SKY_SOURCES`],
-    /// and clamping degrades that to "the whole column" instead of overflowing
-    /// when the box is later dilated.
-    ///
-    /// [`LightWorld::NO_SKY_SOURCES`]: crate::world::LightWorld::NO_SKY_SOURCES
     pub fn sky_flip_span(self, old: i32, new: i32) -> Option<(i32, i32)> {
         if old == new {
             return None;
@@ -129,12 +102,10 @@ impl LightBounds {
         (low <= high).then_some((low, high))
     }
 
-    /// Lowest block Y that can hold light.
     pub const fn min_light_y(self) -> i32 {
         self.min_light_section_y() * SECTION_WIDTH
     }
 
-    /// Highest block Y that can hold light.
     pub const fn max_light_y(self) -> i32 {
         self.max_light_section_y() * SECTION_WIDTH + SECTION_WIDTH - 1
     }

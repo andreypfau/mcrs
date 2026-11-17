@@ -1,7 +1,5 @@
 use crate::member_kind::MemberKind;
 
-/// The registry of a named entry: `predicate`, `context_int_provider` or
-/// `context_float_provider`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EntryKind {
     Predicate,

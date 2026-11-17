@@ -20,7 +20,6 @@ use crate::inside_shape::inside_shape;
 use crate::named_block::NamedBlock;
 use crate::path_types::PathTypes;
 
-/// The block tags that set a flag.
 const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 12] = [
     (block_tag_keys::DOORS, BlockFlags::DOOR),
     (block_tag_keys::CLIMBABLE, BlockFlags::CLIMBABLE),
@@ -45,10 +44,8 @@ const TAG_FLAGS: [(TagKey<'static, Block>, BlockFlags); 12] = [
     (block_tag_keys::FIRE, BlockFlags::INSIDE_ACTION),
 ];
 
-/// The bounce restitution of each bed.
 const BED_BOUNCE: f32 = 0.75;
 
-/// The collision table of every state of the definitions, in the order of the state ids.
 #[must_use]
 pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> CollisionTable {
     let tag_flags: Vec<_> = TAG_FLAGS
@@ -146,7 +143,6 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
     builder.build()
 }
 
-/// The collision boxes of a state, widened.
 fn boxes_of(definitions: &BlockDefinitions, id: BlockStateId) -> impl Iterator<Item = Aabb> {
     definitions
         .shape(definitions.state(id).collision_shape)
@@ -168,9 +164,6 @@ fn context_shape<'a>(
     }
 }
 
-/// The table of PHY-INP-021; `by_tag` decides for a block that the table does not name. A
-/// shulker box never counts: the table does not know whether it is closed, and the box makes the
-/// tick coarse.
 fn suffocates(path: &str, extended: Option<&PropertyValue>, by_tag: impl FnOnce() -> bool) -> bool {
     match path {
         "mangrove_roots" | "glass" | "tinted_glass" | "moving_piston" => false,

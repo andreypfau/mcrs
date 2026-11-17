@@ -3,8 +3,6 @@ use alloc::vec::Vec;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-/// The identifier of each item, indexed by the item id, and the item ids in the order of the
-/// identifiers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ItemNames<'names> {
     names: &'names [ResourceLocationBuf],
@@ -21,8 +19,6 @@ impl<'names> ItemNames<'names> {
         Self { names, by_name }
     }
 
-    /// The item ids of `names` in the order of the identifiers, or the first identifier that
-    /// occurs two times.
     pub(crate) fn sort(names: &[ResourceLocationBuf]) -> Result<Vec<u16>, &ResourceLocationBuf> {
         let mut by_name: Vec<u16> = (0..=u16::MAX).take(names.len()).collect();
         by_name.sort_by_key(|id| {

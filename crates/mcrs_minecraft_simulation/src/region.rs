@@ -1,11 +1,8 @@
 use crate::precipitation::PRECIPITATION_TILE;
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
-/// The blocks around a block tile that its task may still read and write. Twice the margin is
-/// the edge of a tile, so the regions of the tiles of one colour are disjoint and cover the plane.
 const MARGIN: i32 = 32;
 
-/// The block tile plus [`MARGIN`] on each horizontal side, full height, in blocks, inclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Region {
     min_x: i64,
@@ -16,7 +13,6 @@ pub(crate) struct Region {
 
 impl Region {
     pub(crate) fn of(tile: ColumnPos) -> Self {
-        // In i64, a tile coordinate times the edge and the margin cannot overflow.
         let edge = i64::from(PRECIPITATION_TILE).saturating_mul(SectionPos::SIZE as i64);
         let min = |tile: i32| {
             i64::from(tile)
@@ -35,7 +31,6 @@ impl Region {
         }
     }
 
-    /// The region holds the whole section: a region starts and ends at section edges.
     pub(crate) fn holds(&self, section: SectionPos) -> bool {
         let first = |section: i32| i32::try_from(i64::from(section).saturating_mul(16)).ok();
         match (first(section.x), first(section.z)) {
@@ -44,7 +39,6 @@ impl Region {
         }
     }
 
-    /// The box of `reach` around `at` lies inside the region.
     pub(crate) fn fits(&self, at: BlockPos, reach: u8) -> bool {
         let reach = i64::from(reach);
         let (x, z) = (i64::from(at.x), i64::from(at.z));
@@ -55,7 +49,6 @@ impl Region {
     }
 }
 
-/// The colour of a block tile, 2 × 2 on the global grid: tiles of one colour are two tiles apart.
 pub(crate) fn colour(tile: ColumnPos) -> [i32; 2] {
     [tile.x & 1, tile.z & 1]
 }

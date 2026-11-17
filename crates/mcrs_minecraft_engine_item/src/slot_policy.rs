@@ -6,11 +6,6 @@ use crate::Gate;
 use crate::SlotAccess;
 use crate::capacity::SLOT_LIMIT;
 
-/// The [`SlotAccess`] of each slot of a holder, read by each request that names a slot of it. A
-/// holder without it, and a slot without an entry, has the limit 99 and permits.
-///
-/// [`uniform`](Self::uniform) and [`locked`](Self::locked) give an entry to each index; a policy
-/// collected from an iterator has an entry for each item of it.
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct SlotPolicy {
     entries: Vec<SlotAccess>,
@@ -18,7 +13,6 @@ pub struct SlotPolicy {
 }
 
 impl SlotPolicy {
-    /// The same access for each slot.
     #[must_use]
     pub fn uniform(access: SlotAccess) -> Self {
         Self {
@@ -27,7 +21,6 @@ impl SlotPolicy {
         }
     }
 
-    /// Each slot refuses each take and each place.
     #[must_use]
     pub fn locked() -> Self {
         Self::uniform(SlotAccess {
@@ -37,14 +30,12 @@ impl SlotPolicy {
         })
     }
 
-    /// The access of the slot `index`, with its limit clamped.
     #[must_use]
     pub fn access(&self, index: u16) -> SlotAccess {
         let entry = self.entries.get(usize::from(index)).copied().or(self.rest);
         entry.unwrap_or(SlotAccess::OPEN).clamped()
     }
 
-    /// Changes the entry of the slot `index`. An index without an entry changes nothing.
     pub fn set(&mut self, index: u16, access: SlotAccess) {
         let index = usize::from(index);
         if index >= self.entries.len()

@@ -22,9 +22,6 @@ pub(crate) struct WalkBuffers {
     actions: Vec<BlockAction>,
 }
 
-/// One tick of the movement kernel for the local [`Player`] over the received columns. The kernel
-/// state is the truth of the position, the velocity, the sprint state and the flight state; the
-/// transform, the velocity and [`Sprint`] follow it.
 pub(crate) fn walk(
     input: Res<MovementInput>,
     columns: Res<ColumnStore>,
@@ -49,8 +46,6 @@ pub(crate) fn walk(
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
             spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),
-            // chisle: the client reads no food level, so the player counts as fed; reading
-            // set_health (HNG-NET-001) with the start values of HNG-NET-004 lifts this.
             ..PlayerFacts::default()
         },
         push: DVec3::ZERO,
@@ -114,8 +109,6 @@ mod tests {
         ..MovementInput::EMPTY
     };
 
-    /// The distance along the look of a player that stands on the floor and then holds `input`
-    /// for 20 ticks, after a server entry gives `movement_speed` the base `base`.
     fn walked(input: MovementInput, base: f64) -> f64 {
         let mut session = logged_in(DVec3::new(8.5, FLOOR_TOP, 2.5), GameMode::Survival);
         session.receive(ClientboundUpdateAttributes {
@@ -204,7 +197,6 @@ mod tests {
         use std::thread;
         use std::time::Duration;
 
-        /// A client in the play state over a socket, with the server end and the connection.
         fn joined(mut app: App) -> (App, Server, Entity) {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             app.add_plugins(ClientNetworkPlugin {

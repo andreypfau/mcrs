@@ -7,8 +7,6 @@ use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A fluid state as a data pack writes it. `None` is the empty fluid, which
-/// has no properties.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FluidState(pub Option<definition::FluidState>);
 
@@ -89,7 +87,6 @@ impl Serialize for FluidState {
     }
 }
 
-/// The data pack form, for messages.
 impl fmt::Display for FluidState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.written() {

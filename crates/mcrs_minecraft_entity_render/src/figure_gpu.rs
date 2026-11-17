@@ -15,13 +15,10 @@ use crate::gpu_buffers::FrameBuffers;
 use crate::gpu_layouts::Layouts;
 use crate::gpu_pipelines::FigurePipelines;
 
-/// The full rigs that the frame buffers of the figure view hold.
 pub(crate) const FIGURE_RIGS: u32 = 16;
 
-/// The distance of the eye of the figure view from the origin of figure space, in blocks.
 const EYE_DISTANCE: f32 = 1024.0;
 
-/// The two light directions of the figure view, as `shaders/figure.wgsl` declares them.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 struct FigureLight {
@@ -29,16 +26,12 @@ struct FigureLight {
     light1: [f32; 4],
 }
 
-/// The bind group of the light and of the lightmap of the terrain.
 struct LightmapBind {
     view: TextureView,
     sampler: Sampler,
     group: BindGroup,
 }
 
-/// The GPU state that the figure view owns: its frame buffers, its bind groups and its forward
-/// pipelines. The slot records, the static tables and the compute pipelines are those of the
-/// world view.
 pub(crate) struct FigureGpu {
     pub(crate) targets: FigureTargets,
     pub(crate) frame: FrameBuffers,
@@ -84,7 +77,6 @@ impl FigureGpu {
         }
     }
 
-    /// Builds the forward pipelines again for other targets.
     pub(crate) fn retarget(
         &mut self,
         device: &Device,
@@ -96,7 +88,6 @@ impl FigureGpu {
         self.targets = targets;
     }
 
-    /// Writes the light directions of `figure`.
     pub(crate) fn write_light(&self, queue: &Queue, figure: &FigureFrame) {
         let [light0, light1] = figure
             .lights
@@ -108,7 +99,6 @@ impl FigureGpu {
         );
     }
 
-    /// Binds the light and `lightmap` again when the terrain gives another lightmap.
     pub(crate) fn bind_lightmap(
         &mut self,
         device: &Device,
@@ -120,7 +110,6 @@ impl FigureGpu {
         }
     }
 
-    /// The bind group of the light and the lightmap.
     pub(crate) fn light_group(&self) -> &BindGroup {
         &self.lightmap.group
     }
@@ -157,15 +146,12 @@ fn lightmap_bind(
     }
 }
 
-/// The sizes of the model and the variant tables that the draw shader declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct DrawTables {
     pub(crate) models: usize,
     pub(crate) variants: usize,
 }
 
-/// The frame uniform of the figure view: the projection of the host, the eye on the axis of the
-/// view, no terrain and no impostor.
 pub(crate) fn figure_uniform(
     figure: &FigureFrame,
     depth_compare: CompareFunction,
@@ -183,8 +169,6 @@ pub(crate) fn figure_uniform(
     }
 }
 
-/// The eye of the figure view: the point at [`EYE_DISTANCE`] from the origin, on the side of the
-/// viewer of the axis of clip depth.
 fn figure_eye(clip_from_figure: Mat4, depth_compare: CompareFunction) -> Vec3 {
     let near = match depth_compare {
         CompareFunction::Greater | CompareFunction::GreaterEqual => 1.0,

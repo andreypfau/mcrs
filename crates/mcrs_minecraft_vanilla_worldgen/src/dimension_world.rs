@@ -37,8 +37,6 @@ pub(crate) fn build_dimension_world(
     build: &DimensionBuild<'_>,
     sub_app: &mut SubApp,
 ) {
-    // The host generates the columns of a world from the context of its first cell, so the
-    // other cells need none.
     let first_cell = sub_app
         .world()
         .get_resource::<OwnedColumns>()
@@ -46,8 +44,6 @@ pub(crate) fn build_dimension_world(
     if first_cell {
         insert_fill_context(host, build, sub_app);
     }
-    // The world generates its columns in the host, and lands each one as an answer of the data
-    // layer.
     if let Some(mut store) = sub_app.world_mut().get_resource_mut::<ColumnStoreLink>() {
         store.generate_through_world();
     }

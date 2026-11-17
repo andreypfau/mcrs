@@ -24,24 +24,19 @@ use crate::main_world::EntityClock;
 use crate::player_skin::{SkinSlots, SkinUpload};
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
 
-/// The full rigs that one frame draws, in all and of one definition: the full-rig cap of the
-/// native tier.
 pub const FULL_RIG_CAP: u32 = 75_000;
 
-/// The render world state of the entity passes.
 #[derive(Resource, Default)]
 pub(crate) struct EntityRenderState {
     generation: Option<u32>,
     library: Option<EntityLibrary>,
     gpu: Option<EntityGpu>,
-    /// The library does not fit this device, so the uploads of the slots are dropped.
     unfit: bool,
     hiz: Option<TextureViewId>,
     pending: SlotUpload,
     pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
-    /// The figure frame of this frame, or none while no host draws a figure.
     figure: Option<FigureFrame>,
 }
 
@@ -67,7 +62,6 @@ pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<En
     {
         state.generation = Some(assets.generation);
         state.library = Some(assets.library.clone());
-        // The skin variants of the old library can name other textures in the new one.
         state.pending_skins.clear();
     }
     if let Some(mut skins) = main.get_resource_mut::<SkinSlots>() {
@@ -78,15 +72,12 @@ pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<En
         return;
     };
     if state.library.is_some() {
-        // A new library builds an entity GPU with empty buffers: it needs every record.
         arena.resend(state.clock.tick);
     }
     let upload = arena.take_upload();
     merge(&mut state.pending, upload);
 }
 
-/// Adds the writes of `next` after those of `pending`. A slot keeps its last tick record and
-/// stays fresh when an earlier write made it fresh.
 fn merge(pending: &mut SlotUpload, next: SlotUpload) {
     if pending.ticks.is_empty()
         && pending.culls.is_empty()
@@ -201,7 +192,6 @@ pub(crate) fn prepare_entities(
     }
 }
 
-/// The parts of the render world that the entity pass reads.
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct EntityFrameParams<'w> {
     frame: Option<Res<'w, DeferredFrame>>,
@@ -215,8 +205,6 @@ pub(crate) struct EntityFrameParams<'w> {
     queue: Res<'w, RenderQueue>,
 }
 
-/// The entity passes of a frame: the upload of the slots, the cull, the pose and the expand,
-/// then the draw of the face records into the gbuffer.
 pub(crate) fn draw_entities(
     depth: ViewQuery<&ViewDepthStencilTexture>,
     mut state: ResMut<EntityRenderState>,
@@ -297,13 +285,10 @@ pub(crate) fn draw_entities(
     state.threshold = threshold;
 }
 
-/// A run condition: a host asks for the figure view in this frame.
 pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {
     state.figure.is_some()
 }
 
-/// The figure run of the cull, the pose and the expand, into the frame buffers of the figure
-/// view, after the world view has uploaded the slots of the frame.
 pub(crate) fn run_figure_view(
     state: Res<EntityRenderState>,
     queue: Res<RenderQueue>,

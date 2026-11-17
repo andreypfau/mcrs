@@ -104,8 +104,6 @@ fn handle_move_status_only(
     }
 }
 
-/// The server has no vehicles, so a vehicle move moves nothing; it still counts as a move for the
-/// resend of a pending teleport. Its on-ground flag is the vehicle's, not the player's.
 fn handle_move_vehicle(
     on: On<Received<ServerboundMoveVehicle>>,
     mut writer: MessageWriter<PlayerMovement>,
@@ -169,8 +167,6 @@ fn reachable(position: DVec3) -> DVec3 {
     position.clamp(-MAX_POS, MAX_POS)
 }
 
-/// The resend of a pending teleport: absolute values, with the position of `destination`, the
-/// rotation of the player and zero velocity.
 fn resend(
     owner: &Owner,
     teleport_id: i32,
@@ -187,8 +183,6 @@ fn resend(
     position(owner, teleport_id, &teleport)
 }
 
-/// The correction of an accept: the position of `destination`, and the client keeps its rotation
-/// and velocity.
 fn correction(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPlayerPacket {
     position(owner, teleport_id, &teleport_to(destination, destination))
 }
@@ -220,9 +214,6 @@ fn teleport(
     }
 }
 
-/// An accept of the pending teleport at its destination confirms it, and an accept at another
-/// position gets a correction: the position of an accept never becomes the position of the
-/// player. An accept of the newest id once it is confirmed disconnects the client.
 fn handle_accept_teleportation(
     event: On<Received<ServerboundAcceptTeleportation>>,
     mut players: Query<(&Owner, &mut TeleportState)>,

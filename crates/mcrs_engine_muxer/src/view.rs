@@ -2,12 +2,10 @@ use crate::tile_radius::TileRadius;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// What a viewer subscribes to: the tiles within `radius` of `center`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct View {
     pub center: TileKey,
     pub radius: TileRadius,
-    /// The own entity of the viewer, which the viewer never receives.
     pub subject: Option<EntityId>,
 }
 
@@ -19,7 +17,6 @@ impl View {
             && within(self.center.z, tile.z, self.radius.z)
     }
 
-    /// The tiles of the view, in the order of [`TileKey`].
     pub fn tiles(&self) -> impl Iterator<Item = TileKey> + use<> {
         let center = self.center;
         let radius = self.radius;

@@ -4,7 +4,6 @@ use mcrs_minecraft_resource::{Id, Registered};
 
 use crate::predicate_issue::PredicateIssue;
 
-/// The ids of an entry set, with its tag expanded.
 pub(crate) fn members<R: Registered>(
     set: &IdSet<R>,
     registries: &Registries,
@@ -19,7 +18,6 @@ pub(crate) fn members<R: Registered>(
     }
 }
 
-/// An entry set as a bit per id.
 pub(crate) fn id_bits<R: Registered>(
     set: &IdSet<R>,
     registries: &Registries,

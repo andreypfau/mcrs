@@ -1,5 +1,3 @@
-//! Moving many brains at once leaves each tile as moving them one at a time does.
-
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;

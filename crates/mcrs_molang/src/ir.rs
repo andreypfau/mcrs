@@ -1,7 +1,3 @@
-//! A typed SSA form with structured control flow. A value is defined once. An `If` defines its
-//! results from the yields of the region that runs, so `&&`, `||`, `?:` and `??` keep their
-//! right sides lazy.
-
 use alloc::vec::Vec;
 
 use crate::diagnostic::Span;
@@ -25,24 +21,19 @@ pub(crate) enum Op {
     ConstBits(u64),
     This,
     Query(QuerySlot),
-    /// `1.0` when the query slot is missing.
     QueryMissing(QuerySlot),
     LoadVar(VariableSlot),
-    /// `1.0` when the variable is missing.
     VarMissing(VariableSlot),
     StoreVar {
         slot: VariableSlot,
         value: ValueId,
         missing: ValueId,
     },
-    /// Reads the missing flag of the run as `1.0` or `0.0`, and clears it.
     MissTake,
-    /// Sets the missing flag of the run when the operand is truthy.
     MissOr(ValueId),
     Unary(UnaryFn, ValueId),
     Binary(BinaryFn, ValueId, ValueId),
     Ternary(TernaryFn, ValueId, ValueId, ValueId),
-    /// `==` (or `!=` when `negate`) of two 64-bit values.
     CompareBits {
         negate: bool,
         a: ValueId,
@@ -56,13 +47,11 @@ pub(crate) enum Op {
         otherwise: Region,
         results: Vec<ValueId>,
     },
-    /// A result of an `If`.
     Phi,
     Return(ValueId),
 }
 
 impl Op {
-    /// The operands, except the contents of the regions of an `If`.
     pub(crate) fn operands(&self) -> Operands {
         let mut operands = Operands::default();
         match self {
@@ -128,7 +117,6 @@ impl Op {
     }
 }
 
-/// Up to three operands, with no allocation.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Operands {
     values: [ValueId; 3],
@@ -179,8 +167,6 @@ impl Function {
         self.value(id).map(|data| &data.op)
     }
 
-    /// Whether the value has an effect beyond its result. A pure value can run for a lane that
-    /// is not active, and a pass can delete it when nothing uses it.
     pub(crate) fn has_effect(&self, id: ValueId) -> bool {
         match self.op(id) {
             Some(Op::StoreVar { .. } | Op::MissTake | Op::MissOr(_) | Op::Return(_)) => true,

@@ -106,7 +106,6 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
     let connection_entity = insert_accepted_login(&mut app, fresh_profile());
     let host_anchor = anchor_of(&app, connection_entity);
 
-    // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     app.world_mut()
         .resource_mut::<DimInputs>()
@@ -128,7 +127,6 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
                   mut dim_channels: ResMut<DimInputs>| {
                 process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
 
-                // Second call routes nothing (the session is already unplaced).
                 process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
             },
         )

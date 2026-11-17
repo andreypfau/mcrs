@@ -16,8 +16,6 @@ pub struct JoinedGame {
     pub dimensions: Vec<ResourceKeyBuf<Dimension>>,
 }
 
-/// The dimension the player is in. Written only when a login or a respawn
-/// names it, as a whole.
 #[derive(Component, Clone, Debug)]
 pub struct CurrentDimension {
     pub key: ResourceKeyBuf<Dimension>,

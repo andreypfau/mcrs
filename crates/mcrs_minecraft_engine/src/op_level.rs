@@ -10,15 +10,11 @@ use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 
-/// The operator level that the client of a player was told, which the login and a dimension
-/// change leave as it was told.
 #[derive(
     Component, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
 pub struct AnnouncedOpLevel(pub PlayerOpLevel);
 
-/// Gives each player of this world the level that the operators now name for it, after an `op`,
-/// a `deop` or a loopback join changed them.
 pub(crate) fn refresh_op_levels(
     ops: Res<OpList>,
     default_level: Res<DefaultOpLevel>,
@@ -29,8 +25,6 @@ pub(crate) fn refresh_op_levels(
     }
 }
 
-/// A player that spawns or changes dimension learns its level in the sequence that brings it
-/// in; this tells it every later change.
 pub(crate) fn send_op_level(
     mut players: Query<
         (Entity, &PlayerOpLevel, &mut AnnouncedOpLevel, &Owner),
@@ -53,7 +47,6 @@ pub(crate) fn send_op_level(
     }
 }
 
-/// The `entity_event` that tells a client its operator level.
 pub(crate) fn op_level_packet(
     session: PlayerSession,
     op_level: PlayerOpLevel,

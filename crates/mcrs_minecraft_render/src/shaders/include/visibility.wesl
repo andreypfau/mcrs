@@ -1,5 +1,3 @@
-// A frustum plane is `(normal, d)`, with the inside where `dot(normal, p) + d > 0`.
-
 fn box_outside(plane: vec4<f32>, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     let corner = vec3<f32>(
         select(mn.x, mx.x, plane.x > 0.0),
@@ -13,8 +11,6 @@ fn sphere_outside(plane: vec4<f32>, centre: vec3<f32>, radius: f32) -> bool {
     return dot(plane.xyz, centre) + plane.w <= -radius;
 }
 
-/// Where a shape lands on the screen: its box in normalised device coordinates and its nearest
-/// depth, or `in_front` false when a corner lies behind the camera and no box can be drawn.
 struct Footprint {
     lo: vec2<f32>,
     hi: vec2<f32>,
@@ -38,9 +34,6 @@ fn cover(footprint: ptr<function, Footprint>, clip_from_relative: mat4x4<f32>, c
     (*footprint).nearest = max((*footprint).nearest, ndc.z);
 }
 
-/// The pyramid halves each level and hands an odd leftover row or column to its last texel, so a
-/// pixel lies under texel `min(pixel >> (level + 1), size - 1)` of a level. Scaling a coordinate by
-/// a level's size instead drifts off that by up to a texel, and reads a texel beside the box.
 fn farthest_under(
     pyramid: texture_2d<f32>,
     viewport: vec2<f32>,
@@ -68,9 +61,6 @@ fn farthest_under(
     return farthest;
 }
 
-/// Whether a pyramid of at least one level holds something nearer than every point of the
-/// footprint over the whole of it. A shape reaching behind the camera or past the edge of the
-/// screen is never hidden: what the pyramid does not cover says nothing about it.
 fn occluded(pyramid: texture_2d<f32>, viewport: vec2<f32>, levels: u32, footprint: Footprint) -> bool {
     if (!footprint.in_front) {
         return false;

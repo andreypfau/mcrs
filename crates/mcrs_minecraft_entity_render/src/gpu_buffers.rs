@@ -12,7 +12,6 @@ const INSTANCE_BYTES: u64 = 80;
 
 pub(crate) struct SlotBuffers {
     pub(crate) capacity: u32,
-    /// The tick record of each slot, then its previous one.
     pub(crate) ticks: Buffer,
     pub(crate) tick_of_record: Buffer,
     pub(crate) culls: Buffer,
@@ -65,7 +64,6 @@ pub(crate) struct StaticBuffers {
 
 impl StaticBuffers {
     pub(crate) fn new(device: &Device, library: &EntityLibrary) -> Self {
-        // An empty table still holds the one record that its shader array declares.
         let table = |label: &str, bytes: &[u8], usage: BufferUsages| {
             let padded;
             let contents = if bytes.is_empty() {
@@ -114,17 +112,12 @@ pub(crate) struct FrameBuffers {
     pub(crate) indirect: Buffer,
     pub(crate) scatter: Buffer,
     pub(crate) scatter_capacity: u32,
-    /// The slot of each impostor of the frame.
     pub(crate) impostors: Buffer,
-    /// The draw record of each impostor of the frame.
     pub(crate) impostor_draws: Buffer,
 }
 
-/// The bytes of the draw record of one impostor.
 const IMPOSTOR_DRAW_BYTES: u64 = 128;
 
-/// The draw records of the impostors of `slots` slots: the impostors that discard from the
-/// start, the small ones from the end.
 pub(crate) fn impostor_draws(device: &Device, slots: u32) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("entity impostor draws"),
@@ -134,7 +127,6 @@ pub(crate) fn impostor_draws(device: &Device, slots: u32) -> Buffer {
     })
 }
 
-/// The impostor list of `slots` slots.
 pub(crate) fn impostor_list(device: &Device, slots: u32) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("entity impostors"),
@@ -212,7 +204,6 @@ impl FrameBuffers {
         }
     }
 
-    /// Sets the counters to zero before the compute passes of a frame.
     pub(crate) fn reset_counters(&self, encoder: &mut CommandEncoder) {
         encoder.copy_buffer_to_buffer(&self.counters_zero, 0, &self.counters, 0, COUNTERS * 4);
     }

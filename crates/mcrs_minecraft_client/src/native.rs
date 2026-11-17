@@ -78,16 +78,11 @@ fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {
     None
 }
 
-/// Tracy draws its frame boundaries from this. `bevy_render` marks them with a
-/// tracing event, but only the profiler's own subscriber filters that event
-/// back out of the log, so going through the client directly is what keeps a
-/// profiled run from writing a line per frame.
 #[cfg(feature = "telemetry-tracy")]
 fn frame_mark() {
     tracing_tracy::client::frame_mark();
 }
 
-/// The size of the vanilla client's window when it opens.
 #[cfg(feature = "scene")]
 const SCENE_SIZE: UVec2 = UVec2::new(854, 480);
 
@@ -116,8 +111,6 @@ pub fn run() -> AppExit {
     let scene = scene_dir(&knobs);
     let view_distance = knobs.view_distance();
     let assets = AssetPlugin::default().file_path;
-    // The client cannot run without the jar, so the first start fetches it before the window
-    // opens and the resource thread then finds it installed.
     let data_pack = match mcrs_minecraft_client_jar::vanilla_data(
         &mcrs_minecraft_client_jar::ClientJar::InstalledOrDownloaded,
         None,
@@ -134,10 +127,6 @@ pub fn run() -> AppExit {
         features: WgpuFeatures::TIMESTAMP_QUERY,
         ..default()
     };
-    // Bevy keeps wgpu's per-draw validation pass whenever DX12 is among the backends, which the
-    // default set is even where DX12 cannot exist; the cull writes every indirect argument itself.
-    // Labels handed to Metal cost a fifth of the frame's encoding. The environment still wins,
-    // so `WGPU_DISCARD_HAL_LABELS=0` brings them back for a GPU capture.
     #[cfg(not(debug_assertions))]
     let wgpu = {
         use bevy::render::settings::InstanceFlags;
@@ -184,9 +173,6 @@ pub fn run() -> AppExit {
                 },
                 mode: window_options::window_mode(knobs.fullscreen()),
                 position: WindowPosition::Centered(MonitorSelection::Primary),
-                // A window another one covers stops being presented, and a frame that gets no
-                // swapchain texture is a frame that is never drawn, so a sized window stays on
-                // top for the length of the measurement.
                 window_level: if resolution.is_some() {
                     WindowLevel::AlwaysOnTop
                 } else {
@@ -211,7 +197,6 @@ pub fn run() -> AppExit {
             ..default()
         });
     app.add_plugins(if scene.is_some() {
-        // With the window feature on, the default plugins add no runner of their own.
         defaults
             .disable::<WinitPlugin>()
             .add(ScheduleRunnerPlugin::default())
@@ -261,8 +246,6 @@ pub fn run() -> AppExit {
         });
     }
 
-    // After `DefaultPlugins`: an embedded server leaves the task pools to its
-    // host, so the host has to have built them before the server thread ticks.
     let username = knobs.username();
     let local_uuid = save_data
         .player_uuid
@@ -375,11 +358,6 @@ fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
     }
 }
 
-/// One block holds every group of every bucket and a flush takes a fresh one before freeing the
-/// stale one, so the arena has to fit two of them with the buddy rounding on top.
-///
-/// The tint window covers the view and two columns past it on each side, which a column the
-/// client has yet to drop can still stand in.
 fn terrain_limits(view_distance: u8) -> TerrainLimits {
     TerrainLimits {
         arena_scale: 4,
@@ -389,9 +367,6 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
     }
 }
 
-/// Singleplayer, the way the vanilla client plays it: a server of our own, which the client then
-/// joins over loopback like any other. It listens on loopback only, unless `MCRS_OPEN_TO_LAN=1`
-/// opens it to the local network, where it then announces itself.
 #[cfg(feature = "singleplayer")]
 fn host_integrated_server(
     knobs: &Knobs,
@@ -414,8 +389,6 @@ fn host_integrated_server(
         worlds: DimensionWorldsPlugin {
             world: world.map(Path::to_path_buf),
             column_traces: traces,
-            // The host of a singleplayer world is an operator at the highest level, unless the
-            // ops file says otherwise: a later entry for the same player replaces it.
             ops: OpList::new(
                 std::iter::once(OpListEntry {
                     uuid: host.id,
@@ -438,7 +411,6 @@ fn host_integrated_server(
         world_gen: WorldGenPlugin,
         network: ServerNetworkPlugin {
             bind_address: config::integrated_bind_address(open_to_lan),
-            // The host shares this process, so only LAN guests gain from compression.
             compression_threshold: if open_to_lan {
                 NetworkCompressionThreshold::default()
             } else {
@@ -473,7 +445,6 @@ fn host_integrated_server(
     SocketAddr::new(std::net::Ipv4Addr::LOCALHOST.into(), address.port())
 }
 
-/// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.
 fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     let address = knobs.server()?;
     match address.to_socket_addrs().map(|mut a| a.next()) {
@@ -485,8 +456,6 @@ fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     }
 }
 
-/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders. The
-/// options file is `options.json` of the world folder, unless `MCRS_OPTIONS` names another.
 #[expect(
     clippy::disallowed_methods,
     reason = "the client binary reads its settings from the environment"
@@ -494,7 +463,6 @@ fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
 fn knobs(world: Option<&Path>) -> Knobs {
     let variables = std::env::vars_os().filter_map(|(name, value)| {
         let name = name.into_string().ok()?;
-        // Windows matches variable names in any case, as `std::env::var` does there.
         #[cfg(windows)]
         let name = name.to_ascii_uppercase();
         Some((
@@ -509,8 +477,6 @@ fn knobs(world: Option<&Path>) -> Knobs {
     )
 }
 
-/// A world folder seeds the clocks, the weather and the spawn, and gives the
-/// integrated server its saved chunks. Without one the server generates.
 fn world_folder() -> Option<PathBuf> {
     let path = std::env::args_os().nth(1).map(PathBuf::from)?;
     if !path.is_dir() {
@@ -578,8 +544,6 @@ fn load_save(world: &Path) -> SaveData {
     }
 }
 
-/// A spawn point is a block position; the player stands at its centre in X and
-/// Z, and Y is the block's own floor.
 fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32) {
     (
         DVec3::new(

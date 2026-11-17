@@ -1,4 +1,3 @@
-/// The sprite that fills the bounds of a button or an icon button (WID-BTN-002).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonSprite {
     Normal,

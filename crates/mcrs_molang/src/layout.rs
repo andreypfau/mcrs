@@ -5,14 +5,12 @@ use hashbrown::HashMap;
 
 use crate::value::ValueType;
 
-/// An index of a `variable.` name within the bank of its type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VariableSlot {
     pub index: u16,
     pub bank: Bank,
 }
 
-/// The storage of a value: `f32` numbers, or 64-bit strings and resources.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Bank {
     Number,
@@ -29,8 +27,6 @@ impl From<ValueType> for Bank {
     }
 }
 
-/// The dense slots of the `variable.` names of one host type. Each subject of the type stores
-/// its variables in this order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VariableLayout {
     names: Vec<(Box<str>, ValueType)>,
@@ -39,7 +35,6 @@ pub struct VariableLayout {
     bits: u16,
 }
 
-/// A variable that already has a slot of another type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TypeConflict {
     pub declared: ValueType,
@@ -61,7 +56,6 @@ impl VariableLayout {
         self.by_name.get(name).map(|(_, value_type)| *value_type)
     }
 
-    /// The slot of `name`, made with `value_type` when the name has none.
     pub fn declare(
         &mut self,
         name: &str,
@@ -90,19 +84,16 @@ impl VariableLayout {
         Ok(slot)
     }
 
-    /// The number of slots in the `f32` bank.
     #[must_use]
     pub const fn number_slots(&self) -> usize {
         self.numbers as usize
     }
 
-    /// The number of slots in the 64-bit bank.
     #[must_use]
     pub const fn bits_slots(&self) -> usize {
         self.bits as usize
     }
 
-    /// Each name with its slot and type, in declaration order.
     pub fn iter(&self) -> impl Iterator<Item = (&str, VariableSlot, ValueType)> {
         self.names.iter().filter_map(|(name, value_type)| {
             self.by_name

@@ -9,24 +9,15 @@ use mcrs_minecraft_command_argument_entity::EntityError;
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::Text;
 
-/// The syntax errors of the vanilla argument types. An error of an identifier or of a resource
-/// is [`ArgumentError::Resource`] whichever argument read it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ArgumentError {
-    /// An error of an identifier or of a registry entry.
     Resource(ResourceError),
-    /// An error of an argument that reads one word of a fixed set.
     Keyword(KeywordError),
-    /// An error of a coordinate, rotation or swizzle argument.
     Coordinates(CoordinatesError),
-    /// An error of an entity selector.
     Entity(EntityError),
-    /// An error of a block predicate.
     Block(BlockError),
-    /// An error of a tick count.
     Time(TimeError),
-    /// An error of an SNBT compound.
     Nbt(SnbtError),
 }
 
@@ -46,10 +37,8 @@ impl fmt::Display for ArgumentError {
 
 impl core::error::Error for ArgumentError {}
 
-/// A syntax error of a vanilla command line.
 pub type CommandSyntaxError = SyntaxError<ArgumentError>;
 
-/// A library argument type has no errors of its own.
 impl From<core::convert::Infallible> for ArgumentError {
     fn from(never: core::convert::Infallible) -> Self {
         match never {}

@@ -1,7 +1,3 @@
-//! The world state of a Minecraft client without a window or a renderer: the session's
-//! registries, the received columns, the local player, the game mode and the chat.
-// std: bevy
-
 pub mod abilities;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;

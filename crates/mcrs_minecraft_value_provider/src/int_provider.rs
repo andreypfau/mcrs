@@ -28,8 +28,6 @@ impl<'de> Deserialize<'de> for IntProvider {
     }
 }
 
-/// The range checks the reference's codecs make: a span whose max falls below
-/// its min, or a plateau wider than the span, is a load error.
 pub(crate) fn span_ordered<T: PartialOrd + std::ops::Sub<Output = T> + Copy + std::fmt::Display>(
     span: Option<(T, T, Option<T>)>,
 ) -> Result<(), String> {
@@ -48,7 +46,6 @@ pub(crate) fn span_ordered<T: PartialOrd + std::ops::Sub<Output = T> + Copy + st
 }
 
 impl DispatchedIntProvider {
-    /// The `(min, max, plateau)` the variant is bounded by, for the ones that are.
     fn span(&self) -> Option<(i32, i32, Option<i32>)> {
         use DispatchedIntProvider::*;
         match self {
@@ -128,7 +125,6 @@ impl IntProvider {
         })
     }
 
-    /// A constant where the bounds meet, a uniform range otherwise.
     pub fn between(min_inclusive: i32, max_inclusive: i32) -> Self {
         if min_inclusive == max_inclusive {
             IntProvider::Constant(min_inclusive)

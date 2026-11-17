@@ -6,8 +6,6 @@ use crate::access::{Access, Volume, section_meets, within};
 use crate::bounds::span;
 use crate::voxels::{VoxelStore, VoxelStoreMut};
 
-/// An owned dense box of block states: a schematic, a dense test world. Cells of a section
-/// it only partly covers read as air and drop writes.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BoxVolume {
     bounds: BoundingBox,
@@ -16,8 +14,6 @@ pub struct BoxVolume {
 }
 
 impl BoxVolume {
-    /// Every cell of `bounds` holds `state`. `None` when the box holds more cells than
-    /// memory can address; a box with `min` above `max` on an axis is empty.
     pub fn filled(bounds: BoundingBox, state: BlockStateId) -> Option<Self> {
         let span = |lo: i32, hi: i32| usize::try_from(span(lo, hi)).ok();
         let size = [
@@ -36,7 +32,6 @@ impl BoxVolume {
         })
     }
 
-    /// Every cell of one horizontal layer, if the layer is inside the box.
     pub fn fill_layer(&mut self, y: i32, state: BlockStateId) {
         if y < self.bounds.min.y || y > self.bounds.max.y {
             return;
@@ -50,7 +45,6 @@ impl BoxVolume {
         }
     }
 
-    /// Every cell with its position, `y`, then `z`, then `x`, `x` fastest.
     pub fn iter(&self) -> impl Iterator<Item = (BlockPos, BlockStateId)> + '_ {
         let (min, max) = (self.bounds.min, self.bounds.max);
         let positions = (min.y..=max.y).flat_map(move |y| {
@@ -113,7 +107,6 @@ impl VoxelStoreMut for BoxVolume {
     }
 }
 
-/// `value - min` for a `value` already known to be at least `min`.
 fn offset(value: i32, min: i32) -> usize {
     value.abs_diff(min) as usize
 }

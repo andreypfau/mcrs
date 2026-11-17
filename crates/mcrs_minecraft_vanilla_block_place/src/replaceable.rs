@@ -4,14 +4,12 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockStateId;
 
-/// Where a placement looks for room: at the clicked position, or one block toward the face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Spot {
     Clicked,
     Adjacent,
 }
 
-/// A placement of `held` can overwrite `state` at `spot` (PLC-TGT-002, PLC-TGT-006, PLC-TGT-007).
 pub fn replaceable(
     definitions: &BlockDefinitions,
     state: BlockStateId,

@@ -1,6 +1,3 @@
-//! The parse gate over the occurrences of the Bedrock vanilla packs (`docs/molang-corpus.md`,
-//! section 12). The corpus lives outside the repository; `MCRS_MOLANG_CORPUS` names the file.
-
 use std::collections::BTreeMap;
 
 use serde::Deserialize;

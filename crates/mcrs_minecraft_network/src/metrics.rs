@@ -17,36 +17,25 @@ use tracing::trace;
 
 use crate::event::{Trigger, Triggers};
 
-/// What the bridge has kicked and routed since the server started.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BridgeTelemetry {
     pub kick_overflow_total: u64,
     pub kick_flood_total: u64,
     pub outbound_messages_consumed_total: u64,
     pub outbound_no_queue_total: u64,
-    /// Packets serialized for one recipient.
     pub encode_calls_total: u64,
-    /// Packets serialized once and appended to a recipient as shared bytes.
     pub shared_appends_total: u64,
-    /// Bytes of the shared appends, one count for each recipient.
     pub shared_bytes_total: u64,
-    /// Frames made once for a shared packet and a compression threshold: each compresses the
-    /// packet once at most.
     pub shared_frames_total: u64,
-    /// Shared appends that went as a frame made once, not framed again by the writer.
     pub framed_appends_total: u64,
-    /// Bytes of the records of the entity muxer, one count for each recipient.
     pub replication_bytes_total: u64,
     pub packets: PacketKinds,
 }
 
-/// What an outbound packet is for, as far as replication cost goes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketKind {
     EntityMove,
     PlayerInfo,
-    /// A packet of the entity muxer: a spawn, a move, a removal or a player list update, which
-    /// the bridge counts without reading its id.
     Replication,
     Chunk,
     Other,
@@ -73,7 +62,6 @@ impl PacketKind {
     }
 }
 
-/// Packets handed to connections, by [`PacketKind`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PacketKinds([u64; PacketKind::ALL.len()]);
 
@@ -97,8 +85,6 @@ impl PacketKinds {
 type Check =
     fn(i32, &mut &[u8], &mut Triggers) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>>;
 
-/// The play-state table of one side, typed by a crate above this one. The dispatcher holds the
-/// rows of this crate's own play packets until one replaces them.
 #[derive(Clone, Copy, Debug)]
 pub struct PlayTable {
     table: &'static Table,
@@ -111,8 +97,6 @@ impl PlayTable {
     }
 }
 
-/// Decode failures per row and ids outside the table, for one table.
-/// Sized by the table when built; nothing a peer sends grows it.
 #[derive(Debug)]
 pub struct TableCounts {
     table: &'static Table,
@@ -145,8 +129,6 @@ impl TableCounts {
         self.unknown
     }
 
-    /// Counts the frame when it fails to decode or names no row, the frames the game's
-    /// decoder rejects. A row without a structure counts nothing and has no trigger.
     pub fn record(&mut self, id: i32, body: &[u8]) -> Result<Option<Trigger>, Malformed> {
         if let Some(&(_, trigger)) = self.deferred.iter().find(|(row, _)| *row == id) {
             return Ok(Some(trigger));
@@ -232,13 +214,9 @@ fn protocol_id(state: ConnectionState) -> &'static str {
     }
 }
 
-/// A frame the game's decoder rejects, which ends the connection that sent it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Malformed {
-    /// The exception the game's decoder throws for the frame, as its connection prints it.
     pub cause: String,
-    /// Present on the first increment of the frame's counter, so a client cannot choose how
-    /// often anything is logged.
     pub log: Option<String>,
 }
 
@@ -258,8 +236,6 @@ macro_rules! counts {
     };
 }
 
-/// The one place a received frame is checked: it picks the table of the connection's state,
-/// decodes the frame once and hands back the trigger of the frame's typed event.
 #[derive(Resource, Debug)]
 pub struct PacketDispatcher {
     side: PacketSide,
@@ -292,8 +268,6 @@ impl PacketDispatcher {
         }
     }
 
-    /// Leaves the check of a row to its observer, which decodes the frame off the main thread
-    /// and drops the connection when the frame does not decode.
     pub fn defer<R: Row>(mut self) -> Self {
         type P<R> = <R as Row>::Packet<'static>;
         if P::<R>::SIDE == self.side
@@ -304,8 +278,6 @@ impl PacketDispatcher {
         self
     }
 
-    /// Types the play rows that `play` types, in place of this crate's own play table. The
-    /// table must be of this dispatcher's side.
     pub fn with_play(mut self, play: PlayTable) -> Self {
         self.set_play(play);
         self
@@ -334,7 +306,6 @@ impl PacketDispatcher {
             .find(|counts| counts.table.state == state)
     }
 
-    /// A frame in a state without a table of this side names no row, as an unknown id does.
     pub fn dispatch(
         &mut self,
         state: ConnectionState,
@@ -350,8 +321,6 @@ impl PacketDispatcher {
         }
     }
 
-    /// The frames behind one that ends its state are in the next state's protocol, and the
-    /// state changes only once that frame is handled, so a reader stops after it.
     pub fn ends_state(&self, state: ConnectionState, id: i32) -> bool {
         ENDS_STATE.contains(&(self.side, state, id))
     }

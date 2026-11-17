@@ -3,15 +3,12 @@ use mcrs_voxel::{BlockStateId, SectionPos};
 
 use crate::ColumnBlocks;
 
-/// One layer of a flat dimension: `height` blocks of `state`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FlatLayer {
     pub state: BlockStateId,
     pub height: u32,
 }
 
-/// The layers of a flat dimension, from the bottom of the dimension up. Above the last layer
-/// every block is air.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FlatLayers {
     layers: Vec<FlatLayer>,
@@ -23,8 +20,6 @@ impl FlatLayers {
         Self { layers }
     }
 
-    /// Fills `column` with the layers from the bottom section up. A layer above the column is
-    /// cut off.
     pub fn fill(&self, column: &mut ColumnBlocks, y_sections: &[i32]) {
         column.reset(y_sections);
         let Some(&bottom) = y_sections.first() else {

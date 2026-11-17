@@ -1,8 +1,6 @@
 use mcrs_minecraft_noise::proto::HashableF64;
 use serde::{Deserialize, Serialize};
 
-/// `Codec.either(A, B)`: a value written either as `A` or as `B`, round-tripping
-/// back into the shape it came from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Either<L, R> {
@@ -10,7 +8,6 @@ pub enum Either<L, R> {
     Right(R),
 }
 
-/// A closed range written as a bare value, a two-element array, or an object.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(from = "RangeForm")]
 #[serde(into = "RangeForm")]

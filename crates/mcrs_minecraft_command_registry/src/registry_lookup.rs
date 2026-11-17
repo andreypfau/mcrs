@@ -8,37 +8,31 @@ use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 
-/// The dimension type of the source and its default clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DimensionClock<'a> {
     pub dimension_type: Option<&'a ResourceLocationBuf>,
     pub clock: Option<Id<WorldClock>>,
 }
 
-/// The registries and the block table a host lends to its command lookup.
 #[derive(Clone, Copy, Default)]
 pub struct RegistryLookup<'a> {
     pub registries: Option<&'a Registries>,
     pub blocks: Option<&'a BlockDefinitions>,
-    /// The dimension type of the source dimension, whose clock is the default clock.
     pub dimension_type: Option<Id<DimensionType>>,
 }
 
 impl<'a> RegistryLookup<'a> {
-    /// Whether the registries hold `registry`.
     pub fn has_registry(&self, registry: ResourceLocation<'static>) -> bool {
         self.registries
             .is_some_and(|registries| registries.names_of(registry).is_some())
     }
 
-    /// The names of the entries of `registry` in id order.
     pub fn names(&self, registry: ResourceLocation<'static>) -> &'a [ResourceLocationBuf] {
         self.registries
             .and_then(|registries| registries.names_of(registry))
             .unwrap_or_default()
     }
 
-    /// The identifiers of the entries, each as `namespace:path`.
     pub fn entries(
         &self,
         registry: ResourceLocation<'static>,
@@ -46,7 +40,6 @@ impl<'a> RegistryLookup<'a> {
         self.names(registry).iter().map(ResourceLocationBuf::as_str)
     }
 
-    /// The identifiers of the tags of `registry`, each as `namespace:path`.
     pub fn tags(
         &self,
         registry: ResourceLocation<'static>,
@@ -58,7 +51,6 @@ impl<'a> RegistryLookup<'a> {
             .map(|(name, _)| name.as_str())
     }
 
-    /// The registry ids of the members of `tag`.
     pub fn tag_members(
         &self,
         registry: ResourceLocation<'static>,
@@ -70,7 +62,6 @@ impl<'a> RegistryLookup<'a> {
             .map(|(_, members)| members)
     }
 
-    /// Whether `tag` of `registry` holds `entry`.
     pub fn tag_contains(
         &self,
         registry: ResourceLocation<'static>,
@@ -85,7 +76,6 @@ impl<'a> RegistryLookup<'a> {
             })
     }
 
-    /// The identifiers of the members of `tag`, each as `namespace:path`.
     pub fn tag_entries(
         &self,
         registry: ResourceLocation<'static>,
@@ -99,7 +89,6 @@ impl<'a> RegistryLookup<'a> {
             .map(ResourceLocationBuf::as_str)
     }
 
-    /// The registry id of the entry `name`.
     pub fn id(
         &self,
         registry: ResourceLocation<'static>,
@@ -112,7 +101,6 @@ impl<'a> RegistryLookup<'a> {
         u16::try_from(index).ok()
     }
 
-    /// The entry of the block table for `block`.
     pub fn block(&self, block: ResourceLocation<'_>) -> Option<&'a BlockEntry> {
         self.blocks?
             .blocks()
@@ -120,12 +108,10 @@ impl<'a> RegistryLookup<'a> {
             .find(|entry| block == entry.identifier.as_str())
     }
 
-    /// The properties of `block` in their order.
     pub fn block_properties(&self, block: ResourceLocation<'_>) -> Option<&'a [BlockProperty]> {
         self.block(block).map(|entry| entry.properties.0.as_slice())
     }
 
-    /// Whether the states of `block` have a block entity.
     pub fn has_block_entity(&self, block: ResourceLocation<'_>) -> bool {
         let (Some(blocks), Some(entry)) = (self.blocks, self.block(block)) else {
             return false;
@@ -136,7 +122,6 @@ impl<'a> RegistryLookup<'a> {
             .contains(BlockStateFlags::HAS_BLOCK_ENTITY)
     }
 
-    /// The registry ids of an entry or of the members of a tag.
     pub fn ids(
         &self,
         registry: ResourceLocation<'static>,
@@ -148,7 +133,6 @@ impl<'a> RegistryLookup<'a> {
         }
     }
 
-    /// The name of the entry with the registry id `id`.
     pub fn name(
         &self,
         registry: ResourceLocation<'static>,
@@ -157,7 +141,6 @@ impl<'a> RegistryLookup<'a> {
         self.names(registry).get(usize::from(id))
     }
 
-    /// The name of the source dimension type, and its default clock.
     pub fn dimension_clock(&self) -> Option<DimensionClock<'a>> {
         let types = self.registries?.registry::<DimensionTypeFile>()?;
         let id = Id::checked(self.dimension_type?.number(), types.len())?;
@@ -167,7 +150,6 @@ impl<'a> RegistryLookup<'a> {
         })
     }
 
-    /// The named clock, or the default clock of the source dimension for `None`.
     pub fn clock(&self, name: Option<ResourceLocation<'_>>) -> Option<Id<WorldClock>> {
         match name {
             None => self.dimension_clock()?.clock,
@@ -180,12 +162,10 @@ impl<'a> RegistryLookup<'a> {
         }
     }
 
-    /// The name of a world clock.
     pub fn clock_name(&self, clock: Id<WorldClock>) -> Option<&'a ResourceLocationBuf> {
         self.registries?.registry::<WorldClock>()?.name(clock)
     }
 
-    /// The timelines that run on the clock, with their names.
     pub fn timelines(
         &self,
         clock: Option<Id<WorldClock>>,
@@ -198,7 +178,6 @@ impl<'a> RegistryLookup<'a> {
             .map(|(_, name, timeline)| (name, timeline))
     }
 
-    /// The timeline `name`, with its name.
     pub fn timeline(
         &self,
         name: ResourceLocation<'_>,
@@ -210,7 +189,6 @@ impl<'a> RegistryLookup<'a> {
             .map(|(_, name, timeline)| (name, timeline))
     }
 
-    /// The time markers of a clock that a command suggests.
     pub fn suggested_time_markers(
         &self,
         clock: Option<ResourceLocation<'_>>,
@@ -221,7 +199,6 @@ impl<'a> RegistryLookup<'a> {
             .map(|(name, _)| name.as_str())
     }
 
-    /// The identifiers of the timelines that run on a clock; `None` is the default clock.
     pub fn timelines_of_clock(
         &self,
         clock: Option<ResourceLocation<'_>>,
@@ -231,17 +208,13 @@ impl<'a> RegistryLookup<'a> {
     }
 }
 
-/// The registry ids of an entry or of the members of a tag, without a copy of the members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ids<'a> {
-    /// The id of one entry.
     One([u16; 1]),
-    /// The ids of the members of a tag.
     Members(&'a [u16]),
 }
 
 impl Ids<'_> {
-    /// The ids as a slice.
     #[must_use]
     pub fn as_slice(&self) -> &[u16] {
         match self {

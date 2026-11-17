@@ -34,25 +34,16 @@ use crate::MobColumn;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
-/// The AI of the mobs of one dimension world, with the brains `B`. In each tick
-/// [`MobAi::prepare`] publishes the snapshot of the tick, applies the due decisions and steers the
-/// rows before the entity pass; [`MobAi::run_stage`] runs the stage of the tick beside the pass.
-/// Both work in parallel over the tiles, and their result does not depend on the thread count.
-/// The hot state of each mob with a brain is the [`MobColumn`] of its row.
 #[derive(Resource, Debug)]
 pub struct MobAi<B: Send + Sync + 'static> {
     driver: AiDriver<B>,
-    /// The brain of a mob that came into the world, from its type; `None` for a type without AI.
     brain_for: fn(&'static EntityTypeData) -> Option<B>,
     panic_causes: PanicCauses,
-    /// The mobs whose path ended in the last tick.
     ended: Vec<EntityId>,
     stats: AiStats,
 }
 
 impl<B: Send + Sync + 'static> MobAi<B> {
-    /// The AI of a world in which each mob without `NoAI` gets the brain that `brain_for` makes
-    /// for its type.
     #[must_use]
     pub fn new(config: StageConfig, brain_for: fn(&'static EntityTypeData) -> Option<B>) -> Self {
         Self {
@@ -64,7 +55,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         }
     }
 
-    /// Sets the damage types whose hit makes a mob panic; a new AI has none.
     pub fn set_panic_causes(&mut self, panic_causes: PanicCauses) {
         self.panic_causes = panic_causes;
     }
@@ -74,8 +64,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.driver.stage()
     }
 
-    /// The last AI tick: the clock of the cadences, the keyed random values and the damage
-    /// records.
     #[must_use]
     pub const fn tick(&self) -> u64 {
         self.driver.tick()
@@ -86,10 +74,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         &self.stats
     }
 
-    /// The hot side of the next AI tick, before the entity pass: follows the life cycle of the
-    /// mobs, publishes the snapshot with `players`, the players of the dimension at the end of
-    /// the last tick, applies the due decisions and queues an intent for each living mob of the
-    /// stage.
     pub fn prepare<V: BlockVolume + Sync>(
         &mut self,
         hot: &HotTick<'_, V>,
@@ -137,8 +121,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.stats.prepare = started.elapsed();
     }
 
-    /// The stage of the tick of the last [`MobAi::prepare`] over `world`, the blocks at the start
-    /// of the tick.
     pub fn run_stage<W: GoalWorld + Sync>(&mut self, pool: &TaskPool, world: &W)
     where
         B: MobBrain<W>,
@@ -156,9 +138,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.stats.stage = started.elapsed();
     }
 
-    /// Follows the life cycle of the rows since the last tick: drops the brain of each mob that
-    /// left the world, moves the brain of each mob that changed tile, and gives each new mob with
-    /// AI a brain and a mob column. The column moves with its row, so only the changes run.
     fn follow_life_cycle<V>(&mut self, tick: u64, mobs: &Mobs, rows: &mut EntityRows)
     where
         B: for<'w> MobBrain<BlockGoalWorld<'w, V>>,
@@ -203,8 +182,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.stats.mobs = self.driver.stage().len();
     }
 
-    /// The decisions due in this tick, by the tile of their mob now, each tile in the order of the
-    /// issue ticks and the keys.
     fn due(&mut self) -> BTreeMap<TileKey, Vec<Decision>> {
         let mut by_tile: BTreeMap<TileKey, Vec<Decision>> = BTreeMap::new();
         let issued = self.driver.take_due();
@@ -250,7 +227,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
     }
 }
 
-/// Runs the tile tasks of one stage tick on `pool`.
 fn run_tiles<B, W>(pool: &TaskPool, work: &mut [TileWork<'_, B>], cx: &TickContext<'_, W>)
 where
     B: MobBrain<W> + Send,
@@ -268,8 +244,6 @@ where
     });
 }
 
-/// Deals `tasks` into groups of about `per_task`, each with its index: the heaviest tasks go
-/// first, one to each group in turn, so the groups carry about the same weight.
 fn deal<T>(tasks: Vec<T>, per_task: usize, weight: impl Fn(&T) -> usize) -> Vec<Vec<(usize, T)>> {
     let count = tasks.len().div_ceil(per_task.max(1)).max(1);
     let mut indexed: Vec<(usize, T)> = tasks.into_iter().enumerate().collect();
@@ -283,7 +257,6 @@ fn deal<T>(tasks: Vec<T>, per_task: usize, weight: impl Fn(&T) -> usize) -> Vec<
     groups
 }
 
-/// The outputs of the groups of [`deal`] in the order of the tasks.
 fn in_order<T>(groups: Vec<Vec<(usize, T)>>) -> Vec<T> {
     let mut outs: Vec<(usize, T)> = groups.into_iter().flatten().collect();
     outs.sort_unstable_by_key(|(index, _)| *index);

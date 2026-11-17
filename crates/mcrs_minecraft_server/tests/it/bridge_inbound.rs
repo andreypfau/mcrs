@@ -1,7 +1,3 @@
-//! Integration tests for `bridge_inbound` (per-connection rate limiting,
-//! typed event emission) and `disconnect_clears_pending` (teardown
-//! leak check).
-
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
@@ -37,10 +33,6 @@ use mcrs_minecraft_protocol_game::table::game_serverbound;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 fn build_inbound_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -55,11 +47,6 @@ fn build_inbound_world() -> World {
     world
 }
 
-/// Spawn a connection entity in the game state with InboundPacketRate +
-/// OutboundQueue and a mock RawConnection that we can inject packets into.
-///
-/// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
-/// `inbound_tx` to simulate packets arriving from the client.
 fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
     let (raw, _outgoing_rx, inbound_tx) = mock_connection::make_mock_raw_connection_full();
     let entity = world
@@ -73,8 +60,6 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
     (entity, inbound_tx)
 }
 
-/// Log a player in, attached to `dim` or, without an in-dim entity yet, still
-/// joining it. Returns the host anchor carrying the session.
 fn register_player(world: &mut World, dim: Entity, in_dim_entity: Option<Entity>) -> Entity {
     let session = world.resource_mut::<PlayerSessionCounter>().next();
     let place = match in_dim_entity {
@@ -89,7 +74,6 @@ fn register_player(world: &mut World, dim: Entity, in_dim_entity: Option<Entity>
         .id()
 }
 
-/// Attach a `HostAnchorRef` to the given socket entity pointing at `player`.
 fn attach_anchor(world: &mut World, socket: Entity, player: Entity) {
     world.entity_mut(socket).insert(HostAnchorRef(player));
 }
@@ -105,24 +89,10 @@ fn run_inbound(world: &mut World) {
     sys.apply_deferred(world);
 }
 
-// ---------------------------------------------------------------------------
-// Counter resource used to verify typed event triggers
-// ---------------------------------------------------------------------------
-
 #[derive(Resource, Default)]
 struct EventCounter {
     count: usize,
 }
-
-// ---------------------------------------------------------------------------
-// bridge_inbound_emits_received_packet_event
-//
-// Replaces the old routing test: bridge_inbound no longer routes into
-// PendingInboundPartition directly. Instead it raises the typed event
-// for each drained in-game packet so host-side observers (keepalive, movement,
-// chat) fire. This test verifies that exactly one event fires per drained
-// packet across two independent connections.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn bridge_inbound_emits_received_packet_event() {
@@ -147,7 +117,6 @@ fn bridge_inbound_emits_received_packet_event() {
     register_player(&mut world, dim_a, Some(in_dim_a));
     register_player(&mut world, dim_b, Some(in_dim_b));
 
-    // Inject one packet into each connection.
     tx_a.try_send(make_received_packet(1)).unwrap();
     tx_b.try_send(make_received_packet(2)).unwrap();
 
@@ -158,10 +127,6 @@ fn bridge_inbound_emits_received_packet_event() {
         counter.count, 2,
         "bridge_inbound must emit one typed event per drained packet"
     );
-
-    // bridge_inbound no longer routes to PendingInboundPartition;
-    // it only emits the typed event. The count above is the full
-    // verification needed.
 }
 
 fn connected_player(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
@@ -173,7 +138,6 @@ fn connected_player(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>)
     (socket, tx)
 }
 
-/// Sends `count` keep-alives that arrived at `arrival` and reads them.
 fn arrive(world: &mut World, tx: &mpsc::Sender<ReceivedPacket>, arrival: Instant, count: u32) {
     for seq in 0..count {
         let mut packet = make_received_packet(seq);
@@ -237,13 +201,6 @@ fn a_new_connection_has_an_outbound_queue_at_once() {
     assert!(world.get::<OutboundQueue>(socket).is_some());
 }
 
-// ---------------------------------------------------------------------------
-// disconnect_clears_pending
-// ---------------------------------------------------------------------------
-
-/// After `process_disconnect` runs, the session's host anchor is despawned
-/// and `OutboundQueue` is removed from the socket entity. Neither leaks past
-/// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
     use mcrs_minecraft_engine::muxer::disconnect::{LeavingSessions, process_disconnect};
@@ -264,13 +221,11 @@ fn disconnect_clears_pending() {
         "session should exist before disconnect"
     );
 
-    // Verify OutboundQueue exists on socket.
     assert!(
         world.get::<OutboundQueue>(socket).is_some(),
         "OutboundQueue should exist before disconnect"
     );
 
-    // Run process_disconnect (simulating the observer path).
     world
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
@@ -286,16 +241,11 @@ fn disconnect_clears_pending() {
         "the session must be gone after disconnect"
     );
 
-    // OutboundQueue must be removed from the socket entity.
     assert!(
         world.get::<OutboundQueue>(socket).is_none(),
         "OutboundQueue must be removed from socket entity after disconnect"
     );
 }
-
-// ---------------------------------------------------------------------------
-// Decode outcomes of inbound frames
-// ---------------------------------------------------------------------------
 
 fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
     ReceivedPacket {

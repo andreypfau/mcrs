@@ -10,15 +10,8 @@ use super::shared_types::SECTION_BYTES;
 use super::upload::{Pending, Placement};
 use super::words::Words;
 
-/// Room left above what a growth was asked for, so an arena that creeps up by a
-/// group at a time is not reallocated every frame. Rounding to the next power
-/// of two would leave up to twice the entries unused, and at a full render
-/// distance one entry over sixty-seven million costs another half gigabyte.
 pub(super) const HEADROOM: usize = 4;
 
-/// Bytes a geometry arena starts at, and the granularity it grows in. The allocator packs blocks
-/// towards offset zero, so what is written stays near what is resident and the arena only
-/// has to reach the highest byte a placement touches, not the budget the allocator may use.
 const GEOMETRY_STEP: u64 = 16 << 20;
 
 pub(super) struct Geometry {
@@ -28,7 +21,6 @@ pub(super) struct Geometry {
 }
 
 impl Geometry {
-    /// An arena of words a shader reads by index.
     pub fn words(path: RenderPath, label: &'static str, limit: u64, device: &RenderDevice) -> Self {
         Self {
             words: Words::new(path, label, GEOMETRY_STEP.min(limit), device),
@@ -37,7 +29,6 @@ impl Geometry {
         }
     }
 
-    /// An arena of records bound as `usage`, a buffer on either path.
     pub fn records(
         label: &'static str,
         limit: u64,
@@ -51,8 +42,6 @@ impl Geometry {
         }
     }
 
-    /// Grows the arena to hold `end` bytes, carrying what it held across with a copy recorded
-    /// ahead of the writes that follow in the same encoder, and answers whether it had to.
     pub fn fit(&mut self, end: u64, device: &RenderDevice, encoder: &mut CommandEncoder) -> bool {
         if end <= self.words.bytes() {
             return false;
@@ -70,15 +59,11 @@ impl Geometry {
     }
 }
 
-/// Which arenas a placement made grow, and so which bind groups name an array that was replaced.
 pub(super) struct Grown {
-    /// The quads, the model vertices or the faces, which the draw and the quad cull read.
     pub geometry: bool,
     pub groups: bool,
 }
 
-/// The geometry both paths draw from. The words reach a shader by index; the group records are a
-/// storage buffer the cull reads on the full path and the instances of a draw on the minimal one.
 pub(super) struct Arenas {
     pub quads: Geometry,
     pub vertices: Geometry,
@@ -115,12 +100,10 @@ impl Arenas {
         }
     }
 
-    /// Records the group arena holds.
     pub fn group_slots(&self) -> usize {
         self.groups.words.bytes() as usize / size_of::<Group>()
     }
 
-    /// Grows the arenas to reach the end of each write in `placement`.
     pub fn fit(
         &mut self,
         placement: &Placement,

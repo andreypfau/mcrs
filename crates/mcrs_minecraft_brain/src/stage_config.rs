@@ -4,7 +4,6 @@ use core::fmt;
 use crate::AiDelay;
 use crate::WorldSeed;
 
-/// The configuration of an AI stage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct StageConfig {
     seed: WorldSeed,
@@ -13,21 +12,15 @@ pub struct StageConfig {
     wake: WakeMode,
 }
 
-/// Which full evaluations of a mob run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WakeMode {
-    /// Only the evaluations that a timer of the brain or a fact names. The decisions are the
-    /// decisions of [`WakeMode::Poll`].
     Sleep,
-    /// Every full evaluation, as the reference polls the goals.
     Poll,
 }
 
 impl StageConfig {
-    /// The default of `max_lag`.
     pub const DEFAULT_MAX_LAG: u8 = 2;
 
-    /// The production configuration: `max_lag` 2, [`AiDelay::AtLeast`] of 1 and sleep.
     #[must_use]
     pub const fn new(seed: WorldSeed) -> Self {
         Self {
@@ -80,9 +73,7 @@ impl StageConfig {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConfigError {
-    /// `max_lag` is 0.
     ZeroMaxLag,
-    /// The delay is 0 or more than `max_lag`.
     DelayOutsideLag,
 }
 

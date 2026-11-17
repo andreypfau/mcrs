@@ -1,6 +1,5 @@
 use mcrs_minecraft_inventory_player::Holder;
 
-/// The slot `index` of a holder of the player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MenuSlot {
     pub holder: Holder,

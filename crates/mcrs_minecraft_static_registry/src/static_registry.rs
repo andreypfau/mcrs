@@ -1,5 +1,3 @@
-/// A static registry as an enum of its entries, numbered by protocol id, with lookup by
-/// location, the wire codec and serde. Needs the `std` feature.
 #[macro_export]
 macro_rules! static_registry {
     ($vis:vis enum $name:ident; $($variant:ident = $location:literal,)+) => {
@@ -9,7 +7,6 @@ macro_rules! static_registry {
         }
 
         impl $name {
-            /// The entry that `location` names.
             pub fn get(location: ::mcrs_minecraft_resource::ResourceLocation<'_>) -> Option<$name> {
                 static INDEX: ::std::sync::LazyLock<
                     ::std::collections::HashMap<::mcrs_minecraft_resource::ResourceLocation<'static>, $name>,
@@ -20,7 +17,6 @@ macro_rules! static_registry {
                 index.get(&location).copied()
             }
 
-            /// The entry that `text` names; a bare path is in the `minecraft` namespace.
             pub fn read(text: &str) -> Option<$name> {
                 Self::get($crate::__ResourceLocation::read(text).ok()?)
             }

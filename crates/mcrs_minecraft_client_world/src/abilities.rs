@@ -10,24 +10,17 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use crate::local_motion::LocalMotion;
 use crate::player::Player;
 
-/// The abilities of the local [`Player`]: the table of its game mode (CMD-GM-007) and the values
-/// of the last clientbound `player_abilities` (CMD-GM-008). Absent until the login packet. The
-/// flight state is the one of the kernel, in [`LocalMotion`].
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Abilities {
     pub invulnerable: bool,
     pub may_fly: bool,
     pub instant_build: bool,
-    /// Not on the wire: only the game mode sets it.
     pub may_build: bool,
-    /// The flight speed of the kernel (PHY-INP-013), `0.05` by default (CMD-GM-007).
     pub flying_speed: f32,
-    /// The walking speed of the zoom of the camera (CCAM-FOV-002), `0.1` by default (CMD-GM-007).
     pub walking_speed: f32,
 }
 
 impl Abilities {
-    /// The abilities of a new local player in `mode` (PHY-ORD-015).
     #[must_use]
     pub fn new(mode: GameMode) -> Self {
         Self {
@@ -41,7 +34,6 @@ impl Abilities {
         .changed_to(mode)
     }
 
-    /// The abilities after a change to `mode`: no mode changes the speeds (CMD-GM-007).
     #[must_use]
     pub fn changed_to(self, mode: GameMode) -> Self {
         let (invulnerable, may_fly, instant_build, may_build) = match mode {
@@ -59,7 +51,6 @@ impl Abilities {
         }
     }
 
-    /// Takes every value of `packet` but the flight state and keeps `may_build` (MVC-PKT-024).
     #[must_use]
     pub fn received(self, packet: ClientboundPlayerAbilities) -> Self {
         Self {
@@ -73,7 +64,6 @@ impl Abilities {
     }
 }
 
-/// The flight state after a change from `flying` to `mode`: creative keeps it (CMD-GM-007).
 #[must_use]
 pub(crate) fn flight_after_change(mode: GameMode, flying: bool) -> bool {
     match mode {

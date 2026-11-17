@@ -1,11 +1,7 @@
-//! The command history file, written on the I/O task pool.
-
 use bevy::prelude::*;
 use bevy::tasks::{IoTaskPool, Task};
 use std::path::PathBuf;
 
-/// The command history file and its writes. One write runs at a time and only the newest
-/// history waits for it, so an older history never overwrites a newer one.
 #[derive(Resource)]
 pub struct CommandHistoryFile {
     path: PathBuf,

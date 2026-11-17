@@ -24,7 +24,6 @@ use crate::cold_light::ColdLightPlugin;
 use crate::light_link::LightLink;
 use crate::light_plugin::{LightPlugin, LightSet};
 
-/// What a dimension hands its light stage before intake.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct DimLightFeedSet;
 
@@ -52,15 +51,11 @@ impl Plugin for DimLightPlugin {
         })
         .configure_sets(FixedUpdate, LightSet::Publish.in_set(TickSet::DomainInput))
         .configure_sets(Last, DimLightFeedSet.before(LightSet::Intake))
-        // `Last` sees what the whole tick landed and placed, and hands it to the stage before
-        // the tick ends.
         .add_systems(
             Last,
             (
                 feed_light_edits,
                 reprioritize_light_work,
-                // A surface bound must never describe blocks the light world has not
-                // been handed yet.
                 feed_column_surfaces
                     .after(mcrs_minecraft_engine::heightmap::update_column_heightmaps),
             )
@@ -73,15 +68,10 @@ impl Plugin for DimLightPlugin {
     }
 }
 
-/// Hands the light stage each column that waits for its light. The stage answers once the
-/// light of the column is final, and [`publish_light`](crate::publish_light) passes the answer
-/// on.
 fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut<LightLink>) {
     light.await_columns(awaiting.read().map(|&ColumnAwaitsLight(column)| column));
 }
 
-/// Hands the light stage where the players stand once one of them has moved to another
-/// column, so the waiting light work is re-scored against them.
 fn reprioritize_light_work(mut light: ResMut<LightLink>, players: Query<&Transform, With<Player>>) {
     light.update_players(players.iter().map(|at| ColumnPos::from(at.translation)));
 }
@@ -117,8 +107,6 @@ fn feed_light_edits(
     }
 }
 
-/// Hands the sky scan each column's surface, so a section holding no block of a
-/// column costs it two seam tests rather than sixteen reads.
 fn feed_column_surfaces(
     mut light: ResMut<LightLink>,
     columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,

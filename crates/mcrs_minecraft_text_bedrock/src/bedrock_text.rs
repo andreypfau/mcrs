@@ -6,22 +6,16 @@ use crate::formatting::{BedrockStyle, rewrite_literal_text, write_bedrock_change
 use crate::rawtext::{BedrockRawtext, BedrockRawtextComponent, BedrockRawtextWith};
 use crate::resolver::BedrockServerResolver;
 
-/// One unit for each component visited and one for each byte emitted. A pattern can name one
-/// argument many times, so nested translations grow without this bound.
 const MAX_BUDGET: usize = 262_144;
 
-/// Result of converting canonical text to Bedrock representation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BedrockText {
-    /// Formatted string, used when no part needs localization on the client.
     String(String),
-    /// Rawtext, used when a translation must stay localized on the client.
     Rawtext(BedrockRawtext),
 }
 
 impl BedrockText {
-    /// Serializes to a Bedrock `rawtext` JSON string.
     pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
         match self {
             Self::String(s) => serde_json::to_string(&BedrockRawtext {
@@ -32,8 +26,6 @@ impl BedrockText {
     }
 }
 
-/// Checks if a text component or any of its children contains a translation that must stay
-/// localized.
 #[must_use]
 pub fn has_translate<I: TextTypes>(text: &Text<I>) -> bool {
     match &text.content {
@@ -47,8 +39,6 @@ pub fn has_translate<I: TextTypes>(text: &Text<I>) -> bool {
     text.extra.iter().any(has_translate)
 }
 
-/// Converts a canonical text component into either a Bedrock formatted string or rawtext,
-/// resolving server-side dynamic parts and dropping unsupported styling features.
 pub fn to_bedrock<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -62,8 +52,6 @@ pub fn to_bedrock<I: TextTypes, R: BedrockServerResolver>(
     }
 }
 
-/// Converts a canonical text component into a Bedrock formatted string. A translation shows
-/// its fallback with the arguments filled in, or else its key followed by the arguments.
 pub fn to_bedrock_string<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -81,7 +69,6 @@ pub fn to_bedrock_string<I: TextTypes, R: BedrockServerResolver>(
     (walk.out, drops)
 }
 
-/// Converts a canonical text component into a Bedrock rawtext structure.
 pub fn to_bedrock_rawtext<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -135,8 +122,6 @@ fn dynamic_text<I: TextTypes, R: BedrockServerResolver>(
     }
 }
 
-/// Takes the part of `s` that fits the budget, with the codes that mean other things on
-/// Bedrock removed.
 fn take_run(s: &str, budget: &mut usize, drops: &mut BedrockDrops) -> Option<String> {
     let run = rewrite_literal_text(s, drops);
     let end = run.floor_char_boundary(*budget);
@@ -343,8 +328,6 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
         }
     }
 
-    // A substituted argument shares the formatting state of the surrounding
-    // translation, so it starts in the parent style and returns to it.
     fn string_arg<I: TextTypes>(&mut self, arg: &Text<I>, style: BedrockStyle) -> String {
         let mut walk = StringWalk {
             resolver: self.resolver,
@@ -359,8 +342,6 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
         walk.out
     }
 
-    // Each element of `with.rawtext` is one positional argument, so an argument
-    // of several components is grouped into one nested `rawtext`.
     fn rawtext_arg<I: TextTypes>(
         &mut self,
         arg: &Text<I>,

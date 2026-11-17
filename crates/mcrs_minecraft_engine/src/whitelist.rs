@@ -34,7 +34,6 @@ pub struct Whitelist {
     path: Option<Arc<Path>>,
 }
 
-/// The host side of the whitelist: it applies the edits that the dimensions send.
 pub struct WhitelistHostPlugin;
 
 impl Plugin for WhitelistHostPlugin {
@@ -44,7 +43,6 @@ impl Plugin for WhitelistHostPlugin {
     }
 }
 
-/// The whitelist changed in a way that can take an online player off it, with enforcement on.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceWhitelist;
 
@@ -56,15 +54,11 @@ fn apply_whitelist_edit(
     if whitelist.apply(edit.event()) {
         whitelist.write_file();
     }
-    // An add cannot take a player off the whitelist, and enforcement must keep an operator that
-    // is not listed.
     if !matches!(*edit, EditWhitelist::Add(_)) && whitelist.enforces() {
         commands.trigger(EnforceWhitelist);
     }
 }
 
-/// A change to the whitelist. The host owns the whitelist, applies the change, writes the file
-/// and tells every dimension.
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
 pub enum EditWhitelist {
     Add(WhitelistEntry),
@@ -88,7 +82,6 @@ impl Whitelist {
         }
     }
 
-    /// Returns whether the entries changed, so the file needs a write.
     pub fn apply(&mut self, edit: &EditWhitelist) -> bool {
         match edit {
             EditWhitelist::Add(entry) => self.add(entry.clone()),

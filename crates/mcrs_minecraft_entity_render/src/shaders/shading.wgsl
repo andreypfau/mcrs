@@ -1,7 +1,3 @@
-// The colour of an entity pixel in the gbuffer, for the full rig and for the impostor.
-
-/// The gbuffer of a texel colour `texel` with the world normal `m`: the two-light factor, then
-/// the overlay.
 fn shade(texel: vec3<f32>, m: vec3<f32>, overlay: vec4<f32>, light: vec2<f32>) -> GBuffer {
     let light0 = normalize(vec3<f32>(0.2, 1.0, -0.7));
     let nether = frame.shade_table == SHADE_TABLE_NETHER;
@@ -15,7 +11,6 @@ fn shade(texel: vec3<f32>, m: vec3<f32>, overlay: vec4<f32>, light: vec2<f32>) -
     return out;
 }
 
-/// The two-light factor of a face whose seen side has the normal `m`.
 fn face_factor(m: vec3<f32>, light0: vec3<f32>, light1: vec3<f32>) -> f32 {
     return min(1.0, (max(0.0, dot(m, light0)) + max(0.0, dot(m, light1))) * 0.6 + 0.4);
 }

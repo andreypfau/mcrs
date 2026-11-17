@@ -1,6 +1,3 @@
-//! A player file with every key of the layout loads into typed components and writes back as the
-//! same compounds.
-
 use std::path::PathBuf;
 
 use bevy_app::App;
@@ -127,7 +124,6 @@ fn flags(keys: &[&'static str], value: i8) -> Vec<(&'static str, NbtTag)> {
     clippy::too_many_lines,
     reason = "the file is one table with a row for each key of the layout"
 )]
-/// Every key of the layout except `DataVersion` and `Team`, which the game never writes.
 fn vanilla_player() -> NbtCompound {
     let uuid = NbtTag::IntArray(vec![0, 0, 0, UUID as i32]);
     let ints = |values: &[i32]| NbtTag::IntArray(values.to_vec());

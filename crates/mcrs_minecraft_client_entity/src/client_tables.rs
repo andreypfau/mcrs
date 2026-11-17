@@ -5,8 +5,6 @@ use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-/// The tables of the physics kernel, built from the block definitions and the block tags of the
-/// session.
 #[derive(Resource)]
 pub(crate) struct ClientTables(pub(crate) Tables);
 

@@ -5,8 +5,6 @@ use crate::scroll_area::ScrollArea;
 
 const ROW_WIDTH: i32 = 220;
 
-/// A list whose rows of one height the player selects as a whole (LIST-SEL-001 to
-/// LIST-SEL-006); the screen draws the content of each row.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionList {
     pub(crate) rows: usize,
@@ -16,7 +14,6 @@ pub struct SelectionList {
 }
 
 impl SelectionList {
-    /// A list of `rows` rows of `row_height`, with no selected row, scrolled to the top.
     #[must_use]
     pub const fn new(rows: usize, row_height: i32) -> Self {
         Self {
@@ -27,26 +24,21 @@ impl SelectionList {
         }
     }
 
-    /// The number of rows.
     #[must_use]
     pub const fn rows(&self) -> usize {
         self.rows
     }
 
-    /// The height of each row.
     #[must_use]
     pub const fn row_height(&self) -> i32 {
         self.row_height
     }
 
-    /// The selected row (LIST-SEL-001).
     #[must_use]
     pub const fn selected(&self) -> Option<usize> {
         self.selected
     }
 
-    /// The rectangle of row `row` of a list at `area` with the scroll offset 0; the rows draw
-    /// `floor(s)` higher (LIST-GEO-002).
     #[must_use]
     pub fn row_rect(&self, area: GuiRect, row: usize) -> Option<GuiRect> {
         if row >= self.rows {

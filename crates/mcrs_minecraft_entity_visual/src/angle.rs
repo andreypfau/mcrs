@@ -1,21 +1,15 @@
-//! Angles in degrees.
-
 use mcrs_minecraft_numeric::wrap_degrees;
 
-/// The angle a fraction `t` of the shorter arc from `from` to `to`.
 #[must_use]
 pub fn alerp(t: f32, from: f32, to: f32) -> f32 {
     from + t * wrap_degrees(to - from)
 }
 
-/// `angle`, moved by whole turns so that `reference - angle` is in `[-180, 180)`.
 #[must_use]
 pub fn unwrap_towards(angle: f32, reference: f32) -> f32 {
     reference - wrap_degrees(reference - angle)
 }
 
-/// `angle` when it lies within `limit` of `target`; otherwise the angle at the distance `limit`
-/// from `target` on the side of `angle`.
 #[must_use]
 pub fn stay_within(angle: f32, target: f32, limit: f32) -> f32 {
     let offset = wrap_degrees(target - angle);

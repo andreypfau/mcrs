@@ -1,6 +1,3 @@
-//! Implementations of [`Encode`](crate::Encode) and [`Decode`](crate::Decode)
-//! on foreign types.
-
 #[cfg(feature = "glam")]
 mod glam;
 mod map;
@@ -18,11 +15,8 @@ mod uuid;
 #[cfg(feature = "voxel")]
 mod voxel;
 
-/// Prevents preallocating too much memory in case we get a malicious or invalid
-/// sequence length.
 const MAX_PREALLOC_BYTES: usize = 1024 * 1024;
 
-/// Input left bounds an honest length: nested lists otherwise reserve megabytes from a few bytes.
 fn cautious_capacity<T>(declared: usize, r: &[u8]) -> usize {
     declared
         .min(r.len())

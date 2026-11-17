@@ -1,8 +1,3 @@
-//! The play-state packets of Minecraft: Java Edition that carry game data, and the codecs of
-//! the game values they hold. The packets of the other states and the play packets without game
-//! data are in `mcrs_minecraft_protocol`.
-// std: mcrs_minecraft_item
-
 #[rustfmt::skip]
 pub mod advancement;
 pub mod block;

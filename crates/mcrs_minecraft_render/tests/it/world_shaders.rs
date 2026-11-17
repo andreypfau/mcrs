@@ -11,13 +11,11 @@ use wesl::error::ResolveError;
 use wesl::syntax::{ModulePath, PathOrigin};
 use wesl::{CompileOptions, Resolver};
 
-/// The input of a fullscreen fragment shader as Bevy's own module states it.
 const FULLSCREEN_VERTEX_OUTPUT: &str = "struct FullscreenVertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
 };";
 
-/// The items of Bevy's render modules that the sky shader reads.
 const BEVY_MATHS: &str = "const PI: f32 = 3.141592653589793;
 const HALF_PI: f32 = 1.57079632679;";
 const BEVY_VIEW: &str = "struct View {
@@ -28,8 +26,6 @@ const BEVY_VIEW: &str = "struct View {
     view_from_clip: mat4x4<f32>,
 };";
 
-/// The crate's shader files by module path, Bevy's fullscreen module, and the `constants` module
-/// Bevy writes from the pipeline's shader defs.
 struct Sources {
     constants: String,
 }
@@ -76,7 +72,6 @@ impl Resolver for Sources {
     }
 }
 
-/// The WGSL Bevy hands the device for a pipeline compiled with `defs`.
 pub(crate) fn wgsl(shader: &str, defs: Vec<ShaderDefVal>) -> String {
     wgsl_at(&["shaders", "core", shader], defs)
 }
@@ -116,7 +111,6 @@ fn compile(shader: &str, defs: Vec<ShaderDefVal>) -> naga::Module {
         .unwrap_or_else(|error| panic!("{shader}: {error}"))
 }
 
-/// The defs of the cull pipelines on a device without subgroups, over `section_slots` sections.
 pub(crate) fn cull_defs(section_slots: u32) -> Vec<ShaderDefVal> {
     vec![
         ShaderDefVal::UInt("CULL_THREADS".into(), 32),
@@ -130,8 +124,6 @@ pub(crate) fn cull_defs(section_slots: u32) -> Vec<ShaderDefVal> {
     ]
 }
 
-/// GLSL ES 3.10 builtins naga writes for WGSL ones without checking the version, so a shader that
-/// reaches one compiles for WebGL2 and then fails to link in the browser.
 const ES_310_BUILTINS: [&str; 6] = [
     "bitfieldExtract",
     "bitfieldInsert",
@@ -144,8 +136,6 @@ const ES_310_BUILTINS: [&str; 6] = [
 const BOTH: &[RenderPath] = &[RenderPath::Full, RenderPath::Minimal];
 const FULL: &[RenderPath] = &[RenderPath::Full];
 
-/// Each shader the minimal path draws with, the defs of a pipeline that uses it beside those of
-/// the path, and the paths that build that pipeline.
 const PIPELINES: [(&str, &[&str], &[RenderPath]); 19] = [
     ("greedy", &[], BOTH),
     ("greedy", &["SOLID"], BOTH),
@@ -168,7 +158,6 @@ const PIPELINES: [(&str, &[&str], &[RenderPath]); 19] = [
     ("present", &[], BOTH),
 ];
 
-/// The sampled textures a fragment stage of WebGL2 may bind.
 const WEBGL2_FRAGMENT_TEXTURES: usize = 16;
 
 #[test]
@@ -194,7 +183,6 @@ fn the_world_shaders_compile_for_both_paths_and_the_minimal_one_for_webgl2() {
     }
 }
 
-/// The most sampled textures that one fragment entry point of `module` reads.
 fn fragment_textures(module: &naga::Module, info: &naga::valid::ModuleInfo) -> usize {
     module
         .entry_points

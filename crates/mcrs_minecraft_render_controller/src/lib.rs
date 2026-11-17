@@ -1,8 +1,3 @@
-//! The render controllers of a client entity: the files, their compile against one client entity
-//! and the layers that they select in a frame.
-
-// std: mcrs_minecraft_pack_file
-
 mod bone_pattern;
 mod layer_choice;
 mod render_controller_file;

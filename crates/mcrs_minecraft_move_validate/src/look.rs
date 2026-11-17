@@ -1,4 +1,3 @@
-/// The rotation that a packet reports, in degrees, as the client sent it.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Look {
     pub yaw: f32,

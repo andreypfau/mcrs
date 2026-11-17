@@ -34,7 +34,6 @@ fn results(world: &World) -> Vec<RequestResult> {
     results.iter_current_update_messages().copied().collect()
 }
 
-/// INV-SLT-005: the off-hand slot has no place filter.
 #[test]
 fn inv_slt_005_a_hand_swap_puts_any_item_in_the_off_hand() {
     let mut app = gameplay_app();
@@ -142,9 +141,6 @@ fn assert_close(case: &CloseCase, path: ClosePath) {
     assert_eq!(dropped, case.dropped, "{label}");
 }
 
-/// INV-CLS-005: the insert of a close skips each slot whose place filter refuses the stack, fills
-/// each slot up to its capacity (ITX-LIM-002), and the items that find no room become one item
-/// entity.
 #[test]
 fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
     let locked = |index| PolicyEntry {
@@ -219,7 +215,6 @@ fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
     }
 }
 
-/// INV-CLS-005: a close moves the stacks of a cursor and a craft grid that refuse each take.
 #[test]
 fn inv_cls_005_a_close_reads_no_take_filter() {
     let mut app = gameplay_app();

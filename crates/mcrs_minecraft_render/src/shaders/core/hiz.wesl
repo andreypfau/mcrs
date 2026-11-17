@@ -1,8 +1,5 @@
 import mcrs_minecraft_render::shaders::include::hiz_layout::{depth, level_in, level_out};
 
-/// Reverse-Z: the farthest surface in a footprint is its smallest depth, and a box has to be
-/// nearer than that everywhere in its footprint to show at all. A source of odd size gives its
-/// last row or column to the last texel of the level below it, so no surface is ever lost.
 fn footprint(id: vec2<u32>, size: vec2<u32>, source: vec2<u32>) -> vec4<u32> {
     let lo = id * 2u;
     let hi = select(lo + 2u, source, id == size - 1u);

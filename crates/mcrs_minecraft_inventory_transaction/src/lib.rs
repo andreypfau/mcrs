@@ -1,5 +1,3 @@
-//! The planner of an atomic inventory request: an ordered list of operations on slots that
-//! applies in full or is rejected with a reason. It knows no item, no component and no edition.
 #![no_std]
 
 mod entry;

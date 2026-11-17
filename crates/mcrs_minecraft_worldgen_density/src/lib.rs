@@ -16,9 +16,6 @@ pub mod proto;
 pub mod router;
 pub mod surface_levels;
 
-/// Whether the density and climate samplers were built with the fast precision
-/// profile, which downstream parity tests hold to a measured budget instead of
-/// bit equality (`docs/worldgen.md` §15).
 pub const FAST_PROFILE: bool = cfg!(feature = "fast");
 
 mcrs_minecraft_registries::resolve_as_is!(

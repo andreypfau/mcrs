@@ -7,7 +7,6 @@ use mcrs_minecraft_engine_physics::{MobChanges, hurt_mob};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_entity_rows::Placed;
 
-/// The command effect that hits the mob row `at` of this world.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HitMob {
     pub at: Placed,

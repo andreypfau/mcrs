@@ -10,7 +10,6 @@ use mcrs_minecraft_fog::{FogInputs, FogParameters};
 
 use mcrs_minecraft_render::sky::SkyEffects;
 
-/// A visual attribute the renderer carries as GPU state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkyField {
     SkyColor,
@@ -95,7 +94,6 @@ impl SkyField {
     }
 }
 
-/// One field's value: a scalar, or a colour as red, green, blue and alpha in `[0, 1]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SkyValue {
     Scalar(f32),
@@ -135,16 +133,12 @@ fn sky_value(value: &AttributeValue) -> SkyValue {
     }
 }
 
-/// The clock ticks of the previous and the current client tick, and how far the frame lies
-/// into the current tick.
 pub struct SkyTime<'a> {
     pub previous: EnvironmentContext<'a>,
     pub current: EnvironmentContext<'a>,
     pub partial: f32,
 }
 
-/// The pipeline specialization key: everything that decides which shaders get
-/// compiled for this dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SkyKey {
     pub skybox: Skybox,
@@ -157,10 +151,6 @@ impl SkyKey {
     }
 }
 
-/// Where each GPU-facing visual attribute lives, and which stack produces it.
-///
-/// Built once per dimension. The stack indices are what keep a frame from
-/// looking an attribute up by id.
 #[derive(Debug, Clone)]
 pub struct SkyLayout {
     frame: Vec<SkyField>,
@@ -178,8 +168,6 @@ impl SkyLayout {
         SkyLayout { frame, constant }
     }
 
-    /// The meaning of each slot of [`SkyFrame::values`], in order. Only the
-    /// split between the two blocks is asserted on; a frame reads by index.
     #[cfg(test)]
     pub fn frame_fields(&self) -> impl Iterator<Item = SkyField> + '_ {
         self.frame.iter().copied()
@@ -190,7 +178,6 @@ impl SkyLayout {
         self.constant.iter().copied()
     }
 
-    /// The one evaluation pass a frame runs. Nothing it produces is kept.
     pub fn evaluate(
         &self,
         attributes: &DimensionAttributes,
@@ -212,7 +199,6 @@ impl SkyLayout {
         }));
     }
 
-    /// The dimension-constant block, rebuilt only when the dimension changes.
     pub fn constants(
         &self,
         attributes: &DimensionAttributes,
@@ -235,10 +221,6 @@ impl SkyLayout {
     }
 }
 
-/// A draw exists when this dimension can make it visible at all.
-///
-/// Only the skybox `overworld` draws a sky; with another one the clear colour shows
-/// (CFOG-SKY-001, step 1). Clouds need a cloud colour that is not fully transparent.
 fn effects(
     skybox: Skybox,
     attributes: &DimensionAttributes,
@@ -249,8 +231,6 @@ fn effects(
     }
     let mut effects =
         SkyEffects::DISC | SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
-    // A tracked colour can be transparent at this tick and opaque at the next, so only a
-    // constant one can rule the clouds out.
     let clouds = attributes
         .stack(SkyField::CloudColor.attribute())
         .is_some_and(|stack| {
@@ -270,14 +250,12 @@ fn effects(
     effects
 }
 
-/// The per-frame uniform: one write, no allocation, no memoized value.
 #[derive(Resource, Debug, Clone, PartialEq)]
 pub struct SkyFrame {
     pub camera: [f32; 3],
     pub rain: f32,
     pub thunder: f32,
     pub values: Vec<SkyValue>,
-    /// The fog of the frame, which the clear colour, the world and the sky read.
     pub fog: FogParameters,
 }
 
@@ -303,7 +281,6 @@ impl SkyFrame {
     }
 }
 
-/// Everything constant for as long as the player stays in one dimension.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkyStatic {
     pub key: SkyKey,
@@ -353,7 +330,6 @@ mod tests {
 
     const NOON: i64 = 6000;
 
-    /// The dimension fields an environment needs, read straight from the asset.
     #[derive(serde::Deserialize)]
     struct Dimension {
         has_skylight: bool,
@@ -384,8 +360,6 @@ mod tests {
         test_resolved(serde_json::from_slice::<Timeline<Named>>(&bytes).unwrap())
     }
 
-    /// The timelines a tag names, read from the shipped tag files and flattened
-    /// through `#` references, in the order the tag file lists them.
     fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         fn collect(tag: &str, out: &mut Vec<String>) {
             let path = mcrs_minecraft_fixtures::vanilla_dir()
@@ -428,7 +402,6 @@ mod tests {
         (build("overworld.json", &timelines), timelines)
     }
 
-    /// The total ticks each clock stands at.
     fn ticks_at(attributes: &DimensionAttributes, total_ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
@@ -562,8 +535,6 @@ mod tests {
             Some(SkyValue::Scalar(0.0))
         );
 
-        // a second pass over the same context reuses the buffer and lands on the
-        // same values: nothing is carried between frames
         let before = frame.values.clone();
         layout.evaluate(&attributes, &time, camera, weather, &mut frame);
         assert_eq!(frame.values, before);

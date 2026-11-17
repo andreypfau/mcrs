@@ -17,19 +17,14 @@ use crate::impostor_atlas::{BakeResources, ImpostorAtlas};
 use crate::records::{CullRecord, InputRecord, ScatterEntry, StateRecord};
 use crate::slot_upload::SlotUpload;
 
-/// How many mobs, bones and faces the frame buffers of the entity passes hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Capacities {
-    /// The full rigs of one definition in one frame.
     pub full_rigs: u32,
-    /// The bone matrices of one frame.
     pub bones: u32,
-    /// The face records of one texture array in one frame.
     pub faces: u32,
 }
 
 impl Capacities {
-    /// The capacities of the full-rig cap `full_rigs` for the definitions of `library`.
     #[must_use]
     pub fn for_cap(library: &EntityLibrary, full_rigs: u32) -> Self {
         let bones = library
@@ -52,15 +47,12 @@ impl Capacities {
     }
 }
 
-/// Timestamps around each compute pass of the entity passes.
 #[derive(Clone, Copy, Debug)]
 pub struct PassQueries<'a> {
     pub set: &'a wgpu::QuerySet,
-    /// The first query; the passes take two queries each, in the order of [`ComputePass`].
     pub first: u32,
 }
 
-/// A compute pass of the entity passes, in the order in which they run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComputePass {
     Scatter,
@@ -83,16 +75,12 @@ impl ComputePass {
     }
 }
 
-/// The GPU side of the entity passes on the full execution path: compute shaders and storage
-/// buffers in the vertex stage.
 pub struct EntityGpu {
     capacities: Capacities,
     layouts: Layouts,
     pipelines: Pipelines,
-    /// The bind group of each texture array.
     arrays: Vec<BindGroup>,
     array_textures: Vec<wgpu::Texture>,
-    /// The array and the layer of each texture, for the writes of its texels.
     variants: Vec<VariantRecord>,
     statics: StaticBuffers,
     slots: SlotBuffers,
@@ -103,15 +91,12 @@ pub struct EntityGpu {
     binds: Binds,
     cull_grid: u32,
     scatter_count: u32,
-    /// The slot count of the last upload.
     slot_count: u32,
     models: usize,
     figure_capacities: Capacities,
-    /// The figure view, from its first frame on.
     figure: Option<FigureGpu>,
 }
 
-/// The color formats and the depth format of the targets of the entity draw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DrawTargets {
     pub colors: [TextureFormat; 3],
@@ -120,9 +105,6 @@ pub struct DrawTargets {
 }
 
 impl EntityGpu {
-    /// The GPU state of `library`, with `slot_capacity` slots to start and the frame capacities
-    /// `capacities`. `hiz` is the depth pyramid that the cull reads; a frame with
-    /// `hiz_levels` 0 tests none.
     #[must_use]
     pub fn new(
         device: &Device,
@@ -184,7 +166,6 @@ impl EntityGpu {
         }
     }
 
-    /// The bind groups of the passes that write into `frame`.
     fn binds_of(&self, device: &Device, frame: &FrameBuffers) -> Binds {
         Binds::new(
             device,
@@ -204,7 +185,6 @@ impl EntityGpu {
         }
     }
 
-    /// Replaces the depth pyramid that the cull reads.
     pub fn set_hiz(&mut self, device: &Device, hiz: wgpu::TextureView) {
         self.hiz = hiz;
         self.rebind(device);
@@ -215,39 +195,31 @@ impl EntityGpu {
         self.capacities
     }
 
-    /// The slots that the slot buffers hold.
     #[must_use]
     pub fn slot_capacity(&self) -> u32 {
         self.slots.capacity
     }
 
-    /// The state records of the slots.
     #[must_use]
     pub fn slot_states(&self) -> &Buffer {
         &self.slots.states
     }
 
-    /// The counters of the last frame: bones, then the visible count of each definition, then
-    /// the face count of each array, then the mobs that did not fit.
     #[must_use]
     pub fn counters(&self) -> &Buffer {
         &self.frame.counters
     }
 
-    /// The bone matrices, three rows of four `f32` for each bone.
     #[must_use]
     pub fn bone_matrices(&self) -> &Buffer {
         &self.frame.bone_matrices
     }
 
-    /// The visible list: for each definition, `full_rigs` entries of a slot and its first bone.
     #[must_use]
     pub fn visible(&self) -> &Buffer {
         &self.frame.visible
     }
 
-    /// Grows the slot buffers to `upload.slot_capacity` and writes the records of `upload`.
-    /// The grow copy has its own submission: it must run before the queue writes of this call.
     pub fn upload(
         &mut self,
         device: &Device,
@@ -324,8 +296,6 @@ impl EntityGpu {
         );
     }
 
-    /// Writes the RGBA texels of the texture `variant`, which fill its image from the top left.
-    /// A variant that the library does not hold or texels of another size change nothing.
     pub fn write_texels(&self, queue: &Queue, variant: u16, rgba: &[u8]) {
         let Some(record) = self.variants.get(usize::from(variant)) else {
             return;
@@ -364,19 +334,15 @@ impl EntityGpu {
         );
     }
 
-    /// The image sets of the impostors that the bake has rendered.
     #[must_use]
     pub fn impostor_sets(&self) -> u32 {
         self.atlas.image_sets()
     }
 
-    /// The counts of the latest earlier frame whose readback completed. Call it once a frame,
-    /// before [`Self::encode_compute`].
     pub fn take_counts(&mut self) -> Option<EntityFrameCounts> {
         self.readback.take()
     }
 
-    /// Writes the frame uniform, with the capacities and the counts of the last upload.
     pub fn write_frame(&self, queue: &Queue, frame: &FrameUniform, slot_count: u32) {
         let frame = FrameUniform {
             slot_count: slot_count.min(self.slots.capacity),
@@ -389,8 +355,6 @@ impl EntityGpu {
         queue.write_buffer(&self.frame.uniform, 0, bytemuck::bytes_of(&frame));
     }
 
-    /// Encodes the compute passes of a frame: the scatter of the tick records, the cull, the
-    /// pose and the expand of each definition.
     pub fn encode_compute(
         &mut self,
         encoder: &mut CommandEncoder,
@@ -434,7 +398,6 @@ impl EntityGpu {
         self.readback.encode(&self.frame.counters, encoder);
     }
 
-    /// Encodes the cull, the pose and the expand of the view whose frame buffers are `frame`.
     fn encode_rigs<'a>(
         &self,
         encoder: &mut CommandEncoder,
@@ -490,15 +453,11 @@ impl EntityGpu {
         }
     }
 
-    /// Draws the face records of each texture array, then the impostors, into the render pass
-    /// of the gbuffer.
     pub fn encode_draw(&self, pass: &mut RenderPass<'_>) {
         self.encode_draw_full_rigs(pass);
         self.encode_draw_impostors(pass);
     }
 
-    /// Draws the face records of each texture array into the render pass of the gbuffer: first
-    /// the faces with no cutout texel, then the others.
     pub fn encode_draw_full_rigs(&self, pass: &mut RenderPass<'_>) {
         self.draw_rigs(
             pass,
@@ -508,9 +467,6 @@ impl EntityGpu {
         );
     }
 
-    /// Draws the face records of the view with the draw bind group `draw` and the draw
-    /// arguments `indirect`: first with the pipeline of the faces with no cutout texel, then with
-    /// the pipeline of the others.
     fn draw_rigs(
         &self,
         pass: &mut RenderPass<'_>,
@@ -532,9 +488,6 @@ impl EntityGpu {
         }
     }
 
-    /// Makes the frame buffers, the bind groups and the forward pipelines of the figure view at
-    /// its first frame, the pipelines again when `targets` change, and the bind group of the
-    /// light again when `lightmap` changes.
     pub fn prepare_figure(
         &mut self,
         device: &Device,
@@ -573,8 +526,6 @@ impl EntityGpu {
         }
     }
 
-    /// Writes the frame uniform and the light of the figure view, after
-    /// [`Self::prepare_figure`], with the slot count of the last upload.
     pub fn write_figure_frame(
         &self,
         queue: &Queue,
@@ -596,8 +547,6 @@ impl EntityGpu {
         gpu.write_light(queue, figure);
     }
 
-    /// Encodes the cull, the pose and the expand of the figure view, after the compute passes
-    /// of the world view of the frame. It encodes nothing before [`Self::prepare_figure`].
     pub fn encode_figure_compute(&self, encoder: &mut CommandEncoder) {
         let Some(figure) = &self.figure else {
             return;
@@ -606,9 +555,6 @@ impl EntityGpu {
         self.encode_rigs(encoder, &figure.frame, &figure.binds, |_| None);
     }
 
-    /// Draws the face records of the figure view into `pass`, lit by the lightmap of
-    /// [`Self::prepare_figure`], within the scissor rectangle and the viewport that the caller
-    /// has set. It draws nothing before [`Self::prepare_figure`].
     pub fn encode_figure_draw(&self, pass: &mut RenderPass<'_>) {
         let Some(figure) = &self.figure else {
             return;
@@ -622,7 +568,6 @@ impl EntityGpu {
         );
     }
 
-    /// Draws the impostors into the render pass of the gbuffer.
     pub fn encode_draw_impostors(&self, pass: &mut RenderPass<'_>) {
         pass.set_pipeline(&self.pipelines.impostor);
         pass.set_bind_group(0, &self.binds.impostor, &[]);
@@ -632,19 +577,15 @@ impl EntityGpu {
         pass.draw_indirect(&self.frame.indirect, self.impostor_args() + 32);
     }
 
-    /// The byte offset of the draw arguments of the impostors; the dispatch arguments of their
-    /// prepare pass follow them.
     fn impostor_args(&self) -> u64 {
         self.draw_base() + self.arrays.len().clamp(1, MAX_ARRAYS) as u64 * 16
     }
 
-    /// The byte offset of the draw arguments of the first texture array.
     fn draw_base(&self) -> u64 {
         self.pipelines.definitions.len().max(1) as u64 * 24
     }
 }
 
-/// The bind group of each pass.
 pub(crate) struct Binds {
     scatter: BindGroup,
     cull: BindGroup,

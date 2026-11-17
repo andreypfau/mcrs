@@ -7,16 +7,12 @@ use mcrs_minecraft_numeric::wrap_degrees_f64;
 use crate::ticked::ticked;
 
 const STEPS: u8 = 3;
-/// A movement from another cause smaller than this, squared, does not move the target.
 const MIN_FOLLOW_DISTANCE_SQUARED: f64 = 1e-5;
 
-/// The movement of an experience orb towards the placement of the last update of the server, in
-/// a fixed number of steps.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct OrbInterpolation {
     target: Placement,
     remaining_steps: u8,
-    /// The placement of the orb at the end of the latest start or step.
     last: Placement,
 }
 
@@ -26,7 +22,6 @@ impl OrbInterpolation {
         self.remaining_steps > 0
     }
 
-    /// The target while the movement is active, else `current`.
     #[must_use]
     pub(crate) fn reference(&self, current: Placement) -> Placement {
         if self.is_active() {
@@ -36,8 +31,6 @@ impl OrbInterpolation {
         }
     }
 
-    /// Starts the movement to `position` and `rotation`; each one that is missing keeps the value
-    /// of the active target, or of `current` when no movement is active.
     pub(crate) fn start(
         &mut self,
         current: Placement,
@@ -59,8 +52,6 @@ impl OrbInterpolation {
         self.last = current;
     }
 
-    /// The placement after one step from `current`. The target first moves with any change of
-    /// `current` since the last step.
     #[must_use]
     pub(crate) fn step(&mut self, current: Placement) -> Placement {
         if !self.is_active() {
@@ -87,8 +78,6 @@ impl OrbInterpolation {
     }
 }
 
-/// Steps the interpolation of each orb that ticked. It writes the position into the
-/// [`MotionState`] and the rotation into the [`Motion`].
 pub(crate) fn step_orb_interpolations(
     mut orbs: Query<(
         Ref<Age>,

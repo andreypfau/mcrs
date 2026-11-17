@@ -87,9 +87,6 @@ const PASSES: &str = r#"{"type": "minecraft:survives_explosion"}"#;
 const FAILS: &str =
     r#"{"type": "minecraft:inverted", "term": {"type": "minecraft:survives_explosion"}}"#;
 
-/// LOOT-NUM-001, LOOT-NUM-003, LOOT-NUM-004, LOOT-NUM-006, LOOT-NUM-008, LOOT-NUM-011,
-/// LOOT-NUM-013, LOOT-NUM-014, LOOT-NUM-017, LOOT-NUM-018, LOOT-NUM-019: each int type without a
-/// draw gives its value, and an evaluation error reads as 0.
 #[test]
 fn loot_num_004_to_019_int_types_give_their_values_and_errors() {
     let conditional = format!(
@@ -185,9 +182,6 @@ fn loot_num_004_to_019_int_types_give_their_values_and_errors() {
     }
 }
 
-/// LOOT-NUM-001, LOOT-NUM-005, LOOT-NUM-007, LOOT-NUM-008, LOOT-NUM-012, LOOT-NUM-020,
-/// LOOT-NUM-021: each float type without a draw gives its value, and an error, a NaN and an
-/// infinity read as 0.
 #[test]
 fn loot_num_005_to_021_float_types_give_their_values_and_errors() {
     let nan = r#"{"type": "div", "left": 0, "right": 0}"#;
@@ -248,8 +242,6 @@ fn loot_num_005_to_021_float_types_give_their_values_and_errors() {
     }
 }
 
-/// LOOT-NUM-002, LOOT-NUM-007: `sub` evaluates `left` first, and the float `mod` evaluates
-/// `right` first and skips `left` after a zero `right`.
 #[test]
 fn loot_num_007_binary_operands_draw_in_their_order() {
     let mut random = fresh();
@@ -287,7 +279,6 @@ fn loot_num_007_binary_operands_draw_in_their_order() {
     }
 }
 
-/// LOOT-NUM-001: the evaluation stops at an error and takes no draw after it.
 #[test]
 fn loot_num_001_an_error_takes_no_later_draw() {
     let json = r#"{"type": "minecraft:add", "inputs": [
@@ -298,9 +289,6 @@ fn loot_num_001_an_error_takes_no_later_draw() {
     assert_eq!(random, fresh());
 }
 
-/// LOOT-NUM-015, LOOT-NUM-018, LOOT-NUM-013: `weighted_list` takes one `B(W)` and then the draws
-/// of the selected `data` only; `binomial` takes `n` draws; `conditional` tests, then evaluates
-/// the selected operand only.
 #[test]
 fn loot_num_015_drawing_types_take_their_draws() {
     let weighted = r#"{"type": "minecraft:weighted_list", "distribution": [
@@ -355,7 +343,6 @@ fn loot_num_015_drawing_types_take_their_draws() {
     assert_eq!(selected, [true, true]);
 }
 
-/// LOOT-NUM-016: an `environment_attribute` reads the origin only for a positional attribute.
 #[test]
 fn loot_num_016_a_positional_attribute_reads_the_origin() {
     let positional = float(
@@ -370,8 +357,6 @@ fn loot_num_016_a_positional_attribute_reads_the_origin() {
     assert!(!global.reads().contains(ContextParam::Origin));
 }
 
-/// REG-FLD-722, REG-FLD-723, REG-FLD-732: the decode refuses an unknown type, a number that is
-/// not an i32 in an int field, a bad distribution and an attribute of the wrong type.
 #[test]
 fn reg_fld_722_the_decode_is_strict() {
     let int_cases = [
@@ -441,7 +426,6 @@ fn nested(depth: usize) -> String {
     )
 }
 
-/// LOOT-CTX-017: a chain of 64 providers bakes, and the 65th member is a fault with its path.
 #[test]
 fn loot_ctx_017_a_chain_has_at_most_64_members() {
     let (_, problems) = bake(test_registries(), &VANILLA, &nested(63), |baker, json| {
@@ -455,11 +439,6 @@ fn loot_ctx_017_a_chain_has_at_most_64_members() {
     assert_eq!(path.split(" > ").count(), 64, "{path}");
 }
 
-/// The test registries with the int providers `t:a` and `t:b` that name each other, `t:one`, and
-/// `t:d/0` to `t:d/13`, where each `t:d/n` adds `t:d/n+1` to itself; the predicates `t:x` and
-/// `t:y` that name each other; the int provider `t:c` and the predicate `t:p` that name each
-/// other; and the predicates `t:chain64/0` to `t:chain64/63`, `t:chain65/0` to `t:chain65/64`
-/// and `t:chain66/0` to `t:chain66/65`, where each names the next.
 static PACK: LazyLock<(Registries, NamedEntries, Vec<NamedIssue>)> = LazyLock::new(|| {
     let mut additions = test_additions();
     let mut files = vec![
@@ -528,9 +507,6 @@ static PACK: LazyLock<(Registries, NamedEntries, Vec<NamedIssue>)> = LazyLock::n
     (registries, providers, issues)
 });
 
-/// LOOT-CTX-014, LOOT-CTX-016: a named provider or predicate that refers back to itself, also
-/// through an entry of the other kind, is a fault of the load even when no part names it, and an
-/// unknown key and an empty `inputs` are faults of the bake with their paths.
 #[test]
 fn loot_ctx_014_a_cycle_and_a_missing_key_are_faults() {
     let (registries, providers, issues) = &*PACK;
@@ -584,8 +560,6 @@ fn loot_ctx_014_a_cycle_and_a_missing_key_are_faults() {
     }
 }
 
-/// LOOT-CTX-017: a chain of 64 predicates that name each other bakes. In a chain of 65 the head
-/// starts a chain that is too long, and in a chain of 66 the head and the entry after it do.
 #[test]
 fn loot_ctx_017_a_chain_of_predicates_has_at_most_64_members() {
     let (_, _, issues) = &*PACK;
@@ -608,8 +582,6 @@ fn loot_ctx_017_a_chain_of_predicates_has_at_most_64_members() {
     );
 }
 
-/// LOOT-CTX-017: a key of a named provider refers to its one baked entry, so that a provider that
-/// names a key 4097 times, or 8192 times through 13 levels, bakes and reads in full.
 #[test]
 fn loot_ctx_017_a_key_refers_to_one_baked_entry() {
     let (registries, providers, _) = &*PACK;
@@ -636,8 +608,6 @@ fn loot_ctx_017_a_key_refers_to_one_baked_entry() {
     }
 }
 
-/// REG-FLD-722, REG-FLD-723, LOOT-CTX-016: each provider and each predicate of the vanilla data
-/// pack bakes without a problem.
 #[test]
 fn reg_fld_722_the_vanilla_named_entries_bake() {
     let registries = test_registries();
@@ -655,8 +625,6 @@ fn reg_fld_722_the_vanilla_named_entries_bake() {
     assert_eq!(issues, []);
 }
 
-/// LOOT-NUM-009, LOOT-NUM-010, LOOT-NUM-001: a `uniform` takes its draw only for `min < max`,
-/// and an int `uniform` whose range is too wide for `B` reads as 0 without a draw.
 #[test]
 fn loot_num_010_a_uniform_draws_only_for_a_range() {
     let mut random = fresh();

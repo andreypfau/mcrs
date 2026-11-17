@@ -24,24 +24,17 @@ use crate::score_target::ScoreTarget;
 use crate::score_target_file::{ScoreTargetFile, TypedScoreTarget};
 use crate::weighted_entry::WeightedEntry;
 
-/// The longest reference chain of providers that a bake accepts (LOOT-CTX-017).
 pub(crate) const CHAIN_LIMIT: usize = 64;
 
 impl<'a> ConditionBaker<'a> {
-    /// Bakes `file`. A part that the bake cannot resolve adds a problem and gives an evaluation
-    /// error.
     pub fn int_provider(&mut self, file: &IntProviderFile) -> IntProvider {
         IntProvider(self.in_scope(|baker| baker.int_node(file)))
     }
 
-    /// Bakes `file`. A part that the bake cannot resolve adds a problem and gives an evaluation
-    /// error.
     pub fn float_provider(&mut self, file: &FloatProviderFile) -> FloatProvider {
         FloatProvider(self.in_scope(|baker| baker.float_node(file)))
     }
 
-    /// The provider at the place `part` of an inline condition. In the scope of a provider it is a
-    /// member of the reference chain; outside one it starts a scope (LOOT-CTX-017).
     pub(crate) fn condition_int(&mut self, part: &str, file: &IntProviderFile) -> IntProvider {
         match self.scope {
             ProviderScope::Inside => IntProvider(*self.int_at(part, file)),
@@ -49,8 +42,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// The provider at the place `part` of an inline condition, as
-    /// [`ConditionBaker::condition_int`] takes it.
     pub(crate) fn condition_float(
         &mut self,
         part: &str,
@@ -101,7 +92,6 @@ impl<'a> ConditionBaker<'a> {
         .unwrap_or(FloatNode::Fault)
     }
 
-    /// The provider at the place `part` of the provider that the bake is in.
     fn int_at(&mut self, part: &str, file: &IntProviderFile) -> Box<IntNode> {
         Box::new(match &file.0 {
             ProviderForm::Key(key) => self.named_int(key),
@@ -111,7 +101,6 @@ impl<'a> ConditionBaker<'a> {
         })
     }
 
-    /// The provider at the place `part` of the provider that the bake is in.
     fn float_at(&mut self, part: &str, file: &FloatProviderFile) -> Box<FloatNode> {
         Box::new(match &file.0 {
             ProviderForm::Key(key) => self.named_float(key),
@@ -360,7 +349,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// `inputs` when it has elements; an empty `inputs` is a fault of the load (LOOT-CTX-016).
     fn non_empty<N>(&mut self, inputs: Option<Box<[N]>>) -> Option<Box<[N]>> {
         let inputs = inputs?;
         if inputs.is_empty() {
@@ -371,8 +359,6 @@ impl<'a> ConditionBaker<'a> {
         Some(inputs)
     }
 
-    /// The keys of the members of `tag` in member order; `None`, with a problem, for an
-    /// unknown tag.
     fn tag_members<R: Registered>(
         &mut self,
         tag: &ProviderTag,
@@ -390,8 +376,6 @@ impl<'a> ConditionBaker<'a> {
         members
     }
 
-    /// A reference to the named entry `key` of the registry `kind`; `None`, with a problem, for
-    /// an unknown key.
     pub(crate) fn named<F: RegistryValue, N>(
         &mut self,
         key: &ResourceLocationBuf,
@@ -429,8 +413,6 @@ impl<'a> ConditionBaker<'a> {
         Some(reference(index.index(), reads))
     }
 
-    /// Bakes one more member of the reference chain; `None`, with a problem, when the chain gets
-    /// a length of more than 64. The place that holds the provider is the first member.
     fn step<N>(&mut self, part: &str, bake: impl FnOnce(&mut Self) -> N) -> Option<N> {
         if self.chain.len() + 1 >= CHAIN_LIMIT {
             let path = self.path(Some(part));

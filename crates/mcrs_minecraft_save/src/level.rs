@@ -124,7 +124,6 @@ pub struct LevelVersion {
     pub series: String,
 }
 
-/// The format number that the server writes in `version`.
 pub const LEVEL_FORMAT_VERSION: i32 = 19133;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -204,8 +203,6 @@ pub struct WeatherData {
     pub thundering: bool,
 }
 
-/// The game rules that a file sets, in rule order. A rule that the file does not set has its
-/// default value.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GameRules(Vec<(GameRule, i32)>);
 
@@ -216,8 +213,6 @@ impl GameRules {
         self.0.get(index).map(|&(_, value)| value)
     }
 
-    /// A bool rule keeps 0 or 1 and an int rule keeps a value in its range, so that every value
-    /// written can be read back.
     pub fn set(&mut self, rule: GameRule, value: i32) {
         let value = match rule.definition().value {
             GameRuleValueType::Bool { .. } => i32::from(value != 0),
@@ -388,7 +383,6 @@ pub fn write_world_gen_settings(
     write_saved_data(&path, data)
 }
 
-/// Writes `data` in the saved data form through [`crate::write_atomic`].
 fn write_saved_data<T: Serialize>(path: &Path, data: T) -> Result<(), SaveError> {
     let io = |source| SaveError::Io {
         path: path.to_path_buf(),
@@ -429,8 +423,6 @@ pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
     parse_game_rules(&read_bytes(&path)?, &path)
 }
 
-/// The birth clock of the world: the birth tick of the new entity UUIDs. It is data of mcrs, so it
-/// has its own file next to the saved data of the game.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BirthClockData {
@@ -441,7 +433,6 @@ fn birth_clock_path(world: &Path) -> PathBuf {
     world.join("data/mcrs/birth_clock.dat")
 }
 
-/// The saved value of the birth clock; [`SaveError::Missing`] in a save without one.
 pub fn read_birth_clock(world: &Path) -> Result<u64, SaveError> {
     let path = birth_clock_path(world);
     let data: BirthClockData = parse_saved_data(&read_bytes(&path)?, &path)?;
@@ -654,7 +645,6 @@ fn write_gzip_compound<T: Serialize>(path: &Path, data: T) -> Result<(), SaveErr
     crate::write_atomic(path, &bytes).map_err(io)
 }
 
-/// The four ints of the NBT form of a UUID, most significant first.
 pub fn uuid_to_int_array(uuid: Uuid) -> [i32; 4] {
     let value = uuid.as_u128();
     [

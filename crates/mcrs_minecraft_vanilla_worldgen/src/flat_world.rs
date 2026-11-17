@@ -15,8 +15,6 @@ const DEFAULT_LAYERS: [(&str, u32); 3] = [
 ];
 const DEFAULT_BIOME: ResourceLocation<'static> = rl!("minecraft:plains");
 
-/// The layers of a flat generator. Settings without a readable layer list give the default
-/// superflat layers: bedrock, two dirt and a grass block.
 pub(crate) fn flat_layers(generator: &FlatChunkGenerator, blocks: &BlockDefinitions) -> FlatLayers {
     let read = settings_layers(&generator.settings, blocks);
     let layers = read.unwrap_or_else(|| {
@@ -28,7 +26,6 @@ pub(crate) fn flat_layers(generator: &FlatChunkGenerator, blocks: &BlockDefiniti
     FlatLayers::new(layers)
 }
 
-/// The biome of every column of a flat generator: the one its settings name, or plains.
 pub(crate) fn flat_biome(
     generator: &FlatChunkGenerator,
     registries: &Registries,

@@ -14,70 +14,42 @@ use mcrs_minecraft_worldgen_density::cell::{
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{CHUNK_SURFACE_LEVEL, NoiseRouter};
 
-/// The water level of a strip in which no fluid has been seen from above.
 pub const NO_WATER: i32 = i32::MIN;
 
-/// Every allocation the descent reuses column after column.
 #[derive(Default)]
 pub struct MaterialScratch {
     bypass_shortcuts: bool,
     workspace: Workspace,
-    /// Per condition, the stamp its answer was computed at and the answer.
     conditions: Vec<(u32, bool)>,
     folded: Vec<Option<bool>>,
-    /// Per noise, the stamp its value was sampled at and the value.
     noises: Vec<(u32, f64)>,
     preliminary: Vec<f32>,
-    /// One row per vein over the column's block volume, written only inside
-    /// the cells `vein_cells` leaves open.
     vein_values: Vec<f32>,
-    /// Per vein, per cell of its lattice: [`CELL_UNKNOWN`] until something asks
-    /// about it, then whether the vein's density can be positive anywhere in
-    /// it. A closed cell never reads `vein_values`.
     vein_cells: Vec<u8>,
-    /// The vein whose lattice is pinned in `workspace`, and over what volume.
-    /// The veins of one dimension interpolate the same noises, so the lattice
-    /// sampled for the first serves the rest.
     vein_lattice_for: Option<(usize, SampleGrid)>,
     vein_layout: Vec<VeinCells>,
-    /// Per vein, where the current strip's cells start in `vein_cells`.
     vein_strip: Vec<usize>,
     lattice: Vec<f32>,
     corners: Vec<Interval>,
-    /// One bound per term of a vein's [`mcrs_minecraft_worldgen_density::cell::CellBounds`], reused
-    /// across every cell of the column.
     cell_terms: Vec<Interval>,
     cell_density: Vec<f32>,
-    /// The conditions whose answer changes with y alone, at a height a strip
-    /// knows before its descent: they split a strip into runs.
     splits: Vec<CondId>,
     breaks: Vec<i32>,
-    /// Every biome the strip can hold over the y range
-    /// `reachable_lo..=reachable_hi`, or wider.
     reachable: Vec<u16>,
 }
 
-/// Runs shorter than this are walked block by block rather than settled.
 const SHORT_RUN: i32 = 8;
 
-/// A vein cell nothing has asked about yet. A column asks about the cells its
-/// solid runs and its vein rules reach, which is a fraction of the lattice, so
-/// classifying every cell up front is work nobody reads.
 const CELL_UNKNOWN: u8 = 0;
 const CELL_OPEN: u8 = 1;
 const CELL_CLOSED: u8 = 2;
 
-/// What a settled run writes at one y. `Bandlands` settles like any block:
-/// every y of the run reaches the same rule, and only the band the rule indexes
-/// varies with y, which the write site can do without walking the tape.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SettledState {
     Block(Option<VoxelId>),
     Bandlands,
 }
 
-/// Where settling a piece of a run stopped: on an answer, on a guard that could
-/// still go either way, or on a rule no piece can settle at all.
 enum Settled {
     Answer(SettledState),
     Open {
@@ -88,17 +60,12 @@ enum Settled {
     Blocked,
 }
 
-/// A condition's answer along one solid run of a strip.
 enum Split {
     Always(bool),
-    /// True at and above this y.
     At(i32),
-    /// True at and below this y.
     AtOrBelow(i32),
 }
 
-/// How one vein's cells are laid out in `MaterialScratch::vein_cells`: the
-/// column's cells in x, then z, each a run of `size.y` along y.
 #[derive(Clone, Copy)]
 struct VeinCells {
     cell: IVec3,
@@ -107,18 +74,11 @@ struct VeinCells {
 }
 
 impl MaterialScratch {
-    /// Force every cache to miss and report no settled run, so every block
-    /// goes through the tape and can be compared against a memoised descent.
     pub fn bypass_shortcuts(&mut self, bypass: bool) {
         self.bypass_shortcuts = bypass;
     }
 }
 
-/// The context the tape tests against, over one column.
-///
-/// `biome_at` answers the biome of a block from the biomes stored for the
-/// column, which this crate does not hold; everything else here is a function of
-/// the program, the router and the position.
 pub struct MaterialEval<'a, B, R> {
     router: &'a NoiseRouter,
     pub(crate) program: &'a MaterialProgram,
@@ -132,7 +92,6 @@ pub struct MaterialEval<'a, B, R> {
     memoise: bool,
     preliminary: SampleGrid,
     veins: SampleGrid,
-    /// Where the current strip starts in a `vein_values` row.
     vein_row: usize,
     run_top: i32,
     run_ceiling: i32,
@@ -161,9 +120,6 @@ where
     B: FnMut(i32, i32, i32) -> u16,
     R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
 {
-    /// `top` is the highest non-air block of the column and `biomes` every biome
-    /// the column stores: a set narrower than what `biome_at` can answer folds a
-    /// condition that should have matched to `never` and writes the wrong block.
     #[expect(
         clippy::too_many_arguments,
         reason = "the router, program and scratch, the two biome lookups, the column position, its top and the biomes it stores, which define one column's evaluator"
@@ -215,8 +171,6 @@ where
                     Some(Tri::Always) => Some(true),
                     Some(Tri::Maybe) => None,
                 },
-                // An operand is interned before the `not` that names it, so its
-                // own fold is already settled here.
                 Condition::Not(inner) => scratch
                     .folded
                     .get(inner as usize)
@@ -304,17 +258,6 @@ where
         }
     }
 
-    /// The runs of y, descending, over which the tape answers the same for
-    /// every block — one state, or nothing — so the descent need not run it
-    /// there. Asked once per solid run of a strip, from `top`, whose block sits
-    /// `depth_above` deep, down to `bottom`, whose depth below counts from
-    /// `ceiling`, with `water_level` above it: along
-    /// such a run the depths are affine in y, so every depth, water and height
-    /// condition is a threshold in y, the y-only ones too; the per-strip ones
-    /// hold across it, a biome set the column folded is settled, and an ore
-    /// vein is silent through a cell its bound closed. The run is split at
-    /// every threshold, and any other guard met on the way leaves the piece
-    /// open.
     pub fn settled_runs(
         &mut self,
         top: i32,
@@ -325,7 +268,6 @@ where
         out: &mut Vec<(i32, i32, SettledState)>,
     ) {
         out.clear();
-        // Splitting a run costs about as much as walking a few blocks of it.
         if self.scratch.bypass_shortcuts || top - bottom < SHORT_RUN {
             return;
         }
@@ -353,8 +295,6 @@ where
             }
         }
         self.scratch.splits = splits;
-        // Only the cells this run meets can break it; the rest would be
-        // dropped by the retain below, and asking about one classifies it.
         for vein in 0..self.scratch.vein_layout.len() {
             let Some(&layout) = self.scratch.vein_layout.get(vein) else {
                 break;
@@ -386,14 +326,6 @@ where
         self.scratch.breaks = breaks;
     }
 
-    /// What the piece `lo..=hi` answers, appended to `out`.
-    ///
-    /// A piece the tape leaves open on a vertical gradient is still worth
-    /// settling: inside the band the draw is the only thing that varies, so if
-    /// both sides of the guard settle, each y is one draw against the band's
-    /// probability instead of a walk of the whole tape. The draw is a fork of
-    /// the stream at the block, so making it here rather than during the
-    /// descent asks the same stream the same question.
     fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, SettledState)>) {
         let (condition, on_true, on_false) = match self.settle_from(0, lo, hi) {
             Settled::Answer(state) => return out.push((lo, hi, state)),
@@ -449,8 +381,6 @@ where
         }
     }
 
-    /// What the tape returns for every y in `lo..=hi` of the run, if it is the
-    /// same block, or the same nothing, throughout.
     fn settle_from(&mut self, mut pc: usize, lo: i32, hi: i32) -> Settled {
         let program = self.program;
         while let Some(op) = program.tape().get(pc) {
@@ -479,7 +409,6 @@ where
         Settled::Answer(SettledState::Block(None))
     }
 
-    /// The condition's answer if it is the same for every y in `lo..=hi`.
     fn over(&mut self, condition: CondId, lo: i32, hi: i32) -> Option<bool> {
         if let Some(&Some(value)) = self.scratch.folded.get(condition as usize) {
             return Some(value);
@@ -501,9 +430,6 @@ where
                 }
             }
             Condition::Not(inner) => self.over(inner, lo, hi).map(|value| !value),
-            // The column-wide fold above covers every stored biome, so a column
-            // that holds many loses it. Over one strip and one run the reachable
-            // set is a far tighter one to fold.
             Condition::Biome { set } => {
                 if !self.reachable_over(lo, hi) {
                     return None;
@@ -531,9 +457,6 @@ where
         }
     }
 
-    /// Fills `scratch.reachable` with a superset of the biomes the current
-    /// strip can hold over `lo..=hi`. `false` where the caller
-    /// cannot say, which leaves every biome condition open.
     fn reachable_over(&mut self, lo: i32, hi: i32) -> bool {
         if self.memoise
             && self.reachable_stamp == self.gen_xz
@@ -551,11 +474,8 @@ where
         self.reachable_ok
     }
 
-    /// How a condition answers along the current run, where the depth above
-    /// is `run_depth + run_top - y` and the depth below `y - run_ceiling + 1`.
     fn split(&mut self, condition: CondId) -> Option<Split> {
         let (ceiling_y, water) = (self.run_ceiling, self.water_level);
-        // What `y + depth_above` comes to anywhere on the run.
         let top = self.run_top + self.run_depth - 1;
         let program = self.program;
         let compiled = program.conditions().get(condition as usize)?;
@@ -607,7 +527,6 @@ where
         })
     }
 
-    /// The depth a stone-depth condition admits.
     fn stone_depth_limit(
         &mut self,
         offset: i32,
@@ -633,8 +552,6 @@ where
         1 + offset + surface_depth + secondary
     }
 
-    /// Whether any cell of the vein's lattice meeting `lo..=hi` in this strip
-    /// is open, or the run reaches above the lattice.
     fn vein_open_in(&mut self, vein: usize, lo: i32, hi: i32) -> bool {
         let Some(&layout) = self.scratch.vein_layout.get(vein) else {
             return true;
@@ -656,8 +573,6 @@ where
         self.depth_below = depth_below;
     }
 
-    /// The block the rules produce at the current position: the tape walked from
-    /// the top, each guard answered against this position.
     pub fn apply(&mut self) -> Option<VoxelId> {
         let mut pc = 0usize;
         while let Some(op) = self.program.tape().get(pc) {
@@ -762,9 +677,6 @@ where
         value
     }
 
-    /// A vein's density prefilled over the column, point-sampled where the
-    /// position sits above the fill — which a pillar built before the descent
-    /// can.
     fn prefilled(&mut self, vein: usize, root: usize) -> f32 {
         let dy = self.block_y - self.veins.min_block().y;
         if (0..self.veins.size().y).contains(&dy)
@@ -778,8 +690,6 @@ where
         self.sample(root, IVec3::new(self.block_x, self.block_y, self.block_z))
     }
 
-    /// Whether the vein's density can be positive in the cell holding the
-    /// position; above the classified lattice nothing is known.
     fn vein_possible(&mut self, vein: usize) -> bool {
         let Some(&layout) = self.scratch.vein_layout.get(vein) else {
             return true;
@@ -788,13 +698,6 @@ where
         cy >= layout.size.y || self.vein_cell_open(vein, cy)
     }
 
-    /// Whether the vein's density can be positive anywhere in cell `cy` of the
-    /// current strip, classifying it the first time anything asks.
-    ///
-    /// Trilinear interpolation cannot leave the hull of its corners, so a cell
-    /// whose bound stays below zero holds no vein and needs no density at all.
-    /// Where the bound leaves the sign open the density is filled for that cell
-    /// alone, which is what the descent reads back through `prefilled`.
     fn vein_cell_open(&mut self, vein: usize, cy: i32) -> bool {
         let Some(&strip) = self.scratch.vein_strip.get(vein) else {
             return true;
@@ -829,8 +732,6 @@ where
             IVec3::new(cx, cy, cz),
             &mut self.scratch.corners,
         );
-        // Cells above the column's top are left open: the descent reaches them
-        // only under a badlands pillar, and samples the point there.
         let closed = cell_min.y <= self.veins.max_block().y
             && bounds
                 .eval(
@@ -867,8 +768,6 @@ where
             return false;
         }
 
-        // Only the part of the cell the column volume covers is filled; above
-        // it the rule samples the point.
         let rows = (self.veins.max_block().y - cell_min.y + 1).min(layout.cell.y);
         if rows > 0 {
             self.fill_vein_cell(vein, layout, ore_vein.density, cell_min, rows, cx, cz);
@@ -876,9 +775,6 @@ where
         true
     }
 
-    /// Samples the vein lattice `bounds` interpolates on, unless the pinned one
-    /// already is it. The veins of one dimension share their inputs, so the
-    /// lattice sampled for the first serves the rest.
     fn pin_vein_lattice(&mut self, vein: usize, bounds: &CellBounds, lattice: SampleGrid) {
         let inputs = bounds.inputs();
         if let Some((held, volume)) = &self.scratch.vein_lattice_for
@@ -912,7 +808,6 @@ where
         self.scratch.vein_lattice_for = Some((vein, lattice));
     }
 
-    /// One open cell's density, into the rows of `vein_values` it covers.
     #[expect(
         clippy::too_many_arguments,
         reason = "the vein, its layout and density root, and the cell's origin, height and column offsets"
@@ -1043,9 +938,6 @@ where
 
 #[cfg(test)]
 impl<B, R> MaterialEval<'_, B, R> {
-    /// Reaches the depths the surface noise would only reach at rare positions.
-    /// The stamp goes back to zero because `begin_strip` never leaves `gen_xz`
-    /// there, so the preliminary level recomputes against the new depth.
     pub(crate) fn set_surface_depth(&mut self, depth: i32) {
         self.surface_depth = depth;
         self.min_surface_level_stamp = 0;
@@ -1057,9 +949,6 @@ where
     B: FnMut(i32, i32, i32) -> u16,
     R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
 {
-    /// Answers one guard, memoised against the scope its condition was compiled
-    /// with, so a condition shared by dozens of rules is computed once per strip
-    /// or per y.
     pub(crate) fn test(&mut self, condition: CondId) -> bool {
         if !self.memoise {
             return self.compute(condition);
@@ -1086,22 +975,15 @@ where
         value
     }
 
-    /// The band at the position the descent is on, for the paths that walk the
-    /// tape rather than settle a run.
     pub(crate) fn bandlands(&mut self) -> Option<VoxelId> {
         self.bandlands_at(self.block_y)
     }
 
-    /// The band `y` lands on. The offset noise is 2D, so it is one draw per
-    /// strip however many y a settled run asks about.
     pub fn bandlands_at(&mut self, y: i32) -> Option<VoxelId> {
         let noise = self.noise(
             self.program.surface_noise(SurfaceNoise::ClayBandsOffset),
             false,
         );
-        // Rounding here is a floor of the half-shifted value, not Rust's
-        // away-from-zero `round`: the two disagree on every negative half and
-        // shift the whole band table.
         let offset = ((noise as f32 * 4.0) + 0.5).floor() as i32;
         self.program
             .clay_bands()
@@ -1123,8 +1005,6 @@ where
         if random.next_f32() > density {
             return None;
         }
-        // Richness and the gap are read only inside a vein, a handful of
-        // blocks per column, so neither is worth a prefill.
         let richness = self.sample(ore_vein.richness, at);
         if random.next_f32() < richness && self.sample(ore_vein.filler_gap, at) < 0.0 {
             Some(if random.next_f32() < ore_vein.raw_ore_chance {
@@ -1138,11 +1018,6 @@ where
     }
 }
 
-/// Lay out each vein's cell lattice over the column and leave every cell
-/// unclassified. Classifying a cell costs an interval bound over its eight
-/// corners and, where the bound leaves the sign open, a dense density fill; a
-/// column asks about roughly a third of its cells, so the other two thirds are
-/// work nobody reads.
 fn plan_veins(
     router: &NoiseRouter,
     program: &MaterialProgram,
@@ -1173,8 +1048,6 @@ fn plan_veins(
                 size: IVec3::ONE,
                 at,
             });
-            // No lattice tiles the column, so there is nothing to settle and
-            // nothing to defer: the density is filled whole.
             scratch.vein_cells.push(CELL_OPEN);
             if let Some(row) = scratch
                 .vein_values

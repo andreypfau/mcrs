@@ -7,7 +7,6 @@ use mcrs_minecraft_core::VERSION;
 use crate::debug_displayer::DebugScreenDisplayer;
 use mcrs_minecraft_render_probe::probe::{CPU_WINDOW, WINDOW_SECS};
 
-/// Room for a second of frames at the rate being aimed for.
 pub const HISTORY: usize = CPU_WINDOW;
 
 pub fn display(
@@ -35,8 +34,6 @@ pub fn display(
         window.present_mode,
         PresentMode::AutoVsync | PresentMode::Fifo | PresentMode::FifoRelaxed
     );
-    // Frames in the last second, as vanilla counts them; no framerate limiter here, which is
-    // what vanilla prints as "inf".
     let line = if sorted.is_empty() {
         "0 fps T: inf".to_owned()
     } else {

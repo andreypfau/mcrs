@@ -19,8 +19,6 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::mob_view::MobView;
 
-/// The vanilla argument types, which read the registries, the block table and the players of
-/// the world a line parses in.
 pub struct VanillaCommands;
 
 impl CommandSet for VanillaCommands {
@@ -29,10 +27,8 @@ impl CommandSet for VanillaCommands {
     type Lookup = VanillaWorld<'static, 'static>;
 }
 
-/// What a handler of a vanilla command reads its arguments with.
 pub type VanillaContext<'w, 's> = CommandContext<'w, 's, VanillaCommands>;
 
-/// What the vanilla arguments read from a dimension world.
 #[derive(SystemParam)]
 pub struct VanillaWorld<'w, 's> {
     targets: Res<'w, CommandTargets>,
@@ -46,7 +42,6 @@ pub struct VanillaWorld<'w, 's> {
 }
 
 impl VanillaWorld<'_, '_> {
-    /// The registries and the block table the arguments of a command read.
     pub fn registry_lookup(&self) -> RegistryLookup<'_> {
         RegistryLookup {
             registries: self.registries.as_deref().map(|registries| &**registries),
@@ -55,7 +50,6 @@ impl VanillaWorld<'_, '_> {
         }
     }
 
-    /// Each mob row of this world.
     pub(crate) fn mobs(&self) -> impl Iterator<Item = MobView<'_>> {
         let rows = self.rows.as_deref();
         let mobs = self.mobs.as_deref();
@@ -70,7 +64,6 @@ impl VanillaWorld<'_, '_> {
         })
     }
 
-    /// The mob row that a source holds; `None` when it left the world or its tile.
     pub(crate) fn mob(&self, source: SourceMob) -> Option<MobView<'_>> {
         let at = Placed {
             tile: source.tile,
@@ -83,7 +76,6 @@ impl VanillaWorld<'_, '_> {
         })
     }
 
-    /// The mob row of this world with the UUID `uuid`.
     pub(crate) fn mob_by_uuid(&self, uuid: u128) -> Option<MobView<'_>> {
         let id = *self.uuids.as_deref()?.0.get(&uuid)?;
         let mob = self.mobs.as_deref()?.0.get(&id)?;
@@ -99,7 +91,6 @@ impl VanillaWorld<'_, '_> {
         })
     }
 
-    /// The block table of this world, when it has one.
     pub fn blocks(&self) -> Option<&Blocks> {
         self.blocks.as_deref()
     }

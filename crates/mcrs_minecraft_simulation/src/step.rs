@@ -102,8 +102,6 @@ where
         let Some((run, after)) = rest.split_at_checked(length) else {
             return;
         };
-        // A chain's continuations need not be contiguous: a later run of the same chain
-        // continues from where the earlier one ended, not from the ledger again.
         let offered = carried.get(&first.origin).copied().unwrap_or_else(|| {
             input
                 .ledgers

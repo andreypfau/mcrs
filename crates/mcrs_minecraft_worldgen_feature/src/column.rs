@@ -3,8 +3,6 @@ use mcrs_voxel::BlockPos;
 
 use crate::placer::WorldGenVolume;
 
-/// `Column`, which is only ever asked for its two edges: `Range` is both
-/// present, `Ray` one, `Line` neither.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Column {
     pub floor: Option<i32>,
@@ -20,8 +18,6 @@ impl Column {
     }
 }
 
-/// `Column.scan`: walk out of `pos` in both directions while the column stays
-/// inside, and keep an edge only where the block that stopped the walk is one.
 pub fn scan_column<W: WorldGenVolume>(
     volume: &W,
     pos: BlockPos,

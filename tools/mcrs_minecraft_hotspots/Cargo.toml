@@ -12,7 +12,6 @@ test = false
 [lints]
 workspace = true
 
-# std: file reads and the report on stdout
 [dependencies]
 mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_chunk.workspace = true

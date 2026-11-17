@@ -34,8 +34,6 @@ use crate::menu_queue::MenuQueue;
 use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
-/// What a click in the inventory menu gives: the drag state after it, its request, and what the
-/// client view gets.
 pub(crate) struct ClickPlan {
     drag: Drag,
     request: Option<Request>,
@@ -43,16 +41,11 @@ pub(crate) struct ClickPlan {
 }
 
 enum ViewChange {
-    /// A spectator changes nothing; the client gets the full content again.
     FullContent,
-    /// The click names no entry of the menu.
     Unchanged,
-    /// The state id of the click decides between the claims and the full content.
     Claims,
 }
 
-/// Makes the request of a click in the inventory menu and records what the client claims to hold
-/// after it (ITX-JAV-001, ITX-JAV-002, ITX-JAV-004).
 pub(crate) fn apply_click(
     world: &mut World,
     input: &InventoryInput,
@@ -98,8 +91,6 @@ pub(crate) fn apply_click(
     Ok(())
 }
 
-/// Plans the click with the world lent to the gates of the slot policies: every parameter beside
-/// `&World` reads only.
 fn plan_click(
     InRef(input): InRef<InventoryInput>,
     world: &World,
@@ -185,7 +176,6 @@ fn queue_full_content(world: &mut World, player: Entity) {
     }
 }
 
-/// The request of `ops`, or `None` when it changes nothing.
 fn engine_request(slots: &ClickSlots, ops: &Operations<MenuSlot, StackHandle>) -> Option<Request> {
     if ops.is_empty() {
         return None;

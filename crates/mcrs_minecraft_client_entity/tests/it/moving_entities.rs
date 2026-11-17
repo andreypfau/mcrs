@@ -147,7 +147,6 @@ fn the_tick_after_an_update_that_moves_an_item_at_once_starts_from_the_new_posit
     }
 }
 
-/// The velocity that the client decodes from `velocity` on the wire.
 fn wire(velocity: DVec3) -> DVec3 {
     let mut data = Vec::new();
     LpVec3(velocity)
@@ -266,9 +265,7 @@ fn a_teleport_that_turns_the_entity_rotates_its_velocity() {
 }
 
 enum TeleportResult {
-    /// The entity reaches `z` after the ticks of its interpolation.
     Reaches { z: f64 },
-    /// The entity is at `z` at once, and its previous position keeps its offset on Z.
     Snaps { z: f64 },
 }
 
@@ -332,7 +329,6 @@ struct OrbTurn {
     start_yaw: f32,
     yaw: f32,
     pitch: f32,
-    /// The yaw and the pitch after each of the three steps.
     yaws: [f32; 3],
     pitches: [f32; 3],
 }

@@ -26,7 +26,6 @@ use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Runs `server` on its own thread. The returned closure asks it to exit and waits until it has.
 pub fn start_server(mut server: App) -> impl FnOnce() {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_flag = stop.clone();
@@ -50,7 +49,6 @@ pub fn start_server(mut server: App) -> impl FnOnce() {
     }
 }
 
-/// A client as `mcrs_test`, with a player and a column cache, ready to connect to `server`.
 pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
     let mut client = App::new();
     client.add_plugins(ClientNetworkPlugin {
@@ -69,9 +67,6 @@ pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
     client
 }
 
-/// The client's registry plugin over the repository's assets. It loads the block states a column
-/// is decoded with, reads the server's registries at the end of configuration and holds the
-/// vanilla pack to fill the entries the server leaves out.
 fn add_client_registries(client: &mut App) {
     let assets = concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_owned();
     client
@@ -95,9 +90,6 @@ fn add_client_registries(client: &mut App) {
         });
 }
 
-/// Returns the connection entity once every play-state packet the flow promises
-/// has arrived, or `None` if the deadline passes first. A server that generates no
-/// terrain sends no column, so `awaits_columns` is clear for it.
 pub fn drive_client_until_joined(
     client: &mut App,
     awaits_columns: bool,

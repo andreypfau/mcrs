@@ -156,7 +156,6 @@ impl City<'_> {
         })
     }
 
-    /// The child at `offset` in the parent's frame, both at pivot zero.
     fn add_piece(
         &self,
         parent: &EndCityPiece,
@@ -170,8 +169,6 @@ impl City<'_> {
         self.piece(name, position, rotation, overwrite)
     }
 
-    /// A section's children join `pieces` only when none of them meets a piece
-    /// tagged differently from the parent; every child then takes one fresh tag.
     fn recursive_children(
         &mut self,
         section: Section,

@@ -18,29 +18,21 @@ pub(crate) const WHITE: u32 = 0xFFFF_FFFF;
 pub(crate) const INACTIVE_CAPTION: u32 = 0xFFA0_A0A0;
 const SECTION_LABEL_TEXT_TOP: i32 = 4;
 
-/// One widget of a screen: its bounds, its states and its kind (WID-STATE-001).
 #[derive(Clone, Debug)]
 pub struct Widget {
     id: WidgetId,
     pub(crate) rect: GuiRect,
-    /// The plain text that the widget shows; the screen sets it after each value change.
     pub caption: String,
-    /// A widget that is not visible does not draw and takes no input.
     pub visible: bool,
-    /// An inactive widget takes no press and no key, and draws in its inactive form.
     pub active: bool,
-    /// The group that sorts the widgets for Tab, the smallest first (WID-FOC-004).
     pub tab_group: i32,
-    /// The tooltip, when the screen gives the widget a tooltip text.
     pub tooltip: Option<TooltipDelay>,
     pub kind: WidgetKind,
-    /// The scroll area that holds the widget; none for a widget of the screen itself.
     pub area: Option<AreaSlot>,
     pub(crate) tooltip_start_ms: Option<u64>,
 }
 
 impl Widget {
-    /// A visible widget in tab group 0 with no tooltip; it is active unless it is a text widget.
     #[must_use]
     pub fn new(id: WidgetId, rect: GuiRect, caption: String, kind: WidgetKind) -> Self {
         Self {
@@ -57,28 +49,22 @@ impl Widget {
         }
     }
 
-    /// The widget with the bounds `rect`, before the screen adds it; after that
-    /// [`crate::Widgets::set_rect`] moves it.
     #[must_use]
     pub const fn with_rect(mut self, rect: GuiRect) -> Self {
         self.rect = rect;
         self
     }
 
-    /// The bounds in GUI units.
     #[must_use]
     pub const fn rect(&self) -> GuiRect {
         self.rect
     }
 
-    /// The id that the screen gave the widget.
     #[must_use]
     pub const fn id(&self) -> WidgetId {
         self.id
     }
 
-    /// The ARGB colour of the caption before the alpha of the widget and the colours of its style
-    /// (WID-STATE-003).
     #[must_use]
     pub fn caption_color(&self) -> u32 {
         let greys = !matches!(self.kind, WidgetKind::Checkbox { .. }) && !self.kind.is_text();
@@ -89,8 +75,6 @@ impl Widget {
         }
     }
 
-    /// Where a caption of `text_width` draws at `now_ms`, for a widget whose caption draws on one
-    /// line (WID-BTN-004, WID-BTN-005, WID-ICON-001, WID-TXT-001).
     #[must_use]
     pub fn caption_layout(&self, text_width: i32, now_ms: u64) -> Option<CaptionLayout> {
         let rect = self.rect;
@@ -150,8 +134,6 @@ impl Widget {
         }
     }
 
-    /// The top left corner of the icon of an icon button with a caption of `text_width`
-    /// (WID-ICON-001).
     #[must_use]
     pub fn icon_origin(&self, text_width: i32) -> Option<GuiPoint> {
         let WidgetKind::IconButton { icon, form } = self.kind else {
@@ -179,8 +161,6 @@ impl Widget {
         ))
     }
 
-    /// The start of line `line`, from 0, of `line_width` in a multi-line text widget
-    /// (WID-TXT-002).
     #[must_use]
     pub fn line_origin(&self, line: i32, line_width: i32) -> Option<GuiPoint> {
         let WidgetKind::MultiLineText { centred, .. } = self.kind else {
@@ -196,19 +176,16 @@ impl Widget {
         Some(GuiPoint::new(saturate::saturate(x), saturate::saturate(y)))
     }
 
-    /// The scroll offset of a scroll area (SCRL-AREA-001).
     #[must_use]
     pub fn scroll_offset(&self) -> Option<f64> {
         self.kind.scroll_area(self.rect).map(|area| area.offset())
     }
 
-    /// The scrollbar of a scroll area that is scrollable (SCRL-BAR-001, SCRL-BAR-002).
     #[must_use]
     pub fn scrollbar(&self) -> Option<Scrollbar> {
         self.kind.scroll_area(self.rect)?.scrollbar()
     }
 
-    /// The background and the separators of a list (LIST-BG-001, LIST-BG-002).
     #[must_use]
     pub fn list_frame(&self) -> Option<ListFrame> {
         match self.kind {

@@ -18,13 +18,9 @@ use crate::entity_pack::EntityPack;
 use crate::player_skin::{SKIN_SLOTS, skin_identifier, skin_textures};
 use crate::variant_source::VARIANT_REGISTRIES;
 
-/// The texture array layers that one array holds at most.
 const MAX_ARRAY_LAYERS: u32 = 2048;
 
 impl EntityAssets {
-    /// The assets of the entity pack of the repository, with the textures of `resources` that
-    /// its client entities, the synced variant registries of `registries` and the equipment
-    /// assets name. `array_layers` is the most layers of a texture array that the device takes.
     #[must_use]
     pub fn build(resources: &ResourceSet, registries: &Registries, array_layers: u32) -> Self {
         let pack = EntityPack::repository();
@@ -48,7 +44,6 @@ impl EntityAssets {
         assets
     }
 
-    /// Builds the library of `pack` with `textures` and the skin layers, and indexes it.
     pub(crate) fn add_pack(
         &mut self,
         pack: EntityPack,
@@ -68,8 +63,6 @@ impl EntityAssets {
     }
 }
 
-/// The variants of the skin layers, which the library adds last and in slot order, or none when
-/// a layer did not fit in the texture arrays.
 fn skin_variants(library: &EntityLibrary) -> Range<u16> {
     let variant = |slot: u16| library.textures.get(&skin_identifier(slot)).copied();
     match (variant(0), variant(SKIN_SLOTS - 1)) {
@@ -94,8 +87,6 @@ struct EquipmentLayer {
     texture: String,
 }
 
-/// The texture of the first entry of each layer type of each equipment asset file: the texture
-/// that `docs/spec/molang-queries.md` names for an equipment layer.
 fn add_equipment(
     resources: &ResourceSet,
     assets: &mut EntityAssets,
@@ -130,7 +121,6 @@ fn add_equipment(
     }
 }
 
-/// The images of the texture identifiers that the resource pack has, after the missing texture.
 fn textures(resources: &ResourceSet, identifiers: BTreeSet<String>) -> Vec<TextureImage> {
     let mut textures = vec![TextureImage {
         identifier: MISSING_TEXTURE.to_owned(),
@@ -156,8 +146,6 @@ fn textures(resources: &ResourceSet, identifiers: BTreeSet<String>) -> Vec<Textu
     textures
 }
 
-/// The client entity and the cull radius of each entity type of the pack. The radius encloses
-/// the box of the type grown by half a block and the visible bounds of each geometry.
 fn add_kinds(pack: &EntityPack, assets: &mut EntityAssets) {
     assets.radii = pack
         .entities

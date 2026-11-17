@@ -477,9 +477,6 @@ public final class BlockDefinitionDumper {
         return destructible;
     }
 
-    /// The items that harvest the state, asked of the game rather than assumed:
-    /// a tool family goes in as its tag when every item in the tag harvests it,
-    /// and anything left over goes in by identifier.
     private static JsonArray itemSpecificSpeeds(BlockState state, float destroyTime) {
         JsonArray speeds = new JsonArray();
         if (!state.requiresCorrectToolForDrops()) {
@@ -529,9 +526,6 @@ public final class BlockDefinitionDumper {
         return blockEntity;
     }
 
-    /// Three values the corpus used to carry are recomputed by the loader. A
-    /// version that breaks one of these identities has to be noticed here, not
-    /// in a silently different light level.
     private static void assertDerivable(BlockState state, BlockGetter level, BlockPos pos) {
         if (state.isSolidRender() != Block.isShapeFullBlock(state.getOcclusionShape())) {
             throw new IllegalStateException(state + ": solid render no longer follows the occlusion shape");

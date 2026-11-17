@@ -34,7 +34,6 @@ use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 
-/// The buffers of the command runs of a world, reused from one tick to the next.
 #[derive(Resource, Default)]
 pub(crate) struct PassBuffers {
     stages: Vec<Stage<Handler>>,
@@ -52,7 +51,6 @@ type PlayerRow = (
     &'static PlayerGameMode,
 );
 
-/// Whether this world has commands to run in this tick.
 pub(crate) fn commands_pending(
     queue: Res<CommandQueue>,
     handoffs: Option<Res<Messages<CommandHandoff>>>,
@@ -60,10 +58,6 @@ pub(crate) fn commands_pending(
     !queue.is_empty() || handoffs.is_some_and(|handoffs| !handoffs.is_empty())
 }
 
-/// Runs the commands of this tick at the sync point, after the input of the tick reached the
-/// players: first the runs that other worlds handed over, in the order they came, then the
-/// command lines of the players of this world in the order they arrived, then the suggestion
-/// requests.
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
     let Some(mut buffers) = world.remove_resource::<PassBuffers>() else {
         return;
@@ -117,7 +111,6 @@ pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
     world.insert_resource(buffers);
 }
 
-/// The world and the buffers of the runs of one tick.
 struct Run<'a> {
     world: &'a mut World,
     here: Entity,
@@ -128,8 +121,6 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
-    /// Parses a line for `source` into the running chain, and sends the parse errors. Gives
-    /// the line back, and the source when the line runs.
     fn parse<S: CommandSet>(
         &mut self,
         player: PlayerSession,
@@ -164,7 +155,6 @@ impl Run<'_> {
         }
     }
 
-    /// Runs a line of a player of this world. Gives the line back for its buffer.
     fn line<S: CommandSet>(&mut self, queued: QueuedLine) -> String {
         let QueuedLine { player, line } = queued;
         let entity = self
@@ -199,7 +189,6 @@ impl Run<'_> {
         self.chain(player, line, source, start)
     }
 
-    /// Runs on the part of a run that another world handed over.
     fn handoff<S: CommandSet>(&mut self, handoff: CommandHandoff) {
         let CommandHandoff {
             output,
@@ -222,8 +211,6 @@ impl Run<'_> {
         self.chain(output, line, origin, start);
     }
 
-    /// Runs the running chain from `start`, then hands the sources that reached another world
-    /// to that world. Gives the line back.
     fn chain(
         &mut self,
         output: PlayerSession,
@@ -262,8 +249,6 @@ impl Run<'_> {
         line
     }
 
-    /// Sends each group of deferred sources to its world. A group of the run stage costs one
-    /// run for each source, which the stages here already counted against the limit.
     fn hand_off(
         &mut self,
         output: PlayerSession,
@@ -301,8 +286,6 @@ impl Run<'_> {
     }
 }
 
-/// Fills the targets of this tick: the dimensions that run, the players of this world as they
-/// are, and the players of the other worlds as those worlds reported them.
 fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     let Some(mut targets) = world.remove_resource::<CommandTargets>() else {
         return;
@@ -357,7 +340,6 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     world.insert_resource(targets);
 }
 
-/// The running dimensions in the dimension order, with the scale of each dimension type.
 fn fill_dimensions(world: &World, targets: &mut CommandTargets) {
     targets.dimensions.clear();
     let (Some(running), Some(types)) = (

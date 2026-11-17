@@ -1,7 +1,6 @@
 use crate::gui_extent::GuiExtent;
 use crate::layout_cell::LayoutCell;
 
-/// A layout element of a fixed size in its cell: a widget, an arranged layout, or a spacer.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Child {
     pub size: GuiExtent,
@@ -9,7 +8,6 @@ pub struct Child {
 }
 
 impl Child {
-    /// The child of `size` in `cell`.
     #[must_use]
     pub const fn new(size: GuiExtent, cell: LayoutCell) -> Self {
         Self { size, cell }

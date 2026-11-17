@@ -1,4 +1,3 @@
-//! Resource locations, the keys built on them and registry ids.
 #![no_std]
 
 extern crate alloc;

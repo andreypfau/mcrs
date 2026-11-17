@@ -8,7 +8,6 @@ use crate::attribute_edit::AttributeEdit;
 use crate::attribute_target::AttributeTarget;
 use crate::row_attributes::RowAttributes;
 
-/// Applies each edit of a mob row in arrival order and announces each instance that it changed.
 pub(crate) fn apply_row_attribute_edits(
     mut edits: MessageReader<AttributeEdit>,
     mut changed: MessageWriter<AttributeChanged>,

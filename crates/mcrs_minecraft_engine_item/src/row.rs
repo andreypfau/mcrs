@@ -24,10 +24,6 @@ pub(crate) enum RowKey {
     Custom(&'static str),
 }
 
-/// The operations on one component type of the stacks, by its component id.
-///
-/// Each constructor takes the column of the type for which it picks the operations, so the
-/// operations of a row read only cells of the type that the id of the row names.
 #[derive(Clone, Copy)]
 pub(crate) struct Row {
     id: ComponentId,
@@ -110,17 +106,14 @@ impl Row {
         self.neutral
     }
 
-    /// True when the two stacks have the same effective value of the type.
     pub(crate) fn equal(&self, left: &Cells, right: &Cells) -> bool {
         (self.equal)(self, left, right)
     }
 
-    /// Writes `index` and the effective value of the type, or nothing for the neutral value.
     pub(crate) fn hash(&self, cells: &Cells, index: usize, hasher: &mut FxHasher) {
         (self.hash)(self, cells, index, hasher);
     }
 
-    /// Adds the entry that the effective value of the type needs on top of `prototype`.
     pub(crate) fn diff(
         &self,
         cells: &Cells,
@@ -130,8 +123,6 @@ impl Row {
         (self.diff)(self, cells, prototype, stack)
     }
 
-    /// True when [`diff`](Self::diff) adds exactly `entry`, or nothing for `None`. It builds no
-    /// value. A custom or undecoded row never tells: it gives false.
     pub(crate) fn gives(
         &self,
         cells: &Cells,
@@ -141,18 +132,15 @@ impl Row {
         (self.gives)(self, cells, prototype, entry)
     }
 
-    /// Inserts the component of a patch entry of the type. False when the entry does not decode.
     pub(crate) fn insert_entry(&self, entity: &mut EntityWorldMut, entry: &PatchEntry) -> bool {
         (self.insert_entry)(entity, entry)
     }
 
-    /// Inserts a prototype component of the type, borrowed from the leaked table.
     pub(crate) fn insert_static(&self, entity: &mut EntityWorldMut, value: &'static Builtin) {
         (self.insert_static)(entity, value);
     }
 }
 
-/// One bit for the row at `index` of a mask, or none past 128 rows.
 pub(crate) fn bit(index: usize) -> u128 {
     u32::try_from(index)
         .ok()
@@ -160,7 +148,6 @@ pub(crate) fn bit(index: usize) -> u128 {
         .unwrap_or(0)
 }
 
-/// The index of each set bit of `mask`, from the lowest.
 pub(crate) fn bits(mut mask: u128) -> impl Iterator<Item = usize> {
     core::iter::from_fn(move || {
         if mask == 0 {
@@ -200,7 +187,6 @@ fn hash<T: ItemComponent + Component>(
     }
 }
 
-/// The patch entry that the effective value of the type needs on top of the prototype.
 enum Needed<'value, T> {
     Nothing,
     Value(&'value T),

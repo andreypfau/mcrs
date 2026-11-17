@@ -18,7 +18,6 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 use crate::grid::{Grid, smoke};
 use crate::item_predicate::TABLE;
 
-/// One entity of a [`Crowd`]; each value that is `None` is absent.
 #[derive(Clone, Default)]
 pub struct Mob {
     pub entity_type: Option<Id<EntityType>>,
@@ -45,27 +44,22 @@ pub struct Mob {
     pub attack_target: Option<usize>,
     pub team: Option<String>,
     pub tags: Option<Vec<String>>,
-    /// A slot that the list leaves out is empty.
     pub equipment: Option<Vec<Worn>>,
-    /// The entity has only the slots of the list.
     pub slots: Option<Vec<Held>>,
 }
 
-/// The stack of an equipment slot; `None` is the empty stack.
 #[derive(Clone)]
 pub struct Worn {
     pub slot: EquipmentSlot,
     pub stack: Option<ItemStack>,
 }
 
-/// The stack of a slot number; `None` is the empty stack.
 #[derive(Clone)]
 pub struct Held {
     pub slot: u16,
     pub stack: Option<ItemStack>,
 }
 
-/// The tables of the test registries.
 pub fn tables() -> PredicateTables<'static> {
     PredicateTables::new(smoke(), &TABLE)
 }
@@ -77,7 +71,6 @@ fn subject(stack: Option<&ItemStack>) -> ItemSubject<'_> {
     }
 }
 
-/// A [`Grid`] with entities; an entity is its index in `mobs`.
 #[derive(Default)]
 pub struct Crowd {
     pub grid: Grid,
@@ -85,7 +78,6 @@ pub struct Crowd {
 }
 
 impl Crowd {
-    /// Panics for an entity that the crowd does not hold.
     fn mob(&self, entity: usize) -> &Mob {
         self.mobs.get(entity).expect("an entity of the crowd")
     }

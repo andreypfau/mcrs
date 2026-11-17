@@ -37,16 +37,8 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
 
-/// What vanilla's player asks for until its client information arrives.
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
-/// Per-dim system that materialises an in-dim player entity from an
-/// `InboundPlayerSpawn` shuttled across the host→SubApp bus.
-///
-/// The connection stays host-resident. This system only creates the
-/// simulation-side entity and signals the host to attach the session via
-/// `OutboundPlayerAttached`. Sessions and `ServerSideConnection` are
-/// host-resident and must NOT be accessed here.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -135,10 +127,6 @@ pub(crate) fn consume_inbound_player_spawn(
                 simulation_distance.horizontal,
             ),
         ));
-        // The client derives the local player's game mode (and therefore
-        // spectator noclip) from its own player-list entry, not the login
-        // packet. Without this the client treats itself as non-spectator and
-        // keeps block collisions even though login set the spectator mode.
         packet_writer.write(to(
             session,
             PacketPayload::PlayerInfoUpdate {

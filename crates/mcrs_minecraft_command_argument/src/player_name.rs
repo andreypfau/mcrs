@@ -5,7 +5,6 @@ use mcrs_command::{
 };
 use mcrs_minecraft_command::{Lookup, Source};
 
-/// The name of a player that may not be online: read as one word, and suggested by the server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerNameArgument {
     Online,

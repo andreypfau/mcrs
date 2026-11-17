@@ -15,69 +15,40 @@ use crate::light_input::LightInput;
 use crate::light_output::{LightOutput, LitColumn};
 use crate::pending_edits::PendingEdits;
 
-/// How many section columns the light stage takes in before it hands out the next epochs.
-///
-/// Loading a column costs a 256 block column sky rescan. Only section loads and unloads are
-/// held back: a block change takes effect the round it arrives, and there are never thousands
-/// of those at once. The rescan is cheap next to the epochs it feeds, and holding it back only
-/// starves them: a bulk load at render distance 96 admits its whole 38025 columns in under a
-/// second of intake. The bound only keeps the first epochs from waiting behind the whole
-/// intake.
 pub const COLUMNS_PER_ROUND: usize = 1024;
 
-/// The light of one dimension: the block and light data, the work on its way through the
-/// world and the columns that wait for their light to settle.
-///
-/// Each step takes in the most urgent edits, hands the next epochs to the async compute pool,
-/// and emits the light of the epochs that ended and the columns that settled.
 pub(crate) struct LightStage {
     world: LightWorld,
     pending: PendingEdits,
     queue: LightQueue,
-    /// The epochs in flight, each with the area it may still write into.
     epochs: InFlight<Epoch, Task<()>>,
-    /// The epochs handed out so far, which numbers the next one.
     dispatched: u64,
     budget: LightBudget,
     awaiting: FxHashMap<ColumnPos, Settle>,
-    /// Whether something happened since the last check that can settle an awaited column.
     settle_due: bool,
-    /// Light published into the world and not emitted yet.
     relit: Vec<PublishedLight>,
     relit_output: RelitOutput,
-    /// The columns the players stand in, as last told.
     players: Vec<ColumnPos>,
 }
 
-/// An epoch in flight: the area it may still write into, and its place in the order of
-/// dispatch.
 struct Epoch {
     area: BoundingBox,
     seq: u64,
 }
 
-/// How far an awaited column is from an answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Settle {
-    /// The column or a column around it is not loaded yet, or still has work queued.
     Draining,
-    /// Every column around it is loaded and its queued work went out in the epochs before
-    /// this one. Later epochs carry only work that arrived after that, so the answer does not
-    /// wait for them: work that keeps arriving cannot hold a column back for ever.
     Retiring(u64),
 }
 
-/// What an awaited column gets in this step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Answer {
     Wait,
     Lit,
-    /// The column left the stage, so its light never settles.
     Drop,
 }
 
-/// Whether a light stage hands back the light of each epoch and answers an awaited column by
-/// its position, or hands back only the light of each awaited column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RelitOutput {
     Emit,
@@ -122,16 +93,12 @@ impl Stage for LightStage {
 
     fn step(&mut self, step: &mut Step<'_, Self>) {
         self.intake();
-        // Without a task pool there is no worker to hand a batch to, so the queue keeps it
-        // and the light lags until one exists.
         if let Some(pool) = AsyncComputeTaskPool::try_get() {
             self.dispatch(pool, step);
         }
         if !self.relit.is_empty() {
             step.emit(LightOutput::Relit(std::mem::take(&mut self.relit)));
         }
-        // After the light it waited on, so the dimension has that light before it sends the
-        // column.
         if !std::mem::take(&mut self.settle_due) {
             return;
         }
@@ -151,7 +118,6 @@ impl Stage for LightStage {
         }
     }
 
-    /// Edits held back by the intake budget are work in themselves.
     fn has_work(&self) -> bool {
         !self.pending.is_empty()
     }
@@ -178,8 +144,6 @@ impl LightStage {
         }
     }
 
-    /// A stage that answers only the awaited columns, each with its light, for a world that
-    /// takes nothing else from it.
     pub(crate) fn awaited_only(world: LightWorld) -> Self {
         Self {
             relit_output: RelitOutput::Drop,
@@ -187,12 +151,6 @@ impl LightStage {
         }
     }
 
-    /// Re-scores the waiting work against where the players stand now.
-    ///
-    /// A column is not sent until the light around it has settled, so work scored when it
-    /// was raised carries the distance from wherever the player was then. One flight across
-    /// the world and the queue is sorted by a position nobody occupies, which leaves the
-    /// column under the player waiting behind thousands raised earlier and further away.
     fn reprioritize(&mut self) {
         if self.players.is_empty() || (self.pending.is_empty() && self.queue.is_empty()) {
             return;
@@ -203,9 +161,6 @@ impl LightStage {
         self.queue.reprioritize(score);
     }
 
-    /// How urgent the light of `column` is: the same distance to the nearest player that the
-    /// column scheduler treats as a ticket level, because a column is not sent until its light
-    /// is published.
     fn priority(&self, column: ColumnPos) -> Priority {
         if self.players.is_empty() {
             return DEFAULT_PRIORITY;
@@ -213,7 +168,6 @@ impl LightStage {
         player_priority(column, &self.players)
     }
 
-    /// Publishes a finished epoch into the world and hands back what changed.
     fn retire(&mut self, outcome: TaskOutcome<LightUpdate>) -> Vec<PublishedLight> {
         if self.epochs.retire(outcome.id()).is_none() {
             return Vec::new();
@@ -228,15 +182,10 @@ impl LightStage {
         }
     }
 
-    /// Applies the most urgent edits to the world, up to the budget, and queues their
-    /// lighting work.
     fn intake(&mut self) {
         if self.pending.is_empty() {
             return;
         }
-        // A column's edits go in one call so that a stack of section loads rescans
-        // its 256 sky columns once rather than once per section — which is why the
-        // budget counts columns and never splits one.
         for (priority, edits) in self.pending.take_admitted(COLUMNS_PER_ROUND) {
             for (column, influence) in self.world.apply_edits(edits) {
                 self.queue.push_with_priority(column, influence, priority);
@@ -244,7 +193,6 @@ impl LightStage {
         }
     }
 
-    /// Hands the most urgent queued work, up to the budget, to `pool`.
     fn dispatch(&mut self, pool: &TaskPool, step: &mut Step<'_, Self>) {
         if self.queue.is_empty() {
             return;
@@ -261,7 +209,6 @@ impl LightStage {
             .queue
             .drain_batches(self.budget.cells_per_epoch, &occupied, free)
         {
-            // A batch that yields no job leaves its columns owing nothing.
             self.settle_due = true;
             let Some(job) = self.world.prepare_batch(batch) else {
                 continue;
@@ -280,8 +227,6 @@ impl LightStage {
         }
     }
 
-    /// Takes the awaited columns whose light is lit, neighbours included, and lets go of the
-    /// columns that left the stage.
     fn take_settled(&mut self) -> Vec<ColumnPos> {
         let mut awaiting = std::mem::take(&mut self.awaiting);
         let owed = self.owed();
@@ -298,7 +243,6 @@ impl LightStage {
         settled
     }
 
-    /// Takes the awaited columns whose light is lit, neighbours included, with that light.
     fn take_lit(&mut self) -> Vec<LitColumn> {
         let settled = self.take_settled();
         let bounds = self.world.bounds();
@@ -335,7 +279,6 @@ fn player_priority(column: ColumnPos, players: &[ColumnPos]) -> Priority {
     min_column_distance(&column, players).clamp(0, Priority::MAX as i32) as Priority
 }
 
-/// What the stage still owes, asked of the column a player waits on.
 struct Owed<'a> {
     world: &'a LightWorld,
     pending: &'a PendingEdits,
@@ -345,12 +288,6 @@ struct Owed<'a> {
 }
 
 impl Owed<'_> {
-    /// Whether the light of one column is lit, neighbours included.
-    ///
-    /// A column is sent once and its light travels with it, so anything the engine still owes
-    /// it would arrive too late. The neighbours count because a seam is lit against whatever
-    /// stands beside it: a column whose neighbour is not loaded, or is still being lit, holds
-    /// the darker edge that the neighbour's work is about to repair.
     fn answer(&self, column: ColumnPos, settle: &mut Settle) -> Answer {
         if !self.holds(column) {
             return Answer::Drop;
@@ -379,12 +316,10 @@ impl Owed<'_> {
         Answer::Lit
     }
 
-    /// Whether the column is in the stage or on its way into it.
     fn holds(&self, column: ColumnPos) -> bool {
         self.pending.holds(column) || self.loaded(column)
     }
 
-    /// A column loads and unloads whole, so its lowest section stands for it.
     fn loaded(&self, column: ColumnPos) -> bool {
         let bottom = self.world.bounds().min_section_y;
         self.world
@@ -532,8 +467,6 @@ mod tests {
         assert!(stage.has_work());
     }
 
-    /// A seam is lit against whatever stands beside it, so a column is only
-    /// finished once its neighbours are loaded and lit.
     #[test]
     fn a_column_is_lit_only_once_the_eight_around_it_are_loaded_and_lit() {
         let column = ColumnPos::new(0, 0);

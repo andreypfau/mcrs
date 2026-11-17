@@ -3,8 +3,6 @@ use crate::scroll_area::{SCROLLBAR_WIDTH, ScrollArea};
 
 const WHEEL_STEP: i32 = 10;
 
-/// A scroll area over a layout of widgets of the screen, which name the panel in
-/// [`crate::Widget::area`] (SCRL-PANEL-001, SCRL-PANEL-002).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScrollPanel {
     content_height: i32,
@@ -12,7 +10,6 @@ pub struct ScrollPanel {
 }
 
 impl ScrollPanel {
-    /// A panel over a layout `content_height` high, scrolled to the top.
     #[must_use]
     pub const fn new(content_height: i32) -> Self {
         Self {
@@ -21,7 +18,6 @@ impl ScrollPanel {
         }
     }
 
-    /// The height of the layout.
     #[must_use]
     pub const fn content_height(&self) -> i32 {
         self.content_height

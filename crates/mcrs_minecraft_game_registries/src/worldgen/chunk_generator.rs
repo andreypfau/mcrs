@@ -13,8 +13,6 @@ pub enum ChunkGenerator<M: Refs = Resolved> {
     Debug,
 }
 
-/// The settings of a flat generator stay NBT: the world generation reads only their layer list
-/// and their biome.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FlatChunkGenerator {
     pub settings: NbtTag,

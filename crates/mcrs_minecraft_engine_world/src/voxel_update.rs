@@ -22,7 +22,6 @@ pub struct BlockSetRequest {
     pub recursion_left: i16,
 }
 
-/// A block write that one cell of a world hands another, into a column of the other cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellBlockWrite {
     pub pos: BlockPos,
@@ -31,24 +30,15 @@ pub struct CellBlockWrite {
     pub recursion_left: i16,
 }
 
-/// A block that changed to `state`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockChange {
     pub pos: BlockPos,
     pub state: BlockStateId,
 }
 
-/// The changes of the halo that the owners sent for this tick. They apply before the requests
-/// of the tick, and only change the copy: no neighbour hears of them.
 #[derive(Resource, Debug, Default)]
 pub struct HaloBlockChanges(pub Vec<BlockChange>);
 
-/// Applies the changes of the halo that the owners sent, before any write of the tick. They only
-/// change the copy: no neighbour hears of them.
-///
-/// A change to a section that is still landing stays in `changes` for a later tick: the content
-/// that lands can be older than the change. The changes that stay keep their order before the
-/// changes that arrive later, so a block always ends at the last change of its owner.
 pub fn apply_halo_changes(
     blocks: &mut WorldViewMut,
     writer: &mut MessageWriter<BlockPlaced>,
@@ -66,9 +56,6 @@ pub fn apply_halo_changes(
     });
 }
 
-/// Stores `write` in its section and reports the change, with no neighbour or shape update.
-/// Returns whether the section is in the dimension but its blocks did not land yet, so the
-/// write did not apply.
 pub fn apply_write(
     blocks: &mut WorldViewMut,
     writer: &mut MessageWriter<BlockPlaced>,
@@ -76,10 +63,6 @@ pub fn apply_write(
     write: CellBlockWrite,
 ) -> bool {
     let Some(mut view) = blocks.get_mut(dimension) else {
-        // Stale dimension Entity. Treated as suspicious because the
-        // dimension typically outlives a single FixedUpdate; the
-        // most common cause is a bus race between dim despawn and
-        // BlockSetRequest delivery.
         tracing::warn!(
             target: "voxel_update",
             ?dimension,
@@ -95,8 +78,6 @@ pub fn apply_write(
             if view.section_entity(chunk_pos).is_some() {
                 return true;
             }
-            // A voxel update can arrive for a section that just unloaded;
-            // this is expected and not an error.
             tracing::trace!(
                 target: "voxel_update",
                 %why,

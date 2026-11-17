@@ -1,6 +1,5 @@
 use serde::de;
 
-// TODO: This is a bit hacky
 pub const NBT_ARRAY_TAG: &str = "__nbt_array";
 pub(crate) const NBT_INT_ARRAY_TAG: &str = "__nbt_int_array";
 pub(crate) const NBT_LONG_ARRAY_TAG: &str = "__nbt_long_array";
@@ -33,7 +32,6 @@ pub enum ArrayKind {
 }
 
 impl ArrayKind {
-    /// The variant name a deserializer presents the array under.
     pub const fn variant(self) -> &'static str {
         match self {
             ArrayKind::Byte => NBT_BYTE_ARRAY_TAG,
@@ -54,18 +52,14 @@ impl ArrayKind {
 pub trait ArrayVisitor<'de>: Sized {
     type Value;
 
-    /// `payload` is the array's elements as stored: big-endian, end to end.
     fn visit_array<E: de::Error>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E>;
 
-    /// The value is no array and nothing of it has been read yet.
     fn visit_other<D: serde::Deserializer<'de>>(
         self,
         deserializer: D,
     ) -> Result<Self::Value, D::Error>;
 }
 
-/// Takes an array whole, as `deserialize_bytes` does, and says which of the
-/// three arrays it was: the bytes alone do not carry their element width.
 pub fn nbt_array<'de, D, V>(deserializer: D, visitor: V) -> Result<V::Value, D::Error>
 where
     D: serde::Deserializer<'de>,

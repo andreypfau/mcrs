@@ -2,7 +2,6 @@ use mcrs_minecraft_predicate::PredicateScratch;
 
 use crate::table::Candidate;
 
-/// The buffers of an evaluation, owned by the caller, so that a roll reuses them.
 #[derive(Debug, Clone, Default)]
 pub struct LootScratch {
     pub(crate) candidates: Vec<Candidate>,

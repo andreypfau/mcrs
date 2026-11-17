@@ -2,9 +2,6 @@ use std::ops::{Add, Mul};
 
 use bevy::math::{IRect, Rect, Vec2, Vec4};
 
-/// A quad drawn from the GUI atlas: its rectangle in GUI units, and the texture coordinate and the
-/// ARGB colour of each corner, from the top left corner clockwise. A glyph's rectangle may lie
-/// between pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct AtlasQuad {
     pub rect: Rect,
@@ -13,8 +10,6 @@ pub(crate) struct AtlasQuad {
 }
 
 impl AtlasQuad {
-    /// The part of the quad inside `clip`, with the texture coordinates and the colours of its
-    /// new corners, or `None` when no part of it is inside.
     #[must_use]
     pub fn clip(self, clip: IRect) -> Option<Self> {
         let cut = self.rect.intersect(clip.as_rect());
@@ -42,8 +37,6 @@ impl AtlasQuad {
     }
 }
 
-/// The value at the fraction `at` of a quad from the values at its corners, from the top left
-/// corner clockwise.
 fn bilinear<T: Copy + Add<Output = T> + Mul<f32, Output = T>>(corners: [T; 4], at: Vec2) -> T {
     let [top_left, top_right, bottom_right, bottom_left] = corners;
     let top = top_left * (1.0 - at.x) + top_right * at.x;

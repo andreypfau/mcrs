@@ -1,7 +1,3 @@
-//! A player that walks from one cell of a world into another. It moves at the end of a tick and
-//! arrives at the start of the next one with its session and its wire id, so neither its client
-//! nor its viewers see it leave.
-
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
@@ -24,8 +20,6 @@ use crate::persisted_registry::CaptureCause;
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
 
-/// A player that left its cell at the end of a tick for the cell that owns the column it stands
-/// in.
 #[derive(Clone, Debug)]
 pub struct Crossing {
     pub(crate) session: PlayerSession,
@@ -35,16 +29,10 @@ pub struct Crossing {
     pub(crate) ticket: Option<HotTicket>,
 }
 
-/// On a player that arrived from another cell in this tick, with the transform it arrived
-/// with: its viewers saw that pose already, so it publishes no move unless it moves again.
 #[derive(Component, Clone, Copy, Debug)]
 #[component(storage = "SparseSet")]
 pub struct CrossedAt(pub(crate) Transform);
 
-/// Lets go of each player that stands in a column that this cell does not own, into
-/// `crossings`. The cell keeps the hot ticket of the player as a remote ticket, as the other
-/// cells do, so the columns around the player stay hot in every cell. A player that cannot be
-/// carried stays where it is.
 pub(crate) fn cross_players(world: &mut World, crossings: &mut Vec<Crossing>) {
     let Some(owned) = world.get_resource::<OwnedColumns>().copied() else {
         return;
@@ -94,9 +82,6 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
     })
 }
 
-/// Spawns the player of `crossing` where it stood, with what its viewers and its client know
-/// of it. Its remote ticket here becomes its own, and so does its simulation area, so its
-/// sections tick on with no tick between.
 pub(crate) fn arrive(
     world: &mut World,
     crossing: Crossing,
@@ -127,8 +112,6 @@ pub(crate) fn arrive(
     Ok(player)
 }
 
-/// Holds `ticket` for the player of `session` of another cell, or lets its ticket go. A player
-/// of this cell keeps its own ticket.
 pub(crate) fn update_remote(world: &mut World, session: PlayerSession, ticket: Option<HotTicket>) {
     let own = world
         .get_resource::<DimPlayerIndex>()
@@ -152,7 +135,6 @@ fn hold_remote(world: &mut World, session: PlayerSession, ticket: HotTicket) {
     let Ok(dimension) = player_dimension_change::own_dimension(world) else {
         return;
     };
-    // The ticket goes in with the area it holds, so the area ticks at once.
     let holder = world
         .spawn((
             RemoteTicket,

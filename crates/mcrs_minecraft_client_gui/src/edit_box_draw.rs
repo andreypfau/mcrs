@@ -6,9 +6,6 @@ use crate::menu::Menu;
 use crate::menu_draw::{irect, point};
 use crate::scene::GuiQuad;
 
-/// The parts of the edit box `edit` of `widget` at `now_ms` after its frame, in the order of
-/// EDIT-DRAW-004: the visible text, the hint, the suggestion, the selection highlight and the
-/// cursor.
 pub(crate) fn draw_edit_box(
     menu: &Menu,
     widget: &Widget,

@@ -11,7 +11,6 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 const DIGITS: &str = "0123456789";
 
-/// The decimal text of a property value as a suggestion, without allocation.
 fn value_text(value: &PropertyValue) -> Option<SuggestionText<'_>> {
     let digit = |n: i32| {
         let n = usize::try_from(n).ok()?;
@@ -21,8 +20,6 @@ fn value_text(value: &PropertyValue) -> Option<SuggestionText<'_>> {
         PropertyValue::Str(name) => Some(SuggestionText::new(name)),
         PropertyValue::Bool(true) => Some(SuggestionText::new("true")),
         PropertyValue::Bool(false) => Some(SuggestionText::new("false")),
-        // Integer values from 0 to 99 have a text; every vanilla integer property
-        // is in that range. A caller-owned text buffer lifts it.
         PropertyValue::Int(n @ 0..=9) => digit(*n).map(SuggestionText::new),
         PropertyValue::Int(n @ 10..=99) => {
             Some(SuggestionText::concat(digit(n / 10)?, digit(n % 10)?))
@@ -77,7 +74,6 @@ const BLOCK_OR_TAG: ResourceOrTagArgument = ResourceOrTagArgument {
 };
 
 impl BlockPredicateArgument {
-    /// Suggests the block or the tag, its properties and its data.
     pub fn suggest<'t, L: BlockLookup, T: Copy>(
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,

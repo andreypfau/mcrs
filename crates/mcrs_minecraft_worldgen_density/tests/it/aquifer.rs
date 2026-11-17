@@ -33,8 +33,6 @@ fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRoute
     .unwrap()
 }
 
-/// A coast, a mountain range and deep inland, so the volumes seen mix sea
-/// cells with dry ones, hold perched lakes, and reach lava depths.
 const COLUMNS: [(i32, i32); 3] = [(0, 0), (52, 36), (-118, -119)];
 
 fn column_volume(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> SampleGrid {
@@ -44,8 +42,6 @@ fn column_volume(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> SampleGrid
     )
 }
 
-/// Every shortcut is an exact rewrite of the search: the lemmas, per block and
-/// per cell, answer what the oracle answers, for the substance and the tick.
 #[test]
 fn lemmas_agree_with_the_search_block_for_block() {
     check_parity(&overworld(42, |_| {}));
@@ -63,9 +59,6 @@ mod exhaustive {
     }
 }
 
-/// A surface level is a function of its quart column, not of the volume it
-/// is sampled as part of. The field samples each level alone and a worker
-/// keeps it for other fields, and neither holds unless this does bit for bit.
 #[test]
 fn a_surface_level_does_not_depend_on_the_volume_around_it() {
     let router = overworld(42, |_| {});
@@ -99,9 +92,6 @@ fn a_surface_level_does_not_depend_on_the_volume_around_it() {
     assert_eq!(compared, COLUMNS.len() * 27 * 19);
 }
 
-/// A field that starts from the levels a worker kept answers what a field that
-/// samples every level itself answers: beside the column that left them, a
-/// table's width away where the same slots are taken, and under another seed.
 #[test]
 fn kept_surface_levels_do_not_change_a_field() {
     let first = overworld(42, |_| {});
@@ -139,8 +129,6 @@ fn kept_surface_levels_do_not_change_a_field() {
     assert_eq!(checked, 6 * 6 * 6 * first.noise.height as usize);
 }
 
-/// A barrier twice as loud widens the shell and must still leave the lemmas
-/// exact: the margins come from the interval, not from a constant.
 #[test]
 fn a_louder_barrier_widens_the_shell_and_stays_exact() {
     let quiet = overworld(42, |_| {});
@@ -218,7 +206,6 @@ fn check_parity(router: &NoiseRouter) {
             }
         }
 
-        // The cell answers, against the oracle over every block of the cell.
         for cz in 0..volume.size().z / cell.z {
             for cx in 0..volume.size().x / cell.x {
                 for cy in 0..volume.size().y / cell.y {

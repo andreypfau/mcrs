@@ -18,9 +18,6 @@ use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModel
 use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
 use mcrs_minecraft_model_file::model_file::{DisplayTransform, GuiLight};
 
-/// A slot-local GUI vertex: `pos` in pixels from the slot's top-left, `y` down and
-/// `z` out of the screen; `sprite` is the sprite id under the flag bits. The four vertices of a
-/// quad wind so that `(p1 - p0) × (p2 - p0)` points along the face's own direction.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
 pub struct GuiVertex {
@@ -36,7 +33,6 @@ pub struct RenderLayer {
     pub foil: bool,
 }
 
-/// The GUI projection of one held stack, recomputed when its revision changes.
 #[derive(Component, Debug)]
 pub struct ItemRenderLayers {
     pub layers: Vec<RenderLayer>,
@@ -268,8 +264,6 @@ fn gui_vertices(
         ];
         let sprite = u32::from(quad.sprite);
         let positions = quad.positions.map(|p| matrix.transform_point3(p));
-        // The vertex shader flips y into clip space, which mirrors the winding: a front face
-        // must be clockwise here to come out counter-clockwise for the pipeline's cull.
         let winding = (positions[1] - positions[0]).cross(positions[2] - positions[0]);
         let order: [usize; 4] = if winding.dot(normal) > 0.0 {
             [3, 2, 1, 0]

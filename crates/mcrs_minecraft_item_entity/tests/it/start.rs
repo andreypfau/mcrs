@@ -99,9 +99,6 @@ fn ien_spn_008_the_default_form_starts_at_the_point_at_0_2_up_within_0_1() {
     );
 }
 
-/// PHY-CMP-025, E54: drops of one block start at offsets of `x` and `z` in `[0.25, 0.75)` and of
-/// `y` in `[0.125, 0.625)`, with `v.y` of 0.2 and `v.x`, `v.z` in `[-0.1, 0.1)`, each spread over
-/// its range.
 #[test]
 fn phy_cmp_025_a_block_drop_starts_in_the_ranges_of_the_vanilla_drops() {
     let block = DVec3::new(10.0, -50.0, 30.0);

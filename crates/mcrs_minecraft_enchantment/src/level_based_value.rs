@@ -5,7 +5,6 @@ use std::fmt;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A constant is a bare float and anything else is the dispatched object.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LevelBasedValue {
     Constant(f32),
@@ -13,8 +12,6 @@ pub enum LevelBasedValue {
 }
 
 impl LevelBasedValue {
-    /// The value at the level `level` (LOOT-NUM-021), for each level and each pair of `clamped`
-    /// bounds.
     #[must_use]
     #[expect(
         clippy::cast_precision_loss,
@@ -139,8 +136,6 @@ mod tests {
         Box::new(LevelBasedValue::Constant(value))
     }
 
-    /// LOOT-NUM-021: each type gives its value at a level, with the wrap of `levels_squared`, the
-    /// zero denominator of `fraction` and the fallback of `lookup` outside its values.
     #[test]
     fn loot_num_021_each_type_gives_its_value() {
         use DispatchedLevelBasedValue::*;
@@ -196,8 +191,6 @@ mod tests {
         assert!(clamped(f32::NAN).calculate(1).is_nan(), "a NaN stays a NaN");
     }
 
-    /// LOOT-NUM-021: `clamped` with bounds that the decode of REG-FLD-387 rejects gives a value
-    /// instead of a panic.
     #[test]
     fn loot_num_021_clamped_with_swapped_bounds_gives_a_bound() {
         let swapped = dispatched(DispatchedLevelBasedValue::Clamped {

@@ -9,9 +9,6 @@ use mcrs_voxel::BlockPos;
 mod exhaustive {
     use super::*;
 
-    /// A region whose bottom sits just under the floor clamps the fossil to ten
-    /// blocks above that bottom, into the air, where every corner is empty; the
-    /// three draws before the corner check still happen.
     #[test]
     fn a_fossil_with_too_many_empty_corners_places_nothing() {
         let node = &corpus_features().features[&rl!("minecraft:fossil_coal").to_buf()];

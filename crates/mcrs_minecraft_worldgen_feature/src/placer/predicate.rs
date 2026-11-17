@@ -10,7 +10,6 @@ use mcrs_minecraft_value_provider::VerticalAnchor;
 use super::{BiomeMask, StateMask, WorldGenVolume};
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 
-/// A `BlockPredicate` with every set it names reduced to a mask.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Predicate {
     True,
@@ -84,8 +83,6 @@ impl Predicate {
     }
 }
 
-/// A `RuleTest` with every block, block state and tag it names reduced to a
-/// mask.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rule {
     AlwaysTrue,
@@ -94,8 +91,6 @@ pub enum Rule {
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    /// The membership test short-circuits the draw: a state outside the mask
-    /// never reaches `nextFloat`.
     RandomStates {
         states: StateMask,
         probability: f32,

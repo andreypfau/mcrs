@@ -16,14 +16,10 @@ use std::hint::black_box;
 
 use common::support::build_settings_router;
 
-/// Full overworld dimension: y -64..320.
 fn y_sections() -> Vec<i32> {
     (-4..20).collect()
 }
 
-/// Content fingerprint over a few columns, read back per position rather than
-/// over the packed palette, which also encodes the order blocks were written
-/// in. Printed so before/after runs can be compared for identical output.
 fn checksum(label: &str, router: &mcrs_minecraft_worldgen_density::router::NoiseRouter) {
     let cancel = CancellationToken::new();
     let y = y_sections();

@@ -67,7 +67,6 @@ def pull_request(number):
 
 
 def pull_request_with_merge_state(number):
-    # GitHub computes the merge state lazily and reports UNKNOWN until it is done.
     deadline = time.monotonic() + CHECKS_APPEAR_SECONDS
     pr = pull_request(number)
     while pr["mergeStateStatus"] == "UNKNOWN" and time.monotonic() < deadline:
@@ -127,8 +126,6 @@ def bring_up_to_date(number, repo, reviewed):
 
 
 def is_update_merge(repo, number, head, old_head, base):
-    # The new head is trusted only when its tree is the clean automatic merge of the reviewed
-    # head and the base tip. A child commit or a conflict resolution that edits files fails it.
     parents = gh("api", f"repos/{repo}/commits/{head}", "--jq", "[.parents[].sha]")
     base_tip = gh("api", f"repos/{repo}/commits/{base}", "--jq", ".sha").strip()
     if json.loads(parents) != [old_head, base_tip]:
@@ -165,8 +162,6 @@ def wait_for_new_head(number, old_head):
 
 
 def required_check_names(repo, base):
-    # `gh pr checks --required` reads branch protection only; this repository requires its
-    # checks through a ruleset, so the names come from the rules of the base branch.
     names = json.loads(
         gh(
             "api",
@@ -194,15 +189,12 @@ def check_states(number):
 
 def wait_for_required_checks(number, repo, pr, reviewed):
     required = required_check_names(repo, pr["baseRefName"])
-    # A new head commit has no check for a short time, and the runs of a fork appear later than
-    # the head, so each poll approves them again.
     deadline = time.monotonic() + CHECKS_APPEAR_SECONDS
     while not required <= check_states(number).keys():
         if time.monotonic() >= deadline:
             raise Stop(4, f"the required checks {sorted(required)} did not report on #{number}")
         approve_waiting_runs(repo, pr["headRefOid"], reviewed)
         time.sleep(CHECKS_POLL_SECONDS)
-    # The watch exits non-zero when any check fails; only the required ones decide.
     subprocess.run(["gh", "pr", "checks", number, "--watch"])
     states = check_states(number)
     failed = sorted(name for name in required if states.get(name) != "pass")

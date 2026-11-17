@@ -10,21 +10,13 @@ use crate::saved_attribute::SavedAttribute;
 use crate::saved_modifier::SavedModifier;
 use crate::tolerant::Lenient;
 
-/// The list `attributes` of the save of a living entity (`attributes.md`, section 8). A load
-/// leaves out each bad compound and each bad modifier and keeps the others, and reads a value
-/// that is not a list as an empty list (ATR-SAV-002). Only a key that `persistence.md` does not
-/// list, in a compound or in a modifier, fails the load with an error that names the key.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct SavedAttributes {
-    /// The compounds in the order of the list.
     pub attributes: Vec<SavedAttribute>,
 }
 
 impl SavedAttributes {
-    /// A compound for each instance whose base value differs from the base of the type or that
-    /// has a permanent modifier, in the order of the numeric ids; no transient modifier
-    /// (ATR-SAV-001).
     #[must_use]
     pub fn from_instances(instances: &AttributeInstances) -> Self {
         let bases = instances.bases();
@@ -36,9 +28,6 @@ impl SavedAttributes {
         Self { attributes }
     }
 
-    /// The instances of an entity of the type of `bases` that loads this list (ATR-SAV-002): a
-    /// compound sets the base value and then each modifier as a permanent one, and a compound
-    /// whose attribute is not in the set has no effect.
     #[must_use]
     pub fn into_instances(self, bases: AttributeBases) -> AttributeInstances {
         let mut set = AttributeSet::new();

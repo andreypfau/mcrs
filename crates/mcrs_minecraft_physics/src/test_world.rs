@@ -22,7 +22,6 @@ use crate::SectionMasks;
 use crate::StateSpec;
 use crate::WorldBorder;
 
-/// A block world in a hash map, for tests and benchmarks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TestWorld {
     blocks: FxHashMap<BlockPos, BlockStateId>,
@@ -34,7 +33,6 @@ pub struct TestWorld {
 }
 
 impl TestWorld {
-    /// An empty world from `y = -64` to `319`, with every chunk loaded.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -53,7 +51,6 @@ impl TestWorld {
         self.masks.clear();
     }
 
-    /// Fills the box of blocks from `min` to `max`, both included.
     pub fn fill(&mut self, min: BlockPos, max: BlockPos, state: BlockStateId) {
         for z in min.z..=max.z {
             for y in min.y..=max.y {
@@ -77,7 +74,6 @@ impl TestWorld {
         self.border = border;
     }
 
-    /// Gives each section with a block its masks, so the scan takes the masked path.
     pub fn build_masks(&mut self, table: &CollisionTable) {
         let sections: FxHashSet<SectionPos> =
             self.blocks.keys().map(|&at| SectionPos::from(at)).collect();
@@ -97,7 +93,6 @@ impl TestWorld {
     }
 }
 
-/// A section of a [`TestWorld`].
 #[derive(Clone, Copy, Debug)]
 pub struct TestSection<'a> {
     world: &'a TestWorld,
@@ -146,7 +141,6 @@ impl CollisionWorld for TestWorld {
     }
 }
 
-/// A small block table with one state of each shape class, for tests.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TestBlocks {
     pub table: CollisionTable,
@@ -157,7 +151,6 @@ pub struct TestBlocks {
     pub fence: BlockStateId,
     pub wall: BlockStateId,
     pub stairs: BlockStateId,
-    /// Snow layers 1 to 8, at index `layers - 1`.
     pub snow: [BlockStateId; 8],
     pub off_grid: BlockStateId,
     pub ice: BlockStateId,
@@ -167,7 +160,6 @@ pub struct TestBlocks {
     pub bed: BlockStateId,
     pub cobweb: BlockStateId,
     pub sweet_berry_bush: BlockStateId,
-    /// An attached tripwire: no collision, an inside action in a thin box above the floor.
     pub tripwire: BlockStateId,
     pub scaffolding: BlockStateId,
     pub powder_snow: BlockStateId,
@@ -382,7 +374,6 @@ impl TestBlocks {
         }
     }
 
-    /// Every state with a collision shape for no context.
     #[must_use]
     pub fn solid_states(&self) -> Vec<BlockStateId> {
         let mut states = vec![

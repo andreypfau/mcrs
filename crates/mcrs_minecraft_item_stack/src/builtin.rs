@@ -2,7 +2,6 @@ use crate::BuiltinKey;
 
 macro_rules! builtin {
     ($($name:ident => $path:literal),* $(,)?) => {
-        /// One component of a built-in component type.
         #[derive(Clone, Debug, PartialEq, Hash)]
         #[non_exhaustive]
         pub enum Builtin {

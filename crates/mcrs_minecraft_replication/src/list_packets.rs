@@ -10,7 +10,6 @@ use mcrs_minecraft_protocol_game::player_list::{PlayerListActions, PlayerListEnt
 use std::borrow::Cow;
 use uuid::Uuid;
 
-/// The identity of a player as the player list shows it.
 #[derive(Clone, Copy, Debug)]
 pub struct Profile<'a> {
     pub id: Uuid,
@@ -18,8 +17,6 @@ pub struct Profile<'a> {
     pub properties: &'a [Property],
 }
 
-/// The packet that adds the entry of `profile`. It does not set the listing, so a new entry is
-/// not listed.
 pub(crate) fn profile_entry(profile: &Profile<'_>, game_mode: GameMode) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new()
@@ -35,7 +32,6 @@ pub(crate) fn profile_entry(profile: &Profile<'_>, game_mode: GameMode) -> Resul
     })
 }
 
-/// The packet that tells the viewers of an entry the new game mode of its player.
 pub fn game_mode_packet(uuid: Uuid, game_mode: GameMode) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_game_mode(true),
@@ -47,7 +43,6 @@ pub fn game_mode_packet(uuid: Uuid, game_mode: GameMode) -> Result<Bytes> {
     })
 }
 
-/// The packet that lists `entries` with their `ping`.
 pub(crate) fn listed_packet(entries: Vec<PlayerListEntry<'static>>) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new()
@@ -71,7 +66,6 @@ pub(crate) fn unlisted_packet(players: &[Uuid]) -> Result<Bytes> {
     })
 }
 
-/// The packet that gives the `ping` of `entries`.
 pub(crate) fn latency_packet(entries: Vec<PlayerListEntry<'static>>) -> Result<Bytes> {
     record(&ClientboundPlayerInfoUpdate {
         actions: PlayerListActions::new().with_update_latency(true),

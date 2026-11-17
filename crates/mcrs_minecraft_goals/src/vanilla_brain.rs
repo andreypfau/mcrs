@@ -9,7 +9,6 @@ use crate::CowBrain;
 use crate::PigBrain;
 use crate::SheepBrain;
 
-/// The brain of each mob type with goals: one variant for each type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VanillaBrain {
     Pig(PigBrain),

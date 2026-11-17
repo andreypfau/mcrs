@@ -30,8 +30,6 @@ mod writer_signal;
 #[cfg(not(target_family = "wasm"))]
 mod writer_wakes;
 
-/// Reading a `std::time::Instant` panics in the browser, so packet timestamps
-/// come from `performance.now()` there instead.
 #[cfg(not(target_family = "wasm"))]
 pub use std::time::Instant;
 #[cfg(target_family = "wasm")]
@@ -49,17 +47,10 @@ pub use crate::shared_frames::{SharedAppend, SharedFrames};
 pub use crate::writer_wakes::WriterWakes;
 pub use mcrs_minecraft_protocol::ConnectionState;
 
-/// System sets for the network layer, usable for ordering constraints in
-/// downstream crates. `SpawnConnections` contains `spawn_new_raw_connections`.
-/// Other crates should schedule their connection-setup systems
-/// `.after(NetworkSet::SpawnConnections)` in `FixedPreUpdate`.
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, bevy_ecs::schedule::SystemSet)]
 pub enum NetworkSet {
     SpawnConnections,
-    /// Rebuilds the status response when the online players changed or 5 s passed. A system that
-    /// publishes players through `StatusPublisher` must run before this set to show them in the
-    /// same frame.
     RefreshStatus,
 }
 use bytes::Bytes;
@@ -80,24 +71,16 @@ pub struct ReceivedPacket {
     pub timestamp: Instant,
     pub id: i32,
     pub payload: Bytes,
-    /// Layer 0 of the movement checks, which the reader runs for a frame of the play state
-    /// once [`RawConnection::check_play_moves`] asks for it.
     pub verdict: Option<Verdict>,
 }
 
-/// When each side of a login switches compression on, fixed by the protocol version of the
-/// handshake.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SwitchMode {
-    /// Each side switches both directions as it writes or reads the compression packet.
     Immediate,
-    /// The client switches as it reads `login_finished`, and the server as it reads the
-    /// `login_acknowledged` that answers it.
     Acknowledged,
 }
 
 pub const PROTOCOL_26_3: i32 = 777;
-/// The first protocol version that switches compression on acknowledgement.
 pub const PROTOCOL_26_4_SNAPSHOT_5: i32 = 1_073_742_167;
 
 impl SwitchMode {
@@ -105,7 +88,6 @@ impl SwitchMode {
         Self::of(mcrs_minecraft_core::VERSION.protocol_version).unwrap_or(Self::Immediate)
     }
 
-    /// The mode of each protocol version a login accepts; another version is refused.
     pub fn of(protocol_version: i32) -> Option<Self> {
         match protocol_version {
             PROTOCOL_26_3 => Some(Self::Immediate),
@@ -116,9 +98,6 @@ impl SwitchMode {
     }
 }
 
-/// The inverse of [`WebTransportEndpoint::certificate_hash_hex`]: a browser can
-/// only reach the self-signed development endpoint by passing the hash back,
-/// and it arrives as the hex the server printed.
 pub fn certificate_hash_from_hex(hex: &str) -> anyhow::Result<[u8; 32]> {
     let hex = hex.trim();
     if hex.len() != 64 {

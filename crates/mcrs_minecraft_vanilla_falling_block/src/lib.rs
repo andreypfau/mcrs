@@ -1,6 +1,3 @@
-//! The vanilla falling block: a requested fall becomes an entity that moves with the motion pass
-//! of the engine and lands as a block or drops as an item (`docs/spec/falling-block.md`).
-
 mod apply_landings;
 mod begin_falls;
 mod begin_ticks;

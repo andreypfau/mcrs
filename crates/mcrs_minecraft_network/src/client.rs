@@ -31,9 +31,6 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
 use tracing::{error, warn};
 
-/// The browser has no TCP and the native client has no WebTransport, so what
-/// "the server" is differs by target; everything downstream of the byte stream
-/// does not.
 #[cfg(not(target_family = "wasm"))]
 pub type ServerAddress = SocketAddr;
 #[cfg(target_family = "wasm")]
@@ -50,24 +47,15 @@ pub struct ClientNetworkPlugin {
     pub username: String,
     pub profile_id: Option<Uuid>,
     pub view_distance: u8,
-    /// Inserts [`HoldsVanillaPack`]. Set it only when the registry loader can fill the entries
-    /// a server leaves out.
     pub holds_vanilla_pack: bool,
-    /// The play rows a crate with game data types. Without it the connection types only the
-    /// play packets of the protocol crate, and raises no event for the others.
     pub play: Option<PlayTable>,
 }
 
-/// The socket, its reader and writer tasks, and the outbound encoder.
 #[derive(Component)]
 pub struct ClientConnection {
     raw: Box<RawConnection>,
     dispatcher: PacketDispatcher,
-    /// The frames of the bundle that the server opened and has not closed yet. A frame of a row
-    /// without a structure counts towards the limit and raises nothing.
     bundle: Option<Vec<(Option<Trigger>, Bytes)>>,
-    /// The state of the last frame that ended one. A frame behind it is read only once the
-    /// state changes, because an observer can answer the end later than the same frame.
     ended: Option<ConnectionState>,
 }
 
@@ -101,8 +89,6 @@ fn client_dispatcher(world: &World) -> PacketDispatcher {
 #[derive(Resource)]
 struct ClientPlayTable(PlayTable);
 
-/// The rows whose observers check their own frames, off the main thread, instead of the
-/// dispatcher. A connection reads the set when it opens.
 #[derive(Resource, Default)]
 pub struct DeferredRows(Vec<fn(PacketDispatcher) -> PacketDispatcher>);
 
@@ -114,18 +100,12 @@ impl DeferredRows {
 
 pub use crate::join::ServerProfile;
 
-/// The view distance of the last `client_information` that the client sent on this connection, in
-/// the configuration state or in the play state.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SentViewDistance(pub u8);
 
-/// Present when the client holds the vanilla pack of its own version, so it may let a server
-/// leave that pack's entries out.
 #[derive(Resource)]
 pub struct HoldsVanillaPack;
 
-/// A server ended its configuration. The connection stays in configuration until an observer
-/// answers with [`finish_configuration`] or drops it with [`close_connection_later`].
 #[derive(EntityEvent, Debug)]
 pub struct RegistriesReceived {
     pub entity: Entity,
@@ -150,8 +130,6 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
 #[derive(Resource)]
 struct ClientRuntime(Runtime);
 
-/// Without it a lost connection only logs: a test harness or a browser tab
-/// outlives its connection, a windowed client has nothing left to show.
 #[derive(Resource)]
 pub struct ExitOnDisconnect;
 
@@ -162,9 +140,6 @@ fn end_session(world: &mut World, reason: String) {
     }
 }
 
-/// Closes the connection and ends the session, unless an earlier close in the
-/// same frame already did: a disconnect packet is followed by the socket
-/// closing, and only the first of the two is the reason.
 pub fn close_connection_later(commands: &mut Commands, connection: Entity, reason: String) {
     commands.queue(move |world: &mut World| {
         if world.despawn(connection) {
@@ -211,8 +186,6 @@ impl Plugin for ClientNetworkPlugin {
         #[cfg(not(target_family = "wasm"))]
         let (server_address, server_port, remote_addr) =
             (server.ip().to_string(), server.port(), server);
-        // A browser never learns the peer address; the connection carries one
-        // only so a server-side log line has something to print.
         #[cfg(target_family = "wasm")]
         let ((server_address, server_port), remote_addr) =
             (server.host_and_port(), SocketAddr::from(([0, 0, 0, 0], 0)));
@@ -266,8 +239,6 @@ impl Drop for ClientConnection {
     }
 }
 
-/// Vanilla's offline profile id: an MD5 name-based UUID over
-/// `OfflinePlayer:<name>`, with no namespace prefix.
 pub fn offline_player_uuid(username: &str) -> Uuid {
     mcrs_minecraft_protocol::uuid::Builder::from_md5_bytes(
         Md5::digest(format!("OfflinePlayer:{username}").as_bytes()).into(),
@@ -304,7 +275,6 @@ fn spawn_joined_connection(
             };
             let entity = world
                 .spawn((
-                    // The server ended the configuration while the client joined.
                     ClientConnection::new(
                         connection,
                         Some(ConnectionState::Configuration),
@@ -324,7 +294,6 @@ fn spawn_joined_connection(
     }
 }
 
-/// The vanilla client refuses a bundle longer than this.
 const MAX_BUNDLE_PACKETS: usize = 4096;
 
 fn receive_packets(
@@ -334,7 +303,6 @@ fn receive_packets(
     for (entity, mut connection, &state) in connections.iter_mut() {
         let connection = &mut *connection;
         match connection.ended {
-            // The held frames stay unread, but a closed socket still ends the session.
             Some(ended) if ended == state => {
                 if connection.raw.reader_closed() {
                     close_connection_later(
@@ -431,8 +399,6 @@ fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: 
         if let Err(e) = connection.raw.flush() {
             warn!("failed to send to the server: {e}");
         }
-        // The flush error above is also raised by a writer that is merely
-        // behind, so the dead writer is what the disconnect is read from.
         if connection.raw.disconnected() {
             close_connection_later(
                 &mut commands,
@@ -458,7 +424,6 @@ pub(crate) fn add_packet_observers(app: &mut App) {
     app.add_observer(on_keep_alive);
 }
 
-/// The asynchronous join reads the same rows by id, so the rows go to its reader.
 fn on_configuration_packet<R: Row>(
     event: On<Received<R>>,
     mut connections: Query<(&mut ClientConnection, &mut Configuration)>,
@@ -665,7 +630,6 @@ mod tests {
         keep_alive_read_in: Vec<ConnectionState>,
     }
 
-    /// Stands in for the client crate: takes what the server sent and finishes.
     fn accept_registries(
         event: On<RegistriesReceived>,
         mut handed: ResMut<Handed>,

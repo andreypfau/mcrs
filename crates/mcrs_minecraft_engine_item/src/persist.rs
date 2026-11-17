@@ -32,7 +32,6 @@ use crate::Slots;
 use crate::Stacks;
 use crate::load_inventory::load_inventory;
 
-/// The slots 0 through 35 of `Inventory`: the hotbar and the main inventory.
 const INVENTORY_SLOTS: usize = 36;
 const ENDER_SLOTS: u8 = 27;
 const HOTBAR_SLOTS: u8 = 9;
@@ -42,13 +41,9 @@ const ENDER_ITEMS: &str = "EnderItems";
 const EQUIPMENT: &str = "equipment";
 const SELECTED_ITEM_SLOT: &str = "SelectedItemSlot";
 
-/// The stacks of the ender chest of a player, as the player file holds them. They have a slot
-/// from 0 through 26.
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct EnderItems(pub Vec<SlotStack>);
 
-/// The stacks that a living entity wears or holds besides its inventory slots, as the player file
-/// holds them.
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct WornEquipment {
     pub mainhand: Option<ItemStack>,
@@ -62,8 +57,6 @@ pub struct WornEquipment {
 }
 
 impl WornEquipment {
-    /// The slots of a player file: the main hand is the selected slot of `Inventory`, so the
-    /// file never holds it.
     fn slots_mut(&mut self) -> [(&'static str, &mut Option<ItemStack>); 7] {
         [
             ("offhand", &mut self.offhand),
@@ -77,7 +70,6 @@ impl WornEquipment {
     }
 }
 
-/// `SelectedItemSlot` of the player file: the hotbar slot of the selected stack.
 #[derive(Serialize, Deserialize)]
 struct SelectedItemSlot(i32);
 

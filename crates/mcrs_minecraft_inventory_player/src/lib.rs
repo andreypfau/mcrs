@@ -1,5 +1,3 @@
-//! The slots of a player without Bevy: the holders and the indices of their slots, the slot
-//! limits, the take and place filters, and the insert rule into the player inventory.
 #![no_std]
 
 mod armour_slot;

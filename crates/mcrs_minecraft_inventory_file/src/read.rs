@@ -17,10 +17,6 @@ use crate::equipment_key::INVENTORY_KEY;
 use crate::equipment_key::is_slot_key;
 use crate::player_file::PlayerFile;
 
-/// The stacks that `player` gives, with no filter and no slot limit (INV-SAV-001, INV-SAV-002).
-/// The cursor and the craft grid are empty. A stack of `Inventory` with a slot outside the main
-/// inventory is skipped. A stack that does not load fails the read, so the next write does not
-/// lose it.
 pub fn read<L: NameLookup>(
     player: &NbtCompound,
     names: &L,
@@ -75,7 +71,6 @@ fn file_keys(player: &NbtCompound) -> NbtCompound {
         .collect()
 }
 
-/// The first key of the file whose tag alone does not load.
 fn bad_key(player: &NbtCompound) -> &'static str {
     FILE_KEYS
         .into_iter()

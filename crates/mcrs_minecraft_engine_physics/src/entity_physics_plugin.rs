@@ -51,10 +51,6 @@ use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 
-/// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
-/// `DomainInput`, the pass in `Simulate`, and in `Project` the tile moves, then the systems of
-/// [`MobPublish`], then the end of the tick of the mobs. The rows are a [`RowStore<M>`] resource with the mob column `M`, which the pass
-/// moves with its row and never reads.
 #[derive(Debug)]
 pub struct EntityPhysicsPlugin<M> {
     column: PhantomData<fn() -> M>,
@@ -76,53 +72,38 @@ impl<M> Default for EntityPhysicsPlugin<M> {
     }
 }
 
-/// The systems that publish what the mobs did in the tick, such as their tile events: in
-/// `Project`, after the tile moves of the rows, while [`Mobs`] still holds the mobs whose rows
-/// left the world and [`MobChanges`] the changes of the tick.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MobPublish;
 
-/// The entity pass in `Simulate`. After it, and before the tile moves of `Project`, each row is
-/// still in the tile of its position at the start of the tick.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EntityPass;
 
-/// The tile moves of the rows in `Project`: after it, each living row is in the tile of its
-/// position and [`RowStore::tile_of`] gives that tile.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RowMoves;
 
-/// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
 pub struct PhysicsTables(Tables);
 
 impl PhysicsTables {
-    /// The resource of `tables`, which must be built from the block definitions and tags of the
-    /// world that the passes read.
     #[must_use]
     pub fn new(tables: Tables) -> Self {
         Self(tables)
     }
 
-    /// The tables that a pass hands to the kernel for each step.
     #[must_use]
     pub fn tables(&self) -> &Tables {
         &self.0
     }
 
-    /// The block shapes, flags and path types that the entity pass and the mob AI read.
     #[must_use]
     pub fn collision(&self) -> &CollisionTable {
         &self.0.collision
     }
 }
 
-/// The body grid of the world.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Bodies(pub(crate) BodyGrid);
 
-/// The network id of the damage type of the crowd hit (DMG-CRW-001), from the registries of the
-/// world; `None` while they hold no such type.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub(crate) struct CrowdDamageType(pub(crate) Option<u32>);
 

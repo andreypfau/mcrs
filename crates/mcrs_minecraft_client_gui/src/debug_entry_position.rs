@@ -50,7 +50,6 @@ pub fn display(
                 camera.rotation.yaw(),
                 camera.rotation.pitch(),
             ),
-            // Only a server force-loads chunks, and this client has none.
             format!(
                 "{} FC: 0",
                 current.map_or_else(|| "-".to_owned(), |current| current.key.to_string())

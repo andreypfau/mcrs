@@ -1,5 +1,3 @@
-//! The `minecraft:entity` argument: the selector, its options and the search over entities.
-
 mod bounds;
 mod entity_argument;
 mod error;

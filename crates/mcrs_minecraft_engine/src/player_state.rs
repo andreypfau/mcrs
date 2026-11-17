@@ -1,6 +1,3 @@
-//! The keys of the player file that the server has no behaviour for. Each has a typed value that
-//! the server reads, holds and writes back, so the vanilla game gets back what it saved.
-
 use std::cell::Cell;
 use std::collections::BTreeMap;
 
@@ -11,7 +8,6 @@ use mcrs_minecraft_text::Text;
 use serde::de::{Error as _, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// The root keys that [`PlayerFileState`] claims: the serialized field names of the type.
 #[must_use]
 pub fn player_state_keys() -> &'static [&'static str] {
     struct FieldNames(Cell<&'static [&'static str]>);
@@ -47,7 +43,6 @@ pub fn player_state_keys() -> &'static [&'static str] {
 
 const MAX_TAGS: usize = 1024;
 
-/// An int array of `N` elements: a UUID (four) or a position (three).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ints<const N: usize>(pub [i32; N]);
 
@@ -68,8 +63,6 @@ impl<'de, const N: usize> Deserialize<'de> for Ints<N> {
     }
 }
 
-/// An entity save compound. Its keys depend on the entity type and no rule states them yet, so
-/// the value checks the string `id` and keeps the compound as written.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntitySave(NbtCompound);
 
@@ -91,7 +84,6 @@ impl<'de> Deserialize<'de> for EntitySave {
     }
 }
 
-/// A memory type of the `Brain`. A player has none, so no value can exist.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum NoMemory {}
 
@@ -106,7 +98,6 @@ fn yes() -> bool {
     true
 }
 
-/// The keys of a `hidden_effect`: those of its effect except `id`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EffectData {
@@ -118,7 +109,6 @@ pub struct EffectData {
     pub ambient: bool,
     #[serde(default = "yes")]
     pub show_particles: bool,
-    /// Absent means the value of `show_particles`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_icon: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -137,7 +127,6 @@ pub struct Effect {
     pub ambient: bool,
     #[serde(default = "yes")]
     pub show_particles: bool,
-    /// Absent means the value of `show_particles`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_icon: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -296,7 +285,6 @@ pub struct RootVehicle {
     pub entity: EntitySave,
 }
 
-/// A byte that is true only when set: written only then.
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -320,9 +308,6 @@ fn is_default_icon(icon: &LocatorBarIcon) -> bool {
     *icon == LocatorBarIcon::default()
 }
 
-/// The values of the player file that no other component of the player owns. Every field has the
-/// default of the file layout, and the `skip_serializing_if` fields are the ones the file holds
-/// only when they are set.
 #[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PlayerFileState {
@@ -361,12 +346,10 @@ pub struct PlayerFileState {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub tags: Vec<String>,
-    /// Custom data: free-form by definition.
     #[serde(skip_serializing_if = "NbtCompound::is_empty")]
     pub data: NbtCompound,
     #[serde(rename = "Passengers", skip_serializing_if = "Vec::is_empty")]
     pub passengers: Vec<EntitySave>,
-    /// The game reads it and never writes it.
     #[serde(rename = "Team", skip_serializing)]
     pub team: Option<String>,
 

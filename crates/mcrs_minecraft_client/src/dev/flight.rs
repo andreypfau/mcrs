@@ -12,8 +12,6 @@ pub struct ScriptedFlight {
     pub turned: bool,
 }
 
-/// Holds forward and sprint, gives the abilities the fly permission and the scripted flying
-/// speed, and turns the flight state of the kernel on, so the movement kernel flies the player.
 pub(crate) fn fly_scripted(
     mut scripted: ResMut<ScriptedFlight>,
     time: Res<Time>,

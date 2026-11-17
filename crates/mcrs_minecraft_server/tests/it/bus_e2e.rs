@@ -106,8 +106,6 @@ fn outbound_latency_is_one_host_tick() {
             epoch: 0,
         });
 
-    // Tick 1: the dimension hands the packet over in its output, which the host takes after
-    // the update. record_host_outbound runs in Update, before the dimension ticks.
     app.update();
     take_dim_outputs(app.world_mut());
     let log = app.world().resource::<OutboundLog>().0.clone();
@@ -116,7 +114,6 @@ fn outbound_latency_is_one_host_tick() {
         "outbound should NOT yet be visible to host after tick 1; log = {log:?}"
     );
 
-    // Tick 2: record_host_outbound drains the packet that the host took after tick 1.
     app.update();
     take_dim_outputs(app.world_mut());
     let log = app.world().resource::<OutboundLog>().0.clone();
@@ -162,9 +159,6 @@ fn inbound_latency_is_zero_host_ticks() {
             trigger: None,
         });
 
-    // bridge_inbound_to_channel (Update) queues it for the dimension's tick, which runs after
-    // the host; drain_dim_inbox (FixedPreUpdate) writes it into sub Messages;
-    // record_sub_inbound (Update) drains it — all within one app.update().
     app.update();
 
     let log = host_app::world(&mut app, label_entity)
@@ -181,14 +175,11 @@ fn inbound_latency_is_zero_host_ticks() {
 fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
     let mut app = host_app::make_host_app();
 
-    // Transition to Playing so sub-apps can be spawned.
     app.world_mut()
         .resource_mut::<NextState<AppState>>()
         .set(AppState::Playing);
     app.update();
 
-    // Enqueue and spawn the dim. spawn_dim_subapp registers its input before the world first
-    // ticks.
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
@@ -200,10 +191,8 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         });
     drain_dim_spawn_queue(&mut app);
 
-    // Resolve the label entity for the newly spawned dim.
     let label_entity = first_label_entity(&mut app);
 
-    // Install the recorder in the sub-app BEFORE its first tick.
     {
         let sub = host_app::sub_app(&mut app, label_entity);
         sub.world_mut().init_resource::<InboundLog>();
@@ -212,7 +201,6 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
 
     let session = PlayerSession(1);
 
-    // Queue messages BEFORE app.update() first ticks the dimension.
     let sent_ok: Vec<bool> = {
         let mut inputs = app.world_mut().resource_mut::<DimInputs>();
         let spawn_result = inputs.send_control(
@@ -255,11 +243,6 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         assert!(*sent, "send {i} is taken before the dim's first tick");
     }
 
-    // First app.update() — sub-app runs for the first time:
-    // FixedPreUpdate drain_dim_inbox writes the input in FIFO order,
-    // control (Spawn) before serverbound; Update record_sub_inbound logs
-    // the serverbound packets (Spawn routes to InboundPlayerSpawn, not
-    // InboundPlayerPacket, so it does not appear in InboundLog).
     app.update();
 
     let log = host_app::world(&mut app, label_entity)
@@ -267,7 +250,6 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
         .0
         .clone();
 
-    // The three serverbound ids must arrive in send order.
     assert_eq!(
         log,
         vec![200, 201, 202],

@@ -12,52 +12,30 @@ use crate::{
 };
 use mcrs_minecraft_core::codec::lenient;
 
-/// The text content of a Text object.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(untagged, bound(serialize = "I: TextSerde"))]
 pub enum TextContent<I: TextTypes> {
-    /// Normal text
-    Text { text: Cow<'static, str> },
-    /// A piece of text that will be translated on the client based on the
-    /// client language. If no corresponding translation can be found, the
-    /// identifier itself is used as the translated text.
+    Text {
+        text: Cow<'static, str>,
+    },
     Translate {
-        /// A translation identifier, corresponding to the identifiers found in
-        /// loaded language files.
         translate: Cow<'static, str>,
         #[serde(skip_serializing_if = "Option::is_none")]
         fallback: Option<Cow<'static, str>>,
-        /// Optional list of text components to be inserted into slots in the
-        /// translation text. Ignored if `translate` is not present.
         #[serde(skip_serializing_if = "Vec::is_empty")]
         with: Vec<TranslateArg<I>>,
     },
-    /// Displays the name of the button that is currently bound to a certain
-    /// configurable control on the client.
     Keybind {
-        /// A [`keybind identifier`], to be displayed as the name of the button
-        /// that is currently bound to that action.
-        ///
-        /// [`keybind identifier`]: https://minecraft.fandom.com/wiki/Controls#Configurable_controls
         keybind: Cow<'static, str>,
     },
-    /// Displays a score holder's current score in an objective.
-    ScoreboardValue { score: ScoreboardValueContent },
-    /// Displays the name of one or more entities found by a [`selector`].
-    ///
-    /// [`selector`]: https://minecraft.fandom.com/wiki/Target_selectors
+    ScoreboardValue {
+        score: ScoreboardValueContent,
+    },
     EntityNames {
-        /// A string containing a [`selector`].
-        ///
-        /// [`selector`]: https://minecraft.fandom.com/wiki/Target_selectors
         selector: Cow<'static, str>,
-        /// An optional custom separator used when the selector returns multiple
-        /// entities. Defaults to the ", " text with gray color.
         #[serde(skip_serializing_if = "Option::is_none")]
         separator: Option<Text<I>>,
     },
-    /// Displays NBT values read from a block entity, an entity or command
-    /// storage.
     Nbt {
         nbt: Cow<'static, str>,
         #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -69,7 +47,6 @@ pub enum TextContent<I: TextTypes> {
         #[serde(flatten)]
         source: DataSource,
     },
-    /// Displays a sprite in place of text.
     Object {
         #[serde(flatten)]
         object: ObjectInfo,
@@ -78,8 +55,6 @@ pub enum TextContent<I: TextTypes> {
     },
 }
 
-/// A present `type` admits only the codec it names, otherwise the first codec
-/// that accepts the map wins.
 impl<'de, I: TextSerde> Deserialize<'de> for TextContent<I> {
     #[expect(
         clippy::too_many_lines,

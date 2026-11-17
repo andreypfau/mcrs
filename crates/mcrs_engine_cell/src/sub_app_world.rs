@@ -8,15 +8,6 @@ use bevy_ecs::world::World;
 use crate::cell_world::CellWorld;
 use crate::tick::Tick;
 
-/// A Bevy [`SubApp`] as a [`CellWorld`].
-///
-/// A tick runs the startup schedules on the first tick only, then `apply`, then `First`,
-/// `PreUpdate`, the five fixed schedules, `Update`, `PostUpdate` and `Last`, each exactly once,
-/// then `take`. The fixed schedules do not follow `Time<Fixed>`: one tick is one fixed step.
-/// A schedule that the sub-app lacks is skipped.
-///
-/// With an idle check, a tick after the first one whose input leaves the world idle runs no
-/// schedule: it only applies the input and takes the output.
 pub struct SubAppWorld<I, O> {
     sub_app: SubApp,
     apply: fn(&mut World, Tick, I),
@@ -32,8 +23,6 @@ enum Phase {
 }
 
 impl<I, O> SubAppWorld<I, O> {
-    /// Wraps `sub_app`. `apply` writes the input of a tick into the world, and `take` reads the
-    /// output out of it.
     #[must_use]
     pub fn new(sub_app: SubApp, apply: fn(&mut World, Tick, I), take: fn(&mut World) -> O) -> Self {
         Self {
@@ -45,11 +34,6 @@ impl<I, O> SubAppWorld<I, O> {
         }
     }
 
-    /// Skips the schedules of each tick after which `is_idle` finds the world idle.
-    ///
-    /// `is_idle` must hold only when the schedules would change nothing that a later tick or
-    /// the output can see, and it must read the world alone, so that a skip happens at the
-    /// same tick in every run.
     #[must_use]
     pub fn with_idle_check(mut self, is_idle: fn(&mut World) -> bool) -> Self {
         self.is_idle = Some(is_idle);
@@ -102,7 +86,6 @@ impl<I: Send + 'static, O: Send + 'static> CellWorld for SubAppWorld<I, O> {
 
 fn run<const N: usize>(world: &mut World, labels: [InternedScheduleLabel; N]) {
     for label in labels {
-        // Fails only for a schedule the sub-app lacks, which has no systems to run.
         let _ = world.try_run_schedule(label);
     }
 }

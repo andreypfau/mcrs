@@ -4,16 +4,10 @@ use mcrs_voxel::BlockPos;
 
 #[derive(Clone, Debug)]
 pub struct CompiledFillLayer {
-    /// Counted up from the volume's own floor, not from zero.
     pub height: i32,
     pub state: VoxelId,
 }
 
-/// `FillLayerFeature.place`: one whole chunk square at a single height, air
-/// only, and it always reports success.
-///
-/// The square is the origin's chunk, so the column's x and z are floored to
-/// sixteen rather than taken as written.
 pub fn place_fill_layer<W: WorldGenVolume>(
     cfg: &CompiledFillLayer,
     volume: &mut W,

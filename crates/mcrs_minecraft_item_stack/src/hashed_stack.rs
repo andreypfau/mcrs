@@ -16,19 +16,14 @@ use crate::component_hash::component_hash;
 use crate::saved::is_air;
 use crate::wire::present;
 
-/// The stack that a client states in a click: the item, the count, the hash of each value entry
-/// of the patch and the type of each removal entry. The order of the entries has no meaning.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct HashedStack {
     pub kind: Kind,
-    /// The count as the client sent it. It can be out of the range of a count.
     pub count: i32,
     pub values: Vec<HashedComponent>,
     pub removals: Vec<ComponentType>,
 }
 
-/// Computes the hashed stack of `stack`. `None` and a stack of the item air give `None`, the
-/// empty stack. A custom component has no type id and is not in the result.
 pub fn hash_stack<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -53,13 +48,6 @@ pub fn hash_stack<L: NameLookup>(
     Ok(Some(hashed))
 }
 
-/// True when the hashed stack that a client sent matches `stack`. The check makes no allocation
-/// beyond `scratch`.
-///
-/// A present hashed stack of the item air with the count 0 and no entries matches the empty
-/// stack. A component that this crate cannot hash gives an error only when each other part
-/// matches: the result is then not decided. A custom component is not compared, because it never
-/// reaches the client.
 pub fn matches_hashed<L: NameLookup>(
     hashed: Option<&HashedStack>,
     stack: Option<&ItemStack>,

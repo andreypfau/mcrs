@@ -1,5 +1,3 @@
-//! Kernel and property tests of the push between entities.
-
 use glam::DVec3;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::GridFlags;
@@ -154,13 +152,11 @@ fn cmp_027_a_pair_that_is_too_near_gets_the_push_of_the_earlier_entity() {
         "the later entity adds the negative"
     );
 
-    // The earlier entity moved first, onto the later one that still stood there.
     let came_first = GridRow {
         previous: DVec3::new(0.2, 0.0, 0.5),
         ..stood
     };
     let stood_later = TestFixture::mob(1, 0.5, 0.5);
-    // The later entity came from a place where the two boxes did not intersect.
     let from_far = GridRow {
         previous: DVec3::new(5.0, 0.0, 0.5),
         ..TestFixture::mob(1, 0.5, 0.5)

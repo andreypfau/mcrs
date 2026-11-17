@@ -42,9 +42,6 @@ fn no_compound_has_two_keys(tag: &NbtTag) -> bool {
     }
 }
 
-/// Vanilla's compound is a hash map, so its bytes carry no key order; the
-/// tag decoded from them is compared through the key-sorted SNBT form, and
-/// the bytes are compared only where no compound has two keys.
 #[test]
 fn parses_like_vanilla() {
     for case in &GOLDEN.parses {
@@ -257,8 +254,6 @@ const ERRORS: &[(&str, usize, &str, &str)] = &[
     ("@", 0, "snbt.parser.expected_unquoted_string", ""),
 ];
 
-/// The reported key, its argument and its
-/// offset.
 #[test]
 fn a_failed_read_reports_the_first_record_at_the_furthest_position() {
     for &(input, offset, key, argument) in ERRORS {
@@ -272,7 +267,6 @@ fn a_failed_read_reports_the_first_record_at_the_furthest_position() {
     }
 }
 
-/// The values of sections 2 and 3, in the compact form, and the text the read leaves.
 #[test]
 fn a_read_gives_the_tag_of_its_form_and_stops_after_it() {
     let cases: &[(&str, &str, &str)] = &[
@@ -376,7 +370,6 @@ fn the_read_starts_at_the_cursor_and_the_compound_reads_check_the_type() {
     );
 }
 
-/// 512 levels read; the `{` or `[` of level 513 stops the read.
 #[test]
 fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     let lists = |levels: usize| "[".repeat(levels) + &"]".repeat(levels);
@@ -417,7 +410,6 @@ fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     );
 }
 
-/// A string longer than the binary limit of 65535 bytes still reads.
 #[test]
 fn a_string_has_no_length_limit() {
     let text = "a".repeat(70_000);
@@ -425,7 +417,6 @@ fn a_string_has_no_length_limit() {
     assert_eq!(read_tag(&input, 0), Ok((NbtTag::String(text), input.len())));
 }
 
-/// The match of an expected tag against an actual tag.
 #[test]
 fn a_tag_matches_when_the_actual_tag_holds_it() {
     let cases = [

@@ -1,7 +1,3 @@
-// The draw of the impostors into the gbuffer: one quad for each draw record of the prepare
-// pass. The quad turns about the vertical axis of the entity position to face the camera and
-// shows the baked view of the nearest yaw and elevation.
-
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(24) var<storage, read> impostor_draws: array<ImpostorDraw>;
 @group(1) @binding(0) var impostor_colours: texture_2d_array<f32>;
@@ -10,7 +6,6 @@
 const TILE: u32 = #{TILE}u;
 const NO_ENTRY: u32 = 0xffffu;
 
-/// The corners of the two triangles of the quad: across the view, then up.
 const QUAD_CORNERS = array<vec2<f32>, 6>(
     vec2<f32>(0.0, 0.0),
     vec2<f32>(1.0, 0.0),
@@ -22,15 +17,10 @@ const QUAD_CORNERS = array<vec2<f32>, 6>(
 
 struct VertexOutput {
     @builtin(position) clip: vec4<f32>,
-    /// The point of the quad across the view and above the entity position, in blocks at the
-    /// scale 1.
     @location(0) quad: vec2<f32>,
-    /// The index of the draw record.
     @location(1) @interpolate(flat) index: u32,
 }
 
-/// Six vertices for each draw record. A draw of one instance; an instanced strip of four
-/// vertices costs more on the reference machine.
 @vertex
 fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     let index = vertex_index / 6u;
@@ -48,16 +38,12 @@ fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     return out;
 }
 
-/// The covered pixel of the image of one layer that is nearest to the camera so far.
 struct Nearest {
     depth: f32,
     colour: vec3<f32>,
     normal: vec3<f32>,
 }
 
-/// Takes the pixel of the image set `entry` with the view rectangle `rect` at the quad point
-/// `quad` when it is covered and not farther than `nearest`. A later layer wins a tie, as in the
-/// draw of the full rig.
 fn take_layer(nearest: ptr<function, Nearest>, entry: u32, rect: vec4<f32>, quad: vec2<f32>, tile: vec2<u32>) {
     if (entry == NO_ENTRY) {
         return;
@@ -95,8 +81,6 @@ fn fragment(in: VertexOutput) -> GBuffer {
     return shade_impostor(draw, nearest);
 }
 
-/// The fragment of a small impostor: a pixel that no layer covers takes the pixel at the middle
-/// of the quad, the centroid of the image, so the draw needs no discard.
 @fragment
 fn fragment_small(in: VertexOutput) -> GBuffer {
     let draw = impostor_draws[in.index];

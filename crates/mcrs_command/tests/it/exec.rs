@@ -34,7 +34,6 @@ fn graph() -> TestGraph {
     b.freeze().unwrap()
 }
 
-/// Records what the chain asks for, in order. The source `4` fails every modifier.
 #[derive(Default)]
 struct Log(Vec<String>);
 

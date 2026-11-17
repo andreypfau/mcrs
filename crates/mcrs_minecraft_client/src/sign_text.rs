@@ -1,6 +1,3 @@
-//! Draws the text of signs (`docs/spec/client-sign-text.md`). A column is rebuilt when a change
-//! message names it, so an embedder that fills the store without the network gets its signs too.
-
 use std::collections::HashMap;
 
 use bevy::asset::RenderAssetUsages;
@@ -48,7 +45,6 @@ impl Plugin for SignTextPlugin {
     }
 }
 
-/// The font, its pictures and the language the lines are measured and drawn with.
 #[derive(Resource)]
 struct SignAssets {
     font: Font,
@@ -57,23 +53,17 @@ struct SignAssets {
     image: Handle<Image>,
 }
 
-/// Where the glyphs lie in the texture the sign text samples: the textures of the bitmap
-/// providers one under the other, the missing glyph, then a region of Unifont cells that the
-/// lines fill as they need them.
 struct SignPage {
     width: u32,
     size: Vec2,
-    /// The top left of the texture of each bitmap provider, by the provider's index.
     bitmaps: Vec<(usize, Vec2)>,
     missing: Vec2,
     unifont: Vec2,
     cells: HashMap<char, usize>,
-    /// The cells taken since the texture was last written.
     pending: Vec<(usize, char)>,
 }
 
 impl SignPage {
-    /// Lays out the pictures of `font` and gives the pixels of the texture.
     fn new(font: &Font) -> (Self, Vec<u8>, u32) {
         let region = UVec2::new((COLUMNS * CELL) as u32, (ROWS * CELL) as u32);
         let missing = UVec2::from(MISSING_GLYPH_SIZE);
@@ -115,10 +105,6 @@ impl SignPage {
         (page, pixels, height)
     }
 
-    /// The texels of the picture of `glyph`. A Unifont glyph takes a free cell the first time;
-    /// `None` when every cell is taken.
-    // chisle: a cell stays taken after its signs are gone, so the signs of a session show at
-    // most `SLOTS` distinct Unifont glyphs; freeing the cells of departed columns lifts it.
     fn texels(&mut self, source: ImageSource, glyph: char) -> Option<Rect> {
         let (min, size) = match source {
             ImageSource::Bitmap { source, texels } => {
@@ -150,7 +136,6 @@ impl SignPage {
         Some(Rect::from_corners(min, min + size))
     }
 
-    /// Draws the Unifont glyphs of the cells taken since the last call into `pixels`.
     fn write_pending(&mut self, font: &Font, pixels: &mut [u8]) {
         for (cell, glyph) in self.pending.drain(..) {
             let Some(cell_pixels) = font.unifont_cell(glyph) else {
@@ -163,8 +148,6 @@ impl SignPage {
     }
 }
 
-/// Copies the rows of `source`, `width` texels wide, into `target`, a texture `stride` texels
-/// wide, from `at`.
 fn blit(target: &mut [u8], stride: u32, at: UVec2, source: &[u8], width: u32) {
     let row = width as usize * 4;
     for (line, source_row) in source.chunks_exact(row).enumerate() {
@@ -181,7 +164,6 @@ fn load_assets(
     mut images: ResMut<Assets<Image>>,
     mut failed: Local<bool>,
 ) {
-    // A pack that cannot give the font fails the same way on every frame: try once.
     if *failed {
         return;
     }
@@ -200,8 +182,6 @@ fn load_assets(
             TextureDimension::D2,
             pixels,
             TextureFormat::Rgba8Unorm,
-            // The main world keeps the pixels: a Unifont glyph is drawn into them when a line
-            // first needs it.
             RenderAssetUsages::default(),
         );
         image.sampler = ImageSampler::nearest();
@@ -222,11 +202,9 @@ fn load_assets(
     }
 }
 
-/// The quads of one sign, and whether its outline depends on the distance of the camera.
 struct Built {
     vertices: Vec<TextVertex>,
     pos: BlockPos,
-    /// A side is glowing and its dye is not black: the outline comes and goes with the range.
     watches_range: bool,
     in_range: OutlineRange,
 }
@@ -242,7 +220,6 @@ fn linear(argb: u32) -> [f32; 3] {
     [color.red, color.green, color.blue]
 }
 
-/// The block and the sky level of a packed light on the scale of the lightmap: a level times 16.
 fn lightmap_levels(light: u32) -> [f32; 2] {
     [(light & 0xFF) as f32, ((light >> 20) & 15) as f32 * 16.0]
 }
@@ -280,7 +257,6 @@ fn build_sign(
     camera: Option<DVec3>,
     assets: &mut SignAssets,
 ) -> Built {
-    // A client with no account has the profanity filter off.
     const FILTERING: bool = false;
     let in_range = sign_text::outline_range(camera, sign.pos, Sight::Naked);
     let packed = packed_light(light >> 4, light & 15);
@@ -344,7 +320,6 @@ fn build_column(
         .collect()
 }
 
-/// Whether a change at `pos` can alter what is drawn: the column holds signs, or held some.
 fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
     scene.columns.contains_key(&pos)
         || store
@@ -372,7 +347,6 @@ fn sync_signs(
     let scene = &mut *scene;
     stale.clear();
     if !*primed {
-        // The messages before the assets loaded are gone, so the first run reads the store.
         *primed = true;
         stale.extend(store.resident().map(|(pos, _)| pos));
         changes.clear();
@@ -389,8 +363,6 @@ fn sync_signs(
             stale.push(at);
         }
     }
-    // chisle: a camera move re-checks every glowing sign every frame and rebuilds the ones that
-    // cross the range; an index by distance lifts it when signs number in the thousands.
     for (pos, signs) in &scene.columns {
         let crossed = signs.iter().any(|built| {
             built.watches_range
@@ -421,8 +393,6 @@ fn sync_signs(
         assets.page.write_pending(&assets.font, pixels);
     }
     scene.revision += 1;
-    // chisle: a change uploads the vertices of every sign again; ranges per column in the
-    // buffer lift it when signs number in the tens of thousands.
     text.vertices.clear();
     text.vertices.extend(
         scene

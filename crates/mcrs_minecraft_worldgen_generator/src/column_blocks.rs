@@ -4,16 +4,6 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_voxel::SectionPos;
 
-/// Every block of one column, dense, in the section palette's own index order:
-/// section, then y, then z, then x.
-///
-/// Generation writes each block several times — terrain, then surface, caves and
-/// ores — and a paletted section pays a reverse-index lookup per write. Holding
-/// the column dense makes those writes plain stores; the palettes are built once,
-/// at the end, by a single scan per section.
-///
-/// Cells are interior-mutable so a reader and a writer closure can be handed to
-/// the carver and the ore feature at the same time.
 pub struct ColumnBlocks {
     y_sections: Vec<i32>,
     first_section_y: i32,
@@ -31,10 +21,6 @@ impl ColumnBlocks {
         }
     }
 
-    /// Point this buffer at a new column, reusing the allocation.
-    ///
-    /// Generation runs column after column on the same worker, and a fresh
-    /// buffer per column costs an allocation of a hundred kilobytes or more.
     pub fn reset(&mut self, y_sections: &[i32]) {
         if self.y_sections != y_sections {
             self.y_sections.clear();
@@ -57,7 +43,6 @@ impl ColumnBlocks {
         column
     }
 
-    /// Copy each packed section's blocks over the matching slot.
     pub fn unpack(&self, sections: &[Option<(BlockPalette, BiomePalette)>]) {
         for (index, section) in sections.iter().enumerate() {
             let Some((blocks, _)) = section else { continue };
@@ -74,26 +59,20 @@ impl ColumnBlocks {
         &self.y_sections
     }
 
-    /// The section's cells, in palette index order.
     pub fn section_cells(&self, index: usize) -> &[Cell<VoxelId>] {
         &self.cells[index * Self::SECTION_VOLUME..][..Self::SECTION_VOLUME]
     }
 
-    /// Which slot holds the section containing `world_y`, if the column covers it.
     #[inline]
     pub fn section_index(&self, world_y: i32) -> Option<usize> {
         self.slot(world_y >> 4)
     }
 
-    /// Section-local write, the dense counterpart of `BlockPalette::set`.
     #[inline]
     pub fn set_in_section(&self, index: usize, x: i32, y: i32, z: i32, value: VoxelId) {
         self.section_cells(index)[(y as usize) * 256 + (z as usize) * 16 + x as usize].set(value);
     }
 
-    /// Section-local box fill, the dense counterpart of `BlockPalette::fill_box`.
-    /// The box is clipped to the section, which is what the paletted container
-    /// required of its callers anyway.
     #[expect(
         clippy::too_many_arguments,
         reason = "the box bounds are six coordinates next to the section index and value, and the placement call in lib.rs passes them this way through a public signature"
@@ -122,9 +101,6 @@ impl ColumnBlocks {
         }
     }
 
-    /// Which slot holds `section_y`, if the column covers it. Sections are
-    /// contiguous and ascending in practice, which the subtraction answers
-    /// directly; the search is the fallback for a column with holes.
     #[inline]
     fn slot(&self, section_y: i32) -> Option<usize> {
         let guess = section_y.wrapping_sub(self.first_section_y) as usize;
@@ -149,14 +125,11 @@ impl ColumnBlocks {
         )
     }
 
-    /// `None` when the position falls outside the column.
     #[inline]
     pub fn get(&self, local_x: i32, world_y: i32, local_z: i32) -> Option<VoxelId> {
         self.cell(local_x, world_y, local_z).map(Cell::get)
     }
 
-    /// Writes outside the column are dropped, as they were when the passes wrote
-    /// through a section list that did not cover them.
     #[inline]
     pub fn set(&self, local_x: i32, world_y: i32, local_z: i32, value: VoxelId) {
         if let Some(cell) = self.cell(local_x, world_y, local_z) {
@@ -164,11 +137,6 @@ impl ColumnBlocks {
         }
     }
 
-    /// Build one palette per section, each from a single scan of its cells.
-    ///
-    /// Most sections of a tall column hold one value — air above the terrain,
-    /// stone below it — and answering those with a scan that stops at the first
-    /// difference keeps the copy and the palette build off that path entirely.
     pub fn block_palettes(&self) -> Vec<BlockPalette> {
         self.y_sections
             .iter()
@@ -195,7 +163,6 @@ impl ColumnBlocks {
             .collect()
     }
 
-    /// Pack every section, pairing each block palette with the column's biomes.
     pub fn into_sections(
         &self,
         biomes: &[BiomePalette],
@@ -207,8 +174,6 @@ impl ColumnBlocks {
             .collect()
     }
 
-    /// Write each section's packed palette back over `sections`, the inverse of
-    /// [`Self::from_sections`].
     pub fn write_back(&self, sections: &mut [Option<(BlockPalette, BiomePalette)>]) {
         for (section, palette) in sections.iter_mut().zip(self.block_palettes()) {
             if let Some((blocks, _)) = section {

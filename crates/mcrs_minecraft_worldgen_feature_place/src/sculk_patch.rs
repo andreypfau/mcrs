@@ -11,8 +11,6 @@ use crate::tree::trunk::all_shuffled;
 use mcrs_minecraft_core::dist_manhattan;
 use mcrs_voxel::BlockPos;
 
-/// `SculkSpreader.createWorldGenSpreader`, which is the only spreader a feature
-/// ever builds.
 const GROWTH_SPAWN_COST: i32 = 50;
 const NO_GROWTH_RADIUS: i32 = 1;
 const CHARGE_DECAY_RATE: i32 = 5;
@@ -23,13 +21,8 @@ const MAX_CHARGE: i32 = 1000;
 const MAX_CURSOR_DISTANCE: i32 = 1024;
 const SHRIEKER_PLACEMENT_RATE: i32 = 11;
 const GROWTH_INHIBITOR_RANGE: i32 = 4;
-/// `ChargeCursor.canMoveToPos`, whose twelve blocks are squared in the xz plane.
 const MAX_WORLDGEN_SPREAD_SQ: i32 = 144;
 
-/// One `sculk_patch` feature with every name it carries already resolved.
-///
-/// `sculk` and `sculk_vein` are the only two blocks carrying a `SculkBehaviour`,
-/// so which of the three behaviours a state takes is read off these masks.
 #[derive(Clone, Debug)]
 pub struct CompiledSculkPatch {
     pub charge_count: i32,
@@ -37,19 +30,14 @@ pub struct CompiledSculkPatch {
     pub spread_attempts: i32,
     pub growth_rounds: i32,
     pub spread_rounds: i32,
-    /// `sculk_vein`'s own states; a state outside this table is not one.
     pub vein: MultifaceStates,
     pub sculk: VoxelId,
     pub sculk_states: StateMask,
-    /// `SculkVeinSpreaderConfig.stateCanBeReplaced`: what a vein will not grow
-    /// against.
     pub blocks_vein: StateMask,
     pub fire: StateMask,
     pub replaceable_world_gen: StateMask,
-    /// `#sculk_replaceable`, which is what `hasSubstrateAccess` asks for.
     pub substrate: StateMask,
     pub growth_inhibitors: StateMask,
-    /// `SculkBlock.getRandomGrowthState`, waterlogged in the second slot.
     pub sensor: [VoxelId; 2],
     pub shrieker: [VoxelId; 2],
 }
@@ -61,8 +49,6 @@ enum Behaviour {
     Vein,
 }
 
-/// How many of `spread_positions` a spread tries, in order: `DEFAULT_SPREAD_ORDER`
-/// takes all three, `SAME_SPACE_ORDER` the first alone.
 const DEFAULT_SPREAD_ORDER: usize = 3;
 const SAME_SPACE_ORDER: usize = 1;
 
@@ -71,8 +57,6 @@ struct Cursor {
     charge: i32,
     update_delay: i32,
     decay_delay: i32,
-    /// `MultifaceBlock.availableFaces` of whatever the cursor last moved onto,
-    /// which is empty for a sculk block and absent until it moves at all.
     facings: Option<u8>,
 }
 
@@ -92,8 +76,6 @@ impl CompiledSculkPatch {
     }
 }
 
-/// `SculkPatchFeature.place`: a fresh set of cursors each round, spent over the
-/// configured number of update attempts.
 pub fn place_sculk_patch<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
@@ -153,8 +135,6 @@ fn add_cursors(cursors: &mut Vec<Cursor>, pos: BlockPos, mut charge: i32) {
     }
 }
 
-/// A world-generation spreader never merges cursors, so the pass over them
-/// keeps every one whose charge survived and drops the rest.
 fn update_cursors<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
@@ -259,8 +239,6 @@ fn attempt_spread_vein<W: WorldGenVolume>(
     }
 }
 
-/// `SculkVeinBlock.regrow`, which rebuilds the faces the cursor remembers out of
-/// whichever of them still have something to hang on.
 fn regrow<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
@@ -290,8 +268,6 @@ fn regrow<W: WorldGenVolume>(
     true
 }
 
-/// `MultifaceSpreader.spreadAll`, whose source state is the one the caller read
-/// before any of this wrote, however far behind the world it falls.
 fn spread_all<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
@@ -421,9 +397,6 @@ fn attempt_use_charge<W: WorldGenVolume>(
     }
 }
 
-/// `SculkVeinBlock.attemptPlaceSculk`: the first face whose support this pass
-/// may replace turns into sculk, and every vein around it is asked to let go of
-/// the face it just lost.
 fn attempt_place_sculk<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &mut W,
@@ -524,8 +497,6 @@ fn random_growth_state<W: WorldGenVolume>(
     }
 }
 
-/// `SculkBlock.canPlaceGrowth`: an open cell above, and no more than two of the
-/// growths already there to inhibit another.
 fn can_place_growth<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
@@ -582,8 +553,6 @@ fn on_discharged<W: WorldGenVolume>(
     volume.set(pos, next);
 }
 
-/// `BlockPos.betweenClosedStream` over the unit cube less its corners, in the
-/// order the shuffle permutes: x fastest, then y, then z.
 const NON_CORNER_NEIGHBOURS: [IVec3; 18] = [
     IVec3::new(0, -1, -1),
     IVec3::new(-1, 0, -1),
@@ -611,9 +580,6 @@ fn shuffled_neighbours(rng: &mut WorldgenRandom) -> [IVec3; 18] {
     offsets
 }
 
-/// `ChargeCursor.getValidMovementPos`: the last reachable neighbour carrying a
-/// sculk block, stopping early at the first one already rooted in something the
-/// spread may replace.
 fn valid_movement_pos<W: WorldGenVolume>(
     config: &CompiledSculkPatch,
     volume: &W,
@@ -658,8 +624,6 @@ fn has_substrate_access<W: WorldGenVolume>(
     })
 }
 
-/// `to` is one of the eighteen non-corner neighbours, so a nonzero component
-/// of the delta is a unit step along its axis.
 fn movement_unobstructed<W: WorldGenVolume>(volume: &W, from: BlockPos, to: BlockPos) -> bool {
     if dist_manhattan(from.as_ivec3(), to.as_ivec3()) == 1 {
         return true;
@@ -687,8 +651,6 @@ mod tests {
     const VEIN_BASE: u16 = 100;
     const AT: BlockPos = BlockPos::new(0, 60, 0);
 
-    /// A vein whose state id is its face bits, dry and waterlogged one table
-    /// apart, so the placer's own indexing is what the test reads back.
     fn vein_table() -> MultifaceStates {
         let mut by_faces = [[VoxelId(0); 64]; 2];
         let mut of_state = HashMap::default();
@@ -722,8 +684,6 @@ mod tests {
         }
     }
 
-    /// Stone and sculk hold a vein up; air is the one replaceable state; water
-    /// is a state no block here holds.
     fn cave(mut volume: FakeVolume) -> FakeVolume {
         volume.world.water = VoxelId(9);
         volume.world.replaceable = mask_of([AIR]);
@@ -739,8 +699,6 @@ mod tests {
         ))
     }
 
-    /// An origin with nothing to hang on refuses before the spreader exists, so
-    /// it writes nothing and spends no draw of the parent's source.
     #[test]
     fn a_patch_with_no_support_places_nothing_and_draws_nothing() {
         let mut volume = cave(FakeVolume::default());
@@ -752,8 +710,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// The first cursor grows a vein on the face it can reach, and that vein
-    /// turns the block it hangs on into sculk.
     #[test]
     fn a_patch_over_a_floor_veins_the_origin_and_sculks_what_it_hangs_on() {
         let config = config();

@@ -6,9 +6,6 @@ use mcrs_minecraft_worldgen_structure::piece::rebuild_monument_rooms;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use tracing::warn;
 
-/// A vanilla save keeps no room graph of an ocean monument, so a start that lands without one
-/// gets the graph that generation makes from the seed. A rebuilt column counts as changed, so its
-/// next save writes the graph.
 pub(crate) fn rebuild_saved_monument_rooms(
     seed: Res<WorldSeed>,
     mut landed: ResMut<PendingColumnFacts>,

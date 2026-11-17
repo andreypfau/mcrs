@@ -72,9 +72,6 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
     assert!(claimed.iter().all(|&c| c), "a state is claimed by no block");
 }
 
-/// The game packs a section that dropped its palette at the smallest width
-/// that tells every block state apart, and a reader has no other way to learn
-/// that width than to count the states itself.
 fn the_block_container_width_is_the_narrowest_that_holds_every_state() {
     let (definitions, _) = corpus();
     let states = definitions.state_count();
@@ -102,9 +99,6 @@ fn every_default_state_lies_in_its_block_and_named_defaults_reconstruct() {
         );
     }
 
-    // The corpus states no default property values, so the reconstruction is
-    // checked against blocks whose vanilla default is known. A reversed
-    // varies-fastest end reproduces neither.
     let stairs = definitions.block("minecraft:oak_stairs").unwrap();
     assert_eq!(
         stairs.state_id(&[
@@ -306,9 +300,6 @@ fn torch_is_not_a_cube() {
     );
 }
 
-/// `BlockState.isSolid` is the collision shape's bounds, not the occlusion
-/// shape: leaves, ice, glass and a slab are solid to the reference while none
-/// of them fills the cube for rendering.
 fn solidity_follows_the_collision_shape_and_not_the_occlusion_shape() {
     let (definitions, _) = corpus();
     for name in [
@@ -467,9 +458,6 @@ fn the_block_corpus_loads_once_and_answers_per_state() {
     every_sound_set_a_state_names_is_in_the_loaded_registry();
 }
 
-/// The read-ahead pipe under the asset reader has reported EOF with a whole
-/// file still buffered, so a corpus file came back as zero bytes whenever
-/// several readers swept the directory at once.
 fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once(readers: usize) {
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin::default());

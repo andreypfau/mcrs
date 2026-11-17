@@ -7,13 +7,9 @@ use bevy::render::view::ViewDepthStencilTexture;
 use crate::gbuffer::{WORLD_IMAGE_FORMAT, attachment, depth_view};
 use crate::shared_bindings::{transparency, transparent_gbuffer};
 
-/// `cl` and `ca` of the clouds, blended as the target blends.
 pub(crate) const CLOUD_IMAGE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 
-/// What a frame with Improved Transparency draws beside the gbuffer, at the size of the view.
-/// Built when the option turns on or the view changes, dropped when it turns off.
 pub(crate) struct TransparencyTargets {
-    /// In image values, as the world image, which the sky pipelines draw to.
     pub sky: TextureView,
     pub clouds: TextureView,
     pub cloud_depth: TextureView,

@@ -51,8 +51,6 @@ pub fn site(
     let setup = if setups.len() > 1 {
         let total: f32 = setups.iter().map(|s| s.weight.0).sum();
         let mut pick = rng.next_f32();
-        // Rounding can leave the draw past the last setup, where the reference
-        // throws; the start is refused instead.
         setups.iter().position(|s| {
             pick -= s.weight.0 / total;
             pick < 0.0

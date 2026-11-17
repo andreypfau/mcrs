@@ -105,7 +105,6 @@ fn current_tab_draws_its_background_line_and_label_higher() {
     }
 }
 
-/// A menu tab bar at W = 427 and a button under it.
 fn tab_screen(active: &[bool], current: usize) -> Widgets {
     let mut bar = tabs(active);
     bar.set_current(current);
@@ -136,7 +135,6 @@ const ONLY_FIRST: &[bool] = &[true, false, false];
 const TAB: (GuiKey, KeyModifiers) = (GuiKey::Tab, KeyModifiers::NONE);
 const CTRL_TAB: (GuiKey, KeyModifiers) = (GuiKey::Tab, KeyModifiers::CONTROL);
 
-/// The current tab, the focused widget and the number of tab changes after a press and keys.
 fn run(
     active: &[bool],
     start: usize,

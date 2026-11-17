@@ -9,8 +9,6 @@ use serde::de::{Deserialize, Deserializer, IgnoredAny, MapAccess, SeqAccess, Vis
 use crate::attribute_keys::Attribute;
 use crate::modifier_operation::ModifierOperation;
 
-/// A part of the save that a bad input leaves out instead of failing the load (ATR-SAV-002).
-/// Each reader gets a value of any kind and returns `None` for a kind it does not take.
 pub(crate) trait Tolerant: Sized {
     fn from_number(_number: f64) -> Option<Self> {
         None
@@ -31,7 +29,6 @@ pub(crate) trait Tolerant: Sized {
     }
 }
 
-/// A value of the save, or `None` when the input does not give one.
 pub(crate) struct Lenient<T>(pub(crate) Option<T>);
 
 impl<'de, T: Tolerant> Deserialize<'de> for Lenient<T> {

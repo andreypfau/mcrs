@@ -8,16 +8,12 @@ use crate::tile_delta::TileDeltas;
 use crate::view::View;
 use crate::viewer_bytes::ViewerBytes;
 
-/// A call to the [`Muxer`] of one world, sent over a link.
 #[non_exhaustive]
 pub enum MuxerInput<C: ReplicationCodec> {
-    /// Starts the muxer of `world` with a new codec and tiles `tile_width` wide. A world that
-    /// is open already keeps its muxer.
     Open {
         world: WorldId,
         tile_width: NonZeroU32,
     },
-    /// Drops the muxer of `world` and the bytes it has not handed out.
     Close {
         world: WorldId,
     },
@@ -40,8 +36,6 @@ pub enum MuxerInput<C: ReplicationCodec> {
     },
 }
 
-/// The [`Muxer`]s of many worlds. It applies each input to the muxer of its world, and an input
-/// for a world that is not open does nothing.
 pub struct Muxers<C: ReplicationCodec> {
     worlds: BTreeMap<WorldId, Muxer<C>>,
 }
@@ -84,8 +78,6 @@ impl<C: ReplicationCodec + Default> Muxers<C> {
         }
     }
 
-    /// Hands out the bytes of each viewer, world by world in the order of [`WorldId`], as
-    /// [`Muxer::take_output`] does.
     pub fn take_output(&mut self) -> impl Iterator<Item = ViewerBytes> + '_ {
         self.worlds.values_mut().flat_map(Muxer::take_output)
     }

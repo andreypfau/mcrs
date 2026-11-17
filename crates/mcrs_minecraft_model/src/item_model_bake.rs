@@ -33,13 +33,10 @@ pub struct ItemQuad {
 #[derive(Debug)]
 pub struct BakedItemModel {
     pub quads: Vec<ItemQuad>,
-    /// The `gui` display transform, the identity when the model declares none.
     pub display: DisplayTransform,
     pub gui_light: GuiLight,
 }
 
-/// The unbaked tree with every model reference replaced by baked geometry and every
-/// transformation composed down from the root.
 #[derive(Debug)]
 pub enum BakedNode {
     Empty,
@@ -54,7 +51,6 @@ pub enum BakedNode {
         on_true: Box<BakedNode>,
         on_false: Box<BakedNode>,
     },
-    /// `cases[i]` is the baked model of the switch's i-th case.
     Select {
         switch: SelectSwitch,
         cases: Vec<BakedNode>,
@@ -76,7 +72,6 @@ pub enum BakedNode {
 }
 
 impl BakedNode {
-    /// The entry to draw for `value`, `None` meaning the fallback.
     pub fn range_index(thresholds: &[f32], value: f32) -> Option<usize> {
         if value.is_nan() {
             return None;
@@ -111,8 +106,6 @@ struct Baker<'a> {
     missing: Arc<BakedItemModel>,
 }
 
-/// Bakes every `items/*.json` of the pack; a file that fails to parse, validate or bake
-/// fails the whole load, naming the file.
 pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
     sprites
         .load_atlases(pack)
@@ -318,7 +311,6 @@ fn bake_model(
     })
 }
 
-/// The quads of the faces of one element, each drawing `sprite`.
 pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQuad>, String> {
     let faces = face_bake::bake_elements(&[element], VariantTransform::default())
         .map_err(|error| error.to_string())?;
@@ -334,7 +326,6 @@ pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQua
         .collect())
 }
 
-/// An element from `from` to `to` in pixel space with no turn and one face entry per key.
 pub(super) fn plain_element(from: DVec3, to: DVec3, faces: [Option<FaceEntry>; 6]) -> Element {
     Element {
         from,
@@ -346,7 +337,6 @@ pub(super) fn plain_element(from: DVec3, to: DVec3, faces: [Option<FaceEntry>; 6
     }
 }
 
-/// A full cube of the missing texture with no display transforms at all.
 fn missing_model(
     pack: &ResourceSet,
     sprites: &mut SpriteRegistry,
@@ -399,7 +389,6 @@ mod tests {
 
         #[test]
         fn every_item_bakes_after_every_block_state() {
-            // A world with every block fills the 16-pixel array before the items come.
             let (pack, definitions) = (ResourceSet::corpus(), crate::block_catalog::corpus());
             let mut catalog = crate::block_catalog::empty();
             let states: Vec<u16> = (0..definitions.state_count() as u16).collect();

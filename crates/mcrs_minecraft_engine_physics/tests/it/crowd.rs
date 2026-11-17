@@ -1,8 +1,3 @@
-//! A crowd that has room to spread settles: the push moves the bodies apart until no box
-//! overlaps another, and then they rest (PHY-PSH-006, PHY-CMP-012, PHY-SKIP-006). A stack at one
-//! point spreads in the same way (PHY-CMP-027). A crowd with no room takes the crowd damage
-//! until it is small enough (PHY-PSH-007, DMG-CRW-002).
-
 #![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
 
 use bevy_tasks::TaskPoolBuilder;
@@ -27,13 +22,10 @@ use mcrs_minecraft_physics::TestRng;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_voxel::BlockPos;
 
-/// The half width of the inside of the pen, in blocks.
 const PEN: i32 = 14;
-/// Bodies per block of floor: boxes of 0.9 × 0.9 cover 65% of it, so they fit without overlap.
 const DENSITY: f64 = 0.8;
 const TICKS: u32 = 400;
 
-/// Idle pigs at random places in a walled pen, with `max_entity_cramming` 0.
 fn pen() -> TestScene {
     let mut scene = TestScene::<()>::new(1, 0, 0, 3);
     scene.push = PushRules {
@@ -97,10 +89,8 @@ fn a_dense_crowd_with_room_to_spread_comes_to_rest() {
     );
 }
 
-/// A stand-in for the network id of the damage type `cramming`.
 const CRAMMING: u32 = 7;
 
-/// Adds an idle pig with `health`, and `index` as its key and its id.
 fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
     let motion = MotionRow::living(Category::Walker, Dimensions::scalable(0.9, 0.9));
     let mut living = Living::of(&motion);
@@ -121,8 +111,6 @@ fn alive(scene: &TestScene) -> usize {
         .count()
 }
 
-/// E55: 65 pigs at one point give each other no push. When one of them moves, the stack spreads
-/// until no box overlaps another.
 #[test]
 fn a_stack_at_one_point_spreads_once_one_body_moves() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
@@ -162,9 +150,6 @@ fn a_stack_at_one_point_spreads_once_one_body_moves() {
     );
 }
 
-/// An empty scene with the crowd damage and a hole one block deep and two blocks high over the
-/// blocks from `(first, FLOOR, 0)` to `(last, FLOOR, 0)`, with `count` pigs of `health` in it.
-/// Each box overlaps each other box.
 fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> TestScene {
     let mut scene = TestScene::<()>::new(1, 0, 0, 3);
     scene.crowd_damage_type = Some(CRAMMING);
@@ -196,9 +181,6 @@ fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> TestScene {
     scene
 }
 
-/// DMG-CRW-002, D7: in the first tick 13 of the 30 draw the crowd damage, and each hit kills.
-/// The deaths of the entities with lower keys leave the counts of the later ones, so exactly 6
-/// die, and the 24 that stay take no more damage.
 #[test]
 fn crw_002_a_crowd_of_30_loses_exactly_6() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
@@ -216,8 +198,6 @@ fn crw_002_a_crowd_of_30_loses_exactly_6() {
     assert_eq!(scene.rows.living_rows().count(), 24, "the dead rows left");
 }
 
-/// PHY-PSH-007, DMG-CRW-003: 25 pigs in a hole of one block begin to die, the first one not
-/// before its second hit, and 24 never do.
 #[test]
 fn psh_007_a_crowd_of_25_loses_one_and_a_crowd_of_24_takes_no_damage() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
@@ -243,8 +223,6 @@ fn psh_007_a_crowd_of_25_loses_one_and_a_crowd_of_24_takes_no_damage() {
     assert_eq!(alive(&scene), 24);
 }
 
-/// DMG-CRW-002, PHY-CMP-013: the crowd hits follow the order of the keys, so a crowd over two
-/// tiles loses the same entities for each thread count and task split.
 #[test]
 fn crw_002_the_crowd_hits_do_not_depend_on_the_task_split() {
     let run = |threads: usize, tiles_per_task: usize| {

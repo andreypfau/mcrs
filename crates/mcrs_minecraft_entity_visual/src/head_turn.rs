@@ -1,9 +1,7 @@
 use mcrs_minecraft_numeric as numeric;
 
-/// The ticks that a head yaw packet takes to turn the head.
 pub const HEAD_TURN_TICKS: u8 = 3;
 
-/// The turn of the head towards the last head yaw that the server sent.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct HeadTurn {
     target: f32,
@@ -16,7 +14,6 @@ impl HeadTurn {
         self.ticks_left = HEAD_TURN_TICKS;
     }
 
-    /// The head yaw after one more tick of the turn from `head_yaw`.
     pub fn step(&mut self, head_yaw: f32) -> f32 {
         if self.ticks_left == 0 {
             return head_yaw;

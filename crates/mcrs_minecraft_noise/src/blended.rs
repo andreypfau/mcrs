@@ -15,16 +15,11 @@ thread_local! {
 }
 
 const BASE_SCALE: f64 = 684.412;
-/// Java writes the float literal `0.99998474F` into a `double` field, so the
-/// widened value is exactly `(2^16 - 1) / 2^16` and every limit amplitude lands
-/// on an exact power of two.
 const LIMIT_FACTOR: f64 = 0.99998474f32 as f64;
 const MAIN_FACTOR: f64 = 12.75;
 const LIMIT_FIRST_OCTAVE: i32 = -15;
 const MAIN_FIRST_OCTAVE: i32 = -7;
 
-/// The three fbm stacks one `BlendedNoise` draws, in stream order. Vanilla's
-/// `BlendedNoise.FbmSet`.
 struct FbmSet {
     min_limit: NoiseStack<SmearedPerlinNoise>,
     max_limit: NoiseStack<SmearedPerlinNoise>,
@@ -45,9 +40,6 @@ struct Inner {
     fbm: FbmSet,
 }
 
-/// Vanilla's `BlendedNoise.createFbm` schedule: octaves highest frequency
-/// first, which is the order they draw from the stream, each halving both its
-/// frequency and its smear scale while its weight doubles.
 fn fbm_layers(first_octave: i32, value_factor: f64) -> impl Iterator<Item = (f64, f64)> {
     let octaves = -first_octave + 1;
     let mut frequency = 1.0f64;
@@ -77,11 +69,6 @@ fn create_fbm(
     stack.build()
 }
 
-/// `BlendedNoise.range()`. The two limit stacks are what escapes furthest and
-/// the main stack only picks between them, so the bound is one limit fbm.
-///
-/// The per-layer bound is the smeared noise's `±(|fudge_y_scale| + 2.0)`, not a
-/// plain Perlin's flat `±2.0`.
 fn declared_range(y_scale: f64, smear_scale_multiplier: f64) -> Interval {
     let smear_scale_y = (BASE_SCALE * y_scale) * smear_scale_multiplier;
     let mut range = Interval::exact(0.0);
@@ -112,8 +99,6 @@ impl BlendedNoise {
         let limit_smear_scale_y = y_multiplier * smear_scale_multiplier;
         let main_smear_scale_y = limit_smear_scale_y / y_factor;
 
-        // The three stacks share one stream in this order; the `let` bindings are
-        // what fixes it, so do not fold them into the struct literal.
         let min_limit = create_fbm(
             random,
             LIMIT_FIRST_OCTAVE,
@@ -149,7 +134,6 @@ impl BlendedNoise {
         }
     }
 
-    /// `BlendedNoise.range()`.
     pub fn range(&self) -> Interval {
         self.inner.range
     }
@@ -178,9 +162,6 @@ impl BlendedNoise {
                 for alpha in run.iter_mut() {
                     *alpha = numeric::clamp_f32(*alpha + 0.5, 0.0, 1.0);
                 }
-                // An alpha pinned to an endpoint returns one limit untouched, so the
-                // other stack is never read and its sixteen octaves need not be
-                // sampled. The test is per column, which is where it pays.
                 if run.iter().any(|&alpha| alpha != 1.0) {
                     inner.fbm.min_limit.fill_column_at(
                         min,
@@ -219,8 +200,6 @@ impl BlendedNoise {
     }
 }
 
-/// Hand-written because the derived form would print forty octaves of
-/// 256-byte permutation table.
 impl fmt::Debug for BlendedNoise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BlendedNoise")
@@ -266,8 +245,6 @@ mod tests {
         }
     }
 
-    /// The columns of a box are sampled independently, so widening the extent
-    /// must not disturb any of them.
     #[test]
     fn a_box_agrees_with_the_columns_it_covers() {
         let params = overworld();
@@ -301,7 +278,6 @@ mod tests {
         let params = overworld();
         let expected: Vec<f32> = (0..16).map(|i| 2.0f32.powi(i - 16)).collect();
         assert_eq!(params.inner.fbm.min_limit.amplitudes(), expected);
-        // 12.75 / 255 is exactly 0.05, so the main stack is exact too.
         assert_eq!(params.inner.fbm.main.layer_count(), 8);
         assert_eq!(params.inner.fbm.main.layer(0).2, 0.05);
         assert_eq!(params.inner.fbm.main.layer(7).2, 6.4);
@@ -319,11 +295,9 @@ mod tests {
             inner.fbm.main.layer(0).0.fudge_y_scale(),
             (684.412 * 0.125 * 8.0) / 160.0
         );
-        // Sampling scales are pre-divided by the factors, never divided per sample.
         assert_eq!(inner.xz_multiplier, 684.412 * 0.25);
         assert_eq!(inner.main_xz_multiplier, (684.412 * 0.25) / 80.0);
         assert_eq!(inner.main_y_multiplier, (684.412 * 0.125) / 160.0);
-        // Each layer halves its smear together with its frequency.
         assert_eq!(
             inner.fbm.min_limit.layer(1).0.fudge_y_scale(),
             inner.fbm.min_limit.layer(0).0.fudge_y_scale() * 0.5

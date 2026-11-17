@@ -6,7 +6,6 @@ use crate::entity_view::EntityView;
 
 const TICKS_PER_SECOND: f64 = 20.0;
 
-/// A test of the velocity in blocks for each second and of the fall distance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub(crate) struct MovementPredicate {
     #[serde(default)]
@@ -26,7 +25,6 @@ pub(crate) struct MovementPredicate {
 }
 
 impl MovementPredicate {
-    /// A bound that accepts each value reads nothing, so `{}` passes without the host values.
     pub(crate) fn matches<W: EntityView>(&self, world: &W, entity: W::Entity) -> bool {
         let velocity_tested = !(self.x.is_any()
             && self.y.is_any()

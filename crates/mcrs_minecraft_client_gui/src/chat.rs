@@ -1,5 +1,3 @@
-//! The chat on the GUI: the lines of the log, the overlay message and the open chat screen.
-
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
@@ -43,14 +41,12 @@ const CARET_BLINK_MS: u128 = 300;
 const TAG_TOOLTIP_WIDTH: i32 = 210;
 const MODIFIED_ICON: &str = "icon/chat_modified";
 
-/// Whether the chat screen is open, which sets the height of the chat view.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChatFocus {
     Focused,
     Unfocused,
 }
 
-/// The lines of the chat view: 20 open, 10 closed.
 pub fn per_page(focus: ChatFocus) -> usize {
     let height = match focus {
         ChatFocus::Focused => FOCUSED_HEIGHT,
@@ -72,7 +68,6 @@ fn with_alpha(color: u32, alpha: f32) -> u32 {
     ((base * alpha) as u32) << 24 | (color & 0x00FF_FFFF)
 }
 
-/// The mouse over the open chat, and where the log makes its tooltip requests.
 pub(crate) struct Pointer<'a> {
     pub at: IVec2,
     pub language: &'a ClientLanguage,
@@ -90,9 +85,6 @@ impl Pointer<'_> {
     }
 }
 
-/// The lines of the chat log at the default options. With a
-/// pointer, the chat is open: the tag bars and icons make their tooltip requests, and the
-/// result is the hovered text style.
 pub(crate) fn chat_lines<'c>(
     size: GuiSize,
     chat: &Chat,
@@ -181,7 +173,6 @@ struct TextUnder<'c> {
     message: usize,
 }
 
-/// The span under `at` and the number of the message that holds it.
 fn text_under<'c>(
     lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     page: usize,
@@ -199,7 +190,6 @@ fn text_under<'c>(
     None
 }
 
-/// The span of the open chat under the mouse.
 pub(crate) fn open_chat_span_at<'c>(
     size: GuiSize,
     lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
@@ -210,7 +200,6 @@ pub(crate) fn open_chat_span_at<'c>(
     text_under(lines, page, |slot| text_origin(size, slot), at, font).map(|under| under.span)
 }
 
-/// The scroll bar of the open chat when the log holds more lines than it shows.
 fn scroll_bar(
     lines: &mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     shown: usize,
@@ -240,7 +229,6 @@ fn scroll_bar(
     }
 }
 
-/// The lines a hover event shows.
 fn hover_lines(
     hover: &Hover,
     gui_width: i32,
@@ -270,7 +258,6 @@ fn hover_lines(
     }
 }
 
-/// Calls `run` for each coloured part of the input, or once for chat text and a draft.
 fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
     let input = screen.input();
     if screen.is_draft() {
@@ -303,7 +290,6 @@ pub(crate) fn input_bounds(size: GuiSize) -> GuiRect {
     GuiRect::new(4, size.height - 12, (size.width - 8).max(0), 12)
 }
 
-/// The input box with its caret and ghost text.
 fn input_box(
     size: GuiSize,
     font: &Font,
@@ -379,8 +365,6 @@ fn input_box(
     }
 }
 
-/// Draws the chat log and the overlay message, and the input box, the suggestions, the hints
-/// and the tooltips of the open chat screen.
 pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,

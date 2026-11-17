@@ -11,36 +11,30 @@ use rustc_hash::FxHashSet;
 use crate::bus::OutboundPlayerPacket;
 use crate::muxer::column_views::{ColumnViews, DimColumns, DimRequests};
 
-/// A call to the [`MuxerStage`], sent over the link of the muxer.
 pub enum MuxerCall {
-    /// What the dimension `dim` published for the views in one tick.
-    Dim { dim: Entity, columns: DimColumns },
-    /// The client of `session` took a batch and managed `desired_columns_per_tick`.
+    Dim {
+        dim: Entity,
+        columns: DimColumns,
+    },
     Acknowledge {
         session: PlayerSession,
         desired_columns_per_tick: f32,
     },
-    /// The dimension `dim` closed.
-    CloseDim { dim: Entity },
-    /// The end of what the host took between two ticks: the stage sends the next batches to
-    /// every player that is not `blocked`, and the requests for the dimensions.
-    Send { blocked: FxHashSet<PlayerSession> },
-    /// A call to the entity muxer of one world.
+    CloseDim {
+        dim: Entity,
+    },
+    Send {
+        blocked: FxHashSet<PlayerSession>,
+    },
     Entities(MuxerInput<EntityCodec>),
 }
 
-/// What the [`MuxerStage`] hands back to the host.
 pub enum MuxerOutput {
-    /// Packets of the views for the clients, in the order they go out, not stamped yet.
     Packets(Vec<OutboundPlayerPacket>),
     Requests(DimRequests),
-    /// The entity bytes of one viewer.
     Entities(ViewerBytes),
 }
 
-/// The views of the players and the entity muxers of the worlds as one [`Stage`], so that the
-/// placement of the muxer moves them off the server thread. It applies the calls in the order
-/// they came, then emits the entity bytes of each viewer.
 #[derive(Default)]
 pub struct MuxerStage {
     views: ColumnViews,
@@ -50,7 +44,6 @@ pub struct MuxerStage {
 }
 
 impl MuxerStage {
-    /// The views that the stage serves.
     #[cfg(feature = "world-access")]
     #[must_use]
     pub fn views(&self) -> &ColumnViews {
@@ -98,8 +91,6 @@ impl Stage for MuxerStage {
         while let Some(call) = self.calls.pop_front() {
             self.apply(call, step);
         }
-        // A view that a dimension opened or closed without a send after it still tells its
-        // client at once.
         if !self.out.is_empty() {
             step.emit(MuxerOutput::Packets(mem::take(&mut self.out)));
         }

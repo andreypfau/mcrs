@@ -43,13 +43,8 @@ const GROUND_BOUNCE: DVec3 = DVec3::new(0.7, -0.5, 0.7);
 const SMALL_SPEED: f64 = 0.003;
 const JUMP_DELAY: u8 = 10;
 const AIR_SPEED: f32 = 0.02;
-/// The ground factor alone never brings the horizontal speed of an item to zero, so without
-/// this cut an item never rests. It is at most the parity tolerance, so no client sees it.
 const ITEM_STOP: f64 = 1.0e-6;
 
-/// One tick of the physics part of a server-simulated entity that is not a player. `wake` is
-/// true when something in the read zone changed, or a write changed the entity, since its last
-/// tick: a resting entity then runs a full tick.
 pub fn tick_entity<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     side: Side,
@@ -98,8 +93,6 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
     outcome
 }
 
-/// The box of the read zone of a tick: the box and the box moved by `displacement`, grown by 1
-/// on `x` and `z` and by `1 + step_height` up and down.
 #[must_use]
 pub fn read_zone(bounds: Aabb, displacement: DVec3, step_height: f32) -> Aabb {
     let moved = bounds.translate(displacement);
@@ -214,7 +207,6 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
     TickOutcome::default()
 }
 
-/// The mover of a living entity that is not a player, with no gravity.
 fn living_mover(
     key: EntityKey,
     side: Side,
@@ -236,9 +228,6 @@ fn living_mover(
     }
 }
 
-/// The jump from the ground: the jump power from the jump factor of the blocks under the body
-/// lifts the vertical velocity when the power is more than `1.0E-5F`. A sprint jump towards
-/// `sprint_yaw` also adds 0.2 in that direction.
 pub(crate) fn jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     body: &mut Body,
@@ -370,8 +359,6 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
     outcome
 }
 
-/// The drag of a category that is not living, with the bounce of an item and an orb and the
-/// ground rule of a primed TNT.
 fn drag_and_ground_rule<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     category: Category,
@@ -409,7 +396,6 @@ fn drag_and_ground_rule<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// True in the tick of the rest cycle of 4 in which an item on the ground moves.
 fn item_moves(entity: &EntityState) -> bool {
     entity
         .age
@@ -417,7 +403,6 @@ fn item_moves(entity: &EntityState) -> bool {
         .is_multiple_of(4)
 }
 
-/// The vertical displacement of the move, or zero when the move left the position as it was.
 pub(crate) fn applied_dy(resolved: &DVec3, start: DVec3, end: DVec3) -> f64 {
     if start == end { 0.0 } else { resolved.y }
 }

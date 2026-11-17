@@ -5,11 +5,6 @@ use std::collections::HashSet;
 const ALLOWED_MIN: i32 = -16;
 const ALLOWED_MAX: i32 = 31;
 
-/// One failure per biome whose placed features reach outside the horizontal
-/// range a feature may cover. Each biome lists its steps, each step the named
-/// placed features it runs. A placed feature is checked under the first biome
-/// that names it; a later biome naming it again still counts it in its
-/// feature index.
 pub fn check_feature_domains<'a>(
     biomes: impl IntoIterator<Item = Vec<Vec<(&'a ResourceLocationBuf, &'a PlacedFeature)>>>,
 ) -> Vec<(usize, String)> {

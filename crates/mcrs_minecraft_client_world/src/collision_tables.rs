@@ -6,13 +6,10 @@ use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-/// The tables of the movement kernel, from the block definitions and the tags of the session.
-/// Absent while the session has no registries, or registries without block tags.
 #[derive(Resource, Debug)]
 pub struct ClientPhysicsTables(pub(crate) Tables);
 
 impl ClientPhysicsTables {
-    /// The tables that the movement kernel reads.
     #[must_use]
     pub fn tables(&self) -> &Tables {
         &self.0

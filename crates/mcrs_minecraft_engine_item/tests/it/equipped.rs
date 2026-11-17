@@ -27,8 +27,6 @@ use crate::fixture::app;
 use crate::fixture::count;
 use crate::fixture::spawn;
 
-/// Holder `a` selects slot 0 and holds `stacks[0]` and `stacks[1]` in slots 0 and 1. Holder `b`
-/// selects slot 1 and holds `stacks[2]` there.
 struct Inventories {
     a: Entity,
     b: Entity,

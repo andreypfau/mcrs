@@ -11,7 +11,6 @@ use crate::tolerance::COLLISION;
 
 const STEP: f64 = 0.05;
 
-/// The state of a sneaking player that the edge back-off reads.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Edge<'a> {
     pub(crate) entity: &'a QueryEntity,
@@ -21,8 +20,6 @@ pub(crate) struct Edge<'a> {
     pub(crate) step_height: f32,
 }
 
-/// Shortens the horizontal displacement so that a sneaking player does not fall from the edge
-/// of a block. It never makes a component larger and never changes its sign.
 pub(crate) fn back_off<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     edge: &Edge<'_>,
@@ -61,7 +58,6 @@ fn shorten(value: f64, sign: f64) -> f64 {
     }
 }
 
-/// True when the box, moved by the offset, can fall `depth` with no collision.
 fn can_fall<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     edge: &Edge<'_>,

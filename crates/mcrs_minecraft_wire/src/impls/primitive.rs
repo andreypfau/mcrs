@@ -17,7 +17,6 @@ impl Encode for bool {
     fn encode_slice(slice: &[bool], mut w: impl Write) -> Result<()> {
         // SAFETY: Bools have the same layout as u8.
         let bytes = unsafe { slice::from_raw_parts(slice.as_ptr().cast::<u8>(), slice.len()) };
-        // Bools are guaranteed to have the correct bit pattern.
         Ok(w.write_all(bytes)?)
     }
 }

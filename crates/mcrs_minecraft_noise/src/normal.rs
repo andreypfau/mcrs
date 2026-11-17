@@ -5,11 +5,8 @@ use crate::proto::{NoiseParam, Octaves, declared_range};
 use crate::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::Random;
 
-/// Every second sub-noise is offset by this ratio so the pair decorrelates.
 const INPUT_FACTOR: f64 = 1.0181268882175227;
 
-/// [`create`] over the parity shape, which is how every id with no
-/// `worldgen/noise` entry of its own is drawn.
 pub fn create_parity<R: Random>(
     base_octave: i32,
     amplitudes: &[f64],
@@ -18,15 +15,10 @@ pub fn create_parity<R: Random>(
     create(&NoiseParam::parity(base_octave, amplitudes), random)
 }
 
-/// The declared value bound. Vanilla's `Noise.range()`, six sigma on the summed
-/// octaves.
 pub fn range(params: &NoiseParam) -> Interval {
     declared_range(params.octaves().target_amplitude)
 }
 
-/// Vanilla's `NormalNoise`: draws the two decorrelated halves back to back and
-/// lays them out as one stack, the trailing `fork` inside each draw being what
-/// separates them.
 pub fn create<R: Random>(params: &NoiseParam, random: &mut R) -> NoiseStack<Octave> {
     let octaves: Octaves = params.octaves();
     let modifiers = params.octave_amplitudes();
@@ -192,9 +184,6 @@ mod bound_tests {
         }
     }
 
-    /// The table this profile is pinned to. The two profiles each carry their
-    /// own, because a tolerance wide enough to cover both would stop catching
-    /// drift in either.
     fn pinned_samples() -> [[u32; 3]; 3] {
         #[cfg(not(feature = "fast"))]
         return [
@@ -210,9 +199,6 @@ mod bound_tests {
         ];
     }
 
-    /// Unlike the octave factors and ranges above, these bits are pinned from our
-    /// own sampler, not derived from the reference: a drift guard, not a parity
-    /// check.
     #[test]
     fn the_modes_sample_apart() {
         let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];

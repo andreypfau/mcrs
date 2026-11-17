@@ -9,24 +9,15 @@ use crate::falling_block_table::FallingBlockTable;
 use crate::water_contact::WaterContact;
 use crate::water_contact::WaterSweep;
 
-/// Samples of the segment in each block of its length.
 const SAMPLES_PER_BLOCK: f64 = 8.0;
 
-/// The target cell of a falling block and its water contact (FBK-TCK-003).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TargetCell {
-    /// The cell at which a landing tries to place the carried state.
     pub pos: BlockPos,
-    /// The water contact; always [`WaterContact::Dry`] for a block that is not a concrete powder.
     pub water: WaterContact,
 }
 
 impl TargetCell {
-    /// The target cell of `fall` that moved from `start` to `end` with `velocity` after the move.
-    /// `state_at` gives `None` for a block that is not loaded.
-    // chisle: the segment is sampled by cells and stops at any fluid source; it does not test block
-    // outlines or the fluid height of PRJ-TST-001. A segment test of PRJ-TST-001 in a rules crate
-    // lifts it.
     #[must_use]
     pub fn find(
         table: &FallingBlockTable,

@@ -9,7 +9,6 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::{HoverEvent, IntoText, Text};
 
-/// A mob row of this world as a command sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct MobView<'a> {
     pub(crate) at: Placed,
@@ -49,8 +48,6 @@ impl MobView<'_> {
         self.mob.kind.entity_type
     }
 
-    /// The display name (TRK-SUM-004): the custom name, or the name of the type, with the type
-    /// and the UUID on hover and the UUID as the insertion.
     pub(crate) fn display_name(&self) -> Text {
         display_name(
             self.entity_type(),
@@ -60,7 +57,6 @@ impl MobView<'_> {
     }
 }
 
-/// The display name of an entity that is not a player.
 pub(crate) fn display_name(entity_type: EntityType, uuid: Uuid, custom_name: Option<&str>) -> Text {
     let location = entity_type.location();
     let key = format!("entity.{}.{}", location.namespace(), location.path());

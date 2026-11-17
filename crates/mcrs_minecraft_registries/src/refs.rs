@@ -22,20 +22,15 @@ pub trait Inline: Clone + fmt::Debug + PartialEq + Send + Sync + 'static {}
 
 impl<T: Clone + fmt::Debug + PartialEq + Send + Sync + 'static> Inline for T {}
 
-/// The form a value holds its references in: [`Named`] is the form of a data pack file and of
-/// the registry data packet, [`Resolved`] the numbered form a loaded registry holds.
 pub trait Refs: Inline + Copy + Eq {
     type Id<R: Registered>: Inline;
     type Set<R: Registered>: Inline;
-    /// The mode of a value that this mode writes as named NBT.
     type Nbt: Refs<Nbt = Self::Nbt>;
-    /// A value checked against something other than a registry, in this mode's form.
     type Value<T: Checked>: Inline;
 
     fn id_of<R: StaticEntry>(entry: R) -> Self::Id<R>;
 }
 
-/// A value whose forms differ in each mode.
 pub trait Checked: Inline + Resolve<Named: Inline> + FromWire<Wire: Inline> {}
 
 impl<T: Inline + Resolve<Named: Inline> + FromWire<Wire: Inline>> Checked for T {}
@@ -137,8 +132,6 @@ impl<'de, R> Deserialize<'de> for KeySet<R> {
     }
 }
 
-/// An entry of the registry `R`, or a value of it written in place. The value carries no bound
-/// here: a value that holds text can hold an item that holds the value again.
 #[derive_where(Clone)]
 #[derive_where(PartialEq, Debug; V)]
 pub enum Ref<M: Refs, R: Registered, V> {
@@ -161,8 +154,6 @@ impl<R: Registered, V: Serialize> Serialize for Ref<Named, R, V> {
     }
 }
 
-// A string is always a key, never an inline value: an unknown key fails rather than becoming a
-// value of its own.
 impl<'de, R: Registered, V: Deserialize<'de>> Deserialize<'de> for Ref<Named, R, V> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct RefVisitor<R, V>(PhantomData<fn() -> (R, V)>);
@@ -232,7 +223,6 @@ pub struct ResolveError {
     missing: Option<Box<MissingRef>>,
 }
 
-/// A name the registry it refers to does not hold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MissingRef {
     pub(crate) registry: ResourceLocationBuf,
@@ -497,8 +487,6 @@ impl<T: Resolve> Resolve for Box<T> {
     }
 }
 
-/// Implements [`Resolve`] for types that hold no reference, so that they can be the inline value
-/// of a [`Ref`].
 #[macro_export]
 macro_rules! resolve_as_is {
     ($($value:ty),+ $(,)?) => {$(

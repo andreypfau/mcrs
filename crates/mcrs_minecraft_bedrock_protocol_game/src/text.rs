@@ -2,96 +2,58 @@ use alloc::vec::Vec;
 
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, Packet};
 
-/// A chat line, a translation, a tip or another text that the client shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Text<'a> {
-    /// Whether the client translates the message and the parameters.
     pub needs_translation: bool,
-    /// The type with the fields that it carries.
     pub content: TextContent<'a>,
-    /// The Xbox user id of the sender; empty for the server.
     pub sender_xuid: &'a str,
-    /// Empty except on some consoles.
     pub platform_chat_id: &'a str,
-    /// The message after the text filter; a server of mcrs writes an empty string, and the client
-    /// then shows the message.
     pub filtered_message: &'a str,
 }
 
-/// The type of [`Text`]: the type byte selects the source name and the parameters.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TextContent<'a> {
-    /// Type 0: raw text.
     Raw {
-        /// The message.
         message: &'a str,
     },
-    /// Type 1: chat, the one type that a client sends.
     Chat {
-        /// The name of the sender.
         source_name: &'a str,
-        /// The message.
         message: &'a str,
     },
-    /// Type 2: a translation.
     Translation {
-        /// The translation key.
         message: &'a str,
-        /// The arguments of the translation key.
         parameters: Vec<&'a str>,
     },
-    /// Type 3: a pop-up.
     Popup {
-        /// The message.
         message: &'a str,
-        /// The arguments of the translation key.
         parameters: Vec<&'a str>,
     },
-    /// Type 4: a jukebox pop-up.
     JukeboxPopup {
-        /// The message.
         message: &'a str,
-        /// The arguments of the translation key.
         parameters: Vec<&'a str>,
     },
-    /// Type 5: a tip.
     Tip {
-        /// The message.
         message: &'a str,
     },
-    /// Type 6: a system message.
     System {
-        /// The message.
         message: &'a str,
     },
-    /// Type 7: a whisper.
     Whisper {
-        /// The name of the sender.
         source_name: &'a str,
-        /// The message.
         message: &'a str,
     },
-    /// Type 8: an announcement.
     Announcement {
-        /// The name of the sender.
         source_name: &'a str,
-        /// The message.
         message: &'a str,
     },
-    /// Type 9: a whisper as a JSON text object with the key `rawtext`.
     JsonWhisper {
-        /// The JSON text object.
         message: &'a str,
     },
-    /// Type 10: a JSON text object with the key `rawtext`.
     Json {
-        /// The JSON text object.
         message: &'a str,
     },
-    /// Type 11: an announcement as a JSON text object with the key `rawtext`.
     JsonAnnouncement {
-        /// The JSON text object.
         message: &'a str,
     },
 }

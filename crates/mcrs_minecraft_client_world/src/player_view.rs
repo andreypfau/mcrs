@@ -21,11 +21,6 @@ use std::time::Duration;
 
 const SMALLER_VIEW_DISTANCE_WAIT: Duration = Duration::from_millis(600);
 
-/// Keeps on the connection where the server puts the player and which columns it keeps
-/// loaded around it, and tells the server the view distance that the options ask for.
-///
-/// A larger view distance goes in the frame of its change; a smaller one goes in the first frame
-/// at least 600 ms of [`Time<Real>`] after the last change. The app must insert [`Time<Real>`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerViewPlugin;
 
@@ -59,21 +54,15 @@ pub struct ServerTeleport {
     pub flags: PositionFlags,
 }
 
-/// Teleports the server has sent that the player has yet to be moved to and
-/// confirm. A queue rather than the latest one, because the server keeps a
-/// count of outstanding confirmations and a dropped teleport never unblocks.
 #[derive(Component, Default, Debug)]
 pub struct PendingTeleports(pub Vec<ServerTeleport>);
 
-/// The column the server centres the client's loaded area on.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheCenter(pub ColumnPos);
 
-/// The radius in columns of the area the server keeps loaded for the client.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
 
-/// The render distance in columns that the options of the user ask for.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestedViewDistance(pub u8);
 
@@ -229,8 +218,6 @@ mod tests {
         panic!("the client never joined");
     }
 
-    /// Runs one frame that starts `elapsed_ms` after the last one, with the requested view
-    /// distance `view_distance`.
     fn frame(app: &mut App, elapsed_ms: u64, view_distance: u8) {
         app.world_mut()
             .resource_mut::<Time<Real>>()
@@ -261,8 +248,6 @@ mod tests {
         );
         server.assert_next_information(configured, 12);
 
-        // Each assertion reads the next packet, so a packet that a row must not send fails the
-        // assertion of a later row.
         let frames: [(u64, u8, Option<u8>); 20] = [
             (16, 13, Some(13)),
             (16, 14, Some(14)),

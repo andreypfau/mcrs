@@ -18,15 +18,9 @@ use crate::departures::depart;
 use crate::hold_unseen::hold_unseen;
 use crate::publish_motion::publish_motion;
 
-/// The tile events of the moving entities of a dimension world, beside the
-/// `EntityMotionPlugin` that moves them. It holds each new `MotionState`; in `MotionRelease` it
-/// gives each held entity with an [`Appearance`](crate::Appearance) its id and releases it; in
-/// [`MotionPublish`] it records the spawns, the moves of the `Movers` and the removals. The
-/// embedder inserts [`CellEntityIds`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionReplicationPlugin;
 
-/// The tile events of the moving entities, in `Project`.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MotionPublish;
 
@@ -37,7 +31,6 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.init_resource::<TileEvents>();
         app.add_observer(hold_unseen);
         app.add_observer(depart);
-        // Both write the tile events of the tick.
         app.configure_sets(
             FixedUpdate,
             MotionPublish.in_set(TickSet::Project).after(MobPublish),

@@ -32,14 +32,9 @@ use crate::step_items::age_items;
 use crate::step_items::project_positions;
 use crate::step_items::step_items;
 
-/// The item entity in a dimension world: each dropped stack moves in the pass of
-/// `EntityMotionPlugin`, which the embedder adds, ages, merges and is picked up by each
-/// [`ItemCollector`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ItemEntityPlugin;
 
-/// The systems of the item entities in `Simulate`, after the motion pass: the counters, the
-/// merges and the pickups. The motions of the new item entities start before the pass.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ItemEntitySet;
 
@@ -78,8 +73,6 @@ impl Plugin for ItemEntityPlugin {
             )
             .add_systems(
                 FixedUpdate,
-                // The events of other subjects may come in any order: the take of the tile events
-                // sorts them by subject.
                 publish_takes.in_set(MobPublish).ambiguous_with(MobPublish),
             )
             .add_systems(

@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 use crate::error::Error;
 use crate::traits::{BedrockDecode, BedrockEncode};
 
-/// A big-endian `i32`, the one integer that Bedrock does not write little-endian.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BeI32(pub i32);
 

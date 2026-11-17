@@ -3,15 +3,11 @@ use mcrs_command::Span;
 use mcrs_minecraft_command::{ErrorText, span_text};
 use mcrs_minecraft_text::Text;
 
-/// The errors of the arguments that read one word of a fixed set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum KeywordError {
-    /// The word at the span names no game mode.
     GameModeInvalid(Span),
-    /// The word at the span names no entity anchor.
     AnchorInvalid(Span),
-    /// The word at the span names no value of the set.
     EnumInvalid(Span),
 }
 

@@ -1,6 +1,3 @@
-//! A summoned pig reaches a viewer as one spawn bundle, then falls onto the floor in the moves
-//! that the viewer decodes.
-
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
@@ -39,7 +36,6 @@ use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
 
-/// What a viewer decoded of one mob, in the order the packets came.
 #[derive(Debug, PartialEq)]
 enum Seen {
     Delimiter,
@@ -83,7 +79,6 @@ enum Seen {
     },
 }
 
-/// An entry of an `update_attributes`, with the identifiers of its modifiers.
 #[derive(Debug, PartialEq)]
 struct SeenEntry {
     attribute: Attribute,
@@ -96,7 +91,6 @@ struct Viewer {
     connection: Entity,
     frames: OutboundReceiver,
     seen: Vec<Seen>,
-    /// The position of each mob as the client applies its moves.
     positions: Vec<(i32, DVec3)>,
 }
 
@@ -278,9 +272,6 @@ fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
         .collect()
 }
 
-/// TRK-SPN-001, TRK-SPN-002, TRK-DATA-004, TRK-DATA-006, TRK-SUM-004, TRK-SUM-006: the bundle of a
-/// summoned pig is the add and its health between two delimiters, at the centre of the block;
-/// the pig falls onto the stone, and the client ends where the row ends.
 #[test]
 fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_floor() {
     let mut server = start();
@@ -349,8 +340,6 @@ fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_
     );
 }
 
-/// ATR-NET-003: a modifier on `movement_speed` of a tracked pig reaches its viewer in one entry of
-/// the next update and only there; a change of the non-syncable `follow_range` sends nothing.
 #[test]
 fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
     let mut app = host_app::make_host_app();
@@ -429,7 +418,6 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
     );
 }
 
-/// The translation key of `message` and the plain text of each of its arguments.
 fn translated(message: &Text) -> (String, Vec<String>) {
     let TextContent::Translate {
         translate, with, ..
@@ -469,9 +457,6 @@ fn run(
     translated(&reply)
 }
 
-/// CMD-EX-?, CMD-DMG-003, CMD-KILL-002 to CMD-KILL-005, TRK-SUM-005: `@e` finds the summoned
-/// pigs by type and by name, a hit of 0 hurts with no health loss, and a kill leaves each pig
-/// dying for 20 ticks before its removal reaches the viewer.
 #[test]
 fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_time() {
     let mut server = start();
@@ -580,8 +565,6 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     assert_each_death_in_order(&viewer);
 }
 
-/// The first pig was hurt; each pig sent its death event, dying pose, smoke and removal in
-/// that order, and the client holds none.
 fn assert_each_death_in_order(viewer: &Viewer) {
     let ids: Vec<i32> = viewer
         .seen
@@ -625,8 +608,6 @@ fn assert_each_death_in_order(viewer: &Viewer) {
     assert!(viewer.positions.is_empty(), "the client holds no pig");
 }
 
-/// ARG-ENT-016, CMD-KILL-002: `execute as @e[sort=nearest]` forks for the players and the mobs
-/// in one order of distance, so a player between two pigs runs second.
 #[test]
 fn execute_as_sorted_entities_forks_players_and_mobs_in_one_order() {
     let mut server = start();
@@ -660,8 +641,6 @@ fn execute_as_sorted_entities_forks_players_and_mobs_in_one_order() {
     );
 }
 
-/// CMD-TP-004, CMD-TP-016: a player goes to a mob destination; a mob victim fails the command with a
-/// message instead of a silent skip.
 #[test]
 fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
     let mut server = start();
@@ -709,8 +688,6 @@ fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
     );
 }
 
-/// CMD-KILL-002, CMD-KILL-005: each entity the selector finds is a victim and counts, the player
-/// too, so a kill of a player and two pigs reports three victims.
 #[test]
 fn kill_of_players_and_mobs_counts_each_victim() {
     let mut server = start();
@@ -738,7 +715,6 @@ fn kill_of_players_and_mobs_counts_each_victim() {
     );
 }
 
-/// Two summons with one UUID in one tick make one mob: the second spawn is refused.
 #[test]
 fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {
     let mut server = start();

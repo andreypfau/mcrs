@@ -19,20 +19,11 @@ use crate::muxer::session::SessionConnection;
 use crate::player_order::OrderedPlayer;
 use crate::to_muxer::{ClientOutput, DimDelivered};
 
-/// Takes what the dimensions handed over in their last tick, in the order they ticked: stamps
-/// and writes their packets to the host, forgets the players they released, attaches the
-/// sessions they spawned a player for, hands their tile deltas to the entity muxer and routes
-/// the players that left them. Then it routes the orders for players to the dimension that holds
-/// each player, and the command runs that go on elsewhere to their dimension. The entity bytes
-/// that the entity muxer has ready go out with the packets.
 pub(crate) fn receive(world: &mut World) {
     let delivered: Vec<DimDelivered> = world
         .get_resource_mut::<Messages<DimDelivered>>()
         .map(|mut messages| messages.drain().collect())
         .unwrap_or_default();
-    // A departure places its session in another dimension, and a packet of the views is
-    // stamped with the placement it is delivered under: what the views sent for the old
-    // placement goes out first.
     let departs = delivered
         .iter()
         .any(|delivered| !delivered.departures.is_empty());
@@ -65,7 +56,6 @@ pub(crate) fn receive(world: &mut World) {
         departures,
     } in delivered
     {
-        // Before the departures: a view that the dimension closed sends nothing after a respawn.
         muxer_link::receive(
             world,
             dim,
@@ -113,7 +103,6 @@ pub(crate) fn receive(world: &mut World) {
     muxer_link::deliver(world, Answers::Ready);
 }
 
-/// Sends `order` to the dimension where the session of its player is placed.
 fn route_order(world: &mut World, order: OrderedPlayer) {
     let session = order.session;
     let dim = world
@@ -143,8 +132,6 @@ pub fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool
     }
 }
 
-/// Stamps `packet` with the session and the epoch of its player and writes it to the host's
-/// outbound packets.
 pub fn deliver(world: &mut World, mut packet: OutboundPlayerPacket) {
     Stamp::of(world, &packet.target).apply(&mut packet);
     world
@@ -152,8 +139,6 @@ pub fn deliver(world: &mut World, mut packet: OutboundPlayerPacket) {
         .write(packet);
 }
 
-/// As [`deliver`] for each of `packets`. The packets of one player come in a run, so a run
-/// costs one look up of its player.
 pub fn deliver_all(world: &mut World, mut packets: Vec<OutboundPlayerPacket>) {
     if packets.iter().any(closes_connection) {
         let closes;
@@ -196,8 +181,6 @@ fn closes_connection(packet: &OutboundPlayerPacket) -> bool {
     )
 }
 
-/// Writes `reason` to the connection of `session` and closes it. The removal of the connection
-/// lets the player go as any other disconnect does.
 fn disconnect(world: &mut World, session: PlayerSession, reason: Text) {
     let Some(connection) = world
         .get_resource::<SessionAnchors>()
@@ -216,14 +199,12 @@ fn disconnect(world: &mut World, session: PlayerSession, reason: Text) {
         .remove::<ServerSideConnection>();
 }
 
-/// The session and the epoch of the player that a packet addresses.
 #[derive(Clone, Copy, Debug)]
 struct Stamp {
     session: PlayerSession,
     epoch: u32,
 }
 
-/// The stamp of the packets for `target`.
 #[derive(Clone, Copy, Debug)]
 struct SessionStamp {
     target: PlayerSession,
@@ -231,13 +212,11 @@ struct SessionStamp {
 }
 
 impl Stamp {
-    /// No session: the bridge sends such a packet for one player to no one.
     const NONE: Self = Self {
         session: PlayerSession(0),
         epoch: 0,
     };
 
-    /// A packet for one player is stamped with its session, and any other packet with none.
     fn of(world: &World, target: &PacketTarget) -> Self {
         let PacketTarget::SinglePlayer(target) = target else {
             return Self::NONE;

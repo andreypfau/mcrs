@@ -33,7 +33,6 @@ use crate::proxy::Connection;
 use crate::proxy::Observed;
 use crate::scenario::Scenario;
 
-/// One end of a socket pair, as a peer of the proxy sees it.
 struct Peer {
     stream: TcpStream,
     decoder: PacketDecoder,
@@ -63,7 +62,6 @@ impl Peer {
         self.decoder.set_compression(CompressionThreshold(0));
     }
 
-    /// The packets that reached this peer, as `(id, body)`.
     fn received(&mut self) -> Vec<(i32, Vec<u8>)> {
         let mut chunk = [0; 4096];
         while let Ok(read) = self.stream.read(&mut chunk) {
@@ -104,7 +102,6 @@ fn pump(connection: &mut Connection, names: &Names, observed: &mut Vec<Observed>
     }
 }
 
-/// Pumps until `done` holds, so that a slow machine does not fail the test.
 fn pump_until(
     connection: &mut Connection,
     names: &Names,
@@ -118,8 +115,6 @@ fn pump_until(
     }
 }
 
-/// Takes both peers through the handshake, a login that switches compression on and the
-/// configuration.
 fn join(client: &mut Peer, server: &mut Peer, connection: &mut Connection, names: &Names) {
     let advance = |connection: &mut Connection| pump(connection, names, &mut Vec::new());
     let mut handshake = Vec::new();

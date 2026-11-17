@@ -13,8 +13,6 @@ use uuid::Uuid;
 
 use crate::level::{SaveError, check_data_version};
 
-/// The root compound of a player file besides `DataVersion`. The typed forms of its keys live with
-/// the components that own them; the reader of the file fails on a key that no component claims.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerDat {
     pub data_version: i32,
@@ -169,7 +167,6 @@ pub fn parse_player_dat(bytes: &[u8], path: &Path) -> Result<PlayerDat, SaveErro
     Ok(dat)
 }
 
-/// Written through [`crate::write_atomic`], so a crash mid-write leaves the previous file whole.
 pub fn write_player_dat(world: &Path, player: Uuid, dat: &PlayerDat) -> Result<(), SaveError> {
     let path = player_dat_path(world, player);
     let io = |source| SaveError::Io {

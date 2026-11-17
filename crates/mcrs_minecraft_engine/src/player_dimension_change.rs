@@ -22,9 +22,6 @@ use crate::player_order::{DepartureRequest, DepartureRequests};
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
-/// Lets go of each player that a [`ChangeDimensionRequest`] of this tick names, in the order of
-/// writing, then of each player that a command sends away, into `departures`. A request that
-/// this world cannot meet leaves the player where it is.
 pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>) {
     let ordered = world
         .get_resource_mut::<DepartureRequests>()
@@ -68,7 +65,6 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
     }
 }
 
-/// Takes the carried state of `player` and despawns it. Its viewers here lose it.
 fn depart(
     world: &mut World,
     player: Entity,
@@ -87,8 +83,6 @@ fn depart(
         .filter(|(replicated, listed)| replicated.game_mode != listed.0)
         .map(|(replicated, listed)| (replicated.tile, replicated.id, listed.0));
     let carried = CarriedPlayer::take(&mut leaving, CaptureCause::DimensionChange)?;
-    // A game mode that changed in the tick the player leaves reaches its viewers before its
-    // despawn, as the publish of the next tick would have sent it.
     if let Some((tile, id, mode)) = listed
         && let Some(mut events) = world.get_resource_mut::<TileEvents>()
     {
@@ -107,8 +101,6 @@ fn depart(
     })
 }
 
-/// Spawns the players that the host handed this world in the input of this tick, before their
-/// serverbound packets of the same tick reach them.
 pub(crate) fn receive_transfers(world: &mut World) {
     let Some(mut messages) = world.get_resource_mut::<Messages<PlayerTransfer>>() else {
         return;
@@ -137,8 +129,6 @@ pub(crate) fn receive_transfers(world: &mut World) {
     }
 }
 
-/// Spawns the player of `departure` at its arrival. Its view starts empty and fills as on a
-/// join.
 fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionChangeError> {
     let Departure {
         session,
@@ -162,7 +152,6 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
     Ok(arrived)
 }
 
-/// Spawns the player of `session` with `carried`, and with `view` as the view its client holds.
 pub(crate) fn place(
     world: &mut World,
     session: PlayerSession,
@@ -188,7 +177,6 @@ pub(crate) fn place(
     Ok(player)
 }
 
-/// The dimension entity of this world.
 pub(crate) fn own_dimension(world: &mut World) -> Result<Entity, DimensionChangeError> {
     world
         .query_filtered::<Entity, With<Dimension>>()

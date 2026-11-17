@@ -6,41 +6,29 @@ use crate::issue_owner::IssueOwner;
 use crate::loot_issue::{LootIssue, LootProblem};
 use crate::table::Table;
 
-/// What the bake knows of one baked table for the checks across tables. An entry of the registry
-/// `item_modifier` is a table with no pool, whose modifiers are the entry (LOOT-CTX-017).
 #[derive(Debug, Clone)]
 pub(crate) struct TableLinks {
-    /// The index of the table of the registry that holds the table: itself, or the table that
-    /// holds an inline table.
     pub(crate) owner: usize,
     pub(crate) kind: IssueOwner,
-    /// The type that the parts of the table were checked against: its own type, or the type of
-    /// the table that holds an inline table.
     pub(crate) checked_against: ContextKeySet,
     pub(crate) inline: bool,
-    /// The parameters that the parts of the table read, without its nested tables.
     pub(crate) reads: ContextParams,
     pub(crate) edges: Vec<Edge>,
     pub(crate) chains: Vec<ChainPlace>,
 }
 
-/// A place of a provider in a table, and the most members that a reference chain gets below the
-/// place: the inline parts and the named providers of the provider.
 #[derive(Debug, Clone)]
 pub(crate) struct ChainPlace {
     pub(crate) path: String,
     pub(crate) length: usize,
 }
 
-/// One element of the list `nested` of a table, and the path of its `loot_table` entry.
 #[derive(Debug, Clone)]
 pub(crate) struct Edge {
     pub(crate) slot: usize,
     pub(crate) path: String,
 }
 
-/// The most tables in one chain of nested tables. A roll recurses once for each table of the
-/// chain, so the bake cuts a longer chain as it cuts a cycle.
 pub(crate) const MAX_NESTING: usize = 64;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -50,17 +38,11 @@ enum Mark {
     Done,
 }
 
-/// A table of the walk and the index of its next edge.
 struct Frame {
     node: usize,
     next: usize,
 }
 
-/// Reports and cuts each reference back to a table that contains it (LOOT-CTX-014), checks each
-/// nested table of the registry against the type of the table that contains it (LOOT-CTX-013),
-/// and reports each place where a reference chain gets more than [`MAX_NESTING`] members
-/// (LOOT-CTX-017). Then cuts each chain of nested tables that is still too long, so that each
-/// evaluation ends in a bounded depth.
 pub(crate) fn check(
     links: &[TableLinks],
     tables: &mut [Table],
@@ -153,9 +135,6 @@ pub(crate) fn check(
     }
 }
 
-/// Reports each link to a nested table and each place of a provider where the longest chain from
-/// some start gets more than [`MAX_NESTING`] members. `finished` holds each table after the tables
-/// that it nests, so its reverse visits each table after each table that leads to it.
 fn check_chains(
     links: &[TableLinks],
     tables: &[Table],
@@ -189,14 +168,11 @@ fn check_chains(
     }
 }
 
-/// A link to a nested table that the walk cuts after the checks.
 struct DeepLink {
     node: usize,
     slot: usize,
 }
 
-/// Adds to `deep` each link of the table at `node` to a table at the depth [`MAX_NESTING`]; gives
-/// the depth of `node`, which each of its other nested tables has given.
 fn deep_links(
     links: &[TableLinks],
     tables: &[Table],
@@ -234,8 +210,6 @@ fn cut(tables: &mut [Table], node: usize, slot: usize) {
     }
 }
 
-/// The parameters that the table at `node` and its nested tables read; each nested table that
-/// the cut leaves is done.
 fn target_reads(
     links: &[TableLinks],
     tables: &[Table],

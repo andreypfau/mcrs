@@ -1,9 +1,3 @@
-//! A slot buffer that grows in a frame keeps the records that the same frame writes.
-//!
-//! ```sh
-//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
-//! ```
-
 use crate::support;
 
 use mcrs_minecraft_entity_render::{

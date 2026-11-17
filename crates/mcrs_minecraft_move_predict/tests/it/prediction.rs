@@ -1,7 +1,3 @@
-//! Layer 2 against a scripted client: the client runs the physics model on its own side with
-//! the changes it has applied, as a vanilla client does, and reports the result. An honest
-//! client must pass; a client that changes its report must not.
-
 use glam::DVec3;
 use mcrs_minecraft_move_predict::Change;
 use mcrs_minecraft_move_predict::ChangeStates;
@@ -41,7 +37,6 @@ const FORWARD: Keys = Keys {
     auto_jump: false,
 };
 
-/// A server with layer 2 for one player, and the client of that player.
 struct Session {
     fixture: TestFixture,
     client_world: TestWorld,
@@ -51,7 +46,6 @@ struct Session {
     prediction: Prediction,
     pushers: Vec<Pusher>,
     input: PlayerInput,
-    /// The sprint state, the flight state and the item use that the tick packets change.
     sprint: Option<bool>,
     flight: Option<bool>,
     item_use: Option<bool>,
@@ -59,7 +53,6 @@ struct Session {
 }
 
 impl Session {
-    /// A player that stands on a floor of stone at `y = 0`, after it has settled.
     fn new() -> Self {
         let mut fixture = TestFixture::new();
         let stone = fixture.blocks.stone;
@@ -92,7 +85,6 @@ impl Session {
         session
     }
 
-    /// The server writes a change; the client has it once a tick applies it.
     fn send(&mut self, change: Change) {
         if let Change::Block { at, new, .. } = change {
             self.fixture.world.set(at, new);
@@ -101,7 +93,6 @@ impl Session {
         self.changes.push(change);
     }
 
-    /// One honest client tick in which every change sent is applied.
     fn step(&mut self, keys: Keys) -> Outcome {
         let all = self.changes.len() as u64;
         let states = ChangeStates {
@@ -111,8 +102,6 @@ impl Session {
         self.tick(keys, states, self.changes.len(), DVec3::ZERO, |_| {})
     }
 
-    /// One client tick: the client applies the changes up to `client_applies`, adds `push` and
-    /// runs its tick; `edit` changes its report.
     fn tick(
         &mut self,
         keys: Keys,
@@ -299,8 +288,6 @@ fn lat_004_a_client_that_ignores_an_applied_change_fails() {
     assert!(outcome.offset.is_some(), "{outcome:?}");
 }
 
-/// A wall in front of the player goes away while the client has not applied the change: the
-/// client walks into the old wall, which only the replay sees.
 #[test]
 fn pred_017_a_replay_sees_the_blocks_that_the_client_had() {
     let mut session = Session::new();
@@ -386,7 +373,6 @@ fn lat_008_an_accept_matches_the_destination_of_a_candidate() {
     assert!(passes(session.step(FORWARD)));
 }
 
-/// A mob on the side of `-x` pushes the player at each of its positions.
 fn mob_at_the_side(session: &Session, jitter: f64) -> Pusher {
     let player = session.prediction.accepted().body.position;
     let at = player - DVec3::new(0.45, 0.0, 0.0);
@@ -399,7 +385,6 @@ fn mob_at_the_side(session: &Session, jitter: f64) -> Pusher {
     }
 }
 
-/// The push of the mob at the middle of its hull on the client.
 fn push_of(pusher: &Pusher, player: DVec3) -> DVec3 {
     let at = (pusher.low + pusher.high) / 2.0;
     let mob = TestFixture::mob(0, at.x, at.z);
@@ -443,8 +428,6 @@ fn pred_019_too_many_pushers_make_the_tick_coarse_and_the_next_position_resyncs(
     }
 }
 
-/// The client breaks the carpet `at` and walks two ticks. The server refuses: it sends the
-/// carpet, which the client keeps, and one tick passes with the carpet applied in the order.
 fn refuse_break(session: &mut Session, at: BlockPos) {
     let carpet = session.fixture.blocks.carpet;
     session.client_world.set(at, BlockStateId::AIR);
@@ -464,8 +447,6 @@ fn refuse_break(session: &mut Session, at: BlockPos) {
     assert!(passes(outcome), "the client keeps the carpet: {outcome:?}");
 }
 
-/// The `block_changed_ack` arrives in a window. The client applies the kept carpet `at` and
-/// moves to `back` before its tick.
 fn ack_and_move(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
     session.send(Change::BlockAck);
     session.client_world.set(at, session.fixture.blocks.carpet);
@@ -479,7 +460,6 @@ fn move_to(session: &mut Session, back: DVec3, seen: u64) -> Outcome {
     session.tick(FORWARD, window, 2, DVec3::ZERO, |_| {})
 }
 
-/// A player on a carpet at the origin cell, which also holds a carpet far away.
 fn on_carpets() -> (Session, BlockPos, BlockPos) {
     let mut session = Session::new();
     let carpet = session.fixture.blocks.carpet;
@@ -491,8 +471,6 @@ fn on_carpets() -> (Session, BlockPos, BlockPos) {
     (session, under, far)
 }
 
-/// The client breaks the carpet under it two times, one tick apart, and the server refuses.
-/// Gives the positions of the two requests.
 fn broken_two_times() -> (Session, BlockPos, [DVec3; 2]) {
     let (mut session, under, _) = on_carpets();
     session
@@ -568,7 +546,6 @@ fn lat_007_a_request_after_the_ack_waits_for_a_later_ack() {
     assert!(outcome.offset.is_some(), "{outcome:?}");
 }
 
-/// A player in front of a wall of stone two blocks high at `x = 1`.
 fn before_a_wall() -> (Session, [BlockPos; 2]) {
     let mut session = Session::new();
     let stone = session.fixture.blocks.stone;
@@ -580,8 +557,6 @@ fn before_a_wall() -> (Session, [BlockPos; 2]) {
     (session, wall)
 }
 
-/// The client breaks the wall. The server refuses: it sends the stone of each block, which the
-/// client keeps, and then the `block_changed_ack`, which has the number 2.
 fn refused_wall_break() -> Session {
     let (mut session, wall) = before_a_wall();
     let stone = session.fixture.blocks.stone;
@@ -601,7 +576,6 @@ fn refused_wall_break() -> Session {
     session
 }
 
-/// Walks 15 honest ticks with these states of the changes; gives the `x` of the player.
 fn walk(session: &mut Session, states: ChangeStates) -> f64 {
     for tick in 0..15 {
         let outcome = session.tick(FORWARD, states, 3, DVec3::ZERO, |_| {});

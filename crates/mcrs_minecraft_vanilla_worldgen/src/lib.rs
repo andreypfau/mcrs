@@ -1,4 +1,3 @@
-// std: bevy_ecs
 #![recursion_limit = "256"]
 
 mod dimension_world;

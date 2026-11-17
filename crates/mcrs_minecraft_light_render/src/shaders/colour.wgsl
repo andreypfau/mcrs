@@ -34,7 +34,6 @@ fn word_of(bytes: vec4<u32>) -> u32 {
     return bytes.x | (bytes.y << 8u) | (bytes.z << 16u) | (bytes.w << 24u);
 }
 
-// The region starts one cell into the neighbour below on every axis.
 fn packed_cell(job: u32, at: vec3<u32>) -> u32 {
     let shifted = at + 1u;
     let d = shifted / 16u;
@@ -151,7 +150,6 @@ fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
         }
     }
 
-    // Half up, as the CPU rounds these positive values; the WGSL built-in rounds half to even.
     var texel = vec4<f32>(0.0, 0.0, 0.0, 255.0);
     if total != 0.0 {
         texel = vec4<f32>(floor(rgb / total + 0.5), floor(default_weight * 255.0 / total + 0.5));

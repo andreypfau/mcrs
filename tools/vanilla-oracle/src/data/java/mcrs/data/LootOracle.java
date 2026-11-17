@@ -80,12 +80,6 @@ import net.minecraft.world.level.storage.loot.providers.number.ints.ContextIntPr
 import net.minecraft.world.level.storage.loot.providers.number.ints.ContextIntProviders;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * Rolls loot tables, fills containers, tests conditions and samples number providers through the
- * game's own loot code, and writes each result with the random state the call leaves behind.
- * The data pack is loaded the way a server loads it; the level and the server are allocated
- * without a constructor and answer only what a roll asks of them.
- */
 public final class LootOracle {
     private static final byte[] MAGIC = "MCLOOTR0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;
@@ -539,10 +533,6 @@ public final class LootOracle {
         return armed;
     }
 
-    /**
-     * A dedicated server allocated without a constructor: the registries and the loot data a roll
-     * resolves through, and the generator of an armed fill as every random sequence.
-     */
     static final class LootServer extends DedicatedServer {
         private LayeredRegistryAccess<RegistryLayer> layers;
         private ReloadableServerRegistries.Holder holder;
@@ -590,10 +580,6 @@ public final class LootOracle {
         }
     }
 
-    /**
-     * A level allocated without a constructor. Every position is loaded and holds the biome of the
-     * case. It has no blocks and no structures: an exploration map finds nothing.
-     */
     static final class LootLevel extends ServerLevel {
         private MinecraftServer server;
         private RegistryAccess access;
@@ -668,7 +654,6 @@ public final class LootOracle {
         }
     }
 
-    /** A structure manager allocated without a constructor that finds no structure anywhere. */
     static final class NoStructures extends StructureManager {
         static final NoStructures INSTANCE = Unsafe.allocate(NoStructures.class);
 

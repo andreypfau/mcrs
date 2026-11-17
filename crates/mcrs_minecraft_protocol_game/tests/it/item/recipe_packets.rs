@@ -1,6 +1,3 @@
-//! The recipe-book packets as the game's stream codecs write them, with the
-//! registry ids the game resolved.
-
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};

@@ -17,15 +17,10 @@ use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
-/// A dimension sub-app is handed the real corpus at spawn, and worldgen
-/// resolves the block it fills terrain with against it, so a stub would only
-/// move the failure somewhere less obvious.
 pub fn standalone_corpus() -> &'static (Blocks, Items) {
     test_corpus()
 }
 
-/// The host holds the loaded set, dimension types included, because a
-/// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     let (blocks, items) = standalone_corpus();
     install_registries(
@@ -63,7 +58,6 @@ pub fn baked(
     bake(dimensions, registries).expect("a list with an overworld bakes")
 }
 
-/// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
 pub fn dimension_list_with_extra() -> DimensionList {
     use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 

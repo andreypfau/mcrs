@@ -56,7 +56,6 @@ fn stack(kind: Kind, count: u8) -> Option<ItemStack> {
     ))
 }
 
-/// INV-SEL-002: a value in `0..8` becomes the selected slot; each other value changes nothing.
 #[test]
 fn inv_sel_002_set_carried_item_selects_a_hotbar_slot_and_ignores_other_values() {
     let cases = [(0, 0), (8, 8), (9, 3), (u16::MAX, 3)];
@@ -87,9 +86,6 @@ fn inv_sel_002_set_carried_item_selects_a_hotbar_slot_and_ignores_other_values()
     }
 }
 
-/// INV-SAV-003, INV-SEL-003, INV-SYN-001, INV-SYN-005: after a restore, the player gets its
-/// selected slot and the 46 entries of the inventory menu with the cursor, under the state id 1,
-/// and its client view is what it got. Each later restore sends again under the next state id.
 #[test]
 fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     let mut app = app();
@@ -184,8 +180,6 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     );
 }
 
-/// INV-SYN-003, INV-SYN-004: a placement and a consume by a command, with no click, request or
-/// give, reach the client in the sync of the tick that applies them.
 #[test]
 fn inv_syn_004_a_command_write_of_a_slot_reaches_the_client_in_the_same_tick() {
     let mut app = app();
@@ -228,7 +222,6 @@ fn inv_syn_004_a_command_write_of_a_slot_reaches_the_client_in_the_same_tick() {
     assert_eq!(slot_packets(world), [], "nothing changed");
 }
 
-/// A stack without a wire form goes once as the empty stack, not again in each later tick.
 #[test]
 fn a_stack_without_a_wire_form_is_sent_once_per_change() {
     let mut app = app();
@@ -258,7 +251,6 @@ fn a_stack_without_a_wire_form_is_sent_once_per_change() {
     assert_eq!(slots, [(9, true)], "one empty stack in P[9] in two ticks");
 }
 
-/// INV-SYN-003: a stack with a component patch reaches the client with its patch.
 #[test]
 fn inv_syn_003_a_stack_with_a_patch_is_sent_with_its_patch() {
     let mut app = app();

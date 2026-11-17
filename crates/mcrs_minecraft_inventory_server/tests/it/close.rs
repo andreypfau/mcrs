@@ -45,9 +45,6 @@ fn stack(kind: Kind, count: u8) -> Option<ItemStack> {
     ))
 }
 
-/// INV-CLS-001, INV-CLS-002: a close of any container id moves the cursor stack and then the
-/// craft grid into the player inventory by the insert rule. The server answers with no packet;
-/// the comparison sends the entries that changed.
 #[test]
 fn inv_cls_001_a_close_folds_the_cursor_and_the_craft_grid_into_the_inventory() {
     let mut app = app();
@@ -76,8 +73,6 @@ fn inv_cls_001_a_close_folds_the_cursor_and_the_craft_grid_into_the_inventory() 
     );
 }
 
-/// INV-CLS-001, IEN-SPN-001: the items that find no room become one item entity for each source
-/// stack, with the pickup delay 40.
 #[test]
 fn inv_cls_001_a_close_drops_what_finds_no_room() {
     let mut app = app();
@@ -100,8 +95,6 @@ fn inv_cls_001_a_close_drops_what_finds_no_room() {
     assert_eq!(dropped(world), [(STONE, 6, 40), (DIRT, 1, 40)]);
 }
 
-/// ITX-MOD-005, INV-CLS-001: a close that follows a pick up in one tick reads the cursor stack
-/// that the pick up left, and folds it back into the inventory.
 #[test]
 fn itx_mod_005_a_close_after_a_click_in_one_tick_folds_the_picked_stack() {
     let mut app = app();

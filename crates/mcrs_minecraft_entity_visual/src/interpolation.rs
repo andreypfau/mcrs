@@ -6,7 +6,6 @@ use crate::angle;
 use crate::path::{PacketPath, PathStep};
 use crate::placement::{Placement, Rotation};
 
-/// A change of position from another cause smaller than this, squared, does not move the path.
 const MIN_FOLLOW_DISTANCE_SQUARED: f64 = 1e-5;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -15,49 +14,34 @@ struct Segment {
     weight: f32,
 }
 
-/// What a start of an interpolation did.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Start {
-    /// The active interpolation already ended at the target.
     Unchanged,
-    /// The path has new segments.
     Extended,
-    /// The interpolation length is 0: the entity jumps to this placement and the path is empty.
     Snap(Placement),
 }
 
-/// The path that a client entity still travels towards the placements that the server sent.
-///
-/// Each start gives the remaining path `length` ticks. Each tick moves the entity by an even
-/// share of the remaining weight, so a segment can end in the middle of a tick.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Interpolation {
-    /// Where the interpolation put the entity in its latest tick.
     point: Placement,
     segments: VecDeque<Segment>,
     remaining_time: f32,
     total_weight: f32,
-    /// The end point of the latest start. It stays when a start empties the path.
     target: Placement,
-    /// Where the entity was at the end of the latest start or step. A step measures the
-    /// movement from other causes from here.
     settled: Placement,
 }
 
 impl Interpolation {
-    /// Whether ticks remain in the interpolation.
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.remaining_time > 0.0
     }
 
-    /// Whether segments of the path remain.
     #[must_use]
     pub fn has_path(&self) -> bool {
         !self.segments.is_empty()
     }
 
-    /// The target of the latest start while the interpolation is active, else `current`.
     #[must_use]
     pub fn reference(&self, current: Placement) -> Placement {
         if self.is_active() {
@@ -73,9 +57,6 @@ impl Interpolation {
         self.total_weight = 0.0;
     }
 
-    /// Adds the movement of one packet to the path. `current` is where the entity is and
-    /// `length` the interpolation length of its type, in ticks. A missing path or rotation
-    /// keeps that of the target of an active interpolation, or else of `current`.
     pub fn start(
         &mut self,
         current: Placement,
@@ -127,8 +108,6 @@ impl Interpolation {
         self.total_weight += weight;
     }
 
-    /// One segment for each step. The rotation turns from the target of the previous start in
-    /// proportion to the ticks that the steps reach.
     fn push_steps(&mut self, steps: &[PathStep], rotation: Rotation) {
         let from = self.target.rotation();
         let turns = rotation != from;
@@ -137,7 +116,6 @@ impl Interpolation {
         for step in steps {
             reached = reached.saturating_add(u64::from(step.ticks));
             let rotation = if turns {
-                // The share of a path with no ticks is undefined; the full turn is our choice.
                 let share = if total == 0 {
                     1.0
                 } else {
@@ -157,8 +135,6 @@ impl Interpolation {
         }
     }
 
-    /// Moves the entity at `current` one tick along the path, and gives its new placement.
-    /// `tick_speed` is the factor of a server that runs faster than 20 ticks a second.
     pub fn step(&mut self, current: Placement, tick_speed: f32) -> Placement {
         if !self.is_active() {
             self.segments.clear();
@@ -190,9 +166,6 @@ impl Interpolation {
         self.point
     }
 
-    /// Moves the target, the rest of the path and the point of the interpolation with the
-    /// entity when another cause moved or turned it since the latest start or step. A client
-    /// with no block collision shapes finds no collision at the moved target.
     fn follow(&mut self, current: Placement) {
         let shift = current.position - self.settled.position;
         let moves = shift.length_squared() > MIN_FOLLOW_DISTANCE_SQUARED;
@@ -292,7 +265,6 @@ mod tests {
             None,
             3,
         );
-        // A weight of 6 over 3 ticks: 2 for each tick, so a tick ends inside a segment.
         assert_close(
             &zs(&walk(&mut interpolation, at(0.0), 3)),
             &[2.0, 3.0 + 1.0 / 3.0, 4.0],
@@ -307,7 +279,6 @@ mod tests {
         let current = interpolation.step(at(0.0), 1.0);
         assert_close(&[current.position.z], &[1.0]);
         interpolation.start(current, linear(6.0), None, 3);
-        // A weight of 2 is left on the first segment and 3 on the new one: 5/3 for each tick.
         assert_close(
             &zs(&walk(&mut interpolation, current, 3)),
             &[8.0 / 3.0, 13.0 / 3.0, 6.0],
@@ -323,7 +294,6 @@ mod tests {
             pitch: 0.0,
         });
         interpolation.start(at(0.0), stepped(&[(10.0, 1), (30.0, 1)], true), turn, 3);
-        // The end is the old target, so one segment of the full length replaces the steps.
         let placements = walk(&mut interpolation, at(0.0), 3);
         assert_close(&zs(&placements), &[10.0, 20.0, 30.0]);
         let yaws: Vec<f64> = placements

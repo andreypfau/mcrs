@@ -2,8 +2,6 @@ use mcrs_minecraft_bedrock_wire::{BedrockDecode, VarU32};
 
 use crate::protocol_error::ProtocolError;
 
-/// The packets of one checked batch, in the order the receiver handles them. Each item is
-/// one packet: its header, then its payload.
 #[derive(Clone, Debug)]
 #[must_use]
 pub struct PacketList<'a> {
@@ -13,7 +11,6 @@ pub struct PacketList<'a> {
 impl<'a> PacketList<'a> {
     pub(crate) const EMPTY: Self = Self { rest: &[] };
 
-    /// Checks each entry of `packet_list` before any packet is handed out.
     pub(crate) fn checked(packet_list: &'a [u8]) -> Result<Self, ProtocolError> {
         if packet_list.is_empty() {
             return Err(ProtocolError::EmptyPacketList);

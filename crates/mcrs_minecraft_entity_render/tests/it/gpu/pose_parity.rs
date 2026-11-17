@@ -1,10 +1,3 @@
-//! Runs the pose pass on a real adapter for each case of the pose artefact and compares each
-//! bone with the pose of the CPU animation crate for the same inputs, within the pose tolerance
-//! of `docs/spec/entity-animation.md`, EANIM-GPU-003. It needs a GPU:
-//!
-//! ```sh
-//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
-//! ```
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -53,7 +46,6 @@ struct Inputs {
     clip_start_ticks: BTreeMap<String, Option<f64>>,
 }
 
-/// The clips whose start tick a case gives, with the value of `query.pose` while they play.
 const STARTED_CLIPS: [(&str, Option<&str>); 4] = [
     ("jump", Some("long_jumping")),
     ("croak", Some("croaking")),
@@ -114,8 +106,6 @@ fn geometry_of(case: &PoseCase) -> &'static str {
     }
 }
 
-/// The animation of a case on the CPU, at the entity clock `clock`: the play list of the
-/// client entity, with the started clips of the case.
 fn animate(rig: &Rig, inputs: &Inputs, vm: &mut ScalarVm) -> EntityAnimation {
     let mut entity = EntityAnimation::new(rig);
     entity.update(
@@ -158,8 +148,6 @@ impl Errors {
     }
 }
 
-/// A local bone transform as the pose values of EGEO-POSE-001: the offset, the Euler angles
-/// `Rz · Ry · Rx` in radians and the scale.
 struct Decomposed {
     position: Vec3,
     rotation: Vec3,
@@ -200,7 +188,6 @@ fn angle_difference(a: f32, b: f32) -> f32 {
     ((a - b + std::f32::consts::PI).rem_euclid(tau) - std::f32::consts::PI).abs()
 }
 
-/// The worst ratio of the difference to the limit of each value, and the differences.
 fn compare(gpu: &Decomposed, cpu: &Decomposed) -> (f32, Errors) {
     let mut ratio = 0.0f32;
     let mut errors = Errors::default();
@@ -234,7 +221,6 @@ fn locals(transforms: &[Affine3A], parents: &[Option<usize>]) -> Vec<Affine3A> {
         .collect()
 }
 
-/// Writes the slot records of one case, as the client writes them for an entity.
 fn write_case(
     arena: &mut SlotArena,
     tables: &DefinitionTables,
@@ -306,8 +292,6 @@ struct Slot<'a> {
     reference: Vec<Affine3A>,
 }
 
-/// Compares the bones that the pose pass wrote for each visible slot with the CPU pose: the
-/// count of posed slots, the worst ratio to the tolerance and the largest differences.
 fn compare_with_cpu<'a>(
     gpu: &support::Gpu,
     entity_gpu: &EntityGpu,

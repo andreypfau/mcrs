@@ -77,5 +77,4 @@ mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"]
 
 [features]
 telemetry-tracy = []
-# Lends a dimension world out of its cell between ticks, for tests and tools that read or write it.
 world-access = []

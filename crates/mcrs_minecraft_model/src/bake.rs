@@ -14,14 +14,11 @@ use mcrs_minecraft_model_file::model_resolver::ModelResolver;
 use mcrs_minecraft_model_file::property_table::PropertyTable;
 use mcrs_minecraft_model_file::resource_id::resource_path;
 
-/// One face of a block in block space, with the sprite it draws as an index into the sprites of
-/// its [`BakedBlock`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedFace {
     pub face: ElementFace,
     pub sprite: usize,
     pub dye: Option<u8>,
-    /// The pass the face must draw in, when its texture alone does not decide it.
     pub pass: Option<Pass>,
 }
 
@@ -32,7 +29,6 @@ pub struct BakedBlock {
     pub ambient_occlusion: bool,
 }
 
-/// The index of `id` in `sprites`, added at the end when it is new.
 pub fn intern(sprites: &mut Vec<String>, id: &str) -> usize {
     match sprites.iter().position(|sprite| sprite == id) {
         Some(index) => index,
@@ -43,14 +39,12 @@ pub fn intern(sprites: &mut Vec<String>, id: &str) -> usize {
     }
 }
 
-/// The direction nearest to a normal, `None` for a normal with no length.
 #[must_use]
 pub fn nearest(normal: Vec3) -> Option<Direction> {
     let normal = normal.as_dvec3();
     (normal.length_squared() > 0.0 && normal.is_finite()).then(|| face_bake::nearest(normal))
 }
 
-/// The selected parts of a state, owned.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StateParts {
     pub source: PartSource,
@@ -65,7 +59,6 @@ impl StateParts {
         }
     }
 
-    /// The pick of the state, with the seed rule that its properties give.
     #[must_use]
     pub fn pick(&self, properties: &PropertyTable, state: &[usize]) -> VariantPick {
         VariantPick {
@@ -80,8 +73,6 @@ impl StateParts {
     }
 }
 
-/// The seed rule of a state: the upper half of a two-block-high block and the foot of a bed
-/// seed from their other half.
 #[must_use]
 pub fn seed_offset(properties: &PropertyTable, state: &[usize]) -> [i32; 3] {
     let has_values = |name: &str, values: [&str; 2]| {
@@ -112,8 +103,6 @@ pub fn seed_offset(properties: &PropertyTable, state: &[usize]) -> [i32; 3] {
     [0, 0, 0]
 }
 
-/// Reads blockstate files and model files from a resource set and bakes the faces of block
-/// states, each file once.
 pub struct BlockModels<'a> {
     set: &'a ResourceSet,
     resolver: ModelResolver<'a>,
@@ -141,14 +130,12 @@ impl<'a> BlockModels<'a> {
         &mut self.resolver
     }
 
-    /// The content errors found so far, each naming its file.
     pub fn take_errors(&mut self) -> Vec<ContentError> {
         let mut errors = std::mem::take(&mut self.errors);
         errors.extend(self.resolver.take_errors());
         errors
     }
 
-    /// The selected parts of the state of `block` with the value indices `state`.
     pub fn parts(
         &mut self,
         block: &str,
@@ -210,7 +197,6 @@ impl<'a> BlockModels<'a> {
         }
     }
 
-    /// The faces of the variants, in order, with the ambient occlusion flag of the first.
     pub fn bake(&mut self, variants: &[&Variant]) -> Result<BakedBlock, BakeError> {
         let mut baked = BakedBlock::default();
         for (index, variant) in variants.iter().enumerate() {
@@ -236,7 +222,6 @@ impl<'a> BlockModels<'a> {
         Ok(baked)
     }
 
-    /// The faces of the state of `block` with these property values, at `position`.
     pub fn bake_state(
         &mut self,
         block: &str,

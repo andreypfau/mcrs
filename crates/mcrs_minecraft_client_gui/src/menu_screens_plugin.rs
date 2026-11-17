@@ -29,12 +29,7 @@ use crate::pause_screen::{self, pause_screen};
 use crate::scene::{GuiAtlas, GuiScene, GuiSize, window_framebuffer};
 use crate::video_settings_screen::{self, video_settings_screen, wheel_gui_scale};
 
-/// The pause screen, the options screen and the option sub-screens, each a [`Screen`] whose
-/// [`Menu`] follows the screen, the GUI size, the options and the language. Escape in the game
-/// opens the pause screen. Needs [`crate::menu_plugin::MenuPlugin`].
 pub struct MenuScreensPlugin {
-    /// Whether the client plays on a server it runs itself, which names the last button of the
-    /// pause screen (MENU-PAUSE-005).
     pub local_world: bool,
 }
 
@@ -77,7 +72,6 @@ impl Plugin for MenuScreensPlugin {
     }
 }
 
-/// The screen that Escape and "Done" open (WID-SCR-002); the game for the pause screen.
 fn parent(screen: Screen) -> Screen {
     match screen {
         Screen::Options => Screen::Pause,
@@ -94,7 +88,6 @@ fn parent(screen: Screen) -> Screen {
     }
 }
 
-/// Whether a re-arrange keeps the widgets, their values and the focus (MENU-PROP-001).
 fn keeps_widgets(screen: Screen) -> bool {
     matches!(
         screen,
@@ -106,8 +99,6 @@ fn keeps_widgets(screen: Screen) -> bool {
     )
 }
 
-/// The focus that `screen` keeps when it opens again as the parent of `left`: the button that
-/// opened `left` (WID-SCR-003).
 fn kept_focus(left: Screen, screen: Screen) -> Option<WidgetId> {
     match (left, screen) {
         (Screen::VideoSettings, Screen::Options) => Some(options_screen::VIDEO),
@@ -121,7 +112,6 @@ fn kept_focus(left: Screen, screen: Screen) -> Option<WidgetId> {
     }
 }
 
-/// The screen that an activation of `widget` on `shown` opens.
 fn target(shown: Screen, widget: WidgetId) -> Option<Screen> {
     match (shown, widget) {
         (Screen::Pause, pause_screen::OPTIONS) => Some(Screen::Options),
@@ -149,7 +139,6 @@ fn target(shown: Screen, widget: WidgetId) -> Option<Screen> {
     }
 }
 
-/// The screen that `event` on `shown` opens.
 fn next_screen(shown: Screen, event: MenuEvent) -> Option<Screen> {
     match event {
         MenuEvent::CloseRequested => Some(parent(shown)),
@@ -158,7 +147,6 @@ fn next_screen(shown: Screen, event: MenuEvent) -> Option<Screen> {
     }
 }
 
-/// Escape in the game opens the pause screen and frees the mouse pointer (MENU-PAUSE-001).
 fn open_pause_screen(
     mut screen: ResMut<Screen>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
@@ -181,12 +169,10 @@ struct MenuSource<'w, 's> {
     window: Single<'w, 's, &'static Window, With<PrimaryWindow>>,
 }
 
-/// The scale of Auto for the window pixels of this moment (MENU-SCALE-002, step 1).
 fn max_gui_scale(window: &Window) -> u32 {
     GuiSize::auto_scale(window_framebuffer(window))
 }
 
-/// The menu of `screen`, or none when it is no menu screen.
 fn screen_menu(
     screen: Screen,
     extent: GuiExtent,
@@ -270,8 +256,6 @@ fn widgets_of(
     Some(widgets)
 }
 
-/// Inserts, builds again, re-arranges or removes the [`Menu`] of the open screen (WID-SCR-001,
-/// WID-SCR-003).
 fn project_menu(
     source: MenuSource,
     menu: Option<ResMut<Menu>>,
@@ -325,8 +309,6 @@ fn project_menu(
     menu.tooltips = built.tooltips;
 }
 
-/// The Ctrl wheel on "Video Settings" steps the GUI scale and never reaches the list or a widget
-/// (MENU-SCALE-003).
 fn ctrl_wheel_gui_scale(
     keys: Res<ButtonInput<KeyCode>>,
     mut scroll: ResMut<AccumulatedMouseScroll>,
@@ -346,9 +328,6 @@ fn ctrl_wheel_gui_scale(
     }
 }
 
-/// The value changes of the widgets of the shown screen: each one writes its field of the
-/// [`ClientOptions`], and the menu follows. An event that leaves the screen first stores the
-/// value of each slider that waits (MENU-SUB-002, step 1).
 fn write_menu_options(
     mut events: MessageReader<MenuEvent>,
     screen: Res<Screen>,
@@ -361,7 +340,6 @@ fn write_menu_options(
     for event in events.read() {
         match *event {
             MenuEvent::Widget(change @ WidgetEvent::ValueChanged { .. }) => changes.push(change),
-            // No wait lasts past the end of the clock.
             event if next_screen(*screen, event).is_some() => {
                 menu.widgets.apply_deferred(u64::MAX, &mut changes);
             }
@@ -399,8 +377,6 @@ fn write_menu_options(
     options.set_if_neq(next);
 }
 
-/// The actions of the widgets and of Escape: each one writes the [`Screen`], and the menu
-/// follows.
 fn follow_menu_events(
     mut events: MessageReader<MenuEvent>,
     mut screen: ResMut<Screen>,
@@ -426,7 +402,6 @@ fn follow_menu_events(
             *screen = next;
             if next == Screen::None {
                 grab(&mut cursor, true);
-                // The press that closed the screen is no attack in the game.
                 buttons.reset_all();
             }
         }
@@ -684,7 +659,6 @@ mod tests {
         const FIRST_ROW_BUTTON: (i32, i32) = (100, 40);
         const DONE_BUTTON: (i32, i32) = (200, 220);
 
-        /// Opens the options screen from the game, then clicks each button of `path`.
         fn open_sub_screen(app: &mut App, path: &[(i32, i32)]) {
             tap_escape(app);
             click(app, 150, 110);
@@ -740,8 +714,6 @@ mod tests {
         const ACCESSIBILITY: &[(i32, i32)] = &[ACCESSIBILITY_BUTTON];
         const MOUSE_SETTINGS: &[(i32, i32)] = &[CONTROLS_BUTTON, FIRST_ROW_BUTTON];
 
-        /// The path to a sub-screen, the clicks on it, the change of the options they make, and
-        /// the widget with its caption after them.
         type OptionChange = (
             &'static [(i32, i32)],
             &'static [(i32, i32)],

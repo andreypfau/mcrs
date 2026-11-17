@@ -1,7 +1,6 @@
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_text::{Text, TextTypes};
 
-/// The text of `text` without its styles, with each translation filled in from `language`.
 #[must_use]
 pub fn plain_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String {
     let mut out = String::new();

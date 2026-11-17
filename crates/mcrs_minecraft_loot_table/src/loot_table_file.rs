@@ -6,10 +6,8 @@ use serde::Deserialize;
 
 use crate::modifier_file::ModifierFile;
 
-/// A loot table as a data pack writes it.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LootTableFile {
-    /// The context key set of the table (LOOT-CTX-013).
     #[serde(rename = "type", default = "generic")]
     pub key_set: ContextKeySet,
     #[serde(default)]
@@ -34,8 +32,6 @@ pub struct PoolFile {
     pub entries: Vec<EntryFile>,
 }
 
-/// An entry of REG-FLD-790. A composite entry has no `weight` and no `quality`, so the bake
-/// ignores them there.
 #[derive(Debug, Clone, Deserialize)]
 pub struct EntryFile {
     pub condition: Option<ConditionFile>,
@@ -56,7 +52,6 @@ fn one() -> i32 {
     1
 }
 
-/// The type of an entry; a type without a variant fails the decode.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
 pub enum EntryKind {
@@ -97,7 +92,6 @@ pub enum EntryKind {
     },
 }
 
-/// The `items` of a `tag` entry: a tag, a list of items, or one item (REG-FLD-793).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ItemSetFile {
@@ -106,7 +100,6 @@ pub enum ItemSetFile {
     One(ResourceLocationBuf),
 }
 
-/// The `value` of a `loot_table` entry: a tag of tables, a list, or one element (REG-FLD-794).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum TableSetFile {
@@ -115,8 +108,6 @@ pub enum TableSetFile {
     One(TableFile),
 }
 
-/// A slot source (REG-FLD-801): a key, the bare `terms` of a `group`, or an object with a
-/// `type`. The fields of a typed object are not decoded yet.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum SlotSourceFile {
@@ -128,7 +119,6 @@ pub enum SlotSourceFile {
     },
 }
 
-/// The key of a table, or an inline table.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum TableFile {
@@ -136,7 +126,6 @@ pub enum TableFile {
     Inline(Box<LootTableFile>),
 }
 
-/// The name of a tag, written with the prefix `#`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(try_from = "String")]
 pub struct TagName(pub ResourceLocationBuf);

@@ -1,13 +1,8 @@
-//! Tick times from the two server logs, and the rank and rounding maths of the reports.
-
-/// The marker of the line the mcrs server loop logs after each tick, at trace level.
 const MCRS_TICK: &str = "mcrs_tick: micros=";
 const AVERAGE: &str = "Average time per tick: ";
 const PERCENTILES: &str = "Percentiles: P50: ";
-/// The window of one vanilla `tick query`, so the mcrs ticks are cut into windows of the same size.
 pub const WINDOW_TICKS: usize = 100;
 
-/// The mean and percentiles of the tick times of one window, in milliseconds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TickWindow {
     pub average: f64,
@@ -16,8 +11,6 @@ pub struct TickWindow {
     pub p99: f64,
 }
 
-/// `Average time per tick: 0.1ms (Target: 50.0ms)` followed by
-/// `Percentiles: P50: 0.1ms P95: 0.1ms P99: 1.6ms. Sample: 100`.
 pub fn tick_windows<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<TickWindow> {
     let mut windows = Vec::new();
     let mut average = None;
@@ -42,13 +35,11 @@ pub fn tick_windows<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<TickWin
     windows
 }
 
-/// The number before the first `ms`, after an optional `5: ` or `9: ` label.
 fn millis(text: &str) -> Option<f64> {
     let (number, _) = text.split_once("ms")?;
     number.rsplit(' ').next()?.parse().ok()
 }
 
-/// The duration of one mcrs tick from its `mcrs_tick` trace line, in milliseconds.
 #[must_use]
 pub fn mcrs_tick_millis(line: &str) -> Option<f64> {
     let (_, micros) = line.split_once(MCRS_TICK)?;
@@ -56,7 +47,6 @@ pub fn mcrs_tick_millis(line: &str) -> Option<f64> {
     Some(micros / 1e3)
 }
 
-/// The full windows of [`WINDOW_TICKS`] ticks in `ticks`, in milliseconds; a short tail is dropped.
 #[must_use]
 pub fn mcrs_windows(ticks: &[f64]) -> Vec<TickWindow> {
     ticks
@@ -76,7 +66,6 @@ pub fn mcrs_windows(ticks: &[f64]) -> Vec<TickWindow> {
         .collect()
 }
 
-/// The value at `quantile` of the ascending `sorted`, by the nearest-rank rule.
 #[must_use]
 pub fn nearest_rank(sorted: &[f64], quantile: f64) -> f64 {
     let index = (quantile * sorted.len() as f64).ceil() as usize;

@@ -18,7 +18,6 @@ use anyhow::bail;
 
 const LEVEL: &str = "world-recorder";
 
-/// The vanilla dedicated server, driven through its console.
 pub(crate) struct Console {
     child: Child,
     input: ChildStdin,
@@ -26,7 +25,6 @@ pub(crate) struct Console {
 }
 
 impl Console {
-    /// Starts the server in `directory` on a new flat world and waits until it is up.
     pub(crate) fn start(
         directory: &Path,
         port: u16,
@@ -89,7 +87,6 @@ impl Console {
         Ok(())
     }
 
-    /// Prints what the server printed since the last call.
     pub(crate) fn echo(&self) {
         for line in self.output.try_iter() {
             println!("server: {line}");
@@ -103,7 +100,6 @@ impl Console {
     }
 }
 
-/// A recorder that fails leaves no server behind on the port.
 impl Drop for Console {
     fn drop(&mut self) {
         let _ = self.child.kill();

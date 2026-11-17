@@ -5,20 +5,16 @@ use mcrs_minecraft_protocol_game::table::game_clientbound;
 use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use serde::{Deserialize, Serialize};
 
-/// The row of the `sound` packet; the typed packet table does not decode it.
 const ROW: i32 = match row_of(game_clientbound::NAMES, "sound") {
     Some(row) => row,
     None => -1,
 };
 
-/// A sound packet that one client received.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundPlayed {
     pub client: String,
     pub sound: SoundEvent,
-    /// The id of the sound source category, as sent.
     pub source: i32,
-    /// The position as sent, in eighths of a block.
     pub position: [i32; 3],
     pub volume: f32,
     pub pitch: f32,

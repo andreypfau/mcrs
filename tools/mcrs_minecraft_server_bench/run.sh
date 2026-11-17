@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Runs the server benchmark matrix: each server, bot count and behaviour on a fresh world, one
-# server at a time. Settings come from the environment; see README.md.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
-# shellcheck source=../vanilla-server/run.sh
 source "$root/tools/vanilla-server/run.sh"
 
 servers=${SERVERS:-mcrs vanilla}
@@ -19,7 +16,6 @@ out=${OUT:-$target/server-bench}
 bench=$target/release/mcrs_minecraft_server_bench
 mcrs=$target/release/mcrs
 java=${JAVA:-java}
-# `taskset -c <cpus>` where taskset exists; empty runs unpinned.
 server_pin=${SERVER_CPUS:+taskset -c $SERVER_CPUS}
 bots_pin=${BOT_CPUS:+taskset -c $BOT_CPUS}
 
@@ -79,7 +75,6 @@ EOF
             fi
             wait_for_load
             echo "[$(date -u +%T)] $name start, load $(load)" | tee -a "$out/load.txt"
-            # shellcheck disable=SC2086
             (cd "$world" && $bots_pin "$bench" "$server" "$bots" "$behaviour" "$out/$name.json" \
                 --warmup "$warmup" --measure "$measure" --explore-speed "$explore_speed" \
                 -- $server_pin "${command[@]}" >"$out/$name.stdout" 2>&1) ||

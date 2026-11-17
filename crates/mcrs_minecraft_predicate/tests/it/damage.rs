@@ -13,7 +13,6 @@ const SKELETON: usize = 0;
 const ARROW: usize = 1;
 const PLAYER: usize = 2;
 
-/// A skeleton and its arrow at the origin, and a player 10 blocks away.
 fn world() -> Crowd {
     let of_type = |name: &str, x: f64| Mob {
         entity_type: Some(id("minecraft:entity_type", name)),
@@ -159,8 +158,6 @@ fn an_entity_predicate_of_a_damage_source_predicate_has_the_bound_of_nesting_pre
 
 #[test]
 fn each_entity_predicate_of_a_source_has_its_own_budget_pred_ent_024() {
-    // 0 carries 1 to 8, and only 8 has an attack target: each level tries each rider with the
-    // whole level below it, about 42 000 nested entity tests for four levels.
     let rider = Mob {
         vehicle: Some(0),
         ..Mob::default()

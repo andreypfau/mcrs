@@ -26,13 +26,6 @@ struct Known {
     level: i32,
 }
 
-/// The surface levels a worker has sampled, kept so that the fluid field of
-/// one column starts with what the fields of its neighbours already paid for.
-///
-/// A level is a function of the router and the quart column alone, so a kept
-/// level is the level a new sample would give. The table is a torus of quart
-/// columns with one slot each: its size is fixed, and a quart column that
-/// lands on a taken slot replaces what was there.
 #[derive(Default, Debug)]
 pub struct SurfaceLevels {
     owner: Option<Owner>,
@@ -40,8 +33,6 @@ pub struct SurfaceLevels {
 }
 
 impl SurfaceLevels {
-    /// One worker fills columns for every dimension, and a level differs by
-    /// seed and by graph.
     pub(crate) fn retarget(&mut self, router: &NoiseRouter) {
         let owner = Owner::of(router);
         if self.owner == Some(owner) {

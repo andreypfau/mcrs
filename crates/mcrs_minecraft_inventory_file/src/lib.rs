@@ -1,7 +1,3 @@
-//! The stacks of a player and its selected slot as values, read from and written to the keys
-//! `Inventory`, `SelectedItemSlot` and `equipment` of the player file (INV-SAV-001, INV-SAV-002).
-// std: mcrs_minecraft_item_stack
-
 mod equipment_key;
 mod file_error;
 mod player_file;

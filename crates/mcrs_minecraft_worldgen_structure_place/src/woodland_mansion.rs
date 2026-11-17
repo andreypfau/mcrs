@@ -18,8 +18,6 @@ use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone)]
 pub struct WoodlandMansionBlocks {
-    /// `BlockIgnoreProcessor.STRUCTURE_BLOCK`, the only processor a mansion
-    /// piece carries.
     pub chain: CompiledChain,
     pub chest: ChestStates,
     pub cobblestone: VoxelId,
@@ -35,10 +33,6 @@ impl WoodlandMansionBlocks {
     }
 }
 
-/// `WoodlandMansionPiece.postProcess` for one column: the template, then its
-/// data markers inside the clip in palette order, a chest facing as the
-/// marker names it, or the mobs the marker spawns with the block under them
-/// cleared.
 #[expect(
     clippy::too_many_arguments,
     reason = "the mansion's blocks, template, manifest and piece, the column's reference and clip, the volume, the random source and the two lists one column's placement fills"

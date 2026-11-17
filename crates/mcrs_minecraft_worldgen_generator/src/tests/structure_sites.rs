@@ -222,11 +222,6 @@ fn world_states() -> &'static Arc<WorldStates> {
     &STATES
 }
 
-/// The strict profile is the oracle. The fast profile can flip a biome at a
-/// climate near-tie, which shifts the reservoir sample by one cell and moves
-/// that ring position anywhere inside its 57×57-quart search window; the
-/// observed count is one of 640, and a broken ring function would move
-/// positions out of the window, not merely within it.
 const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_PROFILE {
     1
 } else {
@@ -409,8 +404,6 @@ mod exhaustive {
         assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
     }
 
-    /// Every set whose entries all have a site, which since the mineshaft's port
-    /// is every set the dump holds.
     #[test]
     fn set_selection_matches_the_oracle() {
         let dump = read_dump();

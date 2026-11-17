@@ -21,13 +21,9 @@ use crate::fixture::apply;
 
 const PLAYERS: u64 = 8;
 
-/// The tick that finds each slot of each player equal to its client view sends nothing and
-/// allocates nothing, also for a stack whose value has a patch entry.
 #[test]
 fn the_sync_of_unchanged_inventories_allocates_nothing() {
     let mut app = app();
-    // The multi-threaded executor of Bevy allocates on each schedule run; the single-threaded one
-    // leaves only the allocations of the systems.
     for (_, schedule) in app.world_mut().resource_mut::<Schedules>().iter_mut() {
         schedule.set_executor(SingleThreadedExecutor::default());
     }

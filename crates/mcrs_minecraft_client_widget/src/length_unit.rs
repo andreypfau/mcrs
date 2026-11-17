@@ -1,10 +1,7 @@
-/// The unit in which an edit box counts its length (EDIT-LEN-002).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LengthUnit {
-    /// UTF-16 code units, as a vanilla server counts them.
     #[default]
     CodeUnits,
-    /// Characters, as the input box of the chat counts them (CHAT-DEV-002).
     Characters,
 }
 

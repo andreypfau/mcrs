@@ -16,7 +16,6 @@ use mcrs_minecraft_map_decoration::map_decoration_type_keys::MapDecorationType;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
-/// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct CustomData(pub NbtCompound);
@@ -78,9 +77,6 @@ impl Sample for BucketEntityData {
     }
 }
 
-/// The persistent codec carries no registry, so an unknown
-/// decoration type id is accepted here where vanilla fails the load; parsing
-/// the field as a registry id inside a registry scope lifts this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {
@@ -130,9 +126,6 @@ impl Sample for MapDecorations {
     }
 }
 
-/// The block id and the property name are accepted as any strings
-/// until a registry and block state definitions reach the persistent codec;
-/// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DebugStickState(pub BTreeMap<ResourceKeyBuf<Block>, String>);
@@ -214,7 +207,6 @@ impl Sample for ContainerLoot {
     }
 }
 
-/// A kind whose wire form is its persistent form as one network NBT tag.
 macro_rules! nbt_wire {
     ($($ty:ident),* $(,)?) => {$(
         impl mcrs_minecraft_wire::Encode for $ty {

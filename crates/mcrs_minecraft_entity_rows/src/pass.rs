@@ -45,70 +45,45 @@ use crate::row_store::deal;
 use crate::row_store::wakes;
 use crate::tile_world::TileWorld;
 
-/// The death time at which a dying entity leaves the world (DMG-DTH-003).
 const DEATH_TICKS: u8 = 20;
 
 const SERVER: Side = Side::Server { authority: true };
-/// Below this squared length an input does not move a resting row.
 const STILL_INPUT: f64 = 1.0e-7;
 
-/// The frozen inputs of one entity pass.
 #[derive(Debug)]
 pub struct Pass<'a, W> {
     pub world: &'a W,
     pub tables: &'a Tables,
-    /// The tick of the keyed random streams.
     pub tick: u64,
     pub push: PushRules,
-    /// The network id of the damage type of the crowd hit (DMG-CRW-001); `None` when the
-    /// registry holds no such type, and then no entity takes crowd damage.
     pub crowd_damage_type: Option<u32>,
-    /// The tiles in one task, from [`tiles_per_task`](crate::tiles_per_task) or a fixed split.
     pub tiles_per_task: usize,
 }
 
-/// What the task of one tile hands back.
 struct TileStep {
     tile: TileKey,
-    /// The largest half width of the bodies that the task wrote into the back buffer of the tile;
-    /// `None` when no body of the tile changed and the task wrote nothing.
     reach: Option<f32>,
     expired: Vec<EntityId>,
-    /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
     moved: Vec<EntityId>,
-    /// The living rows of `expired`.
     died: Vec<EntityId>,
-    /// The rows that drew the crowd damage, for the crowd fix-up.
     crowd: Vec<Crowded>,
 }
 
-/// A row whose crowd counts, from the start of the tick, give it the crowd damage.
 struct Crowded {
-    /// The grid row of the row at the start of the tick.
     own: GridRow,
-    /// The counts of PHY-PSH-007 steps 2 and 4.
     candidates: u32,
     free: u32,
 }
 
-/// A crowd hit that a row did not reject (DMG-CRW-001).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CrowdHit {
-    /// The row, with the tile of its position after the pass.
     pub at: Placed,
     pub outcome: HitOutcome,
-    /// Whether the entity is dying after the hit.
     pub died: bool,
 }
 
 impl<M: Send> RowStore<M> {
-    /// Ticks every row once, in parallel over tiles: each row reads only its own state, the
-    /// blocks of `pass` and the front grid, so the result does not depend on the task split or
-    /// the thread count. Writes the grid of each tile whose bodies changed into its back buffer,
-    /// and keeps the rows that left their tile for [`Self::move_rows`]. The crowd fix-up then
-    /// applies the crowd hits in the order of the keys.
-    /// Gives the items and the orbs that reached their lifetime, which left their rows.
     pub fn tick<W: CollisionWorld + Sync>(
         &mut self,
         pass: &Pass<'_, W>,
@@ -180,10 +155,6 @@ impl<M: Send> RowStore<M> {
         expired
     }
 
-    /// The crowd fix-up (DMG-CRW-002): each row that drew the crowd damage, in the order of
-    /// the keys, takes the crowd hit when its counts are still more than the limit without the
-    /// candidates with a lower key that died in this tick. A death marks its tile dirty, so the
-    /// grid of the next tick holds the entity as not pushable.
     fn hit_crowds(
         &mut self,
         rules: &PushRules,
@@ -240,12 +211,6 @@ impl<M: Send> RowStore<M> {
     }
 }
 
-/// Adds the push of the neighbours of the living row `own` to its velocity, wakes it when a
-/// push or a crowd keeps it from rest, and keeps its crowd draw for the crowd fix-up.
-///
-/// The push of step 9 of the last tick reads the boxes after every move of that tick, which only
-/// the frozen grid holds. Pushing after the move of this tick, from the same boxes, lags one tick
-/// behind the reference and keeps a crowd oscillating.
 fn push_row<W, B: BodyView>(
     bodies: &B,
     pass: &Pass<'_, W>,
@@ -344,8 +309,6 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
             state.age = state.age.wrapping_add(1);
             let expires = (row.motion.lifetime).is_some_and(|lifetime| state.age >= lifetime);
             let dead = state.living.as_mut().is_some_and(count_down);
-            // The hurt time and the damage cooldown do not enter the physics step, so a hit row
-            // that rests stays at its fixed point; a knockback is a write, which wakes it.
             if state.living.is_some_and(|living| !living.is_alive()) {
                 state.rest = Rest::Awake;
             }
@@ -359,8 +322,6 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
             }
         }
         if start.is_some() {
-            // A neighbour that is too near reads the start of this path (PHY-CMP-027), so a
-            // grid row with the start of an older path must leave the grid.
             state.last_path = MovePath {
                 start: from,
                 end: state.body.position,
@@ -383,8 +344,6 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
     }
 }
 
-/// The damage counters and the death time of one tick (DMG-HIT-006, DMG-DTH-003). Gives true
-/// when the death time reaches its end and the entity leaves the world.
 fn count_down(living: &mut Living) -> bool {
     living.hurt_time = living.hurt_time.saturating_sub(1);
     living.damage_cooldown = living.damage_cooldown.saturating_sub(1);
@@ -395,7 +354,6 @@ fn count_down(living: &mut Living) -> bool {
     *death_time >= DEATH_TICKS
 }
 
-/// The rotations of a living row that its viewers see, as bits.
 fn rotations(living: Living) -> [u32; 3] {
     [
         living.orientation.yaw,
@@ -422,8 +380,6 @@ fn apply_intent(intent: &MobIntent, living: &mut Living) {
     }
 }
 
-/// The sections of the tile and one section around it, from below the lowest row to above the
-/// highest one.
 fn tile_world<'a, W: CollisionWorld, M>(
     world: &'a W,
     tile: TileKey,
@@ -449,8 +405,6 @@ fn tile_world<'a, W: CollisionWorld, M>(
     )
 }
 
-/// True when the section of `position` is loaded or outside the world: a row in a section that
-/// is not loaded does not tick.
 fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
     !matches!(
         world.section(SectionPos::from(block_at(position))),

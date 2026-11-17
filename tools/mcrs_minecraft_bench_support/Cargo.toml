@@ -8,7 +8,6 @@ publish = false
 [lints]
 workspace = true
 
-# std: child processes, tokio and sockets
 [dependencies]
 anyhow.workspace = true
 glam = { workspace = true, features = ["std"] }

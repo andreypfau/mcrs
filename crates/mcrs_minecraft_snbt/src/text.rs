@@ -1,4 +1,3 @@
-/// Whitespace that the read skips.
 pub(crate) const fn is_whitespace(c: char) -> bool {
     c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}')
 }
@@ -49,7 +48,6 @@ pub(crate) const fn is_low_surrogate(code: u32) -> bool {
     matches!(code, 0xdc00..=0xdfff)
 }
 
-/// `length` hex digits at the start of `text`, as a value.
 pub(crate) fn hex_digits(text: &str, length: usize) -> Option<u32> {
     let digits = text.get(..length)?;
     if !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -60,11 +58,8 @@ pub(crate) fn hex_digits(text: &str, length: usize) -> Option<u32> {
 
 const LONGEST_NAME: usize = 128;
 
-/// The code point whose Unicode Name property is `name`, ignoring the case of ASCII letters and
-/// the spaces around it. Aliases and loose matches do not count.
 pub(crate) fn char_by_name(name: &str) -> Option<char> {
     let name = name.trim_matches(' ');
-    // unicode_names2 underflows an index on a leading `-`, and no name starts with one.
     if name.is_empty() || name.len() > LONGEST_NAME || name.starts_with('-') {
         return None;
     }
@@ -76,8 +71,6 @@ pub(crate) fn char_by_name(name: &str) -> Option<char> {
     (same && canonical.next().is_none()).then_some(found)
 }
 
-/// The text of a string tag as the read found it: a word, or the inside of a quoted string with
-/// its escapes, which the read has already validated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StrText<'a> {
     Word(&'a str),

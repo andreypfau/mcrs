@@ -30,8 +30,6 @@ enum Provider {
     Other,
 }
 
-/// The textures the bitmap providers of these font definitions draw from, as paths below
-/// `assets/`.
 pub(crate) fn font_textures(definitions: &Files) -> BTreeSet<String> {
     let mut textures = BTreeSet::new();
     for (name, bytes) in definitions {
@@ -61,7 +59,6 @@ pub fn font_files(directory: &Directory, chunks: &[(u64, &[u8])]) -> Result<File
     Ok(files)
 }
 
-/// Where the font files of one jar lie, so they can be fetched before its central directory.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FontHint {
     pub jar_sha1: String,

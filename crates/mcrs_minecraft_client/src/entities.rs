@@ -1,6 +1,3 @@
-//! The glue between the entity passes and the client: it builds the entity assets once the
-//! resource pack and the synced registries are in, and gives players their skins.
-
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::settings::WgpuLimits;
@@ -9,8 +6,6 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::stream::BlockCatalog;
 
-/// Draws the client entities with the entity passes, once the resource pack and the synced
-/// registries are in.
 pub struct ClientEntityRenderPlugin;
 
 impl Plugin for ClientEntityRenderPlugin {
@@ -25,7 +20,6 @@ impl Plugin for ClientEntityRenderPlugin {
     }
 }
 
-/// The registries and the pack that the assets were built from.
 #[derive(Default)]
 struct Built {
     registries: Option<bevy::ecs::change_detection::Tick>,

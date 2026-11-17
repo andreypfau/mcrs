@@ -1,8 +1,3 @@
-//! The link between two parts of the engine. Owned messages go in, owned messages come out,
-//! and the placement of the far end decides where its [`Stage`] runs.
-
-// std: flume
-
 mod in_flight;
 mod inline_end;
 mod link;

@@ -11,22 +11,17 @@ pub(crate) const COUNTER_VISIBLE: usize = 1;
 pub(crate) const COUNTER_FACES: usize = 17;
 pub(crate) const COUNTER_DROPPED: usize = 25;
 pub(crate) const COUNTER_IMPOSTORS: usize = 26;
-/// Frames that a count can wait for its map.
 const RING: usize = 4;
 
-/// The counts of the entity passes of one frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EntityFrameCounts {
     pub full_rigs: u32,
     pub impostors: u32,
-    /// The face records of all texture arrays.
     pub faces: u32,
-    /// The visible mobs that fit neither in the bone arena nor in the impostor list.
     pub dropped: u32,
 }
 
 impl EntityFrameCounts {
-    /// The counts of the counter buffer `counters`.
     #[must_use]
     pub fn of(counters: &[u32]) -> Self {
         let sum = |first: usize, count: usize| -> u32 {
@@ -52,12 +47,9 @@ const MAP_FAILED: u8 = 2;
 enum Stage {
     Free,
     Copied,
-    // wgpu reports the end of a map only through a `'static` callback, so the result needs a
-    // shared cell; wgpu 29 has no map state to query.
     Mapping(Arc<AtomicU8>),
 }
 
-/// Copies of the counters of earlier frames that the CPU reads when their map completes.
 pub(crate) struct CountsReadback {
     slots: Vec<(Buffer, Stage)>,
 }
@@ -78,7 +70,6 @@ impl CountsReadback {
         Self { slots }
     }
 
-    /// Copies `counters` to a free slot, when one is free.
     pub(crate) fn encode(&mut self, counters: &Buffer, encoder: &mut CommandEncoder) {
         if let Some((buffer, stage)) = self
             .slots
@@ -90,8 +81,6 @@ impl CountsReadback {
         }
     }
 
-    /// Starts the map of each copy of an earlier submission, and returns the counts of the
-    /// latest copy whose map completed. Call it before the frame encodes its passes.
     pub(crate) fn take(&mut self) -> Option<EntityFrameCounts> {
         let mut latest = None;
         for (buffer, stage) in &mut self.slots {

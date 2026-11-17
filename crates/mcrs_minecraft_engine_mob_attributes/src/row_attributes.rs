@@ -5,18 +5,12 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use rustc_hash::FxHashMap;
 
-/// The attribute instances of the mob rows that differ from those of a new mob of their type.
-/// A row has an entry only while an edit left one of its instances changed; the entry leaves
-/// when the row leaves the world.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct RowAttributes {
     pub(crate) sets: FxHashMap<EntityId, AttributeSet>,
 }
 
 impl RowAttributes {
-    /// The value of ATR-VAL-001 for the row `id` of the type `entity_type`, the value of a new
-    /// mob of the type when the row has no entry; `None` when the attribute is not in the set of
-    /// the type.
     #[must_use]
     pub fn value(
         &self,
@@ -31,7 +25,6 @@ impl RowAttributes {
         }
     }
 
-    /// The instances of the row `id`; `None` when they are those of a new mob of its type.
     #[must_use]
     pub fn get(&self, id: EntityId) -> Option<&AttributeSet> {
         self.sets.get(&id)

@@ -16,15 +16,6 @@ use crate::swap;
 use crate::throw;
 use crate::view::View;
 
-/// Writes into `ops` the operations of the request that `click` of `player` gives in `menu`, and
-/// moves `drag`, the drag state of `menu`.
-///
-/// `ops` holds an empty list when the conditions of the click are false, and nothing after an
-/// error. The operations apply by construction when `slots` does not change before they are
-/// planned; the clone click and the drag of [`DragKind::Full`] give `set` operations that make
-/// items.
-///
-/// [`DragKind::Full`]: crate::DragKind::Full
 pub fn request<M, S>(
     click: Click,
     player: ClickPlayer,

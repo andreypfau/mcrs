@@ -41,8 +41,6 @@ impl Number {
     }
 }
 
-/// `as` saturates at the bounds of i64 and maps NaN to 0; a truncated negative fraction then
-/// steps down by one to reach the floor.
 fn floor(value: f64) -> i64 {
     let truncated = value as i64;
     if truncated as f64 > value {

@@ -1,6 +1,4 @@
 #!/bin/sh
-# UserPromptSubmit hook: a session above 150k tokens of context writes a hand-off prompt.
-# Reads the transcript backward from its end in bounded chunks; it can hold tens of megabytes.
 py=python3
 python3 -c '' >/dev/null 2>&1 || py='py -3'
 exec $py -c '

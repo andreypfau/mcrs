@@ -1,9 +1,3 @@
-//! A write outside the 3×3 region is dropped, and is a data error.
-//!
-//! Every generator is trusted to stay inside its footprint, and nothing in the
-//! release build stops one that does not. What stops it is the debug assertion
-//! in the region writer, so this file is where that assertion is shown to fire.
-
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
@@ -31,8 +25,6 @@ fn empty_region() -> RegionSnapshots {
     })
 }
 
-/// A write one column past the ring: the position the reference would refuse
-/// and log, and the one a generator that oversteps its footprint reaches.
 #[test]
 #[cfg(debug_assertions)]
 #[should_panic = "left the region"]
@@ -55,8 +47,6 @@ fn a_read_past_the_ring_is_a_debug_assertion() {
     let _ = region.get(BlockPos::new(0, 8, -17));
 }
 
-/// Every corner of the ring is inside the footprint, so neither the volume nor the
-/// assertion refuses it, and one block further out is refused.
 #[test]
 fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
     let snapshots = empty_region();
@@ -119,8 +109,6 @@ fn the_region_grants_its_corners_and_refuses_one_block_past_them() {
     );
 }
 
-/// A write answers what it replaced: the filled block first, then the unit's own
-/// earlier write, in a ring column and in the centre alike.
 #[test]
 fn a_rewrite_answers_the_earlier_write() {
     let stone = VoxelId::from(corpus().default_state("minecraft:stone").unwrap().number());
@@ -147,7 +135,6 @@ fn a_rewrite_answers_the_earlier_write() {
     }
 }
 
-/// A tick travels in the delta of the column that holds it; one past the ring is refused.
 #[test]
 fn a_tick_goes_to_the_column_it_falls_in() {
     use mcrs_minecraft_block::fluid_keys::Fluid;

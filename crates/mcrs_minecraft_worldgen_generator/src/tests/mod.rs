@@ -106,7 +106,6 @@ use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_testing::registry;
 
-/// `feature`, then every feature written inline inside it, in pre-order.
 pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
     f(feature);
     feature.visit_placed_features(&mut |holder| {
@@ -118,8 +117,6 @@ pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
     });
 }
 
-/// Both feature registries of the shipped corpus, with every template and
-/// processor list the features name, parsed once per process.
 pub fn corpus_features() -> &'static LoadedFeatures {
     static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| {
         let features: BTreeMap<ResourceLocationBuf, Feature> = registry("feature");
@@ -167,8 +164,6 @@ fn placed_feature_tags() -> BTreeMap<ResourceLocationBuf, Vec<ResourceLocationBu
         .collect()
 }
 
-/// One step that `biome` carries whole; the order is the caller's, not the
-/// sort's, which is fine wherever only its being fixed matters.
 pub fn one_step(entries: Vec<Arc<CompiledPlacedFeature>>, biome: &str) -> FeatureTables {
     let mut carried = FixedBitSet::with_capacity(entries.len());
     carried.insert_range(..);
@@ -183,15 +178,12 @@ pub fn one_step(entries: Vec<Arc<CompiledPlacedFeature>>, biome: &str) -> Featur
     }
 }
 
-/// A climate no pass ever ices or snows.
 pub const TEMPERATE: BiomeClimate = BiomeClimate {
     base_temperature: 1.0,
     frozen: false,
     has_precipitation: false,
 };
 
-/// The program the freeze would build from `tables`, over the corpus blocks
-/// and tags. A registry biome the tables give no climate is temperate.
 pub fn build_program(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
@@ -233,18 +225,12 @@ pub fn surface_ids_over(registries: &Registries) -> std::sync::Arc<crate::Surfac
     std::sync::Arc::new(ids)
 }
 
-/// A fill context over one router and the corpus, with nothing else wired in.
 pub fn bare_fill_context(
     router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
 ) -> crate::stages::FillContext {
     fill_context_with(router, None)
 }
 
-/// A context whose region can answer what a generator asks of the world.
-///
-/// A region reads its state sets off the program, so one built without it
-/// answers every `isAir` and every sturdy-face question with the empty set —
-/// which silently turns the modifiers that walk the ground into no-ops.
 pub fn fill_context_with(
     router: impl Into<std::sync::Arc<mcrs_minecraft_worldgen_density::router::NoiseRouter>>,
     features: Option<std::sync::Arc<crate::feature_program::FeatureProgram>>,
@@ -262,8 +248,6 @@ pub fn fill_context_with(
     }
 }
 
-/// The loaded registries with the biomes of `names` numbered first, in name order: the feature
-/// tables only need the ids to resolve, and the surface stage only needs its own three to exist.
 pub fn biome_registry(names: &[&str]) -> Registries {
     let mut names = names.to_vec();
     names.sort_unstable();
@@ -301,8 +285,6 @@ pub fn parameter_list_id(
         .unwrap_or_else(|e| panic!("{e}"))
 }
 
-/// A filled column of one block per section — `None` leaves the section empty
-/// — with both terrain maps at `top` and no final maps.
 pub fn flat_snapshot(
     col: ColumnPos,
     y_sections: &Arc<[i32]>,
@@ -343,7 +325,6 @@ pub fn flat_snapshot(
     }
 }
 
-/// The nine snapshots of the 3×3 around `center`, each built by `snapshot`.
 pub fn region_of(
     center: ColumnPos,
     snapshot: impl Fn(ColumnPos) -> FilledSnapshot,
@@ -351,15 +332,6 @@ pub fn region_of(
     std::array::from_fn(|slot| Arc::new(snapshot(region_column(center, slot))))
 }
 
-/// The single-threaded executor: fill the region and the shell every rung
-/// derives, then climb the ladder one rung at a time, running and merging the
-/// widest ring each rung still needs. It is the same three functions the
-/// dispatcher drives, in one fixed order.
-///
-/// It is deliberately not an in-place sequential decorator: within a rung, a
-/// unit that could read an earlier unit's writes would implement a different
-/// world. Between rungs it is the opposite — a unit reads every other unit's
-/// writes, which is what a rung is for.
 pub fn generate_region(
     ctx: &FillContext,
     min: ColumnPos,
@@ -414,8 +386,6 @@ pub fn generate_region(
         .collect()
 }
 
-/// Beta's carver table over `source`, every land biome carving with Beta's caves
-/// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::modern_carvers::CarverBiomeTable {
@@ -425,7 +395,6 @@ pub fn beta_carver_table(
     .expect("a Beta biome source")
 }
 
-/// The biomes `source` can place, as a mask over the loaded biome numbers.
 pub fn possible_biome_mask(source: &mcrs_minecraft_biome::source::BiomeSource) -> FixedBitSet {
     let registries = test_registries();
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
@@ -435,8 +404,6 @@ pub fn possible_biome_mask(source: &mcrs_minecraft_biome::source::BiomeSource) -
     mask
 }
 
-/// The program every biome of `registries` runs: the shipped populate step, alone in its one
-/// step.
 pub fn beta_populate_program(registries: &Registries, seed: i64) -> FeatureProgram {
     let id = ResourceLocationBuf::read("minecraft:beta_populate").unwrap();
     let entry = Arc::new(CompiledPlacedFeature {

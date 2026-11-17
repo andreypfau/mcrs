@@ -8,21 +8,15 @@ use crate::GridRow;
 use crate::PushTargets;
 use crate::Scratch;
 
-/// The smallest horizontal distance of a push: `0.01F`.
 pub const MIN_PUSH_DISTANCE: f32 = 0.01;
 
-/// The largest component of one push: `0.05F`.
 const STRENGTH: f32 = 0.05;
 
-/// The damage of a crowd.
 pub const CROWD_DAMAGE: f32 = 6.0;
 
-/// The game rules of the push.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PushRules {
-    /// The game rule `max_entity_cramming`.
     pub max_entity_cramming: i32,
-    /// The number of nearest neighbours that push an entity when `max_entity_cramming` is 0.
     pub cap: usize,
 }
 
@@ -35,22 +29,14 @@ impl Default for PushRules {
     }
 }
 
-/// What the push of one entity did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PushOutcome {
-    /// A neighbour pushed the entity with a distance of at least `0.01F`.
     pub pushed: bool,
-    /// The entity takes the crowd damage in this tick.
     pub crowd_damage: bool,
-    /// The number of candidates that the entity can push: the count of the crowd rule.
     pub candidates: u32,
-    /// The candidates that are not passengers, when the entity drew the crowd damage; else 0.
     pub free_candidates: u32,
 }
 
-/// The push of one direction: the vector that the pusher adds; the candidate adds its negative.
-/// `None` when the two ride one root vehicle, one has no physics, or they are nearer than
-/// `0.01F` on both horizontal axes.
 #[must_use]
 pub fn push_vector(pusher: &GridRow, candidate: &GridRow) -> Option<DVec3> {
     if pusher.root_vehicle == candidate.root_vehicle
@@ -66,8 +52,6 @@ pub fn push_vector(pusher: &GridRow, candidate: &GridRow) -> Option<DVec3> {
     (xa.is_finite() && za.is_finite()).then_some(DVec3::new(xa, 0.0, za))
 }
 
-/// The push on one horizontal axis from the offset `along` on that axis and `across` on the
-/// other one. `None` when both offsets are nearer than `0.01F`.
 #[must_use]
 pub fn push_axis(along: f64, across: f64) -> Option<f64> {
     let largest = along.abs().max(across.abs());
@@ -78,8 +62,6 @@ pub fn push_axis(along: f64, across: f64) -> Option<f64> {
     Some(along / root * (1.0 / root).min(1.0) * f64::from(STRENGTH))
 }
 
-/// True when `pusher` pushes `candidate` in its own tick: the candidate is not a spectator, is
-/// pushable, is a target of the pusher, and the team rules let the push happen.
 #[must_use]
 pub fn pushes(pusher: &GridRow, candidate: &GridRow) -> bool {
     let target = match pusher.push_targets {
@@ -108,15 +90,10 @@ fn team_allows(pusher: &GridRow, candidate: &GridRow) -> bool {
     same
 }
 
-/// True when the entity adds the pushes that it gets: it carries no passenger and is pushable.
 fn takes_push(row: &GridRow) -> bool {
     !row.flags.contains(GridFlags::CARRIES_PASSENGER) && row.flags.contains(GridFlags::PUSHABLE)
 }
 
-/// The push of a pair that is nearer than `0.01F` at the start of the tick (PHY-CMP-027): the
-/// push that the entity with the lower key made in its last tick after its own move, on the
-/// other one where it stood before its move of that tick. Gives the vector that `of` adds; the
-/// other entity adds its negative.
 fn staggered_push(of: &GridRow, other: &GridRow) -> Option<DVec3> {
     let offset = of.position - other.position;
     if offset.x.abs().max(offset.z.abs()) >= f64::from(MIN_PUSH_DISTANCE) {
@@ -135,11 +112,6 @@ fn staggered_push(of: &GridRow, other: &GridRow) -> Option<DVec3> {
     Some(if first { push } else { -push })
 }
 
-/// The push of the neighbours on `of`, from the start of the tick, added to `velocity` in the
-/// order of the UUIDs of the neighbours: for each neighbour, the push of the neighbour
-/// first, then the push of the entity on it, or the one push of a pair that is too near for
-/// both. The crowd draw comes from `stream`, so the result does not depend on the order of the
-/// rows or on the task split.
 pub fn push_entity<B: BodyView>(
     bodies: &B,
     of: &GridRow,
@@ -209,8 +181,6 @@ pub fn push_entity<B: BodyView>(
     outcome
 }
 
-/// True when each of the two entities is among the `cap` nearest neighbours of the other, by
-/// the larger horizontal axis distance and then by the UUID.
 fn mutual_nearest<B: BodyView>(
     bodies: &B,
     of: &GridRow,
@@ -229,7 +199,6 @@ fn mutual_nearest<B: BodyView>(
     within_nearest(other, of, ranked, cap)
 }
 
-/// True when `target` is among the `cap` nearest of the neighbours of `centre`.
 fn within_nearest(centre: &GridRow, target: &GridRow, neighbours: &[GridRow], cap: usize) -> bool {
     let rank = |row: &GridRow| (distance(centre, row), row.key);
     let own = rank(target);

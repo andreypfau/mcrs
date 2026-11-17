@@ -180,8 +180,6 @@ fn column(section_count: usize) -> Vec<ChunkSection> {
         .collect()
 }
 
-/// The server writes the blob field by field rather than through
-/// `ChunkSection`, so the two orders have to agree byte for byte.
 fn write_column_the_way_the_server_does(sections: &[ChunkSection]) -> Vec<u8> {
     let mut data = Vec::new();
     for section in sections {

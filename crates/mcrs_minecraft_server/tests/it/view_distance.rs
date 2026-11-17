@@ -1,5 +1,3 @@
-//! A client in play that changes its view distance gets the columns of the new view.
-
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
@@ -34,15 +32,12 @@ fn client_information(view_distance: u8) -> ServerboundClientInformation<'static
     })
 }
 
-/// The columns that a client got and lost while its view settled, in the order they came.
 #[derive(Default)]
 struct Shift {
     loaded: Vec<(i32, i32)>,
     forgotten: Vec<(i32, i32)>,
 }
 
-/// Ticks, the client taking each batch, until the view of `session` changed and then stayed
-/// still for [`QUIET_TICKS`] ticks.
 fn settle(
     app: &mut App,
     label: Entity,
@@ -95,7 +90,6 @@ fn a_client_information_in_play_shrinks_and_grows_the_view() {
     settle(&mut server.app, label, session, &mut held);
     let wide = held.clone();
 
-    // A dragged slider sends several in one tick; only the last one counts.
     server.queue(anchor, &client_information(8));
     server.queue(anchor, &client_information(2));
     let shrunk = settle(&mut server.app, label, session, &mut held);

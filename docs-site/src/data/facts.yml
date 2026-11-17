@@ -1,4 +1,3 @@
-# Counts and ids that more than one page repeats. Every entry says how to measure it; re-measure on a version bump.
 crates: { value: 122, how: "cargo metadata --no-deps --format-version 1 | jq '[.packages[] | select(.manifest_path | contains(\"/crates/\"))] | length'" }
 crates_no_bevy: { value: 100, how: "length of NO_BEVY_PACKAGES in xtask/src/checks.rs" }
 crates_no_std: { value: 9, how: "length of NO_STD_PACKAGES in xtask/src/checks.rs" }

@@ -28,46 +28,29 @@ use crate::TileRows;
 use crate::front_grid::grid_row;
 use crate::front_grid::sort_bodies;
 
-/// The rows of the server entities of a dimension world, one segment per tile, with the mob
-/// column `M` beside them.
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct RowStore<M> {
     pub(crate) tiles: BTreeMap<TileKey, Tile<M>>,
-    /// The tile of each living row.
     pub(crate) living: FxHashMap<EntityId, TileKey>,
-    /// The tiles whose rows changed after the pass wrote their grid; the freeze writes it again.
     pub(crate) dirty: BTreeSet<TileKey>,
-    /// The tiles whose back buffer the pass wrote; the freeze makes it their front.
     pub(crate) written: BTreeSet<TileKey>,
-    /// The tiles whose blocks changed since the freeze. A body, a move or a write wakes no other
-    /// row: the push runs in each tick, and a write wakes its target.
     pub(crate) stirred: BTreeSet<TileKey>,
-    /// The stirred tiles of the last freeze: a resting row in them or next to them runs a full
-    /// tick in this pass.
     pub(crate) woken: BTreeSet<TileKey>,
-    /// The rows that the pass moved out of their tile, with that tile.
     pub(crate) leaving: Vec<Leaving>,
-    /// The living rows whose visible state changed in the last pass, with their tile in it.
     pub(crate) moved: Vec<Placed>,
     pub(crate) changes: Changes,
-    /// The crowd hits of the last pass that their rows did not reject, in the order of the keys.
     pub(crate) crowd_hits: Vec<CrowdHit>,
-    /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
 }
 
-/// The rows of one tile and the back buffer of its grid. The task of the tile writes the buffer,
-/// so the bodies never pass through one thread.
 #[derive(Debug)]
 pub(crate) struct Tile<M> {
     pub(crate) rows: TileRows<M>,
     pub(crate) back: TileBodies,
-    /// The intents that the next pass applies to the rows of the tile before their step.
     pub(crate) intents: Vec<MobIntent>,
 }
 
-/// A row that left the tile `from` in the pass.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Leaving {
     pub(crate) from: TileKey,
@@ -103,7 +86,6 @@ impl<M> Default for Tile<M> {
 }
 
 impl<M> RowStore<M> {
-    /// Adds a row with `id` and no mob column in the tile of its position.
     pub fn spawn(&mut self, id: EntityId, state: EntityState, motion: MotionRow) {
         let tile = TileKey::at(state.body.position);
         if state.living.is_some() {
@@ -119,26 +101,20 @@ impl<M> RowStore<M> {
         self.dirty.insert(tile);
     }
 
-    /// Gives the row `at` the mob column `mob`, in place of the one it had; drops `mob` when the
-    /// tile has no such row.
     pub fn set_mob(&mut self, at: Placed, mob: M) {
         if let Some(entry) = self.tiles.get_mut(&at.tile) {
             entry.rows.set_mob(at.id, mob);
         }
     }
 
-    /// Queues `intent` for the row of its target in `tile`: the next pass applies it before the
-    /// step of the row. An intent whose target is not in the tile then is dropped.
     pub fn steer(&mut self, tile: TileKey, intent: MobIntent) {
         self.tiles.entry(tile).or_default().intents.push(intent);
     }
 
-    /// Queues each of `intents` as [`Self::steer`] does, with one lookup of the tile.
     pub fn steer_all(&mut self, tile: TileKey, intents: impl IntoIterator<Item = MobIntent>) {
         self.tiles.entry(tile).or_default().intents.extend(intents);
     }
 
-    /// Removes the row `id` from `tile` and gives it; `None` when the tile has no such row.
     pub fn despawn(&mut self, tile: TileKey, id: EntityId) -> Option<Row<M>> {
         let row = self.tiles.get_mut(&tile)?.rows.despawn_row(id)?;
         if row.state.living.is_some() {
@@ -149,7 +125,6 @@ impl<M> RowStore<M> {
         Some(row)
     }
 
-    /// The id and the state of each living row, with its tile.
     pub fn living_rows(&self) -> impl Iterator<Item = (Placed, &EntityState)> {
         self.tiles.iter().flat_map(|(&tile, entry)| {
             let rows = &entry.rows;
@@ -161,13 +136,11 @@ impl<M> RowStore<M> {
         })
     }
 
-    /// The tile of the living row `id`; `None` when the world has no such row.
     #[must_use]
     pub fn tile_of(&self, id: EntityId) -> Option<TileKey> {
         self.living.get(&id).copied()
     }
 
-    /// The state of the row `at`; `None` when the tile has no such row.
     #[must_use]
     pub fn state_of(&self, at: Placed) -> Option<&EntityState> {
         let rows = &self.tiles.get(&at.tile)?.rows;
@@ -175,33 +148,26 @@ impl<M> RowStore<M> {
         rows.states().get(row)
     }
 
-    /// The state of the row `at`, open to a writer outside the pass; `None` when the tile has no
-    /// such row. The tile writes its grid again at the next freeze.
     pub fn state_mut(&mut self, at: Placed) -> Option<&mut EntityState> {
         let row = self.tiles.get_mut(&at.tile)?.rows.row_mut(at.id)?;
         self.dirty.insert(at.tile);
         Some(row.state)
     }
 
-    /// The count of the tiles that hold rows or held them.
     #[must_use]
     pub fn tile_count(&self) -> usize {
         self.tiles.len()
     }
 
-    /// The rows of `tile`; `None` when the world never had a row in it.
     #[must_use]
     pub fn tile(&self, tile: TileKey) -> Option<&TileRows<M>> {
         self.tiles.get(&tile).map(|entry| &entry.rows)
     }
 
-    /// The rows of each tile, in tile order.
     pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileRows<M>)> {
         self.tiles.iter().map(|(&tile, entry)| (tile, &entry.rows))
     }
 
-    /// The mob columns of each tile that holds one, in tile order. They change no row, so no
-    /// grid needs a new write.
     pub fn mob_tiles_mut(&mut self) -> impl Iterator<Item = (TileKey, MobRows<'_, M>)> {
         self.tiles
             .iter_mut()
@@ -209,35 +175,25 @@ impl<M> RowStore<M> {
             .map(|(&tile, entry)| (tile, entry.rows.mobs_mut()))
     }
 
-    /// The living rows that came into the world, changed tile or left it.
     #[must_use]
     pub fn changes(&self) -> &Changes {
         &self.changes
     }
 
-    /// The living rows whose visible state changed in the last pass, in tile order, each with
-    /// its tile in the pass. A row that crossed since is in [`Self::tile_of`]; a row that left the
-    /// world is in no tile.
     #[must_use]
     pub fn moved(&self) -> &[Placed] {
         &self.moved
     }
 
-    /// The crowd hits of the last pass that their rows did not reject (DMG-CRW-001), in the
-    /// order of the keys of the rows, each with the tile of its row after the pass.
     #[must_use]
     pub fn crowd_hits(&self) -> &[CrowdHit] {
         &self.crowd_hits
     }
 
-    /// Marks that a block changed in `tile`, so the rows that rest near it wake.
     pub fn stir(&mut self, tile: TileKey) {
         self.stirred.insert(tile);
     }
 
-    /// The merge point: each tile applies the impulses of `writes` to its rows in the order of
-    /// the target key, the writer key and the sequence, so the f64 sums do not depend on the
-    /// tasks that made the writes. A write whose target left the tile is dropped.
     pub fn apply_writes(&mut self, writes: &mut TileQueues<Keyed<DVec3>>) {
         let mut queues = mem::take(writes);
         for (&tile, entry) in &mut self.tiles {
@@ -256,8 +212,6 @@ impl<M> RowStore<M> {
         }
     }
 
-    /// Moves each row that the pass moved out of its tile into the tile of its position, with
-    /// its mob column.
     pub fn move_rows(&mut self) {
         self.changes.crossed.clear();
         for Leaving { from, id } in mem::take(&mut self.leaving) {
@@ -278,9 +232,6 @@ impl<M> RowStore<M> {
         }
     }
 
-    /// The freeze: writes the grid of each dirty tile from its rows, in parallel over the tiles,
-    /// makes the written back buffers the front, and keeps the stirred tiles for the wakes of the
-    /// next pass.
     pub fn freeze(&mut self, executor: &impl Executor, grid: &mut BodyGrid)
     where
         M: Send,
@@ -317,8 +268,6 @@ impl<M> RowStore<M> {
 }
 
 impl<M> Tile<M> {
-    /// Writes `bodies` into the back buffer in the order of the grid; gives their largest half
-    /// width.
     pub(crate) fn write(&mut self, tile: TileKey, bodies: &[GridRow]) -> f32 {
         sort_bodies(tile, bodies, &mut self.back);
         bodies
@@ -328,7 +277,6 @@ impl<M> Tile<M> {
     }
 }
 
-/// The tiles in one task of a parallel pass over `tiles` tiles: four tasks per thread.
 #[must_use]
 pub fn tiles_per_task(executor: &impl Executor, tiles: usize) -> usize {
     tiles
@@ -336,9 +284,6 @@ pub fn tiles_per_task(executor: &impl Executor, tiles: usize) -> usize {
         .max(1)
 }
 
-/// Deals `tiles` into tasks of about `per_task` tiles: the tiles with the most rows go first, one
-/// to each task in turn, so the tasks carry about the same count of rows, and the task with the
-/// largest tiles starts first.
 pub(crate) fn deal<'a, M>(
     mut tiles: Vec<(TileKey, &'a mut Tile<M>)>,
     per_task: usize,
@@ -354,8 +299,6 @@ pub(crate) fn deal<'a, M>(
     tasks
 }
 
-/// True when a resting row of `tile` runs a full tick: something changed in the tile or in a tile
-/// next to it.
 pub(crate) fn wakes(woken: &BTreeSet<TileKey>, tile: TileKey) -> bool {
     (-1..=1).any(|z| {
         (-1..=1).any(|x| {

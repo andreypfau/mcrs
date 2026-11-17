@@ -26,8 +26,6 @@ use crate::int_provider_file::IntProviderFile;
 use crate::named_entries::NamedEntries;
 use crate::named_source::{Dependency, NamedSource};
 
-/// Turns the file form of conditions and providers into their baked form, with the ids and the
-/// named entries of one load. Use one baker for each table.
 pub struct ConditionBaker<'a> {
     pub(crate) definitions: &'a BlockDefinitions,
     pub(crate) registries: &'a Registries,
@@ -35,18 +33,14 @@ pub struct ConditionBaker<'a> {
     pub(crate) int_providers: Option<&'a Registry<IntProviderFile>>,
     pub(crate) float_providers: Option<&'a Registry<FloatProviderFile>>,
     pub(crate) items: ItemTable,
-    /// Why the load has no smoke table, which each location predicate borrows.
     smoke: Option<PredicateIssue>,
     pub(crate) problems: Vec<ConditionProblem>,
-    /// The parts of the provider that the bake is in, after the place that holds the provider.
     pub(crate) chain: Vec<String>,
     pub(crate) longest: usize,
     pub(crate) scope: ProviderScope,
     pub(crate) named: NamedSource<'a>,
 }
 
-/// Whether the bake is in the scope of a provider, where an inline provider is a member of the
-/// reference chain (LOOT-CTX-017).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProviderScope {
     Outside,
@@ -54,8 +48,6 @@ pub(crate) enum ProviderScope {
 }
 
 impl<'a> ConditionBaker<'a> {
-    /// A baker that resolves names against `definitions` and `registries`, and each key to its
-    /// entry in `entries`, with no problem yet.
     #[must_use]
     pub fn new(
         definitions: &'a BlockDefinitions,
@@ -67,7 +59,6 @@ impl<'a> ConditionBaker<'a> {
         Self::with_named(definitions, registries, entries.items, smoke, named)
     }
 
-    /// A baker for the bake of the named entries, which records each key.
     pub(crate) fn recording(
         definitions: &'a BlockDefinitions,
         registries: &'a Registries,
@@ -102,8 +93,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// The most members that the keys and the providers of the bakes since the last call add to
-    /// the reference chain that leads to the part that holds them (LOOT-CTX-017).
     pub fn take_longest_chain(&mut self) -> usize {
         mem::take(&mut self.longest)
     }
@@ -115,13 +104,10 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// Takes the problems of the bakes since the last call, so that the caller can tag each
-    /// with the part that it baked.
     pub fn drain_problems(&mut self) -> vec::Drain<'_, ConditionProblem> {
         self.problems.drain(..)
     }
 
-    /// Bakes `file`; a part that it cannot resolve adds a problem and makes the part fail.
     pub fn condition(&mut self, file: &ConditionFile) -> Condition {
         Condition(self.test(file))
     }
@@ -216,7 +202,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// The conditions of `terms`; `None` for an unknown tag.
     fn terms(&mut self, terms: &Terms) -> Option<Box<[Test]>> {
         let tag = match terms {
             Terms::List(terms) => {
@@ -241,7 +226,6 @@ impl<'a> ConditionBaker<'a> {
         Some(members.into_iter().map(|key| self.predicate(key)).collect())
     }
 
-    /// A reference to the registered predicate `key` (LOOT-CND-001).
     fn predicate(&mut self, key: &ResourceLocationBuf) -> Test {
         let registry = self.predicates;
         self.named(key, registry, EntryKind::Predicate, |index, reads| {
@@ -268,7 +252,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// Bakes the item predicate `named`; `None`, with a problem, when a name does not resolve.
     pub fn item_predicate(&mut self, named: &ItemPredicate<Named>) -> Option<BakedItemPredicate> {
         let predicate = self.resolved::<ItemPredicate>(Some("predicate"), named)?;
         let baked = BakedItemPredicate::bake(&predicate, self.registries, &self.items);
@@ -306,7 +289,6 @@ impl<'a> ConditionBaker<'a> {
         self.baked(baked)
     }
 
-    /// `None`, with a problem, when the load has no smoke table.
     pub(crate) fn needs_smoke(&mut self) -> Option<()> {
         match self.smoke {
             None => Some(()),
@@ -317,8 +299,6 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// The shared predicate `named` with its names resolved; `None`, with a problem at the path of
-    /// the name below `field`, for a name that does not resolve.
     pub(crate) fn resolved<T: Resolve>(
         &mut self,
         field: Option<&str>,

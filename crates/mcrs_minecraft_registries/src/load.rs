@@ -16,7 +16,6 @@ use crate::tag_file::{pack_id, resolve_tags};
 use crate::tags::TagTable;
 
 impl Registries {
-    /// Loads `declarations` over `stack` from `files`, whose values move into the registries.
     pub fn load(
         declarations: Vec<Declaration>,
         stack: Arc<PackStack>,
@@ -26,9 +25,6 @@ impl Registries {
         read(declarations, loading, files, None)
     }
 
-    /// Loads these registries again over `stack` from `files`. The stages before
-    /// [`Stage::Reloadable`] keep their entries and values, every tag is read again and keeps its
-    /// number, and the reloadable stage is read again.
     pub fn reload(
         &self,
         stack: Arc<PackStack>,
@@ -127,9 +123,6 @@ fn check(declarations: &[Declaration]) -> Result<(), Diagnostics> {
     Err(Diagnostics::default().with_report(errors))
 }
 
-/// Loads `declarations` stage by stage into `registries`, which resolve the stage being loaded.
-/// `fill` names one registry and gives the tags and the entry sources of it. A load from what a
-/// server sent runs no validator and holds only its synced registries to be non-empty.
 pub(crate) fn stages<'f>(
     mut declarations: Vec<Declaration>,
     mut registries: Registries,
@@ -188,8 +181,6 @@ pub(crate) fn stages<'f>(
     ))
 }
 
-/// A miss into a registry of the stage being loaded is reported under that registry; a miss into
-/// an earlier, complete stage is an error of the entry that names it.
 fn decode(
     registries: &mut Registries,
     decoding: Vec<(ResourceLocationBuf, Vec<Source<'_>>)>,
@@ -371,7 +362,6 @@ fn source(file: PackFile<'_>) -> Source<'_> {
     }
 }
 
-/// A static registry has no entry files, so a file below its directory is not an entry.
 fn route<'f>(
     declarations: &[Declaration],
     stack: &PackStack,

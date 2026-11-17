@@ -23,15 +23,6 @@ use crate::simulated_step::{
 };
 use crate::tracked_velocity::tick_velocities;
 
-/// Keeps the client entities that the server adds, and ticks them in `FixedUpdate` in
-/// [`ClientEntityTick`](mcrs_minecraft_entity_visual::ClientEntityTick). Packets apply when they arrive, before the next tick.
-/// Writes the [`EntityLight`](mcrs_minecraft_entity_visual::EntityLight) of each entity from the
-/// [`ColumnStore`] in [`EntityLightSystems`]. The position of a simulated entity is in its
-/// [`MotionState`](mcrs_minecraft_engine_entity_motion::MotionState); its
-/// [`Motion`](mcrs_minecraft_entity_visual::Motion) follows before and after each tick and in
-/// `PostUpdate`.
-/// A simulated entity steps in [`MotionPass`] over the [`ColumnStore`] once the [`Blocks`] and the
-/// [`CurrentRegistries`] exist.
 pub struct ClientEntityPlugin;
 
 impl Plugin for ClientEntityPlugin {

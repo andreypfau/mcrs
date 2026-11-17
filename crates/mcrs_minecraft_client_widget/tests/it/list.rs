@@ -14,7 +14,6 @@ const DOWN: (GuiKey, KeyModifiers) = (GuiKey::Down, KeyModifiers::NONE);
 const LEFT: (GuiKey, KeyModifiers) = (GuiKey::Left, KeyModifiers::NONE);
 const RIGHT: (GuiKey, KeyModifiers) = (GuiKey::Right, KeyModifiers::NONE);
 
-/// A button above, a list of 10 rows of 36 and a button below.
 fn selection_screen() -> Widgets {
     screen_of([
         button(1, 163, 5, 100, 20),
@@ -270,8 +269,6 @@ fn rows_follow_the_spec_layout() {
     }
 }
 
-/// An option list of rows [10, 11], [12 wide], [13, 14] and [15, 16 inactive], and a button
-/// below.
 fn option_screen() -> Widgets {
     let rows: [&[(u32, i32)]; 4] = [
         &[(10, 150), (11, 150)],

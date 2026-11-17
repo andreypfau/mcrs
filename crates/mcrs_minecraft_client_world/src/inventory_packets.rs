@@ -12,11 +12,8 @@ use mcrs_minecraft_registries::{CurrentRegistries, FromWire, Wire};
 
 use crate::player::Player;
 
-/// The container id of the player inventory menu, which is open whenever no other menu is.
 pub const INVENTORY_MENU: i32 = 0;
 
-/// Mirrors the stacks the server sends for the player inventory menu and the carried item into
-/// the [`SlotTable`] of the local player.
 pub struct InventoryPacketsPlugin;
 
 impl Plugin for InventoryPacketsPlugin {
@@ -134,7 +131,6 @@ fn resolve(world: &World, wire: ProtoStack<Wire>) -> Option<ProtoStack> {
     }
 }
 
-/// Spawns a stack equal to `value`, with each stack its contents hold as a held child.
 fn spawn_value(world: &mut World, items: &Items, value: &ItemStackValue) -> Option<Entity> {
     let entry = match value::named_entry(items, value) {
         Ok(entry) => entry,

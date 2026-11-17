@@ -9,8 +9,6 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 use mcrs_minecraft_text::Text;
 
-/// The command lines and the suggestion requests that the players of this world sent in this
-/// tick.
 #[derive(Resource, Default)]
 pub(crate) struct CommandQueue {
     pub(crate) lines: Vec<QueuedLine>,
@@ -24,13 +22,11 @@ impl CommandQueue {
     }
 }
 
-/// A command line in the order of arrival, from the player of the session `player`.
 pub(crate) struct QueuedLine {
     pub(crate) player: PlayerSession,
     pub(crate) line: String,
 }
 
-/// The latest suggestion request of the player of the session `player`.
 pub(crate) struct QueuedSuggestion {
     pub(crate) player: PlayerSession,
     pub(crate) id: VarInt,
@@ -42,8 +38,6 @@ fn allowed(line: &str) -> bool {
         .all(mcrs_minecraft_text::is_allowed_chat_character)
 }
 
-/// Disconnects a player whose command line holds a code unit no player can type. The muxer
-/// owns the connection; the world of the player drops the line.
 pub(crate) fn reject_illegal_command_line(
     event: On<Received<ServerboundChatCommand<'static>>>,
     mut connections: Query<&mut ServerSideConnection>,
@@ -69,7 +63,6 @@ pub(crate) fn reject_illegal_command_line(
         .remove::<ServerSideConnection>();
 }
 
-/// Queues a command line of a player of this world for the commands of this tick.
 pub(crate) fn queue_command_line(
     event: On<Received<ServerboundChatCommand<'static>>>,
     players: Query<&Owner>,
@@ -94,8 +87,6 @@ pub(crate) fn queue_command_line(
     });
 }
 
-/// Keeps the latest suggestion request of each player of this world for the commands of this
-/// tick. A newer request replaces an older one, and the replaced one gets no reply.
 pub(crate) fn queue_suggestion_request(
     event: On<Received<ServerboundCommandSuggestion<'static>>>,
     players: Query<&Owner>,

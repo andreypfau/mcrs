@@ -5,13 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::clock_time::ClockTime;
 
-/// An entry of the registry `world_clock`. It has no fields.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorldClock {}
 
 mcrs_minecraft_registries::resolve_as_is!(WorldClock);
 
-/// Whether the clocks advance at all; the game rule `advance_time` sets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct AdvanceTime(pub bool);
@@ -22,7 +20,6 @@ impl Default for AdvanceTime {
     }
 }
 
-/// The state of every clock of the registry, by clock id.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct WorldClocks(Vec<ClockTime>);
@@ -47,7 +44,6 @@ impl WorldClocks {
         self.0.get_mut(clock.index())
     }
 
-    /// Sets the state of `clock`. Clocks below it that held no state start fresh.
     pub fn insert(&mut self, clock: Id<WorldClock>, state: ClockTime) {
         if self.0.len() <= clock.index() {
             self.0.resize(clock.index() + 1, ClockTime::default());
@@ -57,8 +53,6 @@ impl WorldClocks {
         }
     }
 
-    /// Holds one state for each of `count` clocks: a new clock starts fresh, and a clock
-    /// past `count` is dropped.
     pub fn reconcile(&mut self, count: usize) {
         self.0.resize(count, ClockTime::default());
     }

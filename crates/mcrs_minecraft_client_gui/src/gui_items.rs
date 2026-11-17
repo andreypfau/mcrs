@@ -70,7 +70,6 @@ pub struct GuiPass {
     vertices: Option<Buffer>,
     pipelines: Option<GuiPipelines>,
     textures: Option<GuiTextures>,
-    /// The Unifont glyph drawn into each cell of the atlas's glyph region so far.
     resident: Vec<Option<char>>,
     bind_group: Option<([TextureId; 4], BindGroup)>,
 }
@@ -83,9 +82,6 @@ struct GuiPipelines {
     full_blue: CachedRenderPipelineId,
 }
 
-/// One minus the colour already drawn, for a white source.
-// chisle: the blend works on linear colour, so a selected text of E0 inverts to 8A, not to 1F
-// (EDIT-SEL-001); a GUI pass on a non-sRGB target lifts it.
 const INVERT: BlendState = BlendState {
     color: BlendComponent {
         src_factor: BlendFactor::OneMinusDst,
@@ -339,8 +335,6 @@ pub(super) fn prepare_gui_pass(
     }
 }
 
-/// Draws each Unifont glyph the batch puts in a cell of the glyph region into that cell, once
-/// per change of the cell's content.
 pub(super) fn upload_glyphs(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
@@ -449,11 +443,6 @@ pub(super) fn write_gui_buffers(
     }
 }
 
-/// The world's depth is cleared first: the items' private bands must not be tested
-/// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
-/// Every item element and the figure then get their own slice of the depth range, so their own
-/// geometry is depth-tested against itself and later elements land over earlier ones by draw
-/// order.
 pub fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
@@ -567,8 +556,6 @@ pub fn draw_gui(
     }
 }
 
-/// Draws the figure view inside `rect`, in window pixels, and in the depth band `depth`, then
-/// opens the scissor to the whole target of `target` pixels again.
 fn draw_figure(
     pass: &mut TrackedRenderPass,
     figure: &FigureDraw,

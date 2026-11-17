@@ -6,11 +6,6 @@ use crate::bits::BitSource;
 use crate::xoroshiro::XoroshiroRandom;
 use crate::{GaussianBank, Random};
 
-/// `WorldgenRandom` over a Xoroshiro source: the stream every placed feature
-/// and structure piece draws from during decoration. It is a
-/// `LegacyRandomSource` whose `next(bits)` is the top bits of one Xoroshiro
-/// long, so `nextInt(bound)`, `nextBoolean`, `nextDouble` and `nextLong` all
-/// differ from the same source read natively; only `nextFloat` agrees.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldgenRandom {
     source: XoroshiroRandom,
@@ -29,7 +24,6 @@ impl WorldgenRandom {
         }
     }
 
-    /// The wrapped source, which `fork` and `forkPositional` hand out natively.
     pub fn source(&self) -> &XoroshiroRandom {
         &self.source
     }
@@ -112,8 +106,6 @@ impl Random for WorldgenRandom {
 mod test {
     use super::*;
 
-    /// `nextInt(16)` is the top four bits of the long, not the four the native
-    /// source multiplies out of its low word.
     #[test]
     fn a_bounded_draw_takes_the_top_bits() {
         let mut worldgen = WorldgenRandom::new(2);

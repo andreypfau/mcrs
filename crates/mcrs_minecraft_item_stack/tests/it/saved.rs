@@ -67,7 +67,6 @@ const MINEABLE_PICKAXE: u16 = 0;
 const MAX_STACK_SIZE_TYPE: u16 = 0;
 const DAMAGE_TYPE: u16 = 1;
 
-/// Each name is in the namespace `minecraft`, and the numeric id of a name is its index.
 struct Names;
 
 impl Names {
@@ -113,7 +112,6 @@ fn with_components(components: &str) -> NbtCompound {
     ))
 }
 
-/// Equal tags, where the order of the keys of a map has no meaning.
 fn same(left: &NbtTag, right: &NbtTag) -> bool {
     match (left, right) {
         (NbtTag::Compound(left), NbtTag::Compound(right)) => same_map(left, right),
@@ -571,7 +569,6 @@ struct PlainGolden {
 #[derive(Deserialize)]
 struct PlainValue {
     kind: String,
-    /// Absent for a component type that has no saved form.
     nbt: Option<String>,
 }
 

@@ -2,15 +2,10 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 
-/// The part of the gap to the target speed that the walk speed closes in each tick.
 pub const WALK_SMOOTHING: f32 = 0.4;
-/// The walk speed that a damage event sets.
 pub const HURT_WALK_SPEED: f32 = 1.5;
-/// The walk scale of a baby, whose legs swing faster.
 pub const BABY_WALK_SCALE: f32 = 3.0;
 
-/// The walk accumulator: the speed, the speed at the start of the latest tick, the position
-/// and the scale. The renderer swings the legs with the values of [`Walk::frame`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Walk {
     pub speed: f32,
@@ -30,7 +25,6 @@ impl Default for Walk {
     }
 }
 
-/// The walk values of one frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct WalkFrame {
     pub position: f32,
@@ -38,7 +32,6 @@ pub struct WalkFrame {
 }
 
 impl Walk {
-    /// One tick towards `target` speed, with the walk scale `scale`.
     pub fn advance(&mut self, target: f32, scale: f32) {
         self.previous_speed = self.speed;
         self.speed += (target - self.speed) * WALK_SMOOTHING;
@@ -46,7 +39,6 @@ impl Walk {
         self.scale = scale;
     }
 
-    /// The tick of an entity that is not alive.
     pub fn stop(&mut self) {
         self.speed = 0.0;
         self.previous_speed = 0.0;
@@ -57,7 +49,6 @@ impl Walk {
         self.speed = HURT_WALK_SPEED;
     }
 
-    /// The values at the partial tick `partial_tick` of an entity that is alive.
     #[must_use]
     pub fn frame(&self, partial_tick: f32) -> WalkFrame {
         WalkFrame {
@@ -68,10 +59,7 @@ impl Walk {
     }
 }
 
-/// The target walk speed for a tick with the horizontal distance `distance` and the walk target
-/// factor `factor` of the type.
 #[must_use]
-/// The walk target factor of an entity of `data` in `pose`. A frog in a long jump does not walk.
 pub(crate) fn target_factor(data: &EntityTypeData, pose: Pose) -> f32 {
     if data.entity_type == EntityType::Frog && pose == Pose::LongJumping {
         0.0

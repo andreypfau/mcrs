@@ -1,6 +1,3 @@
-//! A text component as flat runs of styled text, and the strings made from the runs.
-
-// std: mcrs_minecraft_lang and mcrs_minecraft_text need std.
 mod flatten;
 mod legacy_text;
 mod plain_text;

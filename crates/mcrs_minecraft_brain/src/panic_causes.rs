@@ -1,7 +1,5 @@
 use alloc::vec::Vec;
 
-/// The network ids of the damage types whose hit makes a mob panic, sorted: the members of the
-/// damage type tag `panic_causes` (GOAL-PNC-002).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PanicCauses(Vec<u32>);
 

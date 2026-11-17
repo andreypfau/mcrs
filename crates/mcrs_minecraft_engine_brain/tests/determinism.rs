@@ -1,6 +1,3 @@
-//! The AI of 2000 pigs over 200 ticks gives the same rows and brains in each tick with a pool of
-//! 1, 8 and 16 threads, while the pigs near a player stroll and a cactus hit makes some panic.
-
 use std::hash::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
@@ -38,7 +35,6 @@ use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 const PIGS: u32 = 2000;
 const TICKS: u64 = 200;
-/// Past the hit at tick 50, so the short run covers the panic of the hit pigs.
 const SHORT_TICKS: u64 = 60;
 const HALF_TILES: i32 = 3;
 const CACTUS: u32 = 7;
@@ -193,11 +189,6 @@ struct Crowd {
     evaluations: u64,
 }
 
-/// Runs the crowd for `ticks` ticks at each count of `threads`.
-///
-/// # Panics
-///
-/// When `threads` is empty, or when two thread counts give different hashes in a tick.
 #[expect(
     clippy::indexing_slicing,
     reason = "a test helper reports a failure by panicking"

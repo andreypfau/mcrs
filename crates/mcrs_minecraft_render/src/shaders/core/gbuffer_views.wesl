@@ -7,10 +7,8 @@ import mcrs_minecraft_render::shaders::include::gbuffer_views_layout::{
     albedo_ao, depth, light, nearest, normal_motion, reconstruction,
 };
 
-// Block and sky light are stored in sixteenths of a level.
 const FULL_LIGHT: f32 = 240.0;
 
-/// Against the origin of the camera's section, as terrain is drawn.
 fn relative_position(pixel: vec2<i32>, depth: f32) -> vec3<f32> {
     let uv = (vec2<f32>(pixel) + 0.5) / reconstruction.viewport;
     let ndc = uv * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0);
@@ -51,7 +49,6 @@ fn show(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     } @elif(SHOW_GRID) {
         let rel = relative_position(pixel, d);
         let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
-        // Half a block into the surface, so a pixel on a face never floors into the air before it.
         let cell = floor(rel - normal * 0.5);
         let voxel = camera.section * i32(SECTION_SIZE) + vec3<i32>(cell);
         let parity = f32((voxel.x + voxel.y + voxel.z) & 1);

@@ -22,7 +22,6 @@ fn from_spec(name: &str) -> Option<Rate> {
     })
 }
 
-/// A join of rates: the set of axes along which a value can change.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Axes(u8);
 
@@ -66,7 +65,6 @@ impl Axes {
         }
     }
 
-    /// A value that a run stores once per subject, for example in `initialize`.
     #[must_use]
     pub fn frozen(self) -> Axes {
         if self == Axes::CONSTANT || self == Axes(Self::LOAD) {
@@ -77,11 +75,9 @@ impl Axes {
     }
 }
 
-/// The rate of a query: from the MOLQ tables, or a guess from its name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryRate {
     Spec(Axes),
-    /// A function of its arguments only.
     Pure,
     Guess(Axes),
 }
@@ -95,15 +91,12 @@ impl QueryRate {
     }
 }
 
-/// The queries that `docs/spec/molang-queries.md` defines, with their rate classes.
 #[derive(Clone, Debug, Default)]
 pub struct SpecQueries {
     pub rates: BTreeMap<String, QueryRate>,
 }
 
 impl SpecQueries {
-    /// Reads the query tables. A table row names a query in its `Name` column; a two-column
-    /// table names one query in its `name` row.
     pub fn parse(markdown: &str) -> SpecQueries {
         let mut rates = BTreeMap::new();
         let mut columns: Option<Columns> = None;
@@ -180,8 +173,6 @@ fn unquote(cell: &str) -> &str {
     cell.trim_matches('`')
 }
 
-/// A guess for a query that the MOLQ tables do not define. The words of the name select the
-/// class; each other query is per-entity tick state.
 fn guess(name: &str) -> Axes {
     const ANIMATION: [&str; 3] = ["anim_time", "key_frame", "animation"];
     const FRAME: [&str; 6] = [

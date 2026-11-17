@@ -83,9 +83,6 @@ fn parse_tag_attr(attrs: &[Attribute]) -> Result<Option<i32>> {
     Ok(None)
 }
 
-/// Adding our lifetime to the generics before calling `.split_for_impl()` would
-/// also add it to the resulting ty_generics, which we don't want. So I'm doing
-/// this hack.
 fn decode_split_for_impl(
     mut generics: Generics,
     lifetime: Lifetime,
@@ -107,8 +104,6 @@ fn decode_split_for_impl(
     (impl_generics, ty_generics, where_clause)
 }
 
-/// Bounds the type of every field rather than every type parameter, since a parameter may only
-/// select the form of a field, such as a registry reference that is a number on the wire.
 fn add_trait_bounds(generics: &mut Generics, data: &Data, trait_: TokenStream) {
     if generics.type_params().next().is_none() {
         return;

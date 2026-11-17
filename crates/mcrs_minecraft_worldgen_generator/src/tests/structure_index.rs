@@ -120,8 +120,6 @@ fn the_nearest_village_cell_yields_a_start(index: &StructureIndex) {
     assert_eq!(centre.ground_level_delta, 1);
 }
 
-/// `/locate structure minecraft:stronghold` from the origin: the ring position
-/// nearest by chunk centre at `y = 32` whose site passes its biome test.
 fn locate_answers_the_nearest_stronghold_ring_position(index: &StructureIndex) {
     let frozen = frozen_shared();
     let strongholds = set("minecraft:strongholds");
@@ -205,7 +203,6 @@ fn the_four_tiles_of_a_column_hold_every_chunk_within_eight() {
     assert_eq!(StartTile { x: -1, z: 0 }.chunks().count(), 256);
 }
 
-/// `reaching` over `tile_starts` against `starts_reaching` for every column within eight of `centre`: (columns with two or more starts, columns whose starts come from two or more tiles, columns with at least one start).
 fn assert_tiles_agree(index: &StructureIndex, centre: ColumnPos) -> (usize, usize, usize) {
     let columns: Vec<ColumnPos> = centre.square(MAX_STRUCTURE_DISTANCE).collect();
     let mut tiles: HashMap<StartTile, Vec<(ColumnPos, Start)>> = HashMap::new();
@@ -302,9 +299,6 @@ fn reaching_leaves_out_a_start_more_than_eight_chunks_away() {
 mod exhaustive {
     use super::*;
 
-    /// With the villages the only live set, nothing wider widens the scan. This
-    /// village's adapted box reaches seven chunks from its start chunk, one past
-    /// what `max_distance_from_center` and the margin alone would allow.
     #[test]
     fn every_column_a_village_crosses_finds_its_start() {
         let frozen = frozen_shared();

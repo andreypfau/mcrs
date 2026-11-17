@@ -5,35 +5,10 @@ use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::{lerp, mul_add};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 
-/// The lattice a router with no `interpolated` node is still asked about.
 const DEFAULT_CELL: IVec3 = IVec3::new(4, 8, 4);
 
-/// Margin a whole-cell decision keeps away from zero. [`CellBounds::eval`] is
-/// f32 interval arithmetic without outward rounding, so a bound that lands
-/// exactly on zero is not trustworthy; cells inside the margin go block by block.
 pub const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
-/// The range of the values the fill will actually write inside one cell, given
-/// that cell's eight lattice corners.
-///
-/// Tighter than the corner hull, and for the reason the hull is loose: the
-/// blocks reach only `alpha in {0 ..= (cell-1)/cell}` on each axis, because the
-/// far face is the next cell's first row. The interpolant is multilinear in x
-/// and z and a monotone ramp in y, so over that range its extrema sit at the
-/// four corner columns' ends, and the arithmetic here mirrors
-/// `interpolate_cells` step for step — the same lerps at the same alphas, the
-/// same repeated addition down the ramp.
-///
-/// The result is then widened by the ramp's own accumulated rounding. The
-/// extrema are at the corner columns in exact arithmetic, but the fill reaches a
-/// row by adding `step` repeatedly, and an interior column's accumulation rounds
-/// differently from a corner one's; `cell.y` additions carry a relative error
-/// under `cell.y * EPSILON`, and the margin is twice that.
-///
-/// That margin rests on the arithmetic, not on a sweep: without it the
-/// overshoot is around one part in ten million and turns up in roughly one cell
-/// in twenty-five million, which a test that walked a few million would pass by
-/// luck. Do not delete it because the sweep stays green.
 pub fn sampled_range(cell: IVec3, corner: impl Fn(i32, i32, i32) -> f32) -> Interval {
     let inv_xz = 1.0 / cell.x as f32;
     let inv_y = 1.0 / cell.y as f32;
@@ -70,7 +45,6 @@ pub fn sampled_range(cell: IVec3, corner: impl Fn(i32, i32, i32) -> f32) -> Inte
     Interval::of(lo - slop, hi + slop)
 }
 
-/// The hull of one cell's eight corner values, per lattice row of `values`.
 pub fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut [Interval]) {
     let stride = lattice.len();
     for (k, bound) in out.iter_mut().enumerate() {
@@ -90,8 +64,6 @@ pub fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut 
     }
 }
 
-/// [`corner_bounds`] over the range the blocks of the cell actually reach,
-/// rather than over the closed cell.
 pub fn sampled_bounds(
     values: &[f32],
     lattice: &SampleGrid,
@@ -109,15 +81,10 @@ pub fn sampled_bounds(
     }
 }
 
-/// One root's subgraph split at every `interpolated` node: the wrappers and
-/// everything above them are bounded per cell, while their inputs are only ever
-/// read off the cell lattice.
 pub struct CellBounds {
     inputs: Box<[NodeId]>,
     wrappers: Box<[NodeId]>,
-    /// Every reached node, ascending, wrappers included.
     terms: Box<[NodeId]>,
-    /// Dense slot per node id; `NO_SLOT` for a node the walk never reached.
     slot: Box<[u32]>,
     root: NodeId,
     cell_size: Option<IVec3>,
@@ -168,7 +135,6 @@ impl CellBounds {
             _ => None,
         });
         let first = geometries.next();
-        // Mixed geometries have no common lattice, so no whole-cell shortcut.
         let cell_size = geometries
             .all(|g| Some(g) == first)
             .then(|| first.unwrap_or(DEFAULT_CELL));
@@ -189,8 +155,6 @@ impl CellBounds {
             cell_size,
             boundable: true,
         };
-        // Whether a node can be bounded depends on its kind and never on the
-        // values, so one probe settles it for every cell.
         let probe = vec![Interval::exact(0.0); bounds.wrappers.len()];
         bounds.boundable = bounds
             .eval(program, &probe, IVec3::ZERO, IVec3::ZERO, &mut Vec::new())
@@ -198,14 +162,11 @@ impl CellBounds {
         bounds
     }
 
-    /// The nodes to sample over the cell-corner lattice, in the order
-    /// [`CellBounds::eval`] expects their corner intervals.
     #[inline]
     pub fn inputs(&self) -> &[NodeId] {
         &self.inputs
     }
 
-    /// The `interpolated` nodes themselves, parallel to [`Self::inputs`].
     pub fn wrappers(&self) -> &[NodeId] {
         &self.wrappers
     }
@@ -215,18 +176,6 @@ impl CellBounds {
         self.cell_size
     }
 
-    /// Bounds on the root across a whole cell, given each `interpolated`
-    /// wrapper's own bounds over the cell's eight corners and the cell's
-    /// inclusive block box. Trilinear interpolation is a convex combination, so
-    /// it never leaves the corner hull; interval arithmetic over the terms above
-    /// carries that up.
-    ///
-    /// `None` when a term has a kind this cannot bound, which simply means the
-    /// caller must evaluate the cell block by block.
-    ///
-    /// `values` is one bound per reached term, reused across the few hundred
-    /// calls a column makes; a fresh vector each time would be the allocation,
-    /// not the arithmetic.
     pub fn eval(
         &self,
         program: &Program,
@@ -279,11 +228,7 @@ mod tests {
     use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
     use mcrs_minecraft_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, Axes};
 
-    /// A field that is not linear in any axis, so the interpolant it feeds has
-    /// non-zero cross terms and the ramp is not the whole story.
     fn interpolated_program(cell: IVec3) -> Program {
-        // The spans cover every sampled coordinate: a clamped gradient is
-        // constant outside its own, and a constant field has nothing to refine.
         let gradient = |axis: Axis, from_value: f32, to_value: f32| {
             Node::Gradient(GradientParams {
                 axis,
@@ -318,10 +263,6 @@ mod tests {
         Program::new(nodes, axes, ranges, vec![4])
     }
 
-    /// `docs/worldgen.md` L5 for the tightened bound: it must contain every
-    /// value the fill writes inside the cell. Both the density cells and the ore
-    /// vein cells settle on this, and a bound that is a hair too narrow silently
-    /// writes the wrong substance.
     #[test]
     fn a_sampled_range_contains_every_value_the_fill_writes() {
         const CELL: IVec3 = IVec3::new(4, 8, 4);
@@ -334,7 +275,6 @@ mod tests {
                 for base_y in [-64, -8, 0, 24, 56] {
                     let origin = IVec3::new(base_x, base_y, base_z);
 
-                    // The eight corners, as the lattice fill hands them over.
                     let lattice = SampleGrid::new(IVec3::splat(2), origin, CELL);
                     let mut corners = vec![0.0f32; lattice.len()];
                     program.fill(&mut ws, &lattice, 0, &mut corners);
@@ -342,7 +282,6 @@ mod tests {
                         corners[lattice.index_unchecked(dx, dy, dz)]
                     });
 
-                    // Every block the fill writes inside that cell.
                     let blocks = SampleGrid::dense(CELL, origin);
                     let mut values = vec![0.0f32; blocks.len()];
                     program.fill(&mut ws, &blocks, 0, &mut values);
@@ -367,10 +306,6 @@ mod tests {
             }
         }
         assert_eq!(checked, 125 * 128);
-        // The point of the refinement: the closed cell's far face is one lattice
-        // step past anything the blocks read, so where the field has a gradient
-        // the range they cover is narrower than the hull. The rest of the cells
-        // sit where the squeeze saturates, and a constant field has no slack.
         assert!(
             tighter > 40,
             "only {tighter} of 125 cells came out tighter than the corner hull"

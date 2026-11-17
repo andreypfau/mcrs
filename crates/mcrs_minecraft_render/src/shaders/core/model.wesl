@@ -137,8 +137,6 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
     out.block_light = block_light;
     out.sky_light = sky_light;
     out.shade = shade;
-    // Models carry no normal, and one taken from derivatives breaks along triangle edges, so it is
-    // the flat normal of the quad, facing out of its counter-clockwise front.
     let tri0 = cross(p2 - p1, p0 - p1);
     let tri1 = cross(v_vec, u_vec);
     let raw_normal = select(tri1, tri0, dot(tri0, tri0) > 0.0);

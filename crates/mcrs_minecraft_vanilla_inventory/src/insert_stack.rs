@@ -7,14 +7,8 @@ use mcrs_minecraft_item_table::ItemTable;
 
 use crate::close_place::Place;
 
-/// The largest value of the component `max_stack_size`.
 const LARGEST_STACK: i32 = 99;
 
-/// Gives `moved` each slot of `inventory`, whose selected hotbar slot is `selected`, that takes
-/// items of `stack` by the insert rule, with the number of items, in the order of the rule
-/// (INV-INS-001). The rule does not select a slot for which `place` refuses (INV-INS-003), and
-/// fills each slot only up to its capacity (ITX-LIM-002). Changes no slot. Gives the number of
-/// items that found no room.
 pub(crate) fn insert_stack(
     inventory: &[Option<ItemStack>],
     selected: u8,
@@ -33,8 +27,6 @@ pub(crate) fn insert_stack(
         Stacking::Stacks
     };
     let mut rest = stack.count.get();
-    // The kernel fills an empty slot up to `max`, so each empty slot that the kernel selects
-    // takes its capacity here, and the next pass sees it as `Slot::Other`.
     let mut received: u64 = 0;
     while rest > 0 {
         let mut merged: u64 = 0;
@@ -72,13 +64,10 @@ pub(crate) fn insert_stack(
     0
 }
 
-/// The maximum stack size of `stack`, in the range `1..=99`.
 pub(crate) fn max_stack_size(stack: &ItemStack, table: &ItemTable) -> u8 {
     clamp_stack_size(table.effective::<MaxStackSize>(stack))
 }
 
-/// The maximum stack size that the component `max_stack_size` gives, in the range `1..=99`. No
-/// component gives 1.
 pub(crate) fn clamp_stack_size(max: Option<&MaxStackSize>) -> u8 {
     let max = max.map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
     u8::try_from(max).unwrap_or(1)
@@ -110,7 +99,6 @@ fn capacity(place: Place, max: u8) -> u8 {
     }
 }
 
-/// The bit of the slot `index` in a mask of slots, or 0 for an index from 64.
 fn bit(index: u16) -> u64 {
     1_u64.checked_shl(u32::from(index)).unwrap_or(0)
 }

@@ -2,8 +2,6 @@ use mcrs_minecraft_core::QuartPos;
 use mcrs_voxel::BlockPos;
 use sha2::{Digest, Sha256};
 
-/// The seed enters the digest as eight little-endian bytes and the first eight
-/// digest bytes are read back the same way; both orderings are part of the value.
 pub fn obfuscate_seed(seed: i64) -> i64 {
     let digest: [u8; 32] = Sha256::digest(seed.to_le_bytes()).into();
     let [b0, b1, b2, b3, b4, b5, b6, b7, ..] = digest;
@@ -16,9 +14,6 @@ pub fn quart_cell(zoom_seed: i64, pos: BlockPos) -> QuartPos {
     })
 }
 
-/// The biome every one of the eight corners [`quart_cell`] chooses between
-/// answers, when they all agree. Most blocks sit inside one biome, and then the
-/// pick cannot matter and its fiddles need not be drawn.
 pub fn uniform_corners<B: PartialEq>(
     pos: BlockPos,
     mut biome: impl FnMut(QuartPos) -> B,
@@ -36,9 +31,6 @@ pub fn uniform_corners<B: PartialEq>(
         .then_some(first)
 }
 
-/// The eight corners around a block, in the order the reference tries them.
-/// `fiddles` answers with a corner's three offsets, which depend on the seed
-/// and the corner alone.
 fn pick_corner(
     x: i32,
     y: i32,
@@ -101,9 +93,6 @@ fn pick_corner(
     )
 }
 
-/// A corner's offsets memoised over the box one column's zoom can reach. Eight
-/// LCG chains per corner are paid once per corner instead of once per block:
-/// a strip asks for the same corners at every height it descends through.
 #[derive(Default)]
 pub struct FiddleCache {
     seed: i64,
@@ -115,8 +104,6 @@ pub struct FiddleCache {
 }
 
 impl FiddleCache {
-    /// `origin` and `size` are in corner cells. A corner outside the box is
-    /// still answered, just not remembered.
     pub fn begin(&mut self, seed: i64, origin: [i32; 3], size: [i32; 3]) {
         let cells = size.iter().map(|n| (*n).max(0) as usize).product();
         if self.stamps.len() != cells {
@@ -220,9 +207,6 @@ fn fiddle(rval: i64) -> f64 {
 mod tests {
     use super::*;
 
-    /// Each value below is reproducible without this crate, the seed dropped
-    /// into the pack:
-    /// `python3 -c "import hashlib,struct;print(int.from_bytes(hashlib.sha256(struct.pack('<q',0)).digest()[:8],'little',signed=True))"`
     #[test]
     fn obfuscate_seed_matches_sha256() {
         assert_eq!(obfuscate_seed(0), 8794265229978523055);
@@ -252,8 +236,6 @@ mod tests {
         }
     }
 
-    /// The cell came out of the same independent transcription as the distances in
-    /// `quart_cell_centre_picks_the_low_corner`.
     #[test]
     fn a_cell_away_from_the_origin_matches_the_transcription() {
         assert_eq!(
@@ -262,13 +244,6 @@ mod tests {
         );
     }
 
-    /// The eight distances come from a transcription of the reference zoom
-    /// written against it rather than against this module: six wrapping-i64 LCG
-    /// steps over the corner coordinates and two over the seed, each fiddle
-    /// `(((rval >> 24) mod 1024) / 1024 - 0.5) * 0.9`, summed as
-    /// `(distance + fiddle)^2` over the three axes. The shift is arithmetic and
-    /// the modulo floors; taking either the other way moves every negative
-    /// `rval`.
     #[test]
     fn quart_cell_centre_picks_the_low_corner() {
         let seed = obfuscate_seed(42);
@@ -299,9 +274,6 @@ mod tests {
     mod exhaustive {
         use super::*;
 
-        /// The cache only remembers corners; a box that covers part of the range
-        /// and a second `begin` over a different box must both still answer with
-        /// what the plain function computes.
         #[test]
         #[expect(
             clippy::excessive_nesting,

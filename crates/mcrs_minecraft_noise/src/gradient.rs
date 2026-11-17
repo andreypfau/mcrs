@@ -1,50 +1,23 @@
 use crate::jmath::mul_add64;
 use mcrs_minecraft_random::Random;
 
-/// The 16-entry Ken Perlin gradient table shared by the Perlin (`ImprovedNoise`) and
-/// simplex (`SimplexNoise`) generators, flattened for the hot paths.
-///
-/// `ImprovedNoise` indexes it with `hash & 15` and dots against the full 3D offset.
-/// `SimplexNoise` indexes it with `hash % 12` and dots against a 2D offset (z = 0), which
-/// selects the first twelve gradients projected onto the XY plane — the classic 12-entry
-/// simplex gradient set. Both Beta (`NoiseGenerator2`/`NoiseGeneratorPerlin`) and modern
-/// vanilla (`SimplexNoise`/`ImprovedNoise`) use these same vectors.
-///
-/// Both generators dot the same 16 vectors against an offset; only the width of
-/// the arithmetic differs, because each path is pinned to a different oracle —
-/// modern vanilla computes noise in float, Beta 1.7.3 in double. Keeping the
-/// table and the index arithmetic here means an optimization to either lands on
-/// both paths, and the width stays a type parameter rather than a fork.
 pub trait NoiseFloat:
     Copy + std::ops::Add<Output = Self> + std::ops::Sub<Output = Self> + std::ops::Mul<Output = Self>
 {
-    /// 16 gradients × {x, y, z, pad}, so a lookup is a shift instead of a multiply.
     const GRAD_FLAT: [Self; 64];
 
-    /// Narrow a coordinate to the value width. Positions stay `f64` on both
-    /// paths — as they do in vanilla — and only the sampled value follows `Self`.
     fn from_f64(value: f64) -> Self;
 
-    /// Dot the gradient at `index` — already `(hash & 15) << 2` — against the offset.
-    ///
-    /// Masking with 60 keeps the three reads provably inside the table, which is
-    /// what lets the bounds checks go without `unsafe`.
     fn grad_dot_at(index: usize, x: Self, y: Self, z: Self) -> Self;
 
-    /// Dot without the y term — vanilla's `dotXz`. The 2D fills and the modern
-    /// path's column split both need the xz plane on its own.
     fn grad_dot_xz_at(index: usize, x: Self, z: Self) -> Self;
 
-    /// The gradient's y component, which the modern path carries as the slope of
-    /// a column rather than folding it into the dot.
     #[inline(always)]
     fn grad_y_at(index: usize) -> Self {
         let [_, y, _] = Self::gradient_at(index);
         y
     }
 
-    /// The x, y and z of the gradient at `index`. The fallback is never taken:
-    /// the mask keeps the read inside the table, and the optimizer drops it.
     #[inline(always)]
     fn gradient_at(index: usize) -> [Self; 3] {
         match Self::GRAD_FLAT
@@ -81,8 +54,6 @@ impl NoiseFloat for f64 {
         value
     }
 
-    /// Every gradient has one zero component, so one of the three products is
-    /// always ±0 and the nesting cannot move the strict result.
     #[inline(always)]
     fn grad_dot_at(index: usize, x: f64, y: f64, z: f64) -> f64 {
         let [gx, gy, gz] = Self::gradient_at(index);
@@ -104,8 +75,6 @@ impl NoiseFloat for f32 {
         value as f32
     }
 
-    /// The f32 path's parity was captured against vanilla with these three
-    /// products fused, so the rounding of the fused form is part of the contract.
     #[inline(always)]
     fn grad_dot_at(index: usize, x: f32, y: f32, z: f32) -> f32 {
         let [gx, gy, gz] = Self::gradient_at(index);
@@ -119,8 +88,6 @@ impl NoiseFloat for f32 {
     }
 }
 
-/// Perlin lattice state: the permutation table and the per-instance offset.
-/// `PerlinNoise`, `SmearedPerlinNoise` and the Beta sampler all build on it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GradientNoise {
     pub(crate) perms: [u8; 256],
@@ -134,9 +101,6 @@ impl GradientNoise {
         Self::from_random_scaled(random, 256.0)
     }
 
-    /// Vanilla's second constructor: the three offset draws still happen, so the
-    /// stream advances the same way, but a scale of zero pins the lattice to the
-    /// world origin.
     pub fn from_random_scaled<T: Random>(random: &mut T, offset_scale: f64) -> Self {
         let offset_x = random.next_f64() * offset_scale;
         let offset_y = random.next_f64() * offset_scale;
@@ -154,10 +118,6 @@ impl GradientNoise {
         }
     }
 
-    /// One lattice per non-zero amplitude, in the draw order the seed defines.
-    ///
-    /// The draw is width-independent — a permutation and three origins — so both
-    /// the modern and the Beta samplers are built from the same stream.
     pub fn octaves<T>(random: &mut T, first_octave: i32, amplitudes: &[f64]) -> Vec<Option<Self>>
     where
         T: Random + Clone,
@@ -179,10 +139,6 @@ impl GradientNoise {
         octaves
     }
 
-    /// The pre-26.3 draw, which vanilla keeps as a deprecated class of its own
-    /// rather than a mode of [`Self::octaves`]: it walks the octaves in reverse
-    /// and burns 262 ints per skipped one, which is what keeps an unmodified
-    /// octave from shifting the stream.
     pub fn legacy_octaves<T: Random>(
         random: &mut T,
         first_octave: i32,
@@ -218,8 +174,6 @@ impl GradientNoise {
         )
     }
 
-    /// The eight corner gradient indices of one lattice cell, pre-shifted by two
-    /// so a lookup into `GRAD_FLAT` is an add rather than a multiply.
     #[inline(always)]
     pub(crate) fn corner_grads(
         &self,
@@ -248,14 +202,9 @@ impl GradientNoise {
     }
 }
 
-/// Folds a coordinate back into the range where a double still resolves single
-/// blocks. Vanilla's `GradientNoise.wrap`.
 #[inline(always)]
 pub fn wrap(value: f64) -> f64 {
     const FACTOR: f64 = 3.3554432E7;
-    // Inside half a period the round-off is the identity, which is every
-    // coordinate short of the far lands; the check is cheaper than the divide,
-    // floor and multiply it skips.
     const HALF: f64 = 1.6777216E7;
     if (-HALF..HALF).contains(&value) {
         value
@@ -268,15 +217,6 @@ pub fn wrap(value: f64) -> f64 {
 mod grad_tests {
     use super::NoiseFloat;
 
-    /// The table must reproduce Java's branchy `grad` bit for bit, for every
-    /// hash and both signs of every component.
-    ///
-    /// The one exception is the sign of zero: the dot product carries a third
-    /// `0.0 * z` term Java never evaluates, so a result that is exactly zero can
-    /// come out `+0.0` where Java produced `-0.0`. That needs all three
-    /// fractional coordinates to land exactly on the lattice, and the value then
-    /// only ever feeds lerps and threshold comparisons, where the two zeroes are
-    /// indistinguishable.
     #[test]
     fn the_gradient_table_matches_javas_branchy_grad() {
         fn java_grad(hash: usize, x: f64, y: f64, z: f64) -> f64 {

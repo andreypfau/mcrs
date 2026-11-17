@@ -1,4 +1,3 @@
-//! Layer 1 against a simulated vanilla client behind a link with latency, jitter and a stall.
 #![expect(
     clippy::indexing_slicing,
     clippy::panic,
@@ -31,7 +30,6 @@ struct Link {
     seed: u64,
 }
 
-/// A linear congruential generator, so a case replays from its seed.
 struct Draws(u64);
 
 impl Draws {
@@ -59,7 +57,6 @@ enum Event {
     Arrive(Serverbound),
 }
 
-/// Events in the order of their time, and of their scheduling at one time.
 #[derive(Default)]
 struct Queue {
     heap: BinaryHeap<Reverse<(Duration, usize)>>,
@@ -78,7 +75,6 @@ impl Queue {
     }
 }
 
-/// What the server saw, for the assertions and for a second run.
 #[derive(Debug, Default, PartialEq)]
 struct Log {
     actions: Vec<Action>,
@@ -106,8 +102,6 @@ fn position_move() -> Serverbound {
     })
 }
 
-/// Runs the client and the server; checks the window states of each client tick against the
-/// changes that the client really had applied before it.
 fn simulate(link: Link) -> Log {
     let mut draws = Draws(link.seed);
     let mut guard = MoveGuard::new();
@@ -297,9 +291,6 @@ fn links() -> impl Strategy<Value = Link> {
         )
 }
 
-/// A client at 5 frames each second on a link of almost no latency. It runs 4 client ticks
-/// after it answers a probe sent less than 30 ms before; the fourth is more than the default
-/// tick drift allows, and the level passes the setback level.
 #[test]
 fn a_client_at_5_frames_each_second_on_a_fast_link_passes_the_tick_rate_check() {
     let log = simulate(Link {
@@ -321,9 +312,6 @@ fn a_client_at_5_frames_each_second_on_a_fast_link_passes_the_tick_rate_check() 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
-    /// MVC-INV-001, MVC-INV-009: no drop, no disconnect and no packet finding for a legit
-    /// client; the level of the tick rate check stays below its setback level of 10.
-    /// MVC-INV-003: the same packets in the same order give the same result.
     #[test]
     fn a_legit_client_passes_layer_1_on_any_link(link in links()) {
         let log = simulate(link);
@@ -331,8 +319,6 @@ proptest! {
         prop_assert_eq!(simulate(link), log);
     }
 
-    /// MVC-INV-008: a stream that a vanilla server accepts, with at most one position packet in
-    /// each client tick, never ends the connection.
     #[test]
     fn a_stream_that_a_vanilla_server_accepts_never_disconnects(
         packets in prop::collection::vec(0..6u8, 0..400),
@@ -360,8 +346,6 @@ proptest! {
     }
 }
 
-/// MVC-VAN-003, MVC-TICK-003: a second position packet in one client tick disconnects; a second
-/// move packet of another kind is dropped and reported.
 #[test]
 fn a_second_move_in_one_client_tick_is_dropped_and_a_second_position_disconnects() {
     let mut guard = MoveGuard::new();
@@ -391,8 +375,6 @@ fn a_second_move_in_one_client_tick_is_dropped_and_a_second_position_disconnects
     );
 }
 
-/// MVC-TICK-004: the 20th silent client tick is a finding; ticks before the load and during a
-/// pending teleport do not count.
 #[test]
 fn the_twentieth_silent_tick_is_reported_and_exempt_ticks_do_not_count() {
     let mut guard = MoveGuard::new();

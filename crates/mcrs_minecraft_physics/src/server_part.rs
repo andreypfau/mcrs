@@ -21,23 +21,16 @@ use crate::tick_entity::jump;
 use crate::tick_player::player_mover;
 use crate::tick_player::zero_small_speeds;
 
-/// The decay of the velocity of the server copy of a player in each tick.
 const DECAY: f64 = 0.98;
 
-/// The values of the server part besides the state of the copy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ServerCopy<'a> {
-    /// The position before the moves of this tick: the start of the path through the blocks.
     pub start: DVec3,
-    /// The player in the grid, in its state after the moves of this tick.
     pub row: &'a GridRow,
     pub rules: PushRules,
     pub stream: KeyedStream,
 }
 
-/// The server part of the tick of a player, on its server copy: the decay of the velocity, the
-/// zero cutoff, the block effects without the fall distance, then the push of the
-/// server-simulated entities near it.
 pub fn server_part<B: BodyView, W: CollisionWorld>(
     view: View<'_, W, B>,
     state: &mut PlayerState,
@@ -79,7 +72,6 @@ pub fn server_part<B: BodyView, W: CollisionWorld>(
     )
 }
 
-/// The jump of the server copy when the server accepts a move that goes up from the ground.
 pub fn server_jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     state: &mut PlayerState,

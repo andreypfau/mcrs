@@ -28,7 +28,6 @@ mob_categories! {
     Misc,
 }
 
-// The weight sits beside the entry's own fields, not under `data` as in `Weighted<T>`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpawnerData {

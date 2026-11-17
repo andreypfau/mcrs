@@ -7,7 +7,6 @@ use mcrs_minecraft_simulation::{PendingTick, TickPriority};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_voxel::BlockPos;
 
-/// `west`, `east`, `north`, `south`, `below` — the order both counts walk.
 const SIDES: [IVec3; 5] = [
     IVec3::new(-1, 0, 0),
     IVec3::new(1, 0, 0),
@@ -25,8 +24,6 @@ pub struct CompiledSpring {
     pub valid_blocks: StateMask,
 }
 
-/// `SpringFeature.place`, which draws nothing at all: every gate is a block
-/// read.
 pub fn place_spring<W: WorldGenVolume>(
     config: &CompiledSpring,
     volume: &mut W,
@@ -98,7 +95,6 @@ mod tests {
         }
     }
 
-    /// Stone all round the origin, which is air.
     fn encased() -> FakeVolume {
         let mut volume = FakeVolume::default();
         for side in SIDES {

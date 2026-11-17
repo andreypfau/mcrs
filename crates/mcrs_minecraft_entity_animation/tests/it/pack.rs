@@ -1,5 +1,3 @@
-//! The pig and the frog of the entity pack under `assets/mcrs/entity`.
-
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_entity_animation::{ClipLibrary, Rig};
@@ -14,7 +12,6 @@ pub fn read(path: &str) -> String {
     std::fs::read_to_string(entity_pack().join(path)).unwrap()
 }
 
-/// The rig of a mob from its client entity file and its animation file. A diagnostic fails.
 pub fn rig(mob: &str) -> Rig {
     let definition = ClientEntityFile::parse(&read(&format!("entity/{mob}.entity.json"))).unwrap();
     let mut library = ClipLibrary::new();
@@ -27,7 +24,6 @@ pub fn rig(mob: &str) -> Rig {
     rig
 }
 
-/// The baked geometries of a geometry file of the pack.
 pub fn geometries(file: &str) -> Vec<BakedGeometry> {
     let file: GeometryFile = read(&format!("geometry/{file}.json")).parse().unwrap();
     let mut diagnostics = file.diagnostics.clone();

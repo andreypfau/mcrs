@@ -4,39 +4,22 @@ use crate::fields::Fields;
 use crate::fields::bad;
 use crate::fields::parse_value;
 
-/// One packet of a recording. A clientbound event stands at the point where the client applied
-/// it: after the end of one client tick and before the packets of the next.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    /// `player_position`.
     Teleport(Teleport),
-    /// `set_entity_motion` for the player: the decoded velocity.
     Motion([f64; 3]),
-    /// `explode` with an impulse: the impulse that the client adds to its velocity.
     Explosion([f64; 3]),
-    /// `player_abilities`, clientbound.
     Abilities(Abilities),
-    /// One entry of `update_attributes` for the player.
     Attribute(Attribute),
-    /// `update_mob_effect` for the player.
     Effect(Effect),
-    /// `remove_mob_effect` for the player: the effect name.
     RemoveEffect(String),
-    /// `block_update`, or one entry of `section_blocks_update`.
     Block(BlockChange),
-    /// `forget_level_chunk`: the chunk x and z.
     ChunkForgotten([i32; 2]),
-    /// `player_input`.
     Input(Keys),
-    /// `player_command` that starts (true) or stops (false) the sprint state.
     Sprinting(bool),
-    /// `use_item`.
     UseItem,
-    /// `player_action` that releases the item in use.
     ReleaseUseItem,
-    /// One of the four move packets.
     Move(Move),
-    /// `client_tick_end`.
     TickEnd,
 }
 
@@ -52,7 +35,6 @@ pub struct Teleport {
     pub position: [f64; 3],
     pub velocity: [f64; 3],
     pub rotation: Rotation,
-    /// The bits of the packet that make a value relative.
     pub relative: u32,
 }
 
@@ -74,7 +56,6 @@ pub struct Attribute {
 pub struct Modifier {
     pub id: String,
     pub amount: f64,
-    /// 0 adds, 1 multiplies the base, 2 multiplies the total.
     pub operation: u8,
 }
 
@@ -87,7 +68,6 @@ pub struct Effect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockChange {
     pub position: [i32; 3],
-    /// The state as `name[property=value,...]`.
     pub state: String,
 }
 
@@ -110,10 +90,8 @@ pub struct Move {
     pub horizontal_collision: bool,
 }
 
-/// A flag of a type and its name in the text.
 type Flag<'a> = (&'a mut bool, &'static str);
 
-/// Writes the names whose flag is set, comma-separated, or `none`.
 fn write_flags(f: &mut fmt::Formatter<'_>, flags: &[Flag<'_>]) -> fmt::Result {
     let names: Vec<&str> = flags
         .iter()
@@ -127,7 +105,6 @@ fn write_flags(f: &mut fmt::Formatter<'_>, flags: &[Flag<'_>]) -> fmt::Result {
     }
 }
 
-/// Sets each flag that a comma-separated list names; `none` is the empty list.
 fn parse_flags(fields: &mut Fields<'_>, field: &str, flags: &mut [Flag<'_>]) -> Result<(), String> {
     let word = fields.word(field)?;
     for name in word.split(',').filter(|name| *name != "none") {
@@ -234,7 +211,6 @@ impl fmt::Display for Event {
 }
 
 impl Event {
-    /// True for a packet from the server to the client.
     #[must_use]
     pub fn is_clientbound(&self) -> bool {
         !matches!(
@@ -248,7 +224,6 @@ impl Event {
         )
     }
 
-    /// Parses one event line, the direction mark included.
     pub(crate) fn parse(line: &str) -> Result<Self, String> {
         let mut fields = Fields::new(line);
         let direction = fields.word("direction")?;

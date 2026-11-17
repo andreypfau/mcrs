@@ -24,8 +24,6 @@ pub struct PaintingVariantValue<M: Refs = Resolved> {
     pub author: Option<Text<M::Nbt>>,
 }
 
-/// The persistent form is the registry id alone; the wire form carries the
-/// variant inline.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire,

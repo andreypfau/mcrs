@@ -8,12 +8,6 @@ use mcrs_minecraft_protocol::{Decode, Packet};
 use std::marker::PhantomData;
 use tracing::error;
 
-/// A frame of one typed row, checked by the [`PacketDispatcher`](crate::metrics::PacketDispatcher)
-/// of its connection. The row type names the table, so an observer of it sees only the frames of
-/// that table's state and side.
-///
-/// Most packets borrow from their frame and an event outlives none, so the event holds the frame
-/// and [`Received::packet`] decodes it once more.
 #[derive(EntityEvent)]
 pub struct Received<R: Row> {
     pub entity: Entity,
@@ -39,8 +33,6 @@ impl<R: Row> Received<R> {
         }
     }
 
-    /// When the socket reader took the frame. `None` for a frame that crossed into a dimension,
-    /// since the simulation reads no wall clock.
     pub fn arrival(&self) -> Option<Instant> {
         self.arrival
     }
@@ -49,8 +41,6 @@ impl<R: Row> Received<R> {
         &self.data
     }
 
-    /// `None` only for an event that was built without the dispatcher, since the dispatcher
-    /// decoded the same bytes before it raised the event.
     pub fn packet(&self) -> Option<R::Packet<'_>> {
         let mut r = &self.data[..];
         match R::Packet::decode(&mut r) {
@@ -76,8 +66,6 @@ impl<R: Row> std::fmt::Debug for Received<R> {
     }
 }
 
-/// Raises the [`Received`] event of one row. It holds no data, so a checked frame can carry it
-/// across a channel to another world.
 #[derive(Clone, Copy)]
 pub struct Trigger {
     name: &'static str,
@@ -120,7 +108,6 @@ impl std::fmt::Debug for Trigger {
     }
 }
 
-/// Hands back the trigger of the row a frame decodes as.
 pub struct Triggers;
 
 impl Visit for Triggers {
@@ -146,7 +133,6 @@ mod loop_plugin {
 
     impl Plugin for EventLoopPlugin {
         fn build(&self, app: &mut App) {
-            // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
             app.world_mut()
                 .get_resource_or_insert_with(PacketDispatcher::serverbound);
             app.init_resource::<BridgeTelemetry>();
@@ -154,8 +140,6 @@ mod loop_plugin {
         }
     }
 
-    // A guess above the handful of frames the reference client sends in a
-    // pre-game state; the measured cost of decoding one frame sets it.
     pub const PRE_GAME_FRAMES_PER_PASS: usize = 16;
 
     #[cfg_attr(
@@ -176,11 +160,9 @@ mod loop_plugin {
     ) {
         let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
         for (entity, mut conn, mut rate, &state) in &mut query {
-            // A connection in game is read by the server's bridge.
             if state == ConnectionState::Game {
                 continue;
             }
-            // What a pass leaves unread stays in the channel, which stops the socket reader.
             for _ in 0..PRE_GAME_FRAMES_PER_PASS {
                 match conn.raw.try_recv() {
                     Ok(Some(pkt)) => {

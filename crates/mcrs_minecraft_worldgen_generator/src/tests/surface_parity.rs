@@ -32,8 +32,6 @@ pub(super) struct Dump {
 }
 
 impl Dump {
-    /// The block vanilla left at this position, without its properties: no rule
-    /// in the corpus tells two states of one block apart.
     fn at(&self, x: i32, y: i32, z: i32) -> &str {
         let index = ((z * 16 + x) * self.height + (y - self.min_y)) as usize;
         self.palette[self.cells[index] as usize]
@@ -79,8 +77,6 @@ fn name_of(state: VoxelId) -> &'static str {
         .as_str()
 }
 
-/// Block for block against chunks the game generated itself: every position
-/// matches, whether the density left it empty or filled it with rock.
 fn assert_surfaced_columns_match_the_vanilla_chunks(dumps: &[&str]) {
     let ids = biome_ids();
     let mut differ: BTreeMap<(String, &str), usize> = BTreeMap::new();
@@ -148,8 +144,6 @@ mod exhaustive {
         assert_surfaced_columns_match_the_vanilla_chunks(&DUMPS);
     }
 
-    /// The three pieces of the stage that are not rules are only compared if a dump
-    /// holds them, and which chunk holds what is not visible from a file name.
     #[test]
     fn the_dumps_hold_the_clay_bands_a_pillar_and_an_iceberg() {
         let mut blocks: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -192,9 +186,6 @@ mod exhaustive {
                 "no dump holds {block}, so nothing compares it: {blocks:?}"
             );
         }
-        // A badlands pillar stands some seventeen blocks over the terrain around it;
-        // without one the pillar pass would go uncompared in a chunk that surfaces
-        // in terracotta anyway.
         assert!(
             tallest_over_median >= 15,
             "the tallest strip of any dump is only {tallest_over_median} over its median, so no pillar was captured"

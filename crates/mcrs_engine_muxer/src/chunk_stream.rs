@@ -2,18 +2,8 @@ use bytes::Bytes;
 
 use crate::entity_id::ViewerId;
 
-/// A version that waits for more changes than this is dropped, and a later one is asked for:
-/// a viewer that takes a chunk much later gets a fresh version rather than a long replay.
 const MAX_LOGGED_CHANGES: usize = 256;
 
-/// The version stream of one chunk, as the muxer holds it for the viewers that hold the chunk
-/// or wait for it.
-///
-/// The owner of the chunk encodes a version once, and every viewer that takes it gets the same
-/// bytes. A version holds the changes of the ticks before the tick that published it. The
-/// stream keeps each change after the version for the viewers that wait, so a viewer gets the
-/// version and then those changes. A change that the version holds already does no harm when
-/// it comes again.
 #[derive(Clone, Debug)]
 pub struct ChunkStream<C> {
     waiting: Vec<ViewerId>,
@@ -33,46 +23,37 @@ impl<C> Default for ChunkStream<C> {
     }
 }
 
-/// Whether a version that the owner did not publish yet was asked for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Asked {
     No,
     Yes,
 }
 
-/// A version of a chunk and the changes that came after it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StreamVersion<C> {
-    /// The version, encoded once by its owner.
     pub bytes: Bytes,
     pub changes: Vec<C>,
 }
 
-/// What a stream asks of the owner of its chunk after a change of its viewers.
 #[must_use]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamNeed {
     Nothing,
-    /// A version, for the viewers that wait.
     Version,
-    /// No viewer holds the chunk or waits for it: the stream goes.
     Drop,
 }
 
 impl<C> ChunkStream<C> {
-    /// The viewers that hold the chunk, which get each change of it.
     #[must_use]
     pub fn holders(&self) -> &[ViewerId] {
         &self.holders
     }
 
-    /// The last version, while viewers wait for it.
     #[must_use]
     pub fn version(&self) -> Option<&StreamVersion<C>> {
         self.version.as_ref()
     }
 
-    /// `viewer` waits for the chunk.
     pub fn wait(&mut self, viewer: ViewerId) -> StreamNeed {
         self.waiting.push(viewer);
         self.ask()
@@ -86,18 +67,15 @@ impl<C> ChunkStream<C> {
         StreamNeed::Version
     }
 
-    /// `viewer` stops waiting for the chunk or holding it.
     pub fn leave(&mut self, viewer: ViewerId) -> StreamNeed {
         self.waiting.retain(|waiting| *waiting != viewer);
         self.holders.retain(|holder| *holder != viewer);
         self.settle()
     }
 
-    /// `viewer` got the chunk, and holds it from now on.
     pub fn hold(&mut self, viewer: ViewerId) {
         self.waiting.retain(|waiting| *waiting != viewer);
         self.holders.push(viewer);
-        // A holder keeps the stream, so it never goes here.
         let _ = self.settle();
     }
 
@@ -113,7 +91,6 @@ impl<C> ChunkStream<C> {
         }
     }
 
-    /// Takes in a version that the owner published, for the viewers that wait.
     pub fn publish(&mut self, bytes: Bytes) {
         self.asked = Asked::No;
         if self.waiting.is_empty() {
@@ -127,7 +104,6 @@ impl<C> ChunkStream<C> {
 }
 
 impl<C: Clone> ChunkStream<C> {
-    /// Keeps `change` for the viewers that wait for the version. The holders get it apart.
     pub fn log(&mut self, change: &C) -> StreamNeed {
         let Some(version) = &mut self.version else {
             return StreamNeed::Nothing;

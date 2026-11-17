@@ -50,7 +50,6 @@ pub(crate) fn build(
     Ok(TickCommand { sprint })
 }
 
-/// A number of nanoseconds as milliseconds with one digit after the point.
 fn millis_text(nanos: u64) -> String {
     format!("{:.1}", nanos as f32 / 1.0e6)
 }
@@ -59,12 +58,10 @@ fn tick_rate_text(pace: &TickPace) -> String {
     format!("{:.1}", 1.0e9 / pace.target_nanos().max(1) as f64)
 }
 
-/// The tick rate, rounded toward 0.
 fn tick_rate(pace: &TickPace) -> i32 {
     i32::try_from(1_000_000_000 / pace.target_nanos().max(1)).unwrap_or(i32::MAX)
 }
 
-/// The three messages of `tick query`: the state, the rate and the percentiles.
 pub(crate) fn query_messages(pace: &TickPace) -> [Text; 3] {
     let average = pace.average_nanos();
     let status = if pace.is_sprinting() {
@@ -107,7 +104,6 @@ pub(crate) fn query_messages(pace: &TickPace) -> [Text; 3] {
     [Text::translate(status, vec![]), rate, percentiles]
 }
 
-/// The report of a sprint that ended.
 pub(crate) fn report_message(report: SprintReport, pace: &TickPace) -> Text {
     let target_millis = pace.target_nanos() as f64 / 1.0e6;
     Text::translate_args(

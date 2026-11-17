@@ -8,7 +8,6 @@ use crate::option_sub_screen::{OptionList, option_sub_screen};
 
 pub(crate) const MOUSE_SETTINGS: WidgetId = WidgetId(3);
 
-/// The "Controls" screen on a screen of the size `screen` (CTRL-SCR-003).
 pub(crate) fn controls_screen(
     screen: GuiExtent,
     language: &ClientLanguage,

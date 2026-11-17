@@ -6,8 +6,6 @@ use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
 
-/// `TheEndBiomeSource` lists its five biomes in this order, and that order is
-/// the input of the sort.
 const END_BIOMES: [ResourceKey<'static, mcrs_minecraft_biome::Biome>; 5] = [
     mcrs_minecraft_biome::biome_keys::THE_END,
     mcrs_minecraft_biome::biome_keys::END_HIGHLANDS,
@@ -16,21 +14,13 @@ const END_BIOMES: [ResourceKey<'static, mcrs_minecraft_biome::Biome>; 5] = [
     mcrs_minecraft_biome::biome_keys::END_BARRENS,
 ];
 
-/// One dimension's sorted feature tables: what [`FeatureProgram::build`]
-/// resolves into numbers.
 #[derive(Clone)]
 pub struct FeatureTables {
     pub features: FeatureSteps,
-    /// The biome source's own order, which decides the sort.
     pub biome_order: Vec<ResourceLocationBuf>,
-    /// What each biome's climate says about freezing. Only the parsed biome
-    /// carries it, and the registry the feature program builds against holds
-    /// names alone, so it is read here and carried rather than resolved there.
     pub climate: BTreeMap<ResourceLocationBuf, BiomeClimate>,
 }
 
-/// The biomes a source can answer with, in the source's own order and without
-/// repeats — the input the feature order is defined against.
 pub fn possible_biomes(
     source: &BiomeSource,
     registries: &Registries,
@@ -82,8 +72,6 @@ mod tests {
     use mcrs_minecraft_fixtures::fixture;
     use mcrs_minecraft_worldgen_testing::dump_string;
 
-    /// The reference's own `possibleBiomes`, per source, from the dump the
-    /// feature-order oracle wrote.
     fn dumped_biomes() -> BTreeMap<String, Vec<String>> {
         let mut r = bytes::Bytes::from(fixture("feature_steps").dump(b"MCFSTEP0"));
 

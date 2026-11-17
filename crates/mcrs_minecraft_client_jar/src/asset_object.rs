@@ -2,34 +2,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::sha1_hex;
 
-/// The official object server; it sends no CORS header, so a page serves the objects itself.
 pub const OBJECTS: &str = "https://resources.download.minecraft.net";
 
-/// A file of the asset index layer, which sits above the jar. Pinned to the release like
-/// `release.json` is: the index lists each object by SHA-1 and size.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AssetObject<'a> {
-    /// Where the file lies below `assets/` once it is laid over the jar's files.
     pub path: &'a str,
     pub sha1: &'a str,
     pub size: u64,
 }
 
-/// The objects of the font folder of the asset index, which the update tool writes to
-/// `font_objects.json`: the real `include/unifont.json`, which replaces the jar's empty
-/// placeholder, and the Unifont archives it names.
 pub const FONT_OBJECTS: &[AssetObject<'static>] =
     &include!(concat!(env!("OUT_DIR"), "/font_objects.rs"));
 
 impl AssetObject<'_> {
-    /// The address of the object on `objects`, a server laid out as [`OBJECTS`] is.
     pub fn url(&self, objects: &str) -> String {
         let objects = objects.trim_end_matches('/');
         format!("{objects}/{}/{}", self.directory(), self.sha1)
     }
 
-    /// The first two digits of the SHA-1, the folder the launcher keeps the object in.
     pub fn directory(&self) -> &str {
         self.sha1.get(..2).unwrap_or_default()
     }

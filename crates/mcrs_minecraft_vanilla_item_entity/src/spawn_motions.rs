@@ -31,7 +31,6 @@ use crate::item_spawn_request::FixedKey;
 use crate::launch::Launching;
 use crate::wire_stack::wire_stack_of;
 
-/// The motion row of an item entity: the plugin, not the pass, ends it (IEN-AGE-001).
 fn motion_row() -> MotionRow {
     MotionRow {
         lifetime: None,
@@ -39,9 +38,6 @@ fn motion_row() -> MotionRow {
     }
 }
 
-/// Gives each dropped stack without a motion its motion: the start of its launch, or its position
-/// at rest. A stack dropped without a launch gets the default values (IEN-DAT-002). A stack
-/// without a wire form cannot be shown, so it leaves the world instead of becoming an item entity.
 pub(crate) fn spawn_motions(
     mut commands: Commands,
     pending: Query<

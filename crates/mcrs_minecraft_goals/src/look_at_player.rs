@@ -11,12 +11,8 @@ use crate::Gate;
 use crate::LOOK_AT_PLAYER_COUNT;
 use crate::LOOK_AT_PLAYER_WAIT;
 
-/// The chance of the random gate of a look goal in one examined full evaluation.
 pub const LOOK_CHANCE: f64 = 0.02;
 
-/// The look at a player (GOAL-LKP-001) within `range` of the mob: the player and the count of
-/// evaluation units that remain. The look target uses the head turn speed and the pitch limit of
-/// the mob type.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LookAtPlayerGoal {
     gate: Gate,
@@ -38,7 +34,6 @@ impl LookAtPlayerGoal {
         self.count = u8::try_from((40 + draw).div_ceil(2)).unwrap_or(u8::MAX);
     }
 
-    /// Sets the look target at the eye of the player while it is alive, and counts one unit.
     pub fn tick<W: ?Sized>(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) {
         if let Some(row) = self.row(turn)
             && row.flags.contains(PlayerFlags::ALIVE)
@@ -81,16 +76,11 @@ impl LookAtPlayerGoal {
     }
 }
 
-/// The hold of a look target that an evaluation goal sets again in each full evaluation: until the
-/// next application, at most `2 + max_lag - 1` ticks (AIT-LAG-009).
 #[must_use]
 pub fn look_hold(max_lag: u8) -> u8 {
     max_lag.saturating_add(1)
 }
 
-/// `Q-LOOK` (GOAL-LKP-002): the qualified player within `max(range × v, 2)` that the mob sees and
-/// that does not ride it, nearest to the point at the eye height above the feet of the mob; on a
-/// tie the smaller order key.
 pub fn nearest_player<'a, W: GoalWorld + ?Sized>(
     turn: &Turn<'a, W>,
     range: f64,

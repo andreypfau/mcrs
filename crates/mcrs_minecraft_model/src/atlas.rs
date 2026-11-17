@@ -13,7 +13,6 @@ use std::sync::LazyLock;
 
 pub const MISSING_SPRITE: &str = "minecraft:missingno";
 
-/// Metal binds at most this many layers in one texture array.
 pub const ARRAY_LAYERS: usize = 2048;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -44,7 +43,6 @@ pub struct SpriteArray {
     pixels: Vec<u8>,
 }
 
-/// The base texture a permuted sprite copies and the palette swap it applies.
 type Permutation = (String, PaletteMapping);
 
 #[derive(Default)]
@@ -84,12 +82,10 @@ impl SpriteRegistry {
         &self.table
     }
 
-    /// The sprite `intern` handed out as `id`, or `None` for an id it never handed out.
     pub fn sprite(&self, id: u16) -> Option<Sprite> {
         self.table.get(usize::from(id)).copied()
     }
 
-    /// An id the registry never handed out reads as translucent, which culls nothing.
     pub fn opacity(&self, id: u16) -> Opacity {
         self.sprite(id)
             .and_then(|sprite| {
@@ -99,9 +95,6 @@ impl SpriteRegistry {
             .unwrap_or(Opacity::Translucent)
     }
 
-    /// Registers the paletted permutations every `atlases/*.json` declares, so
-    /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
-    /// although no such file exists.
     pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
@@ -149,8 +142,6 @@ impl SpriteRegistry {
         Err(SpriteError::NotInPack { path })
     }
 
-    /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
-    /// Empty for an id the registry never handed out.
     pub fn frames(&self, id: u16) -> Vec<&[u8]> {
         let Some(sprite) = self.sprite(id) else {
             return Vec::new();
@@ -180,8 +171,6 @@ impl SpriteRegistry {
             return Ok(index);
         }
         if self.arrays.len() >= MAX_SPRITE_ARRAYS {
-            // chisle: the sprite goes into the finest coarser array, scaled up by a power of two;
-            // this fails again once that array is full too, and more bound arrays lift it.
             let coarser = |array: &SpriteArray| {
                 array.size > side
                     && array.size.is_multiple_of(side)
@@ -337,9 +326,6 @@ pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
-/// Entity textures such as a skull's or a book's are wider than tall; every layer of an array is
-/// square, so the image goes in the top-left corner and `block_entity_model` divides its UVs by
-/// the side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
 fn entity_square(id: &str, source: Source) -> Source {
     let entity = id
         .split_once(':')
@@ -357,7 +343,6 @@ fn entity_square(id: &str, source: Source) -> Source {
     }
 }
 
-/// `data`, `width` by `height` RGBA, in the top-left of a transparent square.
 fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
     let side = width.max(height) as usize;
     let row = width as usize * 4;
@@ -370,7 +355,6 @@ fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// The pixels of the missing sprite, RGBA, `MISSING_SIZE` on each side.
 pub fn missing_pixels() -> Vec<u8> {
     let half = MISSING_SIZE / 2;
     (0..MISSING_SIZE)
@@ -408,9 +392,6 @@ fn underscore() -> String {
 }
 
 impl AtlasSources {
-    /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
-    /// Only paletted permutations create sprites here; the other sources name files that
-    /// intern on demand.
     fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, SpriteError> {
         let mut out = Vec::new();
         for source in &self.sources {
@@ -510,9 +491,6 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
     }
 }
 
-/// `side`-square RGBA layers with every texel repeated `factor` times on both axes. A face samples
-/// the whole layer, so it shows the same pixels; with a power-of-two `factor` the mip that many
-/// times smaller is the original.
 fn scale_up(pixels: &[u8], side: u32, factor: u32) -> impl Iterator<Item = u8> + '_ {
     let (side, factor) = (side as usize, factor as usize);
     pixels.chunks_exact(side * 4).flat_map(move |row| {
@@ -536,7 +514,6 @@ impl SpriteArray {
         self.pixels.get(layer * stride..(layer + 1) * stride)
     }
 
-    /// The mip chain of the layers from `from` on, in the layout the whole chain uses.
     pub fn mips(&self, from: usize) -> Vec<Vec<u8>> {
         let stride = (self.size * self.size * 4) as usize;
         mip_levels(
@@ -547,9 +524,6 @@ impl SpriteArray {
     }
 }
 
-/// Every level of every layer, level zero being the pixels as given. A cutout layer keeps the
-/// share of texels its alpha test passes at every level, so a leaf block does not thin out with
-/// distance.
 fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<u8>> {
     if size == 0 {
         return Vec::new();
@@ -630,8 +604,6 @@ fn match_coverage(pixels: &mut [u8], texels: usize, target: f32) {
     }
 }
 
-/// The texel a 2x2 block at `(x, y)` of a `stride`-wide RGBA layer averages to, its colour
-/// weighted by alpha in linear light. A texel past the layer counts as transparent.
 fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize) -> [u8; 4] {
     let mut light = [0f32; 3];
     let mut alpha = 0u32;

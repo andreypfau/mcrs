@@ -15,16 +15,13 @@ use crate::provider_evaluation::Evaluation;
 use crate::score_target::ScoreTarget;
 use crate::weighted_entry::WeightedEntry;
 
-/// A baked context int provider. Its evaluation takes the draws of LOOT-NUM-002 in order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IntProvider(pub(crate) IntNode);
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum IntNode {
-    /// A part that the bake could not resolve; its evaluation is an error.
     Fault,
     Constant(i32),
-    /// The entry of the registry `context_int_provider` at the index, with what it reads.
     Named {
         index: usize,
         reads: ContextParams,
@@ -87,14 +84,11 @@ pub(crate) enum IntAggregate {
 }
 
 impl IntProvider {
-    /// The provider `constant` (LOOT-NUM-003).
     #[must_use]
     pub const fn constant(value: i32) -> Self {
         Self(IntNode::Constant(value))
     }
 
-    /// The int read (LOOT-NUM-001): an evaluation error gives 0. `scratch` holds the
-    /// buffers of the conditions that the provider tests.
     pub fn read<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         inputs: LootInputs<'_, '_, E, W>,
@@ -106,7 +100,6 @@ impl IntProvider {
             .unwrap_or(0)
     }
 
-    /// The parameters that the provider reads.
     #[must_use]
     pub fn reads(&self) -> ContextParams {
         self.0.reads()

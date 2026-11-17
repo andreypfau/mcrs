@@ -9,8 +9,6 @@ use mcrs_minecraft_protocol_game::Hand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundUseItemOn;
 use mcrs_voxel::BlockPos;
 
-/// A `use_item_on` packet of the player `entity`. The engine acknowledges its sequence with the
-/// block actions of the tick; what the click does is the work of a reader of this message.
 #[derive(Message, Clone, Copy, Debug)]
 pub struct UseItemOnRequest {
     pub entity: Entity,

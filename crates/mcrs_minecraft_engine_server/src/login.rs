@@ -34,12 +34,9 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
 
-/// Vanilla mints one chat session id per listener and reuses it for every login.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct ChatSessionId(pub uuid::Uuid);
 
-/// A packet of at least this many bytes is compressed once a login switches compression on.
-/// A negative threshold leaves every login uncompressed.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct NetworkCompressionThreshold(pub i32);
 
@@ -72,7 +69,6 @@ impl bevy_app::Plugin for LoginPlugin {
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
         app.add_observer(grant_loopback_ops);
-        // A login ended as slow must be closed before a release in the same tick could finish it.
         app.add_systems(
             bevy_app::Update,
             (end_slow_logins, finish_awaiting_logins)
@@ -139,14 +135,11 @@ fn enforce_bans(
     }
 }
 
-/// The game ends a login that is still pending after this many ticks.
 const MAX_TICKS_BEFORE_LOGIN: u64 = 600;
 
-/// Ticks the server has run, one per update.
 #[derive(Resource, Default, Debug, Clone, Copy)]
 struct ServerTicks(u64);
 
-/// The tick on which the connection began its login, held until the client acknowledges it.
 #[derive(Component, Debug, Clone, Copy)]
 struct LoginStarted(u64);
 
@@ -170,21 +163,16 @@ fn start_login_clock(
 pub enum LoginState {
     #[default]
     Hello,
-    /// Waiting for the sessions under its id to end and their players to be saved.
     AwaitingDeparture,
     Accepted,
 }
 
-/// The player hosting an integrated server.
 #[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct SingleplayerProfile {
     pub name: String,
     pub id: uuid::Uuid,
 }
 
-/// The server authenticates nobody, so the id a hello carries is never trusted: a hello under
-/// the host's name, in any case, plays as the host, and any other plays under the offline id of
-/// its name.
 fn hello_profile(username: &str, host: Option<&SingleplayerProfile>) -> GameProfile {
     let (id, username) = match host {
         Some(host) if host.name.eq_ignore_ascii_case(username) => (host.id, host.name.clone()),
@@ -201,7 +189,6 @@ fn is_valid_player_name(name: &str) -> bool {
     name.len() <= 16 && name.bytes().all(|byte| (b'!'..=b'~').contains(&byte))
 }
 
-// The game refuses such a name by throwing, and its connection sends the exception as the reason.
 fn invalid_player_name_reason() -> Text {
     Text::translate(
         "disconnect.genericReason",
@@ -246,15 +233,10 @@ fn too_many_logins_reason() -> Text {
     Text::text("Too many logins from your address. Wait a few seconds and try again.")
 }
 
-/// The limits a login meets after the ban and whitelist checks.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct JoinLimits {
-    /// The joined connections of the server, a connection still in login or configuration
-    /// included.
     pub max_players: u32,
-    /// The joined connections of one address other than loopback; `None` turns the cap off.
     pub per_ip: Option<u32>,
-    /// `None` turns the join rate off.
     pub join_rate: Option<JoinRate>,
 }
 
@@ -271,8 +253,6 @@ impl Default for JoinLimits {
     }
 }
 
-/// A bucket of `capacity` logins for each address other than loopback, which gains one login
-/// back in each `period`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JoinRate {
     pub capacity: u32,
@@ -282,8 +262,6 @@ pub struct JoinRate {
 #[derive(Resource, Default)]
 struct JoinBuckets(HashMap<IpAddr, TokenBucket>);
 
-/// The protocol the client decodes. It switches on receiving the packet that ends a phase, while
-/// the server's state follows only on the client's acknowledgement.
 pub(crate) fn client_protocol(
     state: ConnectionState,
     login: Option<&LoginState>,
@@ -296,15 +274,12 @@ pub(crate) fn client_protocol(
     }
 }
 
-/// Writes the disconnect packet of the protocol the client decodes; the caller closes the
-/// connection.
 pub fn disconnect(con: &mut ServerSideConnection, state: ConnectionState, reason: Text) {
     if let Err(error) = con.disconnect(state, reason) {
         tracing::warn!("a disconnect could not be encoded: {error:#}");
     }
 }
 
-/// The sessions on this server, and the players still being saved, by the id they play under.
 #[derive(SystemParam)]
 pub struct SessionsById<'w, 's> {
     anchors: Query<
@@ -339,8 +314,6 @@ impl SessionsById<'_, '_> {
         self.departing.iter().any(|departing| departing.id == id)
     }
 
-    /// Whether a player under `id`, other than the session on `own`, is in the world: placed in
-    /// a dimension, in play, or not yet saved.
     pub fn in_world(
         &self,
         id: uuid::Uuid,
@@ -388,16 +361,12 @@ impl LoginReplies<'_> {
     }
 }
 
-/// The secret of the proxy that forwards every player; while it is present, a login takes the
-/// player's profile and address from the proxy.
 #[derive(Resource, Clone, Debug)]
 pub struct ProxyForwarding(pub ForwardingSecret);
 
-/// The forwarding query is sent and its answer has not arrived.
 #[derive(Component, Debug)]
 pub struct AwaitingForwarding;
 
-/// What a login runs through once it knows the player's profile.
 #[derive(SystemParam)]
 pub struct Admission<'w, 's> {
     session_connections: Query<
@@ -426,8 +395,6 @@ impl Admission<'_, '_> {
             .remove::<ServerSideConnection>();
     }
 
-    /// The player limit, the per-IP join cap and the join rate, in this order. A joined
-    /// connection under `id` does not count, since this login ends it.
     fn limit_refusal(&mut self, ip: IpAddr, id: uuid::Uuid) -> Option<Text> {
         let ip = ip.to_canonical();
         let joined = || {
@@ -451,7 +418,6 @@ impl Admission<'_, '_> {
         }
         if let Some(rate) = self.limits.join_rate {
             let refill = 1.0 / rate.period.as_secs_f32();
-            // A full bucket behaves as a new one, so dropping it bounds the map.
             self.join_buckets
                 .0
                 .retain(|_, bucket| !bucket.is_full(rate.capacity, refill));
@@ -544,7 +510,6 @@ pub fn handle_hello_packet(
     admission.admit(event.entity, &mut con, profile);
 }
 
-/// The answer to the forwarding query; any other `custom_query_answer` ends the login.
 pub fn handle_custom_query_answer(
     event: On<Received<ServerboundCustomQueryAnswer<'static>>>,
     mut query: Query<(&mut ServerSideConnection, Has<AwaitingForwarding>), Without<LoginState>>,
@@ -597,8 +562,6 @@ fn slow_login_reason() -> Text {
     Text::translate("multiplayer.disconnect.slow_login", Vec::new())
 }
 
-/// A held login that runs out of time also gives up on the saves it was waiting for, or every
-/// later login under its id would wait for them too.
 fn end_slow_logins(
     mut logins: Query<(
         Entity,

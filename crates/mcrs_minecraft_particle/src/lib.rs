@@ -35,8 +35,6 @@ macro_rules! particle_types {
     };
 }
 
-/// Calls `$callback!` with every particle type's `ParticleType` variant and
-/// its payload, if it has one.
 #[macro_export]
 macro_rules! for_each_particle_type {
     ($callback:ident) => {
@@ -175,10 +173,6 @@ macro_rules! for_each_particle_type {
 
 for_each_particle_type!(particle_types);
 
-/// A bare block id names the block's default state, which is what empty
-/// `properties` mean; any other state is `{id, properties}`. Properties read
-/// from a datapack stay as written, so a partial set is completed only when
-/// the id is resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockStateValue {
     pub block: ResourceKeyBuf<Block>,
@@ -299,8 +293,6 @@ pub struct PowerParticle {
     pub power: f32,
 }
 
-/// Rejected outside 0.01..=4 when read from data, clamped into it from the
-/// wire.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct ParticleScale(pub f32);
 
@@ -403,9 +395,6 @@ pub struct ItemParticle<M: Refs = Resolved> {
     pub item: Template<M>,
 }
 
-/// `PositionSource`, dispatched on the `position_source_type` registry. An
-/// entity source names the entity by network id, which no datapack can
-/// address, so only a block source has a persistent form.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PositionSource {
     Block { pos: BlockPos },

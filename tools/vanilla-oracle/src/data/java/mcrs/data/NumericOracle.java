@@ -19,7 +19,6 @@ import java.util.Random;
 import net.minecraft.SharedConstants;
 import net.minecraft.util.Mth;
 
-/** Samples the numeric primitives of the game. Floats are written as their raw bits in hex. */
 public final class NumericOracle {
     private static final double TABLE_SCALE = 10430.378350470453;
 

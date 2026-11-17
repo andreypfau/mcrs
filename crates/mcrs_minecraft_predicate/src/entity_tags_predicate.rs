@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 use crate::entity_view::EntityView;
 
-/// A test of the scoreboard tags of an entity.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 pub(crate) struct EntityTagsPredicate {
     any_of: Option<Vec<String>>,
@@ -11,7 +10,6 @@ pub(crate) struct EntityTagsPredicate {
 }
 
 impl EntityTagsPredicate {
-    /// An empty `any_of` fails; an empty `all_of` or `none_of` passes.
     pub(crate) fn matches<W: EntityView>(&self, world: &W, entity: W::Entity) -> bool {
         let has = |tag: &str| world.has_scoreboard_tag(entity, tag);
         self.any_of

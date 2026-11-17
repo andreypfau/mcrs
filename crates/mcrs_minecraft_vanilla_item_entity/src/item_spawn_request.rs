@@ -16,8 +16,6 @@ use crate::Launch;
 use crate::Owner;
 use crate::Thrower;
 
-/// An item entity at rest at `position` with the values of a saved form and the UUID `key`, as
-/// the `summon item` command makes it (IEN-SPN-001).
 #[derive(Message, Clone, Debug, PartialEq)]
 pub struct ItemSpawnRequest {
     pub stack: ItemStack,
@@ -28,7 +26,6 @@ pub struct ItemSpawnRequest {
     pub thrower: Option<u128>,
 }
 
-/// The UUID that a request gave the item entity, in place of the one of its birth.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct FixedKey(pub(crate) EntityKey);
 

@@ -20,34 +20,23 @@ use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 
-/// The squared change of the velocity, in blocks per tick, from which it is sent (TRK-UPD-007).
 const VELOCITY_CHANGE: f64 = 1.0e-7;
 
-/// The tracker of one mob, which all its viewers share (TRK-UPD-001 to TRK-UPD-009): what the
-/// viewers last received, and the open step of the path of the next update.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MobTracker {
     kind: &'static EntityTypeData,
-    /// The tick of the first tracker tick.
     start: u64,
-    /// The tick of the last tracker tick that ran.
     last: u64,
     latest: MobState,
-    /// The latest entity data entries.
     entries: Entries,
-    /// The entity data entries that the viewers last received.
     sent_entries: Entries,
     sent: Sent,
-    /// The updates since the last `entity_position_sync`.
     since_sync: u32,
-    /// The tracker ticks of the open step.
     open: u32,
 }
 
-/// The motion of a mob that its viewers last received.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Sent {
-    /// The position base.
     position: DVec3,
     velocity: DVec3,
     yaw: ByteAngle,
@@ -70,8 +59,6 @@ impl Sent {
 }
 
 impl MobTracker {
-    /// The tracker of an entity that `state` and `entries` show, whose first tracker tick is
-    /// `tick`.
     pub(crate) fn new(
         state: MobState,
         entries: Entries,
@@ -95,12 +82,10 @@ impl MobTracker {
         &self.latest
     }
 
-    /// The entity data entries that the viewers last received.
     pub(crate) fn sent_entries(&self) -> &Entries {
         &self.sent_entries
     }
 
-    /// Records `state`; the living entries follow its health and its dying state.
     pub(crate) fn record(&mut self, state: MobState) {
         self.latest = state;
         if let Entries::Living(living) = &mut self.entries {
@@ -108,26 +93,20 @@ impl MobTracker {
         }
     }
 
-    /// Records the stack of an item entity.
     pub(crate) fn record_stack(&mut self, stack: ProtoStack<Wire>) {
         if let Entries::Item(item) = &mut self.entries {
             *item = stack;
         }
     }
 
-    /// Records the entries of a custom kind (TRK-DATA-005).
     pub(crate) fn record_entries(&mut self, entries: &[MetadataEntry<'static>]) {
         self.entries.merge(entries);
     }
 
-    /// Whether the tracker skipped a tracker tick before `tick`: no client held the mob, so
-    /// what its viewers last received is no longer known.
     pub(crate) fn is_stale(&self, tick: u64) -> bool {
         tick.wrapping_sub(self.last) > 1
     }
 
-    /// Makes the latest state the state that the viewers last received, for the first viewer of
-    /// a mob that no client held.
     pub(crate) fn restart(&mut self) {
         self.sent = Sent::of(&self.latest);
         self.sent_entries = self.entries.clone();
@@ -135,13 +114,10 @@ impl MobTracker {
         self.open = 0;
     }
 
-    /// Whether an entity data entry changed after the tracker last sent it (TRK-DATA-005).
     fn dirty(&self) -> bool {
         self.entries != self.sent_entries
     }
 
-    /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles, with
-    /// the field `data` of the type.
     pub(crate) fn add_entity(&self, id: VarInt, uuid: Uuid, data: VarInt) -> ClientboundAddEntity {
         ClientboundAddEntity {
             id,
@@ -156,10 +132,6 @@ impl MobTracker {
         }
     }
 
-    /// Runs the tracker tick of `tick` and appends the packets of its update, if it is one, to
-    /// `bytes`. An update sends the instances of `attributes` that changed after the last one
-    /// (ATR-NET-003); a change of an instance alone does not make an update. The tracker,
-    /// `attributes` and `bytes` stay as they are when an encoding fails.
     pub(crate) fn tick(
         &mut self,
         id: VarInt,
@@ -198,9 +170,6 @@ impl MobTracker {
         Ok(())
     }
 
-    /// Appends the packets of an update and moves the sent motion. The caller moves the sent
-    /// entries and marks `attributes` sent, so that an update without a dirty entry copies none of
-    /// them.
     fn update(
         &mut self,
         id: VarInt,
@@ -258,7 +227,6 @@ impl MobTracker {
         Ok(())
     }
 
-    /// Appends the move packet of an update that TRK-UPD-003 selects, and moves the sent values.
     fn write_move(
         &mut self,
         id: VarInt,
@@ -302,16 +270,10 @@ impl MobTracker {
         Ok(())
     }
 
-    /// The tracker ticks of the open step; an entity that is not living has the linear path
-    /// (TRK-UPD-005).
     fn open_ticks(&self) -> u32 {
         if self.kind.is_living() { self.open } else { 0 }
     }
 
-    /// Appends the state that the viewers last received, as absolute values: the position base,
-    /// the velocity, the head yaw, the entity data and the instances of `attributes`. A client
-    /// that missed updates holds the same state as every other viewer after it, and the next
-    /// relative move fits its base.
     pub(crate) fn resend(
         &self,
         id: VarInt,
@@ -359,9 +321,6 @@ impl MobTracker {
         })
     }
 
-    /// The relative path from the base to `position`: one step of the open ticks, or a linear
-    /// move when the step is empty (TRK-UPD-005). `None` when it does not fit (TRK-WIRE-001), or
-    /// when the type syncs a move that loses precision and this one does (TRK-UPD-013).
     fn delta(&self, position: DVec3) -> Option<VecDelta> {
         let delta = position_delta::encode(self.sent.position, position)?;
         if self.kind.client_motion == ClientMotion::Simulated(PreciseSync::LostPrecision)
@@ -381,9 +340,6 @@ impl MobTracker {
         })
     }
 
-    /// Writes the absolute position and the rotation, and moves the sent position and rotation
-    /// there. Only a resync also moves the sent on-ground flag and ends the update count
-    /// (TRK-UPD-003).
     fn sync(&mut self, id: VarInt, resync: Resync, bytes: &mut BytesMut) -> Result<()> {
         let state = self.latest;
         let position = match self.open_ticks() {
@@ -419,9 +375,6 @@ impl MobTracker {
     }
 }
 
-/// The item condition of TRK-UPD-013: the move `delta` along the face of a collision of the last
-/// move ends on a coordinate that the wire does not hold. The axes of a horizontal collision
-/// cross.
 fn slides_imprecisely(state: &MobState, delta: [i16; 3]) -> bool {
     let [dx, _, dz] = delta;
     let x = loses_precision(state.position.x);
@@ -450,8 +403,6 @@ mod tests {
     const FLOOR: f64 = -60.0;
     const RESTING: f64 = -0.0784;
 
-    /// The states of a mob that falls from `y = -40` onto a floor at `y = -60`, one for each
-    /// tick: it moves by its velocity, then gravity and drag change the velocity.
     fn fall(ticks: usize) -> Vec<MobState> {
         let mut y = -40.0;
         let mut velocity = 0.0;
@@ -501,7 +452,6 @@ mod tests {
         }
     }
 
-    /// TRK-E2: the updates of a falling zombified piglin, from its first tracker tick on.
     #[test]
     fn trk_upd_a_falling_mob_updates_each_three_ticks_and_syncs_at_the_landing() {
         let states = fall(70);
@@ -597,7 +547,6 @@ mod tests {
         moved(VecDelta::Linear(delta), on_ground)
     }
 
-    /// The tracker of a subject of `kind` that starts as `spawn`, with entries that do not change.
     fn simulated(kind: &'static EntityTypeData, spawn: MobState) -> MobTracker {
         MobTracker::new(
             spawn,
@@ -607,7 +556,6 @@ mod tests {
         )
     }
 
-    /// The ticks of each update and their bytes, for one state per tick from tick 0.
     fn updates(tracker: &mut MobTracker, states: &[MobState]) -> Vec<(u64, Bytes)> {
         let mut updates = Vec::new();
         for (tick, state) in (0..).zip(states) {
@@ -791,9 +739,6 @@ mod tests {
         }
     }
 
-    /// TRK-UPD-003 and TRK-UPD-016: the 401st counted update since the last resync is a resync.
-    /// A sync because the move does not fit counts and does not end the count; an item at rest
-    /// does not count.
     #[test]
     fn trk_upd_003_016_the_401st_counted_update_resyncs() {
         let path = |tick: u64, jump: u64, rest: core::ops::RangeInclusive<u64>| {
@@ -934,7 +879,6 @@ mod tests {
         );
     }
 
-    /// A stack of `count` items of the item with the wire id 1 and an empty patch.
     fn stack(count: u8) -> ProtoStack<Wire> {
         ProtoStack::decode(&mut &[count, 1, 0, 0][..]).unwrap()
     }

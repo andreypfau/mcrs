@@ -52,8 +52,6 @@ use crate::player::spawn_player;
 pub(crate) const FLOOR_TOP: f64 = 16.0;
 pub(crate) const OWN_PLAYER: i32 = 7;
 
-/// A stone floor whose top is at [`FLOOR_TOP`], in the one column at the origin of a dimension of
-/// two sections.
 pub(crate) fn stone_floor(blocks: &TestBlocks) -> ColumnStore {
     let extent = Extent {
         min_section_y: 0,
@@ -73,11 +71,6 @@ pub(crate) fn stone_floor(blocks: &TestBlocks) -> ColumnStore {
     columns
 }
 
-/// Raises the observers of `packet` as if `connection` received it in the play state.
-///
-/// # Panics
-///
-/// When `packet` does not encode or is not a clientbound play packet.
 pub(crate) fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, packet: P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();
@@ -94,7 +87,6 @@ pub(crate) fn spawn_info(game_mode: GameMode) -> PlayerSpawnInfo {
     PlayerSpawnInfo::new(Id::checked(0, 1).unwrap(), OVERWORLD.into(), game_mode)
 }
 
-/// The `login` of [`OWN_PLAYER`] in `game_mode`.
 pub(crate) fn login(game_mode: GameMode) -> ClientboundLogin {
     ClientboundLogin {
         player_id: OWN_PLAYER,
@@ -112,7 +104,6 @@ pub(crate) fn login(game_mode: GameMode) -> ClientboundLogin {
     }
 }
 
-/// An app with the [`LocalPlayerPlugin`], the local player and a connection in the play state.
 pub(crate) struct TestSession {
     pub(crate) app: App,
     pub(crate) player: Entity,
@@ -120,7 +111,6 @@ pub(crate) struct TestSession {
 }
 
 impl TestSession {
-    /// A local player at `position` above the stone floor of [`stone_floor`], before its `login`.
     pub(crate) fn new(position: DVec3) -> Self {
         let mut app = App::new();
         app.add_plugins(LocalPlayerPlugin);
@@ -149,7 +139,6 @@ impl TestSession {
         receive(&mut self.app, self.connection, packet);
     }
 
-    /// Runs `ticks` fixed ticks with `input` held.
     pub(crate) fn ticks(&mut self, input: MovementInput, ticks: usize) {
         self.app.insert_resource(input);
         for _ in 0..ticks {
@@ -157,9 +146,6 @@ impl TestSession {
         }
     }
 
-    /// # Panics
-    ///
-    /// When the player has no transform.
     pub(crate) fn position(&self) -> DVec3 {
         self.app
             .world()
@@ -168,17 +154,11 @@ impl TestSession {
             .translation
     }
 
-    /// The kernel state of the player.
-    ///
-    /// # Panics
-    ///
-    /// Before the `login`, which gives the player its kernel state.
     pub(crate) fn motion(&self) -> PlayerState {
         self.app.world().get::<LocalMotion>(self.player).unwrap().0
     }
 }
 
-/// The server end of a connection of a client under test.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct Server {
     stream: TcpStream,
@@ -187,11 +167,6 @@ pub(crate) struct Server {
 
 #[cfg(not(target_family = "wasm"))]
 impl Server {
-    /// The server end of the next connection to `listener`.
-    ///
-    /// # Panics
-    ///
-    /// When the accept fails.
     pub(crate) fn accept(listener: &TcpListener) -> Self {
         let (stream, _) = listener.accept().unwrap();
         stream
@@ -203,12 +178,6 @@ impl Server {
         }
     }
 
-    /// Accepts the next connection to `listener`, answers its login and ends its configuration.
-    /// Returns the `client_information` of the configuration state.
-    ///
-    /// # Panics
-    ///
-    /// When the accept fails, or the configuration does not start with the client information.
     pub(crate) fn join(listener: &TcpListener) -> (Self, PacketFrame) {
         let mut server = Self::accept(listener);
         let _handshake = server.next_frame();
@@ -235,9 +204,6 @@ impl Server {
         (server, information)
     }
 
-    /// # Panics
-    ///
-    /// When no frame comes within ten seconds or the client closes the connection.
     pub(crate) fn next_frame(&mut self) -> PacketFrame {
         loop {
             if let Some(frame) = self.decoder.try_next_packet().unwrap() {
@@ -250,9 +216,6 @@ impl Server {
         }
     }
 
-    /// # Panics
-    ///
-    /// When the write fails.
     pub(crate) fn send(&mut self, packet: &(impl Encode + Packet)) {
         let mut encoder = PacketEncoder::new();
         encoder.write_packet(packet);

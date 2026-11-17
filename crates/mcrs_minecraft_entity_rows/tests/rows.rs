@@ -1,6 +1,3 @@
-//! The containers of the rows across tiles and tasks: the bins of the merge point, the swap of
-//! the grid buffers at the freeze, and the tile of a living row as it crosses, dies and leaves.
-
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
@@ -159,7 +156,6 @@ fn the_freeze_swaps_only_written_tiles_and_gives_back_the_old_front() {
     );
 }
 
-/// Runs each task in turn on the calling thread.
 struct Serial;
 
 impl Executor for Serial {

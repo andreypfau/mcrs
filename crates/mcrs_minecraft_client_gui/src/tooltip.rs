@@ -1,5 +1,3 @@
-//! The tooltip of a frame: one request, drawn over the rest of the GUI.
-
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{GuiExtent, TooltipRequest, WidgetId};
 
@@ -10,7 +8,6 @@ use crate::scene::{GuiAtlasData, GuiQuad, GuiSize};
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
 
-/// The tooltip request of the current frame. The buffers stay between frames.
 #[derive(Debug, Default)]
 pub struct Tooltip {
     lines: Vec<Vec<Span>>,
@@ -20,13 +17,10 @@ pub struct Tooltip {
 }
 
 impl Tooltip {
-    /// Forgets the request of the previous frame.
     pub fn clear(&mut self) {
         self.requested = false;
     }
 
-    /// Makes a request at the mouse position `at`. `lines` writes its lines, and runs only when
-    /// no request of this frame came first. A request with no lines has no effect.
     pub fn request(&mut self, at: IVec2, lines: impl FnOnce(&mut Vec<Vec<Span>>)) {
         if self.requested {
             return;
@@ -41,9 +35,6 @@ impl Tooltip {
         self.widget = None;
     }
 
-    /// Makes the request of a widget, whose box goes where `widget` places it (WID-TIP-003,
-    /// WID-TIP-004). The request of the `focused` widget replaces the request of this frame; any
-    /// other is a request as [`Self::request`] makes (WID-TIP-005).
     pub fn request_widget(
         &mut self,
         widget: TooltipRequest,
@@ -67,19 +58,16 @@ impl Tooltip {
         self.widget = Some(widget);
     }
 
-    /// The lines of the request of this frame, if there is one.
     pub fn lines(&self) -> Option<&[Vec<Span>]> {
         self.requested.then_some(self.lines.as_slice())
     }
 }
 
-/// The width and the height of the content box.
 pub fn content_size(font: &Font, lines: &[Vec<Span>]) -> IVec2 {
     let width = lines.iter().map(|line| font.width(line)).max().unwrap_or(0);
     IVec2::new(width, LINE * lines.len() as i32 - 2)
 }
 
-/// The top left corner of the content box.
 pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     let mut at = mouse + IVec2::new(OFFSET, -OFFSET);
     if at.x + size.x > gui.x {
@@ -91,8 +79,6 @@ pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     at
 }
 
-/// The background, the outline and the lines of the request, if there is one. A sprite the pack
-/// lacks draws as the missing sprite.
 pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec<GuiQuad>) {
     let Some(lines) = tooltip.lines() else {
         return;

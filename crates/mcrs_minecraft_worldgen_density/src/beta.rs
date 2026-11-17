@@ -4,23 +4,17 @@ use mcrs_minecraft_noise::simplex::SimplexNoise;
 use mcrs_minecraft_noise::stack::{NoiseStack, Octave, beta_fbm};
 use mcrs_minecraft_random::{Random, legacy::LegacyRandom};
 
-/// Beta's octave counts are contiguous from `first_octave` up, and every octave
-/// carries weight, so the amplitude list is only ever a run of ones.
 fn lattices(random: &mut LegacyRandom, octave_count: usize) -> Vec<Option<GradientNoise>> {
     let first_octave = 1 - octave_count as i32;
     GradientNoise::legacy_octaves(random, first_octave, &vec![1.0; octave_count])
 }
 
-/// Beta's unnormalised fbm over the shared lattice, read through its 2D branch,
-/// which is what the terrain scale and depth nodes use.
 fn perlin_2d_fbm(lattices: Vec<Option<GradientNoise>>) -> NoiseStack<Octave> {
     beta_fbm(lattices, |lattice| {
         Octave::Perlin2d(LegacyPerlin2dNoise::from_gradient(lattice))
     })
 }
 
-/// Beta's simplex octaves: the frequency multiplies by `lacunarity` and the
-/// weight is `0.55` over a persistence that halves. Nothing is normalised.
 fn simplex_fbm<R: Random>(
     random: &mut R,
     octave_count: usize,
@@ -42,11 +36,6 @@ fn simplex_fbm<R: Random>(
     stack.build()
 }
 
-/// The Beta climate generators, each off its own `LegacyRandom` and unrelated to
-/// the terrain stream: mixing them shifts terrain parity.
-///
-/// The scale each is sampled at, and the post-processing around it, live in the
-/// `mcrs:beta/{temperature,vegetation,climate_detail}` density functions.
 pub struct BetaClimateNoises {
     pub temperature: NoiseStack<Octave>,
     pub vegetation: NoiseStack<Octave>,
@@ -78,21 +67,6 @@ impl BetaClimateNoises {
     }
 }
 
-/// The Beta terrain generators that outlive their seeding stream.
-///
-/// The full stream is low(16), high(16), selector(8), beach(4), surface(4),
-/// scale(10), depth(16), forest(8) — 82 octaves, sequential, no discards. The
-/// low, high and selector triple is what `minecraft:old_blended_noise` already
-/// computes, and forest belongs to decoration, so the four are drawn and dropped
-/// purely to position the draws that follow.
-///
-/// The beach octaves appear twice because Beta reads them through both samplers:
-/// the 3D one for the sand and gravel field, the `ySize == 1` one for the gravel
-/// override, which is a different noise over the same lattice.
-///
-/// Beach and surface stay `NoiseStack<PerlinNoise>` rather than the mixed layer
-/// type because only they are read through [`NoiseStack::fill_legacy_grid`],
-/// which the density graph has no way to ask for.
 pub struct BetaTerrainNoises {
     pub beach: NoiseStack<PerlinNoise>,
     pub beach_flat: NoiseStack<LegacyPerlin2dNoise>,
@@ -126,22 +100,10 @@ mod tests {
     use super::*;
     use mcrs_minecraft_resource::ResourceLocationBuf;
 
-    /// The scale each climate noise is sampled at, which the density functions
-    /// carry as `xz_scale` and which Beta folds into its 1.5 noise scale.
-    ///
-    /// Beta writes the first two as `float` literals and the octave sampler
-    /// takes them as `double`, so the datum is the widened float and not the
-    /// decimal it reads as: `0.025f` is `0.02500000037252903`. Dividing the
-    /// clean decimal instead shifts the sampled coordinate by a part in 6.7e7,
-    /// which is nothing at the origin and a fraction of a lattice cell out at
-    /// the world border.
     const TEMPERATURE_SCALE: f64 = 0.025f32 as f64 / 1.5;
     const VEGETATION_SCALE: f64 = 0.05f32 as f64 / 1.5;
-    /// A `double` literal in Beta, so this one is the decimal it reads as.
     const DETAIL_SCALE: f64 = 0.25 / 1.5;
 
-    /// Every `noise` node the named density function holds inline, as
-    /// `(noise id, xz_scale)`.
     fn inline_noise_scales(name: &str) -> Vec<(String, f64)> {
         use crate::proto::{DensityFunctionHolder, ProtoDensityFunction};
         use mcrs_minecraft_noise::proto::NoiseHolder;
@@ -172,9 +134,6 @@ mod tests {
         out
     }
 
-    /// The shipped density functions must carry the widened-float scales, not
-    /// the decimals they read as. Both are the same to seven digits, so nothing
-    /// near the origin would notice one being replaced by the other.
     #[test]
     fn the_climate_density_functions_sample_at_betas_own_scales() {
         for (name, noise, expected) in [
@@ -205,9 +164,6 @@ mod tests {
         post_construction_rng_seed: u64,
     }
 
-    /// The legacy arm burns 262 ints per skipped octave, so the stream position
-    /// after the full 82-octave build is fixed. A drift here moves every Beta
-    /// world.
     #[test]
     fn beta_seeding_no_discard_draw_count() {
         let fixture: DrawCountFixture =
@@ -225,8 +181,6 @@ mod tests {
         );
     }
 
-    /// The low, high and selector triple is drawn and dropped. Skipping the draw
-    /// instead of dropping the result moves every noise that follows it.
     #[test]
     fn the_dropped_octaves_still_position_the_ones_we_keep() {
         let kept = BetaTerrainNoises::new(845).scale;
@@ -240,9 +194,6 @@ mod tests {
         assert_ne!(kept.get(100.0, 0.0, 300.0), shifted.get(100.0, 0.0, 300.0));
     }
 
-    /// The Beta temperature post-processing, which now lives in the
-    /// `mcrs:beta/temperature` density function. Kept here so the fixture pins
-    /// the generators and the formula end to end.
     fn sample_temperature(climate: &BetaClimateNoises, x: f64, z: f64) -> f32 {
         let detail = climate.detail.get(x * DETAIL_SCALE, 0.0, z * DETAIL_SCALE) * 1.1 + 0.5;
         let raw = climate
@@ -252,7 +203,6 @@ mod tests {
         (1.0 - (1.0 - t) * (1.0 - t)).clamp(0.0, 1.0)
     }
 
-    /// Likewise for `mcrs:beta/vegetation`.
     fn sample_humidity(climate: &BetaClimateNoises, x: f64, z: f64) -> f32 {
         let detail = climate.detail.get(x * DETAIL_SCALE, 0.0, z * DETAIL_SCALE) * 1.1 + 0.5;
         let raw = climate

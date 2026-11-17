@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Builds the client for the browser and inlines the wasm, the wasm-bindgen glue
-# and a canvas into one self-contained HTML file.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 profile=${PROFILE:-web}
-# BACKEND=webgl2 builds the page for a browser without WebGPU, which the WebGPU page sends such
-# a browser to when the two are served side by side.
 backend=${BACKEND:-webgpu}
 case $backend in
 webgpu) page=mcrs.html ;;
@@ -30,8 +26,6 @@ dev) built=debug ;;
 *) built=$profile ;;
 esac
 
-# The bindgen format is unstable: the CLI has to be the exact version the
-# lockfile compiled against, so refuse rather than emit a broken bundle.
 need=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/[",]/, "", $3); print $3; exit }' "$root/Cargo.lock")
 have=$(wasm-bindgen --version | awk '{print $2}')
 if [ "$have" != "$need" ]; then

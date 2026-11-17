@@ -48,11 +48,9 @@ use crate::fixture::saved;
 use crate::fixture::stacks;
 
 const SESSION: PlayerSession = PlayerSession(3);
-/// The menu index of `P[0]`, which holds five stone after the join.
 pub(crate) const HOTBAR_0: u16 = 36;
 const HOTBAR_1: u16 = 37;
 
-/// A player with five stone in `P[0]`, after the send of its full state under the state id 1.
 pub(crate) fn joined(world: &mut World) -> Entity {
     let inventory = vec![ItemStackWithSlot {
         slot: 0,
@@ -77,7 +75,6 @@ pub(crate) fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
     on_wire(Some(&hashed))
 }
 
-/// The claim of a client that holds `stack`, with the hash of each entry of its patch.
 fn claim_of(world: &World, stack: &ItemStack) -> Option<HashedStack> {
     let names = RegistryNames::new(
         world.resource::<CurrentRegistries>(),
@@ -104,7 +101,6 @@ pub(crate) struct Packet {
 }
 
 impl Packet {
-    /// A pick up with button 0 on `slot`.
     pub(crate) fn pick_up(state_id: i32, slot: u16) -> Self {
         Self {
             state_id,
@@ -154,7 +150,6 @@ fn summary(stack: &ProtoStack<Wire>) -> String {
     }
 }
 
-/// Each inventory packet that the tick sent, as text.
 pub(crate) fn sent(world: &mut World) -> Vec<String> {
     let packets: Vec<OutboundPlayerPacket> = world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
@@ -188,8 +183,6 @@ fn state_id(world: &World, player: Entity) -> u16 {
         .get()
 }
 
-/// ITX-JAV-002, ITX-JAV-004, INV-SYN-003: a pick up moves the stack to the cursor through the
-/// engine, and the server sends nothing when the claim of the client matches.
 #[test]
 fn itx_jav_004_an_applied_click_with_a_matching_claim_sends_nothing() {
     let mut app = app();
@@ -210,8 +203,6 @@ fn itx_jav_004_an_applied_click_with_a_matching_claim_sends_nothing() {
     assert_eq!(state_id(world, player), 1, "no slot packet went out");
 }
 
-/// ITX-JAV-004, INV-SYN-003: a claim with the hash of each component of a patch matches the stack
-/// with that patch, and the server sends nothing for its slot.
 #[test]
 fn itx_jav_004_a_matching_claim_of_a_stack_with_a_patch_sends_nothing() {
     let mut app = app();
@@ -237,8 +228,6 @@ fn itx_jav_004_a_matching_claim_of_a_stack_with_a_patch_sends_nothing() {
     assert_eq!(sent(world), Vec::<String>::new());
 }
 
-/// ITX-JAV-001 check 2, ITX-JAV-004, INV-SYN-001, INV-SYN-005: a stale state id or a spectator
-/// gets the full content; a claim that does not match gets the slot and the cursor that differ.
 #[test]
 fn itx_jav_004_a_click_that_the_client_got_wrong_is_corrected() {
     struct Case {
@@ -289,8 +278,6 @@ fn itx_jav_004_a_click_that_the_client_got_wrong_is_corrected() {
     }
 }
 
-/// ITX-JAV-005, ITX-ATM-007: a click whose request does not apply changes no slot, and the
-/// client gets the stack that the server holds.
 #[test]
 fn itx_jav_005_a_click_that_does_not_apply_is_corrected() {
     let mut app = app();
@@ -305,8 +292,6 @@ fn itx_jav_005_a_click_that_does_not_apply_is_corrected() {
     assert_eq!(sent(world), ["slot 36 1x5 state 2"]);
 }
 
-/// INV-MNU-006, IEN-SPN-001: a throw click drops the stack through the engine as an item entity
-/// with the pickup delay of a throw.
 #[test]
 fn ien_spn_001_a_throw_click_drops_an_item_entity() {
     let mut app = app();
@@ -327,8 +312,6 @@ fn ien_spn_001_a_throw_click_drops_an_item_entity() {
     assert_eq!(sent(world), Vec::<String>::new());
 }
 
-/// ITX-JAV-003, ITX-MOD-005: the second click of one tick reads the slots that the request of the
-/// first left, so a pick up and a place move the stack.
 #[test]
 fn itx_jav_003_each_click_reads_the_result_of_the_click_before_it() {
     let mut app = app();
@@ -351,8 +334,6 @@ fn itx_jav_003_each_click_reads_the_result_of_the_click_before_it() {
     assert_eq!(sent(world), Vec::<String>::new());
 }
 
-/// ITX-JAV-003, ITX-MOD-005: a drag that follows a click in one tick applies in that tick, on
-/// the cursor stack that the click left.
 #[test]
 fn itx_mod_005_a_drag_after_a_click_applies_in_the_same_tick() {
     let mut app = app();
@@ -390,7 +371,6 @@ fn itx_mod_005_a_drag_after_a_click_applies_in_the_same_tick() {
     assert_eq!(sent(world), Vec::<String>::new());
 }
 
-/// INV-SYN-004: a give, which is no click, reaches the client by the comparison.
 #[test]
 fn inv_syn_004_a_change_outside_a_click_reaches_the_client() {
     let mut app = app();
@@ -406,8 +386,6 @@ fn inv_syn_004_a_change_outside_a_click_reaches_the_client() {
     assert_eq!(state_id(world, player), 2);
 }
 
-/// ITX-LIM-005: a quick move reads the slot policy of the commit, so it passes over a slot that a
-/// plugin locks and the client view of both slots is corrected.
 #[test]
 fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
     struct Case {

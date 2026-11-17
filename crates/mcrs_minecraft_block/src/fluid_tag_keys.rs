@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{TagKey, rl};
 
 pub const AXOLOTL_TRIES_TO_FIND: TagKey<'static, crate::fluid_keys::Fluid> =

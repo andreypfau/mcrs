@@ -9,12 +9,9 @@ use mcrs_minecraft_light_color::colors::{CORPUS_DIRECTORY, LightColors, LightTyp
 use mcrs_minecraft_light_color::item::{self, ItemLights};
 use mcrs_minecraft_registries::CurrentRegistries;
 
-/// The light a held item emits, rebuilt with the registries.
 #[derive(Resource, Clone, Debug)]
 pub struct HeldItemLights(pub ItemLights);
 
-/// Loads the light colour table and the held item lights each time the
-/// registries change. Needs [`Blocks`], [`Items`] and an [`AssetServer`].
 pub struct LightColorPlugin;
 
 impl Plugin for LightColorPlugin {

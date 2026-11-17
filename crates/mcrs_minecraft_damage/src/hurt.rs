@@ -4,15 +4,10 @@ use mcrs_minecraft_physics::Living;
 use crate::Hit;
 use crate::HitOutcome;
 
-/// The damage cooldown above which a hit is a partial hit (DMG-HIT-003).
 const PARTIAL_ABOVE: u8 = 10;
 const COOLDOWN: u8 = 20;
 const HURT_TIME: u8 = 10;
 
-/// Does `hit` in tick `tick` on the entity of `living` and `record` (DMG-HIT-001 to DMG-HIT-005,
-/// DMG-DTH-001). A dying entity rejects the hit and records nothing. Each other hit records the
-/// strike for the idle time, also one that the cooldown rejects; an accepted hit becomes the last
-/// hit of `record`. An accepted hit that takes the health to 0 starts the death.
 pub fn hurt(living: &mut Living, record: &mut HitRecord, hit: Hit, tick: u64) -> HitOutcome {
     if !living.is_alive() {
         return HitOutcome::Rejected;
@@ -29,13 +24,11 @@ pub fn hurt(living: &mut Living, record: &mut HitRecord, hit: Hit, tick: u64) ->
     outcome
 }
 
-/// What `amount` would do to `living`, which stays as it is.
 #[must_use]
 pub fn preview(living: &Living, amount: f32) -> HitOutcome {
     apply(&mut living.clone(), amount)
 }
 
-/// The cooldown and the health change of one hit. A dying entity rejects it.
 fn apply(living: &mut Living, amount: f32) -> HitOutcome {
     if !living.is_alive() {
         return HitOutcome::Rejected;
@@ -73,8 +66,6 @@ mod tests {
         }
     }
 
-    /// CMD-DMG-003: a hit of 0 is a full hit with no health change, and a second one within 10
-    /// ticks is rejected; a larger one in the cooldown applies only the difference.
     #[test]
     fn hit_003_the_cooldown_rejects_an_equal_hit_and_applies_the_rest_of_a_larger_one() {
         let mut living = pig();
@@ -95,8 +86,6 @@ mod tests {
         assert_eq!(living.health, 6.0);
     }
 
-    /// DMG-HIT-002 step 1, GOAL-STR-004: a hit that the cooldown rejects records the strike that
-    /// resets the idle time, but not the damage record; a hit on a dying mob records neither.
     #[test]
     fn hit_002_a_hit_that_the_cooldown_rejects_still_strikes_the_mob() {
         let mut living = pig();

@@ -15,15 +15,12 @@ use crate::placement::Placement;
 use crate::slot_changed::touch;
 use crate::spawn_stack::spawn_stack;
 
-/// What happens to the items that find no room.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Overflow {
     Keep,
     Drop(DVec3),
 }
 
-/// Gives `gift` to `holder` and writes [`Given`]. It does nothing when `holder` has no [`Slots`]
-/// or the gift is not a stack.
 pub(crate) fn give(world: &mut World, holder: Entity, gift: Gift, overflow: Overflow) {
     if world.get::<Slots>(holder).is_none() {
         return;
@@ -53,9 +50,6 @@ enum Origin {
     Spawned,
 }
 
-/// Merges `stack` into the stacks of `holder`, then moves the rest to the first free slot. A rest
-/// without a free slot keeps its placement, or is dropped. A stack that gives all its items
-/// despawns. Each changed slot gets [`SlotChanged`](crate::SlotChanged).
 pub(crate) fn put_in(
     world: &mut World,
     holder: Entity,

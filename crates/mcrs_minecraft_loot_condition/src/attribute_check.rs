@@ -10,8 +10,6 @@ use serde::{Deserialize, Deserializer};
 
 use crate::environment_view::EnvironmentView;
 
-/// The fields of `environment_attribute_check` (REG-FLD-719): `value` in the value form of
-/// `attribute`, and whether `value` is the default value of `attribute`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(try_from = "AttributeCheckFile")]
 pub(crate) struct AttributeCheck {
@@ -26,8 +24,6 @@ struct AttributeCheckFile {
     value: ValueFile,
 }
 
-/// A value with its JSON shape, which the tag does not keep: `true` and `1` give the same tag.
-/// `number` keeps a JSON float, as the tag of a whole one is an integer and drops the sign of `-0.0`.
 struct ValueFile {
     shape: Shape,
     tag: NbtTag,
@@ -66,7 +62,6 @@ impl TryFrom<AttributeCheckFile> for AttributeCheck {
 }
 
 impl AttributeCheck {
-    /// Whether the value of the attribute in the world `world` is `value` (LOOT-CND-019).
     pub(crate) fn matches<W: EnvironmentView>(&self, world: &W, origin: Option<DVec3>) -> bool {
         let read = match info(self.attribute).positional {
             true => origin.and_then(|origin| world.environment_value(self.attribute, Some(origin))),
@@ -79,7 +74,6 @@ impl AttributeCheck {
     }
 }
 
-/// Equality of the attribute type, where two f32 values are equal when they have the same bits.
 fn same_value(first: &AttributeValue, second: &AttributeValue) -> bool {
     use AttributeValue as V;
     match (first, second) {
@@ -93,8 +87,6 @@ fn same_value(first: &AttributeValue, second: &AttributeValue) -> bool {
                         && first.particle == second.particle
                 })
         }
-        // chisle: the f32 fields of a particle compare as numbers; a comparison by bits over the
-        // particle payloads lifts it.
         _ => first == second,
     }
 }
@@ -106,7 +98,6 @@ fn same_bits(first: &[f32], second: &[f32]) -> bool {
         .eq(second.iter().map(|value| value.to_bits()))
 }
 
-/// The JSON shapes of the value form of `kind` (REG-FLD-254).
 fn accepts(kind: AttributeType, shape: Shape) -> bool {
     use AttributeType as T;
     match kind {

@@ -9,11 +9,8 @@ use mcrs_minecraft_registries::{KeySet, Named};
 
 pub use mcrs_minecraft_entity::spawn_condition::{SpawnCondition, SpawnSelector};
 
-/// The ids a resolved holder set names, over a registry's index.
 pub type IdSet = Arc<FixedBitSet>;
 
-/// What a variant condition is tested against: the structure whose piece
-/// holds the spawn, the biome there, and the moon the region sees.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpawnContext {
     pub structure: Option<u16>,
@@ -47,9 +44,6 @@ struct Selector {
     condition: Option<Condition>,
 }
 
-/// A variant registry's spawn selectors, resolved and sorted the way
-/// `PriorityProvider.select` walks them: highest priority first, ties in
-/// registry then file order.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct VariantTable {
     pub ids: Vec<ResourceLocationBuf>,
@@ -57,8 +51,6 @@ pub struct VariantTable {
 }
 
 impl VariantTable {
-    /// `entries` in registry order; `structures` and `biomes` resolve a key
-    /// set into the id set a condition tests.
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocationBuf, &'a [SpawnSelector<Named>])>,
         structures: &dyn Fn(
@@ -97,9 +89,6 @@ impl VariantTable {
         Ok(table)
     }
 
-    /// `VariantUtils.selectVariantToSpawn`: the candidates of the highest
-    /// priority that passes, one drawn even when it is the only one. `None`
-    /// leaves the kind's default variant, as an empty registry would.
     pub fn pick(
         &self,
         ctx: &SpawnContext,
@@ -123,8 +112,6 @@ impl VariantTable {
         self.ids.get(usize::from(*candidates.get(index)?))
     }
 }
-/// The variant registries the spawned kinds draw from, each in registry
-/// order.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct VariantTables {
     pub cats: VariantTable,

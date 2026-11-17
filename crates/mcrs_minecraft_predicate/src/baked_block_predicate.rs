@@ -11,8 +11,6 @@ use crate::predicate_issue::PredicateIssue;
 use crate::predicate_scratch::PredicateScratch;
 use crate::property_order;
 
-/// A block predicate in the world form, in its matching form: `blocks` and `state` as a bit per
-/// block state.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedBlockPredicate {
     states: Option<FixedBitSet>,
@@ -27,8 +25,6 @@ enum ComponentTest {
 }
 
 impl BakedBlockPredicate {
-    /// The matching form of `predicate` over the blocks of `definitions`. Fails when `blocks`
-    /// names a tag and `registries` holds no block tags.
     pub fn bake(
         predicate: &BlockPredicate,
         registries: &Registries,
@@ -68,7 +64,6 @@ impl BakedBlockPredicate {
         })
     }
 
-    /// Fails at a position that is not loaded, also for `{}`.
     #[must_use]
     pub(crate) fn matches<W: LocationView>(
         &self,
@@ -90,10 +85,6 @@ impl BakedBlockPredicate {
         self.matches_state(world.block_state(pos), block_entity)
     }
 
-    /// Whether `state` passes, with `block_entity` the saved data of its block entity, or `None`
-    /// when it has no block entity. A `None` state fails only a predicate that tests `blocks` or
-    /// `state`. `nbt` fails without a block entity, and `components` and `predicates` with an
-    /// entry fail for each state.
     #[must_use]
     pub fn matches_state(
         &self,
@@ -112,8 +103,6 @@ impl BakedBlockPredicate {
         }
         match self.components {
             ComponentTest::Absent => true,
-            // chisle: `components` and `predicates` fail at each position; the match of the data
-            // component predicates against a block entity lifts it.
             ComponentTest::Unmatched => false,
         }
     }

@@ -8,14 +8,11 @@ use mcrs_molang::{
 use crate::json::Json;
 use crate::pack_diagnostic::{DiagnosticKind, PackDiagnostic};
 
-/// Compiles the Molang fields of one client entity into one variable layout and one query
-/// registry. An unknown query gives one warning per compiler, not one per field.
 #[derive(Debug)]
 pub struct FieldCompiler {
     pub registry: QueryRegistry,
     pub layout: VariableLayout,
     pub diagnostics: Vec<PackDiagnostic>,
-    /// The number of compiled fields that write each variable.
     writers: HashMap<VariableSlot, u32>,
     warned: HashSet<String>,
 }
@@ -42,14 +39,11 @@ impl FieldCompiler {
             .push(PackDiagnostic::new(kind, context, message));
     }
 
-    /// Compiles a JSON value of a Molang field. A load error gives the constant `0.0`.
     pub fn compile(&mut self, json: &Json, context: &str) -> Expression {
         self.try_compile(json, context, None)
             .unwrap_or_else(|| Self::constant(0.0))
     }
 
-    /// Compiles a JSON value of a Molang field that can name the resources of `resources`.
-    /// `None` for a load error, which goes to the diagnostics.
     pub fn try_compile(
         &mut self,
         json: &Json,
@@ -74,14 +68,11 @@ impl FieldCompiler {
         self.compile_source(&versioned, context, resources)
     }
 
-    /// Compiles a script array: the entries joined with no text between them. A load error
-    /// gives the constant `0.0`.
     pub fn compile_script(&mut self, entries: &[&str], context: &str) -> Expression {
         self.compile_source(&Source::ScriptArray(entries), context, None)
             .unwrap_or_else(|| Self::constant(0.0))
     }
 
-    /// Whether a variable that `accesses` writes has more than one compiled field that writes it.
     #[must_use]
     pub fn has_other_writer(&self, accesses: &Accesses) -> bool {
         accesses
@@ -131,7 +122,6 @@ impl FieldCompiler {
     }
 }
 
-/// The Molang source of a JSON value that is not a versioned object.
 fn source(json: &Json) -> Source<'_> {
     match json {
         Json::Number(value) => Source::Number(*value),

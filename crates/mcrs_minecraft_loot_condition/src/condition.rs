@@ -22,15 +22,12 @@ use crate::time_check::TimeCheck;
 use crate::value_check::ValueCheck;
 use crate::weather_view::WeatherView;
 
-/// A baked loot condition. Its test takes the draws of its rule in `loot-conditions.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Condition(pub(crate) Test);
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Test {
-    /// A condition with a part that the bake could not resolve.
     Never,
-    /// The entry of the registry `predicate` at the index, with what it reads.
     Named {
         index: usize,
         reads: ContextParams,
@@ -78,7 +75,6 @@ pub(crate) enum Test {
 }
 
 impl Condition {
-    /// Tests the condition with `inputs`, the draws from `random` and the buffers of `scratch`.
     pub fn test<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         inputs: LootInputs<'_, '_, E, W>,
@@ -88,7 +84,6 @@ impl Condition {
         self.0.test(inputs, random, scratch)
     }
 
-    /// The parameters that the condition reads, for the check of LOOT-CTX-013.
     #[must_use]
     pub fn reads(&self) -> ContextParams {
         self.0.reads()
@@ -244,7 +239,6 @@ impl Test {
     }
 }
 
-/// LOOT-CND-012: each score of the entity is in its range, in order, until the first that is not.
 fn entity_scores<E: Copy, W: LootWorld<E>, R: Random>(
     target: ContextParam,
     scores: &[ObjectiveTest],
@@ -263,7 +257,6 @@ fn entity_scores<E: Copy, W: LootWorld<E>, R: Random>(
     })
 }
 
-/// LOOT-CND-013.
 fn damage_source_properties<E: Copy, W: LootWorld<E>>(
     predicate: Option<&BakedDamageSourcePredicate>,
     inputs: LootInputs<'_, '_, E, W>,
@@ -286,7 +279,6 @@ fn damage_source_properties<E: Copy, W: LootWorld<E>>(
     })
 }
 
-/// LOOT-CND-014; a world without a weather value neither rains nor thunders.
 fn weather_check<W: WeatherView>(
     raining: Option<bool>,
     thundering: Option<bool>,

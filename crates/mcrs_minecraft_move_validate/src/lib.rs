@@ -1,6 +1,3 @@
-//! The movement checks that need no world. Layer 0 checks one serverbound packet with no state;
-//! layer 1 follows the packets of one connection in stream order. A proxy can run both.
-
 mod accept;
 mod action;
 mod change_state;

@@ -8,7 +8,6 @@ use crate::location_view::LocationView;
 use crate::predicate_scratch::PredicateScratch;
 use crate::predicate_tables::PredicateTables;
 
-/// A damage predicate in its matching form; [`crate::DamagePredicate::bake`] makes it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedDamagePredicate {
     pub(crate) dealt: MinMaxBounds<f64>,
@@ -19,9 +18,6 @@ pub struct BakedDamagePredicate {
 }
 
 impl BakedDamagePredicate {
-    /// `world` is the dimension of the player, and the position of the player is the origin of
-    /// each entity predicate. Each entity predicate is a match of its own, with its own budget of
-    /// nested entity tests.
     #[must_use]
     pub fn matches<W: LocationView + EntityView>(
         &self,

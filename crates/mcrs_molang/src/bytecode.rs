@@ -1,7 +1,3 @@
-//! A register bytecode that both VMs run. A register holds an `f32`, or a 64-bit value in the
-//! second bank. Control flow is structured: `IfNot`, `Else` and `EndIf` nest, so the batch VM
-//! can run both arms under lane masks and the scalar VM can jump.
-
 use alloc::vec::Vec;
 
 use crate::accesses::Accesses;
@@ -134,13 +130,10 @@ pub(crate) enum Instr {
         dst: Reg,
         src: Reg,
     },
-    /// Starts the then-arm for the lanes where `condition` is truthy. The scalar VM jumps past
-    /// the `Else` at `otherwise` when it is not.
     IfNot {
         condition: Reg,
         otherwise: u32,
     },
-    /// Starts the else-arm. The scalar VM jumps to the `EndIf` at `end`.
     Else {
         condition: Reg,
         end: u32,
@@ -154,7 +147,6 @@ pub(crate) enum Instr {
     },
 }
 
-/// A compiled expression.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Program {
     pub(crate) code: Vec<Instr>,
@@ -168,20 +160,16 @@ pub struct Program {
 }
 
 impl Program {
-    /// The type of the result.
     #[must_use]
     pub const fn output(&self) -> ValueType {
         self.output
     }
 
-    /// The fastest rate of a value that the program reads. A program of the rate `Load` has one
-    /// result for each subject.
     #[must_use]
     pub const fn rate(&self) -> Rate {
         self.rate
     }
 
-    /// The number of instructions.
     #[must_use]
     pub fn len(&self) -> usize {
         self.code.len()

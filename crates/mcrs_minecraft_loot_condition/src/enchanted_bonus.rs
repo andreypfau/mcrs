@@ -7,8 +7,6 @@ use mcrs_minecraft_resource::Id;
 
 use crate::tool::Tool;
 
-/// The fields of `random_chance_with_enchanted_bonus`, with the equipment slots that the field
-/// `slots` of the enchantment names (LOOT-CND-010, LOOT-CND-022).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct EnchantedBonus {
     pub(crate) enchantment: Option<Id<Enchantment>>,
@@ -18,7 +16,6 @@ pub(crate) struct EnchantedBonus {
 }
 
 impl EnchantedBonus {
-    /// The chance for the attacking entity `attacker` (LOOT-CND-010).
     pub(crate) fn chance<W: EntityView>(&self, world: &W, attacker: Option<W::Entity>) -> f32 {
         let level = attacker
             .zip(self.enchantment)
@@ -33,8 +30,6 @@ impl EnchantedBonus {
     }
 }
 
-/// The highest level of `enchantment` in the stacks of `slots` of `entity` (LOOT-CND-022,
-/// LOOT-MOD-013); 0 for an entity that is not living.
 #[must_use]
 pub fn equipment_level<W: EntityView>(
     world: &W,
@@ -55,7 +50,6 @@ pub fn equipment_level<W: EntityView>(
         .unwrap_or(0)
 }
 
-/// The equipment slots of the slot groups `groups`, in the order of [`EquipmentSlot::ALL`].
 #[must_use]
 pub fn equipment_slots(groups: &[EquipmentSlotGroup]) -> Box<[EquipmentSlot]> {
     EquipmentSlot::ALL
@@ -64,7 +58,6 @@ pub fn equipment_slots(groups: &[EquipmentSlotGroup]) -> Box<[EquipmentSlot]> {
         .collect()
 }
 
-// chisle: LOOT-CND-022 does not state the slots of each group (`armor`, `any`); the specification author answers it.
 fn holds(group: EquipmentSlotGroup, slot: EquipmentSlot) -> bool {
     use EquipmentSlot as S;
     use EquipmentSlotGroup as G;

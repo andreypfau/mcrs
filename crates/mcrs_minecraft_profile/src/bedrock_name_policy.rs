@@ -4,14 +4,10 @@ use std::hash::BuildHasher;
 
 use crate::PlayerName;
 
-/// How a gamertag becomes a legal Java name. The name is never an identity key: a
-/// gamertag can change, and a cut can give two players one name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BedrockNamePolicy {
     pub prefix: Option<char>,
-    /// `None` drops spaces.
     pub space_replacement: Option<char>,
-    /// At most 16.
     pub max_length: usize,
 }
 
@@ -28,11 +24,8 @@ impl Default for BedrockNamePolicy {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BedrockNameError {
-    /// The prefix or the space replacement is not printable ASCII without a space.
     InvalidPolicy,
-    /// No character of the gamertag survives, the policy has no prefix, or `max_length` is 0.
     Empty,
-    /// The suffix that makes the name unique leaves no character of the name in `max_length`.
     NoFreeName,
 }
 
@@ -49,8 +42,6 @@ impl fmt::Display for BedrockNameError {
 impl std::error::Error for BedrockNameError {}
 
 impl BedrockNamePolicy {
-    /// `name` when no online player holds it, else the first free `name1`, `name2`, ….
-    /// A suffix replaces the tail of the name, so the length stays within `max_length`.
     pub fn java_name<S: BuildHasher>(
         &self,
         gamertag: &str,

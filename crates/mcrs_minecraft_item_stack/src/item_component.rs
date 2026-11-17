@@ -9,10 +9,6 @@ use crate::PatchEntry;
 use crate::entity_form::EntityForm;
 use crate::patch_key::PatchKey;
 
-/// A component type of an item stack.
-///
-/// Each built-in type and each [`CustomComponent`] has this trait. No other type can have it:
-/// the hidden methods name a type that is private to this crate.
 pub trait ItemComponent: Clone + PartialEq + Hash {
     #[doc(hidden)]
     fn patch_key() -> PatchKey<'static>;
@@ -26,26 +22,22 @@ pub trait ItemComponent: Clone + PartialEq + Hash {
     #[doc(hidden)]
     fn from_builtin(value: &Builtin) -> Option<&Self>;
 
-    /// The value that a stack entity does not store, for a type that has one.
     #[doc(hidden)]
     fn neutral() -> Option<&'static Self>
     where
         Self: 'static;
 
-    /// A copy of a value of the prototype table that borrows the heap data of the value.
     #[doc(hidden)]
     fn borrow_static(value: &'static Self) -> Self
     where
         Self: 'static;
 
-    /// True when `entry` is an entry of this type, also when it holds the type as undecoded bytes.
     #[doc(hidden)]
     fn is_entry_of(entry: &PatchEntry) -> bool {
         entry.key() == Self::patch_key()
     }
 }
 
-// A prototype has no custom component, so the removal of one leaves no entry in the patch.
 impl<C: CustomComponent> ItemComponent for C {
     fn patch_key() -> PatchKey<'static> {
         PatchKey::Custom(C::KEY)

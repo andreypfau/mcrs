@@ -3,7 +3,6 @@ use std::slice;
 use crate::block::{BlockInfo, CubeFace, ModelQuad};
 use crate::variant_pick::VariantPick;
 
-/// The geometry of a state whose parts have more than one variant, and how a cell chooses.
 #[derive(Clone, Debug)]
 pub struct StateVariants {
     pub pick: VariantPick,
@@ -12,11 +11,7 @@ pub struct StateVariants {
 
 #[derive(Clone, Debug)]
 pub enum VariantShapes {
-    /// The geometry of each variant of the one part, after the first: the first is the
-    /// geometry of the [`BlockInfo`] itself.
     Whole(Vec<Shape>),
-    /// For each part, in the order of the pick, the quads of each of its variants. The
-    /// [`BlockInfo`] itself holds the geometry of the parts with one variant.
     Parts(Vec<Vec<Vec<ModelQuad>>>),
 }
 
@@ -28,7 +23,6 @@ pub struct Shape {
 }
 
 impl BlockInfo {
-    /// The choice of the cell at the world block position `position`.
     #[must_use]
     pub fn choice_at(&self, position: [i32; 3]) -> u32 {
         self.variants
@@ -36,7 +30,6 @@ impl BlockInfo {
             .map_or(0, |variants| variants.pick.choice(position))
     }
 
-    /// The cube faces and the drop that a cell with this choice draws.
     #[must_use]
     pub fn cube_of(&self, choice: u32) -> (Option<&[CubeFace; 6]>, u8) {
         match self.chosen_shape(choice) {
@@ -45,7 +38,6 @@ impl BlockInfo {
         }
     }
 
-    /// The model quads that a cell with this choice draws.
     #[must_use]
     pub fn quads_of(&self, choice: u32) -> CellQuads<'_> {
         if let Some(shape) = self.chosen_shape(choice) {
@@ -79,7 +71,6 @@ impl BlockInfo {
     }
 }
 
-/// The quads of a cell: those of the block, then those of the chosen variant of each part.
 pub struct CellQuads<'a> {
     current: slice::Iter<'a, ModelQuad>,
     parts: &'a [Vec<Vec<ModelQuad>>],

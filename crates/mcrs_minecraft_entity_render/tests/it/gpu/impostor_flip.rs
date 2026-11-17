@@ -1,14 +1,3 @@
-//! The impostor test of `docs/spec/client-entity-render.md`, CEREN-VIS-003: each pig and frog
-//! variant at a projected height of 11, 8 and 4 pixels and at 16 yaw angles, drawn once as an
-//! impostor and once as a full rig on a real adapter. The mean FLIP error of the entity pixels
-//! must be at most 0.1.
-//!
-//! It reads the entity textures from the client jar of the pinned release, or from
-//! `MCRS_CLIENT_JAR`:
-//!
-//! ```sh
-//! cargo nextest run --profile gpu --release -p mcrs_minecraft_entity_render --no-capture
-//! ```
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -37,33 +26,22 @@ use mcrs_minecraft_render_controller::RenderQuery;
 use mcrs_molang::{ScalarVm, Value, string_hash};
 
 const SIZE: u32 = 128;
-/// The frame is the middle of a frame of 1440 pixels in height with a field of view of 70°, so an
-/// entity of a few pixels is as far as in the game.
 const TEST_HEIGHT: f32 = 1440.0;
 const HEIGHTS: [f32; 3] = [11.0, 8.0, 4.0];
-/// Heights under those of the spec test: the errors are information.
 const SMALL_HEIGHTS: [f32; 2] = [3.0, 2.0];
 const YAWS: u32 = 16;
 const TICK: u32 = 1000;
 const LIMIT: f32 = 0.1;
-/// The mean brightness of an impostor stays within this ratio of the full rig at each camera
-/// view, also between the views of the image sets.
 const BRIGHTNESS: std::ops::RangeInclusive<f64> = 0.95..=1.05;
-/// Light levels other than full, so a light that the impostor reads from the wrong place shows.
 const BLOCK_LIGHT: u8 = 7;
 const SKY_LIGHT: u8 = 11;
 const BACKGROUND: [u8; 3] = [120, 160, 210];
-/// A camera direction relative to the body yaw of the entity at each of the 16 yaw angles.
 struct CameraView {
     elevation: f32,
-    /// Added to each of the 16 yaw angles of the image sets.
     yaw_offset: f32,
-    /// The limit applies; the other views are information.
     judged: bool,
 }
 
-/// The test views, the yaws and the elevation of the images, then views between the images,
-/// which show the error of the nearest view.
 const CAMERA_VIEWS: [CameraView; 8] = [
     CameraView {
         elevation: 0.0,
@@ -106,13 +84,11 @@ const CAMERA_VIEWS: [CameraView; 8] = [
         judged: false,
     },
 ];
-/// A person 0.7 m from a monitor 0.7 m wide with 3840 pixels across, as the scene frames.
 const PIXELS_PER_DEGREE: (f32, f32, f32) = (0.7, 3840.0, 0.7);
 
 struct Case {
     name: &'static str,
     entity: &'static str,
-    /// The geometry and the texture of each layer.
     layers: &'static [(&'static str, &'static str)],
     baby: bool,
 }
@@ -189,7 +165,6 @@ const CASES: [Case; 10] = [
     },
 ];
 
-/// The entity textures of the client jar.
 fn jar_textures() -> Option<Vec<TextureImage>> {
     let path = std::env::var_os("MCRS_CLIENT_JAR")
         .map(std::path::PathBuf::from)
@@ -231,7 +206,6 @@ fn jar_textures() -> Option<Vec<TextureImage>> {
     )
 }
 
-/// The slot records of one case.
 struct Placed {
     state: StateRecord,
     height: f32,
@@ -284,7 +258,6 @@ fn place(case: &Case, pack: &EntityPack, library: &EntityLibrary) -> Placed {
     }
 }
 
-/// The pixels of one block at the distance of one block.
 fn projection_scale() -> f32 {
     TEST_HEIGHT / (2.0 * 35f32.to_radians().tan())
 }
@@ -293,9 +266,6 @@ fn field_of_view() -> f32 {
     2.0 * (SIZE as f32 / 2.0 / projection_scale()).atan()
 }
 
-/// The camera at `distance` from the middle of the box, `elevation` degrees above it, moved
-/// across the view by `phase` pixels, so the edges of the entity fall at varied places inside
-/// the pixels.
 fn camera(height: f32, distance: f32, elevation: f32, phase: [f32; 2]) -> FrameView {
     let pixel = distance / projection_scale();
     let (sine, cosine) = elevation.to_radians().sin_cos();
@@ -318,7 +288,6 @@ fn camera(height: f32, distance: f32, elevation: f32, phase: [f32; 2]) -> FrameV
     )
 }
 
-/// The slot of the entity and the targets of its frame.
 struct Frame {
     arena: SlotArena,
     albedo: wgpu::Texture,
@@ -330,12 +299,9 @@ struct Frame {
     depth_readback: wgpu::Buffer,
 }
 
-/// The albedo and the light targets of a frame.
 struct Rendered {
     albedo: Vec<u8>,
-    /// The `f16` bits of each pixel of the light target.
     light: Vec<[u16; 4]>,
-    /// The depth of each pixel, larger nearer to the camera.
     depth: Vec<f32>,
 }
 
@@ -390,7 +356,6 @@ impl Frame {
     }
 }
 
-/// The targets of one frame of `state` at the body yaw `yaw`.
 fn render(
     gpu: &support::Gpu,
     entity_gpu: &mut EntityGpu,
@@ -489,7 +454,6 @@ fn render(
     }
 }
 
-/// The mean of the colour channels of the pixels that a frame covers.
 fn brightness(albedo: &[u8]) -> f64 {
     let (sum, count) = albedo
         .as_chunks::<4>()
@@ -503,8 +467,6 @@ fn brightness(albedo: &[u8]) -> f64 {
     sum / f64::max(count, 1.0)
 }
 
-/// Checks that each covered pixel of `frame` holds the light of the state record, in sixteenths
-/// of a level, as the full rig writes it.
 fn assert_light(frame: &Rendered, name: &str) {
     let expected = [
         f16_up(f32::from(BLOCK_LIGHT) * 16.0),
@@ -521,7 +483,6 @@ fn assert_light(frame: &Rendered, name: &str) {
     }
 }
 
-/// The FLIP error of each pixel that either frame covers.
 fn entity_errors(rig: &[u8], impostor: &[u8]) -> Vec<f32> {
     let rgb = |rgba: &[u8]| -> Vec<u8> {
         rgba.as_chunks::<4>()
@@ -647,10 +608,6 @@ fn an_impostor_looks_like_the_full_rig_below_twelve_pixels() {
     );
 }
 
-/// The saddle of a cold pig lies on the outer cube of its body: both grow by the same inflate.
-/// The layers draw in order, so the saddle must win there whatever order the face records of a
-/// draw take: on the surface of the body, the saddle is nearer by a small step, never at the same
-/// depth.
 #[test]
 fn a_later_layer_wins_on_the_surface_of_an_earlier_one() {
     let Some(gpu) = support::Gpu::new() else {

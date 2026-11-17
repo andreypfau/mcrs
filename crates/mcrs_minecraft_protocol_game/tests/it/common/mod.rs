@@ -13,8 +13,6 @@ pub fn hex(text: &str) -> Vec<u8> {
         .collect()
 }
 
-/// Vanilla writes compounds in hash order, so trees are compared with every
-/// compound sorted by key.
 pub fn sorted(tag: NbtTag) -> NbtTag {
     match tag {
         NbtTag::Compound(mut compound) => {

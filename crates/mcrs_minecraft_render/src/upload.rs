@@ -34,16 +34,10 @@ pub struct Placement {
     pub vertices: (u64, Vec<u32>),
     pub faces: (u64, Vec<[u32; FACE_WORDS]>),
     pub sections: (u64, Vec<SectionDesc>),
-    /// Runs of records written into the group arena, each at its byte offset.
     pub groups: Vec<(u64, Vec<Group>)>,
-    /// A whole new draw list, swapped in only once its group block has landed, so a draw never
-    /// spends a frame pointing at a block that is still being written.
-    /// Holds at most one `Draw` per `DrawKind`, since each kind maps to one args row.
     pub draws: Option<Vec<Draw>>,
 }
 
-/// Uploads waiting for the GPU. They land one after another in the order they were pushed,
-/// and the per-frame budget may cut any of them between frames.
 #[derive(Resource, Clone, Default)]
 pub struct Uploads(Arc<Mutex<VecDeque<Upload>>>);
 
@@ -55,7 +49,6 @@ impl Uploads {
             .push_back(upload);
     }
 
-    /// The oldest upload still waiting, taken off the queue.
     pub fn pop(&self) -> Option<Upload> {
         self.0
             .lock()
@@ -68,9 +61,6 @@ impl Uploads {
     }
 }
 
-/// Geometry goes to the arenas through mapped staging memory the belt hands back after each
-/// submit; `Queue::write_buffer` allocates a fresh staging buffer per call, which at the upload
-/// budget costs a millisecond per megabyte.
 #[derive(Resource)]
 pub(super) struct Staging(Mutex<Belts>);
 

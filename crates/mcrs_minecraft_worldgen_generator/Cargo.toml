@@ -69,7 +69,6 @@ serde_json.workspace = true
 
 [features]
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_heightmap/bevy"]
-# The helpers the generation tests share, for the tests of the crates that drive the pipeline.
 test-support = ["bevy", "dep:bevy_app", "dep:bevy_asset", "mcrs_minecraft_block/bevy", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support", "dep:mcrs_minecraft_game_registries", "mcrs_minecraft_game_registries/test-support"]
 telemetry-tracy = []
 

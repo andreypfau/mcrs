@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 
-// Both npm test and astro build run with the working directory at docs-site/.
 const facts = parse(readFileSync('src/data/facts.yml', 'utf8'));
 const version = () => JSON.parse(readFileSync('../assets/minecraft/version.json', 'utf8'));
 

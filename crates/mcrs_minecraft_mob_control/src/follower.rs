@@ -8,8 +8,6 @@ use crate::BodyFlags;
 use crate::ControlInput;
 use crate::PathEnd;
 
-/// The navigation of a mob with a straight route of one node, its target (PATH-FOL-001 to
-/// PATH-FOL-005). A path search later gives a list of nodes in place of the one node.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Follower {
     applied: Applied,
@@ -55,14 +53,12 @@ struct Timeout {
     limit: f64,
 }
 
-/// What the follower gives the move control in one tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FollowerStep {
     pub wanted: Option<Wanted>,
     pub ended: Option<PathEnd>,
 }
 
-/// The wanted position of the move control and the speed modifier of the path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Wanted {
     pub position: DVec3,
@@ -72,19 +68,16 @@ pub struct Wanted {
 const STUCK_TICKS: u64 = 100;
 
 impl Follower {
-    /// The last applied path intent and whether its path runs, for the view of the brain.
     #[must_use]
     pub const fn applied(&self) -> Applied {
         self.applied
     }
 
-    /// The mob has a path that is not done.
     #[must_use]
     pub const fn is_running(&self) -> bool {
         self.route.is_some()
     }
 
-    /// Applies a path intent; only a changed route resets the stuck check and the timeout.
     pub fn apply(&mut self, intent: &PathIntent, position: DVec3) {
         let (ticket, route) = match *intent {
             PathIntent::Walk {
@@ -119,8 +112,6 @@ impl Follower {
         };
     }
 
-    /// One tick of the follower before the move control: the advance at the node, the stuck
-    /// check and the timeout, then the wanted position.
     pub fn step(&mut self, input: &ControlInput) -> FollowerStep {
         let Some(route) = self.route else {
             return FollowerStep::default();

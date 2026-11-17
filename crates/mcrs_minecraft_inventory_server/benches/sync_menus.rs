@@ -1,7 +1,3 @@
-//! The whole `FixedUpdate` of an app with `ItemPlugin`, `VanillaInventoryPlugin`,
-//! `InventoryServerPlugin` and `InventoryPersistencePlugin`, for 100, 1,000 and 10,000 players
-//! with 36 filled slots each and no change: 200 measured ticks after 20 warm-up ticks. It prints
-//! the median tick and the time for each player.
 #![expect(clippy::expect_used, reason = "a bench reports a failure by panicking")]
 
 use std::time::Duration;

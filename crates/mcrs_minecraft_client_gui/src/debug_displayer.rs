@@ -2,8 +2,6 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_resource::ResourceLocation;
 
-/// The lines one frame's debug entries produced, in the shape
-/// `DebugScreenOverlay` splits into its two columns.
 #[derive(Resource, Default)]
 pub struct DebugScreenDisplayer {
     left: Vec<String>,
@@ -43,8 +41,6 @@ impl DebugScreenDisplayer {
         self.groups.clear();
     }
 
-    /// The left and right columns, blank strings included: each one separates a
-    /// block from the next and renders as an empty row.
     pub fn columns(&self) -> (Vec<String>, Vec<String>) {
         let mut left = self.left.clone();
         let mut right = self.right.clone();

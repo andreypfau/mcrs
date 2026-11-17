@@ -4,12 +4,10 @@ use crate::block::SectionBlocks;
 
 static AIR: [BlockStateId; SectionPos::VOLUME] = [BlockStateId::AIR; SectionPos::VOLUME];
 
-/// A section kept as one state per cell, indexed by [`LocalPos::index`].
 #[derive(Clone, Copy, Debug)]
 pub struct DenseSection<'a>(pub &'a [BlockStateId; SectionPos::VOLUME]);
 
 impl DenseSection<'static> {
-    /// A section that holds air everywhere, for a store that keeps no cells for one.
     pub fn air() -> Self {
         Self(&AIR)
     }

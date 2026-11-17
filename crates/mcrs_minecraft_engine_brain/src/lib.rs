@@ -1,7 +1,3 @@
-//! The AI stage of the mobs of a dimension world: the host side that publishes the snapshot of
-//! the mob rows, applies the decisions through the mob controls in the mob column of each row and
-//! steers the rows before the entity pass, and the stage that runs per tile beside the pass.
-
 mod ai_stats;
 mod block_goal_world;
 mod entity_rows;

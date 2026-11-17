@@ -1,6 +1,3 @@
-//! The controls against GOAL-CTL and PATH-MOV, on a walker that moves along its yaw at the steady
-//! speed on grass of its input.
-
 use glam::DVec3;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
@@ -60,8 +57,6 @@ impl Walker {
         self.control.apply(&intents, self.input.position);
     }
 
-    /// One tick: the controls, a travel along the yaw at `forward × speed × 2.2026` blocks, and
-    /// the body rotation.
     fn tick(&mut self) -> ControlOutput {
         let output = self.control.before_travel(&self.input);
         let input = &mut self.input;

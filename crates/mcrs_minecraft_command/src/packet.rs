@@ -7,42 +7,32 @@ use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::{VarInt, utf16_position};
 use std::borrow::Cow;
 
-/// An argument type as the `commands` packet describes it to the client.
 pub trait WireArgument {
-    /// Why an argument has no parser on the wire.
     type WireError: core::error::Error + Send + Sync + 'static;
 
-    /// The parser id and the properties of the `commands` packet.
     fn wire(&self) -> Result<ArgumentParser<'static>, Self::WireError>;
 
-    /// The suggestion type of the `commands` packet, when the client asks the
-    /// server for the suggestions of the argument.
     fn suggestion_type(&self) -> Option<ResourceLocation<'static>>;
 }
 
-/// The most suggestions one reply carries.
 const MAX_SUGGESTIONS: usize = 1000;
 
 fn number(index: usize) -> VarInt {
     VarInt(i32::try_from(index).unwrap_or(i32::MAX))
 }
 
-/// The nodes of a `commands` packet and the index of its root.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlayerTree<'a> {
     pub nodes: Vec<CommandNode<'a>>,
     pub root: VarInt,
 }
 
-/// One suggestion of a reply, with its tooltip.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SuggestionEntry {
     pub text: String,
     pub tooltip: Option<Text>,
 }
 
-/// The range and the entries of a `command_suggestions` packet. The range counts UTF-16 code
-/// units.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SuggestionReply {
     pub start: VarInt,
@@ -50,7 +40,6 @@ pub struct SuggestionReply {
     pub entries: Vec<SuggestionEntry>,
 }
 
-/// The tree the source can see, numbered in the order of the full tree.
 pub fn player_tree<'a, A: WireArgument, H, L>(
     graph: &'a Graph<A, PermissionCheck, H>,
     source: &Source<'_, L>,
@@ -106,8 +95,6 @@ pub fn player_tree<'a, A: WireArgument, H, L>(
     })
 }
 
-/// The reply to a `command_suggestion` request for `text`, whose suggestions
-/// `list` holds.
 pub fn suggestion_reply(
     text: &str,
     list: &SuggestionList<'_, '_, &'static str>,

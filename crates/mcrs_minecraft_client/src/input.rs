@@ -20,7 +20,6 @@ const FLY_SPEED_MIN: f32 = 0.0;
 const FLY_SPEED_MAX: f32 = 0.2;
 const NOTCHES_PER_LOGICAL_PIXEL: f64 = 0.1;
 
-/// Degrees of turn for each unit of mouse motion at a turn factor of 1.
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
 
 const HOTBAR_KEYS: [KeyCode; 9] = [
@@ -82,8 +81,6 @@ fn pressed(keys: &ButtonInput<KeyCode>, cursor: &CursorOptions) -> MovementInput
     }
 }
 
-/// Runs before the ticks of the frame and before the click that grabs the cursor, so that
-/// click is no press. A frame can run no tick or several, so the presses wait for the next one.
 fn read_attack_input(
     buttons: Res<ButtonInput<MouseButton>>,
     screen: Option<Res<Screen>>,
@@ -98,7 +95,6 @@ fn read_attack_input(
     }
 }
 
-/// The part of the sum of each wheel axis that is not yet a whole notch (PHY-INP-022).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct WheelSums {
     horizontal: f64,
@@ -112,7 +108,6 @@ struct Notches {
 }
 
 impl WheelSums {
-    /// Adds the values of one wheel event, with the scroll options at their defaults.
     fn add(&mut self, horizontal: f64, vertical: f64) -> Notches {
         Notches {
             horizontal: take_notches(&mut self.horizontal, horizontal),
@@ -131,8 +126,6 @@ fn take_notches(sum: &mut f64, value: f64) -> i32 {
     notches as i32
 }
 
-/// The slot one notch away: a positive wheel value goes to the slot on the left, and the two ends
-/// of the hotbar wrap (PHY-INP-022, step 9).
 fn slot_after(slot: u8, wheel: i32) -> u8 {
     match wheel.signum() {
         1 => slot.checked_sub(1).unwrap_or(LAST_HOTBAR_SLOT),
@@ -146,9 +139,6 @@ fn fly_speed_after(speed: f32, vertical_notches: i32) -> f32 {
     (speed + vertical_notches as f32 * FLY_SPEED_PER_NOTCH).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX)
 }
 
-/// The wheel changes the flying speed of a spectator, and the selected slot of any other player,
-/// for each event with a notch (PHY-INP-022, PHY-INP-023). A wheel event while a screen is open or
-/// the pointer is free changes no sum.
 fn read_wheel(
     mut wheel: MessageReader<MouseWheel>,
     mut sums: Local<WheelSums>,
@@ -202,9 +192,6 @@ fn read_wheel(
     abilities.set_if_neq(next);
 }
 
-/// A hotbar key selects its slot outside a screen (CHB-KEY-001). A spectator has no spectator
-/// menu, and a creative player with a toolbar activator down saves no hotbar, so both presses
-/// change nothing.
 fn read_hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
     screen: Option<Res<Screen>>,
@@ -241,9 +228,6 @@ fn read_hotbar_keys(
     selected.set_if_neq(SelectedHotbarSlot(slot));
 }
 
-/// Grabbing after the look has been applied drops the motion the pointer made
-/// while it was still free, which would otherwise land as a jump on the frame
-/// the player clicks.
 fn grab_cursor_on_click(
     buttons: Res<ButtonInput<MouseButton>>,
     screen: Option<Res<Screen>>,
@@ -255,7 +239,6 @@ fn grab_cursor_on_click(
     }
 }
 
-/// Without the menu screens, Escape frees the pointer; with a screen open, it closes the screen.
 fn release_cursor_on_escape(
     keys: Res<ButtonInput<KeyCode>>,
     screen: Option<Res<Screen>>,
@@ -271,8 +254,6 @@ fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
     screen.is_none_or(|screen| *screen == Screen::None)
 }
 
-/// F11 inverts Fullscreen, also while a screen or an edit box has the keys, but not while F3 is
-/// down (MENU-DISP-005).
 #[cfg(not(target_family = "wasm"))]
 fn toggle_fullscreen(keys: Res<ButtonInput<KeyCode>>, mut options: ResMut<ClientOptions>) {
     if keys.just_pressed(KeyCode::F11) && !keys.pressed(KeyCode::F3) {
@@ -280,8 +261,6 @@ fn toggle_fullscreen(keys: Res<ButtonInput<KeyCode>>, mut options: ResMut<Client
     }
 }
 
-/// Degrees of turn for each unit of mouse motion at the sensitivity `sensitivity`
-/// (CTRL-TURN-002).
 fn degrees_per_motion_unit(sensitivity: f32) -> f32 {
     let factor = 0.6 * sensitivity + 0.2;
     DEGREES_PER_MOTION_UNIT * 8.0 * factor.powi(3)
@@ -299,8 +278,6 @@ pub(crate) fn apply_mouse_look(
     let (mut transform, mut previous) = player.into_inner();
     let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
     transform.rotation = transform.rotation.turn(turn.x, turn.y);
-    // The previous look turns with the current one, so the frame shows the turn at once and
-    // only a turn that a tick makes is interpolated.
     previous.0.rotation = previous.rotation.turn(turn.x, turn.y);
 }
 

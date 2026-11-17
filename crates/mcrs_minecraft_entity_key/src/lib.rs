@@ -1,9 +1,3 @@
-//! The keys of an entity: its id, its UUID, which is also its order key, the sources of a new
-//! UUID, its keyed random stream and the tile that holds it. Physics, the brain, the save and the
-//! muxer share them without the physics kernel.
-
-// alloc: BTreeMap
-
 #![no_std]
 
 extern crate alloc;

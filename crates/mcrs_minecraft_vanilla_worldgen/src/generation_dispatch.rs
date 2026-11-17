@@ -15,7 +15,6 @@ use crate::generation_stage::{
     CHUNK_TASK_POOL, GenerationStage, InFlightStage, StageResult, top_of_ladder,
 };
 
-/// The next stage a column is owed, once its neighbourhood allows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Owed {
     Fill,
@@ -24,7 +23,6 @@ enum Owed {
 }
 
 impl Owed {
-    /// How near a wanted column has to be for this stage to be owed at all.
     fn reach(self, rungs: usize) -> i32 {
         let rings = |rungs: usize| i32::try_from(rungs).unwrap_or(i32::MAX).saturating_mul(2);
         let rung_reach = |rung: usize| rings(rungs.saturating_sub(rung.saturating_add(1)));
@@ -50,8 +48,6 @@ fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
     store.neighbourhood_reached(v, stage).then_some(owed)
 }
 
-/// The side, as a power of two of chunks, of the squares whose owed fills share one pool task:
-/// a worker reuses what it sampled for the columns beside one (`PERF.md`, "Fills in groups").
 const FILL_GROUP_SHIFT: u32 = 2;
 
 fn fill_group(col: ColumnPos) -> (i32, i32) {
@@ -64,8 +60,6 @@ struct GroupFill {
     end: TaskEnd<StageResult>,
 }
 
-/// The fills of a group that have not started. Dropped by a panic of the fill before them,
-/// they leave as cancelled fills, which the stage dispatches again.
 struct Unstarted(std::vec::IntoIter<GroupFill>);
 
 impl Drop for Unstarted {
@@ -76,7 +70,6 @@ impl Drop for Unstarted {
     }
 }
 
-/// Whether a dispatch pass may go on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Pass {
     Going,
@@ -84,19 +77,6 @@ enum Pass {
 }
 
 impl GenerationStage {
-    /// Dispatches what changed since the last pass made owed.
-    ///
-    /// The derived requests are computed here and nowhere stored: they are a
-    /// function of what the views want and of what the store already holds. A
-    /// wanted column at the top of the ladder needs its own 3×3 to have run the
-    /// last rung, which needs the 5×5 to have merged the one below it, and so on
-    /// down: every rung costs two rings, so the shell a wanted column derives is
-    /// `2 × rungs` deep and each ring inside it is one phase further along.
-    ///
-    /// The stages that continue a ladder go first, so the columns already on their way
-    /// are generated before the shells of further ones start. A column whose
-    /// neighbourhood is not ready is not dispatched; the stage of a neighbour that
-    /// finishes later touches it again.
     pub(crate) fn dispatch(&mut self, step: &mut Step<'_, Self>) {
         let Some(ctx) = self.ctx.clone() else {
             return;
@@ -131,7 +111,6 @@ impl GenerationStage {
         }
     }
 
-    /// Whether a wanted column below `done` lies within `radius` of `col`.
     fn wanted_within(&self, col: ColumnPos, radius: i32, done: Stage) -> bool {
         col.square(radius).any(|u| {
             self.priority_index.contains_key(&u) && self.store.stage(u).is_none_or(|at| at < done)
@@ -153,7 +132,6 @@ impl GenerationStage {
         let id = end.id();
         let work = work(cancel.clone());
         let task = pool.spawn(async move {
-            // A cancelled fill drops its end unfinished, and the column drops off the ladder.
             if let Some(result) = work.await {
                 end.finish(result);
             }
@@ -163,8 +141,6 @@ impl GenerationStage {
             .push(id, InFlightStage { col, cancel }, Some(task));
     }
 
-    /// Fills `group` in one pool task, west to east and north to south, so each column finds
-    /// the planes it borrows. A cancelled column drops out and the rest go on.
     fn spawn_fill_group(
         &mut self,
         step: &mut Step<'_, Self>,
@@ -196,8 +172,6 @@ impl GenerationStage {
         }));
         let last = stages.len().saturating_sub(1);
         for (at, (id, stage)) in stages.into_iter().enumerate() {
-            // The entry of the fill that ends last holds the task, so no entry that retires
-            // while the group still fills drops it.
             let handle = if at == last { task.take() } else { None };
             self.in_flight.push(id, stage, handle);
         }
@@ -208,14 +182,10 @@ struct Dispatcher<'a, 'step> {
     pool: &'a TaskPool,
     ctx: &'a FillContext,
     step: &'a mut Step<'step, GenerationStage>,
-    /// The fills this pass found owed, in the order it found them: nearest first.
     fills: Vec<ColumnPos>,
 }
 
 impl Dispatcher<'_, '_> {
-    /// Dispatches what the columns whose stage changed, or was cancelled, made owed. What
-    /// the budget does not cover waits for the next pass, which the next finished stage
-    /// starts.
     fn continue_ladders(
         &mut self,
         generation: &mut GenerationStage,
@@ -230,7 +200,6 @@ impl Dispatcher<'_, '_> {
         while let Some(&v) = worklist.get(at) {
             at += 1;
             let owed = owed(&generation.store, v, rungs);
-            // A fill is owed by being wanted, which a neighbour finishing a stage does not change.
             let owed = match owed {
                 Some(Owed::Fill) if at > fills => continue,
                 Some(owed) => owed,
@@ -240,7 +209,6 @@ impl Dispatcher<'_, '_> {
                 continue;
             }
             if *remaining == 0 {
-                // `v` and everything after it waits for the next pass.
                 let rest = at - 1;
                 let split = fills.max(rest);
                 generation
@@ -252,13 +220,11 @@ impl Dispatcher<'_, '_> {
                 return Pass::Spent;
             }
             self.dispatch(generation, remaining, v, owed);
-            // A merge that advanced on the spot left its 3×3 owing something new already.
             worklist.append(&mut generation.touched);
         }
         Pass::Going
     }
 
-    /// Walks the shells of the wanted columns nobody has walked yet, nearest first.
     fn walk_fresh(&mut self, generation: &mut GenerationStage, remaining: &mut usize) {
         while let Some(&key) = generation.fresh.first() {
             if self.walk_shell(generation, remaining, key.col) == Pass::Spent {
@@ -268,7 +234,6 @@ impl Dispatcher<'_, '_> {
         }
     }
 
-    /// Dispatches what the shell of the wanted column `u` owes, nearest rung first.
     fn walk_shell(
         &mut self,
         generation: &mut GenerationStage,
@@ -276,8 +241,6 @@ impl Dispatcher<'_, '_> {
         u: ColumnPos,
     ) -> Pass {
         let rungs = self.ctx.rungs();
-        // A column at the top of its ladder derived everything it needed, or it
-        // could not have got there.
         if generation
             .store
             .stage(u)
@@ -300,14 +263,11 @@ impl Dispatcher<'_, '_> {
         Pass::Going
     }
 
-    /// Hands the fills of the pass to the pool, the group of the nearest column first. A group
-    /// takes the other owed columns of its square with it, past the budget of the pass.
     fn spawn_fills(&mut self, generation: &mut GenerationStage) {
         let rungs = self.ctx.rungs();
         let done = top_of_ladder(rungs);
         let side = 1 << FILL_GROUP_SHIFT;
         let mut fills = std::mem::take(&mut self.fills);
-        // A group fills one column after the other: with a thread for each fill, none waits.
         if generation.in_flight.len() + fills.len() <= generation.config.num_threads {
             for col in fills {
                 generation.spawn_fill_group(self.step, self.pool, self.ctx, vec![col]);
@@ -364,9 +324,6 @@ impl Dispatcher<'_, '_> {
                     return;
                 };
                 let deltas = generation.store.deltas(v, rung);
-                // A rung that grew nothing here leaves the column as it was, so
-                // it advances on the spot and shares the snapshot it started
-                // from rather than paying for a copy of the palettes.
                 if deltas
                     .iter()
                     .all(|delta| delta.writes.is_empty() && delta.block_entities.is_empty())

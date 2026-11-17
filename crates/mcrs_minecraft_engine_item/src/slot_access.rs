@@ -1,7 +1,6 @@
 use crate::Gate;
 use crate::capacity::SLOT_LIMIT;
 
-/// The slot limit and the two gates of one slot. A `limit` outside `1..=99` clamps to that range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SlotAccess {
     pub limit: u8,

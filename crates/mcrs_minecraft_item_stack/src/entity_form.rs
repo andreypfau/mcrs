@@ -15,8 +15,6 @@ use crate::RepairCost;
 use crate::Tool;
 use crate::Unbreakable;
 
-/// What a stack entity needs of a built-in type: the value that it does not store, and a copy of
-/// a value of the prototype table that borrows its heap data.
 pub(crate) trait EntityForm: Clone + 'static {
     const NEUTRAL: Option<&'static Self> = None;
 
@@ -35,8 +33,6 @@ impl EntityForm for Unbreakable {}
 
 impl EntityForm for Food {}
 
-// chisle: a text is a box, so each stack of a kind with a name owns a copy of it; a text that can
-// borrow from the table lifts it.
 impl EntityForm for CustomName {}
 
 impl EntityForm for ItemName {}

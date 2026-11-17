@@ -18,24 +18,16 @@ use crate::light_link::LightLink;
 use crate::light_output::LightOutput;
 use crate::light_stage::LightStage;
 
-/// The light stage of cold space: a second light stage that lights the columns the data layer
-/// produces, from the blocks the data layer hands it. It publishes into no section of the
-/// dimension, so what the dimension simulates does not depend on when it is done.
 pub(crate) struct ColdLightPlugin {
     pub(crate) registry: Arc<LightRegistry>,
     pub(crate) bounds: LightBounds,
     pub(crate) sky: bool,
 }
 
-/// The near end of the link to the light stage of cold space.
 #[derive(Resource)]
 pub struct ColdLightLink(LightLink);
 
 impl ColdLightLink {
-    /// Waits until the stage has answered everything handed to it so far, and hands out none
-    /// of it.
-    ///
-    /// For tests and tools only, to make the answers land at the same tick in every run.
     pub async fn answered(&mut self) {
         self.0.answered().await;
     }
@@ -52,8 +44,6 @@ impl Plugin for ColdLightPlugin {
     }
 }
 
-/// Hands the light stage of cold space the edits and the awaited columns of the data layer,
-/// the columns nearest a player first.
 fn send_cold_light(
     mut production: ResMut<ColumnProduction>,
     mut light: ResMut<ColdLightLink>,
@@ -77,7 +67,6 @@ fn send_cold_light(
     light.send_edits();
 }
 
-/// Hands the data layer the light of each column whose light settled.
 fn land_cold_light(mut production: ResMut<ColumnProduction>, mut light: ResMut<ColdLightLink>) {
     for output in light.0.outputs() {
         let LightOutput::Lit(columns) = output else {

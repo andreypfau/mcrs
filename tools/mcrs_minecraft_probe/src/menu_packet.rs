@@ -13,7 +13,6 @@ use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_text::Text;
 use serde::{Deserialize, Serialize};
 
-/// A menu packet that one client received.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MenuEvent {
     pub client: String,
@@ -61,7 +60,6 @@ pub enum MenuPacket {
     },
 }
 
-/// A stack that a menu packet carries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlotStack {
     pub item: Item,
@@ -69,8 +67,6 @@ pub struct SlotStack {
     pub components: PatchNames,
 }
 
-/// The component types that a patch adds and removes, in the order of the packet. The values of
-/// the added components are not in the trace: their names need the registries of the session.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PatchNames {
     pub added: Vec<DataComponentType>,
@@ -78,7 +74,6 @@ pub struct PatchNames {
 }
 
 impl MenuPacket {
-    /// Reads a game packet of one of the menu kinds; any other packet gives `None`.
     pub(crate) fn read(id: i32, body: &[u8]) -> anyhow::Result<Option<Self>> {
         let packet = if id == ClientboundOpenScreen::ID {
             let packet: ClientboundOpenScreen = decode(body)?;

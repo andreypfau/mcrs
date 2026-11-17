@@ -15,7 +15,6 @@ use crate::smoke_table::SmokeTable;
 
 const FULL_SKY_LIGHT: u8 = 15;
 
-/// A location predicate in its matching form; [`crate::LocationPredicate::bake`] makes it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedLocationPredicate {
     pub(crate) position: PositionBounds,
@@ -33,13 +32,10 @@ pub struct BakedLocationPredicate {
 pub(crate) enum DimensionTest {
     Any,
     Is(Id<Dimension>),
-    /// A key that the registry does not hold: no dimension has it.
     Unknown,
 }
 
 impl BakedLocationPredicate {
-    /// The tests of the world read the block position of `position`, and each of them fails when
-    /// that block position is not loaded. `smoke` comes from the registry set of the bake.
     #[must_use]
     pub fn matches<W: LocationView>(
         &self,
@@ -105,7 +101,6 @@ impl BakedLocationPredicate {
     }
 }
 
-/// An absent answer for one structure fails the test.
 fn inside_any<W: LocationView>(world: &W, pos: BlockPos, structures: &[Id<Structure>]) -> bool {
     for &structure in structures {
         match world.inside_structure(pos, structure) {

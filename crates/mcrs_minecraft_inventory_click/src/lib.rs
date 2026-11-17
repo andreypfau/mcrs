@@ -1,5 +1,3 @@
-//! The operations of one Java Edition menu click. The kernel reads the slots through the caller,
-//! moves the drag state that the caller keeps, and writes the request into a caller-owned buffer.
 #![no_std]
 
 mod click;

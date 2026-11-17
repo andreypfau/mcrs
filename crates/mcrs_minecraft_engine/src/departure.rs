@@ -1,6 +1,3 @@
-//! A player that leaves its dimension world, as a value that crosses to the host and on to the
-//! world it arrives in.
-
 use bevy_ecs::message::Message;
 use bevy_ecs::query::With;
 use bevy_ecs::world::{EntityWorldMut, World};
@@ -21,8 +18,6 @@ use crate::persisted_registry::{CaptureCause, PersistedRegistry, PersistedSnapsh
 use crate::persistence::UnreadablePlayerDat;
 use crate::teleport::TeleportState;
 
-/// A player that its dimension world let go at the end of a tick, to arrive in the dimension
-/// `to`. The world hands it to the host after the packets of the same tick.
 #[derive(Clone, Debug)]
 pub struct Departure {
     pub(crate) session: PlayerSession,
@@ -31,29 +26,19 @@ pub struct Departure {
     pub(crate) carried: CarriedPlayer,
 }
 
-/// What the host hands a dimension world for a player that changes dimension.
 #[derive(Message, Clone, Debug)]
 pub enum PlayerTransfer {
-    /// The player arrives in this world from another one.
     Arrive(Departure),
-    /// The player left this world but did not arrive in another one, and comes back where it
-    /// was.
     Return(Departure),
 }
 
-/// The components of a player that go with it to another dimension world, captured through the
-/// persisted-component registry. A component of the player that is not registered stays behind and
-/// is despawned.
 #[derive(Clone, Debug)]
 pub(crate) struct CarriedPlayer {
     snapshot: PersistedSnapshot,
-    /// The player file could not be read, so no later save may replace it.
     unreadable: bool,
-    /// The game time at which the player left, when the host sends its arrival teleport.
     pub(crate) departed_at: GameTime,
 }
 
-/// The players that [`CarriedPlayer::take`] takes from.
 pub(crate) type Carriable = (
     With<Player>,
     With<EntityUuid>,
@@ -65,8 +50,6 @@ pub(crate) type Carriable = (
 );
 
 impl CarriedPlayer {
-    /// Takes the registered components out of `player`, captured for `cause`. Takes nothing when
-    /// `player` is no player or lacks the state its arrival sends.
     pub(crate) fn take(
         player: &mut EntityWorldMut<'_>,
         cause: CaptureCause,
@@ -134,13 +117,10 @@ impl CarriedPlayer {
         self.snapshot.op_level()
     }
 
-    /// Sends the player a teleport to `destination` as of its departure and returns its id.
     pub(crate) fn send_teleport(&mut self, destination: Transform) -> i32 {
         self.snapshot.send_teleport(destination, self.departed_at)
     }
 
-    /// Inserts the carried components into `player`, except its transform and its uuid, which
-    /// the spawn of `player` sets.
     pub(crate) fn insert_into(self, world: &mut World, player: bevy_ecs::entity::Entity) {
         let mut snapshot = self.snapshot;
         snapshot.forget_placement();

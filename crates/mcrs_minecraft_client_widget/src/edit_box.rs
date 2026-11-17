@@ -19,49 +19,31 @@ const GLYPH_HEIGHT: i32 = 8;
 const CURSOR_HEIGHT: i32 = 11;
 const BLINK_MS: u64 = 300;
 
-// A copy of `mcrs_minecraft_text::is_allowed_chat_character`: that crate needs std.
 fn is_allowed(c: char) -> bool {
     !matches!(c, '\0'..='\u{1f}' | '\u{7f}' | '\u{a7}')
 }
 
-/// A one-line edit box: its value, cursor, selection, view and options (EDIT-OPT-001).
-/// Positions are byte offsets into the value, on character boundaries.
 #[derive(Clone, Debug)]
 pub struct EditBox {
     text: String,
     caret: usize,
     anchor: usize,
-    // chisle: `first` is a byte offset, so an edit before it with multi-byte characters keeps
-    // the byte and not the count of characters; a character index lifts it.
     first: usize,
     max_length: usize,
     unit: LengthUnit,
     pub(crate) editing: bool,
     pub(crate) focus_ms: u64,
-    /// The largest text width of a value that an insert can give (EDIT-LEN-003).
     pub width_limit: Option<i32>,
-    /// Whether the box draws its frame and insets its text (EDIT-DRAW-001, EDIT-DRAW-002).
     pub border: bool,
-    /// Whether the visible text is centred in the bounds (EDIT-DRAW-002).
     pub centred: bool,
-    /// Whether the text and the cursor draw with a drop shadow (EDIT-DRAW-003).
     pub text_shadow: bool,
-    /// The ARGB colour of the text of an editable box (EDIT-DRAW-003).
     pub text_color: u32,
-    /// The ARGB colour of the text of a box that is not editable (EDIT-STATE-001).
     pub uneditable_color: u32,
-    /// Whether the player can change the value (EDIT-STATE-001).
     pub editable: bool,
-    /// Whether the box leaves edit mode when it loses the focus (EDIT-FOCUS-003).
     pub can_lose_focus: bool,
-    /// Whether the selection highlight inverts the colours below it (EDIT-SEL-001).
     pub invert: bool,
-    /// Whether the use set a hint; the screen draws its text at [`EditBoxLayout::hint`]
-    /// (EDIT-HINT-001).
     pub has_hint: bool,
-    /// The plain text that shows after the end of the value (EDIT-HINT-002).
     pub suggestion: Option<String>,
-    /// Accepts or refuses the new value of an insert (EDIT-API-003).
     pub filter: Option<fn(&str) -> bool>,
 }
 
@@ -161,38 +143,31 @@ fn fitting_start(text: &str, target: usize, inner: i32, width: &impl Fn(&str) ->
 }
 
 impl EditBox {
-    /// The text of the field.
     #[must_use]
     pub fn text(&self) -> &str {
         &self.text
     }
 
-    /// The byte offset of the caret.
     #[must_use]
     pub fn caret(&self) -> usize {
         self.caret
     }
 
-    /// The selected range between the caret and the anchor.
     #[must_use]
     pub fn selection(&self) -> Range<usize> {
         self.caret.min(self.anchor)..self.caret.max(self.anchor)
     }
 
-    /// The selected text.
     #[must_use]
     pub fn selected(&self) -> &str {
         self.text.get(self.selection()).unwrap_or_default()
     }
 
-    /// Whether the box is in edit mode (EDIT-FOCUS-001).
     #[must_use]
     pub const fn is_editing(&self) -> bool {
         self.editing
     }
 
-    /// Sets the maximum length to `max` counted in `unit`, and cuts a longer value to it
-    /// (EDIT-API-002); returns whether the value changed.
     pub fn set_max_length(&mut self, max: usize, unit: LengthUnit) -> bool {
         self.max_length = max;
         self.unit = unit;
@@ -206,8 +181,6 @@ impl EditBox {
         true
     }
 
-    /// Replaces the text with its longest start within the maximum length and puts the caret at
-    /// its end (EDIT-API-002).
     pub fn set(&mut self, text: &str) {
         let kept = self.unit.head(text, self.max_length);
         self.text.clear();
@@ -216,7 +189,6 @@ impl EditBox {
         self.anchor = self.caret;
     }
 
-    /// Moves the caret to the character boundary at or before `caret`.
     pub fn set_caret(&mut self, caret: usize, anchor: Anchor) {
         let caret = self.text.floor_char_boundary(caret);
         self.caret = caret;
@@ -225,15 +197,10 @@ impl EditBox {
         }
     }
 
-    /// Pastes `text` over the selection with no width limit: refused characters go and the rest
-    /// is cut at the maximum length (EDIT-LEN-001, EDIT-LEN-002, EDIT-API-003). Returns whether
-    /// the selection was replaced.
     pub fn insert(&mut self, text: &str) -> bool {
         self.replace_selection(text, &|_| 0).is_some()
     }
 
-    /// Pastes `text` over the selection as [`Self::insert`] does, and refuses a value wider than
-    /// the width limit (EDIT-LEN-003); returns whether the value changed.
     pub fn paste(&mut self, text: &str, width: &impl Fn(&str) -> i32) -> bool {
         self.replace_selection(text, width) == Some(true)
     }
@@ -308,52 +275,40 @@ impl EditBox {
         }
     }
 
-    /// Removes the selection, or the step before the caret, of an editable box; returns whether
-    /// the text changed.
     pub fn backspace(&mut self, step: Step) -> bool {
         self.editable && self.remove_to(self.previous(step))
     }
 
-    /// Removes the selection, or the step after the caret, of an editable box; returns whether
-    /// the text changed.
     pub fn delete(&mut self, step: Step) -> bool {
         self.editable && self.remove_to(self.next(step))
     }
 
-    /// Moves the caret one step back.
     pub fn left(&mut self, step: Step, anchor: Anchor) {
         self.set_caret(self.previous(step), anchor);
     }
 
-    /// Moves the caret one step forward.
     pub fn right(&mut self, step: Step, anchor: Anchor) {
         self.set_caret(self.next(step), anchor);
     }
 
-    /// Moves the caret to the start of the text.
     pub fn home(&mut self, anchor: Anchor) {
         self.set_caret(0, anchor);
     }
 
-    /// Moves the caret to the end of the text.
     pub fn end(&mut self, anchor: Anchor) {
         self.set_caret(self.text.len(), anchor);
     }
 
-    /// Selects the whole text, the caret at its end, and shows the start (EDIT-SCROLL-001).
     pub fn select_all(&mut self) {
         self.anchor = 0;
         self.caret = self.text.len();
         self.first = 0;
     }
 
-    /// Removes the selection of an editable box; returns whether there was one.
     pub fn cut(&mut self) -> bool {
         self.editable && self.caret != self.anchor && self.remove_to(self.caret)
     }
 
-    /// Where the parts of the box draw at `now_ms` in the bounds `rect` (EDIT-DRAW-002,
-    /// EDIT-DRAW-003, EDIT-CUR-001, EDIT-CUR-002, EDIT-SEL-001, EDIT-HINT-001, EDIT-HINT-002).
     #[must_use]
     pub fn layout(
         &self,
@@ -454,7 +409,6 @@ impl EditBox {
         Some(false)
     }
 
-    /// Places the caret at a pointer press, optionally retaining the selection anchor (EDIT-PTR-001).
     pub fn click(&mut self, rect: GuiRect, x: f64, anchor: Anchor, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.set_caret(position, anchor);
@@ -462,7 +416,6 @@ impl EditBox {
         self.scroll(rect, width);
     }
 
-    /// Selects the word at a pointer press (EDIT-PTR-002).
     pub fn select_word(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.anchor = previous_word(&self.text, position);
@@ -471,14 +424,12 @@ impl EditBox {
         self.scroll(rect, width);
     }
 
-    /// Extends the selection to a pointer position (EDIT-PTR-003).
     pub fn drag(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.set_caret(position, Anchor::Keep);
         self.scroll(rect, width);
     }
 
-    /// Keeps the caret visible inside the bounds after an edit or cursor move (EDIT-SCROLL-001).
     pub fn scroll(&mut self, rect: GuiRect, width: &impl Fn(&str) -> i32) {
         self.first = self.text.floor_char_boundary(self.first);
         let view = self.view(rect, width);

@@ -3,15 +3,12 @@ use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::bounds::ColumnLayout;
 
-/// What the holder of a volume may do with one section now, weakest first.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Access {
     Outside,
     Unloaded,
-    /// Loaded, but leased to another writer: not readable now.
     Foreign,
-    /// Readable and stable: nobody writes it while this holder lives.
     Read,
     Write,
 }
@@ -45,7 +42,6 @@ impl Access {
     }
 }
 
-/// Why a read did not happen.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, thiserror::Error)]
 pub enum Unavailable {
@@ -57,7 +53,6 @@ pub enum Unavailable {
     Foreign,
 }
 
-/// Why a write did not happen.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, thiserror::Error)]
 pub enum Denied {
@@ -81,15 +76,11 @@ impl From<Unavailable> for Denied {
     }
 }
 
-/// A region of the world with fixed bounds, answering per section what its holder may do.
-/// Nothing is ever loaded on access.
 pub trait Volume {
-    /// Inclusive, and fixed for the volume's lifetime; an unbounded axis spans the `i32` range.
     fn bounds(&self) -> BoundingBox;
 
     fn access(&self, section: SectionPos) -> Access;
 
-    /// The vertical extent, for a volume whose bounds are whole columns.
     fn column_layout(&self) -> Option<ColumnLayout> {
         None
     }

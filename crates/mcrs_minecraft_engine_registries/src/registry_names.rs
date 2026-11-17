@@ -7,8 +7,6 @@ use mcrs_minecraft_registries::Tags;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::TagKey;
 
-/// The names and ids that a stack codec reads and writes: the item names of an item table, and
-/// each other table from the loaded registries. Building one does not allocate.
 pub struct RegistryNames<'a> {
     registries: &'a Registries,
     items: Option<&'a ItemTable>,
@@ -25,7 +23,6 @@ impl<'a> RegistryNames<'a> {
         }
     }
 
-    /// The lookup that bakes the item table, which gives the item names itself.
     pub(crate) fn without_items(registries: &'a Registries) -> Self {
         Self {
             registries,

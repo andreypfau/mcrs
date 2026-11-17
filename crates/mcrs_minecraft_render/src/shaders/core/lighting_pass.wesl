@@ -11,7 +11,6 @@ import mcrs_minecraft_render::shaders::include::gbuffer_layout::{
 };
 @if(LIGHT_TINT) import mcrs_minecraft_light_render::shaders::volume::{shade_tinted, volume_tint};
 
-/// Against the origin of the camera's section, as terrain is drawn.
 fn relative_position(pixel: vec2<i32>, depth: f32) -> vec3<f32> {
     let uv = (vec2<f32>(pixel) + 0.5) / reconstruction.viewport;
     let ndc = uv * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0);

@@ -7,7 +7,6 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::build_block_definitions;
 use mcrs_voxel::BlockStateId;
 
-/// The names of the block state ids that the play packets carry, from the block corpus.
 pub(crate) struct Names {
     blocks: BlockDefinitions,
 }
@@ -31,7 +30,6 @@ impl Names {
         Ok(Self { blocks })
     }
 
-    /// The state as `name[property=value,...]`, or `#<id>` for an id the table lacks.
     pub(crate) fn block_state(&self, number: u16) -> String {
         let Some(id) = BlockStateId::checked(number, self.blocks.state_count()) else {
             return format!("#{number}");

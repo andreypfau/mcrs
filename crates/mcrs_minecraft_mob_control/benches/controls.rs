@@ -1,9 +1,3 @@
-//! The controls of 50,000 mobs for one tick on one thread: the follower, the move control, the
-//! look control before the step of each row and the body rotation after it. One third of the mobs
-//! walk to a target 8 blocks away, one third look around, one third look at a point; the travel
-//! between the timed parts moves each walker along its yaw. The controls run inside the tile tasks
-//! of the entity pass, so the cost divides by the threads of the pass.
-
 use std::time::Duration;
 use std::time::Instant;
 
@@ -90,8 +84,6 @@ fn mobs() -> Vec<Mob> {
         .collect()
 }
 
-/// One tick: the controls of every mob before the travel, the travel, and the body rotation of
-/// every mob after it; only the two passes of the controls are timed.
 fn tick(mobs: &mut [Mob], outputs: &mut Vec<ControlOutput>, ends: &mut Vec<DVec3>) -> Duration {
     let start = Instant::now();
     outputs.clear();

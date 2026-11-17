@@ -4,16 +4,12 @@ use serde::{Deserialize, Deserializer};
 use std::fmt;
 use std::marker::PhantomData;
 
-/// A bare value or the dispatch, where `constant` names a map over a single
-/// `value` field.
 pub(crate) enum ConstantOrDispatch<V, D> {
     Bare(V),
     Dispatched(D),
 }
 
 impl<'de, V: Deserialize<'de>, D: Deserialize<'de>> ConstantOrDispatch<V, D> {
-    /// A bare value that is itself a map is told from the dispatch by the
-    /// dispatch's `type` key.
     pub(crate) fn deserialize<De: Deserializer<'de>>(
         deserializer: De,
         bare_is_map: bool,

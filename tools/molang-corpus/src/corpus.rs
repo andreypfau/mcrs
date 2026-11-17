@@ -6,7 +6,6 @@ use mcrs_molang::{Body, Diagnostic, Expr, ExprKind, Rate, Span, Syntax, parse};
 use crate::extract::{Occurrence, ValueForm};
 use crate::rate::{Axes, SpecQueries};
 
-/// The store of `variable.` values that a field writes: particles have their own subjects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Domain {
     Entity,
@@ -17,12 +16,9 @@ pub enum Domain {
 pub struct Parse {
     pub syntax: Syntax,
     pub facts: Facts,
-    /// The text without blanks, with names folded to lower case: the key of a distinct
-    /// expression.
     pub normal: String,
 }
 
-/// The first error that the kernel parser reports for an expression.
 #[derive(Clone, Debug)]
 pub struct ParseFailure {
     pub offset: u32,
@@ -44,7 +40,6 @@ impl From<Diagnostic> for ParseFailure {
 pub struct Entry {
     pub occurrence: Occurrence,
     pub outcome: Result<Parse, ParseFailure>,
-    /// Entries of a script array that fail to parse alone, while the join parses.
     pub split_entries: usize,
     pub rate: Rate,
     pub random: bool,
@@ -55,8 +50,6 @@ impl Entry {
         format!("{}/{}", self.occurrence.kind, self.occurrence.field)
     }
 
-    /// `this` is the value of a bone channel in an animation (`entity-animation.md`); the
-    /// other consumers do not state it, so the report takes a per-frame value.
     fn this_rate(&self) -> Axes {
         if self.occurrence.kind == "animation" {
             Axes::of(Rate::AnimationFrame)
@@ -83,7 +76,6 @@ pub struct VariableKey {
 pub struct Corpus {
     pub entries: Vec<Entry>,
     pub variables: BTreeMap<VariableKey, Axes>,
-    /// Variables that some expression reads and no expression of the corpus writes.
     pub external: BTreeSet<VariableKey>,
 }
 
@@ -138,7 +130,6 @@ fn parse_entry(occurrence: Occurrence) -> Entry {
     }
 }
 
-/// Parses a string; a JSON number or Boolean is a constant with no parse (MOL-LOAD-001).
 fn parse_value(occurrence: &Occurrence) -> Result<Syntax, ParseFailure> {
     let value = match occurrence.form {
         ValueForm::Number => occurrence.text.parse::<f32>().unwrap_or(0.0),
@@ -224,8 +215,6 @@ fn reads_rate(
     })
 }
 
-/// Gives each written variable the join of the rates of its writes, to a fixed point. A
-/// variable that no expression writes is external: the engine supplies it.
 fn variable_rates(
     entries: &[Entry],
     spec: &SpecQueries,

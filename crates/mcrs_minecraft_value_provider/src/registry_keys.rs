@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const FLOAT_PROVIDER_TYPE: RegistryKey<crate::float_provider_type_keys::FloatProviderType> =

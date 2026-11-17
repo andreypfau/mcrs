@@ -12,13 +12,6 @@ const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
-    /// Entries the visible list has to hold for the draws as they stand.
-    ///
-    /// A blended draw addresses the list by the slot the mesher gave each
-    /// group, so its span is its whole quad count whatever the cull leaves
-    /// alive; an opaque one packs into the front of its span but can fill it.
-    /// Handing a draw anything less drops quads by where they sit in the arena
-    /// rather than by where they sit in the world.
     pub visible_entries: usize,
     params: Vec<Params>,
     dirty: bool,
@@ -76,7 +69,6 @@ impl DrawList {
         let Some(last) = self.params.len().checked_sub(1) else {
             return;
         };
-        // One write rather than one per draw: every write stages through a buffer of its own.
         let mut bytes = vec![0u8; last * PARAMS_STRIDE as usize + PARAMS_SIZE as usize];
         for (chunk, entry) in bytes.chunks_mut(PARAMS_STRIDE as usize).zip(&self.params) {
             if let Some(at) = chunk.get_mut(..PARAMS_SIZE as usize) {

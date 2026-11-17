@@ -1,5 +1,3 @@
-//! Blocks that carry data, as a village leaves them: empty and unlit.
-
 use mcrs_minecraft_core::Direction;
 
 use super::{Canvas, Fields, Tag, block};
@@ -26,7 +24,6 @@ const LECTERN: Fields = &[("id", Tag::String(BlockEntityType::Lectern.as_static_
 #[rustfmt::skip]
 const SMOKER: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(BlockEntityType::Smoker.as_static_str())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
 
-/// The blocks that cook: each keeps its own block entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Furnace {
     Furnace,
@@ -35,7 +32,6 @@ pub enum Furnace {
 }
 
 impl Canvas {
-    /// A block and the data it carries.
     pub fn machine(&mut self, at: [i32; 3], state: &str, data: Fields) {
         self.place(&block(state), at[0], at[1], at[2]);
         self.block_entity(at, data);
@@ -74,7 +70,6 @@ impl Canvas {
         self.machine(at, &state, BELL);
     }
 
-    /// A barrel whose lid faces `facing`.
     pub fn barrel(&mut self, at: [i32; 3], facing: Direction) {
         let state = format!("minecraft:barrel[facing={},open=false]", facing.name());
         self.machine(at, &state, BARREL);

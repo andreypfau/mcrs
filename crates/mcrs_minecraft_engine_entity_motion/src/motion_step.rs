@@ -43,15 +43,12 @@ type Moving<'a> = (
     bool,
 );
 
-/// The buffers of one thread of the pass, kept from tick to tick.
 #[derive(Default)]
 pub(crate) struct StepBuffers {
     scratch: Scratch,
     actions: Vec<BlockAction>,
 }
 
-/// The step of the motion pass, without the block source: a host runs it in
-/// [`MotionSteps`](crate::MotionSteps).
 #[derive(SystemParam)]
 pub struct MotionStep<'w, 's> {
     stirred: Res<'w, StirredTiles>,
@@ -71,10 +68,6 @@ pub struct MotionStep<'w, 's> {
 }
 
 impl MotionStep<'_, '_> {
-    /// Steps each entity with a motion and no hold once, in parallel, over the blocks of `world`
-    /// as `side` sees them, and marks each stepped [`StepOutcome`] with `tick`. Each step reads the
-    /// blocks through the section cache of its entity, and each thread keeps its own scratch
-    /// buffers.
     pub fn run<W: CollisionWorld + Sync>(
         &mut self,
         world: &W,
@@ -107,7 +100,6 @@ impl MotionStep<'_, '_> {
     }
 }
 
-/// What every step of one pass shares.
 struct PassInput<'a, W> {
     world: &'a W,
     tables: &'a Tables,
@@ -116,10 +108,6 @@ struct PassInput<'a, W> {
     stirred: &'a StirredTiles,
 }
 
-/// One step of one entity, as the rows pass steps a row that is not living: no push, the block
-/// actions of the tick dropped, and the age counted. Gives the entity when its body changed, or
-/// when another system wrote its motion since the last pass. An entity that the pass skips keeps
-/// its wake for the step after.
 fn step<W: CollisionWorld>(
     (entity, mut state, kind, mut outcome, held): Moving<'_>,
     pass: &PassInput<'_, W>,
@@ -127,7 +115,6 @@ fn step<W: CollisionWorld>(
     actions: &mut Vec<BlockAction>,
 ) -> Option<Entity> {
     let written = state.is_changed();
-    // The first step of an entity follows its spawn, which already shows the body.
     let external = written && !state.is_added();
     let motion = &mut state.bypass_change_detection().0;
     let start = motion.body;
@@ -141,8 +128,6 @@ fn step<W: CollisionWorld>(
     if held {
         return skipped(motion);
     }
-    // The kernel decides inside `tick_entity` whether a resting entity skips its tick, so the
-    // window is filled before that call.
     let cache = SectionCache::cover(pass.world, start.position);
     if !loaded(&cache, start.position) {
         return skipped(motion);
@@ -168,12 +153,9 @@ fn step<W: CollisionWorld>(
         || body.flags != start.flags
         || kernel.bounced
         || wake && body.velocity != start.velocity;
-    // The velocity of an item cycles while it rests; a viewer does not see it (TRK-UPD-017).
     moved.then_some(entity)
 }
 
-/// True when the section of `position` is loaded or outside the world: an entity in a section
-/// that is not loaded does not move.
 fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
     !matches!(
         world.section(SectionPos::from(block_at(position))),

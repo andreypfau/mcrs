@@ -5,24 +5,17 @@ use crate::{
     context_int_provider_type_keys::ContextIntProviderType, context_key_set_keys::ContextKeySet,
 };
 
-/// The part of a loot table an item can name: the context it is rolled in and
-/// the random sequence it draws from. Its pools are a column beside the
-/// registry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LootTable {
     pub context: ContextKeySet,
     pub random_sequence: Option<ResourceLocationBuf>,
 }
 
-/// A registered context int provider as an item names it: the type of the
-/// expression at its root. The expression is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContextIntProvider {
     pub kind: ContextIntProviderType,
 }
 
-/// A registered context float provider as an item names it: the type of the
-/// expression at its root. The expression is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContextFloatProvider {
     pub kind: ContextFloatProviderType,

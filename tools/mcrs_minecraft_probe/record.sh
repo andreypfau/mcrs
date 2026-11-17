@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Records the trace of one scenario against the vanilla dedicated server of the corpus version.
-# Usage:
-#   MINECRAFT_EULA=true tools/mcrs_minecraft_probe/record.sh bans
 set -euo pipefail
 
 probe_here=$(cd "$(dirname "$0")" && pwd)

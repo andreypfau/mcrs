@@ -1,19 +1,13 @@
 use core::fmt;
 
-/// Why a check ends the connection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Disconnect {
-    /// A move or an accept has a coordinate or an angle that is NaN or infinite, or a second
-    /// position packet arrived in one client tick.
     InvalidPlayerMovement,
-    /// A vehicle move has a coordinate or an angle that is NaN or infinite.
     InvalidVehicleMovement,
-    /// The packet does not have the size or the values that its fields allow.
     Malformed,
 }
 
 impl Disconnect {
-    /// The translation key of the reason, or `None` when the game shows a generic reason.
     #[must_use]
     pub fn translation_key(self) -> Option<&'static str> {
         match self {

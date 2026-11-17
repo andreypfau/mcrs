@@ -17,7 +17,6 @@ use crate::ClaimedSlot;
 use crate::InventoryInput;
 use crate::wire_names::WireNames;
 
-/// Writes the [`InventoryInput::Click`] of each `container_click` packet.
 pub(crate) fn decode_click(
     received: On<Received<ServerboundContainerClick>>,
     wire_names: WireNames,
@@ -61,9 +60,6 @@ fn click_kind(input: ContainerInput) -> ClickKind {
     }
 }
 
-/// A hashed stack that the server cannot read gives a view that matches no stack.
-// chisle: the two hashed stack models meet through the bytes of the wire; a direct conversion
-// lifts it when the protocol holds the hashed stack of `mcrs_minecraft_item_stack`.
 fn claimed_view(
     stack: Option<&HashedStack>,
     names: &RegistryNames<'_>,

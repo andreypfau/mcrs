@@ -4,11 +4,8 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::world_clocks::{AdvanceTime, WorldClock, WorldClocks};
 
-/// Holds a state for each clock of the loaded registries and advances the clocks in each
-/// fixed tick while [`AdvanceTime`] is true.
 pub struct WorldClockPlugin;
 
-/// The system that advances the clocks, in `FixedUpdate`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WorldClockSystems;
 

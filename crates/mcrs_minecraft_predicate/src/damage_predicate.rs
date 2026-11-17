@@ -9,8 +9,6 @@ use crate::damage_source_predicate::DamageSourcePredicate;
 use crate::entity_predicate::EntityPredicate;
 use crate::predicate_issue::PredicateIssue;
 
-/// A test of a damage event, as a data pack writes it (`M = Named`) or with its references
-/// resolved (`M = Resolved`).
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub struct DamagePredicate<M: Refs = Resolved> {
     dealt: MinMaxBounds<f64>,
@@ -54,7 +52,6 @@ impl<'de> Deserialize<'de> for DamagePredicate<Named> {
 }
 
 impl DamagePredicate {
-    /// The matching form, with each entity predicate baked as [`EntityPredicate::bake`] does.
     pub fn bake<L: NameLookup>(
         &self,
         registries: &Registries,

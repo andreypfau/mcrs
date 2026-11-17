@@ -18,8 +18,6 @@ pub fn run_server_loop(app: App) -> AppExit {
     run_server_loop_with(app, |_| {})
 }
 
-/// [`run_server_loop`] with `after_tick` run after the host took the output of each tick and
-/// before the packets of the tick go out to the sockets.
 pub fn run_server_loop_with(app: App, after_tick: fn(&mut World)) -> AppExit {
     mcrs_minecraft_engine_world::server_loop::run_server_loop(
         app,
@@ -32,18 +30,12 @@ pub fn run_server_loop_with(app: App, after_tick: fn(&mut World)) -> AppExit {
     )
 }
 
-/// What the host does after each tick: it takes the dimensions' output and spawns or despawns
-/// dimensions. A muxer on a thread of its own works on the entity bytes and the views of the
-/// tick meanwhile, and [`drain_until`] hands them over as they arrive.
 pub fn between_ticks(app: &mut App) {
     take_dim_outputs(app.world_mut());
     drain_dim_spawn_queue(app);
     drain_dim_despawn_queue(app);
 }
 
-/// Hands what the tick wrote for the clients to the sockets, then waits for `deadline`. A wake
-/// before the deadline, such as the muxer handing out bytes, hands over again. Nothing here
-/// changes what a tick reads.
 pub fn drain_until(app: &mut App, deadline: Instant) {
     loop {
         drain(app);
@@ -57,8 +49,6 @@ pub fn drain_until(app: &mut App, deadline: Instant) {
     }
 }
 
-/// Hands what the host holds for the clients to the sockets, with the entity bytes and the
-/// packets of the views that the muxer has handed out so far.
 pub fn drain(app: &mut App) {
     let world = app.world_mut();
     muxer_link::deliver(world, Answers::Ready);

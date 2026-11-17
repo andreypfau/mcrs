@@ -71,7 +71,6 @@ predicate_newtype!(
 mcrs_minecraft_registries::wire_as_named!(ItemPredicate);
 mcrs_minecraft_registries::wire_as_named!(ComponentPredicates);
 
-/// Every field absent: the derive would also demand a default of each reference type.
 macro_rules! empty_default {
     ($($ty:ident { $($field:ident: $value:expr),* $(,)? }),* $(,)?) => {$(
         impl<M: Refs> Default for $ty<M> {
@@ -82,8 +81,6 @@ macro_rules! empty_default {
     )*};
 }
 
-/// One predicate bare, otherwise a non-empty list; the wire allows an empty
-/// list.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Encode, Decode,
@@ -172,7 +169,6 @@ impl<'de> Deserialize<'de> for BlockPredicate<Named> {
     }
 }
 
-/// The wire form of `lock` is this as one NBT tag.
 #[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
 pub struct ItemPredicate<M: Refs = Resolved> {
     pub items: Option<M::Set<Item>>,
@@ -228,8 +224,6 @@ impl<'de> Deserialize<'de> for ItemPredicate<Named> {
     }
 }
 
-/// Exact values a component must equal and partial predicates it must
-/// satisfy, both flattened into the owning predicate.
 #[derive(
     Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve, mcrs_minecraft_registries::FromWire,
 )]
@@ -263,8 +257,6 @@ impl DataComponentMatchers<Named> {
     }
 }
 
-/// A map whose key names a predicate type, or a component type that must
-/// merely be present.
 #[derive(Clone, Debug, mcrs_minecraft_registries::Resolve)]
 pub struct ComponentPredicates<M: Refs = Resolved>(pub Vec<ComponentPredicateEntry<M>>);
 
@@ -361,7 +353,6 @@ impl<'de> Deserialize<'de> for ComponentPredicates<Named> {
     }
 }
 
-/// `{}` written, any map read.
 pub struct UnitMap;
 
 impl Serialize for UnitMap {
@@ -378,7 +369,6 @@ impl<'de> Deserialize<'de> for UnitMap {
 
 macro_rules! predicate_types {
     ($($variant:ident($ty:ty)),* $(,)?) => {
-        /// A predicate as its type's codec reads it.
         #[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
         pub enum ComponentPredicate<M: Refs = Resolved> {
             $($variant($ty)),*
@@ -498,7 +488,6 @@ pub struct PotionsPredicate<M: Refs = Resolved> {
     pub effects: Option<CollectionPredicate<MobEffectsPredicate<M>>>,
 }
 
-/// Effect to instance predicate, in the order read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MobEffectsPredicate<M: Refs = Resolved>(
     pub Vec<(M::Id<MobEffect>, MobEffectInstancePredicate)>,
@@ -556,10 +545,6 @@ pub struct MobEffectInstancePredicate {
     pub visible: Option<bool>,
 }
 
-/// Elements that must each appear, per-element occurrence counts, and the
-/// collection's size. The bounds are spelled out
-/// because a defaulted field makes the derive infer `P: Default`, and an
-/// inherent `deserialize` whose bounds fail silently yields to the trait's.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     remote = "Self",
@@ -1148,7 +1133,6 @@ impl Encode for BlockPredicate<Wire> {
     }
 }
 
-/// A matcher map holds components that hold block predicates again.
 impl Decode<'_> for BlockPredicate<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         nested(|| {
@@ -1162,10 +1146,6 @@ impl Decode<'_> for BlockPredicate<Wire> {
     }
 }
 
-/// The writer is erased before recursing into the component dispatch, as
-/// `ComponentPatch` does: a generic `impl Write` would otherwise gain one
-/// `&mut` per level of a value that contains a value of its own kind and
-/// never reach a fixed type.
 impl Encode for DataComponentMatchers<Wire> {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         let w: &mut dyn Write = &mut w;
@@ -1229,8 +1209,6 @@ impl Decode<'_> for DataComponentMatchers<Wire> {
     }
 }
 
-/// One network NBT tag of whatever root type the predicate's codec writes,
-/// read back through that codec.
 fn decode_predicate_wire(
     kind: DataComponentPredicateType,
     r: &mut &[u8],

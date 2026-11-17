@@ -25,11 +25,8 @@ use mcrs_voxel::SectionPos;
 
 use crate::EntityWrites;
 
-/// The top of the stone floor of a scene: inside a section, so the floor section has two states.
 pub const FLOOR: i32 = 4;
 
-/// A square of tiles around the origin with a stone floor, walkers on it and items above it, for
-/// tests and benchmarks of the pass, with the mob column `M`.
 pub struct TestScene<M = ()> {
     pub blocks: SparseVolume,
     pub tables: Tables,
@@ -37,12 +34,10 @@ pub struct TestScene<M = ()> {
     pub grid: BodyGrid,
     pub tick: u64,
     pub push: PushRules,
-    /// The network id of the damage type of the crowd hit; `None` gives no crowd damage.
     pub crowd_damage_type: Option<u32>,
 }
 
 impl<M: Send> TestScene<M> {
-    /// `half` tiles on each side of the origin; half of the walkers walk, the others stand.
     #[must_use]
     pub fn new(half: i32, walkers: u32, items: u32, seed: u64) -> Self {
         let test_blocks = TestBlocks::new();
@@ -119,7 +114,6 @@ impl<M: Send> TestScene<M> {
         }
     }
 
-    /// One tick: the merge point, the freeze, the pass and the tile moves.
     pub fn step(&mut self, pool: &TaskPool, tiles_per_task: usize, writes: &mut EntityWrites) {
         self.rows.apply_writes(&mut writes.0);
         self.rows.freeze(pool, &mut self.grid);

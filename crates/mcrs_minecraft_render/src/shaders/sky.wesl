@@ -211,7 +211,6 @@ fn vertex_occluder(@builtin(vertex_index) index: u32) -> OccluderVertex {
     return out;
 }
 
-/// `smoothstep` of WGSL leaves `low > high` undefined, and the occluder ramps downward.
 fn ramp_smooth(low: f32, high: f32, x: f32) -> f32 {
     let t = clamp((x - low) / (high - low), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
@@ -239,10 +238,6 @@ struct CloudVertex {
     @location(3) @interpolate(flat) inv_fade: f32,
 };
 
-/// The slab is entered through its bottom from below and its top from above, so that plane is
-/// drawn as a quad out to the fade distance and the depth test rejects every fragment a nearer
-/// surface already covers before the march runs. From inside the slab the entry is the near
-/// plane itself, so the quad collapses to a full-screen triangle.
 @vertex
 fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
     let origin = view.world_position.xyz;
@@ -371,7 +366,6 @@ struct CloudTexel {
     @builtin(frag_depth) depth: f32,
 }
 
-/// The clouds into the cloud image, at the depth of the cell face the march enters.
 @fragment
 fn fragment_cloud_image(in: CloudVertex) -> CloudTexel {
     let cloud = march_clouds(in);

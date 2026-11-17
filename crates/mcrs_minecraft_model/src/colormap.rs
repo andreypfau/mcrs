@@ -3,7 +3,6 @@ use crate::resource_set::ResourceSet;
 use crate::sprite_error::SpriteError;
 use mcrs_minecraft_model_file::resource_id::resource_path;
 
-/// The pixels of `textures/colormap/<name>.png`, which vanilla samples as a 256x256 grid.
 pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, SpriteError> {
     let path = resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
     let (data, width, height) = decode_png(pack.read(&path)?, &path)?;
@@ -17,15 +16,12 @@ pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, SpriteEr
     Ok(data)
 }
 
-/// An item's grass colour, where vanilla's colormap resolves it, as RGBA channels in `0..=1`.
 pub fn colormap_rgba(map: Option<&[u8]>, temperature: f32, downfall: f32) -> Option<[f32; 4]> {
     let color = sample_colormap(Some(map?), temperature, downfall);
     let channel = |shift: u32| ((color >> shift) & 0xff) as f32 / 255.0;
     Some([channel(16), channel(8), channel(0), 1.0])
 }
 
-/// Vanilla's colormap lookup, in doubles as it computes it. A missing map, or a climate that
-/// lands outside it, gives the magenta vanilla uses to flag the same.
 pub fn sample_colormap(map: Option<&[u8]>, temperature: f32, downfall: f32) -> u32 {
     const MISSING: u32 = 0xff00ff;
     let Some(map) = map else {

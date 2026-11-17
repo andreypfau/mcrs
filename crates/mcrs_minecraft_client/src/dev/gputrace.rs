@@ -6,8 +6,6 @@ use objc2_metal::{
 
 use crate::stream;
 
-// Rendering runs a frame behind the update loop, so a couple of ticks after the capture
-// opens may hold no complete frame at all; ten always covers several.
 const FRAMES: u32 = 10;
 
 #[derive(Resource)]
@@ -24,6 +22,7 @@ pub fn gputrace(
     if *left > 0 {
         *left -= 1;
         if *left == 0 {
+            // SAFETY: the shared capture manager is a process-wide singleton that Metal creates on first use.
             unsafe { MTLCaptureManager::sharedCaptureManager() }.stopCapture();
             info!("gpu trace written");
             if auto.0.is_some() {
@@ -47,13 +46,13 @@ pub fn gputrace(
 }
 
 fn start(path: &str) -> Result<(), String> {
+    // SAFETY: the shared capture manager is a process-wide singleton that Metal creates on first use.
     let manager = unsafe { MTLCaptureManager::sharedCaptureManager() };
     if !manager.supportsDestination(MTLCaptureDestination::GPUTraceDocument) {
         return Err("Metal refuses to write a trace; relaunch with MTL_CAPTURE_ENABLED=1".into());
     }
     let device = MTLCreateSystemDefaultDevice().ok_or("this machine has no Metal device")?;
     let path = std::path::absolute(path).map_err(|error| error.to_string())?;
-    // A .gputrace is a document package, and Metal refuses to write over one that is already there.
     let _ = std::fs::remove_dir_all(&path);
     let descriptor = MTLCaptureDescriptor::new();
     descriptor.set_capture_device(&device);

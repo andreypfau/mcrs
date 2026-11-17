@@ -6,7 +6,6 @@ use crate::block::{Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut};
 
 pub(crate) type Container = PalettedContainer<BlockStateId, { SectionPos::SIZE }>;
 
-/// A section kept as a paletted container: its palette is read, never rebuilt.
 #[derive(Clone, Copy, Debug)]
 pub struct PalettedSection<'a>(pub &'a Container);
 

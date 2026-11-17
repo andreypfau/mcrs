@@ -29,8 +29,6 @@ impl Plugin for MinecraftEntityPlugin {
     }
 }
 
-/// The set that raises the serverbound packets of a tick on the players of the dimension, in
-/// `FixedPreUpdate`. What their observers queue is ready after it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InboundDispatch;
 
@@ -55,13 +53,6 @@ impl ContainsEntity for EntityOwner {
     }
 }
 
-/// Per-dim system that raises the typed event of every `InboundPlayerPacket` drained from the
-/// host→sub-app shuttle, through the trigger the packet carries.
-///
-/// `drain_to_dim_inbox` fills the sub-world's `Messages<InboundPlayerPacket>` buffer from the
-/// serverbound channel each tick. This system consumes that buffer, resolves the in-dim entity
-/// of the packet's session through the `DimPlayerIndex`, and raises the event so all per-dim
-/// observers (movement, chat, digging) fire on the correct in-dim entity.
 fn dispatch_inbound_to_dim(
     mut reader: MessageReader<InboundPlayerPacket>,
     index: Res<DimPlayerIndex>,

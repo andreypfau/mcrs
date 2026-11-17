@@ -14,8 +14,6 @@ use crate::muxer::latency;
 use crate::muxer::muxer_link;
 use crate::muxer::online_count;
 
-/// The muxer: the connections and the bridge, the sessions, and the input that it routes to
-/// each dimension.
 pub struct MuxerPlugin;
 
 impl Plugin for MuxerPlugin {
@@ -24,18 +22,14 @@ impl Plugin for MuxerPlugin {
         app.init_resource::<SessionAnchors>();
         app.init_resource::<BridgeTelemetry>();
         app.add_observer(muxer_link::acknowledge_batch);
-        // The pre-game loop and the bridge share one dispatcher, whichever plugin builds first.
         app.world_mut()
             .get_resource_or_insert_with(PacketDispatcher::serverbound)
             .set_play(game_packets::GAME_SERVERBOUND);
-        // The bridge systems and the host side of the dimension channels read these messages
-        // with `resource_mut`, which panics on a message that was never added.
         app.add_message::<OutboundPlayerPacket>();
         app.add_message::<InboundPlayerPacket>();
         app.add_message::<OutboundPlayerAttached>();
         app.add_observer(bridge::attach_outbound_queue);
 
-        // One chain: threads would only add the cost of handing its two systems out.
         app.init_resource::<bridge::PendingConnections>();
         let mut flush = Schedule::new(bridge::OutboundFlush);
         flush.set_executor(SingleThreadedExecutor::new());

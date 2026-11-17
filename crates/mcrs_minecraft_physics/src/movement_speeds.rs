@@ -3,16 +3,12 @@ use core::iter;
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::{AttributeModifier, Modifier, ValueRange, fold};
 
-/// The two values of `movement_speed` that a player reads: without and with the sprint modifier.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MovementSpeeds {
     pub(crate) walking: f64,
     pub(crate) sprinting: f64,
 }
 
-/// The value of `movement_speed` from `base`, `modifiers` and the range of the attribute, once
-/// without the modifier `minecraft:sprinting` and once with it. A sprint modifier in `modifiers`
-/// is ignored: the pair uses its own.
 #[must_use]
 pub(crate) fn movement_speeds<'a, I>(base: f64, modifiers: I, range: ValueRange) -> MovementSpeeds
 where
@@ -54,7 +50,6 @@ mod tests {
     struct Case<'a> {
         base: f64,
         modifiers: &'a [AttributeModifier<'static>],
-        /// The bits of the walking speed, or `None` for a case that checks only the sprint speed.
         walking: Option<u64>,
         sprinting: u64,
     }

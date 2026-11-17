@@ -8,15 +8,11 @@ use crate::bounds::SectionBox;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum VisitOrder {
-    /// `y`, then `z`, then `x`, `x` fastest.
     SectionMajor,
-    /// Column by column: `x` slowest, then `z`, then `y` within a column.
     ColumnMajor,
-    /// Whatever order the store walks cheapest.
     Any,
 }
 
-/// What a visit does with a section it cannot read.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Missing {
     Skip,
@@ -30,8 +26,6 @@ pub struct VisitOptions {
 }
 
 pub trait SectionVolume: BlockVolume {
-    /// Hands `f` every section of `area` in `options.order` until it breaks. The default
-    /// walks the whole area; a store that holds few of its sections walks only those.
     fn visit_sections<B, F>(&self, area: SectionBox, options: VisitOptions, f: F) -> ControlFlow<B>
     where
         F: FnMut(SectionPos, Result<Self::Section<'_>, Unavailable>) -> ControlFlow<B>,

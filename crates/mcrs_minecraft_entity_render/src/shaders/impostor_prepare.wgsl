@@ -1,15 +1,9 @@
-// The prepare pass of the impostors: one lane for each slot of the impostor list. A lane selects
-// the view and writes the draw record of the impostor, so the vertex stage of the impostor draw
-// only places the corners of its quad.
-
 const TILE: u32 = #{TILE}u;
 const YAWS: i32 = #{YAWS};
-/// The elevations of the views in degrees, rising.
 const ELEVATIONS = #{ELEVATIONS};
 const ELEVATION_COUNT: u32 = #{ELEVATION_COUNT}u;
 const VIEWS: u32 = #{VIEWS}u;
 const NO_ENTRY: u32 = 0xffffu;
-/// The projected height in pixels under which an impostor draws its whole quad with no discard.
 const SMALL_HEIGHT: f32 = #{SMALL_HEIGHT};
 
 fn layer_entry(state: StateRecord, layer: u32) -> u32 {
@@ -92,8 +86,6 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     let baby = select(1.0, size.y, (state.flags & STATE_BABY) != 0u);
     let pixels = size.x * baby * scale * frame.projection_scale / max(length(to_camera), 1e-3);
     if (pixels < SMALL_HEIGHT) {
-        // A small impostor draws a rectangle with the covered area of its image, about the
-        // centroid of the covered texels, so its pixels cover about what the image covers.
         let rect = draw.rects[first];
         let cover = impostor_covers[FIRST_COVER + layer_entry(state, first) * VIEWS + view];
         if (cover.z > 0.0) {

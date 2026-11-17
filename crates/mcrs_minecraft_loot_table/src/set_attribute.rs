@@ -10,18 +10,15 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use crate::table::Evaluation;
 use crate::work_stack::WorkStack;
 
-/// One element of the `modifiers` of `set_attributes`.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SetAttribute {
     pub(crate) attribute: AttributeId,
     pub(crate) id: ResourceLocationBuf,
     pub(crate) amount: FloatProvider,
     pub(crate) operation: ModifierOperation,
-    /// Not empty (REG-FLD-754).
     pub(crate) slots: Box<[SlotGroup]>,
 }
 
-/// LOOT-MOD-026.
 pub(crate) fn set_attributes<E: Copy, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     elements: &[SetAttribute],

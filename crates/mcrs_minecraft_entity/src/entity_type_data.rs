@@ -6,33 +6,21 @@ use crate::precise_sync::PreciseSync;
 use crate::variant_indices::VariantIndices;
 use mcrs_minecraft_entity_attribute::AttributeBases;
 
-/// The type data of an entity type (`entity-tracking.md`, TRK-TYPE-001), with the look and body
-/// values of a mob type and the values that a client reads to tick and draw the type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct EntityTypeData {
     pub entity_type: EntityType,
-    /// The width of the box of the standing adult.
     pub width: f32,
-    /// The height of the box of the standing adult.
     pub height: f32,
     pub eye_height: f32,
-    /// The client tracking range, in columns.
     pub tracking_range: u32,
-    /// The tracker ticks between two periodic position updates.
     pub update_interval: u32,
-    /// Each update compares the velocity with the last sent velocity (TRK-UPD-007).
     pub tracks_velocity: bool,
-    /// How the client moves the entity between two updates, which selects the move packets.
     pub client_motion: ClientMotion,
     pub fire_immune: bool,
-    /// The size of a baby relative to the adult, which the renderer applies; `None` for a type
-    /// with no baby form or with no uniform baby scale in its mob document.
     pub baby_scale: Option<f32>,
-    /// The factor from the horizontal movement of a tick to the walk target speed.
     pub walk_target_factor: f32,
     pub life: Life,
-    /// Where the variant entries of the type are in its entity data.
     pub variant_indices: VariantIndices,
 }
 
@@ -47,7 +35,6 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     client_motion: ClientMotion::Replayed,
     fire_immune: false,
     baby_scale: None,
-    // client-entities.md, CENTS-WALK-001, item 3.
     walk_target_factor: 4.0,
     life: Life::Mob(MobData::DEFAULT),
     variant_indices: VariantIndices::NONE,
@@ -59,7 +46,6 @@ const ANIMAL: Life = Life::Mob(MobData {
 });
 
 impl EntityTypeData {
-    /// The update interval of a type that the table does not list.
     pub const DEFAULT_UPDATE_INTERVAL: u32 = 3;
 
     pub const PIG: Self = Self {
@@ -67,7 +53,6 @@ impl EntityTypeData {
         width: 0.9,
         height: 0.9,
         eye_height: 0.765,
-        // mob-pig.md: the size of a baby is the adult values times 0.5.
         baby_scale: Some(0.5),
         life: ANIMAL,
         variant_indices: VariantIndices::PIG,
@@ -79,7 +64,6 @@ impl EntityTypeData {
         width: 0.9,
         height: 1.4,
         eye_height: 1.3,
-        // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
         baby_scale: Some(0.5),
         life: ANIMAL,
         variant_indices: VariantIndices::COW,
@@ -91,7 +75,6 @@ impl EntityTypeData {
         width: 0.9,
         height: 1.3,
         eye_height: 1.235,
-        // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
         baby_scale: Some(0.5),
         life: ANIMAL,
         ..MOB_DEFAULTS
@@ -122,7 +105,6 @@ impl EntityTypeData {
         width: 0.5,
         height: 0.5,
         eye_height: 0.425,
-        // mob-frog.md: the walk target factor.
         walk_target_factor: 25.0,
         life: Life::Mob(MobData {
             head_yaw_limit: 5.0,
@@ -191,7 +173,6 @@ impl EntityTypeData {
         ..MOB_DEFAULTS
     };
 
-    /// Every row of the table.
     pub const ALL: [&'static Self; 11] = [
         &Self::PIG,
         &Self::COW,
@@ -206,7 +187,6 @@ impl EntityTypeData {
         &Self::EXPERIENCE_ORB,
     ];
 
-    /// The type data of `entity_type`, or `None` for a type that the table does not list yet.
     #[must_use]
     pub const fn of(entity_type: EntityType) -> Option<&'static Self> {
         match entity_type {
@@ -225,7 +205,6 @@ impl EntityTypeData {
         }
     }
 
-    /// The attribute set and the bases of the type, or `None` for a type that is not living.
     #[must_use]
     pub const fn attribute_bases(&self) -> Option<AttributeBases> {
         crate::attribute_bases(self.entity_type)
@@ -244,7 +223,6 @@ impl EntityTypeData {
         matches!(self.life, Life::Living | Life::Mob(_))
     }
 
-    /// The entity data chain of the type holds the ageable mob part (TRK-DATA-006).
     #[must_use]
     pub const fn is_ageable(&self) -> bool {
         matches!(self.life, Life::Mob(MobData { ageable: true, .. }))

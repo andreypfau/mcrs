@@ -1,16 +1,11 @@
-/// What the goals of a mob type read of one block position: the floor, the solid flag, water,
-/// the malus of its path type for the mob type, and the walk value.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GroundCell {
     pub flags: CellFlags,
-    /// The malus of the mob path type of the position for the mob type; 0 is free, -1 is blocked.
     pub malus: f32,
-    /// The walk value of the position for the mob type (GOAL-POS-004).
     pub walk_value: f32,
 }
 
 impl GroundCell {
-    /// A stable floor with no solid block, at no malus: a mob can stand here.
     #[must_use]
     pub fn is_walkable(&self) -> bool {
         self.flags.contains(CellFlags::STABLE_FLOOR)
@@ -24,13 +19,9 @@ pub struct CellFlags(u8);
 
 impl CellFlags {
     pub const NONE: Self = Self(0);
-    /// The block below has a solid render state.
     pub const STABLE_FLOOR: Self = Self(1);
-    /// The block has the legacy solid flag.
     pub const LEGACY_SOLID: Self = Self(1 << 1);
-    /// The block has water.
     pub const WATER: Self = Self(1 << 2);
-    /// The collision shape of the block is empty.
     pub const NO_COLLISION: Self = Self(1 << 3);
 
     #[must_use]
@@ -44,7 +35,6 @@ impl CellFlags {
     }
 }
 
-/// The lowest and the highest `y` of the build height of a dimension, both inclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BuildHeight {
     pub min: i32,

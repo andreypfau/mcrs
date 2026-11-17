@@ -9,8 +9,6 @@ use crate::widget_id::WidgetId;
 const DEFERRED_APPLY_MS: u64 = 600;
 const LAST_POSITION: f64 = 0.999_99_f32 as f64;
 
-/// The position of a slider from 0 to 1 and the option values it maps to (WID-SLD-004 to
-/// WID-SLD-007).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Slider {
     position: f64,
@@ -32,14 +30,11 @@ pub(crate) enum SliderStep {
 }
 
 impl Slider {
-    /// A slider whose value is its position, clamped to [0, 1].
     #[must_use]
     pub fn continuous(position: f64) -> Self {
         Self::at(Scale::Continuous, position)
     }
 
-    /// An option slider over the integers `min` to `max` at `value`; none unless `min < max`
-    /// (WID-SLD-005).
     #[must_use]
     pub fn range(min: i32, max: i32, value: i32) -> Option<Self> {
         if min >= max {
@@ -49,8 +44,6 @@ impl Slider {
         Some(Self::at(scale, scale.position_of(f64::from(value))))
     }
 
-    /// An option slider over a list of `count` values at the index `index`; none unless
-    /// `index < count` and the list has two values or more (WID-SLD-006).
     #[must_use]
     pub fn list(count: usize, index: usize) -> Option<Self> {
         if count < 2 || index >= count {
@@ -60,8 +53,6 @@ impl Slider {
         Some(Self::at(scale, scale.position_of(index as f64)))
     }
 
-    /// The same slider for an option that stores its value only 600 ms after the last change
-    /// (WID-SLD-007).
     #[must_use]
     pub const fn deferred(self) -> Self {
         Self {
@@ -70,13 +61,11 @@ impl Slider {
         }
     }
 
-    /// The position of the handle, from 0 to 1.
     #[must_use]
     pub const fn position(&self) -> f64 {
         self.position
     }
 
-    /// The integer value of a range slider at its position.
     #[must_use]
     pub fn value(&self) -> Option<i32> {
         match self.scale {
@@ -85,7 +74,6 @@ impl Slider {
         }
     }
 
-    /// The index of a list slider at its position.
     #[must_use]
     pub fn index(&self) -> Option<usize> {
         match self.scale {

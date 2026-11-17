@@ -1,7 +1,3 @@
-//! An NBT path read from text, and its selection, get-or-create and set on NBT tags.
-
-// std: mcrs_minecraft_nbt
-
 extern crate alloc;
 
 mod nbt_path;

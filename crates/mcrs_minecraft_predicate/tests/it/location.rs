@@ -25,7 +25,6 @@ fn passes<W: LocationView>(json: &str, world: &W) -> bool {
     bake(json).matches(world, AT, smoke(), &mut PredicateScratch::default())
 }
 
-/// A column from y 58 to 64 at x 0, z 0: `below` from y 63 down, then stone.
 fn column(at: &str, below: &[BlockStateId]) -> Grid {
     let stone = state("minecraft:stone", &[]);
     let mut blocks = vec![(BlockPos::new(0, 64, 0), state(at, &[]))];
@@ -46,7 +45,6 @@ fn air() -> Grid {
     column("minecraft:air", &[])
 }
 
-/// A loaded position whose block state the host does not give.
 fn stateless() -> Grid {
     Grid {
         stateless: vec![BlockPos::new(0, 64, 0)],

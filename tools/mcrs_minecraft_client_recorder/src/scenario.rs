@@ -4,13 +4,9 @@ use anyhow::Context;
 use anyhow::bail;
 use mcrs_minecraft_client_ticks::Fill;
 
-/// The script of one experiment: the server setup of each step and what the human does in it.
 pub(crate) struct Scenario {
     pub(crate) experiment: String,
-    /// Lines of `server.properties` that the experiment needs, as `key=value`.
     pub(crate) properties: Vec<String>,
-    /// The air fill that empties the cuboid of each step before its fills; the replay takes the
-    /// world outside it as air.
     pub(crate) arena: Fill,
     pub(crate) steps: Vec<Step>,
 }
@@ -18,18 +14,12 @@ pub(crate) struct Scenario {
 pub(crate) struct Step {
     pub(crate) name: String,
     pub(crate) instruction: String,
-    /// The `input` lines: what the input agent of `tools/vanilla-client` does in place of the human.
     inputs: Vec<String>,
     pub(crate) fills: Vec<Fill>,
-    /// Console commands after the fills, for example a game mode or an effect.
     pub(crate) commands: Vec<String>,
-    /// The position and the rotation of the teleport that starts the step.
     pub(crate) start: [f64; 5],
-    /// The client tick of the step at which the human starts; it becomes a timed title.
     go: u32,
-    /// The number of client ticks of the step.
     pub(crate) ticks: u32,
-    /// Console commands at a client tick of the step.
     pub(crate) timed: Vec<Timed>,
 }
 
@@ -154,14 +144,11 @@ impl Scenario {
 }
 
 impl Step {
-    /// The script that the input agent reads: the `go` tick, then the `input` lines.
     pub(crate) fn input_script(&self) -> String {
         format!("go {}\n{}\n", self.go, self.inputs.join("\n"))
     }
 }
 
-/// `<tick> <keys> [<yaw> <pitch>]`: from the client tick `tick` of the step on, the agent holds the
-/// keys; at that tick it also turns the view to the rotation.
 fn check_input(text: &str) -> anyhow::Result<()> {
     const KEYS: [&str; 8] = [
         "forward", "backward", "left", "right", "jump", "shift", "sprint", "use",

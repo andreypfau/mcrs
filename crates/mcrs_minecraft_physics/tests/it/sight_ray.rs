@@ -1,6 +1,3 @@
-//! The sight ray on a pen and on a block wall. The expected answers come from the ray of the goal
-//! world over its own box table, which this ray replaced.
-
 use glam::DVec3;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestWorld;
@@ -11,7 +8,6 @@ use mcrs_voxel::BlockStateId;
 const PIXEL: f64 = 1.0 / 16.0;
 const RAYS: usize = 1024;
 
-/// Bit `i % 64` of word `i / 64` is set when ray `i` of [`rays`] is clear in the pen.
 const PEN_CLEAR: [u64; RAYS / 64] = [
     0x5a17_2b25_a4b5_a31d,
     0x2e00_26a4_2c68_364f,
@@ -31,7 +27,6 @@ const PEN_CLEAR: [u64; RAYS / 64] = [
     0x2115_30b5_7c16_2ef1,
 ];
 
-/// As [`PEN_CLEAR`], for the block wall.
 const WALL_CLEAR: [u64; RAYS / 64] = [
     0xbe6e_be5f_db58_ee2e,
     0xe6f3_5bff_e3b5_53fe,
@@ -59,7 +54,6 @@ fn fill(world: &mut TestWorld, min: [i32; 3], max: [i32; 3], state: BlockStateId
     );
 }
 
-/// A pen of side 12 on a stone floor, with a stone fence ring 2 high and a few shapes inside.
 fn pen(blocks: &TestBlocks) -> TestWorld {
     let mut world = TestWorld::new();
     fill(&mut world, [-1, -2, -1], [12, -1, 12], blocks.stone);
@@ -78,7 +72,6 @@ fn pen(blocks: &TestBlocks) -> TestWorld {
     world
 }
 
-/// A wall across `x = 6`, 4 high, of each shape in turn along `z`, with a gap of air.
 fn block_wall(blocks: &TestBlocks) -> TestWorld {
     let mut world = TestWorld::new();
     let column = [
@@ -99,8 +92,6 @@ fn block_wall(blocks: &TestBlocks) -> TestWorld {
     world
 }
 
-/// Rays between points of the box from `(-2, -1, -2)` to `(14, 4, 14)`: a quarter with both ends
-/// at one height, an eighth on the pixel grid, and the rest free.
 fn rays() -> Vec<(DVec3, DVec3)> {
     let mut seed = 0x9E37_79B9_7F4A_7C15_u64;
     let mut unit = move || {

@@ -2,8 +2,6 @@ use crate::template_asset::TemplateAsset;
 use bevy_asset::{AssetServer, Handle};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-/// The loaded template at `<namespace>/structure/<path>.nbt`, if one was
-/// requested and the file exists.
 pub fn template_handle(
     asset_server: &AssetServer,
     id: &ResourceLocationBuf,

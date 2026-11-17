@@ -1,6 +1,3 @@
-//! The block transformer registry value and its keys.
-// std: mcrs_minecraft_registries
-
 mod block_transformer;
 #[rustfmt::skip]
 pub mod block_transformer_keys;

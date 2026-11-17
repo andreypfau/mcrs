@@ -1,7 +1,6 @@
 use crate::Dimensions;
 use crate::Scaling;
 
-/// The posture of an entity, which selects its dimensions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Pose {
     #[default]
@@ -15,7 +14,6 @@ pub enum Pose {
 }
 
 impl Pose {
-    /// The dimensions of a player in this pose, before the `scale` attribute.
     #[must_use]
     pub fn player_dimensions(self) -> Dimensions {
         match self {

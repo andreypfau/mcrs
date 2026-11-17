@@ -3,7 +3,6 @@ use core::fmt;
 
 use crate::widget_id::WidgetId;
 
-/// The screen already has a widget with this id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WidgetIdTaken(pub WidgetId);
 

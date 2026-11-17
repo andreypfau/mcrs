@@ -1,6 +1,3 @@
-//! The chat of the client: the log, the history, the open chat screen and the command parse
-//! against what the client knows, and the packets that send a message or a command.
-
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
@@ -38,11 +35,9 @@ use crate::chat_packets;
 use crate::game_mode::PermissionLevel;
 use crate::player::Player;
 
-/// A line the player sent from the chat screen, for the plugin to put on the connection.
 #[derive(Message, Clone, Debug)]
 pub struct SendChat(pub Outgoing);
 
-/// A message for the chat log. Debug feedback is one too.
 #[derive(Message, Clone, Debug)]
 pub struct ChatMessage {
     pub text: Text,
@@ -50,7 +45,6 @@ pub struct ChatMessage {
     pub origin: MessageOrigin,
 }
 
-/// Which "receive messages" ability a message needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageOrigin {
     System,
@@ -58,7 +52,6 @@ pub enum MessageOrigin {
 }
 
 impl ChatMessage {
-    /// A message from the server, not from a player.
     pub fn system(text: Text) -> Self {
         Self {
             text,
@@ -68,22 +61,18 @@ impl ChatMessage {
     }
 }
 
-/// The client tree of the last `commands` packet.
 #[derive(Resource, Default)]
 pub struct CommandTree(pub ClientGraph);
 
-/// A player in the player list.
 #[derive(Clone, Debug)]
 pub struct OnlinePlayer {
     pub uuid: Uuid,
     pub name: String,
 }
 
-/// The players in the player list.
 #[derive(Resource, Default, Debug)]
 pub struct OnlinePlayers(pub Vec<OnlinePlayer>);
 
-/// The chat options that the client reads; the client has no options screen.
 #[derive(Clone, Copy, Debug)]
 pub struct ChatOptions {
     pub auto_suggest: bool,
@@ -101,8 +90,6 @@ impl Default for ChatOptions {
     }
 }
 
-/// The chat state that lives across screens: the log, the overlay message, the history, the
-/// draft and the custom completion set.
 #[derive(Resource, Default)]
 pub struct Chat {
     pub log: ChatLog<Text>,
@@ -112,16 +99,13 @@ pub struct Chat {
     pub completions: Vec<String>,
     pub abilities: ChatAbilities,
     pub options: ChatOptions,
-    /// The GUI tick: client ticks while the game runs.
     pub tick: u64,
     pub(crate) player_chats: i32,
 }
 
-/// The chat screen while it is open, kept between opens so its buffers stay.
 #[derive(Resource, Default)]
 pub struct ChatInput(pub ChatScreen);
 
-/// What the client knows that a command argument reads.
 pub struct ClientLookup<'a> {
     registries: RegistryLookup<'a>,
     players: &'a OnlinePlayers,
@@ -193,7 +177,6 @@ impl TimeLookup for ClientLookup<'_> {
     }
 }
 
-/// The world data a command parse reads, gathered for one system.
 #[derive(SystemParam)]
 pub struct CommandWorld<'w, 's> {
     tree: Res<'w, CommandTree>,
@@ -235,9 +218,7 @@ impl CommandWorld<'_, '_> {
     }
 }
 
-/// The chat of the client, with the command history kept in `command_history`.
 pub struct ClientChatPlugin {
-    /// Where the command history lives, if anywhere.
     pub command_history: Option<PathBuf>,
 }
 
@@ -331,7 +312,6 @@ fn salt() -> u64 {
     RandomState::new().build_hasher().finish()
 }
 
-/// An unsigned session acknowledges nothing.
 const NOTHING_SEEN: MessageSignature = MessageSignature {
     offset: VarInt(0),
     acknowledged: [0; 3],

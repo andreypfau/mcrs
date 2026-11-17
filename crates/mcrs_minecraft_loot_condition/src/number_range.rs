@@ -8,14 +8,12 @@ use crate::int_provider::IntProvider;
 use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
 
-/// A baked int range or float range (LOOT-CND-021).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum NumberRange<P> {
     Point(P),
     Bounds { min: Option<P>, max: Option<P> },
 }
 
-/// A provider that a range reads, with the read of LOOT-NUM-001.
 pub(crate) trait RangeProvider {
     type Value: PartialOrd + Copy;
 
@@ -64,8 +62,6 @@ impl<P> NumberRange<P> {
 }
 
 impl<P: RangeProvider> NumberRange<P> {
-    /// Whether the read of `input` is in the range; a range with neither bound does not read
-    /// `input` (LOOT-CND-021).
     pub(crate) fn contains_read<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         input: &P,
@@ -84,8 +80,6 @@ impl<P: RangeProvider> NumberRange<P> {
         self.contains(value, inputs, random, scratch)
     }
 
-    /// Whether `value` is in the range; the range reads `min` before `max`, and does not read
-    /// `max` when `value` is less than `min` (LOOT-CND-021).
     pub(crate) fn contains<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         value: P::Value,

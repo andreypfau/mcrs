@@ -9,8 +9,6 @@ use mcrs_minecraft_core::codec::{Bounded, is_default, non_empty};
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
-/// `UniformInt.MAP_CODEC` reached directly rather than through the int-provider
-/// dispatch, so the object carries no `type`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct UniformIntRange {
@@ -141,7 +139,6 @@ pub enum TrunkPlacer {
         height_rand_a: HeightRand,
         height_rand_b: HeightRand,
         trunk_height_above_branches: BoundedIntProvider<0, 8>,
-        /// Each branch takes one of the four horizontals, none twice.
         branch_amount: BoundedIntProvider<1, 4>,
     },
 }
@@ -228,8 +225,6 @@ pub enum FoliagePlacer {
     },
 }
 
-/// `P` is the block state provider four decorators carry: the datapack's
-/// [`BlockStateProvider`] as loaded, or whatever a freeze resolves it into.
 #[dispatch(registry = crate::tree_decorator_type_keys::TreeDecoratorType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -285,7 +280,6 @@ pub enum TreeDecorator<P = BlockStateProvider<Named>> {
 }
 
 impl<P> TreeDecorator<P> {
-    /// The same decorator with its provider, if it carries one, resolved by `f`.
     pub fn map_provider<Q, E>(
         &self,
         mut f: impl FnMut(&P) -> Result<Q, E>,
@@ -434,8 +428,6 @@ pub struct TreeConfig {
     pub root_placer: Option<RootPlacer>,
     pub minimum_size: FeatureSize,
     pub decorators: Vec<TreeDecorator>,
-    /// `fieldOf(…).orElse(false)`, which unlike an optional field is written
-    /// back even when it holds the default.
     #[serde(default)]
     pub ignore_vines: bool,
     pub below_trunk_provider: BlockStateProvider<Named>,

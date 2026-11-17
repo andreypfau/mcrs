@@ -17,16 +17,12 @@ use crate::syntax::{
 };
 use crate::value::{Rate, ValueType};
 
-/// A lowered operand.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Lowered {
     pub(crate) value: ValueId,
     pub(crate) value_type: ValueType,
-    /// `1.0` when the value is a read of a missing value; `None` when it never is.
     pub(crate) missing: Option<ValueId>,
-    /// The query that gives the value directly, for the comparison check of the host.
     pub(crate) binding: Option<QueryBinding>,
-    /// An error is already reported for the operand; type checks skip it.
     pub(crate) poisoned: bool,
 }
 
@@ -225,7 +221,6 @@ impl<H: QueryHost> Lowering<'_, H> {
         }
     }
 
-    /// Lowers code that never runs, so that its errors are still reported.
     pub(crate) fn discarded(&mut self, lower: impl FnOnce(&mut Self)) {
         let temps = self.temps.clone();
         let terminated = self.terminated;

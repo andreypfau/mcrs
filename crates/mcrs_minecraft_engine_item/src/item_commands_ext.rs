@@ -7,12 +7,9 @@ use mcrs_minecraft_item_stack::Kind;
 
 use crate::spawn_stack::spawn_stack;
 
-/// The spawn commands of stacks. A stack of a kind that the item table does not have despawns.
 pub trait ItemCommandsExt {
-    /// Spawns one item of `kind` with the components of its prototype.
     fn spawn_item(&mut self, kind: Kind) -> EntityCommands<'_>;
 
-    /// Spawns a stack equal to `value`.
     fn spawn_stack(&mut self, value: ItemStack) -> EntityCommands<'_>;
 }
 

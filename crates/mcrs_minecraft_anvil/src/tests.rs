@@ -52,9 +52,6 @@ impl Drop for Fixture {
     }
 }
 
-/// Header, then one sector-aligned payload per slot, exactly as `RegionFile`
-/// writes them: a big-endian length covering the version byte, the version byte,
-/// then the payload.
 fn build_region(slots: &[(i32, i32, u8, Vec<u8>)]) -> Vec<u8> {
     let mut header = vec![0u8; 2 * SECTOR_BYTES];
     let mut body = Vec::new();
@@ -133,8 +130,6 @@ fn container(palette: Vec<NbtTag>, data: Option<Vec<i64>>) -> NbtCompound {
     c
 }
 
-/// Packs `entries` the way `SimpleBitStorage` does: `64 / bits` entries per long,
-/// lowest entry in the lowest bits, no entry straddling a long boundary.
 fn pack(entries: &[u16], bits: u32) -> Vec<i64> {
     let per_long = 64 / bits as usize;
     let mut longs = vec![0i64; entries.len().div_ceil(per_long)];
@@ -229,7 +224,6 @@ fn single_slot(version: u8, root: &NbtCompound) -> Vec<(i32, i32, u8, Vec<u8>)> 
     vec![(0, 0, version, compress(version, &nbt_bytes(root)))]
 }
 
-/// Stands in for the block and biome registries with ids a test can name.
 #[derive(Default)]
 struct TestRegistry {
     asked: Cell<usize>,
@@ -442,9 +436,6 @@ fn a_record_without_position_keys_reads_as_column_zero() {
     );
 }
 
-/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
-/// counts one through four onto the four-bit configuration. Packing at two bits
-/// would decode most cells to the wrong palette entry.
 #[test]
 fn every_cell_holds_its_resolved_id() {
     let fixture = Fixture::new("remap");
@@ -479,7 +470,6 @@ fn every_cell_holds_its_resolved_id() {
     assert_eq!(index, Blocks::ENTRY_COUNT);
 }
 
-/// A single-entry container stores no cells, so it answers from the palette.
 #[test]
 fn a_uniform_container_holds_its_value_in_every_cell() {
     let fixture = Fixture::new("remap_uniform");
@@ -501,8 +491,6 @@ fn a_uniform_container_holds_its_value_in_every_cell() {
     assert_eq!(cells, Blocks::ENTRY_COUNT);
 }
 
-/// The palette entry is read by hand rather than derived, so its rejection of
-/// an unknown key needs its own test.
 #[test]
 fn an_unknown_key_in_a_palette_entry_is_a_loud_error() {
     let fixture = Fixture::new("palette_unknown_key");
@@ -560,9 +548,6 @@ fn a_single_value_section_with_data_is_a_loud_error() {
     );
 }
 
-/// A palette above 256 entries leaves the linear/hashmap configurations behind
-/// for the global one, whose storage width is the raw `ceillog2` of the palette
-/// size rather than a table entry.
 #[test]
 fn a_global_palette_section_is_stored_at_its_own_width() {
     let fixture = Fixture::new("global_palette");
@@ -649,8 +634,6 @@ fn a_missing_data_array_is_an_error_not_an_empty_section() {
     );
 }
 
-/// 256 is the last size `ceillog2` answers 8 for; reading it as 9 would shift
-/// every entry after the first long.
 #[test]
 fn a_256_entry_palette_is_stored_at_eight_bits() {
     let fixture = Fixture::new("eight_bits");
@@ -678,8 +661,6 @@ fn a_256_entry_palette_is_stored_at_eight_bits() {
     assert_eq!(blocks.get(1, 0, 0), Some(numbered(0)));
 }
 
-/// Above 65536 entries an index no longer fits the decoded entry, so a crafted
-/// palette would silently truncate every index rather than fail.
 #[test]
 fn a_palette_too_large_to_index_is_a_loud_error() {
     let fixture = Fixture::new("palette_too_large");
@@ -811,9 +792,6 @@ fn light_arrays_must_be_2048_bytes() {
     );
 }
 
-/// A section whose `BlockLight` holds `value`, written ahead of a good
-/// `SkyLight`, the block states and a second section, so a value read at the
-/// wrong width shows in what follows it.
 fn chunk_with_block_light(value: NbtTag) -> NbtCompound {
     let mut sky = vec![0u8; LIGHT_BYTES];
     sky[0] = 0x0f;
@@ -879,8 +857,6 @@ fn container_holding(palette: Vec<NbtTag>, data: NbtTag) -> NbtCompound {
     c
 }
 
-/// Two entries pack sixteen cells into a word, so a word of one puts stone in
-/// the first cell of its row and air in the rest.
 #[test]
 fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
     let fixture = Fixture::new("block_data_by_element");
@@ -914,9 +890,6 @@ fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
     }
 }
 
-/// One bit per cell packs 64 biome cells into a word, so the sign an element
-/// widens with and the way a float narrows both show in the cells: -2 clears a
-/// word's first cell and sets every other.
 #[test]
 fn biome_data_widens_each_element_as_a_signed_number() {
     let fixture = Fixture::new("biome_data_by_element");
@@ -1039,8 +1012,6 @@ fn an_unknown_key_in_a_section_fails_the_load_by_name() {
     );
 }
 
-/// `DataVersion` arrived in 15w32a, so a chunk older than that has no version
-/// to disagree with and must say so rather than leaking a missing-field message.
 #[test]
 fn a_chunk_older_than_the_version_tag_says_so() {
     let fixture = Fixture::new("no_version");
@@ -1063,9 +1034,6 @@ fn a_chunk_older_than_the_version_tag_says_so() {
     );
 }
 
-/// An older chunk trips over whatever field this layout gained or lost long
-/// before anything looks at its version, so the version has to be re-read to
-/// produce the error that actually explains the failure.
 #[test]
 fn an_older_layout_reports_its_version_not_its_first_odd_field() {
     let fixture = Fixture::new("old_layout");
@@ -1138,7 +1106,6 @@ fn sorted_compound(compound: &NbtCompound) -> NbtCompound {
     }
 }
 
-/// A column record below full that holds every key of SAVE-CHUNK-001.
 #[expect(
     clippy::too_many_lines,
     reason = "one fixture lists every key of the record"
@@ -1896,7 +1863,6 @@ pub(crate) mod write {
             .root_tag
     }
 
-    /// Where each id of `from` sits in `into`, interning by the entry's text.
     fn translation<V: PaletteId>(from: &PaletteNames<V>, into: &PaletteNames<V>) -> Vec<V> {
         (0..from.len())
             .map(|index| {
@@ -2000,7 +1966,6 @@ pub(crate) mod write {
         }
     }
 
-    /// Slot index to the record's sectors and its timestamp.
     fn records(bytes: &[u8]) -> HashMap<usize, (&[u8], i32)> {
         (0..1024)
             .filter_map(|slot| {

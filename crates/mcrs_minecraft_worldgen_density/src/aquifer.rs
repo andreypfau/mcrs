@@ -9,8 +9,6 @@ use mcrs_minecraft_numeric::remap;
 use mcrs_minecraft_numeric::remap_clamped;
 use mcrs_minecraft_random::{Random, RandomSource};
 
-/// `DimensionType.WAY_BELOW_MIN_Y`: the level of a dry cell. Still a number,
-/// and it enters the pressure formula as one.
 pub const WAY_BELOW_MIN_Y: i32 = -2032 << 4;
 
 const AIR: VoxelId = VoxelId(0);
@@ -21,8 +19,6 @@ const SAMPLE_OFFSET_X: i32 = -5;
 const SAMPLE_OFFSET_Y: i32 = 1;
 const SAMPLE_OFFSET_Z: i32 = -5;
 
-/// In this order: which offset returns first decides between two statuses
-/// wherever their levels differ.
 const SURFACE_SAMPLING_OFFSETS_IN_CHUNKS: [[i32; 2]; 13] = [
     [0, 0],
     [-2, -1],
@@ -52,15 +48,11 @@ impl FluidStatus {
     }
 }
 
-/// The rule of a dimension without an aquifer field, and what the field falls
-/// back to: the dimension's fluid up to its sea level over a lava floor.
 #[derive(Clone, Copy, Debug)]
 pub struct GlobalFluid {
     pub sea: FluidStatus,
     pub lava: FluidStatus,
-    /// Below this the lava status answers.
     pub floor: i32,
-    /// Below this the rule places lava outright, whatever the field says.
     pub lava_below: i32,
 }
 
@@ -91,9 +83,6 @@ impl GlobalFluid {
     }
 }
 
-/// The `aquifers` block of a `noise_settings`, compiled: root indices into the
-/// dimension's program, the positional stream the centres are jittered from,
-/// and the shell margins the barrier's declared interval allows.
 pub struct AquiferConfig {
     pub barrier: usize,
     pub floodedness: usize,
@@ -107,10 +96,6 @@ pub struct AquiferConfig {
 }
 
 impl AquiferConfig {
-    /// The pressure reads the barrier noise only while its gradient is within
-    /// `±2`; past that the gradient alone is negative. Inside, the noise cannot
-    /// outweigh a gradient at or below `-N`. Both caps and both slopes come
-    /// straight from the pressure formula.
     pub fn margins(barrier_max: f32) -> (i32, i32) {
         let n = f64::from(barrier_max);
         let above = (2.5 * n - 0.5).ceil().clamp(0.0, 5.0);
@@ -119,17 +104,12 @@ impl AquiferConfig {
     }
 }
 
-/// What the field says about one block whose density is not positive. `None`
-/// is solid: the barrier pushed the density over zero.
 pub type Substance = Option<VoxelId>;
 
-/// The twelve statuses every block of one lattice cell selects from, reduced
-/// to what settles a run of blocks without the search.
 #[derive(Clone, Copy, Debug)]
 pub struct Window {
     pub lmax: i32,
     pub lmin: i32,
-    /// The one fluid every status holds, when none is dry.
     pub one_type: Option<VoxelId>,
 }
 
@@ -150,8 +130,6 @@ impl Window {
         }
     }
 
-    /// Lemma U: one status over the whole volume. A volume of nothing but dry
-    /// cells is left to Lemma A, which answers air for every `y` a world holds.
     fn uniform(self) -> Option<FluidStatus> {
         let fluid = self.one_type?;
         (self.lmin == self.lmax).then_some(FluidStatus {
@@ -165,9 +143,6 @@ fn agree<T: PartialEq>(left: Option<T>, right: Option<T>) -> Option<T> {
     if left == right { left } else { None }
 }
 
-/// The fluid level field over one lattice region, as dense tables owned by the
-/// task that generates it. Everything here is a pure function of the seed, so
-/// the region may be any size and two regions agree wherever they overlap.
 pub struct FluidField<'a> {
     router: &'a NoiseRouter,
     program: &'a Program,
@@ -180,8 +155,6 @@ pub struct FluidField<'a> {
     grid_size: IVec3,
     centres: Box<[IVec3]>,
     status: Box<[Option<FluidStatus>]>,
-    /// The surface level of each quart column the statuses may read, sampled
-    /// when one first does: a status reads at most thirteen of them.
     surface: Box<[Option<i32>]>,
     surface_min_quart: (i32, i32),
     surface_quarts_x: i32,
@@ -189,8 +162,6 @@ pub struct FluidField<'a> {
 }
 
 impl<'a> FluidField<'a> {
-    /// The field over every block in `[min, max]`, both inclusive. It starts
-    /// with the surface levels that `levels` holds for the region.
     pub fn new(
         router: &'a NoiseRouter,
         levels: &mut SurfaceLevels,
@@ -272,8 +243,6 @@ impl<'a> FluidField<'a> {
         field
     }
 
-    /// Hands every surface level the field holds to `levels`, for the fields
-    /// of the columns around this one.
     pub fn keep_surface_levels(&self, levels: &mut SurfaceLevels) {
         if !levels.serves(self.router) {
             return;
@@ -442,8 +411,6 @@ impl<'a> FluidField<'a> {
         }
     }
 
-    /// The three nearest centres in the reference's order: a later candidate at
-    /// the same distance displaces an earlier one.
     fn select(&self, x: i32, y: i32, z: i32) -> ([i32; 3], [usize; 3]) {
         let anchor = Self::anchor(x, y, z);
         let mut distance = [i32::MAX; 3];
@@ -473,11 +440,6 @@ impl<'a> FluidField<'a> {
         (distance, index)
     }
 
-    /// The reference's decision tree, block by block. The oracle for every
-    /// shortcut in this module, and the search the shell runs.
-    ///
-    /// `barrier` is read at most once, and only where the pressure gradient
-    /// leaves the sign to the noise.
     pub fn substance(
         &mut self,
         x: i32,
@@ -576,7 +538,6 @@ impl<'a> FluidField<'a> {
         2.0 * (noise_value + gradient)
     }
 
-    /// The volume of the cell `p` anchors to, for any `p` with that anchor.
     pub fn volume(&mut self, anchor: IVec3) -> Window {
         if self.config.is_none() {
             return Window::of(self.global.sea);
@@ -616,8 +577,6 @@ impl<'a> FluidField<'a> {
         )
     }
 
-    /// [`Self::substance`] for a block with non-positive density, answered by
-    /// its cell's volume where a lemma applies and by the search otherwise.
     pub fn substance_settled(
         &mut self,
         x: i32,
@@ -639,13 +598,6 @@ impl<'a> FluidField<'a> {
         Some((config.margin_above, config.margin_below))
     }
 
-    /// One status answering every block of `[min, max]`, both inclusive, for a
-    /// box whose density is non-positive throughout. `None` where the box needs
-    /// the per-block search.
-    ///
-    /// The status holds outside the box no more than the lemma that produced it
-    /// does: a dry box answers with the level at its own floor and a drowned one
-    /// with the level just past its own ceiling.
     pub fn settle(&mut self, min: IVec3, max: IVec3) -> Option<FluidStatus> {
         if max.y < self.global.lava_below {
             return Some(FluidStatus {
@@ -690,8 +642,6 @@ impl<'a> FluidField<'a> {
     }
 }
 
-/// The barrier noise one point at a time, for a caller that reads it in
-/// scattered places rather than over a box.
 pub fn point_barrier<'a>(
     router: &'a NoiseRouter,
     ws: &'a mut Workspace,

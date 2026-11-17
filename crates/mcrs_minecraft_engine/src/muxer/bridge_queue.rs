@@ -6,11 +6,6 @@ use mcrs_minecraft_network::metrics::PacketKind;
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
 
-/// The outbound packets of one connection, in the order the server wrote them.
-///
-/// The queue never reorders and never drops: the client applies the packets in wire order, and
-/// the movement checks compare that order with the answers of the probes around the changes that
-/// the client predicts with. A client that cannot take the packets is disconnected instead.
 #[derive(Component, Default)]
 pub struct OutboundQueue {
     packets: VecDeque<QueuedPacket>,
@@ -33,36 +28,25 @@ impl OutboundQueue {
         self.packets.iter()
     }
 
-    /// Takes every packet out, oldest first.
     pub fn drain(&mut self) -> impl Iterator<Item = QueuedPacket> + '_ {
         self.packets.drain(..)
     }
 }
 
-/// A packet that waits in an [`OutboundQueue`].
 #[derive(Clone, Debug)]
 pub enum QueuedPacket {
-    /// Serialized when the queue of its one connection is handed over.
     Payload(PacketPayload),
-    /// Serialized once for every connection that receives it.
     Encoded(EncodedPacket),
-    /// Records of packets with their ids, from the muxer.
     Records(Vec<Bytes>),
 }
 
-/// A packet with its id, as `encode_with_id` wrote it.
 #[derive(Clone, Debug)]
 pub struct EncodedPacket {
     pub kind: PacketKind,
-    /// Whether the payload it was serialized from changes the client's prediction, which the
-    /// bytes no longer show.
     pub changes_prediction: bool,
     pub packet: Bytes,
 }
 
-/// Whether `payload` changes what the client predicts its own moves with, which decides whether
-/// the probes bracket it: the blocks and columns the client collides with, its abilities, and
-/// the motion, data and attributes of its own entity.
 pub(crate) fn payload_changes_prediction(payload: &PacketPayload) -> bool {
     matches!(
         payload,
@@ -76,7 +60,6 @@ pub(crate) fn payload_changes_prediction(payload: &PacketPayload) -> bool {
 }
 
 impl QueuedPacket {
-    /// Whether the packet changes what the client predicts its own moves with.
     #[must_use]
     pub fn changes_prediction(&self) -> bool {
         match self {

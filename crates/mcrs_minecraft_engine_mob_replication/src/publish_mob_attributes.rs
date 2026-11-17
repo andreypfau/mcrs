@@ -11,8 +11,6 @@ use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_replication::AttributeState;
 use mcrs_minecraft_replication::MobReport;
 
-/// Records the state at the end of the tick of each syncable instance of a mob that an edit
-/// changed in the tick (ATR-NET-003), once for each instance, after the other events of the mob.
 pub(crate) fn publish_mob_attributes<M: Send + Sync + 'static>(
     mut changed: MessageReader<AttributeChanged>,
     attributes: Res<RowAttributes>,

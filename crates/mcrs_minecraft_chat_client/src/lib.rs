@@ -1,7 +1,3 @@
-//! The client chat screen without rendering: the input box, the history, the client parse and
-//! suggestions of commands, the hint lines and the chat log.
-
-// std: mcrs_minecraft_protocol needs it.
 mod abilities;
 mod chat_screen;
 mod click_mode;

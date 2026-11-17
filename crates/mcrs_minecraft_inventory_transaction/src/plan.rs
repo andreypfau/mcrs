@@ -6,7 +6,6 @@ use crate::Planned;
 use crate::Reason;
 use crate::Rejected;
 
-/// The largest number of operations in one request.
 pub const MAX_OPS: usize = 128;
 
 const MAX_SLOTS: usize = 2 * MAX_OPS;
@@ -29,8 +28,6 @@ struct Found<I, T> {
     take: Filter,
 }
 
-/// The working state and the result of one request. The caller owns it and uses it again for
-/// the next request; it holds every slot and every dropped stack inline.
 #[derive(Clone, Debug)]
 pub struct Plan<I, T> {
     slots: [Option<Tracked<I, T>>; MAX_SLOTS],
@@ -63,8 +60,6 @@ impl<I, T> Default for Plan<I, T> {
 }
 
 impl<I: Copy + PartialEq, T: Copy + PartialEq> Plan<I, T> {
-    /// The slots whose stack the last applied request changed, in the order in which the
-    /// request first names them. Empty after a rejection.
     pub fn changes(&self) -> impl Iterator<Item = Entry<I, T>> + '_ {
         let tracked = self.slots.iter().take(self.slot_count).flatten();
         tracked
@@ -76,8 +71,6 @@ impl<I: Copy + PartialEq, T: Copy + PartialEq> Plan<I, T> {
             })
     }
 
-    /// The dropped stacks of the last applied request, in the order of its operations. Empty
-    /// after a rejection.
     pub fn dropped(&self) -> impl Iterator<Item = Planned<T>> + '_ {
         let dropped = self.dropped.iter().take(self.dropped_count);
         dropped.flatten().copied()
@@ -234,7 +227,6 @@ fn count_of<T>(stack: Option<Planned<T>>) -> u8 {
     stack.map_or(0, |stack| stack.count)
 }
 
-/// How many items of `moved` the target can still accept, after the filters and the equality.
 fn room<I: Copy, T: Copy>(
     source: Found<I, T>,
     target: Found<I, T>,
@@ -283,15 +275,6 @@ fn admit_swap<I: Copy, T: Copy>(
     Ok(())
 }
 
-/// Examines `ops` in order against the working state and leaves the result in `scratch`.
-///
-/// `load` gives the inputs of a slot, or `None` for a slot that does not exist; the planner
-/// calls it one time for each slot of a request. `place` is the place filter of a slot for a
-/// stack. `equal` says whether two stacks of the same kind have the same components. `place`
-/// and `equal` must give the same answer for the whole request.
-///
-/// When the request applies, `scratch` holds the changed slots and the dropped stacks. When it
-/// is rejected, `scratch` holds nothing.
 pub fn plan<I: Copy + PartialEq, T: Copy + PartialEq>(
     ops: impl IntoIterator<Item = Op<I, Planned<T>>>,
     scratch: &mut Plan<I, T>,

@@ -101,7 +101,6 @@ struct ScheduleHits {
 
 fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.init_resource::<ScheduleHits>();
-    // A world with no player skips its schedules; this one must run every one of them.
     sub_app.world_mut().spawn(Player);
     sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
     sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
@@ -147,12 +146,6 @@ fn main_clock(app: &App) -> ClockTime {
         .unwrap()
 }
 
-/// Systems on every non-`Fixed` schedule of a sub-app run on each pump, with
-/// the `Startup` family once: an earlier driver chained only the `Fixed*`
-/// schedules and left `spawn_player`, loot loading and column-view attachment
-/// inert. The main app owns the clocks; a pump after the main app changed them hands the
-/// sub-world the same values, overwriting any it advanced on its own. The sub-world has no
-/// time.
 #[test]
 fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_clocks() {
     let mut app = host_app::make_host_app();

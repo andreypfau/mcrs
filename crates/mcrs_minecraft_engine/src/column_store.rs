@@ -35,61 +35,33 @@ use crate::stored_columns_landing::{
 };
 use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// What a cell asks of the data layer of its world.
 pub type ColumnStoreInput = StoreInput<ColumnPos, StoredColumn>;
 
-/// What the data layer of a world answers a cell.
 pub type ColumnStoreOutput = StoreOutput<ColumnPos, StoredColumn>;
 
-/// The data layer of a dimension: the last version of each column that went cold. The
-/// coordinator holds one data layer for each dimension, and every cell of the dimension reaches
-/// it through the input and the output of its tick.
-///
-/// With it, only the hot columns stay in the dimension: the columns that a player simulates and
-/// the rings that load with them. A column that stops being loaded writes its last version
-/// here. A column that a ticket loads again is taken from here before it is generated. A view
-/// gets every column that the dimension does not light from here, and the data layer generates
-/// and lights a column that it does not hold with [`ColumnProduction`].
 pub struct ColumnStorePlugin {
-    /// The columns of the cell, in a dimension of several cells.
     pub owned: Option<OwnedColumns>,
 }
 
-/// The near end of the data layer of a dimension world: the requests of this tick go out in the
-/// output of the tick, and the answers come in the input of a later tick.
 #[derive(Resource, Default)]
 pub struct ColumnStoreLink {
     owned: Option<OwnedColumns>,
-    /// The requests of this tick, in order.
     sent: Vec<ColumnStoreInput>,
-    /// The answers that arrived and did not land yet, in the order of the requests.
     answers: Vec<ColumnStoreOutput>,
-    /// The version of the last column this cell wrote. Only the owner of a column writes it.
     written: ChunkVersion,
-    /// The columns that wait for an answer of the data layer.
     pub(crate) reads: FxHashMap<ColumnPos, ColumnRead>,
-    /// The cold columns that views wait on, final, for the view to take.
     pub(crate) viewed: Vec<ViewedColumn>,
-    /// The answers that the production of cold columns waits on.
     pub(crate) fetched: Vec<FetchedColumn>,
-    /// The last version of every column this cell wrote. The data layer has no disk under it,
-    /// so the writes are the only changed columns it holds, and a request for another column of
-    /// this cell is not worth a round trip.
     written_columns: FxHashMap<ColumnPos, ChunkVersion>,
-    /// The columns of the other cells of the world that this cell can read.
     others: OtherColumns,
-    /// The asks of the other cells for columns of this cell, until the owner answers them.
     asked: Vec<ColumnAsk>,
-    /// What this tick hands the other cells: asks, answers and reports of columns.
     out_asks: Vec<ColumnAsk>,
     out_answers: Vec<ColumnAnswer>,
     out_holds: Vec<ColumnHold>,
     generation: Generation,
-    /// The columns of this tick to generate, for the generation of the world.
     generation_asks: Vec<ColumnPos>,
 }
 
-/// Whether a cell generates the columns that no cell holds through the generation of its world.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Generation {
     #[default]
@@ -98,48 +70,36 @@ enum Generation {
 }
 
 pub(crate) struct ColumnRead {
-    /// The sections of the dimension that wait to take the column back.
     pub(crate) sections: Vec<Entity>,
     pub(crate) produced: Produced,
-    /// An answer older than this version was asked for before the world wrote a later one.
     pub(crate) at_least: ChunkVersion,
     pub(crate) from: ReadFrom,
 }
 
-/// Where a read waits for its column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReadFrom {
-    /// The owner, or the data layer: the answer is a version that the world already holds.
     Store,
-    /// The generation of the world: a found column is new, and a missing one was dropped.
     Generation,
 }
 
-/// Whether the production of cold columns waits on a read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Produced {
     No,
     Yes,
 }
 
-/// A final cold column for the views: a version that they wait on, or the new light of a
-/// column that they hold.
 pub(crate) struct ViewedColumn {
     pub(crate) column: ColumnPos,
     pub(crate) stored: StoredColumn,
     pub(crate) delivery: Delivery,
 }
 
-/// What a [`ViewedColumn`] gives the views.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Delivery {
-    /// The version of the column, for the views that wait on it.
     Version,
-    /// The light of the column only, as a change for the views that hold it.
     Light,
 }
 
-/// An answer of the data layer that the production of a cold column waits on.
 pub(crate) struct FetchedColumn {
     pub(crate) column: ColumnPos,
     pub(crate) answer: ColumnStoreOutput,
@@ -155,25 +115,18 @@ impl ColumnStoreLink {
         }
     }
 
-    /// Generates the columns that no cell holds through the generation of the world, which the
-    /// host runs for all cells of the world: the asks go in the output of a tick, and the
-    /// answers land as answers of the data layer.
     pub fn generate_through_world(&mut self) {
         self.generation = Generation::World;
     }
 
-    /// Whether the columns that no cell holds come from the generation of the world.
     pub(crate) fn generates(&self) -> bool {
         self.generation == Generation::World
     }
 
-    /// Moves the asks of this tick for the generation of the world into `out`.
     pub(crate) fn take_generation_asks(&mut self, out: &mut Vec<ColumnPos>) {
         out.append(&mut self.generation_asks);
     }
 
-    /// Sends the read of `column` on to the generation of the world, after the owner or the
-    /// data layer did not hold the column.
     pub(crate) fn read_generated(&mut self, column: ColumnPos) -> bool {
         if !self.generates() {
             return false;
@@ -186,8 +139,6 @@ impl ColumnStoreLink {
         true
     }
 
-    /// Where this cell gets `column` when it does not hold it. The data layer has no disk under
-    /// it, so the writes are the only columns that it holds.
     pub(crate) fn origin(&self, column: ColumnPos) -> ColumnOrigin {
         if !owned_columns::owns(self.owned.as_ref(), column) {
             return self.others.origin(column);
@@ -199,7 +150,6 @@ impl ColumnStoreLink {
         }
     }
 
-    /// Whether no request, answer or ask waits in the link.
     pub(crate) fn is_idle(&self) -> bool {
         self.sent.is_empty()
             && self.answers.is_empty()
@@ -213,7 +163,6 @@ impl ColumnStoreLink {
             && self.generation_asks.is_empty()
     }
 
-    /// Tells the other cells of a change of `hold.column`, when they can read it.
     pub(crate) fn report(&mut self, hold: ColumnHold) {
         if self
             .owned
@@ -231,7 +180,6 @@ impl ColumnStoreLink {
         self.asked.push(ask);
     }
 
-    /// Answers each ask that `reply` answers now, and keeps the others for a later tick.
     pub(crate) fn answer_asks(&mut self, mut reply: impl FnMut(ColumnPos) -> Option<OwnerReply>) {
         let out = &mut self.out_answers;
         self.asked.retain(|ask| match reply(ask.column) {
@@ -247,9 +195,6 @@ impl ColumnStoreLink {
         });
     }
 
-    /// Takes the answer of the owner of a column that this cell asked for: the column lands as
-    /// an answer of the data layer. A column that the owner let go of is asked of the data
-    /// layer when a cell wrote it, and is generated otherwise.
     pub(crate) fn receive_answer(&mut self, answer: ColumnAnswer) {
         let key = answer.column;
         match answer.reply {
@@ -271,24 +216,20 @@ impl ColumnStoreLink {
         }
     }
 
-    /// Moves what this tick hands the other cells into `mail`.
     pub(crate) fn take_mail(&mut self, mail: &mut CellMail) {
         mail.asks.append(&mut self.out_asks);
         mail.answers.append(&mut self.out_answers);
         mail.holds.append(&mut self.out_holds);
     }
 
-    /// The last version of `column` that the world wrote.
     pub(crate) fn last_written(&self, column: ColumnPos) -> Option<ChunkVersion> {
         self.written_columns.get(&column).copied()
     }
 
-    /// Moves the requests of this tick into `out`.
     pub(crate) fn take_sent(&mut self, out: &mut Vec<ColumnStoreInput>) {
         out.append(&mut self.sent);
     }
 
-    /// Keeps answers of the data layer for the next landing.
     pub(crate) fn receive(&mut self, answers: Vec<ColumnStoreOutput>) {
         self.answers.extend(answers);
     }
@@ -307,7 +248,6 @@ impl ColumnStoreLink {
                 chunk,
             },
         });
-        // The answer to the read in flight is older than this version, so it is asked again.
         if let Some(read) = self.reads.get_mut(&column) {
             read.at_least = self.written;
             read.from = ReadFrom::Store;
@@ -315,15 +255,10 @@ impl ColumnStoreLink {
         }
     }
 
-    /// Keeps the final light of a version the data layer already holds, or of a generated
-    /// column at version zero. A later version that the world wrote meanwhile stays.
     pub(crate) fn put_lit(&mut self, column: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
-    /// The read of `column`, sent to its owner when the owner holds it hot and to the data layer
-    /// otherwise. The world generates a column only after the data layer answers that it has
-    /// none, so a save on disk always gets the first chance.
     fn read(&mut self, column: ColumnPos) -> &mut ColumnRead {
         let origin = self.origin(column);
         self.reads.entry(column).or_insert_with(|| {
@@ -349,12 +284,10 @@ impl ColumnStoreLink {
         })
     }
 
-    /// Asks for `column` on behalf of `section`, once for all that wait on it.
     pub(crate) fn take(&mut self, column: ColumnPos, section: Entity) {
         self.read(column).sections.push(section);
     }
 
-    /// Asks for `column` on behalf of the production of cold columns.
     pub(crate) fn fetch(&mut self, column: ColumnPos) {
         self.read(column).produced = Produced::Yes;
     }
@@ -372,8 +305,6 @@ impl ColumnStoreLink {
     }
 }
 
-/// Where the sections that the data layer handed back land, at the start of the tick. Other
-/// sources of section content land after it, so the order of the landings is fixed.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StoredColumnLandSet;
 

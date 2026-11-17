@@ -43,8 +43,6 @@ fn an_end_column_near_the_origin_stores_the_end_alone() {
     assert_eq!(stored, BTreeSet::from([1]));
 }
 
-/// The first chunk out along x whose eight neighbours pick differently across its diagonal, so a
-/// grid that swaps x and z or reads the centre of the wrong neighbour shows it.
 fn chunk_on_a_biome_edge(ws: &mut Workspace) -> (i32, i32) {
     let mut pick = |x: i32, z: i32| IDS.at(&ROUTER, ws, IVec3::new(x * 4, 0, z * 4));
     (100..2000)

@@ -111,7 +111,6 @@ fn read_value<'a>(
     Ok(())
 }
 
-/// The options after `[`.
 pub(crate) fn read_options<'a>(
     reader: &mut Reader<'a>,
     state: &mut State<'a>,

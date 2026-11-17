@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]

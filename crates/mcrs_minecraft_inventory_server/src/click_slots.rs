@@ -29,15 +29,12 @@ const HOLDERS: [Holder; 4] = [
 ];
 const SLOT_COUNT: usize = 47;
 
-/// The access of a slot of a holder without a [`SlotPolicy`], as the commit reads it.
 const OPEN: SlotAccess = SlotAccess {
     limit: 99,
     take: Gate::Permits,
     place: Gate::Permits,
 };
 
-/// A stack of a click: its entity, the first slot that holds a stack with the same item and
-/// components, and whether it can stack beside its maximum stack size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StackHandle {
     pub(crate) entity: Entity,
@@ -54,8 +51,6 @@ enum SlotState {
     },
 }
 
-/// The four holders of a player as one click reads them, taken before the click, with the
-/// [`SlotPolicy`] of each holder that the commit reads.
 pub(crate) struct ClickSlots<'w> {
     world: &'w World,
     player: Entity,
@@ -144,7 +139,6 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
         let SlotState::Holds { stack, access } = self.state(slot) else {
             return None;
         };
-        // As the commit: a gate that asks has no stack to ask about in an empty slot.
         let take = match stack {
             Some(stack) => self.answer(access.take, slot, stack.stack.entity),
             None if access.take == Gate::Refuses => Filter::Refuses,
@@ -173,8 +167,6 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
     }
 }
 
-/// The place of `slot` in the snapshot: the player inventory, the cursor, the craft grid, then
-/// the craft result.
 fn flat(slot: MenuSlot) -> Option<usize> {
     let mut base = 0;
     for holder in HOLDERS {
@@ -186,8 +178,6 @@ fn flat(slot: MenuSlot) -> Option<usize> {
     None
 }
 
-/// `slots` holds the stacks read so far; the first of them that is alike gives its `alike`, and
-/// a stack without one gives `flat`, its own place.
 fn planned(
     entity: Entity,
     flat: usize,

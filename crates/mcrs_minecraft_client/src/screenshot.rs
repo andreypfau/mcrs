@@ -16,7 +16,6 @@ const DEFAULT_DIR: &str = "screenshots";
 
 const TRIGGER: &str = "capture";
 
-/// Where screenshots land, and where the trigger file is watched for.
 #[derive(Resource)]
 pub struct ScreenshotDir(PathBuf);
 
@@ -93,7 +92,6 @@ fn capture(
     }
 }
 
-/// Where a scripted run writes its one screenshot of the settled scene.
 #[derive(Resource)]
 pub struct SceneCapture(pub PathBuf);
 
@@ -104,7 +102,6 @@ const SETTLE_SECS: f32 = 3.0;
 
 const SETTLE_TIMEOUT_SECS: f32 = 180.0;
 
-/// Kept below the GPU probe's 256-sample window, so every GPU figure comes from these frames.
 const TIMING_FRAMES: usize = 240;
 
 #[derive(Default)]
@@ -114,8 +111,6 @@ struct Settling {
     requested: bool,
 }
 
-/// Waits for the terrain to stay quiet, with no timeout of its own for work that reports
-/// `Unsettled`: work that never settles fails the capture rather than shooting it unfinished.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -202,9 +197,6 @@ fn copy_to_clipboard(captured: On<ScreenshotCaptured>, mut clipboard: ResMut<Cli
     }
 }
 
-/// The clipboard takes packed RGBA8 where the window hands over its own
-/// swapchain format, and with HDR on the alpha channel carries brightness
-/// rather than opacity, which would paste as a see-through image.
 fn opaque_rgba8(image: &Image) -> Result<Image, bevy::image::IntoDynamicImageError> {
     let mut rgba = image.clone().try_into_dynamic()?.into_rgba8();
     for pixel in rgba.pixels_mut() {

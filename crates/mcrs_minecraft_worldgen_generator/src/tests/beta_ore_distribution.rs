@@ -11,8 +11,6 @@ use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::{BetaOreBlockIds, place_all_ores};
 
-// ── Counting RNG: pins total LegacyRandom advances for the ore stream ───────────
-
 #[derive(Clone)]
 struct CountingRng {
     inner: LegacyRandom,
@@ -97,10 +95,6 @@ impl Random for CountingRng {
     }
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/// Stone over the 3×3 of columns around chunk (0, 0), in world coordinates: the
-/// region a `Run` sees, so a vein that leaves its own column still lands.
 fn stone_volume(stone: VoxelId) -> BoxVolume {
     let bounds = BoundingBox {
         min: BlockPos::new(-16, 0, -16),
@@ -109,8 +103,6 @@ fn stone_volume(stone: VoxelId) -> BoxVolume {
     BoxVolume::filled(bounds, super::corpus_state_of(stone)).expect("a small box")
 }
 
-/// Every placed block as (column offset from the centre, state), so a census
-/// can tell the half of a vein that stayed home from the half that crossed.
 fn placed(volume: &BoxVolume, stone: VoxelId) -> Vec<((i32, i32), VoxelId)> {
     volume
         .iter()
@@ -120,7 +112,6 @@ fn placed(volume: &BoxVolume, stone: VoxelId) -> Vec<((i32, i32), VoxelId)> {
         .collect()
 }
 
-/// Beta populate seed for a chunk (matches apply_beta_ores_in's derivation).
 fn populate_seed(chunk_x: i32, chunk_z: i32, world_seed: i64) -> i64 {
     let mut s = LegacyRandom::new(world_seed as u64);
     let i1 = s.next_java_long() / 2 * 2 + 1;
@@ -131,15 +122,8 @@ fn populate_seed(chunk_x: i32, chunk_z: i32, world_seed: i64) -> i64 {
         ^ world_seed
 }
 
-/// Pinned total LegacyRandom advances for the full ore-placement stream on chunk
-/// (0,0) at seed 12345. Recorded on the first green run, asserted thereafter; any
-/// change to vein counts/sizes/order shifts this value.
 const ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 3737;
 
-/// Blocks the driver places on the 3×3 stone region from chunk (0,0), seed 12345,
-/// as (own column, columns it crossed into). Re-recorded when the pass moved onto
-/// the ladder's `Run`: it used to write only the first number, the rest of every
-/// bordering vein having been clipped away.
 const ORE_BLOCKS_CHUNK_0_0_SEED_12345: (usize, usize) = (964, 2580);
 
 fn drive(seed: i64, ids: &BetaOreBlockIds) -> (BoxVolume, u64) {
@@ -162,8 +146,6 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
 
     assert_eq!((own, crossed), ORE_BLOCKS_CHUNK_0_0_SEED_12345);
 
-    // A vein reaches at most fourteen blocks past an origin inside its own
-    // column, so the writes land in the 3×3 and never beyond it.
     for (col, _) in &placed {
         assert!(
             (-1..=1).contains(&col.0) && (-1..=1).contains(&col.1),
@@ -171,7 +153,6 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
         );
     }
 
-    // Every resource of the table places at least one block somewhere.
     for state in [
         ids.dirt,
         ids.gravel,
@@ -189,8 +170,6 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
     }
 }
 
-/// The region the generator runs the pass in takes the veins the stone box takes: the
-/// same cells on each side of the column border.
 #[test]
 fn the_region_takes_the_veins_the_box_takes() {
     use mcrs_voxel::ColumnPos;
@@ -227,8 +206,6 @@ fn the_region_takes_the_veins_the_box_takes() {
     assert_eq!(counts, ORE_BLOCKS_CHUNK_0_0_SEED_12345);
 }
 
-/// Beta's populate step reached as a feature writes what running it on the
-/// region directly writes: the source the feature's step hands it plays no part.
 #[test]
 fn the_populate_feature_is_the_populate_step() {
     use std::sync::Arc;

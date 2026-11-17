@@ -2,10 +2,6 @@ use bevy_ecs::component::Component;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ItemComponent;
 
-/// The explicit removals of prototype components whose type has a neutral value.
-///
-/// A stack has this component only when it has such a removal. A removal of another type is the
-/// absence of the component.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Removed {
     bits: u32,

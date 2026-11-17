@@ -1,7 +1,5 @@
-// A subpixel tolerance for rounding when adjacent projections name the same edge.
 const EDGE_TOLERANCE_PIXELS: f32 = 1e-4;
 
-// Coverage follows the original plane and pixel centre, independent of snapped raster vertices.
 fn quad_projection(anchor: vec4<f32>, u: vec4<f32>, v: vec4<f32>) -> mat3x3<f32> {
     return mat3x3<f32>(anchor.xyw, u.xyw, v.xyw);
 }
@@ -17,7 +15,6 @@ fn quad_uv_at(projection: mat3x3<f32>, pixel: vec2<f32>, viewport: vec2<f32>, or
 
 fn quad_edge_contains(distance: f32, inward: vec2<f32>) -> bool {
     let tolerance = length(inward) * EDGE_TOLERANCE_PIXELS;
-    // The two inward gradients point to opposite sides of a shared edge.
     let nearly_horizontal = abs(inward.x) <= abs(inward.y) * 1e-5;
     let owns_edge = select(inward.x > 0.0, inward.y > 0.0, nearly_horizontal);
     return distance > tolerance || (distance >= -tolerance && owns_edge);

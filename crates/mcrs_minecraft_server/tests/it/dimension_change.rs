@@ -39,14 +39,11 @@ fn player_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Option<(En
     Some((player, transform))
 }
 
-/// A server with the Overworld and the End, and the player `Walker` in the Overworld: the
-/// server, the anchor of the player, the Overworld and the End.
 fn walker_in_the_overworld() -> (PlayServer, Entity, Entity, Entity) {
     let (server, anchor, overworld, end, _) = walker_and_its_join();
     (server, anchor, overworld, end)
 }
 
-/// As [`walker_in_the_overworld`], with the packets the player received on joining.
 fn walker_and_its_join() -> (PlayServer, Entity, Entity, Entity, Vec<PacketPayload>) {
     let mut app = host_app::make_host_app();
     app.add_dimension_plugin(ChatPlugin);
@@ -295,8 +292,6 @@ fn muxer_bytes_precede_the_respawn(muxer: Placement) {
         "{muxer:?}: the move of the watched player in the tick the mover left comes before the respawn {respawn}: {replicated:?}"
     );
 
-    // The mover is alone in the End, so all muxer bytes after the respawn would come from the
-    // Overworld, such as its player list.
     let later = server.ticks(mover, 2 * LIST_INTERVAL_TICKS as usize);
     let records: Vec<i32> = host_app::replicated(&later)
         .into_iter()
@@ -508,8 +503,6 @@ fn the_chunk_cache_view_is_told_once_after_the_login_and_once_after_a_respawn() 
             assert!(center < batch && radius < batch, "{when}: {packets:?}");
         }
     }
-    // The client sees 2 columns far; the ring of columns that the view holds past it stays
-    // out of both values.
     let told: Vec<i32> = joined
         .iter()
         .filter_map(|packet| match packet {

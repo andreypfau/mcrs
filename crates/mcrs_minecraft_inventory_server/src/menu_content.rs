@@ -10,8 +10,6 @@ use crate::MenuSync;
 use crate::holder_slots::HolderSlots;
 use crate::sent_stack::SentStack;
 
-/// The `container_set_content` packet of the inventory menu under the next state id. Each sent
-/// stack becomes the client view of its entry or of the cursor (INV-SYN-001, INV-SYN-005).
 pub(crate) fn menu_content(
     sync: &mut MenuSync,
     slots: &HolderSlots,

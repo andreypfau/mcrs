@@ -48,8 +48,6 @@ impl Plugin for RasterPlugin {
     }
 }
 
-/// The image's scale factor keeps its logical size equal to the window's, so projecting through
-/// the world camera still lands in window coordinates.
 fn fit_world_target(
     raster: Res<Raster>,
     window: Single<&Window, With<PrimaryWindow>>,

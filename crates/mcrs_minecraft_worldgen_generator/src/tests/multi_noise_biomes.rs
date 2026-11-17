@@ -20,8 +20,6 @@ use crate::{multi_noise_grid, multi_noise_palettes};
 use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
 
-/// The preset's biomes numbered in the order the preset names them, which is
-/// all a palette needs of a registry: distinct ids that round-trip.
 pub(super) fn preset_ids() -> HashMap<String, u8> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
@@ -31,7 +29,6 @@ pub(super) fn preset_ids() -> HashMap<String, u8> {
     ids
 }
 
-/// Biome names numbered in the order given.
 struct NameList(Vec<String>);
 
 impl NameList {
@@ -53,7 +50,6 @@ impl BiomeNames for NameList {
     }
 }
 
-/// A registry numbering `ids` the way the map does.
 fn registry_numbered_as(ids: &HashMap<String, u8>) -> NameList {
     let mut named: Vec<(&u8, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
     named.sort();
@@ -149,7 +145,6 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome(
     );
 }
 
-/// A source that lists its biomes rather than naming a preset.
 #[test]
 fn an_explicit_entry_list_resolves_to_the_registry_ids() {
     use mcrs_minecraft_biome::climate::ParameterRange;
@@ -191,9 +186,6 @@ fn entry(
     mcrs_minecraft_biome::source::MultiNoiseBiomeEntry { parameters, biome }
 }
 
-/// The palette stores a biome in a byte. A registry that grew past 256 entries
-/// would narrow an id into a different biome's, which nothing downstream can
-/// see, so the table refuses to be built at all.
 #[test]
 fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
     let mut names: Vec<String> = (0..256).map(|id| format!("a:filler_{id:03}")).collect();
@@ -207,8 +199,6 @@ fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
 }
 
-/// An id past the byte's range is refused, and the message names the registry
-/// it is an id of.
 #[test]
 fn a_biome_id_beyond_the_narrow_width_is_refused() {
     use mcrs_minecraft_biome::climate::ParameterRange;
@@ -238,8 +228,6 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     );
 }
 
-/// A fixed or Beta source is narrowed to the palette byte once, when its
-/// column biomes are built, rather than degrading per column.
 #[test]
 fn a_fixed_or_beta_biome_beyond_the_narrow_width_is_refused_once() {
     use crate::ColumnBiomes;
@@ -372,10 +360,6 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
     ));
 }
 
-/// The zoom reads eight quart corners around a block and they reach outside the
-/// column horizontally, so the grid carries a ring of cells the palette does
-/// not store; vertically the grid is the column, and the palette comes from its
-/// cells.
 #[test]
 fn the_grid_rings_the_column_by_one_quart_cell() {
     let router = build_settings_router("overworld", 2);

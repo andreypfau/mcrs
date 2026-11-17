@@ -11,7 +11,6 @@ pub(crate) const INTERVAL: Duration = Duration::from_millis(1500);
 
 const MOTD_CLOSE: &str = "[/MOTD]";
 
-/// `None` for a MOTD holding the closing marker: a vanilla client would drop the datagram.
 fn announcement(motd: &str, port: u16) -> Option<String> {
     (!motd.contains(MOTD_CLOSE)).then(|| format!("[MOTD]{motd}{MOTD_CLOSE}[AD]{port}[/AD]"))
 }
@@ -23,8 +22,6 @@ pub(crate) enum Unannounced {
     NoIpv4,
 }
 
-/// The game announces over IPv4 only, and its client joins the address the datagram came from,
-/// so a listener that accepts no IPv4 would be listed at an address nothing listens on.
 pub(crate) fn announce_port(bound: SocketAddr, enabled: bool) -> Result<u16, Unannounced> {
     let ip = bound.ip().to_canonical();
     if !enabled {
@@ -304,8 +301,6 @@ mod tests {
             assert!(first_after < PERIOD / 2, "{first_after:?}");
             let since_start = second_at - started;
             assert!(since_start >= PERIOD, "{since_start:?}");
-            // A receiver that wakes late for the first datagram shortens the gap, so its lower bound
-            // only tells an interval from none.
             let gap = second_at - first_at;
             assert!(gap >= PERIOD / 2, "{gap:?}");
             assert!(gap < PERIOD * 2, "{gap:?}");

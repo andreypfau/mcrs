@@ -1,5 +1,3 @@
-//! The lowering of the lazy operators to `If`, with the merge of temporary variables.
-
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;
@@ -15,7 +13,6 @@ use crate::query::QueryHost;
 use crate::syntax::Expr;
 use crate::value::{Rate, ValueType};
 
-/// One result of an `If`: the value that each branch yields.
 struct Merge {
     then: ValueId,
     otherwise: ValueId,
@@ -23,13 +20,10 @@ struct Merge {
 }
 
 enum TempMerge {
-    /// Both branches leave the same value.
     Same(Temp),
-    /// The `If` gives the value and its missing flag as two results.
     Merged(ValueType),
 }
 
-/// The value and the temporaries at the end of one branch.
 struct BranchEnd {
     result: Lowered,
     temps: HashMap<Box<str>, Temp>,
@@ -135,8 +129,6 @@ impl<H: QueryHost> Lowering<'_, H> {
         self.branches(missing, span, |this| this.expr(right), |_| chosen_left)
     }
 
-    /// Lowers a two-way branch on `condition` to an `If`, and merges the results and the
-    /// temporary variables of the two branches.
     pub(crate) fn branches(
         &mut self,
         condition: ValueId,
@@ -210,7 +202,6 @@ impl<H: QueryHost> Lowering<'_, H> {
         }
     }
 
-    /// Adds a merge for each temporary variable that the branches leave with different values.
     fn merge_temps(
         &mut self,
         then: &HashMap<Box<str>, Temp>,
@@ -258,7 +249,6 @@ impl<H: QueryHost> Lowering<'_, H> {
         temps
     }
 
-    /// Emits the `If` with one result for each merge, and returns the results.
     fn emit_if(
         &mut self,
         condition: ValueId,

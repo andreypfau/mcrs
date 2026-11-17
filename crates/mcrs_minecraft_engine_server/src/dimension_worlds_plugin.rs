@@ -16,26 +16,14 @@ use crate::require::require;
 use crate::server_core_plugin::ServerCorePlugin;
 use crate::world_options::{PluginDimensions, WorldPresetName, bake_dimensions};
 
-/// The dimension list and one world per dimension, with the bridge that carries each
-/// player's packets between the network and the player's dimension.
 pub struct DimensionWorldsPlugin {
-    /// World folder to read saved chunks from. Without one, and for any column
-    /// the folder has never saved, the dimension generates its terrain.
     pub world: Option<PathBuf>,
-    /// Shared with a client in the same process, whose debug views read each
-    /// dimension's column lifecycle from it.
     pub column_traces: Option<ColumnTraceSink>,
-    /// The seed of a world without a save; a save's own seed replaces it.
     pub seed: u64,
-    /// The world preset that names the dimensions when neither the save nor `dimensions` does.
     pub preset: String,
-    /// The dimensions the world spawns, in place of a save's list and the world preset; the
-    /// overworld is then optional, and a player with no saved dimension spawns in the first.
     pub dimensions: Option<Dimensions>,
     pub ops: OpList,
-    /// Operator level of a player who has no entry in `ops`.
     pub default_op_level: u8,
-    /// Game mode of a player joining for the first time.
     pub default_game_mode: GameMode,
 }
 

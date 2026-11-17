@@ -1,6 +1,3 @@
-//! The corpus's own tree features over a real overworld column: that they
-//! decorate at all, and that how many they place stays where it was measured.
-
 use mcrs_minecraft_resource::ResourceLocationBuf;
 #[cfg(test)]
 use mcrs_minecraft_resource::TagKeyBuf;
@@ -31,8 +28,6 @@ use mcrs_minecraft_heightmap::heightmap_predicates;
 use super::generate_region;
 use super::{block_tags, blocks, build_program, corpus_features, one_step};
 
-/// The three biomes of the step-6 checkpoint, each with the tree feature its
-/// own `worldgen/biome` file names and nothing else.
 pub(super) const CHECKPOINT: [(&str, &str); 3] = [
     ("minecraft:plains", "minecraft:trees_plains"),
     (
@@ -42,8 +37,6 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
     ("minecraft:taiga", "minecraft:trees_taiga"),
 ];
 
-/// The names `SurfaceIds::resolve` asks the registry for, which it refuses
-/// to resolve without, plus the three the tests decorate in.
 pub(super) fn biome_registry() -> Registries {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
@@ -66,9 +59,6 @@ pub(super) fn biome_registry() -> Registries {
     super::biome_registry(&names)
 }
 
-/// One step holding one placed feature, carried by the one biome — the sort
-/// over the real biomes is tested elsewhere, and a band over counts does not
-/// depend on the order, only on it being fixed.
 pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
     let id = ResourceLocationBuf::read(placed_id).unwrap();
     let entry = corpus_features()
@@ -85,21 +75,15 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
     )
 }
 
-/// The overworld router, one biome everywhere, and the tree program over it.
 pub(super) fn tree_dimension(biome: &str, placed_id: &str, seed: u64) -> (FillContext, Arc<[i32]>) {
     dimension_over(biome, Arc::new(tree_tables(biome, placed_id)), seed)
 }
 
-/// The overworld router and one fixed biome, over whichever tables the caller
-/// wants the program built from.
 pub(super) fn dimension_over(
     biome: &str,
     tables: Arc<FeatureTables>,
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
-    // The dispatcher builds the program from the router's own seed, and the
-    // geode's noise and the End's spike ring are drawn from it; a program built
-    // against a different seed is a different world.
     dimension_with(
         biome,
         |registry| build_program(&tables, corpus_features(), registry, seed as i64),
@@ -107,8 +91,6 @@ pub(super) fn dimension_over(
     )
 }
 
-/// The overworld router and one fixed biome, over a program built against the
-/// registry the dimension is given.
 pub(super) fn dimension_with(
     biome: &str,
     program: impl FnOnce(&Registries) -> FeatureProgram,
@@ -167,8 +149,6 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
 }
 
 #[cfg(test)]
-/// How many logs and leaves a region carries, and how many separate trunks the
-/// logs form — a trunk is a run of logs with no log below it.
 pub(super) struct Census {
     pub logs: usize,
     pub leaves: usize,
@@ -236,9 +216,6 @@ pub(super) fn decorate_region(
 }
 
 #[cfg(test)]
-/// The seeds the band below was measured over, and the region each is measured
-/// on: twenty-five columns around the origin, which the overworld router puts
-/// on land for all four.
 const SEEDS: [u64; 4] = [4242, 7331, 0xC0FFEE, 987654321];
 #[cfg(test)]
 const RADIUS: i32 = 2;
@@ -247,17 +224,8 @@ mod exhaustive {
     #[cfg(test)]
     use super::*;
 
-    /// A regression guard: each of the three biomes decorates, and how much it
-    /// decorates stays where it was measured.
-    ///
-    /// The band is what the first run over these seeds produced, widened. It is a
-    /// guard against a change that moves the picture, not a claim that the counts
-    /// are the reference's.
     #[test]
     fn plains_forest_and_taiga_decorate_within_their_measured_band() {
-        // (biome, min trunks, max trunks) over one region, and the least the four
-        // seeds together may come to — plains places a tree in one column in
-        // twenty, so a single region of it is as readily empty as not.
         const BANDS: [(&str, usize, usize, usize); 3] = [
             ("minecraft:plains", 0, 40, 4),
             ("minecraft:forest", 20, 400, 200),
@@ -271,8 +239,6 @@ mod exhaustive {
                 let region = decorate_region(biome, placed, seed, ColumnPos::new(0, 0), RADIUS);
                 let trunks: usize = region.values().map(|census| census.trunks).sum();
                 let leaves: usize = region.values().map(|census| census.leaves).sum();
-                // A crown from a halo column can reach in without its trunk, so
-                // leaves alone prove nothing; a trunk without leaves is a broken tree.
                 assert!(
                     trunks == 0 || leaves > 0,
                     "{biome} at seed {seed}: {trunks} trunks beside {leaves} leaves"
@@ -294,9 +260,6 @@ mod exhaustive {
 }
 
 #[cfg(test)]
-/// `fancy_oak_bees` is the corpus's own tree with a `beehive` decorator that
-/// always fires; what the corpus places it through is a one-in-a-hundred
-/// rarity filter, which no region this size would reach.
 fn bee_tables() -> FeatureTables {
     let mut tables = tree_tables("minecraft:plains", "minecraft:fancy_oak_bees");
     let placement: Vec<mcrs_minecraft_worldgen_feature::placement::PlacementModifier> =
@@ -315,9 +278,6 @@ fn bee_tables() -> FeatureTables {
     tables
 }
 
-/// The decorator's occupant draws happen because it has somewhere to write
-/// them, and delivery drops what it wrote against a counter rather than
-/// silently.
 #[test]
 fn a_generated_bee_nest_carries_its_occupants() {
     use mcrs_minecraft_block_entity::{BEE_MIN_TICKS_IN_HIVE, GeneratedBlockEntity};
@@ -359,10 +319,6 @@ fn states_of(name: &str) -> std::ops::Range<u16> {
     base..base + entry.state_count
 }
 
-/// The pale garden, decorated: pale oaks grow, and the `pale_moss` decorator's
-/// own `minecraft:pale_moss_patch` runs on the tree's source, so the moss
-/// ground lands with them rather than the decorator being a no-op that keeps
-/// its draws and writes nothing.
 #[test]
 fn the_pale_garden_grows_pale_oaks_and_their_moss() {
     let (ctx, _) = tree_dimension(

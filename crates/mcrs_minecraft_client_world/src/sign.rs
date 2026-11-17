@@ -1,5 +1,3 @@
-//! Which block states are signs, and how each one holds (`client-sign-text.md`, section 0.1).
-
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_voxel::BlockStateId;
 
@@ -16,7 +14,6 @@ pub enum SignMount {
     Ceiling,
 }
 
-/// A sign state: its family and mount, and the angle `A` of SIGN-PLACE-001 item 1 in degrees.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SignBlock {
     pub family: SignFamily,
@@ -24,7 +21,6 @@ pub struct SignBlock {
     pub angle: f32,
 }
 
-/// The family and mount of the block named `path`, with no namespace.
 pub fn family_and_mount(path: &str) -> Option<(SignFamily, SignMount)> {
     if path.ends_with("_wall_hanging_sign") {
         Some((SignFamily::Hanging, SignMount::Wall))
@@ -39,7 +35,6 @@ pub fn family_and_mount(path: &str) -> Option<(SignFamily, SignMount)> {
     }
 }
 
-/// The yaw of a horizontal direction: `south` 0, `west` 90, `north` 180, `east` 270.
 pub fn yaw_of(facing: &str) -> Option<f32> {
     match facing {
         "south" => Some(0.0),
@@ -50,7 +45,6 @@ pub fn yaw_of(facing: &str) -> Option<f32> {
     }
 }
 
-/// `None` for a state that is no sign, or one with no readable `rotation` or `facing`.
 pub fn sign_block(blocks: &Blocks, state: BlockStateId) -> Option<SignBlock> {
     let entry = blocks.owner(state)?;
     let (family, mount) = family_and_mount(entry.identifier.path())?;

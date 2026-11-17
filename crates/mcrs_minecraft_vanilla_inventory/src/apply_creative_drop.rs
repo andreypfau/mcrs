@@ -17,8 +17,6 @@ use crate::apply_creative_set::fits;
 use crate::apply_creative_set::is_creative;
 use crate::launch_drops::launch_from_player;
 
-/// Throws `stack` from a player in creative mode, when its count is not above its maximum stack
-/// size (INV-CRE-003, IEN-SPN-007).
 #[expect(
     clippy::type_complexity,
     reason = "one query reads each part of the player that a throw needs"

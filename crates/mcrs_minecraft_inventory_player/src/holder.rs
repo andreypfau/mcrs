@@ -5,18 +5,15 @@ use crate::SlotRule;
 use crate::layout::ARMOUR_LIMIT;
 use crate::layout::STACK_LIMIT;
 
-/// A holder of a player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Holder {
     Inventory,
     Cursor,
-    /// The 2 by 2 craft grid, in rows from the top left.
     CraftGrid,
     CraftResult,
 }
 
 impl Holder {
-    /// The number of slots of this holder.
     #[must_use]
     pub const fn slot_count(self) -> u16 {
         match self {
@@ -26,8 +23,6 @@ impl Holder {
         }
     }
 
-    /// The slot limit and the filters of the slot `index`, or `None` when the holder has no such
-    /// slot.
     #[must_use]
     pub fn slot(self, index: u16) -> Option<SlotRule> {
         if index >= self.slot_count() {

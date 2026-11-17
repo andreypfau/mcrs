@@ -156,7 +156,6 @@ fn itx_jav_010_row_9_drops_what_finds_no_room() {
     );
 }
 
-/// INV-INS-003: the insert of row 9 skips each slot whose place filter refuses the stack.
 #[test]
 fn inv_ins_003_row_9_skips_each_slot_that_refuses_the_stack() {
     let player = Player::new()

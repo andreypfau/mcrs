@@ -458,7 +458,6 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     scratch.sloped = sloped;
 }
 
-/// A fluid face takes the brighter of two cells on each kind of light.
 fn fluid_light(first: u8, second: u8, emission: u8) -> VertexLight {
     let (first, second) = (
         CellLight::from_packed(first),

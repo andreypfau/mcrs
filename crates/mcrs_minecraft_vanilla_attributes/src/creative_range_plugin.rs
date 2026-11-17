@@ -33,9 +33,6 @@ const CREATIVE_RANGES: [RangeModifier; 2] = [
     },
 ];
 
-/// Creative mode gives a player the two range modifiers of ATR-SRC-003, from its first tick in
-/// creative mode to its first tick in another game mode. Needs the `PlayerAttributesPlugin` of
-/// the dimension world.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CreativeRangePlugin;
 

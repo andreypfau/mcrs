@@ -16,7 +16,6 @@ use tracing::{error, info, warn};
 pub(crate) const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub const ACCEPT_BUCKET_CAP: u32 = 5;
-// 5 tokens over a 10 s window → 0.5 tokens/s
 pub const ACCEPT_REFILL_PER_SEC: f32 = 0.5;
 pub const GLOBAL_HANDSHAKE_CAP: usize = 64;
 const BUCKET_REFILL_PERIOD: Duration =
@@ -52,8 +51,6 @@ impl TokenBucket {
     }
 }
 
-/// Shared admission control for every listener: a per-IP token bucket plus one
-/// global cap on handshakes still in flight.
 pub(crate) struct AcceptGate {
     buckets: Mutex<Buckets>,
     handshakes: Arc<Semaphore>,
@@ -75,21 +72,12 @@ impl AcceptGate {
         }
     }
 
-    /// Waits until fewer than [`GLOBAL_HANDSHAKE_CAP`] handshakes are in flight. The accept loop
-    /// takes the slot before it accepts, so a burst beyond the cap waits in the listen backlog: a
-    /// connection that it accepted and then dropped reads as a refusal to a client that did
-    /// nothing wrong.
     pub(crate) async fn handshake_slot(&self) -> Option<OwnedSemaphorePermit> {
         self.handshakes.clone().acquire_owned().await.ok()
     }
 
-    /// Whether the accepted connection from `ip` may go on to its handshake.
     pub(crate) fn admit(&self, ip: IpAddr) -> bool {
         let mut buckets = self.buckets.lock().unwrap_or_else(PoisonError::into_inner);
-        // A full bucket behaves as a new one, so dropping it bounds the map by the
-        // addresses seen within the last two refill periods: a bucket drained just
-        // before a sweep is full only after it, and survives to the next one.
-        // Shrinking returns what a flood from many addresses grew the table to.
         if buckets.last_sweep.elapsed() >= BUCKET_REFILL_PERIOD {
             buckets
                 .per_ip
@@ -99,9 +87,6 @@ impl AcceptGate {
             }
             buckets.last_sweep = Instant::now();
         }
-        // The per-IP bucket blunts remote connection floods. An integrated
-        // server reconnects over loopback far faster than its 0.5/s refill,
-        // where a silent refusal reads as a hang.
         if ip.is_loopback() {
             return true;
         }
@@ -256,7 +241,6 @@ mod tests {
             |source: &str| format!("PROXY TCP4 {source} 192.0.2.10 51234 25565\r\n").into_bytes();
         let gate = AcceptGate::new();
         let drained: IpAddr = "203.0.113.7".parse().unwrap();
-        // A refill time in the future stops the bucket from refilling during the test.
         gate.buckets.lock().unwrap().per_ip.insert(
             drained,
             TokenBucket {

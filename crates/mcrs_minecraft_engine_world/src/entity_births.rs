@@ -8,9 +8,6 @@ use crate::birth_clock::BirthClock;
 use crate::world::dimension::Dimension;
 use crate::world_seed::WorldSeed;
 
-/// The inputs of the new UUIDs of this world: the world seed, the key of its dimension and the
-/// birth clock. None of them depends on the cells of the dimension. A world without a dimension
-/// entity hashes an empty dimension key.
 #[derive(SystemParam)]
 pub struct EntityBirths<'w, 's> {
     clock: Res<'w, BirthClock>,
@@ -24,8 +21,6 @@ impl EntityBirths<'_, '_> {
         self.clock.0
     }
 
-    /// The UUID of the entity number `sequence` that `source` brings into existence in this
-    /// tick (PHY-CMP-013).
     #[must_use]
     pub fn born(&self, source: &BirthSource, sequence: u32) -> EntityKey {
         let dimension = self.dimensions.single().map_or("", |key| key.as_str());
@@ -48,8 +43,6 @@ mod tests {
 
     use super::*;
 
-    /// Two summons of tick 9 in the Overworld: each at its own spawn point, from a source in the
-    /// column of its own cell when the dimension has two cells.
     const SUMMONS: [BirthSource; 2] = [
         BirthSource::Command {
             spawn: BlockPos::new(4, 64, 4),
@@ -61,7 +54,6 @@ mod tests {
         },
     ];
 
-    /// A world of the Overworld at tick 9; `cell` of two cells, or the only cell.
     fn world(cell: Option<u32>) -> World {
         let mut world = World::new();
         world.insert_resource(BirthClock(9));
@@ -77,7 +69,6 @@ mod tests {
         world
     }
 
-    /// The UUIDs that `world` gives to `summons`, in their order.
     fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityKey> {
         let summons = summons.to_vec();
         world

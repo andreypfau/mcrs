@@ -31,15 +31,12 @@ impl Default for SignText {
     }
 }
 
-/// The two sides of a sign.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SignTexts {
     pub front_text: SignText,
     pub back_text: SignText,
 }
 
-/// The sides a chunk packet or a block entity update carries for a sign. Those compounds hold no
-/// position, and a side they leave out is a side they do not change.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct SignUpdate {
     pub front_text: Option<SignText>,
@@ -51,7 +48,6 @@ impl SignUpdate {
         mcrs_minecraft_nbt::from_tag(NbtTag::Compound(compound.clone()))
     }
 
-    /// `base` with the sides this update carries replaced.
     #[must_use]
     pub fn applied_to(self, base: SignTexts) -> SignTexts {
         SignTexts {
@@ -62,8 +58,6 @@ impl SignUpdate {
 }
 
 impl SignTexts {
-    /// The sides of a sign that has no stored state to keep: a side the compound leaves out is
-    /// the empty one.
     pub fn from_compound(compound: &NbtCompound) -> Result<Self, mcrs_minecraft_nbt::Error> {
         SignUpdate::from_compound(compound).map(|update| update.applied_to(Self::default()))
     }

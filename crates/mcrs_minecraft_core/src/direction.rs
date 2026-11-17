@@ -32,13 +32,11 @@ impl Axis {
     }
 }
 
-/// The sum of the absolute differences of the three axes.
 pub fn dist_manhattan(a: IVec3, b: IVec3) -> i32 {
     (a - b).abs().element_sum()
 }
 
 impl Direction {
-    /// The horizontal faces in the order that a random horizontal direction indexes.
     pub const HORIZONTAL: [Direction; 4] = [
         Direction::North,
         Direction::East,
@@ -46,7 +44,6 @@ impl Direction {
         Direction::West,
     ];
 
-    /// A quarter turn clockwise about Y, seen from above; the vertical faces keep themselves.
     pub const fn clockwise(self) -> Direction {
         match self {
             Direction::North => Direction::East,
@@ -69,12 +66,10 @@ impl Direction {
         matches!(self, Direction::Down | Direction::Up)
     }
 
-    /// The face points along the positive direction of its axis.
     pub const fn is_positive(self) -> bool {
         matches!(self, Direction::Up | Direction::South | Direction::East)
     }
 
-    /// `pos` moved `count` blocks toward this face.
     pub fn relative(self, pos: IVec3, count: i32) -> IVec3 {
         pos + self.normal() * count
     }
@@ -123,8 +118,6 @@ impl Direction {
         }
     }
 
-    /// The horizontal face nearest to a yaw, through the `[south, west, north, east]`
-    /// 2D data values.
     pub fn from_y_rot(y_rot: f32) -> Direction {
         match ((f64::from(y_rot) / 90.0 + 0.5).floor() as i32) & 3 {
             0 => Direction::South,

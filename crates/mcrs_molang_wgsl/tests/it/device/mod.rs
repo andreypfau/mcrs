@@ -1,5 +1,3 @@
-//! A headless wgpu device for the GPU tests and the benchmark of this crate.
-
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, ComputePipeline,
@@ -14,8 +12,6 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// The high-performance adapter with timestamp queries when it has them; `None` with no
-    /// adapter.
     pub fn new() -> Option<Self> {
         let instance = Instance::new(InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -85,7 +81,6 @@ impl Gpu {
     }
 }
 
-/// Parses and validates a WGSL module with naga; the error is the rendered diagnostic.
 pub fn validate(source: &str) -> Result<(), String> {
     let module =
         naga::front::wgsl::parse_str(source).map_err(|error| error.emit_to_string(source))?;

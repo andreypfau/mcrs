@@ -10,9 +10,6 @@ use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use std::sync::Arc;
 
-/// Every dimension's carver table, keyed the way its biome source is: a table
-/// resolves one source's climate entries, so the Nether's carvers are not the
-/// overworld's.
 #[derive(bevy_ecs::prelude::Resource, Default, Clone)]
 pub struct DimensionCarverBiomes(
     pub std::collections::BTreeMap<ResourceLocationBuf, Arc<CarverBiomeTable>>,
@@ -30,7 +27,6 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     }
 }
 
-/// The carvers every biome runs, in the order its file lists them, indexed by biome number.
 fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>> {
     let carvers = registries.registry::<CarverConfig>()?;
     let carver_tags = registries.tags::<mcrs_minecraft_biome::ConfiguredCarver>()?;
@@ -50,11 +46,6 @@ fn carvers_by_biome(registries: &Registries) -> Option<Vec<Arc<[CarverConfig]>>>
     )
 }
 
-/// Resolve every dimension's biome source climate table into carver lists.
-///
-/// Both halves are loaded values: which carvers a biome runs comes from the
-/// biome JSON, and what each carver is comes from the carver column, so a
-/// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     dimensions: bevy_ecs::prelude::Res<
@@ -89,10 +80,6 @@ fn build_modern_carver_biomes(
             continue;
         }
 
-        // A fixed source answers one biome everywhere, so its table is that
-        // biome's carvers under a point covering the whole climate space: with a
-        // single candidate the nearest-entry search returns it whatever the
-        // climate.
         let table = match source {
             BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => {
                 let Some(climate) = preset_tables.as_ref().and_then(|tables| tables.get(*list))
@@ -122,8 +109,6 @@ fn build_modern_carver_biomes(
 
         match table {
             Some(table) => {
-                // Beta's caves abort on water and leave Beta's substance, which
-                // only the Beta column program answers.
                 assert!(
                     !table.runs(|carver| matches!(carver, CarverConfig::BetaCave)),
                     "{dimension}: mcrs:beta_cave carves only over a Beta biome source"

@@ -57,7 +57,6 @@ impl ConditionBaker<'_> {
         }
     }
 
-    /// `None`, with a problem, for a predicate that does not bake.
     pub(crate) fn damage_source_properties(
         &mut self,
         predicate: Option<&DamageSourcePredicate<Named>>,

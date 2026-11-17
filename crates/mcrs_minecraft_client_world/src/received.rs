@@ -9,9 +9,6 @@ use mcrs_minecraft_protocol::packets::configuration::clientbound::{
 };
 use mcrs_minecraft_registries::{Received, ReceivedTags};
 
-/// What a server sent of its registries during one configuration: a registry sent in several
-/// packets is joined in the order sent, and a later tag packet replaces the tags of the
-/// registries it names.
 pub(crate) fn received(configuration: &Configuration) -> anyhow::Result<Received> {
     let mut received = Received::default();
     for body in &configuration.registry_data {

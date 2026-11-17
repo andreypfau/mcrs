@@ -12,13 +12,8 @@ use crate::item_entity_stack::ItemEntityStack;
 use crate::motion_tick::MotionTick;
 use crate::network_entities::NetworkEntities;
 
-/// How far below the lowest block of the world an item or an orb starts a step before the client
-/// removes it.
 const BELOW_WORLD: f64 = 64.0;
 
-/// Removes each simulated entity that stepped in this tick and whose type ends it on the client:
-/// an item with an empty stack, a falling block with no block state or `air`, a primed TNT whose
-/// fuse ran out, and an item or an orb that started the step below the world.
 pub(crate) fn remove_spent_entities(
     mut commands: Commands,
     mut network: ResMut<NetworkEntities>,

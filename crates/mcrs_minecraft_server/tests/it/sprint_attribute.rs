@@ -8,8 +8,6 @@ use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaSprintAttribut
 
 use crate::host_app::{self, PlayServer};
 
-/// ATR-SRC-002 with the steps of ATR-VAL-003: the base 0.1F times 1.3, and the base again after
-/// the stop.
 #[test]
 fn atr_src_002_the_sprint_state_moves_movement_speed_and_its_end_restores_it() {
     let mut app = host_app::make_host_app();

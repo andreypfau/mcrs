@@ -47,30 +47,20 @@ use mcrs_minecraft_engine_world::entity_ids::{CellEntityIds, EntityIdRange};
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
-/// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
-/// in what the host sent during the update.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TickDimensions;
 
-/// The two steps of [`TickDimensions`], in this order.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TickDimensionsSet {
-    /// The muxer hands over the input it routed to each dimension during the update.
     Route,
-    /// The coordinator ticks every dimension world with that input.
     Tick,
 }
 
-/// The system set of the inbox drain, early in `FixedPreUpdate`: the messages of the input of a
-/// tick reach the dimension here. Systems that consume them run after this set.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DimInboxDrain;
 
-/// A dimension world as the host ticks it.
 pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
 
-/// What the host hands a dimension world for one tick. A copy of a host resource comes only
-/// when the host changed it since the last tick; a new world gets every copy when it spawns.
 pub struct DimInput {
     pub(crate) save: Option<crate::cold_columns::SaveRequest>,
     pub(crate) game_time: GameTime,
@@ -83,56 +73,34 @@ pub struct DimInput {
     pub(crate) tick_pace: Option<TickPace>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
-    /// The players of the other worlds, in a tick whose input carries commands.
     pub(crate) players: Option<Vec<RosterRow>>,
     pub(crate) control: Vec<ToDim>,
     pub(crate) serverbound: Vec<InboundPlayerPacket>,
-    /// The range that the coordinator grants for the request of the last tick.
     pub(crate) entity_id_grant: Option<EntityIdRange>,
-    /// What the muxer asks of the version streams of the columns, in the order it asked.
     pub(crate) column_requests: Vec<ColumnRequest>,
-    /// What the other cells of the world sent in their last tick, in the order of the cells.
     pub(crate) cell_mail: CellMail,
-    /// The answers of the data layer of the world to the requests of this cell, and what the
-    /// generation of the world made of the columns that this cell asked for.
     pub(crate) store_answers: Vec<ColumnStoreOutput>,
 }
 
-/// What a dimension world hands the host after one tick.
 #[derive(Default)]
 pub struct DimOutput {
     pub(crate) client: ClientOutput,
     pub(crate) traces: Vec<TraceEvent>,
-    /// The players that left the dimension in the tick, after the packets of the tick.
     pub(crate) departures: Vec<Departure>,
-    /// Whether the dimension holds few free entity ids and asks for a range.
     pub(crate) wants_entity_ids: bool,
-    /// The players of the dimension at the end of the tick.
     pub(crate) roster: Vec<RosterRow>,
-    /// The changes to the world clocks that the tick made.
     pub(crate) clock_edits: Vec<EditClock>,
-    /// The changes to the whitelist that the tick made.
     pub(crate) whitelist_edits: Vec<EditWhitelist>,
-    /// The changes to the ban list that the tick made.
     pub(crate) ban_edits: Vec<EditBans>,
-    /// The changes to the operators that the tick made.
     pub(crate) ops_edits: Vec<EditOps>,
-    /// The changes to the state of the whole server that the tick asked for.
     pub(crate) server_edits: Vec<ServerEdit>,
-    /// What the tick hands the other cells of the world. A world of one cell hands nothing.
     pub(crate) cell_mail: CellMail,
-    /// The requests of the tick to the data layer of the world, in order.
     pub(crate) store_inputs: Vec<ColumnStoreInput>,
-    /// The columns that the tick asks the generation of the world for.
     pub(crate) generation_asks: Vec<ColumnPos>,
-    /// Whether a player file failed to reach the disk since the last tick.
     pub(crate) player_save_failed: bool,
 }
 
 impl DimOutput {
-    /// Appends what another cell of the same dimension handed over in the same tick. The traces,
-    /// the entity id request, the roster, the messages between the cells and the requests to the
-    /// data layer stay with each cell.
     pub(crate) fn merge(&mut self, other: Self) {
         self.client.append(other.client);
         self.departures.extend(other.departures);
@@ -145,7 +113,6 @@ impl DimOutput {
     }
 }
 
-/// The messages of the input of this tick, until the inbox drain writes them at the sync point.
 #[derive(Resource, Default)]
 pub(crate) struct DimInbox {
     control: Vec<ToDim>,
@@ -162,9 +129,6 @@ pub(crate) fn dim_world(sub_app: SubApp) -> DimWorld {
     SubAppWorld::new(sub_app, apply_input, take_output).with_idle_check(is_idle)
 }
 
-/// Whether a tick would change nothing in the world: it holds no player, no ticket of another
-/// cell and no section, and no input or answer waits in it. The copies of the host resources
-/// that the input carries still land, and a later tick reacts to them.
 fn is_idle(world: &mut World) -> bool {
     let busy: [Option<ComponentId>; 4] = [
         world.component_id::<Player>(),
@@ -261,12 +225,8 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
 fn take_output(world: &mut World) -> DimOutput {
     let mut output = DimOutput::default();
     world.remove_resource::<crate::cold_columns::SaveRequest>();
-    // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
     cell_mail::take_cell_mail(world, &mut output.cell_mail);
-    // The world the player arrives in writes the same file and starts its own writer, so a
-    // write of this world that is still running must land first, or it would overwrite the
-    // newer file.
     if !output.departures.is_empty() || !output.cell_mail.crossings.is_empty() {
         persistence::flush_player_saves(world);
     }
@@ -320,15 +280,12 @@ fn take_output(world: &mut World) -> DimOutput {
     output
 }
 
-/// Moves every message of type `M` that the tick wrote into `out`.
 fn drain_into<M: Message>(world: &mut World, out: &mut Vec<M>) {
     if let Some(mut messages) = world.get_resource_mut::<Messages<M>>() {
         out.extend(messages.drain());
     }
 }
 
-/// Writes the messages of the input of this tick. The control messages go first, so a spawn
-/// always precedes a serverbound packet of the same tick for the player it spawns.
 pub(crate) fn drain_dim_inbox(
     mut inbox: ResMut<DimInbox>,
     mut spawns: ResMut<Messages<InboundPlayerSpawn>>,

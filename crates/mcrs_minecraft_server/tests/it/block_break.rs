@@ -1,8 +1,3 @@
-//! Block breaking as the cell of the breaker hands it to the muxer. The muxer sends the packets
-//! for the breaker first, then the changes of the columns to their holders, then the
-//! acknowledgements, so a client that holds the column gets them in that order. The breaker
-//! holds the column of each block that it breaks; the watcher is any other holder.
-
 use bevy_app::Last;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
@@ -62,7 +57,6 @@ const STONE: &str = "minecraft:stone";
 const NEAR: BlockPos = BlockPos::new(10, 64, 8);
 const FAR: BlockPos = BlockPos::new(20, 64, 8);
 
-/// What the cell handed the muxer, in the order that the muxer sends it.
 enum Out {
     Packet(OutboundPlayerPacket),
     Change(ColumnChange),
@@ -175,7 +169,6 @@ fn add_section(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos) {
     let section_pos = SectionPos::from(pos);
     let world = server.world();
     let index = world.get::<SectionIndex>(breaker.dimension).unwrap();
-    // The section of a ticket waits for a generation that this server never runs.
     if index.blocks(section_pos).is_some() {
         return;
     }
@@ -217,7 +210,6 @@ fn place(
     ticks(server, 2)
 }
 
-/// A breaker in `mode` beside `state` at `pos`, in a column that the muxer subscribes to.
 fn breaker_at(
     server: &mut PlayServer,
     mode: GameMode,
@@ -274,7 +266,6 @@ fn describe(payload: &PacketPayload, pos: BlockPos) -> Option<String> {
     }
 }
 
-/// What `client` gets about `pos`, in order.
 fn answer_for(out: &[Out], client: Client, pos: BlockPos) -> Vec<String> {
     out.iter()
         .filter_map(|out| match (out, client) {
@@ -400,7 +391,6 @@ fn brk_ord_001_an_abort_out_of_reach_gets_only_the_ack() {
     assert_eq!(answer.watcher, Vec::<String>::new());
 }
 
-/// BRK-SRV-012: the limit follows `block_interaction_range`, so a modifier on it moves the limit.
 #[test]
 fn brk_srv_012_a_modifier_on_block_interaction_range_lets_a_break_out_of_the_base_reach() {
     let mut app = host_app::make_host_app();
@@ -1139,7 +1129,6 @@ fn a_new_state_of_the_same_block_keeps_the_block_entity() {
 const DIRT: &str = "minecraft:dirt";
 const BESIDE: BlockPos = BlockPos::new(10, 64, 9);
 
-/// A survival breaker that stands on the ground beside `state` at `pos`.
 fn digger_at(server: &mut PlayServer, state: BlockStateId, pos: BlockPos) -> Breaker {
     let breaker = breaker_at(server, GameMode::Survival, state, pos);
     let player = server.player(breaker.anchor);
@@ -1147,13 +1136,11 @@ fn digger_at(server: &mut PlayServer, state: BlockStateId, pos: BlockPos) -> Bre
     breaker
 }
 
-/// Sends `action` and runs the one tick that handles it. That tick is also a tick of the dig.
 fn step(server: &mut PlayServer, breaker: &Breaker, action: &ServerboundPlayerAction) -> Vec<Out> {
     server.queue(breaker.anchor, action);
     ticks(server, 1)
 }
 
-/// Starts a dig at `pos` with the sequence 10, and runs it to the tick count `count`.
 fn dig_to(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos, count: usize) -> Vec<Out> {
     let mut out = step(server, breaker, &start_action(pos, 10));
     out.extend(ticks(server, count - 1));
@@ -1177,7 +1164,6 @@ fn crack(breaker: &Breaker, stage: i8) -> String {
     )
 }
 
-/// The stage of each `block_destruction` that the observers get, with its position.
 fn cracks(out: &[Out]) -> Vec<(BlockPos, i8)> {
     out.iter()
         .filter_map(|out| match out {
@@ -1276,8 +1262,6 @@ fn brk_srv_004_each_tick_sends_a_hit_event_and_each_new_stage() {
         stages.extend(cracks(&out).into_iter().map(|(_, stage)| (count, stage)));
     }
 
-    // The sum of the rates reaches the stage 2 at the tick count 30, and the stage 1 at 14 or
-    // one tick later.
     let [(1, 0), (first, 1), (30, 2)] = stages[..] else {
         panic!("the stages were {stages:?}");
     };
@@ -1297,7 +1281,6 @@ fn brk_srv_005_the_stages_pass_9_and_the_hit_events_stop_above_a_progress_of_1()
         stages.extend(cracks(&out).into_iter().map(|(_, stage)| stage));
         let stage = *stages.last().unwrap();
         let hit = !level_events(&out, Client::Watcher).is_empty();
-        // The tick of the stage 10 has a progress of 1 or a little more.
         if stage != 10 {
             assert_eq!(hit, stage < 10, "tick count {count}, stage {stage}");
         }
@@ -1306,8 +1289,6 @@ fn brk_srv_005_the_stages_pass_9_and_the_hit_events_stop_above_a_progress_of_1()
     assert_eq!(stages, (0..=13).collect::<Vec<i8>>());
 }
 
-/// The cracks that an abort at `at` removes for the observers. The breaker must get only the
-/// acknowledgement, so no dig goes on.
 fn aborted(server: &mut PlayServer, breaker: &Breaker, at: BlockPos) -> Vec<(BlockPos, i8)> {
     let abort = action(PlayerAction::AbortDestroyBlock, at, 0);
     let out = send(server, breaker, &abort);
@@ -1539,8 +1520,6 @@ fn brk_srv_012_the_reach_is_5_5_blocks_in_survival_mode() {
     }
 }
 
-/// ATR-SRC-003: creative mode adds 0.5 to `block_interaction_range`, so the reach is 6.0 blocks,
-/// and a change back to survival mode takes the 0.5 away.
 #[test]
 fn atr_src_003_creative_mode_reaches_a_block_that_survival_mode_does_not() {
     let mut app = host_app::make_host_app();
@@ -1684,7 +1663,6 @@ fn brk_srv_016_an_abort_out_of_reach_ends_the_dig() {
     assert_eq!(aborted(&mut server, &breaker, NEAR), [], "with no dig");
 }
 
-/// A server whose dimensions drop the items of the block tables as item entities.
 fn looting_server() -> PlayServer {
     let mut app = host_app::make_host_app();
     install_item_table(app.world_mut(), test_item_table()).unwrap();
@@ -1700,7 +1678,6 @@ fn looting_server() -> PlayServer {
     server
 }
 
-/// The kind and the count of each item entity, after the tick that spawns their rows.
 fn item_entities(server: &mut PlayServer) -> Vec<(Kind, u8)> {
     ticks(server, 1);
     let world = server.world();
@@ -1715,8 +1692,6 @@ fn one(item: Item) -> [(Kind, u8); 1] {
     [(Kind(item.id().number()), 1)]
 }
 
-/// BRK-LOOT-001, LOOT-OUT-002: a survival break with a harvest drops the stacks of the block
-/// table, each as an item entity.
 #[test]
 fn brk_loot_001_a_survival_break_drops_its_block_table_as_item_entities() {
     let mut server = looting_server();
@@ -1727,8 +1702,6 @@ fn brk_loot_001_a_survival_break_drops_its_block_table_as_item_entities() {
     assert_eq!(item_entities(&mut server), one(Item::Dandelion));
 }
 
-/// BRK-LOOT-001, LOOT-SRC-006: a break of the upper part of a peony drops one peony, from the
-/// lower part that the break removes.
 #[test]
 fn loot_src_006_a_peony_broken_at_its_upper_part_drops_one_peony() {
     let mut server = looting_server();
@@ -1743,8 +1716,6 @@ fn loot_src_006_a_peony_broken_at_its_upper_part_drops_one_peony() {
     assert_eq!(item_entities(&mut server), one(Item::Peony));
 }
 
-/// LOOT-SRC-006, SUP-VEG-002: a break of the lower part of a peony drops one peony, and the upper
-/// part that loses its support drops nothing.
 #[test]
 fn loot_src_006_a_peony_broken_at_its_lower_part_drops_one_peony() {
     let mut server = looting_server();
@@ -1758,8 +1729,6 @@ fn loot_src_006_a_peony_broken_at_its_lower_part_drops_one_peony() {
     assert_eq!(item_entities(&mut server), one(Item::Peony));
 }
 
-/// BRK-PRT-003, SUP-VEG-002: a creative break of the upper part of a peony drops nothing, also
-/// from the lower part.
 #[test]
 fn brk_prt_003_a_creative_break_of_the_upper_part_of_a_peony_drops_nothing() {
     let mut server = looting_server();
@@ -1774,7 +1743,6 @@ fn brk_prt_003_a_creative_break_of_the_upper_part_of_a_peony_drops_nothing() {
     assert_eq!(item_entities(&mut server), []);
 }
 
-/// BRK-DRP-001: a creative break drops nothing.
 #[test]
 fn brk_drp_001_a_creative_break_drops_nothing() {
     let mut server = looting_server();
@@ -1785,7 +1753,6 @@ fn brk_drp_001_a_creative_break_drops_nothing() {
     assert_eq!(item_entities(&mut server), []);
 }
 
-/// LOOT-OUT-003, BRK-LOOT-005: with the game rule `block_drops` off, a break drops nothing.
 #[test]
 fn loot_out_003_no_item_entity_appears_while_block_drops_is_off() {
     let mut server = looting_server();

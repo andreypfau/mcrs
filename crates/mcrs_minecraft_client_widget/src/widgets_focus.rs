@@ -20,7 +20,6 @@ pub(crate) enum FocusEntry {
 }
 
 impl Widgets {
-    /// The focused widget (WID-FOC-001).
     #[must_use]
     pub fn focused(&self) -> Option<WidgetId> {
         self.focused
@@ -28,9 +27,6 @@ impl Widgets {
             .map(Widget::id)
     }
 
-    /// Sets the initial focus of a screen that built its widgets: `initial` when it can take the
-    /// focus, else the first widget for Tab after a key, else none (WID-FOC-002); an edit box
-    /// that gets it at `now_ms` enters edit mode (EDIT-FOCUS-001).
     pub fn focus_initial(
         &mut self,
         initial: Option<WidgetId>,
@@ -52,9 +48,6 @@ impl Widgets {
         self.settle_focus(before, now_ms, FocusEntry::Edit);
     }
 
-    /// A key press at `now_ms` while the screen is open; `width` is the text width of the font
-    /// (WID-IN-001, WID-FOC-003, WID-SLD-003, LIST-SEL-004, LIST-SEL-005, LIST-WID-002,
-    /// TAB-KEY-001, TAB-FOCUS-001, EDIT-KEY-001, EDIT-FOCUS-001, EDIT-FOCUS-002).
     pub fn key_press(
         &mut self,
         key: GuiKey,

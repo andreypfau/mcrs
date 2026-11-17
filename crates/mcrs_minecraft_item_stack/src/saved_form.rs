@@ -43,7 +43,6 @@ pub(crate) const DISPLAY_OVERRIDE: &str = "override";
 const DEFAULT_MINING_SPEED: f32 = 1.0;
 const DEFAULT_DAMAGE_PER_BLOCK: i32 = 1;
 
-/// Why a component value has no saved form.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Fault {
     BadValue(BuiltinKey),
@@ -72,8 +71,6 @@ impl Fault {
     }
 }
 
-/// Emits the saved form of a component to `sink`: each default omitted and each registry entry as
-/// its identifier.
 pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
     value: &Builtin,
     names: &L,

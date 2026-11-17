@@ -1,7 +1,5 @@
 use mcrs_minecraft_block::definition::schema::BlockProperties;
 
-/// The properties of a block, each with the text of each of its values, in the order of the
-/// block definition.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PropertyTable {
     pub properties: Vec<PropertyDomain>,
@@ -14,8 +12,6 @@ pub struct PropertyDomain {
 }
 
 impl PropertyDomain {
-    /// The index of the value that `text` names. An integer property also accepts a decimal
-    /// integer with a sign or leading zeros.
     #[must_use]
     pub fn value_index(&self, text: &str) -> Option<usize> {
         if let Some(index) = self.values.iter().position(|value| value == text) {
@@ -54,8 +50,6 @@ impl PropertyTable {
             .position(|property| property.name == name)
     }
 
-    /// The value index of each property for the state with these property values, or `None`
-    /// when a property has no value or an unknown one.
     #[must_use]
     pub fn state(&self, values: &[(&str, &str)]) -> Option<Vec<usize>> {
         self.properties
@@ -67,7 +61,6 @@ impl PropertyTable {
             .collect()
     }
 
-    /// The text of the value of `name` in `state`.
     #[must_use]
     pub fn value_of<'a>(&'a self, state: &[usize], name: &str) -> Option<&'a str> {
         let index = self.index_of(name)?;

@@ -1,13 +1,5 @@
 use bevy_ecs::system::Local;
 
-/// `run_if`-friendly cadence helper backed by a `Local<u32>` counter.
-/// Returns a closure that yields `true` exactly once every `n` calls
-/// (on the `n`-th call, then again on the `2n`-th, etc.). The first
-/// call returns `false` unless `n == 1`.
-///
-/// `n == 0` is clamped to `1` ("every call") because the semantics of
-/// "every zero calls" are undefined and naive `>= 0` arithmetic would
-/// fire on every call without resetting the counter.
 pub fn every_n_ticks(n: u32) -> impl FnMut(Local<u32>) -> bool {
     let n = n.max(1);
     move |mut counter: Local<u32>| {
@@ -32,9 +24,6 @@ mod tests {
 
     #[test]
     fn every_n_ticks_fires_at_cadence() {
-        // Drive the closure through Bevy's schedule so the Local<u32>
-        // counter persists across calls (which is the contract the
-        // helper relies on).
         use bevy_ecs::prelude::*;
 
         #[derive(Resource, Default)]
@@ -57,8 +46,6 @@ mod tests {
         }
         let log = &app.world().resource::<FireLog>().0;
         assert_eq!(log.len(), 10);
-        // Expected pattern with n = 3: false, false, true, false, false,
-        // true, false, false, true, false.
         for (i, fired) in log.iter().enumerate() {
             let expected = (i + 1) % 3 == 0;
             assert_eq!(*fired, expected, "tick {} expected={}", i + 1, expected);

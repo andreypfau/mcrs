@@ -66,7 +66,6 @@ use crate::common::unhex;
 const AIR: u16 = 0;
 const STONE: u16 = 1;
 
-/// The item ids of the golden `inventory_packets`.
 const ITEMS: [(u16, &str); 6] = [
     (0, "air"),
     (1, "stone"),
@@ -76,7 +75,6 @@ const ITEMS: [(u16, &str); 6] = [
     (1073, "diamond_sword"),
 ];
 
-/// Each name is in the namespace `minecraft`.
 struct Names;
 
 impl Names {
@@ -115,7 +113,6 @@ impl NameLookup for Names {
     }
 }
 
-/// A table with the items only.
 struct ItemsOnly;
 
 impl NameLookup for ItemsOnly {
@@ -144,7 +141,6 @@ fn wire_with_length(stack: Option<&ItemStack>) -> Vec<u8> {
     output
 }
 
-/// Reads the whole input with `read`.
 fn read_all<T>(
     bytes: &[u8],
     read: impl Fn(&mut &[u8], &Names) -> Result<T, WireError>,
@@ -191,8 +187,6 @@ fn tool() -> Tool {
     tool
 }
 
-/// A stack of one stone with one patch entry, and the bytes of that entry: the type id, then
-/// the wire form of the component as the tables of the specification state it.
 fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str)> {
     let stone = || stack(STONE, 1);
     let model = ResourceLocationBuf::read("minecraft:stone").expect("an identifier");
@@ -483,7 +477,6 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-/// The plain types of the golden `item_plain` that this crate decodes.
 const DECODED_PLAIN: [&str; 6] = [
     "max_stack_size",
     "max_damage",
@@ -565,7 +558,6 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
             .expect("the golden has the packet");
         unhex(line)
     };
-    // The packet, the length of the fields before the first stack, the stacks, and the form.
     let packets: [(&str, usize, usize, Form); 8] = [
         ("container_set_slot", 4, 1, Form::Bare),
         ("container_set_slot_empty", 4, 1, Form::Bare),
@@ -600,8 +592,6 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
                     (written, reread)
                 }
             };
-            // In these stacks the game chose an order of the entries that is not the order of the
-            // type ids.
             let named = stack.as_ref().is_some_and(|stack| {
                 stack
                     .patch()

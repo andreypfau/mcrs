@@ -1,5 +1,3 @@
-//! Kernel tests of the tick of a player, its server copy, the observed velocity and the teleport.
-
 use glam::DVec3;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::GridFlags;
@@ -107,14 +105,11 @@ fn inp_001_a_diagonal_input_is_as_long_as_one_or_longer() {
     .velocity;
     let straight_speed = straight.x.hypot(straight.z);
     let diagonal_speed = diagonal.x.hypot(diagonal.z);
-    // The straight input has the length 0.98F; the diagonal one reaches the limit of 1.
     assert!((diagonal_speed / straight_speed - 1.0 / f64::from(0.98_f32)).abs() < 1.0e-6);
 }
 
 #[test]
 fn inp_017_a_second_tap_of_forward_in_the_window_starts_the_sprint() {
-    // The timer of 7 counts down at the start of each tick, the press tick too: 5 ticks between
-    // the taps is the longest gap.
     for (gap, sprints) in [(3, true), (5, true), (6, false)] {
         let mut fixture = on_stone();
         let mut state = settled(&mut fixture);
@@ -265,8 +260,6 @@ fn srv_008_the_observed_velocity_holds_the_velocity_of_the_tick() {
             1
         };
         assert_eq!(candidates.as_slice().len(), expected);
-        // The displacement from the positions can differ from the resolved move by one unit in
-        // the last place, so the candidate can too.
         let near =
             |candidate: &DVec3| (*candidate - next.body.velocity).abs().max_element() <= 1.0e-15;
         assert!(
@@ -332,7 +325,6 @@ fn srv_010_a_teleport_rotates_the_velocity_by_the_table() {
     apply_teleport(&mut state, &mut rotation, &packet);
     assert_eq!(state.body.position, DVec3::new(11.0, 2.0, 3.0));
     assert_eq!((rotation.yaw, rotation.pitch), (90.0, 90.0));
-    // The pitch turns by -90 degrees and the yaw by -90 degrees, both exact in the table.
     assert_eq!(state.body.velocity, DVec3::new(0.0, 0.25, 0.0));
     assert!(state.body.flags.on_ground && state.body.fall_distance == 2.0);
 }
@@ -354,7 +346,6 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
         rules: PushRules::default(),
         stream: KeyedStream::new(&row.key, 1),
     };
-    // 0.003 survives the cutoff of 9.0E-6 on the squared length; 0.98 × 0.003 does not.
     state.body.velocity = DVec3::new(0.003, 0.0, 0.0);
     let view = fixture.view();
     server_part(

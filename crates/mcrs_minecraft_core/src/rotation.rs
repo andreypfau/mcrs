@@ -15,7 +15,6 @@ pub enum Rotation {
 }
 
 impl Rotation {
-    /// The order that a random rotation draw (`nextInt(4)`) indexes.
     pub const ALL: [Rotation; 4] = [
         Rotation::None,
         Rotation::Clockwise90,
@@ -32,7 +31,6 @@ impl Rotation {
         }
     }
 
-    /// This rotation followed by `by`.
     pub fn rotated(self, by: Rotation) -> Rotation {
         match (self as u8 + by as u8) % 4 {
             0 => Rotation::None,
@@ -55,7 +53,6 @@ impl Rotation {
     }
 }
 
-/// The `CLOCKWISE_90` spelling the piece NBT uses.
 pub mod legacy {
     use super::*;
 

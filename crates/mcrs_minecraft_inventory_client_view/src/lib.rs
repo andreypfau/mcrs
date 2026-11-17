@@ -1,6 +1,3 @@
-//! The state id of a menu and the server's view of the stacks that the client holds.
-// std: mcrs_minecraft_item_stack
-
 extern crate alloc;
 
 mod click_sync;

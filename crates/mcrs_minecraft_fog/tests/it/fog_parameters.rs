@@ -139,7 +139,6 @@ fn parity_tests_give_the_fog_parameters() {
                 ..parity_scene(12)
             },
             color: [0.349732, 0.393120, 0.559360],
-            // The stated `es` and `ee` take the rain fog factor 1, which the crate does not take.
             environmental: None,
             render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
@@ -199,7 +198,6 @@ fn parity_tests_give_the_fog_parameters() {
 
 #[test]
 fn sunrise_color_shows_toward_the_sun_from_four_chunks() {
-    // With a black fog and sky, `C` is the share of the sunrise colour times `1 − k`.
     let share_at_four_chunks = 0.25 * (1.0 - 0.23429644);
     let cases = [
         SunriseCase {

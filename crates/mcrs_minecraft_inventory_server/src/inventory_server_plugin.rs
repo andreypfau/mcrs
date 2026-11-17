@@ -26,21 +26,6 @@ use crate::set_creative_mode_slot::set_creative_mode_slot;
 use crate::sync_menus::sync_menus;
 use mcrs_minecraft_vanilla_inventory::InventorySet;
 
-/// Decodes the inventory packets of each player and keeps its client in agreement with its
-/// holders. After each restore of the holders, the next sync sends the player its selected slot
-/// and its inventory menu (INV-SEL-003, INV-SYN-005).
-///
-/// Each inventory packet becomes an [`InventoryInput`], which [`InventorySet::Input`] applies in
-/// the order of arrival (ITX-JAV-003): a `container_click` packet becomes a request of the engine
-/// (ITX-JAV-001 to ITX-JAV-005), and the other packets become the commands of
-/// [`PlayerInventoryCommandsExt`](mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt): the drop keys and the hand
-/// swap of the `player_action` packet (INV-SEL-004, INV-SEL-005), the `set_carried_item` packet
-/// (INV-SEL-002), the `container_close` packet (INV-CLS-001), and the `set_creative_mode_slot`
-/// packet (INV-CRE-003, INV-CRE-004). In each tick, [`InventoryServerSet::Sync`] then sends each
-/// stack of the inventory menu that the client does not hold, whatever wrote it (INV-SYN-003,
-/// INV-SYN-004).
-///
-/// Add it beside [`VanillaInventoryPlugin`](mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin), which it needs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InventoryServerPlugin;
 

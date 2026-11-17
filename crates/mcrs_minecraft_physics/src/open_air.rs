@@ -17,9 +17,6 @@ use crate::block_scan::floor_block;
 use crate::query;
 use crate::tick_entity::read_zone;
 
-/// True when the next tick of the entity meets no block, no collider and no border: the read
-/// zone is in loaded sections of air only. Then the open-air step gives the result of the full
-/// tick.
 #[must_use]
 pub fn in_open_air<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
@@ -61,7 +58,6 @@ pub fn in_open_air<W: CollisionWorld, B: BodyView>(
     scratch_entities.is_empty()
 }
 
-/// The physics part of one tick in open air.
 pub(crate) fn air_step(row: &MotionRow, entity: &mut EntityState) {
     let drag = f64::from(0.98_f32);
     let gravity = if entity.no_gravity { 0.0 } else { row.gravity };
@@ -86,7 +82,6 @@ pub(crate) fn air_step(row: &MotionRow, entity: &mut EntityState) {
     };
 }
 
-/// True when the box is in loaded sections whose blocks are all air.
 fn air_only<W: CollisionWorld>(world: &W, zone: &Aabb) -> bool {
     let low = zone
         .min

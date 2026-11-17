@@ -59,7 +59,6 @@ fn shp_005_union_joins_a_line_exactly_one_tolerance_above_the_kept_line() {
 
 #[test]
 fn box_on_a_quarter_grid_stops_at_an_inner_line() {
-    // A box that penetrates a shape stops at the next grid line inside the shape.
     let shape = Shape::from_boxes(&[unit_box([0.25; 3], [0.75; 3])]).unwrap();
     assert_eq!(shape.lines(Axis::Y), [0.0, 0.25, 0.5, 0.75, 1.0]);
     let blocks = TestBlocks::new();
@@ -181,7 +180,6 @@ fn scan_reads_large_shapes_on_faces_only() {
         .push(spec(&[unit_box([-0.5; 3], [1.5; 3])]))
         .unwrap();
     let tables = Tables::new(builder.build());
-    // The region of this query is (-1, -1, -1) to (1, 1, 1).
     let query = unit_box([0.1; 3], [0.9; 3]);
     let found_at = |at: BlockPos| {
         let mut world = TestWorld::new();

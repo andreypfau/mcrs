@@ -19,13 +19,10 @@ use crate::item_definitions::items_from_files;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_table::ItemTable;
 
-/// The whole vanilla corpus, loaded once per process; for tests and tools
-/// that have no app to hand it an asset server from.
 pub fn test_corpus() -> &'static (Blocks, Items) {
     &corpus().0
 }
 
-/// The item table of the whole vanilla corpus, baked with [`test_corpus`].
 pub fn test_item_table() -> ItemTable {
     corpus().1
 }
@@ -49,8 +46,6 @@ fn corpus() -> &'static ((Blocks, Items), ItemTable) {
     })
 }
 
-/// Every `.json` file directly under `directory` of the repository assets, in name order, read
-/// whole. Keys are the paths relative to the assets root, as the asset server names them.
 fn read_json_directory(directory: &str) -> Vec<(String, Vec<u8>)> {
     let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets")).join(directory);
     let mut names: Vec<OsString> = fs::read_dir(&root)

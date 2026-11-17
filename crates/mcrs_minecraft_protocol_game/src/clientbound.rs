@@ -58,11 +58,6 @@ pub struct ClientboundBlockDestruction {
     pub progress: i8,
 }
 
-/// The data of one block entity, sent when it changes after its column arrived.
-///
-/// A frame whose type this build does not know, or whose NBT it cannot read, decodes with `data`
-/// `None` instead of failing: a malformed frame ends the connection, and a block entity this
-/// client never draws is not worth that.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientboundBlockEntityData {
     pub pos: BlockPos,
@@ -92,8 +87,6 @@ impl Encode for ClientboundBlockEntityData {
     }
 }
 
-/// A block event that a block took, for the clients that show its effect. The client gets only
-/// the low 8 bits of each argument.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ClientboundBlockEvent {
     pub pos: BlockPos,
@@ -147,11 +140,8 @@ pub struct ClientboundContainerSetSlot {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundDamageEvent {
     pub entity_id: VarInt,
-    /// The numeric id of the damage type in the session registry `damage_type`.
     pub damage_type: VarInt,
-    /// The network id of the entity that caused the damage, plus 1; 0 means none.
     pub cause_entity_id: VarInt,
-    /// The network id of the entity that dealt the damage, plus 1; 0 means none.
     pub direct_entity_id: VarInt,
     pub source_position: Option<DVec3>,
 }
@@ -163,9 +153,7 @@ pub struct ClientboundEntityEvent {
 }
 
 impl ClientboundEntityEvent {
-    /// The status of a living entity that died.
     pub const DIED: i8 = 3;
-    /// The status of a dead living entity that the server removes.
     pub const REMOVED: i8 = 60;
 }
 
@@ -175,13 +163,9 @@ pub struct PositionStep {
     pub tick_offset: VarInt,
 }
 
-/// The movement of a position sync. A decoder refuses a stepped path with no step: such a path
-/// has no end position.
 #[derive(Clone, Debug, PartialEq, Encode)]
 pub enum PositionPath {
     Linear(DVec3),
-    /// `start_immediately` is true when the entity got a sudden change of movement since the
-    /// previous update: the client then drops the rest of its current path.
     Stepped {
         steps: Vec<PositionStep>,
         start_immediately: bool,
@@ -268,7 +252,6 @@ pub enum ParticleRandomization {
 
 impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
     fn decode(r: &mut &[u8]) -> Result<Self> {
-        // Vanilla maps an unknown id to the first variant instead of rejecting it.
         Ok(match VarInt::decode(r)?.0 {
             1 => Self::Alternative,
             2 => Self::AlternativeWithSpeed,
@@ -280,7 +263,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundHurtAnimation {
     pub entity_id: VarInt,
-    /// The yaw of the direction the hurt came from, in degrees.
     pub yaw: f32,
 }
 
@@ -314,13 +296,9 @@ pub struct DeltaStep {
     pub delta: [i16; 3],
 }
 
-/// A position delta whose step count is not self-describing: it is packed
-/// into the enclosing packet's properties field alongside the on-ground bit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VecDelta {
     Linear([i16; 3]),
-    /// `start_immediately` is true when the entity got a sudden change of movement since the
-    /// previous update: the client then drops the rest of its current path.
     Stepped {
         steps: Vec<DeltaStep>,
         start_immediately: bool,
@@ -465,7 +443,6 @@ pub struct ClientboundMoveMinecartAlongTrack {
     pub lerp_steps: Vec<MinecartStep>,
 }
 
-/// The on-ground flag comes before the angles, unlike in `move_entity_pos_rot`.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundMoveEntityRot {
     pub entity_id: VarInt,
@@ -541,12 +518,9 @@ pub struct ClientboundPlayerLookAt {
     pub entity: Option<LookAtEntity>,
 }
 
-/// The entity of `player_look_at` that the client keeps looking at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct LookAtEntity {
-    /// The network id of the entity.
     pub id: VarInt,
-    /// The part of the entity to look at.
     pub anchor: LookAnchor,
 }
 
@@ -578,7 +552,6 @@ pub struct ClientboundRespawn {
 }
 
 impl ClientboundRespawn {
-    /// The bit of `data_to_keep` that keeps the attribute modifiers of the player.
     pub const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
 }
 
@@ -611,8 +584,6 @@ pub struct ClientboundSetEntityData<'a> {
     pub metadata: Metadata<'a>,
 }
 
-/// One equipped stack per slot; the wire chains the entries by a
-/// continuation bit on the slot byte, so the list must not be empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientboundSetEquipment {
     pub entity_id: VarInt,
@@ -681,19 +652,16 @@ pub struct ClientboundTeleportEntity {
     pub position: DVec3,
     pub velocity: DVec3,
     pub look: Look,
-    /// The axes whose value adds to the current value instead of replacing it.
     pub relatives: PositionFlags,
     pub on_ground: bool,
 }
 
-/// The tick rate of the server and whether it froze the ticks of the world.
 #[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundTickingState {
     pub tick_rate: f32,
     pub frozen: bool,
 }
 
-/// The number of ticks that a frozen world runs before it stops again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ClientboundTickingStep {
     pub steps: VarInt,
@@ -724,8 +692,6 @@ pub struct ClientboundUpdateAttributes<'a> {
     pub attributes: Vec<AttributeSnapshot<'a>>,
 }
 
-/// `item_sets` is keyed by `recipe_property_set` id; vanilla writes it
-/// from a hash map, so the order is whatever was received.
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundUpdateRecipes {
     pub item_sets: Vec<(
@@ -766,7 +732,6 @@ pub struct ClientboundCommandSuggestions<'a> {
     pub suggestions: Vec<CommandSuggestion<'a>>,
 }
 
-/// A probe: the client answers it with a `pong` of the same id, after the packets before it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ClientboundPing {
     pub id: i32,
@@ -778,7 +743,6 @@ pub struct ClientboundSetTime {
     pub clocks: Vec<ClockUpdate>,
 }
 
-/// One clock of `set_time`; `rate` is 0 for a clock that does not advance.
 #[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
 pub struct ClockUpdate {
     pub clock: VarInt,
@@ -787,7 +751,6 @@ pub struct ClockUpdate {
     pub rate: f32,
 }
 
-/// The header and the footer of the player list; an empty text hides its line.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundTabList<'a> {
     pub header: RawText<'a>,
@@ -845,7 +808,6 @@ impl<'a> mcrs_minecraft_protocol::Encode for ClientboundPlayerInfoUpdate<'a> {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         self.actions.into_bits().encode(&mut w)?;
 
-        // Write number of entries.
         VarInt(self.entries.len() as i32).encode(&mut w)?;
 
         for entry in self.entries.as_ref() {

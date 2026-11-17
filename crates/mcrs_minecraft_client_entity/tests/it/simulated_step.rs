@@ -21,12 +21,10 @@ use crate::{Client, add_entity};
 
 const ITEM: i32 = 1;
 const FALLING_BLOCK: i32 = 2;
-/// The entity data index of the stack of an item and of the fuse of a primed TNT.
 const TYPE_ENTRY: u8 = 8;
 const NO_GRAVITY_ENTRY: u8 = 5;
 const FLOOR: BlockPos = BlockPos::new(8, 0, 8);
 const SPAWN_Y: f64 = 10.0;
-/// The lowest block of the world of [`client_over_a_floor`].
 const MIN_Y: f64 = -64.0;
 
 fn state(name: &str) -> BlockStateId {
@@ -36,7 +34,6 @@ fn state(name: &str) -> BlockStateId {
         .expect("the corpus has the block")
 }
 
-/// A client whose world is the column at the origin: air, with one stone block at [`FLOOR`].
 fn client_over_a_floor() -> Client {
     let mut store = ColumnStore::default();
     store.enter(Extent {
@@ -160,7 +157,6 @@ struct Removal {
     y: f64,
     data: i32,
     entry: Option<MetaDataValue<'static>>,
-    /// The ticks after which the entity is still there; the next tick removes it.
     kept_for: u32,
 }
 

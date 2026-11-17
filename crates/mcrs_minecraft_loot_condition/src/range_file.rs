@@ -1,8 +1,6 @@
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-/// An int range (REG-FLD-720) or a float range (REG-FLD-721) as a data pack writes it: one
-/// provider, or an object with optional `min` and `max`. An object with `type` is a provider.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(from = "RangeShape<P>")]
 pub(crate) enum RangeFile<P> {

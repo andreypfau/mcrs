@@ -1,16 +1,11 @@
 use core::str::FromStr;
 
-/// The slot numbers that one slot range name selects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SlotRange {
-    /// The slot numbers from `first` to `first + len - 1`.
     Run { first: u16, len: u16 },
-    /// The slot numbers 100, 101, 102, 103 and 105.
     Armor,
 }
 
-/// A name with an index: `prefix` and then an index below `count`, which selects the slot number
-/// `first + index`.
 struct IndexedName {
     prefix: &'static str,
     first: u16,
@@ -114,7 +109,6 @@ const SINGLE: [SingleName; 12] = [
 const ARMOR: [u16; 5] = [100, 101, 102, 103, 105];
 
 impl SlotRange {
-    /// `true` when `test` passes for one slot number of the range.
     pub(crate) fn any_slot(self, test: impl FnMut(u16) -> bool) -> bool {
         match self {
             SlotRange::Run { first, len } => (first..first.saturating_add(len)).any(test),
@@ -123,7 +117,6 @@ impl SlotRange {
     }
 }
 
-/// A text that is not a slot range name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct UnknownSlotRange;
 

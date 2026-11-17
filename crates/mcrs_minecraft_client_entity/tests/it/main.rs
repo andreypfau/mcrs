@@ -26,7 +26,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};
 use uuid::Uuid;
 
-/// A client world with the entity plugin and one connection that receives packets.
 pub struct Client {
     pub app: App,
     connection: Entity,
@@ -40,7 +39,6 @@ impl Client {
         Self { app, connection }
     }
 
-    /// Delivers `packet` as the network layer does, through its decoded row.
     pub fn receive<P: Packet + Encode>(&mut self, packet: P) {
         let mut data = Vec::new();
         packet.encode(&mut data).expect("the test packet encodes");
@@ -57,7 +55,6 @@ impl Client {
         self.app.world_mut().flush();
     }
 
-    /// Marks the connection as joined, as the login does in the full client.
     pub fn join(&mut self, joined: JoinedGame) {
         self.app
             .world_mut()
@@ -69,7 +66,6 @@ impl Client {
         self.app.world_mut().run_schedule(FixedUpdate);
     }
 
-    /// Runs the end of a frame, after the packets of the frame apply.
     pub fn frame(&mut self) {
         self.app.world_mut().run_schedule(PostUpdate);
     }
@@ -85,7 +81,6 @@ impl Client {
             .get(network_id)
     }
 
-    /// Reads the render inputs of the entity `network_id`.
     pub fn inputs<T>(&mut self, network_id: i32, read: impl FnOnce(RenderInputs<'_>) -> T) -> T {
         let entity = self.entity(network_id).expect("the entity was added");
         let mut query = self.app.world_mut().query::<RenderInputsQuery>();

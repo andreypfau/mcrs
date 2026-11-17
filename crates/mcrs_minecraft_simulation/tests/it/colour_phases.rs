@@ -11,10 +11,6 @@ use mcrs_minecraft_simulation::{
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
-/// `A` spreads east into air and turns into `B` against a block, but waits for a far or
-/// unbounded block; the east neighbour can be in the
-/// next block tile. `NEEDS_SUPPORT` claims the default bound but reads 100 blocks east after its
-/// write of air; `STACK` has no bound. Both turn into air, then `C`.
 struct Spreading;
 
 const FAR: BlockStateId = NEEDS_SUPPORT;
@@ -63,7 +59,6 @@ impl BlockBehaviour<ProbeKinds> for Spreading {
     }
 }
 
-/// Splits the items over four threads.
 struct Threads;
 
 impl Spread for Threads {
@@ -84,8 +79,6 @@ impl Spread for Threads {
 const SPEED: u32 = 1024;
 const TICKS: i64 = 40;
 
-/// Sections 0..12 on x and z: 3 × 3 block tiles of all four colours. Air with a line of `A` at
-/// the east edge of each section, except in the sections of `C` that hold a row of far or unbounded blocks east of a row of `A`.
 fn host(table: &RandomTickTable) -> Host {
     let mut host = Host::new();
     for x in 0..12 {
@@ -124,7 +117,6 @@ fn marker_at(x: i32, z: i32, row: i32) -> BlockPos {
     at(x * 16 + 14, 0, z * 16 + row)
 }
 
-/// The listed sections, grouped by block tile in the order of the colour phases.
 fn listed(host: &Host) -> Vec<SectionPos> {
     let tile = |section: &SectionPos| block_tile(ColumnPos::from(*section));
     let mut listed: Vec<SectionPos> = (0..12)
@@ -146,11 +138,9 @@ struct Run {
     states: Vec<BlockStateId>,
     writes: Vec<BlockWrite>,
     reruns: u32,
-    /// The far and unbounded blocks, unless an undone pick let an `A` spread into them.
     markers_kept: bool,
 }
 
-/// Runs the steps with the hits of each step given to `random_step` in `batches`.
 fn run<S: Spread>(spread: &S, batches: impl Fn(Vec<RandomHit>) -> Vec<Vec<RandomHit>>) -> Run {
     let rules = Spreading;
     let states_of = || (0..STATES).filter_map(|n| BlockStateId::checked(n as u16, STATES));
@@ -202,9 +192,6 @@ fn run<S: Spread>(spread: &S, batches: impl Fn(Vec<RandomHit>) -> Vec<Vec<Random
     }
 }
 
-/// SIM-MODEL-102(a), SIM-RND-001: the colour phases give the same result on one thread and on
-/// four, and the result of running the hits one at a time in the order of the phases. A pick
-/// that leaves its region, by its bound or by what it reads, is undone and runs again.
 #[test]
 fn colour_phases_equal_one_thread_and_the_serial_order_of_the_hits() {
     let whole = |hits: Vec<RandomHit>| vec![hits];

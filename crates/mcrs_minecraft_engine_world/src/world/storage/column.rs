@@ -12,24 +12,19 @@ use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel::ColumnPos;
 
-/// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct Column;
 
-/// Per-column entry in `ColumnIndex`.
 #[derive(Debug, Clone, Copy)]
 pub struct ColumnSlot {
     pub entity: Entity,
     pub section_count: u32,
 }
 
-/// Per-dimension lookup from `ColumnPos` to the column entity + refcount.
-/// Lives on the Dimension entity (added as a `DimensionBundle` field).
 #[derive(Component, Debug, Default, Deref, DerefMut)]
 pub struct ColumnIndex(pub FxHashMap<ColumnPos, ColumnSlot>);
 
-/// Result of looking up a chunk by `chunk_y` inside a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionLookup {
     Loaded(Entity),
@@ -37,7 +32,6 @@ pub enum SectionLookup {
     OutOfRange,
 }
 
-/// Per-column index of real chunk entities.
 #[derive(Component, Debug, Clone)]
 pub struct ColumnSections {
     pub min_section_y: i32,
@@ -64,7 +58,6 @@ impl ColumnSections {
         }
     }
 
-    /// Every real section in ascending Y, starting at `min_section_y`.
     pub fn iter(&self) -> impl Iterator<Item = SectionLookup> + '_ {
         self.sections.iter().map(|slot| match slot {
             Some(e) => SectionLookup::Loaded(*e),
@@ -105,8 +98,6 @@ impl Default for ColumnSections {
     }
 }
 
-/// Bundle for chunk-column entities. Built via `ColumnBundle::new` so the
-/// `marker` field stays crate-private.
 #[derive(Bundle)]
 pub struct ColumnBundle {
     pub col_pos: ColumnPosComponent,
@@ -115,7 +106,6 @@ pub struct ColumnBundle {
     marker: Column,
 }
 
-/// Component wrapper for `ColumnPos` so it can live on the column entity.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut)]
 pub struct ColumnPosComponent(pub ColumnPos);
 
@@ -137,14 +127,9 @@ impl ColumnBundle {
     }
 }
 
-/// Anchor for downstream per-column work to order itself against.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnLifecycleSet;
 
-/// Brings the column index in line with every section whose stage crossed
-/// `Loaded`. It decides from the stage the section holds now rather than from
-/// the edge, so the tick's run and the drain's run can both read the same
-/// messages and the second finds nothing left to do.
 pub fn reconcile_columns(
     mut changes: MessageReader<SectionStageChanged>,
     stages: Query<&SectionStage>,
@@ -152,8 +137,6 @@ pub fn reconcile_columns(
     mut columns: Query<&mut ColumnSections>,
     mut commands: Commands,
 ) {
-    // A column spawned this run is not in `columns` yet, so its sections are
-    // gathered here and land with the entity's own `ColumnSections`.
     let mut spawned: FxHashMap<Entity, ColumnSections> = FxHashMap::default();
 
     for change in changes.read() {
@@ -361,8 +344,6 @@ mod tests {
         app.world_mut().run_schedule(FixedUpdate);
         assert_eq!(counted(&app, dim), Some(1));
 
-        // A section waiting to despawn can be handed tickets and lose them again,
-        // so the same section reaches `Unloading` a second time.
         move_to(&mut app, leaving, SectionStage::Loading);
         app.world_mut().run_schedule(FixedUpdate);
         move_to(&mut app, leaving, SectionStage::Unloading);
@@ -422,7 +403,6 @@ mod tests {
     #[test]
     fn section_lookup_just_above_range() {
         let si = ColumnSections::new(-4, 24);
-        // min_section_y=-4, len=24 -> real range is -4..=19.
         assert_eq!(si.lookup(20), SectionLookup::OutOfRange);
     }
 

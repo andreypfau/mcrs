@@ -12,8 +12,6 @@ use crate::provider_form::{NumberValue, ProviderForm};
 use crate::provider_set_file::ProviderSetFile;
 use crate::score_target_file::ScoreTargetFile;
 
-/// A context int provider as a data pack writes it (REG-FLD-722): an integer, the key of a
-/// named provider, or an object of a type of the int family.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(transparent)]
 pub struct IntProviderFile(pub(crate) ProviderForm<i32, TypedInt>);

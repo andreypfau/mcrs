@@ -47,13 +47,6 @@ import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.core.Direction;
 import org.joml.Vector3fc;
 
-/**
- * Bakes the cuboid geometry of every distinct (model, x, y, z, uvlock) entry of the vanilla
- * blockstate files and writes the faces as JSON. Each texture slot maps to a sprite that covers
- * the whole atlas, so the written uv is local to the sprite. Nothing is drawn.
- *
- * <p>Arguments: the output directory.
- */
 public final class BlockFaceOracle {
     private static final int FORMAT = 1;
     private static final Gson LINE = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();

@@ -11,8 +11,6 @@ const TINT_LAYERS: u32 = BIOME_TINTS.len() as u32;
 
 const LIGHT_LEVELS: u32 = 16;
 
-/// One texture array, filled from layer zero up, so a layer written once never moves; only a
-/// regrow copies.
 pub struct AtlasSlot {
     pub texture: Texture,
     pub view: TextureView,
@@ -23,7 +21,6 @@ pub struct AtlasSlot {
 
 const FIRST_CAPACITY: u32 = 64;
 
-/// A buffer-to-texture copy wants rows on 256-byte boundaries.
 const ROW_ALIGNMENT: u32 = 256;
 
 fn atlas_texture(index: usize, size: u32, capacity: u32, device: &RenderDevice) -> Texture {
@@ -43,8 +40,6 @@ fn atlas_texture(index: usize, size: u32, capacity: u32, device: &RenderDevice) 
     })
 }
 
-/// wgpu's GL backend binds an array of one layer as a plain texture, which the shader's array
-/// sampler then rejects.
 const BLANK_LAYERS: u32 = 2;
 
 pub(super) fn blank_atlas(index: usize, device: &RenderDevice) -> AtlasSlot {
@@ -58,8 +53,6 @@ pub(super) fn blank_atlas(index: usize, device: &RenderDevice) -> AtlasSlot {
     }
 }
 
-/// Where staged layers wait for their copy into the atlas: belt memory cannot be the source of a
-/// texture copy directly, so the update goes belt, then here, then into the array.
 pub(super) fn atlas_staging(bytes: u64, device: &RenderDevice) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("terrain atlas staging"),
@@ -73,7 +66,6 @@ fn pitch(width: u32) -> u32 {
     (width * 4).div_ceil(ROW_ALIGNMENT) * ROW_ALIGNMENT
 }
 
-/// Bytes a set of levels takes in the staging layout.
 fn staged_bytes(size: u32, levels: usize, layers: u32) -> u64 {
     (0..levels)
         .map(|level| {
@@ -92,8 +84,6 @@ pub(super) struct AtlasWriter<'a> {
 }
 
 impl AtlasWriter<'_> {
-    /// Grows the slot to fit, carrying what it already holds, and writes the new layers. Returns
-    /// whether the view changed, which is when the bind groups have to follow.
     pub fn apply(&mut self, index: usize, slot: &mut AtlasSlot, update: &AtlasUpdate) -> bool {
         let needed = update.layers;
         let mut rebound = false;
@@ -361,8 +351,6 @@ fn light_curve(level: f32) -> f32 {
     f / (4.0 - 3.0 * f)
 }
 
-/// Lifts dark colours toward bright by the curve `1 - (1 - x)^4` of their largest channel, which
-/// the Brightness slider mixes in.
 fn not_gamma(color: Vec3) -> Vec3 {
     let max = color.max_element();
     if max <= 0.0 {
@@ -372,7 +360,6 @@ fn not_gamma(color: Vec3) -> Vec3 {
     color * (scaled / max)
 }
 
-/// One texel of vanilla's lightmap, with the sky and block factors in the colours' fourth lanes.
 fn lit_color(sky: &SkyUniform, brightness: f32, block_level: f32, sky_level: f32) -> [u8; 4] {
     let rgb = |channels: [f32; 4]| Vec3::from_slice(&channels);
     let block_brightness = light_curve(block_level) * sky.block_light[3];

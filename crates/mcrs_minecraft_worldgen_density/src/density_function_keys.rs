@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const END_BASE_3D_NOISE: ResourceKey<'static, crate::proto::DensityFunctionHolder> =

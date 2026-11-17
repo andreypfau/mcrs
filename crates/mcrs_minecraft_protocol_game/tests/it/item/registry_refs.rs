@@ -68,8 +68,6 @@ fn parse_fixture() -> Vec<Golden> {
     samples
 }
 
-/// Vanilla's record codecs read only the keys they know, so the `extra` field
-/// in that sample is accepted there; here a malformed datapack fails at load.
 #[test]
 fn every_golden_sample_matches_vanilla() {
     let samples = parse_fixture();

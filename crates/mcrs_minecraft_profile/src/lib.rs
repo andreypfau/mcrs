@@ -21,7 +21,6 @@ use uuid::Uuid;
 
 use mcrs_minecraft_core::codec::{BoundedString, IntArray};
 
-/// A property from the game profile.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Property<S = String> {
     pub name: S,
@@ -34,7 +33,6 @@ pub const MAX_PROPERTIES: usize = 16;
 
 pub type PlayerName = BoundedString<16>;
 
-/// Printable ASCII, no spaces.
 fn player_name(text: &str) -> Result<PlayerName, String> {
     let name = PlayerName::new(text).map_err(|e| e.to_string())?;
     if text.chars().any(|c| c <= ' ' || c >= '\x7f') {
@@ -45,7 +43,6 @@ fn player_name(text: &str) -> Result<PlayerName, String> {
     Ok(name)
 }
 
-/// Four ints, most significant first.
 pub fn uuid_ints(id: Uuid) -> IntArray<4> {
     let (msb, lsb) = id.as_u64_pair();
     IntArray([
@@ -83,7 +80,6 @@ pub struct GameProfileValue {
     pub properties: Vec<Property>,
 }
 
-/// `Full` when both the id and the name are known, else `Partial`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProfileIdentity {
     Full(GameProfileValue),
@@ -237,8 +233,6 @@ impl<'de> Deserialize<'de> for Profile {
     }
 }
 
-/// A list multimap: a value sits under its name, and the names keep the order
-/// they first appeared in.
 pub fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
     let mut grouped: Vec<Property> = Vec::with_capacity(properties.len());
     for property in properties {
@@ -260,7 +254,6 @@ fn check_property(property: &Property) -> Result<(), String> {
     Ok(())
 }
 
-/// A list of properties, or on read a map from a name to its values.
 fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error> {
     struct PropertiesVisitor;
 

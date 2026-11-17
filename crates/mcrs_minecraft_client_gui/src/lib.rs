@@ -1,8 +1,3 @@
-//! The GUI of a Minecraft client: the hotbar, the inventory and chat screens, the game mode
-//! switcher, the item models drawn in slots, and the F3 debug screen with its overlays.
-// std: bevy
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
 mod accessibility_settings_screen;

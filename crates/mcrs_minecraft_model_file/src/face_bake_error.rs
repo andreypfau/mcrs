@@ -3,11 +3,9 @@ use std::fmt;
 
 use mcrs_minecraft_core::Direction;
 
-/// Why the faces of an element do not bake.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FaceBakeError {
-    /// The corners of a face do not form a box face after the variant turn.
     NotBoxFace { key: Direction },
 }
 

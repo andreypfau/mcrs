@@ -23,34 +23,25 @@ const SHADING: &str = include_str!("shaders/shading.wgsl");
 const FIGURE: &str = include_str!("shaders/figure.wgsl");
 const IMPOSTOR: &str = include_str!("shaders/impostor.wgsl");
 const IMPOSTOR_PREPARE: &str = include_str!("shaders/impostor_prepare.wgsl");
-/// The format of the colour and of the normal images of an impostor.
 pub(crate) const IMPOSTOR_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 pub(crate) const BAKE_DEPTH_FORMAT: TextureFormat = TextureFormat::Depth32Float;
 
-/// The pose and the expand pipelines of one definition.
 pub(crate) struct DefinitionGpu {
-    /// `None` for a definition with no GPU pose, which draws nothing.
     pub(crate) pose: Option<ComputePipeline>,
     pub(crate) expand: ComputePipeline,
 }
 
-/// The pipelines of the entity passes.
 pub(crate) struct Pipelines {
     pub(crate) scatter: ComputePipeline,
     pub(crate) cull: ComputePipeline,
     pub(crate) dispatch_args: ComputePipeline,
     pub(crate) draw_args: ComputePipeline,
-    /// The draw of the face records with a cutout texel.
     pub(crate) draw: RenderPipeline,
-    /// The draw of the other face records, with no discard.
     pub(crate) draw_opaque: RenderPipeline,
-    /// The draw of the face records into the images of an impostor.
     pub(crate) bake: RenderPipeline,
     pub(crate) impostor: RenderPipeline,
-    /// The draw of the small impostors, with no discard.
     pub(crate) impostor_small: RenderPipeline,
     pub(crate) impostor_draw_args: ComputePipeline,
-    /// The pass that writes the draw record of each impostor.
     pub(crate) impostor_prepare: ComputePipeline,
     pub(crate) definitions: Vec<DefinitionGpu>,
 }
@@ -151,7 +142,6 @@ impl Pipelines {
     }
 }
 
-/// The common records and the compute bindings, with the constants of `library`.
 fn compute_header(library: &EntityLibrary) -> String {
     let definitions_count = library.definitions.len().max(1);
     let arrays_count = library.arrays.len().clamp(1, MAX_ARRAYS);
@@ -200,8 +190,6 @@ fn compute_header(library: &EntityLibrary) -> String {
             .replace("#{FIRST_COVER}", &first_cover.to_string())
 }
 
-/// The draw shader, with the sizes of the model and the variant tables, for a depth target with
-/// the compare `depth_compare`: a later layer steps toward the side that the compare lets pass.
 fn draw_source(models: usize, variants: usize, depth_compare: wgpu::CompareFunction) -> String {
     let layer_depth_step = match depth_compare {
         wgpu::CompareFunction::Greater | wgpu::CompareFunction::GreaterEqual => "1.0 / 65536.0",
@@ -216,20 +204,17 @@ fn draw_source(models: usize, variants: usize, depth_compare: wgpu::CompareFunct
             .replace("#{LAYER_DEPTH_STEP}", layer_depth_step)
 }
 
-/// The forward draw shader of the figure view into `targets`.
 fn figure_source(tables: DrawTables, targets: FigureTargets) -> String {
     draw_source(tables.models, tables.variants, targets.depth_compare)
         + &FIGURE.replace("#{TARGET_ENCODES}", &targets.color.is_srgb().to_string())
 }
 
-/// The forward draws of the figure view: the face records with no cutout texel, then the others.
 pub(crate) struct FigurePipelines {
     pub(crate) draw: RenderPipeline,
     pub(crate) draw_opaque: RenderPipeline,
 }
 
 impl FigurePipelines {
-    /// The forward pipelines into `targets`; `figure` is the layout of the light and the lightmap.
     pub(crate) fn new(
         device: &Device,
         layouts: &Layouts,
@@ -288,8 +273,6 @@ pub(crate) fn impostor_constants(source: &str) -> String {
         )
 }
 
-/// The pipelines of the gbuffer draw of the face records, of the bake of the impostor images and
-/// of the impostor draw.
 fn render_pipelines(
     device: &Device,
     library: &EntityLibrary,
@@ -402,7 +385,6 @@ fn render_pipelines(
     (draw, draw_opaque, bake, impostor, impostor_small)
 }
 
-/// The shader module and the entry points of a render pipeline.
 struct Stages<'a> {
     module: &'a wgpu::ShaderModule,
     vertex: &'a str,
@@ -428,7 +410,6 @@ fn depth_state(format: TextureFormat, compare: wgpu::CompareFunction) -> wgpu::D
     }
 }
 
-/// An opaque render pipeline with no vertex buffers and no face culling, with `samples` samples.
 fn render_pipeline(
     device: &Device,
     layout: &wgpu::PipelineLayout,
@@ -467,7 +448,6 @@ fn render_pipeline(
     })
 }
 
-/// The texture arrays of `library`, each with its bind group.
 pub(crate) fn texture_arrays(
     device: &Device,
     queue: &wgpu::Queue,
@@ -625,9 +605,6 @@ mod tests {
         }
     }
 
-    /// Rules naga lets through and Tint (Chromium) refuses: the grammar's parentheses around a
-    /// bitwise operand (`wgsl-parse` keeps it), and a constant `bitcast<f32>` to a NaN or an
-    /// infinity, the one constant expression naga does not evaluate.
     fn check_tint_rules(label: &str, source: &str) {
         if let Err(error) = source.parse::<wgsl_parse::syntax::TranslationUnit>() {
             panic!("{label}: {error}");
@@ -649,9 +626,6 @@ mod tests {
         }
     }
 
-    /// Whether each global that an entry point of `source` uses has the binding and the kind of
-    /// binding that the layout of its pass declares, and whether `source` keeps the rules Tint
-    /// adds to naga's.
     fn check_bindings(label: &str, source: &str, passes: &[(&str, &[(u32, layouts::Slot)])]) {
         check_tint_rules(label, source);
         let module = naga::front::wgsl::parse_str(source).unwrap();

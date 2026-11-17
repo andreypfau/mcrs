@@ -12,34 +12,22 @@ use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
 use crate::{ImprovedTransparency, LightTint};
 
-/// Albedo and occlusion, normal and motion, then emissive, block light, sky light and the mark of
-/// a terrain pixel.
-/// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
-/// encodes for the target once.
 pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
     TextureFormat::Rgba8Unorm,
     TextureFormat::Rgba16Float,
     TextureFormat::Rgba16Float,
 ];
 
-/// The world is drawn and blended in image values, and the present pass encodes it once for the
-/// view target.
 pub(crate) const WORLD_IMAGE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
-/// Everything the deferred path allocates. Nothing else may hold a clone of these
-/// textures or the bind group, or a resize would not free the ones it replaces.
 #[derive(Resource)]
 pub struct DeferredFrame {
-    /// Albedo and occlusion, normal and motion, then the light, in [`GBUFFER_FORMATS`].
     pub targets: [TextureView; 3],
-    /// What the world passes draw into, in [`WORLD_IMAGE_FORMAT`].
     pub(crate) world: TextureView,
     pub(crate) present: BindGroup,
     pub(crate) lighting: Buffer,
-    /// Reads the depth, which a shader samples rather than loads (`depth.wesl`).
     nearest: Sampler,
     pub(crate) bind_group: BindGroup,
-    /// Present while Improved Transparency is on.
     pub(crate) transparency: Option<TransparencyTargets>,
     size: UVec2,
     depth: TextureId,
@@ -124,7 +112,6 @@ fn world_image(size: UVec2, device: &RenderDevice) -> TextureView {
     attachment("world image", size, WORLD_IMAGE_FORMAT, device).create_view(&default())
 }
 
-/// A texture that a pass draws into and a later pass reads.
 pub(crate) fn attachment(
     label: &'static str,
     size: UVec2,
@@ -147,7 +134,6 @@ pub(crate) fn attachment(
     })
 }
 
-/// The depth of `depth` read as a float texture, which is how `depth.wesl` takes it.
 pub(crate) fn depth_view(depth: &Texture) -> TextureView {
     depth.create_view(&TextureViewDescriptor {
         label: Some("gbuffer depth"),
@@ -156,7 +142,6 @@ pub(crate) fn depth_view(depth: &Texture) -> TextureView {
     })
 }
 
-/// Nearest in every direction, which is what a sampler reading depth has to be.
 pub(crate) fn nearest_sampler(device: &RenderDevice) -> Sampler {
     device.create_sampler(&SamplerDescriptor {
         label: Some("depth"),

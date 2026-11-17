@@ -55,8 +55,6 @@ fn given(world: &mut World) -> Vec<Given> {
     world.resource_mut::<Messages<Given>>().drain().collect()
 }
 
-/// Each slot names the stack whose `InSlot` names it, and the reverse; no stack is in a slot and
-/// in the world.
 fn assert_consistent(world: &mut World) {
     let mut holders = world.query::<(Entity, &Slots)>();
     for (holder, slots) in holders.iter(world) {

@@ -24,20 +24,14 @@ use mcrs_voxel::BlockPos;
 use crate::BlockGoalWorld;
 use crate::MobColumn;
 
-/// What the start of a tick saw of one mob: its view and its wake events.
 pub(crate) struct Observed {
     pub(crate) view: MobView,
-    /// A hit passed the tests of DMG-HIT-001 since the last observe: wake event 1.
     pub(crate) struck: bool,
     pub(crate) idle_reset: bool,
-    /// The row ticked again after a tick with no step: wake event 7.
     pub(crate) resumed: bool,
 }
 
-/// The hot side of the AI of one mob over its mob column and the state of its row.
 pub(crate) trait MobColumnExt {
-    /// The end of the last tick: the body rotation after its travel, the damage record, the idle
-    /// time, and the view of the snapshot of `tick`. A new hit counts as a hit in the last tick.
     fn observe(
         &mut self,
         panic_causes: &PanicCauses,
@@ -47,12 +41,8 @@ pub(crate) trait MobColumnExt {
         state: &EntityState,
     ) -> Observed;
 
-    /// Applies the intents of one due decision to the mob of the row `state`.
     fn apply(&mut self, intents: &Intents, state: &EntityState);
 
-    /// The controls of this tick before the travel of the row `state`, which
-    /// [`MobColumnExt::observe`] saw: the intent for the pass, and the end of the path when it
-    /// ended in this step. A dying mob gets no intent.
     fn steer<V: BlockVolume>(
         &mut self,
         world: &BlockGoalWorld<'_, V>,
@@ -109,8 +99,6 @@ impl MobColumnExt for MobColumn {
         let resumed = self.stalled && !stalled;
         self.stalled = stalled;
         self.age = Some(state.age);
-        // IN_WATER stays clear without the fluid model (GOAL-FLT-003). The row holds no fire
-        // ticks, passengers or age, which ON_FIRE, CONTROLLED and BABY need.
         let marks = [
             (living.is_alive(), MobFlags::ALIVE),
             (state.body.flags.on_ground, MobFlags::ON_GROUND),
@@ -129,8 +117,6 @@ impl MobColumnExt for MobColumn {
                 flags,
                 idle_time: self.idle_time,
                 damage,
-                // Only a mob passenger or a boat disables a flag (GOAL-FRM-008), and only the
-                // float, which needs the fluid model, holds one by a reflex.
                 disabled: ControlFlags::NONE,
                 path: self.control.applied(),
             },
@@ -201,7 +187,6 @@ impl MobColumnExt for MobColumn {
     }
 }
 
-/// The rotations of a living row.
 fn rotations(living: &Living) -> Rotations {
     Rotations {
         yaw: living.orientation.yaw,

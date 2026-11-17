@@ -4,8 +4,6 @@ use crate::span::Span;
 
 use crate::reader::StringSpan;
 
-/// The error kinds of the command library. A kind that names text from the command line holds
-/// its span, never a copy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum LibraryError {
@@ -94,14 +92,12 @@ impl fmt::Display for LibraryError {
 
 impl core::error::Error for LibraryError {}
 
-/// The source of a syntax error: the library, or an argument type of the application.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ErrorKind<E> {
     Library(LibraryError),
     Argument(E),
 }
 
-/// A syntax error at a byte position of the command line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SyntaxError<E> {
     pub kind: ErrorKind<E>,
@@ -109,7 +105,6 @@ pub struct SyntaxError<E> {
 }
 
 impl<E> SyntaxError<E> {
-    /// An error of the library at `position`.
     pub const fn library(kind: LibraryError, position: usize) -> Self {
         Self {
             kind: ErrorKind::Library(kind),
@@ -117,7 +112,6 @@ impl<E> SyntaxError<E> {
         }
     }
 
-    /// An error of an argument type at `position`.
     pub const fn argument(kind: E, position: usize) -> Self {
         Self {
             kind: ErrorKind::Argument(kind),
@@ -125,7 +119,6 @@ impl<E> SyntaxError<E> {
         }
     }
 
-    /// The same error, with its argument error converted.
     pub fn map_into<F: From<E>>(self) -> SyntaxError<F> {
         SyntaxError {
             kind: match self.kind {

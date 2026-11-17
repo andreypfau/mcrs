@@ -32,9 +32,6 @@ fn stack(name: &str, count: u8) -> ItemStack {
     ItemStack::new(item(name), Count::new(count).expect("a count above 0"))
 }
 
-/// LOOT-MOD-003, LOOT-MOD-009, LOOT-MOD-011, LOOT-MOD-014, LOOT-MOD-015, LOOT-MOD-016,
-/// LOOT-MOD-019 step 2, LOOT-MOD-022, STK-PAT-006: each table gives its stacks and takes no draw;
-/// a write of the value of the prototype leaves no patch entry.
 #[test]
 fn loot_mod_count_item_damage_and_enchantment_modifiers_give_their_stacks_without_draws() {
     let sword = || stack("minecraft:iron_sword", 1);
@@ -96,9 +93,6 @@ fn loot_mod_count_item_damage_and_enchantment_modifiers_give_their_stacks_withou
     }
 }
 
-/// REG-FLD-741, REG-FLD-765, REG-FLD-782, REG-FLD-784, REG-FLD-786, REG-FLD-789, REG-FLD-754: a
-/// modifier type without a rule, a formula without one of its parameters, a value outside its
-/// shape and a value past a stated bound fail the decode of the table.
 fn table_with(modifier: &str) -> String {
     format!(
         r#"{{"pools": [{{"rolls": 1, "entries": [{{"type": "minecraft:item", "name": "minecraft:stick"}}]}}],
@@ -263,7 +257,6 @@ fn named_files() -> [(&'static str, String); 15] {
     ]
 }
 
-/// The table of one stick whose entry has `modifier`.
 fn stick_with(modifier: &str) -> String {
     format!(
         r#"{{"pools": [{{"rolls": 1, "entries": [{{"type": "minecraft:item",
@@ -271,9 +264,6 @@ fn stick_with(modifier: &str) -> String {
     )
 }
 
-/// The table `n:{chain}` whose pool has the key `n:{chain}/0`, and the item modifiers
-/// `n:{chain}/0` to `n:{chain}/{modifiers - 1}`, each of which names the next; the last sets the
-/// count 5.
 fn modifier_chain(chain: &str, modifiers: usize) -> Vec<(String, String)> {
     let table = format!(
         r#"{{"pools": [{{"rolls": 1, "modifier": "n:{chain}/0",
@@ -346,12 +336,6 @@ fn roll_named<W: LootWorld<()>>(
     (stacks, random)
 }
 
-/// LOOT-MOD-010, LOOT-CTX-013, LOOT-CTX-014, LOOT-CTX-016, LOOT-CTX-017: a key, a tag and a key in
-/// a sequence apply the named item modifiers in order without a draw; a chain of 64 members across
-/// a table and item modifiers applies to its end, and the member 65 is an issue at the key that
-/// names it and is cut; a cycle and a key without an entry are issues of the item modifier, also
-/// inside a modifier without an effect and when no table names it; a named modifier that reads a
-/// parameter is an issue at its key in a table whose type does not allow the parameter.
 #[test]
 fn loot_mod_010_named_item_modifiers_resolve_through_the_reference_walk() {
     let mut issues: Vec<_> = NAMED
@@ -428,8 +412,6 @@ const FILTERED: &str = r#"{"pools": [
             "count": {"type": "minecraft:uniform", "min": 1, "max": 3}},
         "on_fail": {"type": "minecraft:discard"}}]}"#;
 
-/// LOOT-MOD-052: the stack that passes the filter takes the draws of `on_pass`; the stack that
-/// fails it takes `on_fail`, which draws nothing.
 #[test]
 fn loot_mod_052_filtered_applies_the_branch_of_the_test() {
     let table = named("n:filtered");
@@ -469,9 +451,6 @@ fn entity_context(attacker: Option<()>) -> LootContext<'static, ()> {
     context
 }
 
-/// LOOT-MOD-013: the count grows by the looting level of the main hand of the attacker times
-/// `count`, rounded half up, down to `limit`; without an attacker, with a non-living one or
-/// without the enchantment the stack keeps its count and the provider takes no draw.
 #[test]
 fn loot_mod_013_enchanted_count_increase_reads_the_attacker_equipment() {
     let looting = tool("minecraft:iron_sword", &[("minecraft:looting", 3)]);
@@ -509,8 +488,6 @@ const ATTRIBUTES: &str = r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecr
         {"attribute": "minecraft:attack_damage", "id": "minecraft:base_attack_damage",
          "amount": 9, "operation": "add_multiplied_total", "slot": "mainhand"}]}]}]}]}"#;
 
-/// LOOT-MOD-026: each element draws its slot group, also from one group; it replaces the entry
-/// of the prototype with the same attribute and id, and goes to the end of the list.
 #[test]
 fn loot_mod_026_set_attributes_draws_the_slot_of_each_element() {
     let table = named("n:attributes");

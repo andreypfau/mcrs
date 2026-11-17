@@ -78,14 +78,12 @@ pub fn blocks() -> &'static Blocks {
     &test_corpus().0
 }
 
-/// The default state of the block `name` of the namespace `minecraft`.
 pub fn state(name: &str) -> BlockStateId {
     blocks()
         .default_state(&format!("minecraft:{name}"))
         .unwrap()
 }
 
-/// The state of the block `name` of the namespace `minecraft` with `properties` set.
 pub fn state_with(name: &str, properties: &[(&str, &str)]) -> BlockStateId {
     let entry = blocks().block(&format!("minecraft:{name}")).unwrap();
     properties
@@ -95,7 +93,6 @@ pub fn state_with(name: &str, properties: &[(&str, &str)]) -> BlockStateId {
         })
 }
 
-/// The item that places the default state of the block `name`.
 pub fn item_of(name: &str) -> Kind {
     let placed = state(name);
     let item = test_corpus()
@@ -105,8 +102,6 @@ pub fn item_of(name: &str) -> Kind {
     Kind(item.unwrap().id.number())
 }
 
-/// A dimension from `y = -64` with stone under `y = 0` and air above it, its sections loaded from
-/// `x, z = -16` to `31`, its block simulation, motion pass, item entities and falling blocks.
 pub fn app(settings: Settings) -> App {
     ComputeTaskPool::get_or_init(TaskPool::default);
     let (blocks, items) = test_corpus();
@@ -215,7 +210,6 @@ pub fn block(world: &mut World, pos: BlockPos) -> BlockStateId {
     })
 }
 
-/// Sets `state` at `pos` and requests its fall.
 pub fn drop_block(world: &mut World, pos: BlockPos, state: BlockStateId) {
     set_block(world, pos, state);
     world.write_message(FallRequest { pos, state });
@@ -238,7 +232,6 @@ pub fn set_velocity(world: &mut World, entity: Entity, velocity: DVec3) {
         .velocity = velocity;
 }
 
-/// The kind of each item entity.
 pub fn item_kinds(world: &mut World) -> Vec<Kind> {
     world
         .query_filtered::<&Kind, With<ItemEntity>>()

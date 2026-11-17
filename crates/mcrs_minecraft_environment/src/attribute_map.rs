@@ -12,13 +12,10 @@ use crate::environment_attribute_keys::EnvironmentAttribute;
 use crate::kind::{AttributeType, info};
 use crate::operation::{Argument, Operation};
 
-/// An attribute map or a timeline holds a value the attribute does not take.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AttributeError {
-    /// The id names no attribute.
     #[error("unknown environment attribute `{0}`")]
     UnknownAttribute(String),
-    /// The modifier or the argument does not fit the attribute.
     #[error("`{attribute}`: {message}")]
     Refused {
         attribute: &'static str,
@@ -26,7 +23,6 @@ pub enum AttributeError {
     },
 }
 
-/// One modifier with its argument, for one attribute.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModifierEntry {
     pub modifier: Operation,
@@ -34,8 +30,6 @@ pub struct ModifierEntry {
 }
 
 impl ModifierEntry {
-    /// The modifier applied to `subject`. An entry is checked against its attribute on read,
-    /// so a mismatch leaves the subject as it is.
     #[must_use]
     pub fn apply(&self, subject: AttributeValue) -> AttributeValue {
         match self.modifier.apply(&subject, &self.argument) {
@@ -45,7 +39,6 @@ impl ModifierEntry {
     }
 }
 
-/// Fails when a float in the value form lies outside the range of `attribute`.
 pub(crate) fn check_range(
     attribute: EnvironmentAttribute,
     value: &AttributeValue,
@@ -59,7 +52,6 @@ pub(crate) fn check_range(
     }
 }
 
-/// Reads the argument of `modifier` for `attribute`.
 pub fn read_argument(
     attribute: EnvironmentAttribute,
     modifier: Operation,
@@ -116,7 +108,6 @@ impl Serialize for ModifierEntry {
     }
 }
 
-/// The attribute map of a dimension type or a biome: at most one entry per attribute.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ModifierMap(BTreeMap<EnvironmentAttribute, ModifierEntry>);
 
@@ -140,7 +131,6 @@ impl ModifierMap {
         self.0.iter().map(|(attribute, entry)| (*attribute, entry))
     }
 
-    /// The entries of the attributes a client may see.
     #[must_use]
     pub fn filter_syncable(&self) -> ModifierMap {
         ModifierMap(
@@ -152,8 +142,6 @@ impl ModifierMap {
         )
     }
 
-    /// Sets the entry of the attribute `id` to `modifier` with `argument`, which is read as
-    /// the attribute and the modifier take it.
     pub fn modify(
         &mut self,
         id: ResourceLocation<'_>,
@@ -177,7 +165,6 @@ impl ModifierMap {
 
 impl Serialize for ModifierMap {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // The files of the game list the attributes in the order of their ids.
         let mut entries: Vec<(&EnvironmentAttribute, &ModifierEntry)> = self.0.iter().collect();
         entries.sort_by_key(|(attribute, _)| attribute.as_static_str());
         serializer.collect_map(entries)

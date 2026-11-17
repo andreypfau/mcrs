@@ -11,7 +11,6 @@ use mcrs_minecraft_protocol_game::{MoveFlags, Position};
 
 use crate::server::RunningServer;
 
-/// Sends `packet` every `interval` until the server disconnects, and answers the reason.
 async fn send_until_disconnected<P: Encode + Packet>(
     connection: &mut RawConnection,
     packet: &P,
@@ -49,7 +48,6 @@ fn reason_of<P: Encode + Packet>(
     reason
 }
 
-/// MVC-CHK-023, MVC-LAY-002: the reader of a real connection runs layer 0 in the play state.
 #[test]
 fn a_move_with_a_nan_coordinate_disconnects_a_joined_client() {
     let not_finite = ServerboundMovePlayerPos {
@@ -67,8 +65,6 @@ fn a_move_with_a_nan_coordinate_disconnects_a_joined_client() {
     );
 }
 
-/// MVC-VAN-019: with the `rate-limit` property set, a client that keeps sending 100 packets each
-/// second is disconnected.
 #[test]
 fn a_rate_above_the_limit_disconnects_a_joined_client() {
     let network = ServerNetworkPlugin {

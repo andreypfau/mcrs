@@ -105,8 +105,6 @@ fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     );
 }
 
-/// Vanilla emits its hash maps in hash-iteration order, so the entries are
-/// compared as sets.
 fn sorted(map: &HashedPatchMap) -> (Vec<(DataComponentType, i32)>, Vec<DataComponentType>) {
     let mut added = map.added.clone();
     added.sort();
@@ -144,7 +142,6 @@ fn a_template_matches_the_vanilla_stream_codec_and_json() {
     let template = Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap();
     let mut out = Vec::new();
     template.encode_checked(&lookup, &mut out).unwrap();
-    // The capture numbered the sword 1050; a stack carries the item's number in this version.
     let mut expected = Vec::new();
     VarInt(i32::from(Item::DiamondSword.id().number()))
         .encode(&mut expected)
@@ -157,7 +154,6 @@ fn a_template_matches_the_vanilla_stream_codec_and_json() {
     );
 }
 
-/// `show_icon` is always written.
 #[test]
 fn a_mob_effect_instance_matches_vanilla_with_show_icon_resolved() {
     use mcrs_minecraft_protocol_game::item::MobEffectInstance;

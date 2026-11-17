@@ -4,8 +4,6 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetTime;
 use mcrs_minecraft_resource::Id;
 
-/// The game time to which the clocks of the client last advanced, from the latest `set_time`
-/// and the client ticks since; `None` before the first `set_time`.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ClientGameTime(pub Option<i64>);
 
@@ -21,8 +19,6 @@ fn count_game_tick(mut time: ResMut<ClientGameTime>) {
     }
 }
 
-/// Moves the clocks to the game time of the packet, then takes the state of each clock that it
-/// names, with the rate that the server gives: 0 for a clock that does not advance.
 fn on_set_time(
     event: On<Received<ClientboundSetTime>>,
     mut time: ResMut<ClientGameTime>,

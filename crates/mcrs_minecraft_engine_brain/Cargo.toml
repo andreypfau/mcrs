@@ -11,7 +11,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the host keeps its tiles in BTreeMap and its index in a hash map
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
@@ -35,7 +34,6 @@ mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# Without it a pool of the tests runs every task on one thread.
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
 mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }

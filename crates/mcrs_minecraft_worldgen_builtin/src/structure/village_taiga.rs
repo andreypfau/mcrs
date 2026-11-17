@@ -13,24 +13,19 @@ const STEP_EAST: &str = "minecraft:cobblestone_stairs[facing=east]";
 const HOUSE_LOOT: &str = "village_taiga_house";
 
 impl Village {
-    /// What an entrance standing in a doorway turns into.
     fn doorway(self) -> &'static str {
         if self.zombie { NOTHING } else { AIR }
     }
 
-    /// The soil under a path or a step: bare, or grown over in the abandoned
-    /// village.
     fn underfoot(self) -> Cell {
         if self.zombie { GROUND } else { S.dirt.clone() }
     }
 }
 
-/// An entrance facing west that stands inside the box, off its west face.
 fn west_entrance(c: &mut Canvas, at: [i32; 3], step: &str) {
     c.socket_facing(at, "west_up", "minecraft:building_entrance", EMPTY, step);
 }
 
-/// A jigsaw nothing joins, turning into `floor` once its piece is placed.
 fn marker(c: &mut Canvas, at: [i32; 3], floor: &str) {
     c.socket_facing(at, "down_south", BOTTOM, EMPTY, floor);
 }
@@ -57,7 +52,6 @@ fn shut_trapdoor(facing: Direction, half: &str) -> Cell {
     super::trapdoor(TRAPDOOR, facing, half, false)
 }
 
-/// A cobblestone wall post joined to the sides in `low` and in `tall`.
 fn wall_post(low: &[Direction], tall: &[Direction]) -> Cell {
     wall_joined(Block::CobblestoneWall.as_static_str(), low, tall)
 }
@@ -70,14 +64,11 @@ fn campfire(c: &mut Canvas, at: [i32; 3], facing: Direction, signal: bool) {
     c.machine(at, &state, CAMPFIRE_DATA);
 }
 
-/// A roof of logs lying along the ridge, stepping up from both eaves.
 fn log_roof(c: &mut Canvas, gable: Gable) {
     let log = if gable.ridge == X { &K.log_x } else { &K.log_z };
     c.stepped_gable(gable, log, None, Some(log));
 }
 
-/// `block` under the slopes of `gable` on the line `at` of its ridge, from
-/// the second level up.
 fn gable_end(c: &mut Canvas, block: &Cell, gable: Gable, at: i32) {
     for i in 1..gable.levels {
         let (a, b, y) = (gable.span[0] + i + 1, gable.span[1] - i - 1, gable.y + i);
@@ -89,8 +80,6 @@ fn gable_end(c: &mut Canvas, block: &Cell, gable: Gable, at: i32) {
     }
 }
 
-/// A log roof over walls of `wall` that close both gables on the lines
-/// `ends` of the ridge.
 fn gabled_roof(c: &mut Canvas, gable: Gable, wall: &Cell, ends: [i32; 2]) {
     for at in ends {
         gable_end(c, wall, gable, at);
@@ -98,8 +87,6 @@ fn gabled_roof(c: &mut Canvas, gable: Gable, wall: &Cell, ends: [i32; 2]) {
     log_roof(c, gable);
 }
 
-/// An open shutter hinged at `half` on the wall either side of the opening
-/// at `[x, y, z]`, which looks `out`.
 fn shutters(c: &mut Canvas, [x, y, z]: [i32; 3], out: Direction, half: &str) {
     let step = out.normal();
     for side in [-1, 1] {
@@ -113,8 +100,6 @@ fn shuttered_window(c: &mut Canvas, at: [i32; 3], out: Direction, half: &str) {
     shutters(c, at, out, half);
 }
 
-/// Trapdoors hinged at `half` standing round the rectangle from `min` to
-/// `max` of the layer `y`.
 fn trapdoor_ring(c: &mut Canvas, y: i32, min: [i32; 2], max: [i32; 2], half: &str) {
     let ([x0, z0], [x1, z1]) = (min, max);
     c.solid(&trapdoor(North, half), [x0, y, z0 - 1], [x1, y, z0 - 1]);
@@ -123,14 +108,11 @@ fn trapdoor_ring(c: &mut Canvas, y: i32, min: [i32; 2], max: [i32; 2], half: &st
     c.solid(&trapdoor(East, half), [x1 + 1, y, z0], [x1 + 1, y, z1]);
 }
 
-/// A flower pot: a jigsaw nothing joins, ringed by trapdoors.
 fn planter(c: &mut Canvas, [x, y, z]: [i32; 3]) {
     trapdoor_ring(c, y, [x, z], [x, z], "bottom");
     c.socket_facing([x, y, z], "up_west", EMPTY, EMPTY, NOTHING);
 }
 
-/// A ring of stairs round `[x, z]` rising towards it, the corners facing as
-/// `corners` says: north-west, north-east, south-west, south-east.
 fn stair_ring(
     c: &mut Canvas,
     of: impl Fn(Direction) -> Cell,
@@ -149,9 +131,6 @@ fn stair_ring(
     }
 }
 
-/// The wall posts either side of the entrance at `[3, 0, 0]`, `height` high
-/// with a torch on each. The lowest are `living`, or joined to the entrance
-/// in the abandoned village.
 fn gate_posts(c: &mut Canvas, v: Village, height: i32, living: &Cell) {
     let lowest = if v.zombie { &S.cobble_wall } else { living };
     for x in [2, 4] {
@@ -160,8 +139,6 @@ fn gate_posts(c: &mut Canvas, v: Village, height: i32, living: &Cell) {
     }
 }
 
-/// A 5x5 room under a log roof: a door on the north, a shuttered window in
-/// each other wall.
 fn cottage(c: &mut Canvas, v: Village, post: &Cell, floor: &str) {
     c.walls(&S.cobble, post, [1, 0, 1], [5, 3, 5]);
     c.solid(&block(floor), [2, 0, 2], [4, 0, 4]);
@@ -845,14 +822,12 @@ fn taiga_fletcher_house_1(c: &mut Canvas) {
     c.entrance([0, 0, 5], EMPTY, NOTHING);
 }
 
-/// Wheat on the layer `y`: `[x, z, age]` of each plant.
 fn wheat_field(c: &mut Canvas, y: i32, plants: &[[i32; 3]]) {
     for [x, z, age] in plants {
         c.place(&block(&format!("minecraft:wheat[age={age}]")), *x, y, *z);
     }
 }
 
-/// Pumpkins on the layer `y`, each on a block of dirt.
 fn pumpkins(c: &mut Canvas, y: i32, cells: &[[i32; 2]]) {
     c.scatter(&S.dirt, y - 1, cells);
     c.scatter(&K.pumpkin, y, cells);
@@ -1411,8 +1386,6 @@ fn crossroad_04_of(c: &mut Canvas, v: Village) {
     decorations(c, v, GRASS, &[[3, 2]]);
 }
 
-/// A street along the west edge, `length` long, with places for houses on
-/// its east side over `sockets` and decorations in its middle at `decor`.
 fn straight_with_houses(c: &mut Canvas, v: Village, length: i32, sockets: [i32; 2], decor: &[i32]) {
     street(c, v, &[[1, 0], [1, length - 1]]);
     path(c, Z, 1, [0, length - 1]);
@@ -1443,7 +1416,6 @@ fn taiga_decoration_2(c: &mut Canvas) {
     c.place(&stairs(COBBLE_STAIRS, North), 1, 1, 2);
 }
 
-/// A cobblestone step with `top` on the block behind it.
 fn stone_seat(c: &mut Canvas, top: &Cell) {
     marker(c, [0, 0, 0], COBBLE);
     c.place(&stairs(COBBLE_STAIRS, North), 0, 0, 1);

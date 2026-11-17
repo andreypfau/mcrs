@@ -2,7 +2,6 @@ use crate::arithmetic;
 use crate::axis::Axis;
 use crate::child::Child;
 
-/// A child of a grid in its row and column; a span of 0 counts as 1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridChild {
     pub child: Child,

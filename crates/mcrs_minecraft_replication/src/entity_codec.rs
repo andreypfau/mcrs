@@ -30,31 +30,20 @@ use std::collections::BTreeMap;
 use std::mem;
 use uuid::Uuid;
 
-/// The Minecraft side of a [`Muxer`](mcrs_engine_muxer::Muxer) for the players and the mobs of
-/// one world. The [`EntityId`] of a subject is its id on the wire.
-///
-/// For a player, it keeps one delta base for each tier, so every viewer of a tier shares its
-/// moves, and the profile entries of each client. The spawn bundle of a player is the same at
-/// each tier: the profile entry and the spawn, with no equipment or entity data yet. A mob has
-/// one tracker that all its viewers share. Every packet that it gives is a record (see
-/// [`record`](crate::record)).
 #[derive(Debug, Default)]
 pub struct EntityCodec {
     list: PlayerList,
     subjects: BTreeMap<EntityId, Subject>,
-    /// The own subject of each viewer.
     owners: BTreeMap<ViewerId, EntityId>,
     holds: HoldSet,
     latency: BTreeMap<ViewerId, i32>,
     tick: u64,
-    /// Changes whenever a player joins, leaves or changes tile.
     generation: u64,
     delimiter: Option<Bytes>,
     joined: Vec<Message>,
     delivery: Delivery,
     dispatches: Vec<Dispatch>,
     mobs: MobTrackers,
-    /// The players whose attribute instances changed in the tick.
     attributed: Vec<EntityId>,
 }
 
@@ -230,7 +219,6 @@ impl EntityCodec {
         Ok(())
     }
 
-    /// The bytes of `subjects` at `tier`, each written by `write`, with the range of each.
     fn write_blob(
         &mut self,
         subjects: &[EntityId],
@@ -308,8 +296,6 @@ impl EntityCodec {
             )?),
             ProfileNeed::Skip => None,
         };
-        // The client applies the packets between two delimiters in one tick, and it does not
-        // create a player without its profile entry, so the entry goes first.
         chunks.push(delimiter.clone());
         chunks.extend(profile);
         chunks.push(add_player);
@@ -325,8 +311,6 @@ impl EntityCodec {
         Ok(())
     }
 
-    /// Owes each viewer that holds a player the instances of the player that changed in the tick,
-    /// after its moves (TRK-UPD-002).
     fn send_attributes(&mut self) {
         let Self {
             attributed,

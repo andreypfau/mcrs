@@ -42,7 +42,6 @@ fn stick() -> ItemStack {
     ItemStack::new(Kind(item.number()), Count::new(1).unwrap())
 }
 
-/// A zombie at the bottom centre of the air block over a stone block.
 fn zombie() -> Mob {
     Mob {
         entity_type: Some(id("minecraft:entity_type", "minecraft:zombie")),
@@ -431,7 +430,6 @@ fn nested_predicates_test_the_second_entity_pred_ent_017() {
         entity_type: Some(id("minecraft:entity_type", "minecraft:pig")),
         ..zombie()
     };
-    // 0 rides 1, 1 carries 0 and 2, 2 carries 3 and targets 0.
     let world = crowd(vec![
         Mob {
             vehicle: Some(1),
@@ -622,8 +620,6 @@ fn an_empty_form_tests_only_what_its_rule_names_pred_gen_005() {
 
 #[test]
 fn a_match_fails_past_its_bound_of_nested_entities() {
-    // 0 carries 1 to 8, and only 8 has an attack target: each level tries each rider with the
-    // whole level below it.
     let rider = Mob {
         vehicle: Some(0),
         ..zombie()

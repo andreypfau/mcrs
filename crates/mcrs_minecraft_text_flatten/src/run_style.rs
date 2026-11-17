@@ -1,6 +1,5 @@
 use mcrs_minecraft_text::{Color, Style, TextTypes};
 
-/// The style of one run: the style of its component over the styles of its ancestors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct RunStyle {

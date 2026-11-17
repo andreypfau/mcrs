@@ -17,7 +17,6 @@ use crate::set_attribute::{SetAttribute, set_attributes};
 use crate::table::{Evaluation, Table};
 use crate::work_stack::WorkStack;
 
-/// A baked item modifier.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Modifier {
     pub(crate) condition: Option<Condition>,
@@ -26,18 +25,7 @@ pub(crate) struct Modifier {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ModifierOp {
-    /// A modifier whose name the bake could not resolve; it changes nothing.
     Unresolved,
-    // chisle: `furnace_smelt`, `set_name`, `exploration_map`, `set_stew_effect`, `copy_name`,
-    // `set_contents`, `modify_contents`, `set_loot_table`, `set_lore`, `fill_player_head`,
-    // `copy_custom_data`, `copy_state`, `set_banner_pattern`, `set_potion`, `set_random_dyes`,
-    // `set_random_potion`, `set_instrument`, `copy_components`, the firework and book types,
-    // `toggle_tooltips`, `set_ominous_bottle_amplifier`, `set_custom_model_data`,
-    // `set_components`, `set_custom_data` and `enchant_with_levels` keep the stack. Of them,
-    // `enchant_with_levels`, `set_stew_effect`, `set_contents`, `modify_contents`,
-    // `set_random_dyes`, `set_random_potion`, `set_instrument`, `set_ominous_bottle_amplifier`
-    // and `set_custom_model_data` skip the draws of section 9 of `loot-functions.md`, so a roll
-    // after one of them is not exact; lifted by the evaluation of each type.
     Pending,
     SetCount {
         count: IntProvider,
@@ -58,8 +46,6 @@ pub(crate) enum ModifierOp {
         extra: i32,
         probability: f32,
     },
-    /// The entry of the registry `item_modifier` at this slot of the list `nested` of the table
-    /// that holds the modifier (LOOT-MOD-010).
     Named(u32),
     EnchantedCountIncrease(CountIncrease),
     Filtered {
@@ -74,7 +60,6 @@ pub(crate) enum ModifierOp {
         add: bool,
     },
     EnchantRandomly {
-        /// The source list (LOOT-MOD-018); `None` is each enchantment in registry order.
         options: Option<Box<[EnchantmentId]>>,
         only_compatible: bool,
     },
@@ -89,11 +74,9 @@ pub(crate) enum ModifierOp {
     },
 }
 
-/// The fields of `enchanted_count_increase` (LOOT-MOD-013).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CountIncrease {
     pub(crate) enchantment: Option<Id<Enchantment>>,
-    /// The slots that the `slots` of the enchantment names.
     pub(crate) slots: Box<[EquipmentSlot]>,
     pub(crate) count: FloatProvider,
     pub(crate) limit: i32,
@@ -106,8 +89,6 @@ pub(crate) struct SetLevel {
 }
 
 impl ModifierOp {
-    /// The parameters that the operation reads, without its condition and without the modifiers
-    /// of a sequence, for the check of LOOT-CTX-013.
     pub(crate) fn reads(&self) -> ContextParams {
         fn providers<'a>(providers: impl Iterator<Item = &'a IntProvider>) -> ContextParams {
             providers.fold(ContextParams::EMPTY, |reads, provider| {
@@ -146,8 +127,6 @@ impl ModifierOp {
 }
 
 impl Modifier {
-    /// Applies the modifier of `holder` to `stack` with the draws of its rule (LOOT-MOD-009,
-    /// LOOT-MOD-012).
     pub(crate) fn apply<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         holder: &Table,
@@ -256,7 +235,6 @@ impl Modifier {
     }
 }
 
-/// Applies each of `modifiers` of `holder` in order.
 pub(crate) fn apply_all<E: Copy, W: LootWorld<E>, R: Random>(
     modifiers: &[Modifier],
     holder: &Table,
@@ -271,7 +249,6 @@ pub(crate) fn apply_all<E: Copy, W: LootWorld<E>, R: Random>(
 }
 
 impl CountIncrease {
-    /// LOOT-MOD-013.
     fn apply<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         stack: &mut WorkStack,
@@ -293,7 +270,6 @@ impl CountIncrease {
     }
 }
 
-/// Steps 5 and 6 of LOOT-MOD-013, in f32.
 fn count_increase(count: i32, level: u32, per_level: f32, limit: i32) -> i32 {
     #[expect(
         clippy::cast_precision_loss,
@@ -308,7 +284,6 @@ fn count_increase(count: i32, level: u32, per_level: f32, limit: i32) -> i32 {
     }
 }
 
-/// LOOT-MOD-004: the count after the bonus of `op` with the `tool` of the context.
 fn apply_bonus<R: Random>(op: &ModifierOp, tool: Tool<'_>, count: i32, random: &mut R) -> i32 {
     let level = |enchantment: Option<Id<Enchantment>>| {
         let level = enchantment.map_or(0, |enchantment| tool.level(enchantment));
@@ -343,7 +318,6 @@ fn apply_bonus<R: Random>(op: &ModifierOp, tool: Tool<'_>, count: i32, random: &
     }
 }
 
-/// LOOT-MOD-016, in f32.
 fn set_damage<E: Copy, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     damage: &FloatProvider,
@@ -379,14 +353,11 @@ fn set_damage<E: Copy, W: LootWorld<E>, R: Random>(
     stack.set(Damage(written.clamp(0, max)), items);
 }
 
-/// The component that LOOT-MOD-018 raises, or `None` when it is not a typed component.
 fn raised_enchantments<E, W>(
     stack: &WorkStack,
     evaluation: &Evaluation<'_, '_, E, W>,
 ) -> Option<Enchantments> {
     let read = stack.read()?;
-    // chisle: `minecraft:stored_enchantments` has no typed component in the value-form stack, so
-    // an enchanted book gets no enchantment; lifted when the stack crate types that component.
     if Some(read.kind) == evaluation.rules.enchanted_book {
         return None;
     }
@@ -397,7 +368,6 @@ fn raised_enchantments<E, W>(
         .cloned()
 }
 
-/// Gives `enchantments` with `enchantment` at `level`; 0 removes it.
 fn with_level(enchantments: &Enchantments, enchantment: EnchantmentId, level: u8) -> Enchantments {
     let others = enchantments
         .entries()
@@ -416,7 +386,6 @@ fn level_of(enchantments: &Enchantments, enchantment: EnchantmentId) -> u8 {
         .map_or(0, |entry| entry.level.get())
 }
 
-/// LOOT-MOD-019.
 fn enchant_randomly<E, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     options: Option<&[EnchantmentId]>,
@@ -465,11 +434,8 @@ fn enchant_randomly<E, W: LootWorld<E>, R: Random>(
         stack.replace(enchanted_book, 1);
     }
     raise(stack, enchantment, level, evaluation);
-    // chisle: the context holds no `additional_cost_component_allowed`, so step 7 never applies;
-    // lifted by that parameter and a typed `minecraft:additional_trade_cost`.
 }
 
-/// The raise of LOOT-MOD-018.
 fn raise<E, W: LootWorld<E>>(
     stack: &mut WorkStack,
     enchantment: EnchantmentId,
@@ -490,7 +456,6 @@ fn raise<E, W: LootWorld<E>>(
     );
 }
 
-/// LOOT-MOD-022.
 fn set_enchantments<E: Copy, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     levels: &[SetLevel],
@@ -536,7 +501,6 @@ mod tests {
     use mcrs_minecraft_predicate::NoWorld;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
-    /// LOOT-MOD-004: without a `tool`, `apply_bonus` keeps the count and takes no draw.
     #[test]
     fn loot_mod_004_apply_bonus_without_a_tool_keeps_the_count_and_the_generator() {
         let rules = ItemRules {

@@ -8,17 +8,12 @@ use mcrs_minecraft_numeric::sin_nearest;
 
 use crate::Start;
 
-/// The velocity of the hand form (IEN-SPN-002).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HandVelocity {
-    /// Along the look direction, in degrees.
     Look { yaw: f32, pitch: f32 },
-    /// In a random horizontal direction, as at the death of a player.
     Scatter,
 }
 
-/// The hand form of an entity at `feet` with the eye height `eye_height`, with the draws of
-/// `stream` (IEN-SPN-002).
 #[must_use]
 pub fn hand_form(
     feet: DVec3,
@@ -60,8 +55,6 @@ pub fn hand_form(
     }
 }
 
-/// The start of a drop of the block whose lowest corner is `block`, with the draws of `stream`
-/// (PHY-CMP-025): a random offset of up to 0.25 from the centre, lowered by half the item height.
 #[must_use]
 pub fn block_form(block: DVec3, stream: &KeyedStream) -> Start {
     const HALF_HEIGHT: f64 = 0.125;
@@ -77,7 +70,6 @@ pub fn block_form(block: DVec3, stream: &KeyedStream) -> Start {
     }
 }
 
-/// The default form at `point`, with the draws of `stream` (IEN-SPN-008).
 #[must_use]
 pub fn default_form(point: DVec3, stream: &KeyedStream) -> Start {
     let horizontal = |index: u64| stream.unit(index) * 0.2 - 0.1;

@@ -67,9 +67,6 @@ pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, St
     on_top_of_chunk_centre(ctx, HeightmapName::WorldSurfaceWg)
 }
 
-/// The reference lowers every piece at placement by the live
-/// `WORLD_SURFACE_WG` height under the entrance, which is the same column
-/// for the three templates; the density column answers it here.
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let start = IVec3::new(
         ctx.chunk.min_block_x(),

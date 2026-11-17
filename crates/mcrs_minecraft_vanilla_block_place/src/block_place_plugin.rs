@@ -42,8 +42,6 @@ use rustc_hash::FxHashMap;
 
 use crate::{Click, Spot, placed_state, replaceable};
 
-/// A block item used on a block face places its block (`block-placing.md`). It reads the
-/// [`UseItemOnRequest`] messages, which the engine acknowledges.
 #[derive(Clone)]
 pub struct BlockPlacePlugin;
 
@@ -83,8 +81,6 @@ type PlacerItem<'a> = (
     Option<&'a Selected>,
 );
 
-/// The checks of PLC-ORD-001 that this server has, in that order. Each request that reaches the
-/// held item gets a refresh, after its placement when it places.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each query, writer and resource is its own parameter"
@@ -251,10 +247,6 @@ fn body_of(transform: &Transform) -> Aabb {
     )
 }
 
-/// Steps 8 to 15 of PLC-ORD-001 for a placer that holds a block item: the position and the state
-/// that the placement writes, or `None` for a refusal.
-// chisle: the clicked block never acts and only players block a placement; adventure mode
-// refuses each placement until the item reads `can_place_on`.
 fn place(
     definitions: &BlockDefinitions,
     placer: &Placer,
@@ -318,7 +310,6 @@ fn cursor_in_range(cursor: [f32; 3]) -> bool {
         .all(|value| (LOWEST_CURSOR..=HIGHEST_CURSOR).contains(value))
 }
 
-/// The block of the item of `stack` and the count of `stack`, when it is a block item.
 fn block_item(
     definitions: &BlockDefinitions,
     items: &Items,
@@ -330,8 +321,6 @@ fn block_item(
     Some((definitions.block_index(state)?, count.get()))
 }
 
-/// The message of the upper height limit for `side` up, and of the lower one otherwise
-/// (PLC-HGT-001).
 fn height_message(
     session: PlayerSession,
     side: Direction,

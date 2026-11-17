@@ -15,10 +15,6 @@ use crate::abilities::{self, Abilities};
 use crate::local_player::Sprint;
 use crate::player::Player;
 
-/// The state of the movement kernel for the local [`Player`]. A login and a respawn give a new
-/// one (PHY-ORD-015), and a teleport changes the kept one. It holds the one flight state of the
-/// client. The values that the kernel reads from the attribute instances and the abilities are
-/// written into it when they change.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct LocalMotion(pub PlayerState);
 
@@ -62,7 +58,6 @@ fn spawned(
     }
 }
 
-/// Writes the motion attributes, the two movement speeds and the abilities into the kernel state.
 pub(crate) fn write_motion_inputs(
     mut players: Query<
         (&mut LocalMotion, &AttributeInstances, &Sprint, &Abilities),
@@ -91,8 +86,6 @@ pub(crate) fn write_motion_inputs(
     }
 }
 
-/// The travel step reads the `movement_speed` instance as it is (PHY-INP-006): a server entry can
-/// drop the sprint modifier of a sprinting player, or carry it to a player that does not sprint.
 fn speeds(instances: &AttributeInstances, sprint: Sprint) -> Option<Speeds> {
     let current = instances.value(Attribute::MovementSpeed)?;
     let speeds = if sprint.active {
@@ -119,9 +112,6 @@ fn speeds(instances: &AttributeInstances, sprint: Sprint) -> Option<Speeds> {
     Some(speeds)
 }
 
-/// The value of ATR-VAL-001 for the instance of `attribute` without its modifier `id` and with
-/// `replacement` at the end of the sequence (ATR-INS-004), which this call does not store; `None`
-/// when the attribute is not in the set of the type.
 fn value_replacing(
     instances: &AttributeInstances,
     attribute: Attribute,
@@ -198,8 +188,6 @@ mod tests {
         }
     }
 
-    /// The kernel state of a player in the air after a login, a tick, `entries` with `abilities`
-    /// and `respawn`, and a second tick.
     fn after_two_ticks(
         input: MovementInput,
         entries: &[AttributeSnapshot<'static>],

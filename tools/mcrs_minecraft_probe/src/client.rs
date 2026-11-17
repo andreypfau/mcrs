@@ -86,11 +86,9 @@ pub(crate) enum Signal {
     Commands(CommandTree),
     Disconnected(Text),
     Closed,
-    /// The client closed the connection after an error of its own.
     Failed(String),
 }
 
-/// Logs in offline and configures, until the first packet of the game state or a refusal.
 pub(crate) async fn log_in(address: SocketAddr, name: &str) -> anyhow::Result<Login> {
     let mut io = PacketIo::connect(address).await?;
     let switch_mode = SwitchMode::of_own_version();
@@ -168,7 +166,6 @@ pub(crate) async fn log_in(address: SocketAddr, name: &str) -> anyhow::Result<Lo
     }
 }
 
-/// Answers the end of the login and sends the client information of the configuration.
 async fn acknowledge_login(
     io: &mut PacketIo<TcpStream>,
     switch_mode: SwitchMode,
@@ -206,8 +203,6 @@ async fn acknowledge_login(
     Ok(())
 }
 
-/// Keeps one client in the game state: answers keep-alives, reports what the driver records and
-/// carries out its orders, until the connection ends.
 pub(crate) async fn session(
     mut io: PacketIo<TcpStream>,
     client: String,
@@ -310,7 +305,6 @@ async fn send_order(
                 .await
         }
         Order::SelectSlot(slot) => {
-            // The field is a short on the wire; the cast keeps its bits, so -1 is sent as -1.
             let slot = slot.cast_unsigned();
             io.send_packet(&ServerboundSetCarriedItem { slot }).await
         }

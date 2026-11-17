@@ -6,8 +6,6 @@ use serde::{Deserialize, Deserializer};
 use crate::int_provider_file::IntProviderFile;
 use crate::range_file::RangeFile;
 
-/// The `scores` of `entity_scores` (REG-FLD-708): each objective name with its int range, in the
-/// order of the file (LOOT-CND-012).
 #[derive(Debug, Clone)]
 pub(crate) struct ScoresFile(pub(crate) Vec<ObjectiveFile>);
 

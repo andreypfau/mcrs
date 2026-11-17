@@ -1,9 +1,3 @@
-//! The AI stage of mobs: a kernel without Bevy and without std. A host publishes a versioned
-//! snapshot of its mobs, players and facts; the stage wakes only the mobs that a timer or a fact
-//! names, runs their goal selection per tile, and gives decisions that the host applies 1 to
-//! `max_lag` ticks later. Random values are keyed by the world seed, the order key of the mob, the
-//! issue tick and the part.
-
 #![no_std]
 
 extern crate alloc;

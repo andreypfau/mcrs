@@ -10,7 +10,6 @@ use crate::selected_tag::SelectedTag;
 
 const DEPTH_LIMIT: usize = 512;
 
-/// A path of one or more nodes into an NBT tag, read with [`str::parse`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NbtPath {
     nodes: Vec<Node>,
@@ -21,7 +20,6 @@ impl NbtPath {
         NbtPath { nodes }
     }
 
-    /// Appends each tag that the path selects from `root` to `out`, in order.
     pub fn select<'t>(&self, root: &'t NbtTag, out: &mut Vec<SelectedTag<'t>>) {
         let Some((last, middle)) = self.nodes.split_last() else {
             return;
@@ -44,11 +42,6 @@ impl NbtPath {
         }
     }
 
-    /// Gets the tags of the path in `root`, and creates each missing tag on the way. The new
-    /// tag of the last node is a copy of `new_tag`; the new tag of another node is an empty list
-    /// before an index node and an empty compound otherwise. Pushes to `out` the tags of the
-    /// last node, except array elements. Fails when a node before the last one gives no tag;
-    /// the tags that it created before the fault stay.
     pub fn get_or_create<'t>(
         &self,
         root: &'t mut NbtTag,
@@ -58,13 +51,6 @@ impl NbtPath {
         get_or_create(&self.nodes, SliceEnd::AtLastNode, root, new_tag, out)
     }
 
-    /// Sets the tags of the path in `root` to copies of `value`. It first does
-    /// [`NbtPath::get_or_create`] for each node except the last one, and fails when one of these
-    /// gives no tag. A last node that writes nothing is no failure. The created tags stay after
-    /// a failure and after a last node that writes nothing. Fails also, before
-    /// any change, when the number of nodes plus the highest level in `value` is 512 or more.
-    /// `value` has the level 0, and each list element or compound value one more than its
-    /// container. An array takes the value converted to its element type.
     pub fn set(&self, root: &mut NbtTag, value: &NbtTag) -> Result<(), NbtPathOperationError> {
         let Some((last, middle)) = self.nodes.split_last() else {
             return Ok(());
