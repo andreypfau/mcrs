@@ -8,6 +8,9 @@ use mcrs_minecraft_protocol_game::item::{
     MinimumAttackCharge, PotionDurationScale, hash_ops,
 };
 use serde::Deserialize;
+use std::io::Cursor;
+
+use crate::common::sorted;
 
 use crate::item::harness::{
     decode, from_json, hex, json_value, lookup, named, nbt_tree, persistent_json, wire,
@@ -61,9 +64,20 @@ fn kind(id: &str) -> DataComponentType {
     DataComponentType::read(id).unwrap_or_else(|| panic!("{id} is not a kind"))
 }
 
+fn whole_nbt_tree(bytes: &[u8]) -> NbtTag {
+    let mut cursor = Cursor::new(bytes);
+    let tree = mcrs_minecraft_nbt::from_bytes_unnamed(&mut cursor).unwrap();
+    assert_eq!(
+        cursor.position(),
+        u64::try_from(bytes.len()).unwrap(),
+        "the component is one NBT value with no trailing bytes"
+    );
+    sorted(tree)
+}
+
 fn wire_matches(kind: DataComponentType, ours: &[u8], vanilla: &[u8]) -> bool {
     if kind == DataComponentType::MapDecorations {
-        nbt_tree(ours) == nbt_tree(vanilla)
+        whole_nbt_tree(ours) == whole_nbt_tree(vanilla)
     } else {
         ours == vanilla
     }

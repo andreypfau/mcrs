@@ -505,8 +505,14 @@ fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: us
         return;
     }
     let tree = |bytes: &[u8]| {
-        NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(bytes)))
-            .expect("the component is one NBT value")
+        let mut reader = NbtReadHelper::new(Cursor::new(bytes));
+        let tag = NbtTag::deserialize(&mut reader).expect("the component is one NBT value");
+        assert_eq!(
+            reader.position().expect("a cursor knows its position"),
+            u64::try_from(bytes.len()).expect("a buffer length fits in 64 bits"),
+            "{kind}: the component has no bytes after its NBT value"
+        );
+        tag
     };
     let (written_header, written_tree) = written.split_at(header);
     let (expected_header, expected_tree) = expected.split_at(header);
