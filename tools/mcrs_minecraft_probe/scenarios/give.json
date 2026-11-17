@@ -582,6 +582,19 @@
       }
     },
     {
+      "id": "sound_boundary_fraction",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "tp GiveProbeA 0.06 100.0 0.0",
+          "tp GiveProbeB 16.05 100.0 0.0",
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
       "id": "sound_other_dimension.setup",
       "console": {
         "lines": [

@@ -184,19 +184,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.4660478,
-          "seed": 8284645178385861951
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -206,8 +193,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4660478,
-          "seed": 8284645178385861951
+          "pitch": 2.1184125,
+          "seed": -8900788145393628191
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1184125,
+          "seed": -8900788145393628191
         }
       ],
       "command_trees": []
@@ -248,19 +248,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.8524361,
-          "seed": 3256662823661501803
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -270,8 +257,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8524361,
-          "seed": 3256662823661501803
+          "pitch": 1.9224981,
+          "seed": 5404412806163645086
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9224981,
+          "seed": 5404412806163645086
         },
         {
           "client": "GiveProbeA",
@@ -283,8 +283,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5337205,
-          "seed": -20255754884160031
+          "pitch": 1.9435977,
+          "seed": 9070385457083559566
         },
         {
           "client": "GiveProbeB",
@@ -296,8 +296,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5337205,
-          "seed": -20255754884160031
+          "pitch": 1.9435977,
+          "seed": 9070385457083559566
         }
       ],
       "command_trees": []
@@ -658,8 +658,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8450598,
-          "seed": -3308959145411169580
+          "pitch": 1.101553,
+          "seed": -3589345745336326359
         },
         {
           "client": "GiveProbeA",
@@ -671,8 +671,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8450598,
-          "seed": -3308959145411169580
+          "pitch": 1.101553,
+          "seed": -3589345745336326359
         }
       ],
       "command_trees": []
@@ -743,8 +743,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0796943,
-          "seed": 4379387293338818359
+          "pitch": 2.2086306,
+          "seed": -1425638640909356158
         },
         {
           "client": "GiveProbeA",
@@ -756,8 +756,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0796943,
-          "seed": 4379387293338818359
+          "pitch": 2.2086306,
+          "seed": -1425638640909356158
         }
       ],
       "command_trees": []
@@ -819,19 +819,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.4854293,
-          "seed": -1602114501618809311
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -841,8 +828,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4854293,
-          "seed": -1602114501618809311
+          "pitch": 2.263378,
+          "seed": -7184681452199534812
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.263378,
+          "seed": -7184681452199534812
         }
       ],
       "command_trees": []
@@ -903,19 +903,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.044348,
-          "seed": -1899297483953228908
-        },
-        {
           "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -925,8 +912,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.044348,
-          "seed": -1899297483953228908
+          "pitch": 2.8766391,
+          "seed": -781762771880640299
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8766391,
+          "seed": -781762771880640299
         }
       ],
       "command_trees": []
@@ -996,19 +996,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.8010093,
-          "seed": 8841431380948137544
-        },
-        {
           "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -1018,8 +1005,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8010093,
-          "seed": 8841431380948137544
+          "pitch": 2.488387,
+          "seed": -9151296570470913461
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.488387,
+          "seed": -9151296570470913461
         }
       ],
       "command_trees": []
@@ -1088,8 +1088,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.166401,
-          "seed": 8107460288387257152
+          "pitch": 2.7542639,
+          "seed": 1870022186455245583
         },
         {
           "client": "GiveProbeA",
@@ -1101,8 +1101,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.166401,
-          "seed": 8107460288387257152
+          "pitch": 2.7542639,
+          "seed": 1870022186455245583
         }
       ],
       "command_trees": []
@@ -1171,19 +1171,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.77072,
-          "seed": 6374204082242739492
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -1193,8 +1180,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.77072,
-          "seed": 6374204082242739492
+          "pitch": 2.5133424,
+          "seed": -807167617030123998
         },
         {
           "client": "GiveProbeB",
@@ -1206,8 +1193,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.82149637,
-          "seed": 7548165092886148274
+          "pitch": 2.5133424,
+          "seed": -807167617030123998
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4330852,
+          "seed": -8204070343471826654
         },
         {
           "client": "GiveProbeA",
@@ -1219,8 +1219,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.82149637,
-          "seed": 7548165092886148274
+          "pitch": 1.4330852,
+          "seed": -8204070343471826654
         }
       ],
       "command_trees": []
@@ -1284,19 +1284,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.9685299,
-          "seed": -2194753301870170928
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -1306,8 +1293,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9685299,
-          "seed": -2194753301870170928
+          "pitch": 2.8210196,
+          "seed": 3548802763260945668
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8210196,
+          "seed": 3548802763260945668
         }
       ],
       "command_trees": []
@@ -1378,8 +1378,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9921491,
-          "seed": -1830986028966842824
+          "pitch": 1.0282803,
+          "seed": -7746629331494471469
         },
         {
           "client": "GiveProbeA",
@@ -1391,21 +1391,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9921491,
-          "seed": -1830986028966842824
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.9677639,
-          "seed": 7613227271874172300
+          "pitch": 1.0282803,
+          "seed": -7746629331494471469
         },
         {
           "client": "GiveProbeB",
@@ -1417,8 +1404,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9677639,
-          "seed": 7613227271874172300
+          "pitch": 2.0378566,
+          "seed": -8737262725127769622
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0378566,
+          "seed": -8737262725127769622
         }
       ],
       "command_trees": []
@@ -1477,19 +1477,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.7626272,
-          "seed": 6046490774346298561
-        },
-        {
           "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -1499,8 +1486,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.7626272,
-          "seed": 6046490774346298561
+          "pitch": 2.3864772,
+          "seed": 8551915008343321973
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3864772,
+          "seed": 8551915008343321973
         }
       ],
       "command_trees": []
@@ -1892,8 +1892,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3423,
-          "seed": 7976958245118986129
+          "pitch": 1.1173867,
+          "seed": 173494357926927797
         },
         {
           "client": "GiveProbeA",
@@ -1905,8 +1905,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3423,
-          "seed": 7976958245118986129
+          "pitch": 1.1173867,
+          "seed": 173494357926927797
         }
       ],
       "command_trees": []
@@ -2010,8 +2010,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4686915,
-          "seed": 4426465888497265285
+          "pitch": 2.2860503,
+          "seed": -8005754604428865744
         },
         {
           "client": "GiveProbeB",
@@ -2023,8 +2023,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5612593,
-          "seed": 5634654948640597647
+          "pitch": 0.9219924,
+          "seed": 5010717492540189113
         },
         {
           "client": "GiveProbeA",
@@ -2036,8 +2036,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4686915,
-          "seed": 4426465888497265285
+          "pitch": 2.2860503,
+          "seed": -8005754604428865744
         },
         {
           "client": "GiveProbeA",
@@ -2049,8 +2049,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5612593,
-          "seed": 5634654948640597647
+          "pitch": 0.9219924,
+          "seed": 5010717492540189113
         }
       ],
       "command_trees": []
@@ -2154,8 +2154,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6021798,
-          "seed": -1972639020579529838
+          "pitch": 1.6759526,
+          "seed": -2130888992466706313
         },
         {
           "client": "GiveProbeB",
@@ -2167,8 +2167,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6274188,
-          "seed": 4353926491718020165
+          "pitch": 1.825736,
+          "seed": -8766754147225939137
         },
         {
           "client": "GiveProbeA",
@@ -2180,8 +2180,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6021798,
-          "seed": -1972639020579529838
+          "pitch": 1.6759526,
+          "seed": -2130888992466706313
         },
         {
           "client": "GiveProbeA",
@@ -2193,8 +2193,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6274188,
-          "seed": 4353926491718020165
+          "pitch": 1.825736,
+          "seed": -8766754147225939137
         }
       ],
       "command_trees": []
@@ -2311,7 +2311,7 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2320,11 +2320,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.971829,
-          "seed": 8095076379402005060
+          "pitch": 1.5802811,
+          "seed": -4903022274896586854
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2333,11 +2333,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.596355,
-          "seed": -5281147539811535438
+          "pitch": 1.0095587,
+          "seed": 2931575880279246068
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2346,11 +2346,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2196987,
-          "seed": 7176782563746832030
+          "pitch": 2.395427,
+          "seed": -5010899873669344491
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2359,11 +2359,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7257364,
-          "seed": -3467134677051785657
+          "pitch": 2.817369,
+          "seed": 2502589801168575116
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2372,11 +2372,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4153888,
-          "seed": 1629966560309383712
+          "pitch": 1.8261787,
+          "seed": -8265878606145475613
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2385,11 +2385,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.7154732,
-          "seed": 4655666274918985556
+          "pitch": 0.9218869,
+          "seed": -6262731324532890237
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2398,11 +2398,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3234475,
-          "seed": 572492355816027873
+          "pitch": 2.9776406,
+          "seed": -7389905122131374820
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2411,11 +2411,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1754432,
-          "seed": 5009326375386301823
+          "pitch": 1.6086075,
+          "seed": 930057325364006044
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2424,11 +2424,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1037486,
-          "seed": -924721721073729561
+          "pitch": 1.9861722,
+          "seed": -3650008847599581707
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2437,11 +2437,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.8813963,
-          "seed": -5363556168115641536
+          "pitch": 1.5203704,
+          "seed": -396724012010170808
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2450,11 +2450,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.000881,
-          "seed": -2922844717293290824
+          "pitch": 2.3075438,
+          "seed": -7267320545186142160
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2463,11 +2463,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.849866,
-          "seed": 4065261652889261714
+          "pitch": 1.5423943,
+          "seed": 1984156355686821435
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2476,11 +2476,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.8560171,
-          "seed": 6866020644236586544
+          "pitch": 0.78489923,
+          "seed": -1515897807221351979
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2489,11 +2489,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3169123,
-          "seed": -9136260570741307930
+          "pitch": 1.83724,
+          "seed": -8317476694925086661
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2502,11 +2502,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.41353,
-          "seed": -8251010379550272875
+          "pitch": 2.3572328,
+          "seed": -1450345591225102814
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2515,11 +2515,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4527292,
-          "seed": -4448404234706356133
+          "pitch": 1.91608,
+          "seed": -1852186508454425542
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2528,11 +2528,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7328773,
-          "seed": 6417200118348658408
+          "pitch": 1.8244396,
+          "seed": 2770881731198785983
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2541,11 +2541,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.095127,
-          "seed": -3943263327486300884
+          "pitch": 1.2889092,
+          "seed": -3220322272118040665
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2554,11 +2554,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1282036,
-          "seed": -7284913749710952579
+          "pitch": 2.684943,
+          "seed": -7609867214611425739
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2567,11 +2567,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5200987,
-          "seed": -4509617367240083862
+          "pitch": 1.8805342,
+          "seed": -5664048765885964288
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2580,11 +2580,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4804562,
-          "seed": -7103176846905218611
+          "pitch": 1.0462558,
+          "seed": 169773556440107169
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2593,11 +2593,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.930081,
-          "seed": 2748571096954243818
+          "pitch": 1.6524047,
+          "seed": -7750235588783615317
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2606,11 +2606,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9987534,
-          "seed": -1870440252178243189
+          "pitch": 1.2299614,
+          "seed": -5306644608548814940
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2619,11 +2619,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2355869,
-          "seed": 3323765970340168576
+          "pitch": 2.3662164,
+          "seed": 1088974974719626758
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2632,11 +2632,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.2110481,
-          "seed": -4728317396789349644
+          "pitch": 1.3153393,
+          "seed": 2109802499567934621
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2645,11 +2645,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0015833,
-          "seed": -3005056105570863252
+          "pitch": 1.8097864,
+          "seed": 8389879569235505084
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2658,11 +2658,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9629719,
-          "seed": 4856339467497813611
+          "pitch": 2.167555,
+          "seed": 3357347343681207322
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2671,11 +2671,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.156793,
-          "seed": -5652793231113049068
+          "pitch": 1.7376024,
+          "seed": 4902768938480235610
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2684,11 +2684,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.284872,
-          "seed": -6401671138042146492
+          "pitch": 2.6668231,
+          "seed": -760886295720234613
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2697,11 +2697,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3149788,
-          "seed": -690492318684967949
+          "pitch": 2.128746,
+          "seed": 3664148615543749665
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2710,11 +2710,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6996726,
-          "seed": 1463266762633086943
+          "pitch": 1.9965911,
+          "seed": -7280245087632225736
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2723,11 +2723,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4876742,
-          "seed": -5670800489510643503
+          "pitch": 1.8171964,
+          "seed": -5040882567400732387
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2736,11 +2736,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.200023,
-          "seed": -7312095804943344391
+          "pitch": 1.1764121,
+          "seed": -2975765037935522956
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2749,11 +2749,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.39577,
-          "seed": 868623517668494644
+          "pitch": 1.5999151,
+          "seed": 6942479462965496438
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2762,11 +2762,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.396461,
-          "seed": 8668527905094128190
+          "pitch": 1.6661236,
+          "seed": -5062878325557649390
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2775,11 +2775,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1932504,
-          "seed": -3845417423292292842
+          "pitch": 1.485213,
+          "seed": -8344527538703644411
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2788,11 +2788,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4146756,
-          "seed": 6456029023733915169
+          "pitch": 2.6490123,
+          "seed": -4886247441326528232
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2801,11 +2801,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8046091,
-          "seed": 4398931154753070551
+          "pitch": 1.922829,
+          "seed": -5004348525269038806
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2814,11 +2814,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7331219,
-          "seed": 246511682387503856
+          "pitch": 2.3371818,
+          "seed": 6098721468420138418
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2827,11 +2827,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9867241,
-          "seed": 5231690624901229940
+          "pitch": 2.7360792,
+          "seed": 8948290725816481244
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2840,11 +2840,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.561817,
-          "seed": -3762104434250927326
+          "pitch": 1.795925,
+          "seed": 4524641711240390249
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2853,11 +2853,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6503193,
-          "seed": -2149598734689128199
+          "pitch": 1.6185219,
+          "seed": -4283675819890661120
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2866,11 +2866,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6935353,
-          "seed": -404397172149416205
+          "pitch": 1.5428426,
+          "seed": -4174189964742738028
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2879,11 +2879,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0370816,
-          "seed": 8700589202976762420
+          "pitch": 2.2571208,
+          "seed": 8066506134529172734
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2892,11 +2892,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.1888494,
-          "seed": 3660431106431108914
+          "pitch": 2.714238,
+          "seed": -4457295287476539634
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2905,11 +2905,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0506344,
-          "seed": -4635557302496406358
+          "pitch": 2.39385,
+          "seed": -6569073999143677038
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2918,11 +2918,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4938502,
-          "seed": -6085710484331970215
+          "pitch": 1.9885494,
+          "seed": -7840179009205589719
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2931,11 +2931,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.538824,
-          "seed": -2155117443163928113
+          "pitch": 1.884306,
+          "seed": -1399608063447032353
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2944,11 +2944,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.11058,
-          "seed": -5785642930859730722
+          "pitch": 1.4957149,
+          "seed": -1017865595720826655
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2957,11 +2957,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1412479,
-          "seed": 1345878490552052848
+          "pitch": 2.6477382,
+          "seed": -3760324529561259575
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2970,11 +2970,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0210018,
-          "seed": -7358763899029456440
+          "pitch": 1.6859946,
+          "seed": 4017562816618340180
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2983,11 +2983,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0404224,
-          "seed": 5377521313785862003
+          "pitch": 2.2551556,
+          "seed": -2182735120940021629
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -2996,11 +2996,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6867363,
-          "seed": -6869430152765927292
+          "pitch": 1.6023624,
+          "seed": 5277100620931726961
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3009,11 +3009,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7238827,
-          "seed": -3556174341663636541
+          "pitch": 2.7517788,
+          "seed": 7518190351860515430
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3022,11 +3022,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6332834,
-          "seed": -3054519152897973512
+          "pitch": 1.6470078,
+          "seed": 3236937813973211888
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3035,11 +3035,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7777839,
-          "seed": 2843978838606158213
+          "pitch": 1.4289265,
+          "seed": 9145230672532007940
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3048,11 +3048,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5032632,
-          "seed": 2934273535716632280
+          "pitch": 1.3945711,
+          "seed": -3503747207693168255
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3061,11 +3061,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1207066,
-          "seed": -2717022754696388465
+          "pitch": 1.9695011,
+          "seed": 4164239996617457789
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3074,11 +3074,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9150271,
-          "seed": 873719700976757049
+          "pitch": 1.4348574,
+          "seed": 7534272498473753415
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3087,11 +3087,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.142317,
-          "seed": -8333563076517739495
+          "pitch": 1.624223,
+          "seed": -4980293034816144112
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3100,11 +3100,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9400663,
-          "seed": 410398746240523107
+          "pitch": 2.2907412,
+          "seed": 7702413834685930887
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3113,11 +3113,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1907914,
-          "seed": -2902790290674115147
+          "pitch": 1.3786869,
+          "seed": -2181868913438057995
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3126,11 +3126,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1266823,
-          "seed": -8126563139605505814
+          "pitch": 2.930155,
+          "seed": 1052855875873489052
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3139,11 +3139,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4734002,
-          "seed": -1206976784302720132
+          "pitch": 1.6028299,
+          "seed": -6171032840279524247
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3152,11 +3152,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.1225948,
-          "seed": -5600981565232121089
+          "pitch": 1.564278,
+          "seed": 3417290426883654190
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3165,11 +3165,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0768976,
-          "seed": 552053547608905097
+          "pitch": 2.6055486,
+          "seed": 8145683960087770633
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3178,11 +3178,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.8222876,
-          "seed": -3316795427299701501
+          "pitch": 2.2996686,
+          "seed": -3274093065401862493
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3191,11 +3191,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9212817,
-          "seed": 2105267276811429547
+          "pitch": 2.431633,
+          "seed": -4386730492536724125
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3204,11 +3204,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.085118,
-          "seed": -5431450259525110180
+          "pitch": 2.1049292,
+          "seed": -3430143585172574764
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3217,11 +3217,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9375925,
-          "seed": 2602074779143527509
+          "pitch": 1.1319255,
+          "seed": -8121714040445006903
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3230,11 +3230,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.099304,
-          "seed": -6940780555454108276
+          "pitch": 0.8899394,
+          "seed": -7842424011968057596
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3243,11 +3243,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.375644,
-          "seed": -8236367210435685927
+          "pitch": 1.6193277,
+          "seed": -5944136857342481303
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3256,11 +3256,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.971829,
-          "seed": 8095076379402005060
+          "pitch": 1.5802811,
+          "seed": -4903022274896586854
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3269,11 +3269,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.596355,
-          "seed": -5281147539811535438
+          "pitch": 1.0095587,
+          "seed": 2931575880279246068
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3282,11 +3282,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2196987,
-          "seed": 7176782563746832030
+          "pitch": 2.395427,
+          "seed": -5010899873669344491
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3295,11 +3295,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7257364,
-          "seed": -3467134677051785657
+          "pitch": 2.817369,
+          "seed": 2502589801168575116
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3308,11 +3308,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4153888,
-          "seed": 1629966560309383712
+          "pitch": 1.8261787,
+          "seed": -8265878606145475613
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3321,11 +3321,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.7154732,
-          "seed": 4655666274918985556
+          "pitch": 0.9218869,
+          "seed": -6262731324532890237
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3334,11 +3334,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3234475,
-          "seed": 572492355816027873
+          "pitch": 2.9776406,
+          "seed": -7389905122131374820
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3347,11 +3347,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1754432,
-          "seed": 5009326375386301823
+          "pitch": 1.6086075,
+          "seed": 930057325364006044
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3360,11 +3360,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1037486,
-          "seed": -924721721073729561
+          "pitch": 1.9861722,
+          "seed": -3650008847599581707
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3373,11 +3373,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.8813963,
-          "seed": -5363556168115641536
+          "pitch": 1.5203704,
+          "seed": -396724012010170808
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3386,11 +3386,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.000881,
-          "seed": -2922844717293290824
+          "pitch": 2.3075438,
+          "seed": -7267320545186142160
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3399,11 +3399,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.849866,
-          "seed": 4065261652889261714
+          "pitch": 1.5423943,
+          "seed": 1984156355686821435
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3412,11 +3412,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.8560171,
-          "seed": 6866020644236586544
+          "pitch": 0.78489923,
+          "seed": -1515897807221351979
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3425,11 +3425,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3169123,
-          "seed": -9136260570741307930
+          "pitch": 1.83724,
+          "seed": -8317476694925086661
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3438,11 +3438,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.41353,
-          "seed": -8251010379550272875
+          "pitch": 2.3572328,
+          "seed": -1450345591225102814
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3451,11 +3451,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4527292,
-          "seed": -4448404234706356133
+          "pitch": 1.91608,
+          "seed": -1852186508454425542
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3464,11 +3464,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7328773,
-          "seed": 6417200118348658408
+          "pitch": 1.8244396,
+          "seed": 2770881731198785983
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3477,11 +3477,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.095127,
-          "seed": -3943263327486300884
+          "pitch": 1.2889092,
+          "seed": -3220322272118040665
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3490,11 +3490,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1282036,
-          "seed": -7284913749710952579
+          "pitch": 2.684943,
+          "seed": -7609867214611425739
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3503,11 +3503,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5200987,
-          "seed": -4509617367240083862
+          "pitch": 1.8805342,
+          "seed": -5664048765885964288
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3516,11 +3516,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4804562,
-          "seed": -7103176846905218611
+          "pitch": 1.0462558,
+          "seed": 169773556440107169
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3529,11 +3529,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.930081,
-          "seed": 2748571096954243818
+          "pitch": 1.6524047,
+          "seed": -7750235588783615317
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3542,11 +3542,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9987534,
-          "seed": -1870440252178243189
+          "pitch": 1.2299614,
+          "seed": -5306644608548814940
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3555,11 +3555,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2355869,
-          "seed": 3323765970340168576
+          "pitch": 2.3662164,
+          "seed": 1088974974719626758
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3568,11 +3568,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.2110481,
-          "seed": -4728317396789349644
+          "pitch": 1.3153393,
+          "seed": 2109802499567934621
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3581,11 +3581,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0015833,
-          "seed": -3005056105570863252
+          "pitch": 1.8097864,
+          "seed": 8389879569235505084
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3594,11 +3594,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9629719,
-          "seed": 4856339467497813611
+          "pitch": 2.167555,
+          "seed": 3357347343681207322
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3607,11 +3607,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.156793,
-          "seed": -5652793231113049068
+          "pitch": 1.7376024,
+          "seed": 4902768938480235610
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3620,11 +3620,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.284872,
-          "seed": -6401671138042146492
+          "pitch": 2.6668231,
+          "seed": -760886295720234613
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3633,11 +3633,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3149788,
-          "seed": -690492318684967949
+          "pitch": 2.128746,
+          "seed": 3664148615543749665
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3646,11 +3646,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6996726,
-          "seed": 1463266762633086943
+          "pitch": 1.9965911,
+          "seed": -7280245087632225736
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3659,11 +3659,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4876742,
-          "seed": -5670800489510643503
+          "pitch": 1.8171964,
+          "seed": -5040882567400732387
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3672,11 +3672,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.200023,
-          "seed": -7312095804943344391
+          "pitch": 1.1764121,
+          "seed": -2975765037935522956
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3685,11 +3685,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.39577,
-          "seed": 868623517668494644
+          "pitch": 1.5999151,
+          "seed": 6942479462965496438
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3698,11 +3698,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.396461,
-          "seed": 8668527905094128190
+          "pitch": 1.6661236,
+          "seed": -5062878325557649390
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3711,11 +3711,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1932504,
-          "seed": -3845417423292292842
+          "pitch": 1.485213,
+          "seed": -8344527538703644411
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3724,11 +3724,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4146756,
-          "seed": 6456029023733915169
+          "pitch": 2.6490123,
+          "seed": -4886247441326528232
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3737,11 +3737,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8046091,
-          "seed": 4398931154753070551
+          "pitch": 1.922829,
+          "seed": -5004348525269038806
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3750,11 +3750,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7331219,
-          "seed": 246511682387503856
+          "pitch": 2.3371818,
+          "seed": 6098721468420138418
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3763,11 +3763,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9867241,
-          "seed": 5231690624901229940
+          "pitch": 2.7360792,
+          "seed": 8948290725816481244
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3776,11 +3776,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.561817,
-          "seed": -3762104434250927326
+          "pitch": 1.795925,
+          "seed": 4524641711240390249
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3789,11 +3789,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6503193,
-          "seed": -2149598734689128199
+          "pitch": 1.6185219,
+          "seed": -4283675819890661120
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3802,11 +3802,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6935353,
-          "seed": -404397172149416205
+          "pitch": 1.5428426,
+          "seed": -4174189964742738028
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3815,11 +3815,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0370816,
-          "seed": 8700589202976762420
+          "pitch": 2.2571208,
+          "seed": 8066506134529172734
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3828,11 +3828,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.1888494,
-          "seed": 3660431106431108914
+          "pitch": 2.714238,
+          "seed": -4457295287476539634
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3841,11 +3841,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0506344,
-          "seed": -4635557302496406358
+          "pitch": 2.39385,
+          "seed": -6569073999143677038
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3854,11 +3854,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4938502,
-          "seed": -6085710484331970215
+          "pitch": 1.9885494,
+          "seed": -7840179009205589719
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3867,11 +3867,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.538824,
-          "seed": -2155117443163928113
+          "pitch": 1.884306,
+          "seed": -1399608063447032353
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3880,11 +3880,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.11058,
-          "seed": -5785642930859730722
+          "pitch": 1.4957149,
+          "seed": -1017865595720826655
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3893,11 +3893,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1412479,
-          "seed": 1345878490552052848
+          "pitch": 2.6477382,
+          "seed": -3760324529561259575
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3906,11 +3906,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0210018,
-          "seed": -7358763899029456440
+          "pitch": 1.6859946,
+          "seed": 4017562816618340180
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3919,11 +3919,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0404224,
-          "seed": 5377521313785862003
+          "pitch": 2.2551556,
+          "seed": -2182735120940021629
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3932,11 +3932,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6867363,
-          "seed": -6869430152765927292
+          "pitch": 1.6023624,
+          "seed": 5277100620931726961
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3945,11 +3945,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7238827,
-          "seed": -3556174341663636541
+          "pitch": 2.7517788,
+          "seed": 7518190351860515430
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3958,11 +3958,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6332834,
-          "seed": -3054519152897973512
+          "pitch": 1.6470078,
+          "seed": 3236937813973211888
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3971,11 +3971,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.7777839,
-          "seed": 2843978838606158213
+          "pitch": 1.4289265,
+          "seed": 9145230672532007940
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3984,11 +3984,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5032632,
-          "seed": 2934273535716632280
+          "pitch": 1.3945711,
+          "seed": -3503747207693168255
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -3997,11 +3997,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1207066,
-          "seed": -2717022754696388465
+          "pitch": 1.9695011,
+          "seed": 4164239996617457789
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4010,11 +4010,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9150271,
-          "seed": 873719700976757049
+          "pitch": 1.4348574,
+          "seed": 7534272498473753415
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4023,11 +4023,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.142317,
-          "seed": -8333563076517739495
+          "pitch": 1.624223,
+          "seed": -4980293034816144112
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4036,11 +4036,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9400663,
-          "seed": 410398746240523107
+          "pitch": 2.2907412,
+          "seed": 7702413834685930887
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4049,11 +4049,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1907914,
-          "seed": -2902790290674115147
+          "pitch": 1.3786869,
+          "seed": -2181868913438057995
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4062,11 +4062,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.1266823,
-          "seed": -8126563139605505814
+          "pitch": 2.930155,
+          "seed": 1052855875873489052
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4075,11 +4075,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4734002,
-          "seed": -1206976784302720132
+          "pitch": 1.6028299,
+          "seed": -6171032840279524247
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4088,11 +4088,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.1225948,
-          "seed": -5600981565232121089
+          "pitch": 1.564278,
+          "seed": 3417290426883654190
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4101,11 +4101,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0768976,
-          "seed": 552053547608905097
+          "pitch": 2.6055486,
+          "seed": 8145683960087770633
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4114,11 +4114,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.8222876,
-          "seed": -3316795427299701501
+          "pitch": 2.2996686,
+          "seed": -3274093065401862493
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4127,11 +4127,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9212817,
-          "seed": 2105267276811429547
+          "pitch": 2.431633,
+          "seed": -4386730492536724125
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4140,11 +4140,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.085118,
-          "seed": -5431450259525110180
+          "pitch": 2.1049292,
+          "seed": -3430143585172574764
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4153,11 +4153,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9375925,
-          "seed": 2602074779143527509
+          "pitch": 1.1319255,
+          "seed": -8121714040445006903
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4166,11 +4166,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.099304,
-          "seed": -6940780555454108276
+          "pitch": 0.8899394,
+          "seed": -7842424011968057596
         },
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -4179,8 +4179,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.375644,
-          "seed": -8236367210435685927
+          "pitch": 1.6193277,
+          "seed": -5944136857342481303
         }
       ],
       "command_trees": []
@@ -4303,8 +4303,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.7389171,
-          "seed": -1998304910253913985
+          "pitch": 2.6244817,
+          "seed": 1071550635891764187
         },
         {
           "client": "GiveProbeB",
@@ -4316,8 +4316,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.6206121,
-          "seed": -6727317633210447147
+          "pitch": 2.287508,
+          "seed": 6141684759326690680
         },
         {
           "client": "GiveProbeB",
@@ -4329,8 +4329,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0993102,
-          "seed": -6939004554955686365
+          "pitch": 0.6587584,
+          "seed": 8899836124555754526
         },
         {
           "client": "GiveProbeB",
@@ -4342,8 +4342,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.6778216,
-          "seed": -2739873515687206675
+          "pitch": 3.2276402,
+          "seed": 2338198490378651314
         },
         {
           "client": "GiveProbeB",
@@ -4355,8 +4355,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.2916372,
-          "seed": 7204563573962665278
+          "pitch": 2.2471106,
+          "seed": 3147698691895843387
         },
         {
           "client": "GiveProbeB",
@@ -4368,8 +4368,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5987633,
-          "seed": -6107158815985952582
+          "pitch": 1.8687148,
+          "seed": -9186578117127247199
         },
         {
           "client": "GiveProbeB",
@@ -4381,8 +4381,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3656242,
-          "seed": -8131825410529444741
+          "pitch": 2.9616048,
+          "seed": -1140837906709132413
         },
         {
           "client": "GiveProbeB",
@@ -4394,8 +4394,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.337615,
-          "seed": 9116248260957295105
+          "pitch": 2.110319,
+          "seed": 3822953822373417885
         },
         {
           "client": "GiveProbeB",
@@ -4407,8 +4407,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.816484,
-          "seed": 501362170234857413
+          "pitch": 1.3472896,
+          "seed": 3555719537968757926
         },
         {
           "client": "GiveProbeB",
@@ -4420,8 +4420,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.199631,
-          "seed": 3790049605091804967
+          "pitch": 1.9733719,
+          "seed": 5962730290992052876
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6244817,
+          "seed": 1071550635891764187
         },
         {
           "client": "GiveProbeB",
@@ -4433,8 +4446,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5797248,
-          "seed": -599321284432589097
+          "pitch": 0.8093841,
+          "seed": 4061590675046994025
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.287508,
+          "seed": 6141684759326690680
         },
         {
           "client": "GiveProbeB",
@@ -4446,8 +4472,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8339049,
-          "seed": 3766026199178596324
+          "pitch": 2.2463834,
+          "seed": 1880133005448988347
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.6587584,
+          "seed": 8899836124555754526
         },
         {
           "client": "GiveProbeB",
@@ -4459,8 +4498,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6273932,
-          "seed": -2699895320208320237
+          "pitch": 2.5715737,
+          "seed": -9145045585599928938
         },
         {
           "client": "GiveProbeB",
@@ -4472,8 +4511,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5562243,
-          "seed": 2513592111774653239
+          "pitch": 1.4558123,
+          "seed": -4156723422392547600
         },
         {
           "client": "GiveProbeA",
@@ -4485,8 +4524,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.7389171,
-          "seed": -1998304910253913985
+          "pitch": 3.2276402,
+          "seed": 2338198490378651314
         },
         {
           "client": "GiveProbeB",
@@ -4498,8 +4537,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 3.0228944,
-          "seed": 1224061151661507219
+          "pitch": 2.162646,
+          "seed": 6469406874323257396
         },
         {
           "client": "GiveProbeA",
@@ -4511,8 +4550,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.6206121,
-          "seed": -6727317633210447147
+          "pitch": 2.2471106,
+          "seed": 3147698691895843387
         },
         {
           "client": "GiveProbeB",
@@ -4524,8 +4563,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0273783,
-          "seed": 2327811915706619033
+          "pitch": 1.5087124,
+          "seed": -206015316357273665
         },
         {
           "client": "GiveProbeA",
@@ -4537,8 +4576,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.0993102,
-          "seed": -6939004554955686365
+          "pitch": 1.8687148,
+          "seed": -9186578117127247199
         },
         {
           "client": "GiveProbeB",
@@ -4550,8 +4589,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.879106,
-          "seed": -7481504731114953090
+          "pitch": 1.3523611,
+          "seed": -3865429062148046344
         },
         {
           "client": "GiveProbeA",
@@ -4563,8 +4602,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.6778216,
-          "seed": -2739873515687206675
+          "pitch": 2.9616048,
+          "seed": -1140837906709132413
         },
         {
           "client": "GiveProbeB",
@@ -4576,8 +4615,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8180448,
-          "seed": -380237744084146059
+          "pitch": 2.4540088,
+          "seed": 6277489845516139292
         },
         {
           "client": "GiveProbeA",
@@ -4589,21 +4628,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.2916372,
-          "seed": 7204563573962665278
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.5987633,
-          "seed": -6107158815985952582
+          "pitch": 2.110319,
+          "seed": 3822953822373417885
         },
         {
           "client": "GiveProbeB",
@@ -4615,8 +4641,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9929471,
-          "seed": -1685827862832178532
+          "pitch": 2.3641171,
+          "seed": -7952877549053395461
         },
         {
           "client": "GiveProbeA",
@@ -4628,8 +4654,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3656242,
-          "seed": -8131825410529444741
+          "pitch": 1.3472896,
+          "seed": 3555719537968757926
         },
         {
           "client": "GiveProbeB",
@@ -4641,21 +4667,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2110515,
-          "seed": -3435340944920732714
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.337615,
-          "seed": 9116248260957295105
+          "pitch": 1.9057738,
+          "seed": -8009104280052357839
         },
         {
           "client": "GiveProbeB",
@@ -4667,8 +4680,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.960577,
-          "seed": -3057203653741350869
+          "pitch": 2.006518,
+          "seed": 8664577501372249004
         },
         {
           "client": "GiveProbeA",
@@ -4680,8 +4693,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.816484,
-          "seed": 501362170234857413
+          "pitch": 1.9733719,
+          "seed": 5962730290992052876
         },
         {
           "client": "GiveProbeB",
@@ -4693,8 +4706,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9933689,
-          "seed": -5344673365467042974
+          "pitch": 1.3138785,
+          "seed": -3598819146314448270
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.8093841,
+          "seed": 4061590675046994025
         },
         {
           "client": "GiveProbeB",
@@ -4706,8 +4732,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6352503,
-          "seed": -2148470935983591950
+          "pitch": 2.0656765,
+          "seed": 5068972570251185415
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2463834,
+          "seed": 1880133005448988347
         },
         {
           "client": "GiveProbeB",
@@ -4719,21 +4758,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9041076,
-          "seed": 8849607732706207110
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.199631,
-          "seed": 3790049605091804967
+          "pitch": 2.4129565,
+          "seed": -8507069540857750803
         },
         {
           "client": "GiveProbeB",
@@ -4745,21 +4771,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9611976,
-          "seed": -2091111324800510057
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.5797248,
-          "seed": -599321284432589097
+          "pitch": 1.9748911,
+          "seed": 1696457946653359110
         },
         {
           "client": "GiveProbeB",
@@ -4771,8 +4784,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4240189,
-          "seed": -8405407500647828494
+          "pitch": 1.200843,
+          "seed": 6595762178025813734
         },
         {
           "client": "GiveProbeA",
@@ -4784,8 +4797,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8339049,
-          "seed": 3766026199178596324
+          "pitch": 2.5715737,
+          "seed": -9145045585599928938
         },
         {
           "client": "GiveProbeB",
@@ -4797,8 +4810,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.95101523,
-          "seed": 2333750549368903213
+          "pitch": 1.6305054,
+          "seed": 6912503917578335064
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4558123,
+          "seed": -4156723422392547600
         },
         {
           "client": "GiveProbeB",
@@ -4810,8 +4836,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.972037,
-          "seed": 4756036776853981256
+          "pitch": 1.8761293,
+          "seed": 4197808970561874082
         },
         {
           "client": "GiveProbeA",
@@ -4823,8 +4849,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6273932,
-          "seed": -2699895320208320237
+          "pitch": 2.162646,
+          "seed": 6469406874323257396
         },
         {
           "client": "GiveProbeB",
@@ -4836,8 +4862,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8826104,
-          "seed": 7650841632006870545
+          "pitch": 2.1671798,
+          "seed": -4494785033073248688
         },
         {
           "client": "GiveProbeA",
@@ -4849,21 +4875,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.5562243,
-          "seed": 2513592111774653239
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 3.0228944,
-          "seed": 1224061151661507219
+          "pitch": 1.5087124,
+          "seed": -206015316357273665
         },
         {
           "client": "GiveProbeB",
@@ -4875,8 +4888,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4331747,
-          "seed": 730590290224128015
+          "pitch": 2.8972933,
+          "seed": -749560693446238333
         },
         {
           "client": "GiveProbeA",
@@ -4888,8 +4901,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0273783,
-          "seed": 2327811915706619033
+          "pitch": 1.3523611,
+          "seed": -3865429062148046344
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4540088,
+          "seed": 6277489845516139292
         },
         {
           "client": "GiveProbeB",
@@ -4901,8 +4927,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2489941,
-          "seed": 7851285286261468661
+          "pitch": 1.7698102,
+          "seed": 7231293169168020512
         },
         {
           "client": "GiveProbeA",
@@ -4914,8 +4940,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.879106,
-          "seed": -7481504731114953090
+          "pitch": 2.3641171,
+          "seed": -7952877549053395461
         },
         {
           "client": "GiveProbeB",
@@ -4927,8 +4953,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4601086,
-          "seed": 5253480087338832877
+          "pitch": 2.121626,
+          "seed": -4284562082334566316
         },
         {
           "client": "GiveProbeA",
@@ -4940,8 +4966,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8180448,
-          "seed": -380237744084146059
+          "pitch": 1.9057738,
+          "seed": -8009104280052357839
         },
         {
           "client": "GiveProbeB",
@@ -4953,21 +4979,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.536865,
-          "seed": 771863445971018557
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.9929471,
-          "seed": -1685827862832178532
+          "pitch": 1.5227396,
+          "seed": 3213428902532784710
         },
         {
           "client": "GiveProbeB",
@@ -4979,8 +4992,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.0109947,
-          "seed": -5238149180424018411
+          "pitch": 2.06197,
+          "seed": 4354078598875004646
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.006518,
+          "seed": 8664577501372249004
         },
         {
           "client": "GiveProbeB",
@@ -4992,8 +5018,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.237194,
-          "seed": -4271628969697140855
+          "pitch": 1.1321088,
+          "seed": 5586655929464556101
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3138785,
+          "seed": -3598819146314448270
         },
         {
           "client": "GiveProbeB",
@@ -5005,8 +5044,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.013936,
-          "seed": 4755250900751025149
+          "pitch": 3.0967107,
+          "seed": 6180780013511562459
         },
         {
           "client": "GiveProbeA",
@@ -5018,8 +5057,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2110515,
-          "seed": -3435340944920732714
+          "pitch": 2.0656765,
+          "seed": 5068972570251185415
         },
         {
           "client": "GiveProbeA",
@@ -5031,8 +5070,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.960577,
-          "seed": -3057203653741350869
+          "pitch": 2.4129565,
+          "seed": -8507069540857750803
         },
         {
           "client": "GiveProbeA",
@@ -5044,8 +5083,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9933689,
-          "seed": -5344673365467042974
+          "pitch": 1.9748911,
+          "seed": 1696457946653359110
         },
         {
           "client": "GiveProbeA",
@@ -5057,8 +5096,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.6352503,
-          "seed": -2148470935983591950
+          "pitch": 1.200843,
+          "seed": 6595762178025813734
         },
         {
           "client": "GiveProbeA",
@@ -5070,8 +5109,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9041076,
-          "seed": 8849607732706207110
+          "pitch": 1.6305054,
+          "seed": 6912503917578335064
         },
         {
           "client": "GiveProbeA",
@@ -5083,8 +5122,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.9611976,
-          "seed": -2091111324800510057
+          "pitch": 1.8761293,
+          "seed": 4197808970561874082
         },
         {
           "client": "GiveProbeA",
@@ -5096,8 +5135,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.4240189,
-          "seed": -8405407500647828494
+          "pitch": 2.1671798,
+          "seed": -4494785033073248688
         },
         {
           "client": "GiveProbeA",
@@ -5109,8 +5148,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 0.95101523,
-          "seed": 2333750549368903213
+          "pitch": 2.8972933,
+          "seed": -749560693446238333
         },
         {
           "client": "GiveProbeA",
@@ -5122,8 +5161,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.972037,
-          "seed": 4756036776853981256
+          "pitch": 1.7698102,
+          "seed": 7231293169168020512
         },
         {
           "client": "GiveProbeA",
@@ -5135,8 +5174,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8826104,
-          "seed": 7650841632006870545
+          "pitch": 2.121626,
+          "seed": -4284562082334566316
         },
         {
           "client": "GiveProbeA",
@@ -5148,8 +5187,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4331747,
-          "seed": 730590290224128015
+          "pitch": 1.5227396,
+          "seed": 3213428902532784710
         },
         {
           "client": "GiveProbeA",
@@ -5161,8 +5200,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2489941,
-          "seed": 7851285286261468661
+          "pitch": 2.06197,
+          "seed": 4354078598875004646
         },
         {
           "client": "GiveProbeA",
@@ -5174,8 +5213,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.4601086,
-          "seed": 5253480087338832877
+          "pitch": 1.1321088,
+          "seed": 5586655929464556101
         },
         {
           "client": "GiveProbeA",
@@ -5187,47 +5226,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.536865,
-          "seed": 771863445971018557
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.0109947,
-          "seed": -5238149180424018411
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.237194,
-          "seed": -4271628969697140855
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.013936,
-          "seed": 4755250900751025149
+          "pitch": 3.0967107,
+          "seed": 6180780013511562459
         }
       ],
       "command_trees": []
@@ -5367,8 +5367,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3164668,
-          "seed": 7081997001080941458
+          "pitch": 2.175609,
+          "seed": 7976768302937123555
         },
         {
           "client": "GiveProbeB",
@@ -5380,8 +5380,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.949101,
-          "seed": 9212812680405561172
+          "pitch": 1.8342261,
+          "seed": -3800549171535875998
         },
         {
           "client": "GiveProbeA",
@@ -5393,8 +5393,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.3164668,
-          "seed": 7081997001080941458
+          "pitch": 2.175609,
+          "seed": 7976768302937123555
         },
         {
           "client": "GiveProbeA",
@@ -5406,8 +5406,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.949101,
-          "seed": 9212812680405561172
+          "pitch": 1.8342261,
+          "seed": -3800549171535875998
         }
       ],
       "command_trees": []
@@ -5841,16 +5841,16 @@
                           "action": "show_entity",
                           "id": "minecraft:item",
                           "uuid": [
-                            -50769831,
-                            -1690874088,
-                            -1927459009,
-                            -753969109
+                            -485392992,
+                            -1361361900,
+                            -1465005684,
+                            -519499331
                           ],
                           "name": {
                             "translate": "block.minecraft.stone"
                           }
                         },
-                        "insertion": "fcf95059-9b37-4f18-8d1d-4f3fd30f582b"
+                        "insertion": "e3117da0-aedb-4414-a8ad-c98ce10911bd"
                       }
                     ]
                   }
@@ -6047,6 +6047,55 @@
           ],
           "chat": [
             {
+              "client": "GiveProbeB",
+              "text": {
+                "translate": "chat.type.advancement.task",
+                "with": [
+                  {
+                    "text": "GiveProbeB",
+                    "click_event": {
+                      "action": "suggest_command",
+                      "command": "/tell GiveProbeB "
+                    },
+                    "hover_event": {
+                      "action": "show_entity",
+                      "id": "minecraft:player",
+                      "uuid": [
+                        840759516,
+                        1762800863,
+                        -1552040565,
+                        1073703235
+                      ],
+                      "name": "GiveProbeB"
+                    },
+                    "insertion": "GiveProbeB"
+                  },
+                  {
+                    "translate": "chat.square_brackets",
+                    "with": [
+                      {
+                        "translate": "advancements.story.enter_the_nether.title",
+                        "hover_event": {
+                          "action": "show_text",
+                          "value": {
+                            "translate": "advancements.story.enter_the_nether.title",
+                            "extra": [
+                              "\n",
+                              {
+                                "translate": "advancements.story.enter_the_nether.description"
+                              }
+                            ],
+                            "color": "green"
+                          }
+                        }
+                      }
+                    ],
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            {
               "client": "GiveProbeA",
               "text": {
                 "translate": "chat.type.admin",
@@ -6242,73 +6291,11 @@
                 "color": "gray",
                 "italic": true
               }
-            },
-            {
-              "client": "GiveProbeB",
-              "text": {
-                "translate": "chat.type.advancement.task",
-                "with": [
-                  {
-                    "text": "GiveProbeB",
-                    "click_event": {
-                      "action": "suggest_command",
-                      "command": "/tell GiveProbeB "
-                    },
-                    "hover_event": {
-                      "action": "show_entity",
-                      "id": "minecraft:player",
-                      "uuid": [
-                        840759516,
-                        1762800863,
-                        -1552040565,
-                        1073703235
-                      ],
-                      "name": "GiveProbeB"
-                    },
-                    "insertion": "GiveProbeB"
-                  },
-                  {
-                    "translate": "chat.square_brackets",
-                    "with": [
-                      {
-                        "translate": "advancements.story.enter_the_nether.title",
-                        "hover_event": {
-                          "action": "show_text",
-                          "value": {
-                            "translate": "advancements.story.enter_the_nether.title",
-                            "extra": [
-                              "\n",
-                              {
-                                "translate": "advancements.story.enter_the_nether.description"
-                              }
-                            ],
-                            "color": "green"
-                          }
-                        }
-                      }
-                    ],
-                    "color": "green"
-                  }
-                ]
-              }
             }
           ]
         }
       },
       "sounds": [
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 2.7319674,
-          "seed": -3370405135541535098
-        },
         {
           "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
@@ -6319,8 +6306,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3924992,
-          "seed": -2929926526122594544
+          "pitch": 1.6604335,
+          "seed": 5082748208513974336
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1751604,
+          "seed": 8963732367685544130
         }
       ],
       "command_trees": [
@@ -6494,16 +6494,16 @@
                           "action": "show_entity",
                           "id": "minecraft:item",
                           "uuid": [
-                            948310794,
-                            -1536670308,
-                            -1200209767,
-                            2025471496
+                            -613473160,
+                            -545110548,
+                            -1840865078,
+                            759173697
                           ],
                           "name": {
                             "translate": "block.minecraft.stone"
                           }
                         },
-                        "insertion": "3886130a-a468-459c-b876-409978ba3e08"
+                        "insertion": "db6f2478-df82-45ec-9246-a0ca2d401241"
                       }
                     ]
                   }
@@ -6620,19 +6620,6 @@
       },
       "sounds": [
         {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.8662872,
-          "seed": 7607308947591066916
-        },
-        {
           "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
@@ -6642,8 +6629,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8662872,
-          "seed": 7607308947591066916
+          "pitch": 2.5803924,
+          "seed": -3474560381264871830
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5803924,
+          "seed": -3474560381264871830
         }
       ],
       "command_trees": []
@@ -7339,8 +7339,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8733559,
-          "seed": -8720921339031258404
+          "pitch": 1.6382957,
+          "seed": -2163909903845844973
         },
         {
           "client": "GiveProbeA",
@@ -7352,8 +7352,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8733559,
-          "seed": -8720921339031258404
+          "pitch": 1.6382957,
+          "seed": -2163909903845844973
         }
       ],
       "command_trees": []
@@ -7426,16 +7426,16 @@
                           "action": "show_entity",
                           "id": "minecraft:item",
                           "uuid": [
-                            -1047050054,
-                            995377489,
-                            -1571459156,
-                            1407772614
+                            -415702873,
+                            -321240720,
+                            -1220088562,
+                            -72544274
                           ],
                           "name": {
                             "translate": "block.minecraft.stone"
                           }
                         },
-                        "insertion": "c19748ba-3b54-4151-a255-6fac53e8e7c6"
+                        "insertion": "e738e0a7-ecda-4170-b746-ed0efbad0fee"
                       }
                     ]
                   }
@@ -7604,8 +7604,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1352985,
-          "seed": 9042273657451967034
+          "pitch": 2.722515,
+          "seed": 2367644704050553540
         },
         {
           "client": "GiveProbeA",
@@ -7617,8 +7617,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.1352985,
-          "seed": 9042273657451967034
+          "pitch": 2.722515,
+          "seed": 2367644704050553540
         }
       ],
       "command_trees": []
@@ -7642,6 +7642,17 @@
           ],
           "chat": [
             {
+              "client": "GiveProbeB",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.spectator"
+                  }
+                ]
+              }
+            },
+            {
               "client": "GiveProbeA",
               "text": {
                 "translate": "chat.type.admin",
@@ -7660,6 +7671,17 @@
               }
             },
             {
+              "client": "GiveProbeB",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.survival"
+                  }
+                ]
+              }
+            },
+            {
               "client": "GiveProbeA",
               "text": {
                 "translate": "chat.type.admin",
@@ -7674,16 +7696,16 @@
                           "action": "show_entity",
                           "id": "minecraft:item",
                           "uuid": [
-                            -161023100,
-                            -1932177490,
-                            -1745970820,
-                            1422043693
+                            835423374,
+                            -1436923899,
+                            -1475580364,
+                            -357521546
                           ],
                           "name": {
                             "translate": "block.minecraft.stone"
                           }
                         },
-                        "insertion": "f666fb84-8cd5-4fae-97ee-997c54c2aa2d"
+                        "insertion": "31cb8c8e-aa5a-4805-a80c-6e34eab0a776"
                       }
                     ]
                   }
@@ -7985,46 +8007,11 @@
                 "color": "gray",
                 "italic": true
               }
-            },
-            {
-              "client": "GiveProbeB",
-              "text": {
-                "translate": "gameMode.changed",
-                "with": [
-                  {
-                    "translate": "gameMode.spectator"
-                  }
-                ]
-              }
-            },
-            {
-              "client": "GiveProbeB",
-              "text": {
-                "translate": "gameMode.changed",
-                "with": [
-                  {
-                    "translate": "gameMode.survival"
-                  }
-                ]
-              }
             }
           ]
         }
       },
       "sounds": [
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            20,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.2639759,
-          "seed": -5502886089141327824
-        },
         {
           "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
@@ -8035,8 +8022,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2639759,
-          "seed": -5502886089141327824
+          "pitch": 1.7020084,
+          "seed": -7820451427622270642
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7020084,
+          "seed": -7820451427622270642
         }
       ],
       "command_trees": []
@@ -8102,16 +8102,16 @@
                           "action": "show_entity",
                           "id": "minecraft:item",
                           "uuid": [
-                            -554648628,
-                            -1720234228,
-                            -1959868884,
-                            1559231775
+                            -1984120286,
+                            -1166913721,
+                            -1247123290,
+                            1490448388
                           ],
                           "name": {
                             "translate": "block.minecraft.stone"
                           }
                         },
-                        "insertion": "def0bbcc-9977-4f0c-8b2e-c62c5ceffd1f"
+                        "insertion": "89bcba22-ba72-4f47-b5aa-68a658d67004"
                       }
                     ]
                   }
@@ -8240,8 +8240,8 @@
             -21
           ],
           "volume": 0.2,
-          "pitch": 2.237937,
-          "seed": 4587682944175846653
+          "pitch": 3.18226,
+          "seed": 388228591577684012
         },
         {
           "client": "GiveProbeA",
@@ -8253,8 +8253,8 @@
             -21
           ],
           "volume": 0.2,
-          "pitch": 2.237937,
-          "seed": 4587682944175846653
+          "pitch": 3.18226,
+          "seed": 388228591577684012
         }
       ],
       "command_trees": []
@@ -8425,8 +8425,8 @@
             21
           ],
           "volume": 0.2,
-          "pitch": 1.7951096,
-          "seed": -5749841157471750018
+          "pitch": 2.6236305,
+          "seed": -3840508282382501329
         },
         {
           "client": "GiveProbeA",
@@ -8438,8 +8438,8 @@
             21
           ],
           "volume": 0.2,
-          "pitch": 1.7951096,
-          "seed": -5749841157471750018
+          "pitch": 2.6236305,
+          "seed": -3840508282382501329
         }
       ],
       "command_trees": []
@@ -8649,8 +8649,8 @@
             -22
           ],
           "volume": 0.2,
-          "pitch": 3.1788845,
-          "seed": 9223234696836551920
+          "pitch": 1.0194559,
+          "seed": 7684261833385443336
         },
         {
           "client": "GiveProbeA",
@@ -8662,8 +8662,8 @@
             -22
           ],
           "volume": 0.2,
-          "pitch": 3.1788845,
-          "seed": 9223234696836551920
+          "pitch": 1.0194559,
+          "seed": 7684261833385443336
         }
       ],
       "command_trees": []
@@ -8873,8 +8873,219 @@
             0
           ],
           "volume": 0.2,
-          "pitch": 2.4746253,
-          "seed": 6137767544096934500
+          "pitch": 3.0295277,
+          "seed": 912932195928439523
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_boundary_fraction",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Teleported GiveProbeA to 0.060000, 100.000000, 0.000000",
+            "Teleported GiveProbeB to 16.050000, 100.000000, 0.000000",
+            "Gave 1 [Stone] to GiveProbeA"
+          ],
+          "chat": [
+            {
+              "client": "GiveProbeA",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.clear.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "GiveProbeA",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell GiveProbeA "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            383791221,
+                            -293194643,
+                            -1279064526,
+                            2036104707
+                          ],
+                          "name": "GiveProbeA"
+                        },
+                        "insertion": "GiveProbeA"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "GiveProbeA",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "GiveProbeA",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell GiveProbeA "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            383791221,
+                            -293194643,
+                            -1279064526,
+                            2036104707
+                          ],
+                          "name": "GiveProbeA"
+                        },
+                        "insertion": "GiveProbeA"
+                      },
+                      "0.060000",
+                      "100.000000",
+                      "0.000000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "GiveProbeA",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "GiveProbeB",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell GiveProbeB "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            840759516,
+                            1762800863,
+                            -1552040565,
+                            1073703235
+                          ],
+                          "name": "GiveProbeB"
+                        },
+                        "insertion": "GiveProbeB"
+                      },
+                      "16.050000",
+                      "100.000000",
+                      "0.000000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "GiveProbeA",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.stone"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:stone"
+                        }
+                      },
+                      {
+                        "text": "GiveProbeA",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell GiveProbeA "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            383791221,
+                            -293194643,
+                            -1279064526,
+                            2036104707
+                          ],
+                          "name": "GiveProbeA"
+                        },
+                        "insertion": "GiveProbeA"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            0,
+            800,
+            0
+          ],
+          "volume": 0.2,
+          "pitch": 1.8631651,
+          "seed": -416404267735289626
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            0,
+            800,
+            0
+          ],
+          "volume": 0.2,
+          "pitch": 1.8631651,
+          "seed": -416404267735289626
         }
       ],
       "command_trees": []
@@ -9090,8 +9301,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 2.3286297,
-          "seed": 7182627875974417776
+          "pitch": 1.6573749,
+          "seed": -276475231671622633
         }
       ],
       "command_trees": []
@@ -9232,6 +9443,55 @@
                 ],
                 "color": "gray",
                 "italic": true
+              }
+            },
+            {
+              "client": "GiveProbeB",
+              "text": {
+                "translate": "chat.type.advancement.task",
+                "with": [
+                  {
+                    "text": "GiveProbeA",
+                    "click_event": {
+                      "action": "suggest_command",
+                      "command": "/tell GiveProbeA "
+                    },
+                    "hover_event": {
+                      "action": "show_entity",
+                      "id": "minecraft:player",
+                      "uuid": [
+                        383791221,
+                        -293194643,
+                        -1279064526,
+                        2036104707
+                      ],
+                      "name": "GiveProbeA"
+                    },
+                    "insertion": "GiveProbeA"
+                  },
+                  {
+                    "translate": "chat.square_brackets",
+                    "with": [
+                      {
+                        "translate": "advancements.story.mine_stone.title",
+                        "hover_event": {
+                          "action": "show_text",
+                          "value": {
+                            "translate": "advancements.story.mine_stone.title",
+                            "extra": [
+                              "\n",
+                              {
+                                "translate": "advancements.story.mine_stone.description"
+                              }
+                            ],
+                            "color": "green"
+                          }
+                        }
+                      }
+                    ],
+                    "color": "green"
+                  }
+                ]
               }
             },
             {
@@ -9420,62 +9680,13 @@
                 "color": "gray",
                 "italic": true
               }
-            },
-            {
-              "client": "GiveProbeB",
-              "text": {
-                "translate": "chat.type.advancement.task",
-                "with": [
-                  {
-                    "text": "GiveProbeA",
-                    "click_event": {
-                      "action": "suggest_command",
-                      "command": "/tell GiveProbeA "
-                    },
-                    "hover_event": {
-                      "action": "show_entity",
-                      "id": "minecraft:player",
-                      "uuid": [
-                        383791221,
-                        -293194643,
-                        -1279064526,
-                        2036104707
-                      ],
-                      "name": "GiveProbeA"
-                    },
-                    "insertion": "GiveProbeA"
-                  },
-                  {
-                    "translate": "chat.square_brackets",
-                    "with": [
-                      {
-                        "translate": "advancements.story.mine_stone.title",
-                        "hover_event": {
-                          "action": "show_text",
-                          "value": {
-                            "translate": "advancements.story.mine_stone.title",
-                            "extra": [
-                              "\n",
-                              {
-                                "translate": "advancements.story.mine_stone.description"
-                              }
-                            ],
-                            "color": "green"
-                          }
-                        }
-                      }
-                    ],
-                    "color": "green"
-                  }
-                ]
-              }
             }
           ]
         }
       },
       "sounds": [
         {
-          "client": "GiveProbeA",
+          "client": "GiveProbeB",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -9484,21 +9695,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8579929,
-          "seed": 3917083901117113328
-        },
-        {
-          "client": "GiveProbeA",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            4,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.2588199,
-          "seed": 6623078363037589062
+          "pitch": 1.434798,
+          "seed": -4041365710808370213
         },
         {
           "client": "GiveProbeB",
@@ -9510,11 +9708,11 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8579929,
-          "seed": 3917083901117113328
+          "pitch": 1.3365698,
+          "seed": 5062508814173435999
         },
         {
-          "client": "GiveProbeB",
+          "client": "GiveProbeA",
           "sound": "minecraft:entity.item.pickup",
           "source": 7,
           "position": [
@@ -9523,8 +9721,21 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.2588199,
-          "seed": 6623078363037589062
+          "pitch": 1.434798,
+          "seed": -4041365710808370213
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3365698,
+          "seed": 5062508814173435999
         }
       ],
       "command_trees": []
@@ -9734,34 +9945,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5353899,
-          "seed": -7029890786968503105
-        },
-        {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            20,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.9499825,
-          "seed": 1356233922728762097
-        },
-        {
-          "client": "GiveProbeB",
-          "sound": "minecraft:entity.item.pickup",
-          "source": 7,
-          "position": [
-            20,
-            800,
-            4
-          ],
-          "volume": 0.2,
-          "pitch": 1.8900397,
-          "seed": -8160244156203296431
+          "pitch": 1.6054174,
+          "seed": 7208862439859465442
         },
         {
           "client": "GiveProbeA",
@@ -9773,8 +9958,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.5353899,
-          "seed": -7029890786968503105
+          "pitch": 1.6054174,
+          "seed": 7208862439859465442
         },
         {
           "client": "GiveProbeA",
@@ -9786,8 +9971,34 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.9499825,
-          "seed": 1356233922728762097
+          "pitch": 2.5257292,
+          "seed": -8623098848832608320
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5257292,
+          "seed": -8623098848832608320
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.737965,
+          "seed": -810601364158053809
         },
         {
           "client": "GiveProbeA",
@@ -9799,8 +10010,8 @@
             4
           ],
           "volume": 0.2,
-          "pitch": 1.8900397,
-          "seed": -8160244156203296431
+          "pitch": 2.737965,
+          "seed": -810601364158053809
         }
       ],
       "command_trees": []
@@ -9820,33 +10031,6 @@
             "Killed GiveProbeA"
           ],
           "chat": [
-            {
-              "client": "GiveProbeB",
-              "text": {
-                "translate": "death.attack.genericKill",
-                "with": [
-                  {
-                    "text": "GiveProbeA",
-                    "click_event": {
-                      "action": "suggest_command",
-                      "command": "/tell GiveProbeA "
-                    },
-                    "hover_event": {
-                      "action": "show_entity",
-                      "id": "minecraft:player",
-                      "uuid": [
-                        383791221,
-                        -293194643,
-                        -1279064526,
-                        2036104707
-                      ],
-                      "name": "GiveProbeA"
-                    },
-                    "insertion": "GiveProbeA"
-                  }
-                ]
-              }
-            },
             {
               "client": "GiveProbeA",
               "text": {
@@ -9881,6 +10065,33 @@
                 ],
                 "color": "gray",
                 "italic": true
+              }
+            },
+            {
+              "client": "GiveProbeB",
+              "text": {
+                "translate": "death.attack.genericKill",
+                "with": [
+                  {
+                    "text": "GiveProbeA",
+                    "click_event": {
+                      "action": "suggest_command",
+                      "command": "/tell GiveProbeA "
+                    },
+                    "hover_event": {
+                      "action": "show_entity",
+                      "id": "minecraft:player",
+                      "uuid": [
+                        383791221,
+                        -293194643,
+                        -1279064526,
+                        2036104707
+                      ],
+                      "name": "GiveProbeA"
+                    },
+                    "insertion": "GiveProbeA"
+                  }
+                ]
               }
             },
             {
@@ -10070,7 +10281,7 @@
           ],
           "volume": 1.0,
           "pitch": 1.0,
-          "seed": -2459262552791171344
+          "seed": 6254538404472302524
         }
       ],
       "command_trees": []

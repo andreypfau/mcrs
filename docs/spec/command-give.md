@@ -38,7 +38,7 @@ Primary evidence sources for this specification are:
 - Scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) and trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json), recorded on `26.4-snapshot-7` by the probe ([README.md](../../tools/mcrs_minecraft_probe/README.md)). The trace has 68 steps. Each step records what the clients observe.
   - `join-GiveProbeA`, `join-GiveProbeB` and `promote`: `commands` packets before and after operator promotion.
   - 25 steps `client.<id>`: `system_chat` replies of the sender, and the `sound` packets of the viewers.
-  - 30 console cases, named by their id: console output, the `system_chat` messages that the clients receive (`chat`), and the decoded `sound` packets (`sounds`, with `position` as sent, `volume`, `pitch` and `seed`).
+  - 31 console cases, named by their id: console output, the `system_chat` messages that the clients receive (`chat`), and the decoded `sound` packets (`sounds`, with `position` as sent, `volume`, `pitch` and `seed`).
   - Steps `<id>.setup`: the preparation of a console case. They are not evidence of a rule.
 
 ### 0.3 Provenance and kinds
@@ -279,14 +279,17 @@ The client uses it to choose the sound variant.
 The trace records the seed decoded, in the field `seed`. In `default`, both viewers show the same `seed`. In `split`, the two events show different values.
 
 Recipients are connected players in the **same dimension** as the target.
-Euclidean distance from the sound position to the viewer must be strictly below `16.0` blocks (`distance < 16.0`).
+The server measures the Euclidean distance from the exact feet position of the target to the position of the viewer.
+It does not use the encoded packet position.
+The distance must be strictly below `16.0` blocks (`distance < 16.0`).
 In traces, a viewer at `dx = 14.0` receives the packet (`sound_in_range`).
 A viewer at exact `dx = 16.0` or in `minecraft:the_nether` receives no packet (`sound_at_boundary`, `sound_other_dimension`).
+A target at `x = 0.06` encodes as `x = 0.0`. A viewer at `x = 16.05` receives the packet (`sound_boundary_fraction`).
 A command that inserts `m` full parts emits `m` `sound` packets per viewer (`split`: `2` sounds).
 
-- **Provenance**: `source_suggested_black_box_confirmed` for the pitch formula and the seed (`give.json`, step `default`, fields `pitch` and `seed`). `black_box_confirmed` for the other fields (`give.json`: the `sounds` of `default`, `limit`, `air`, `partial_survival`, `full_survival`, `empty_brackets`, `modified_air`, `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
+- **Provenance**: `source_suggested_black_box_confirmed` for the pitch formula and the seed (`give.json`, step `default`, fields `pitch` and `seed`). `black_box_confirmed` for the other fields (`give.json`: the `sounds` of `default`, `limit`, `air`, `partial_survival`, `full_survival`, `empty_brackets`, `modified_air`, `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_boundary_fraction`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
 - **Kind**: `wire`, `semantic`.
-- **Confidence**: high for the captured cases; medium for the general position rule.
+- **Confidence**: high.
 
 ---
 
@@ -356,7 +359,7 @@ Its rule, reference behaviour, reason and test are in [D6](item-entity.md#111-in
 
 ## 6. Experiments and Conformance
 
-The saved trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json) covers 25 client steps and 30 console cases. All ran on `26.4-snapshot-7`.
+The saved trace [give.json](../../tools/mcrs_minecraft_probe/traces/give.json) covers 25 client steps and 31 console cases. All ran on `26.4-snapshot-7`.
 The experiment needs Java 25 and the verified server jar of that version.
 The probe provisions the jar with `tools/vanilla-server/run.sh fetch` and starts a server on a new flat world.
 The scenario [give.json](../../tools/mcrs_minecraft_probe/scenarios/give.json) sets the operators, the scoreboard objectives and the test area.
