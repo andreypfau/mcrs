@@ -21,8 +21,14 @@ refers to the rules of these documents by id.
   **effective component**, **prototype**: as `item-stack.md`, section 0.1, defines them.
 - **Slot**, **cursor**, **slot limit**, **capacity**, **place filter**, **take filter**, **clicked
   slot**, **drag**: as `inventory-transactions.md`, section 0.1, defines them.
-- **Player inventory**, **menu**, **inventory menu**, **open menu**, **infinite materials**: as
-  `inventory.md`, section 0.1, defines them.
+- **Player inventory**, **menu**, **inventory menu**, **open menu**: as `inventory.md`, section
+  0.1, defines them.
+- **Creative flag**: as `client-block-breaking.md`, section 0.1, defines it.
+- **Window area**, **entry area**, **empty area**, **target entry**, **pointer index**, **mouse
+  press**, **mouse release**, **shift**, **button number**, **cursor stack**: as
+  `client-inventory.md`, section 0.1, defines them. They apply to each menu screen, not only to
+  the inventory screen. Section 3 states the window area and the entry areas of a container
+  screen.
 - **GUI unit**, **W**, **H**: as `client-chat.md`, section 0.1, defines them.
 - **Mouse position**, **tooltip**, **tooltip request**, **line**: as `client-tooltip.md`,
   section 0.1, defines them.
@@ -38,15 +44,16 @@ refers to the rules of these documents by id.
 - **Menu screen**: the screen that the client shows for the open menu. A container screen is
   one kind of menu screen.
 - **Container screen**: the menu screen of a generic menu.
-- **Image**: the rectangle of a menu screen that the background texture covers. It has the left
-  edge `left`, the top `top`, the width `iw` and the height `ih` (CCS-LAY-001).
-- **Hovered slot**: the entry of the open menu whose slot box has the mouse position in it
-  (CCS-LAY-005).
+- **Holder**: the inventory that a slot shows: the player inventory, or the block or the entity
+  that the server opened. Two slots with the same holder show the same inventory.
 - **Drag set**: the set of entries that a drag of the client fills.
 - **Drag button**: the button of the press that started a drag of the client.
 - **Remembered stack**: a copy of the stack that the last quick move click of the screen took
   from its slot (CCS-DBL-003).
-- **Item tooltip**: the lines that the client shows for a stack (section 6).
+- **Item tooltip**: the text that the client shows for a stack (section 6). Each element of it
+  is a **part**. A part can give more than one line (CCS-TIP-001).
+- **Creative tooltip**: an item tooltip that the creative inventory screen requests for a slot of
+  its grid (`client-creative-inventory.md`).
 - **Advanced tooltips**: the option that F3 + H changes. It is off by default.
 - **Pick key**: the key binding `key.pickItem`. Its default is the middle mouse button.
 
@@ -56,9 +63,9 @@ The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of 
 section "Semantics, not accidents". The language keys and their English texts are in
 `assets/minecraft/lang/en_us.json` of the client jar.
 
-The observer of the rules of sections 1 and 2 is the server. It reads the clicks of the client
-and sends the packets of the menu. The observer of the other rules is a player in normal play
-who sees the screen, unless the rule names another observer.
+The observer of the rules of section 1 is the server. It reads the clicks of the client and
+sends the packets of the menu. The observer of the other rules is a player in normal play who
+sees the screen, unless the rule names another observer.
 
 A rule that comes from the reference keeps the label `source_suggested` until an experiment of
 section 9 confirms it.
@@ -81,22 +88,22 @@ section 9 confirms it.
 | `CCS-DRG` | the drag in a menu screen |
 | `CCS-DBL` | the double click in a menu screen |
 | `CCS-TIP` | the lines of an item tooltip |
-| `CCS-DEV` | intentional deviations |
 
 ### 0.5 Scope
 
 In scope:
 
 - the generic menus: the entries, the container part, the player part and the quick move;
-- the `open_screen` and `container_close` packets in the client;
+- the `open_screen` packet in the client;
 - the layout of a container screen: the textures, the sizes, the slot positions and the labels;
-- the drag, the double click and the shift key with each of them, in each menu screen;
+- the drag, the double click and Shift with each of them, in each menu screen;
 - the lines of an item tooltip for the component types that `item-stack.md` types.
 
 Out of scope:
 
 - the press, the release and the keys that give one click, the prediction of a click, the
-  state id and the close by the player: `client-inventory.md`;
+  state id, the close by the player and the clientbound `container_close`:
+  `client-inventory.md`;
 - the keyboard navigation between slots, and the narration of slots;
 - the draw of an item, of its count and of its damage bar in a slot;
 - the image of an item tooltip, for example the contents of a bundle, and the wheel on a bundle;
@@ -110,10 +117,10 @@ Out of scope:
 | Value | Data | Rule |
 |-------|------|------|
 | Time of a double click | less than 250 ms between two presses | CCS-DBL-001 |
-| Width of the image | 176 | CCS-LAY-001 |
+| Width of the window area | 176 | CCS-LAY-001 |
 | Colour of the labels | `FF404040`, no drop shadow | CCS-LAY-004 |
 | Colour over a slot of the drag preview | `80FFFFFF` | CCS-DRG-005 |
-| Size of the slot box | 16 × 16 | CCS-LAY-005 |
+| Size of the entry area | 16 × 16 | CCS-LAY-005 |
 | Wrap width of an item tooltip | 170 | CCS-TIP-001 |
 
 ---
@@ -149,8 +156,6 @@ Out of scope:
   and no place filter.
 - **Postconditions:** `generic_9x3` has 63 entries. Its menu index 27 is `P[9]`, and its menu
   index 54 is `P[0]`.
-- **Edge cases:** the numeric id is that of `assets/mcrs/reports/registries.json`. An
-  implementation must read it from that file.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the numeric ids. Kind: wire.
 Confidence: high.
@@ -176,6 +181,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CCS-MNU-003: The repeat of a quick move in a generic menu
 
+- **Inputs:** a quick move click on the menu index `s` of a generic menu. `S` is the slot of `s`.
 - **Behavior:** after the two steps of ITX-JAV-009, the click does the two steps again when each
   of these conditions is true:
   - the last two steps moved at least one item;
@@ -195,13 +201,13 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. A drag can go to each entry (ITX-JAV-017).
   3. A double click can gather from each entry (CCS-DBL-002).
 - **Postconditions:** a generic menu has no result slot. Thus no entry of it is an exception of
-  ITX-JAV-008, ITX-JAV-011 or ITX-JAV-017.
+  ITX-JAV-011 or ITX-JAV-017.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
-## 2. The open and the close
+## 2. The open
 
 ### CCS-OPN-001: The client gets `open_screen`
 
@@ -228,34 +234,16 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
-### CCS-OPN-002: The client gets `container_close`
-
-- **Inputs:** a clientbound `container_close` packet with a VarInt container id.
-- **Behavior:**
-  1. When the container id is not the id of the open menu, the client ignores the packet.
-  2. Else the inventory menu becomes the open menu, and the client closes the current screen
-     (`client-widget.md`, WID-SCR-002). No screen is then open.
-  3. The client sends no packet as an answer.
-- **Postconditions:**
-  - The client discards the stacks that it showed for the container part and the cursor of the
-    closed menu. The server empties that cursor (`inventory.md`, INV-CLS-002).
-  - The server sends `container_close` with the id 0 when it closes the inventory menu. The
-    client then closes the inventory screen.
-- **Edge cases:** see CCS-DEV-001 for the result of the vanilla client when the id is not that of
-  the open menu.
-
-Provenance: `design`. Kind: deviation. Confidence: high. Reason: a close for a menu that the
-client already left must not close the screen that the player uses now.
-
 ---
 
 ## 3. The layout of a container screen
 
-### CCS-LAY-001: The image
+### CCS-LAY-001: The window area
 
 - **Inputs:** the menu type, W and H.
-- **Behavior:** the image has the width `iw` = 176 and the height `ih` of the table. `left` is
-  `floor((W − iw) / 2)`, and `top` is `floor((H − ih) / 2)`.
+- **Behavior:** the window area is the rectangle with the left edge `left`, the top edge `top`,
+  the width `iw` = 176 and the height `ih` of the table. `left` is `floor((W − iw) / 2)`, and
+  `top` is `floor((H − ih) / 2)`. A container screen has no other part in its window area.
 
 | Menu type | `ih` |
 |-----------|------|
@@ -263,14 +251,18 @@ client already left must not close the screen that the player uses now.
 | `generic_3x3` | 166 |
 | `hopper` | 133 |
 
-- **Postconditions:** `generic_9x3` has `ih` = 168, and `generic_9x6` has `ih` = 222. The image
-  stays at the centre of the screen after a resize (`client-widget.md`, WID-SCR-003).
+- **Postconditions:**
+  - `generic_9x3` has `ih` = 168, and `generic_9x6` has `ih` = 222.
+  - The window area stays at the centre of the screen after a resize (`client-widget.md`,
+    WID-SCR-003).
+  - For `generic_9xR`, the background texture covers the window area except its bottom row of
+    GUI units (CCS-LAY-002). That row is still a part of the window area.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### CCS-LAY-002: The background texture
 
-- **Inputs:** the image of CCS-LAY-001.
+- **Inputs:** the window area of CCS-LAY-001.
 - **Behavior:**
   1. The screen draws the background of an in-game screen (`client-widget.md`, WID-SCR-004).
   2. It then draws the parts of the table. A part copies the source rectangle of the texture to
@@ -293,8 +285,8 @@ client jar. Kind: layout. Confidence: high.
 ### CCS-LAY-003: The positions of the slots
 
 - **Inputs:** the menu type.
-- **Behavior:** each entry has a slot box of 16 × 16 GUI units. The table gives the top left
-  corner of the slot box, relative to (`left`, `top`). `c` is the column and `r` is the row,
+- **Behavior:** each entry has an entry area of 16 × 16 GUI units. The table gives the top left
+  corner of the entry area, relative to (`left`, `top`). `c` is the column and `r` is the row,
   from 0, in the order of CCS-MNU-001.
 
 | Menu type | Container slot | Main slots `P[9]` to `P[35]` | Hotbar `P[0]` to `P[8]` |
@@ -305,7 +297,7 @@ client jar. Kind: layout. Confidence: high.
 
   The main slots have the rows `r` = 0, 1 and 2. `P[9 + 9·r + c]` is in the column `c` and the
   row `r`. The hotbar slot `P[c]` is in the column `c`.
-- **Postconditions:** in `generic_9x3`, the slot box of the container slot 0 has the corner
+- **Postconditions:** in `generic_9x3`, the entry area of the container slot 0 has the corner
   (`left + 8`, `top + 18`), and `P[0]` has the corner (`left + 8`, `top + 143`).
 
 Provenance: `source_suggested`. Kind: layout. Confidence: high.
@@ -327,26 +319,26 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
-### CCS-LAY-005: The hovered slot and its highlight
+### CCS-LAY-005: The target entry and its highlight
 
 - **Inputs:** the mouse position and the last input device.
 - **Behavior:**
-  1. An entry is the hovered slot when the last input device is mouse and the mouse position is
-     in its slot box: `x ≤ mx < x + 16` and `y ≤ my < y + 16` (`client-widget.md`,
+  1. An entry is the target entry when the last input device is mouse and the mouse position is
+     in its entry area: `x ≤ mx < x + 16` and `y ≤ my < y + 16` (`client-widget.md`,
      WID-PTR-001).
-  2. For the hovered slot, the screen draws the GUI sprite `minecraft:container/slot_highlight_back`
+  2. For the target entry, the screen draws the GUI sprite `minecraft:container/slot_highlight_back`
      before the stack of the slot. It draws `minecraft:container/slot_highlight_front` after the
      stack. Each sprite covers (`x − 4`, `y − 4`) with the size 24 × 24.
   3. The sprites draw by the rules of `client-gui-sprite.md`.
-- **Postconditions:** the gap of 2 GUI units between two slot boxes belongs to no entry. A press
-  there is not on a slot.
+- **Postconditions:** the gap of 2 GUI units between two entry areas is a part of the empty area.
+  There, the pointer index is -1.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the two sprites of the client jar
 (24 × 24, `nine_slice` with the border 4). Kind: layout. Confidence: high.
 
 ### CCS-LAY-006: The order of the draw and the cursor stack
 
-- **Behavior:** a container screen draws these parts in this order:
+- **Behavior:** a container screen draws these layers in this order:
   1. the background (CCS-LAY-002);
   2. the labels (CCS-LAY-004);
   3. the entries, each with its highlight (CCS-LAY-005) and its drag preview (CCS-DRG-005);
@@ -355,9 +347,8 @@ Provenance: `source_suggested`; `black_box_confirmed` for the two sprites of the
   5. the tooltip of the frame (`client-tooltip.md`, TIP-REQ-001).
 - **Postconditions:** the stack of the cursor is above each entry. The cursor holds the empty
   stack: nothing draws at the mouse.
-- **Edge cases:** a press outside the image is a press on no entry. `client-inventory.md` states
-  the click that it gives. The point is outside the image when `mx < left`, `my < top`,
-  `mx ≥ left + iw` or `my ≥ top + ih`.
+- **Edge cases:** the mouse position is outside the window area when `mx < left`, `my < top`,
+  `mx ≥ left + iw` or `my ≥ top + ih`. The pointer index is then -999.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
@@ -371,26 +362,28 @@ it (CCS-MNU-004).
 
 ### CCS-DRG-001: The start of a drag
 
-- **Inputs:** a press of a mouse button while the cursor holds a stack and no drag is open.
-- **Behavior:** the press opens a drag with an empty drag set when the button is in the table.
-  The press sends no click.
+- **Inputs:** a mouse press while the cursor stack is not the empty stack and no drag is open.
+- **Behavior:** the press opens a drag with an empty drag set when the button is in the table and
+  the pointer is not in the empty area (`client-inventory.md`, CINV-GES-002, step 1). The press
+  sends no click.
 
 | Button | Drag kind | Drag button |
 |--------|-----------|-------------|
 | left | 0, an equal part for each slot | 0 |
 | right | 1, one item for each slot | 1 |
-| the pick key, and the player has infinite materials | 2, a full stack for each slot | 2 |
+| the pick key, and the creative flag is on | 2, a full stack for each slot | 2 |
 
   A press of another button does not open a drag. `client-inventory.md` states what it does.
-- **Postconditions:** the shift key does not change the start. A press with the cursor stack
-  always opens a drag, also when the release later gives one click (CCS-DRG-003).
+- **Postconditions:** Shift does not change the start. A press of the left button on an entry or
+  outside the window area opens a drag, also when the release later gives one click
+  (CCS-DRG-003).
 - **Edge cases:** a press of each button while a drag is open has no effect on the drag.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CCS-DRG-002: A slot joins the drag set
 
-- **Inputs:** a move of the mouse with a button down while a drag is open. The hovered slot after
+- **Inputs:** a move of the mouse with a button down while a drag is open. The target entry after
   the move is `S`. `C` is the cursor.
 - **Behavior:** `S` joins the drag set when each of these conditions is true:
   1. `C` holds a stack;
@@ -415,19 +408,21 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: high.
 
 ### CCS-DRG-003: The end of a drag
 
-- **Inputs:** a release of the drag button while a drag is open, with the drag set `D`.
+- **Inputs:** a release of the drag button while a drag is open, with the drag set `D`, when
+  neither CCS-DBL-002 nor CCS-DBL-003 gives the result of the release.
 - **Behavior:**
   1. When `D` has one or more entries, the client sends these clicks of the click kind quick
      craft (`inventory-transactions.md`, ITX-JAV-014 and ITX-JAV-015), in this order:
      1. the start: slot index -999, stage 0, the drag kind;
      2. for each entry of `D`: the menu index of the entry, stage 1, the drag kind;
      3. the end: slot index -999, stage 2, the drag kind.
-  2. When `D` is empty, the release is one click on the hovered slot, as `client-inventory.md`
-     states for the release of a cursor stack.
+  2. When `D` is empty, the table of `client-inventory.md`, CINV-GES-002, step 5, gives the click
+     of the release.
   3. The drag closes.
 - **Postconditions:**
   - The client sends all clicks of a drag at the release, in one frame.
-  - A drag with one entry gives the result of a pick up click on that entry (ITX-JAV-018).
+  - A drag of kind 0 or 1 with one entry gives the result of a pick up click on that entry. A
+    drag of kind 2 with one entry gives no result on the server (ITX-JAV-018).
   - The client predicts the result of each click as `client-inventory.md` states.
 - **Edge cases:** the order of the stage 1 clicks is unspecified. The server gives the same result
   for each order (ITX-JAV-019). The order is not an observable result.
@@ -454,10 +449,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
      `X` leaves `D`. `X` then draws its own stack.
   2. Else `a` is `floor(count(C) / z)` for `k` = 0, 1 for `k` = 1, and `max(C)` for `k` = 2.
      `m` is `cap(X, C)`. The preview count `p` is `count(X) + a`, but not more than `m`.
-  3. The screen fills the slot box of `X` with `80FFFFFF`. It then draws a stack with the item
+  3. The screen fills the entry area of `X` with `80FFFFFF`. It then draws a stack with the item
      and the components of `C` and the count `p`, in place of the stack of `X`.
   4. When `count(X) + a` is larger than `m`, the count text of the stack is `m` in yellow
-     (`FFFFFF55`). This also shows the count 1.
+     (`FFFFFF55`). The count text shows also when `m` is 1.
 - **Postconditions:**
   - With `z` = 1, no entry shows a preview.
   - The preview changes no slot. The slots change at the end (CCS-DRG-003).
@@ -481,14 +476,14 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
-### CCS-DRG-007: The shift key and a drag
+### CCS-DRG-007: Shift and a drag
 
 - **Behavior:**
-  1. The shift key has no effect on the start of a drag, on the drag set or on the clicks of
+  1. Shift has no effect on the start of a drag, on the drag set or on the clicks of
      CCS-DRG-003, step 1.
-  2. When the drag set is empty at the release, the release is one click with the shift key
-     (CCS-DRG-003, step 2). With the shift key down and the hovered slot not outside the image,
-     that click is a quick move of the hovered slot.
+  2. When the drag set is empty at the release, CCS-DRG-003, step 2, gives one click. With Shift
+     down and the mouse position in the window area, that click is a quick move at the pointer
+     index. Outside the window area, Shift has no effect.
 - **Postconditions:** a player who holds a stack, presses shift and moves over three slots
   paints the three slots. The quick move occurs only when the player does not move to a second
   slot.
@@ -506,8 +501,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   1. less than 250 ms passed since the last press that the screen took;
   2. that press had the same button;
   3. that press was in the same screen;
-  4. the hovered slot of that press is the hovered slot of this press, or neither press had a
-     hovered slot.
+  4. the target entry of that press is the target entry of this press, or neither press had a
+     target entry.
 - **Postconditions:**
   - A third press within 250 ms of the second press is also a double click.
   - The double click acts at the release of the button (CCS-DBL-002, CCS-DBL-003).
@@ -517,16 +512,17 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CCS-DBL-002: Pick up all with a double click
 
-- **Inputs:** a release of the left button after a double click, with no shift key. `S` is the
-  hovered slot at the release.
+- **Inputs:** a release of the left button after a double click, with Shift up. `S` is the
+  target entry at the release.
 - **Behavior:**
   1. When `S` exists and the menu permits pick up all from `S`, the client sends one click on `S`
      with the click kind pick up all and the button 0. The click has no other condition in the
      client. `inventory-transactions.md`, ITX-JAV-011, states its result.
-  2. The open drag then closes with no click (CCS-DRG-002, condition 6).
+  2. The open drag then closes with no click. CCS-DRG-003 does not apply to this release.
 - **Postconditions:**
   - In normal play, the first press picks up the stack of `S`. The second press opens a drag
-    with that cursor stack. The release then gathers the alike stacks of the menu into the cursor.
+    with that cursor stack. The release then gathers the stacks with the same item and
+    components of the menu into the cursor.
   - The first press with an empty cursor also sends its own click (`client-inventory.md`).
 - **Edge cases:** when `S` does not exist, the release continues as a release without a double
   click.
@@ -535,8 +531,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### CCS-DBL-003: Shift with a double click
 
-- **Inputs:** a release of the left button after a double click, with the shift key down. `S` is
-  the hovered slot at the release. The remembered stack is `T`.
+- **Inputs:** a release of the left button after a double click, with Shift down. `S` is
+  the target entry at the release. The remembered stack is `T`.
 - **Behavior:**
   1. The remembered stack changes at each quick move click that the screen sends on an entry.
      It becomes a copy of the stack of that entry before the click, or the empty stack when the
@@ -554,10 +550,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   5. Each quick move click of step 4 also sets the remembered stack (step 1).
 - **Postconditions:**
   - In a generic menu, the holder of `S` is the container or the player inventory. Thus a shift
-    double click on a slot of the player part moves the alike stacks of the player part to the
-    container part.
-  - A player who holds a stack on the cursor and does a shift double click on an alike stack
-    moves each alike stack of that holder. The cursor stack stays.
+    double click on a slot of the player part moves the stacks with the same item and components
+    of the player part to the container part.
+  - A player holds a stack on the cursor and does a shift double click on a stack with the same
+    item and components. Each such stack of that holder moves. The cursor stack stays.
   - With an empty cursor, the first press is a quick move of `S`. The second press is also a
     quick move of `S`, and it sets `T` to the stack that `S` then holds. When the first quick move
     emptied `S`, `T` is empty and step 3 applies.
@@ -574,43 +570,44 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### CCS-TIP-001: When an entry shows an item tooltip
 
-- **Inputs:** the hovered slot `S` of a menu screen and the cursor `C`.
+- **Inputs:** the target entry `S` of a menu screen and the cursor `C`.
 - **Behavior:**
   1. The entry makes a tooltip request when `S` holds a stack and `C` holds the empty stack.
   2. The request is the request of a widget with the delay 0 (`client-widget.md`, WID-TIP-001).
-     The bounds of the widget are the slot box of `S`.
-  3. The text of the request is the lines of CCS-TIP-002, joined with a line break between two
-     lines. The text wraps at the width 170 (WID-TIP-002).
+     The bounds of the widget are the entry area of `S`.
+  3. The text of the request is the parts of CCS-TIP-002, with a line break between two parts.
+     The text wraps at the width 170 (WID-TIP-002). Each wrapped row is a line of
+     `client-tooltip.md`.
   4. The request has the gap after the first line (`client-tooltip.md`, TIP-BOX-001). This is an
      exception to WID-TIP-002, step 3.
   5. The position is that of WID-TIP-003, with `bh` = 16.
-  6. When CCS-TIP-002 gives no line, the entry makes no request.
+  6. When CCS-TIP-002 gives no part, the entry makes no request.
 - **Postconditions:**
   - A slot with the empty stack makes no request in a generic menu.
-  - While the cursor holds a stack, the hovered slot shows no item tooltip.
-  - A long lore line wraps at 170 GUI units. Each wrapped part is a line of TIP-BOX-001.
+  - While the cursor holds a stack, the target entry shows no item tooltip.
+  - A long lore part wraps at 170 GUI units. Each wrapped row is a line of TIP-BOX-001.
 
 Provenance: `source_suggested`. Kind: semantic; layout for the wrap and the position.
 Confidence: medium.
 
-### 6.2 The lines
+### 6.2 The parts
 
-### CCS-TIP-002: The order of the lines
+### CCS-TIP-002: The order of the parts
 
 - **Inputs:** a stack, the option advanced tooltips, the local player, and the feature flags of
   the world. `TD` is the effective component `minecraft:tooltip_display` of the stack, or the
   default of STK-SHP-017 when the stack has none.
 - **Behavior:**
-  1. When the `hide_tooltip` of `TD` is true, the stack has no line. This document does not state
-     the creative inventory screen, which ignores `hide_tooltip`.
-  2. Else the lines are these parts, in this order. A part of a component type shows only when
-     the stack has that effective component and `hidden_components` of `TD` does not hold the
-     component type.
+  1. When the `hide_tooltip` of `TD` is true, the stack has no part. A creative tooltip is the
+     exception: it ignores `hide_tooltip`.
+  2. Else the parts come from the groups of the table, in this order. A group of a component type
+     gives parts only when the stack has that effective component and `hidden_components` of `TD`
+     does not hold the component type.
 
-| # | Part | Rule |
+| # | Group | Rule |
 |---|------|------|
 | 1 | the name | CCS-TIP-003 |
-| 2 | the lines that the item adds for itself | out of scope |
+| 2 | the parts that the item adds for itself | out of scope |
 | 3 | `tropical_fish/pattern`, `instrument` | out of scope |
 | 4 | `map_id` | CCS-TIP-007 |
 | 5 | `bees`, `container_loot`, `container`, `banner_patterns`, `pot_decorations`, `written_book_content`, `charged_projectiles`, `fireworks`, `firework_explosion`, `potion_contents`, `jukebox_playable`, `trim`, `stored_enchantments` | out of scope |
@@ -623,12 +620,12 @@ Confidence: medium.
 | 12 | `intangible_projectile` | out of scope |
 | 13 | `unbreakable` | CCS-TIP-007 |
 | 14 | `sign_text_front`, `sign_text_back`, `ominous_bottle_amplifier`, `suspicious_stew_effects`, `block_state`, `entity_data`, the spawn data of `block_entity_data`, `can_break`, `can_place_on` | out of scope |
-| 15 | the lines of the advanced tooltips | CCS-TIP-008 |
-| 16 | the line of a disabled item | CCS-TIP-008 |
+| 15 | the parts of the advanced tooltips | CCS-TIP-008 |
+| 16 | the part of a disabled item | CCS-TIP-008 |
 | 17 | the warning for an operator item | out of scope |
 
   Each identifier in the table has the namespace `minecraft`.
-- **Postconditions:** a stack of `minecraft:stone` with no patch has one line, the name, when
+- **Postconditions:** a stack of `minecraft:stone` with no patch has one part, the name, when
   the advanced tooltips are off.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
@@ -645,8 +642,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. The rarity is the effective `minecraft:rarity` (STK-SHP-014), or `common` when the stack has
      none. When the effective `minecraft:enchantments` has one or more entries, `common` and
      `uncommon` become `rare`, and `rare` becomes `epic`.
-  3. The line is a text with the colour of the rarity and the name as its one child. With a
-     `minecraft:custom_name`, the line also has the italic style.
+  3. The part is a text with the colour of the rarity and the name as its one child. With a
+     `minecraft:custom_name`, the part also has the italic style.
 
 | Rarity | Colour |
 |--------|--------|
@@ -656,7 +653,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 | `epic` | light purple, `FF55FF` |
 
 - **Postconditions:**
-  - A style of the name itself wins over the colour and the italic style of the line.
+  - A style of the name itself wins over the colour and the italic style of the part.
   - An enchanted stone shows its name in aqua.
 - **Edge cases:** the name of a stack with `minecraft:written_book_content` is out of scope.
 
@@ -668,18 +665,18 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   tags, as the server sent them.
 - **Behavior:**
   1. First, for each enchantment of the tag `minecraft:tooltip_order`, in the order of the tag:
-     one line when the stack has that enchantment with a level above 0.
-  2. Then one line for each other enchantment of the component. The order of these lines is
+     one part when the stack has that enchantment with a level above 0.
+  2. Then one part for each other enchantment of the component. The order of these parts is
      unspecified.
-  3. A line is the `description` of the enchantment. When the enchantment is in the tag
-     `minecraft:curse`, the line has the colour red, `FF5555`. Else it has gray, `AAAAAA`. A colour
+  3. A part is the `description` of the enchantment. When the enchantment is in the tag
+     `minecraft:curse`, the part has the colour red, `FF5555`. Else it has gray, `AAAAAA`. A colour
      of the description itself wins.
-  4. When the level is not 1, or the `max_level` of the enchantment is not 1, the line continues
+  4. When the level is not 1, or the `max_level` of the enchantment is not 1, the part continues
      with one space and the translation `enchantment.level.<level>`.
 - **Postconditions:** Sharpness at level 5 shows `Sharpness V` in `en_us`. Mending at level 1
   shows `Mending`, because its maximum level is 1. A level with no translation shows the
   translation key.
-- **Edge cases:** when the client has no tag `minecraft:tooltip_order`, step 2 gives all lines.
+- **Edge cases:** when the client has no tag `minecraft:tooltip_order`, step 2 gives all parts.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -701,10 +698,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
   1. For each slot group in the order of the list "slot group" of STK-SHP-003, from `any` to
      `saddle`, take the entries whose `slot` is that slot group. Skip each entry with the display
      type `hidden`.
-  2. Before the first such entry of a slot group, add an empty line and the translation
+  2. Before the first such entry of a slot group, add an empty part and the translation
      `item.modifiers.<slot group>` in gray.
   3. An entry with the display type `override` adds its `value` text.
-  4. An entry with the display type `default` adds the line of the table below, or no line. `v`
+  4. An entry with the display type `default` adds the part of the table below, or no part. `v`
      is the `amount` of the entry. For the `id` `minecraft:base_attack_damage`, `v` is the amount
      plus the base value of `minecraft:attack_damage` of the player. For the `id`
      `minecraft:base_attack_speed`, it is the amount plus the base value of
@@ -714,12 +711,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
      It is `v` in each other case. `d` has at most two digits after the point, with the point
      `.` and no group separator.
 
-| Case | Line | Colour |
+| Case | Part | Colour |
 |------|------|--------|
 | the `id` is one of the two base ids | one space, then `attribute.modifier.equals.<op>` with `d` and the attribute name | dark green, `00AA00` |
 | `v` > 0 | `attribute.modifier.plus.<op>` with `d` and the attribute name | the colour of an increase |
 | `v` < 0 | `attribute.modifier.take.<op>` with `−d` and the attribute name | the colour of a decrease |
-| `v` = 0 | no line | |
+| `v` = 0 | no part | |
 
   `<op>` is the id of the operation (STK-SHP-003). The attribute name is the translation
   `attribute.name.<name>`, where `<name>` is the path of the attribute entry.
@@ -730,7 +727,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 | `minecraft:gravity`, `minecraft:scale`, `minecraft:waypoint_transmit_range`, `minecraft:waypoint_receive_range` | gray, `AAAAAA` | gray, `AAAAAA` |
 | each other attribute | blue, `5555FF` | red, `FF5555` |
 
-- **Postconditions:** an iron sword shows an empty line, `When in Main Hand:`, ` 6 Attack Damage`
+- **Postconditions:** an iron sword shows an empty part, `When in Main Hand:`, ` 6 Attack Damage`
   and ` 1.6 Attack Speed` in `en_us`. The base values of the player are 1 and 4.
 - **Edge cases:** the modifiers that an enchantment adds through its effects are out of scope.
 
@@ -740,23 +737,23 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 - **Behavior:**
   - `minecraft:map_id`: when the client holds no map data for the id, the part is the
-    translation `filled_map.unknown` in gray. Else the part has these lines, in this order:
+    translation `filled_map.unknown` in gray. Else the group gives these parts, in this order:
     1. `filled_map.id` with the id, in gray, only when the stack has no `minecraft:custom_name`;
     2. `filled_map.locked` in gray, only when the map data is locked;
     3. with the advanced tooltips only: `filled_map.scale` with `2^s`, and `filled_map.level`
        with `s` and 4, both in gray. `s` is the scale of the map data.
-  - `minecraft:profile`: one line, the translation `component.profile.dynamic` in gray, for a
-    dynamic profile (`item-stack.md`, section 8.2). Each other profile adds no line.
-  - `minecraft:unbreakable`: one line, the translation `item.unbreakable` in blue, `5555FF`.
+  - `minecraft:profile`: one part, the translation `component.profile.dynamic` in gray, for a
+    dynamic profile (`item-stack.md`, section 8.2). Each other profile adds no part.
+  - `minecraft:unbreakable`: one part, the translation `item.unbreakable` in blue, `5555FF`.
 - **Edge cases:** the map data comes from the `map_item_data` packet. Its rules, and the effect of
   `minecraft:map_post_processing`, are out of scope.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
-### CCS-TIP-008: The advanced lines and a disabled item
+### CCS-TIP-008: The advanced parts and a disabled item
 
 - **Behavior:**
-  1. When the advanced tooltips are on, the stack adds these lines, in this order:
+  1. When the advanced tooltips are on, the stack adds these parts, in this order:
      1. `item.durability` with `max_damage − damage` and `max_damage`, with no colour, only when
         the stack is damaged (STK-DMG-004) and `hidden_components` does not hold
         `minecraft:damage`;
@@ -766,7 +763,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
         when that number is above 0.
   2. When the feature flags of the world do not enable the item, the stack adds the translation
      `item.disabled` in red, `FF5555`.
-- **Postconditions:** the durability line is white. `minecraft:stone` with no patch shows
+- **Postconditions:** the durability part is white. `minecraft:stone` with no patch shows
   `minecraft:stone` and `N component(s)`, where `N` is the
   number of components of its prototype.
 
@@ -782,43 +779,38 @@ None.
 
 ## 8. Intentional deviations
 
-### CCS-DEV-001: `container_close` for another menu
-
-- **Rule:** CCS-OPN-002.
-- **Reference:** the vanilla client does not read the container id of `container_close`. It closes
-  the current screen and makes the inventory menu the open menu for each id.
-- **Reason:** a close of the server can cross a close of the client. The player then has a new
-  screen open, for example the inventory screen, and the late close removes it.
-- **Visible to the client:** yes, only in that race. The vanilla client closes the screen, and
-  mcrs keeps it open. The server and the client agree on the open menu in both cases.
-- **Bug reference:** none.
-- **Test:** a differential test does not send `container_close` with an id other than that of the
-  open menu.
-
----
-
-## 9. Experiments
-
-Use a vanilla client of the version of `assets/minecraft/version.json` and `tools/vanilla-server`.
-Record the client with `tools/mcrs_minecraft_client_recorder`, and play it with the input agent of
-`tools/vanilla-client`. The recorder logs each packet and a screenshot at the GUI scale 2.
-
-| Experiment | Steps | Rule |
-|------------|-------|------|
-| X1 | Open a chest, a double chest, a dispenser and a hopper. Take a screenshot of each screen. Read the stacks of `container_set_content`. | CCS-MNU-001, CCS-LAY-001 to CCS-LAY-004 |
-| X2 | Quick move a stack from each part of each generic menu, with a full container part and with an empty one. | CCS-MNU-002, CCS-MNU-003 |
-| X3 | Send `open_screen` while the chat screen is open, and while a chest screen is open. | CCS-OPN-001 |
-| X4 | Send `container_close` with the id of the open menu, with another id, and with 0 while the inventory screen is open. | CCS-OPN-002, CCS-DEV-001 |
-| X5 | Hold 10 stone. Drag with the left button over three empty slots. Take a screenshot before the release. Read the clicks after the release. | CCS-DRG-001 to CCS-DRG-003, CCS-DRG-005, CCS-DRG-006 |
-| X6 | Hold 64 stone. Drag with the right button over a slot with 63 stone and an empty slot. Take a screenshot before the release. | CCS-DRG-002, CCS-DRG-005 |
-| X7 | Start a drag with the left button, press and release the right button, then release the left button. | CCS-DRG-004 |
-| X8 | Hold a stack, press shift and drag over one slot and over three slots. | CCS-DRG-007 |
-| X9 | Double click a stack of 20 stone with three other stone stacks in the menu, at 200 ms and at 300 ms. | CCS-DBL-001, CCS-DBL-002 |
-| X10 | With an empty cursor and with a stone on the cursor, shift double click a stone stack in the player part. | CCS-DBL-003 |
-| X11 | Hover stacks with a custom name, lore, enchantments, attribute modifiers, `unbreakable`, a filled map and a player head, with the advanced tooltips off and on. Take a screenshot of each tooltip. | CCS-TIP-001 to CCS-TIP-008 |
-
----
-
-## 10. Unresolved
-
 None.
+
+---
+
+## 9. Unresolved
+
+These experiments have not run. Each uses a vanilla client of the version of
+`assets/minecraft/version.json`, recorded by `tools/mcrs_minecraft_client_recorder` against
+`tools/vanilla-server`. The recorder logs each packet and a screenshot at the GUI scale 2.
+
+- **E1.** Open a chest, a double chest, a dispenser and a hopper. Take a screenshot of each
+  screen. Read the stacks of `container_set_content`. Expect CCS-MNU-001 and CCS-LAY-001 to
+  CCS-LAY-004.
+- **E2.** Quick move a stack from each part of each generic menu, with a full container part and
+  with an empty one. Expect CCS-MNU-002 and CCS-MNU-003.
+- **E3** (proxy). Send `open_screen` while the chat screen is open, and while a chest screen is
+  open. Expect CCS-OPN-001.
+- **E4.** Hold 10 stone. Drag with the left button over three empty slots. Take a screenshot
+  before the release. Read the clicks after the release. Expect CCS-DRG-001 to CCS-DRG-003,
+  CCS-DRG-005 and CCS-DRG-006.
+- **E5.** Hold 64 stone. Drag with the right button over a slot with 63 stone and an empty slot.
+  Take a screenshot before the release. Expect CCS-DRG-002 and CCS-DRG-005.
+- **E6.** Start a drag with the left button. Press and release the right button, then release the
+  left button. Expect CCS-DRG-004.
+- **E7.** Hold a stack, press Shift and drag over one slot, then over three slots. Expect
+  CCS-DRG-007.
+- **E8.** Double click a stack of 20 stone with three other stone stacks in the menu, at 200 ms
+  and at 300 ms. Expect CCS-DBL-001 and CCS-DBL-002.
+- **E9.** With an empty cursor, and then with a stone on the cursor, Shift double click a stone
+  stack in the player part. Expect CCS-DBL-003.
+- **E10.** Hover stacks with a custom name, lore, enchantments, attribute modifiers,
+  `unbreakable`, a filled map and a player head, with the advanced tooltips off and on. Take a
+  screenshot of each tooltip. Expect CCS-TIP-001 to CCS-TIP-008.
+- The input agent of `tools/vanilla-client` moves and turns the player only. It cannot press a
+  mouse button or a key in a screen. E2 and E4 to E10 need that input.
