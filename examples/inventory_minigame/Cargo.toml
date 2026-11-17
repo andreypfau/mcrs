@@ -5,7 +5,12 @@ edition.workspace = true
 publish = false
 
 [lib]
+test = false
 doctest = false
+
+[[bin]]
+name = "mcrs_minecraft_inventory_minigame"
+test = false
 
 [lints]
 workspace = true

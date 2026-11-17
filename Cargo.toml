@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 [[bin]]
 name = "mcrs"
 path = "src/main.rs"
+test = false
 
 [lints]
 workspace = true
@@ -457,6 +458,16 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_dimension"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_resource"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_datapack"]
+opt-level = 3
+
+# The global allocator of most test binaries; every allocation of a fixture load passes through it.
+[profile.dev.package."mcrs_test_alloc"]
 opt-level = 3
 
 # The level field tests recompute the field from scratch after every change:
