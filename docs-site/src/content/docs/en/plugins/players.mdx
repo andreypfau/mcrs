@@ -44,7 +44,7 @@ In a plugin you write the query as a system parameter, for example `Query<(&Game
 
 The game mode, the flight state and the operator level are in one file:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"/// The game mode of a player.\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_game_mode::GameMode;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
 
 `PlayerOpLevel` in the same file holds the operator level, which goes from 0 for a player who is not an operator up to 4. The test harness reads a game mode like this:
 
