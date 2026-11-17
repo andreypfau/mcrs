@@ -8,7 +8,7 @@ use mcrs_minecraft_network::BoundAddress;
 use tokio::sync::oneshot;
 
 use crate::run_server_loop;
-use crate::shutdown::{ShutdownRequest, ShutdownSignal, forward_shutdown};
+use crate::shutdown::{ShutdownPlugin, ShutdownSignal, forward_shutdown, shutdown_system};
 
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
@@ -17,6 +17,8 @@ pub enum ServerThreadError<E> {
     Build(#[source] E),
     #[error("the server thread did not start: {0}")]
     Spawn(std::io::ErrorKind),
+    #[error("the server app has no ShutdownPlugin, so a shutdown request would never end it")]
+    NoShutdownPlugin,
     #[error("the server app is not bound to an address")]
     NotBound,
     #[error("the server thread panicked")]
@@ -40,16 +42,20 @@ impl<E: Send + 'static> ServerThread<E> {
             .name("mcrs-server".to_owned())
             .spawn(move || {
                 let mut app = build().map_err(ServerThreadError::Build)?;
+                if !app.is_plugin_added::<ShutdownPlugin>() {
+                    return Err(ServerThreadError::NoShutdownPlugin);
+                }
                 let address = app
                     .world()
                     .get_resource::<BoundAddress>()
                     .ok_or(ServerThreadError::NotBound)?
                     .0;
-                app.add_message::<ShutdownRequest>();
                 app.insert_resource(ShutdownSignal(stop_receive));
                 app.add_systems(
                     Update,
-                    forward_shutdown.run_if(resource_exists::<ShutdownSignal>),
+                    forward_shutdown
+                        .run_if(resource_exists::<ShutdownSignal>)
+                        .before(shutdown_system),
                 );
                 bound_send.send(address).ok();
                 Ok(run_server_loop(app))
