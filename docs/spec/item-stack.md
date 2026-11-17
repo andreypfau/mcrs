@@ -1491,9 +1491,9 @@ deviation D6. Experiment E26 confirms the statements on the order and on the map
 
 Boolean, String (n), UUID and Identifier have the forms of `login.md`, section 0.2. Let the saved
 UUID have the ints `a`, `b`, `c` and `d` (STK-SHP-024). Its wire form is `a`, `b`, `c` and `d` in
-that order, each as 4 bytes, big-endian. A number of properties larger than 16 is a decode error. A string longer than its
-limit is a decode error. The reader of the wire form does not check the code units of a name. A
-name that is not a player name has no valid saved form, so STK-NET-009 applies.
+that order, each as 4 bytes, big-endian. A number of properties larger than 16 is a decode error. A
+string longer than its limit is a decode error. The reader of the wire form does not check the code
+units of a name. A name that is not a player name has no valid saved form, so STK-NET-009 applies.
 
 For example, the partial profile with only the UUID of the ints `1, 2, 3, 4` has the wire form
 `00 00 01 00000001 00000002 00000003 00000004 00 00 00 00 00`.

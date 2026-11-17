@@ -1,6 +1,7 @@
 mod bedrock_name_policy;
 mod bedrock_uuid_scheme;
 mod player_identity;
+mod profile_error;
 mod skin_textures;
 mod wire;
 mod xuid;
@@ -8,12 +9,14 @@ mod xuid;
 pub use bedrock_name_policy::{BedrockNameError, BedrockNamePolicy};
 pub use bedrock_uuid_scheme::BedrockUuidScheme;
 pub use player_identity::{BedrockIdentity, PlayerIdentity};
+pub use profile_error::ProfileError;
 pub use skin_textures::SkinTextures;
 pub use xuid::Xuid;
 
+use core::hash::Hash;
+use core::hash::Hasher;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
@@ -35,13 +38,28 @@ pub const MAX_PROPERTIES: usize = 16;
 pub type PlayerName = BoundedString<16>;
 
 fn player_name(text: &str) -> Result<PlayerName, String> {
-    let name = PlayerName::new(text).map_err(|e| e.to_string())?;
-    if text.chars().any(|c| c <= ' ' || c >= '\x7f') {
-        return Err(format!(
-            "Player name contained disallowed characters: '{text}'"
-        ));
+    check_player_name(text).map_err(|error| error.to_string())?;
+    Ok(BoundedString(text.to_owned()))
+}
+
+fn check_length<const MAX: usize>(text: &str) -> Result<(), ProfileError<'_>> {
+    let length = text.encode_utf16().count();
+    if length > MAX {
+        return Err(ProfileError::StringTooLong {
+            text,
+            length,
+            max: MAX,
+        });
     }
-    Ok(name)
+    Ok(())
+}
+
+fn check_player_name(text: &str) -> Result<(), ProfileError<'_>> {
+    check_length::<16>(text)?;
+    if text.chars().any(|c| c <= ' ' || c >= '\x7f') {
+        return Err(ProfileError::DisallowedNameCharacters(text));
+    }
+    Ok(())
 }
 
 pub fn uuid_ints(id: Uuid) -> IntArray<4> {
@@ -150,13 +168,10 @@ impl Hash for ProfileIdentity {
 }
 
 fn same_groups(left: &[Property], right: &[Property]) -> bool {
-    let same_name = |first: &Property, second: &Property| first.name == second.name;
     left.len() == right.len()
-        && left.chunk_by(same_name).all(|group| {
-            right
-                .chunk_by(same_name)
-                .find(|other| other.first().map(|p| &p.name) == group.first().map(|p| &p.name))
-                .is_some_and(|other| other == group)
+        && left.iter().all(|property| {
+            let named = |other: &&Property| other.name == property.name;
+            left.iter().filter(named).eq(right.iter().filter(named))
         })
 }
 
@@ -178,10 +193,8 @@ impl Profile {
             skin: SkinPatch::default(),
         })
     }
-}
 
-impl Serialize for Profile {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+    pub fn check(&self) -> Result<(), ProfileError<'_>> {
         let (name, properties) = match &self.profile {
             ProfileIdentity::Full(profile) => (Some(&profile.name), &profile.properties),
             ProfileIdentity::Partial {
@@ -189,11 +202,21 @@ impl Serialize for Profile {
             } => (name.as_ref(), properties),
         };
         if let Some(name) = name {
-            player_name(&name.0).map_err(S::Error::custom)?;
+            check_player_name(&name.0)?;
         }
         for property in properties {
-            check_property(property).map_err(S::Error::custom)?;
+            check_property(property)?;
         }
+        if properties.len() > MAX_PROPERTIES {
+            return Err(ProfileError::TooManyProperties(properties.len()));
+        }
+        Ok(())
+    }
+}
+
+impl Serialize for Profile {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.check().map_err(S::Error::custom)?;
         let mut map = s.serialize_map(None)?;
         let properties = match &self.profile {
             ProfileIdentity::Full(profile) => {
@@ -215,12 +238,6 @@ impl Serialize for Profile {
                 properties
             }
         };
-        if properties.len() > MAX_PROPERTIES {
-            return Err(S::Error::custom(format_args!(
-                "List is too long: {}, expected range [0-{MAX_PROPERTIES}]",
-                properties.len()
-            )));
-        }
         if !properties.is_empty() {
             map.serialize_entry("properties", properties)?;
         }
@@ -326,11 +343,11 @@ pub fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
     grouped
 }
 
-fn check_property(property: &Property) -> Result<(), String> {
-    BoundedString::<64>::new(&*property.name).map_err(|e| e.to_string())?;
-    BoundedString::<32767>::new(&*property.value).map_err(|e| e.to_string())?;
+fn check_property(property: &Property) -> Result<(), ProfileError<'_>> {
+    check_length::<64>(&property.name)?;
+    check_length::<32767>(&property.value)?;
     if let Some(signature) = &property.signature {
-        BoundedString::<1024>::new(&**signature).map_err(|e| e.to_string())?;
+        check_length::<1024>(signature)?;
     }
     Ok(())
 }

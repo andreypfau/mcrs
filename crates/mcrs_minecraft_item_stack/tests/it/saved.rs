@@ -44,6 +44,10 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_profile::Profile;
+use mcrs_minecraft_profile::ProfileIdentity;
+use mcrs_minecraft_profile::Property;
+use mcrs_minecraft_profile::SkinPatch;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
@@ -479,6 +483,37 @@ fn a_profile_ignores_the_order_of_its_property_groups_but_not_the_case_of_its_na
     let upper = profile(r#""Steve""#);
     let lower = profile(r#""steve""#);
     assert_ne!(upper, lower);
+    let partial = |properties: &[(&str, &str)]| Profile {
+        profile: ProfileIdentity::Partial {
+            name: None,
+            id: None,
+            properties: properties
+                .iter()
+                .map(|&(name, value)| Property {
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                    signature: None,
+                })
+                .collect(),
+        },
+        skin: SkinPatch::default(),
+    };
+    let ungrouped = [
+        (
+            partial(&[("x", "1"), ("t", "1"), ("x", "1")]),
+            partial(&[("x", "1"), ("t", "1"), ("y", "1")]),
+            false,
+        ),
+        (
+            partial(&[("x", "1"), ("t", "1"), ("x", "2")]),
+            partial(&[("x", "1"), ("x", "2"), ("t", "1")]),
+            true,
+        ),
+    ];
+    for (left, right, equal) in ungrouped {
+        assert_eq!(left == right, equal, "{left:?} == {right:?}");
+        assert_eq!(right == left, equal, "{right:?} == {left:?}");
+    }
 }
 
 #[test]

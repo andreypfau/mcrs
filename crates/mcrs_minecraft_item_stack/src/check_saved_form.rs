@@ -1,6 +1,5 @@
 use core::ops::RangeInclusive;
 
-use mcrs_minecraft_nbt::to_nbt_tag;
 use mcrs_minecraft_text::Text;
 
 use crate::ItemStack;
@@ -48,7 +47,7 @@ impl SavedSink for Check {
     }
 
     fn profile(&mut self, profile: &Profile) -> Option<()> {
-        to_nbt_tag(profile).ok().map(drop)
+        profile.check().ok()
     }
 
     fn fields(&self, _: impl IntoIterator<Item = Field<()>>) {}

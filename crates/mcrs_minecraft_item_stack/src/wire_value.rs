@@ -2,7 +2,6 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use core::num::NonZeroU8;
 
-use mcrs_minecraft_nbt::split_wire;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
@@ -47,6 +46,7 @@ use crate::lore::MAX_LINES;
 use crate::saved;
 use crate::saved_form::Fault;
 use crate::saved_form::saved_form;
+use crate::split_nbt::split_nbt;
 use crate::tag_sink::TagSink;
 use crate::wire_text::read_text;
 use crate::wire_text::write_text;
@@ -174,10 +174,9 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn saved_form_as_nbt(&self, input: &mut &[u8]) -> Result<Builtin, WireError> {
-        let decode_error =
-            |error: &mcrs_minecraft_wire::Error| WireError::of_value(error, self.component);
-        let mut bytes = split_wire(input).map_err(|error| decode_error(&error))?;
-        let tag = NbtTag::decode(&mut bytes).map_err(|error| decode_error(&error))?;
+        let mut bytes = split_nbt(input, self.component)?;
+        let tag = NbtTag::decode(&mut bytes)
+            .map_err(|error| WireError::of_value(&error, self.component))?;
         saved::read_value(self.component, &tag, self.names)
             .map_err(|error| WireError::of_saved(error, self.component))
     }

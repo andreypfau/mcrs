@@ -62,6 +62,7 @@ mod saved_sink;
 mod saved_text;
 mod slot_group;
 mod slot_stack;
+mod split_nbt;
 mod tag_number;
 mod tag_sink;
 mod tool;
