@@ -58,7 +58,7 @@ fn app(table: ItemTable, players: u64) -> App {
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
         .add_plugins((
             ItemPlugin::new(table),
-            VanillaInventoryPlugin::default(),
+            VanillaInventoryPlugin,
             InventoryServerPlugin,
             InventoryPersistencePlugin,
         ));

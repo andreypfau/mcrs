@@ -92,6 +92,9 @@ fn insert_held<M: Menu<Slot = S::Slot>, S: Slots>(
         let Ok(seen) = view.load(slot) else {
             return Slot::Other;
         };
+        if !view.place(&seen, held) {
+            return Slot::Other;
+        }
         match seen.stack {
             None => Slot::Empty,
             Some(stack) if view.same(stack, held) && view.slots.can_stack(stack) => {

@@ -1,6 +1,5 @@
 use crate::ArmourSlot;
 use crate::INVENTORY_SLOTS;
-use crate::OFF_HAND;
 use crate::SlotFilter;
 use crate::SlotRule;
 use crate::layout::ARMOUR_LIMIT;
@@ -35,7 +34,6 @@ impl Holder {
             return None;
         }
         let filter = match self {
-            Self::Inventory if index == OFF_HAND => SlotFilter::OffHand,
             Self::Inventory => {
                 ArmourSlot::from_index(index).map_or(SlotFilter::Any, SlotFilter::Armour)
             }
@@ -44,7 +42,7 @@ impl Holder {
         };
         let limit = match filter {
             SlotFilter::Armour(_) => ARMOUR_LIMIT,
-            SlotFilter::Any | SlotFilter::OffHand | SlotFilter::CraftResult => STACK_LIMIT,
+            SlotFilter::Any | SlotFilter::CraftResult => STACK_LIMIT,
         };
         Some(SlotRule { limit, filter })
     }

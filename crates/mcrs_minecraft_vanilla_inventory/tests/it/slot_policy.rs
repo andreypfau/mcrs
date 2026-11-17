@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -9,113 +7,55 @@ use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine_item::Denial;
 use mcrs_minecraft_engine_item::Gate;
-use mcrs_minecraft_engine_item::Reason;
-use mcrs_minecraft_engine_item::Refusal;
-use mcrs_minecraft_engine_item::Rejected;
 use mcrs_minecraft_engine_item::RequestCheck;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::SlotAccess;
 use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_game_registries::registry_load::load_registries;
-use mcrs_minecraft_game_registries::registry_load::test_additions;
-use mcrs_minecraft_game_registries::registry_load::test_packs;
-use mcrs_minecraft_inventory_player::OffHandRule;
 use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_vanilla_inventory::CLOSE_REQUEST;
 use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
 use mcrs_minecraft_vanilla_inventory::HandAction;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
-use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::capture;
 use crate::fixture::dropped;
 use crate::fixture::gameplay_app;
-use crate::fixture::gameplay_app_with;
 use crate::fixture::holders;
 use crate::fixture::put;
 use crate::fixture::restore;
 use crate::fixture::stacks;
-
-/// The test registries with the item tag `mcrs:offhand_allowed` holding stone alone.
-static OFFHAND_STONE: LazyLock<Registries> = LazyLock::new(|| {
-    let mut additions = test_additions();
-    additions.files.insert(
-        "offhand",
-        "data/mcrs/tags/item/offhand_allowed.json",
-        r#"{"values":["minecraft:stone"]}"#,
-    );
-    additions.embedded_packs.push("offhand".to_owned());
-    let (registries, _) = load_registries(&test_packs(), additions).expect("the pack loads");
-    registries
-});
 
 fn results(world: &World) -> Vec<RequestResult> {
     let results = world.resource::<Messages<RequestResult>>();
     results.iter_current_update_messages().copied().collect()
 }
 
+/// INV-SLT-005: the off-hand slot has no place filter.
 #[test]
-fn the_off_hand_rule_decides_which_item_a_hand_swap_moves_into_the_off_hand() {
-    struct Case {
-        rule: OffHandRule,
-        item: Kind,
-        outcome: Result<(), Refusal>,
-    }
-    let refused = Err(Refusal::Rejected(Rejected {
-        op: 0,
-        reason: Reason::PlaceDenied,
-    }));
-    let cases = [
-        Case {
-            rule: OffHandRule::TaggedItems,
-            item: DIRT,
-            outcome: refused,
-        },
-        Case {
-            rule: OffHandRule::TaggedItems,
-            item: STONE,
-            outcome: Ok(()),
-        },
-        Case {
-            rule: OffHandRule::AnyItem,
-            item: DIRT,
-            outcome: Ok(()),
-        },
-    ];
-    for case in cases {
-        let plugin = VanillaInventoryPlugin {
-            off_hand: case.rule,
-        };
-        let mut app = gameplay_app_with(OFFHAND_STONE.clone(), plugin);
-        let world = app.world_mut();
-        let player = world.spawn(Player).id();
-        world.flush();
-        put(world, player, 0, case.item, 3);
+fn inv_slt_005_a_hand_swap_puts_any_item_in_the_off_hand() {
+    let mut app = gameplay_app();
+    let world = app.world_mut();
+    let player = world.spawn(Player).id();
+    world.flush();
+    put(world, player, 0, DIRT, 3);
 
-        world
-            .commands()
-            .entity(player)
-            .hand_action(HandAction::SwapHands);
-        world.flush();
+    world
+        .commands()
+        .entity(player)
+        .hand_action(HandAction::SwapHands);
+    world.flush();
 
-        let label = format!("{:?} with item {:?}", case.rule, case.item);
-        let result = RequestResult {
-            holder: player,
-            id: HAND_SWAP_REQUEST,
-            outcome: case.outcome,
-        };
-        assert_eq!(results(world), [result], "{label}");
-        let expected = match case.outcome {
-            Ok(()) => (40, case.item, 3),
-            Err(_) => (0, case.item, 3),
-        };
-        assert_eq!(stacks(world, player), [expected], "{label}");
-    }
+    let result = RequestResult {
+        holder: player,
+        id: HAND_SWAP_REQUEST,
+        outcome: Ok(()),
+    };
+    assert_eq!(results(world), [result]);
+    assert_eq!(stacks(world, player), [(40, DIRT, 3)]);
 }
 
 #[test]
@@ -161,7 +101,6 @@ fn close_by(world: &mut World, player: Entity, path: ClosePath) {
 
 struct CloseCase {
     label: &'static str,
-    off_hand: OffHandRule,
     before: Vec<(u16, Kind, u8)>,
     access: Option<PolicyEntry>,
     cursor: (Kind, u8),
@@ -175,10 +114,7 @@ struct PolicyEntry {
 }
 
 fn assert_close(case: &CloseCase, path: ClosePath) {
-    let plugin = VanillaInventoryPlugin {
-        off_hand: case.off_hand,
-    };
-    let mut app = gameplay_app_with(OFFHAND_STONE.clone(), plugin);
+    let mut app = gameplay_app();
     app.add_plugins(InventoryPersistencePlugin);
     let world = app.world_mut();
     let player = restore(world, &PersistedSnapshot::new());
@@ -239,17 +175,7 @@ fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
         .collect();
     let cases = [
         CloseCase {
-            label: "an off hand that refuses the item",
-            off_hand: OffHandRule::TaggedItems,
-            before: vec![(40, DIRT, 10)],
-            access: None,
-            cursor: (DIRT, 20),
-            after: vec![(0, DIRT, 20), (40, DIRT, 10)],
-            dropped: vec![],
-        },
-        CloseCase {
             label: "a main slot that a plugin locks",
-            off_hand: OffHandRule::default(),
             before: vec![(3, STONE, 10)],
             access: Some(locked(3)),
             cursor: (STONE, 20),
@@ -258,7 +184,6 @@ fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
         },
         CloseCase {
             label: "a locked main slot among main slots of dirt",
-            off_hand: OffHandRule::default(),
             before: dirt_around_slot_3,
             access: Some(locked(3)),
             cursor: (STONE, 20),
@@ -267,7 +192,6 @@ fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
         },
         CloseCase {
             label: "an empty main slot with a slot limit below the stack",
-            off_hand: OffHandRule::default(),
             before: vec![],
             access: Some(limit_16(0)),
             cursor: (STONE, 20),
@@ -276,7 +200,6 @@ fn inv_cls_005_a_close_skips_each_slot_whose_place_filter_refuses_the_stack() {
         },
         CloseCase {
             label: "an alike main slot with a slot limit below the stack",
-            off_hand: OffHandRule::default(),
             before: vec![(0, STONE, 10)],
             access: Some(limit_16(0)),
             cursor: (STONE, 20),

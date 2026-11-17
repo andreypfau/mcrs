@@ -19,7 +19,6 @@ mod inventory_persistence_plugin;
 mod inventory_set;
 mod kept_equipment;
 mod launch_drops;
-mod off_hand_gate;
 mod player_file;
 mod player_file_codec;
 mod player_holders;
