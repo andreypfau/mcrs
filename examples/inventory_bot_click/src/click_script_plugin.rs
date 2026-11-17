@@ -1,6 +1,6 @@
 use bevy_app::App;
-use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
+use bevy_app::Update;
 use bevy_ecs::prelude::*;
 use bevy_log::warn;
 use mcrs_minecraft_client_world::player::Player;
@@ -15,9 +15,11 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_client::InventoryClientSet;
-use mcrs_minecraft_inventory_client::MenuClick;
+use mcrs_minecraft_inventory_client::MenuAction;
+use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_inventory_client::RemoteMenu;
 use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::ClickScript;
@@ -29,8 +31,9 @@ pub struct ClickScriptPlugin;
 impl Plugin for ClickScriptPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            FixedUpdate,
+            Update,
             click_next_step
+                .after(ClientNetworkSystems::Receive)
                 .before(InventoryClientSet::Predict)
                 .run_if(resource_exists::<ClickScript>.and_then(script_running)),
         );
@@ -46,7 +49,7 @@ fn click_next_step(
     player: Single<(Entity, &PlayerHolders, &Menus, Option<&PlayerGameMode>), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts), With<RemoteMenu>>,
     slots: Query<&Slots>,
-    mut clicks: MessageWriter<MenuClick>,
+    mut inputs: MessageWriter<MenuInput>,
 ) {
     let (viewer, holders, player_menus, game_mode) = *player;
     // The inventory menu is the first menu; the bot clicks only while it is the open one.
@@ -99,7 +102,10 @@ fn click_next_step(
     // player with a mouse would send, and nothing for a gesture that clicks nothing.
     let click = Click::from_input(Clicked::Entry(step.entry), input);
     if let Some(click) = click {
-        clicks.write(MenuClick { viewer, click });
+        inputs.write(MenuInput {
+            viewer,
+            action: MenuAction::Click(click),
+        });
     }
     match (script.button(), click) {
         (ButtonState::Up, Some(_)) => script.press(ButtonState::DownAfterClick),

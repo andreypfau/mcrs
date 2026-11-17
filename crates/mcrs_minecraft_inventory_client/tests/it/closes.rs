@@ -1,11 +1,10 @@
-use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_inventory_client::CloseMenu;
-use mcrs_minecraft_inventory_client::MenuClick;
+use mcrs_minecraft_inventory_client::MenuAction;
+use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerClose;
@@ -40,6 +39,11 @@ const STONES: (Kind, u8) = (STONE, 10);
 const DIRTS: (Kind, u8) = (DIRT, 3);
 const CRAFT_RESULT_ENTRY: u16 = 0;
 const CRAFT_GRID_ENTRY: u16 = 1;
+const PICK_UP: Click = Click {
+    kind: ClickKind::PickUp,
+    button: 0,
+    clicked: Clicked::Entry(9),
+};
 
 const ROWS: &[Row] = &[
     Row {
@@ -89,7 +93,10 @@ fn a_close_empties_the_craft_result_and_keeps_the_cursor_and_the_grid() {
         set_up(world, connection);
         match row.close {
             Close::Client => {
-                world.write_message(CloseMenu { viewer: player });
+                world.write_message(MenuInput {
+                    viewer: player,
+                    action: MenuAction::Close,
+                });
             }
             Close::Server { container_id } => {
                 let body = body(&ClientboundContainerClose {
@@ -102,7 +109,6 @@ fn a_close_empties_the_craft_result_and_keeps_the_cursor_and_the_grid() {
                 world.flush();
             }
         }
-        world.run_schedule(FixedUpdate);
         app.update();
         let world = app.world();
         let close = row.close;
@@ -117,15 +123,10 @@ fn a_close_empties_the_craft_result_and_keeps_the_cursor_and_the_grid() {
             "{close:?}: grid"
         );
         assert_eq!(cursor(world), Some(STONES), "{close:?}: cursor");
-        app.world_mut().write_message(MenuClick {
+        app.world_mut().write_message(MenuInput {
             viewer: player,
-            click: Click {
-                kind: ClickKind::PickUp,
-                button: 0,
-                clicked: Clicked::Entry(9),
-            },
+            action: MenuAction::Click(PICK_UP),
         });
-        app.world_mut().run_schedule(FixedUpdate);
         app.update();
         let sent: Vec<i32> = server
             .each_before::<ServerboundContainerClose, ServerboundContainerClick>()
@@ -133,5 +134,54 @@ fn a_close_empties_the_craft_result_and_keeps_the_cursor_and_the_grid() {
             .map(|packet| packet.container_id.0)
             .collect();
         assert_eq!(sent, row.sent, "{close:?}: sent container ids");
+    }
+}
+
+struct OrderRow {
+    actions: [MenuAction; 2],
+    clicks_before_close: usize,
+}
+
+const ORDER_ROWS: &[OrderRow] = &[
+    OrderRow {
+        actions: [MenuAction::Click(PICK_UP), MenuAction::Close],
+        clicks_before_close: 1,
+    },
+    OrderRow {
+        actions: [MenuAction::Close, MenuAction::Click(PICK_UP)],
+        clicks_before_close: 0,
+    },
+];
+
+#[test]
+fn a_click_and_a_close_of_one_frame_are_sent_in_the_order_they_are_written() {
+    for row in ORDER_ROWS {
+        let (mut app, player) = client_with_player();
+        let mut server = Server::join(&mut app);
+        let world = app.world_mut();
+        let connection = world.spawn_empty().id();
+        set_up(world, connection);
+        for action in row.actions {
+            world.write_message(MenuInput {
+                viewer: player,
+                action,
+            });
+        }
+        app.update();
+        let world = app.world();
+        let actions = row.actions;
+        assert_eq!(content(world, 9), Some(STONES), "{actions:?}: placed");
+        assert_eq!(cursor(world), None, "{actions:?}: cursor");
+        assert_eq!(
+            content(world, CRAFT_RESULT_ENTRY),
+            None,
+            "{actions:?}: result"
+        );
+        let clicks = server.each_before::<ServerboundContainerClick, ServerboundContainerClose>();
+        assert_eq!(
+            clicks.len(),
+            row.clicks_before_close,
+            "{actions:?}: clicks before the close"
+        );
     }
 }

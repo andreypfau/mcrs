@@ -1,12 +1,11 @@
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_client_world::inventory_packets::INVENTORY_MENU;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
-use mcrs_minecraft_protocol::{VarInt, WritePacket};
-use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClose;
+use mcrs_minecraft_inventory_client::{InventoryClientSet, MenuAction, MenuInput};
+use mcrs_minecraft_network::client::ClientNetworkSystems;
 
 use crate::cursor_grab::grab;
 
@@ -21,7 +20,7 @@ impl Plugin for InventoryKeyPlugin {
             toggle_inventory
                 .run_if(input_just_pressed(INVENTORY).or_else(input_just_pressed(KeyCode::Escape)))
                 .after(ClientNetworkSystems::Receive)
-                .before(ClientNetworkSystems::Flush),
+                .before(InventoryClientSet::Predict),
         );
     }
 }
@@ -31,7 +30,8 @@ fn toggle_inventory(
     mut screen: ResMut<Screen>,
     joined: Query<(), With<JoinedGame>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-    connection: Option<Single<&mut ClientConnection>>,
+    player: Option<Single<Entity, With<Player>>>,
+    mut inputs: MessageWriter<MenuInput>,
 ) {
     match *screen {
         Screen::None if keys.just_pressed(INVENTORY) && !joined.is_empty() => {
@@ -41,9 +41,10 @@ fn toggle_inventory(
         Screen::Inventory if keys.any_just_pressed([INVENTORY, KeyCode::Escape]) => {
             *screen = Screen::None;
             grab(&mut cursor, true);
-            if let Some(mut connection) = connection {
-                connection.write_packet(&ServerboundContainerClose {
-                    container_id: VarInt(INVENTORY_MENU),
+            if let Some(player) = player {
+                inputs.write(MenuInput {
+                    viewer: *player,
+                    action: MenuAction::Close,
                 });
             }
         }
@@ -61,6 +62,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<Screen>()
+            .add_message::<MenuInput>()
             .add_systems(Update, toggle_inventory);
         app.world_mut().spawn(JoinedGame {
             player_id: 1,

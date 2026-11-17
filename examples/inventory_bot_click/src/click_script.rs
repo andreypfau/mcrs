@@ -14,7 +14,7 @@ pub(crate) enum ButtonState {
 }
 
 /// The progress of the fixed script. Insert it to start the script; the bot then sends
-/// one mouse gesture each fixed tick, once its inventory menu has a state id from the
+/// one mouse gesture each frame, once its inventory menu has a state id from the
 /// server.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ClickScript {

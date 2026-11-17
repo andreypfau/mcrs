@@ -1,9 +1,9 @@
-use bevy_app::FixedUpdate;
 use bevy_ecs::world::World;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_inventory_client::MenuClick;
+use mcrs_minecraft_inventory_client::MenuAction;
+use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
@@ -171,11 +171,10 @@ fn a_click_is_predicted_and_sent_with_its_claims() {
             button: row.button,
             clicked: Clicked::Entry(row.entry),
         };
-        app.world_mut().write_message(MenuClick {
+        app.world_mut().write_message(MenuInput {
             viewer: player,
-            click,
+            action: MenuAction::Click(click),
         });
-        app.world_mut().run_schedule(FixedUpdate);
         app.update();
         let world = app.world();
         for &(entry, expected) in row.entries {

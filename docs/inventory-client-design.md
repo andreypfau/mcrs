@@ -45,7 +45,11 @@ Decisions of the owner **(decided)**:
 - No crate maps a click to a packet. No crate name has `java`, `packet` or `wire` for this purpose.
 - The client keeps its stacks in `engine_item` holders, as the server does.
 - The client stores no predicted click. The server corrects each slot that differs.
-- `MenuClick { viewer, click }` is the one way to click. A bot and a GUI write the same message.
+- `MenuInput { viewer, action }` is the one way to click in the open menu and to close it. Its
+  `MenuAction` is `Click(Click)` or `Close`. A bot and a GUI write the same message. The client
+  applies and sends the inputs in the order of the writes (CINV-PKT-007).
+- `HandInput { viewer, action }` is the drop key and the swap key outside a screen. Its
+  `HandAction` is the one that the server uses.
 - The driver of the click kernel is its own crate `engine_inventory_click`, not part of
   `engine_inventory_menu`. Thus a minigame and a Bedrock edge do not link the Java click kernel.
 - `Screen::Menu` is one variant. The open menu gives its content.
@@ -62,9 +66,10 @@ specification.
 | `Slots`, `InSlot`, `SlotPolicy` on the client | as `docs/inventory-design.md` section 2 | the client edge; `PlayerHoldersPlugin` for the policy |
 | `PlayerHolders` on the client | authoritative truth: the three child holders of the local player | `PlayerHoldersPlugin` |
 | `Selected` on the client | materialized derived state: a projection of `SelectedHotbarSlot`. The client derives it from the hotbar slot until the GUI half removes the old value. | one projection system of the client world |
-| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. | one projection system of the client world |
+| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. The take filter (INV-SLT-004), the spectator check and the creative mode of a predicted click read it. | one projection system of the client world, in the fixed tick and in each frame |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
-| `MenuClick` | temporal fact: one click of a viewer | a bot, a GUI or a screen |
+| `MenuInput` | temporal fact: one click or one close of a viewer, in the order of the inputs | a bot, a GUI or a screen |
+| `HandInput` | temporal fact: one press of the drop key or the swap key outside a screen | a bot or the key input of the client |
 | `MenuDrag` | authoritative truth: the drag in progress on one menu | `MenuClicks`; `MenuClickPlugin` inserts it when the menu opens and resets it when a menu of the viewer closes |
 | predicted slot content | the content of the holder after the commit; no second copy | the client edge |
 | state id of a remote menu | authoritative truth of the client edge | the client edge only |
@@ -178,10 +183,12 @@ pub struct PlayerItemFilePlugin;
 | `Click`, `ClickKind`, `Clicked` | `container_click` | One gesture on one menu entry, as data. |
 | `Click::from_input` | `container_click` | Makes a click from a gesture of a pointer or a key. |
 | `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
-| `MenuClick { viewer, click }` | `inventory_client` | The one way to click on the client. |
+| `MenuInput { viewer, action }`, `MenuAction::{Click, Close}` | `inventory_client` | The one way to click in and to close the open menu on the client. |
+| `HandInput { viewer, action }` | `inventory_client` | The drop key and the swap key outside a screen. |
+| `InventoryClientSet::{Predict, Send}` | `inventory_client` | The sets of the prediction and of the send, in `Update` for `MenuInput` and in `FixedUpdate` for `HandInput`. A writer of an input runs before `Predict`. |
 | `RemoteMenu` | `inventory_client` | A menu that the server opened, with its container id and the last state id of the server, as raw packet values. |
 | `StackView<'a> { stack: &'a ItemStack, table: &'a ItemTable }` | `model` | The input of the item model evaluator: a layer 3 value, not an entity. |
-| `InventoryClientPlugin` | `inventory_client` | Applies the inbound packets to the holders and predicts each `MenuClick`. |
+| `InventoryClientPlugin` | `inventory_client` | Applies the inbound packets to the holders, and predicts and sends each `MenuInput` and `HandInput`. |
 
 # 5. Usage
 
@@ -191,10 +198,10 @@ outside its row. Each crate name has the prefix `mcrs_minecraft_`.
 | # | User | What it does | Crates it takes | Check |
 |-|-|-|-|-|
 | 1 | Proxy, packet logger | Reads the typed `Click` of a packet. Removes a shift click in a lobby. | `protocol_game` (with its `container_click`) | It builds with no rules crate and no Bevy. |
-| 2 | Bot on Bevy | Writes `MenuClick`. Gets the prediction and the packet. | `inventory_client` | An example clicks with no GUI crate and no render crate in `cargo tree`. |
+| 2 | Bot on Bevy | Writes `MenuInput`. Gets the prediction and the packet. | `inventory_client` | An example clicks with no GUI crate and no render crate in `cargo tree`. |
 | 3 | Bot without Bevy (load test) | Keeps its own slot array. Runs the click kernel. Sends the packet. | `inventory_click`, `inventory_transaction`, `protocol_game` (with its `container_click`) | It builds with no Bevy in `cargo tree`. |
 | 4 | Minigame server | Opens a virtual chest with button entries. Locks a slot. Denies a request. | `engine_item`, `engine_inventory_menu` | A plugin opens a 27-slot menu and handles a button with no change to an inventory crate. |
-| 5 | Third-party GUI (egui, web) | Draws the slots from state. Writes `MenuClick` through `Click::from_input`. | `inventory_client` | It needs no screen crate of ours. |
+| 5 | Third-party GUI (egui, web) | Draws the slots from state. Writes `MenuInput` through `Click::from_input`. | `inventory_client` | It needs no screen crate of ours. |
 | 6 | Anti-cheat, analytics | Reads the intents and the results. Writes nothing. | the messages of `engine_item` and of the edge | One system with message readers only. |
 | 7 | Session record and replay | Stores `Click` values. Runs them through the kernel again. | `container_click`, `inventory_click` | The same clicks give the same slots. |
 | 8 | Bedrock edge | Builds a `Request` directly. Does not use `Click`. | `engine_item`, `engine_inventory_menu` | No crate below the edge knows the edition. |
@@ -235,10 +242,12 @@ for all stacks when the item models change.
 ```rust
 app.add_plugins((ClientNetworkPlugin { holds_vanilla_pack: true, play: Some(GAME_CLIENTBOUND) }, ClientRegistriesPlugin::default()));
 
-fn act(player: Single<Entity, With<Player>>, mut clicks: MessageWriter<MenuClick>) {
+fn act(player: Single<Entity, With<Player>>, mut inputs: MessageWriter<MenuInput>) {
     let viewer = *player;
-    clicks.write(MenuClick { viewer, click: Click::from_input(Clicked::Entry(36), ClickInput::primary()) });
-    clicks.write(MenuClick { viewer, click: Click::from_input(Clicked::Entry(9), ClickInput::shift_primary()) });
+    for click in [Click::from_input(Clicked::Entry(36), input), Click::from_input(Clicked::Entry(9), shift)].into_iter().flatten() {
+        inputs.write(MenuInput { viewer, action: MenuAction::Click(click) });
+    }
+    inputs.write(MenuInput { viewer, action: MenuAction::Close });
 }
 ```
 
@@ -246,25 +255,44 @@ fn act(player: Single<Entity, With<Player>>, mut clicks: MessageWriter<MenuClick
 
 ```rust
 let entry = layout_geometry.entry_at(pointer)?;
-clicks.write(MenuClick { viewer, click: Click::from_input(entry, ClickInput::from_pointer(button, mods)) });
+if let Some(click) = Click::from_input(entry, input) {
+    inputs.write(MenuInput { viewer, action: MenuAction::Click(click) });
+}
 ```
 
-# 6. The tick of the client **(proposal)**
+# 6. The frame and the tick of the client
 
-| Phase | What runs |
-|-|-|
-| ingest | The client edge applies each inbound inventory packet to the holders. |
-| input | A bot, a GUI or a screen writes `MenuClick`. |
-| predict | The client edge runs the planner and the commit of the server for each `MenuClick`. |
-| output | The client edge sends one click packet for each `MenuClick`. |
-| frame | The screens crate derives the hovered slot and the tooltip. |
+The client handles the input of a screen in the frame of the input, and the keys outside a screen
+once a tick.
+
+| Input | Schedule | Why |
+|-|-|-|
+| `MenuInput` (click, close) | `Update`, after `ClientNetworkSystems::Receive`, before `ClientNetworkSystems::Flush` | The client applies a click in the frame of its event (CINV-PKT-007, CINV-PRD-001). The packet leaves in the same frame. |
+| `HandInput` (drop key, swap key) | `FixedUpdate` | The client handles these keys once a tick (CINV-HND-001, CINV-HND-002). The packet leaves at the flush of the next `Update`, after `set_carried_item`. |
+
+The data flow of one click in one frame:
+
+| Step | System | What it does |
+|-|-|-|
+| ingest | `ClientNetworkSystems::Receive` | The client edge applies each inbound inventory packet to the holders. |
+| input | a bot, a GUI or a screen, before `InventoryClientSet::Predict` | Writes `MenuInput`. |
+| predict | `InventoryClientSet::Predict` | Queues one command for each `MenuInput`, in the order of the writes. A click command runs the planner (`MenuClicks::plan`) and the commit of `engine_item`, then puts one `container_click` with the claims into the outbox. A close command puts one `container_close` into the outbox and empties the craft result. |
+| output | `InventoryClientSet::Send` | Writes the outbox to the connection in order. |
+| flush | `ClientNetworkSystems::Flush` | Sends the bytes. |
+| frame | the screens crate | Derives the hovered slot and the tooltip from the predicted holders. |
+
+A headless client runs the same `Update` schedule with no window, so a bot gets the same order.
+The projections of `PlayerGameMode` and `Selected` run before `InventoryClientSet::Predict` in the
+two schedules.
 
 A prediction uses the same planner and the same commit as the server. Thus a click gives the same
 slots on the two sides when the two sides have the same slots. The client edge stores no predicted
 click. When the server sends a slot content, the client edge replaces the content of that slot.
 The server sends the content of each slot that differs (INV-SYN-002).
 
-The drop and the hand swap follow the rule of `spec/inventory-transactions.md` for them.
+The drop and the hand swap follow the rule of `spec/inventory-transactions.md` for them. The swing
+of the main hand after a drop (CINV-HND-001, step 5) sends no packet, and the client has no swing
+state yet, so the client edge does nothing for it.
 
 # 7. Migration
 
@@ -276,6 +304,6 @@ Each step is one pull request.
 | B | #984 | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
 | C1 | #129 (refs) | `ItemPlugin` takes no table; `ItemTable` is a session resource on the client. The new crate `inventory_client` applies the inbound packets to the `engine_item` holders of the local player, and `RemoteMenu` keeps the state id. The old slot table of the client still feeds the GUI. |
 | C1b | #129 (refs) | The evaluator reads `StackView`. The icons, the hotbar and the inventory screen read the holders. The entity stack model of `mcrs_minecraft_item` and the old slot table of the client are deleted. |
-| C2 | #129 | `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
+| C2 | #129 | `MenuInput` and `HandInput`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
 | D | #130 | The open and the close of the menus of the server, generic layouts, container screens, drag paint, double click, item tooltips. Specification: `spec/client-container-screen.md`. |
 | E | #131 | The creative screen. Specification: `spec/client-creative-inventory.md`. |

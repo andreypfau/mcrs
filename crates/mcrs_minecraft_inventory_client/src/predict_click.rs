@@ -1,14 +1,13 @@
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::InMut;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
+use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_engine_inventory_click::MenuClicker;
 use mcrs_minecraft_engine_inventory_click::MenuClicks;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
@@ -35,7 +34,6 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 
-use crate::MenuClick;
 use crate::RemoteMenu;
 use crate::click_source::ClickSource;
 use crate::local_inventory::StackNames;
@@ -70,16 +68,9 @@ struct ClickClaims {
     carried: Option<HashedStack>,
 }
 
-pub(crate) fn predict_clicks(mut clicks: MessageReader<MenuClick>, mut commands: Commands) {
-    for click in clicks.read() {
-        let click = *click;
-        commands.queue(move |world: &mut World| predict_click(world, click));
-    }
-}
-
-fn predict_click(world: &mut World, click: MenuClick) {
+pub(crate) fn predict_click(world: &mut World, viewer: Entity, click: Click) {
     world.try_resource_scope(|world, mut scratch: Mut<ClickScratch>| {
-        let Some(packet) = predict(world, click, &mut scratch) else {
+        let Some(packet) = predict(world, viewer, click, &mut scratch) else {
             return;
         };
         if let Some(mut outbox) = world.get_resource_mut::<Outbox>() {
@@ -90,25 +81,26 @@ fn predict_click(world: &mut World, click: MenuClick) {
 
 fn predict(
     world: &mut World,
-    click: MenuClick,
+    viewer: Entity,
+    click: Click,
     scratch: &mut ClickScratch,
 ) -> Option<ServerboundContainerClick> {
     let planned = world
-        .run_system_cached_with(plan_click, (click, &mut *scratch))
+        .run_system_cached_with(plan_click, (viewer, click, &mut *scratch))
         .ok()??;
     if let Some(request) = planned.request {
-        world.commands().entity(click.viewer).request(request);
+        world.commands().entity(viewer).request(request);
         world.flush();
     }
     let claims = world
-        .run_system_cached_with(claim_click, (click.viewer, &mut *scratch))
+        .run_system_cached_with(claim_click, (viewer, &mut *scratch))
         .ok()
         .flatten()
         .unwrap_or_default();
     Some(ServerboundContainerClick {
         container_id: VarInt(planned.container_id),
         state_seqno: VarInt(planned.state_id),
-        click: click.click,
+        click,
         changed_slots: Bounded(claims.changed),
         carried_item: claims.carried,
     })
@@ -119,7 +111,7 @@ fn predict(
     reason = "a Bevy system: each query and resource is its own parameter"
 )]
 fn plan_click(
-    (In(click), InMut(scratch)): (In<MenuClick>, InMut<ClickScratch>),
+    (In(viewer), In(click), InMut(scratch)): (In<Entity>, In<Click>, InMut<ClickScratch>),
     players: Query<
         (
             &PlayerHolders,
@@ -138,7 +130,7 @@ fn plan_click(
 ) -> Option<PlannedClick> {
     scratch.touched.clear();
     scratch.before.clear();
-    let (player_holders, selected, game_mode, player_menus) = players.get(click.viewer).ok()?;
+    let (player_holders, selected, game_mode, player_menus) = players.get(viewer).ok()?;
     let menu = player_menus.open()?;
     let (layout, parts, remote) = menus.get(menu).ok()?;
     let mut planned = PlannedClick {
@@ -168,7 +160,7 @@ fn plan_click(
             serial: CLICK_SERIAL,
         },
     };
-    let Ok(request) = clicks.plan(click.viewer, click.click, clicker) else {
+    let Ok(request) = clicks.plan(viewer, click, clicker) else {
         return Some(planned);
     };
     for op in request.ops() {

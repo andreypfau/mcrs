@@ -14,7 +14,8 @@ use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_inventory_client::MenuClick;
+use mcrs_minecraft_inventory_client::MenuAction;
+use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
@@ -250,9 +251,12 @@ fn each_click_leaves_the_client_and_the_server_with_the_same_stacks() {
         }
         *app.world_mut().resource_mut::<ServerAnswers>() = ServerAnswers::default();
         for &click in row.clicks {
-            app.world_mut().write_message(MenuClick { viewer, click });
-            app.world_mut().run_schedule(FixedUpdate);
+            app.world_mut().write_message(MenuInput {
+                viewer,
+                action: MenuAction::Click(click),
+            });
         }
+        app.update();
         round_trip(&mut app);
 
         assert_eq!(

@@ -2,6 +2,7 @@ use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_client::InventoryClientSet;
+use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundRespawn,
@@ -64,6 +65,12 @@ impl Plugin for GameModePlugin {
             FixedUpdate,
             project_player_game_mode.before(InventoryClientSet::Predict),
         );
+        app.add_systems(
+            Update,
+            project_player_game_mode
+                .after(ClientNetworkSystems::Receive)
+                .before(InventoryClientSet::Predict),
+        );
     }
 }
 
@@ -113,7 +120,9 @@ fn project_player_game_mode(
     mut commands: Commands,
 ) {
     for (player, mode) in &mut players {
-        commands.entity(player).insert(PlayerGameMode(mode.current));
+        commands
+            .entity(player)
+            .try_insert(PlayerGameMode(mode.current));
     }
 }
 
