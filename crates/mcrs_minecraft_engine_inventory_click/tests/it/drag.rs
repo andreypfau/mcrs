@@ -39,7 +39,8 @@ fn drag(button: u8, clicked: Clicked) -> Click {
 fn two_drag_clicks_in_one_system_see_each_other() {
     let mut app = App::new();
     let table = ItemTable::leak([vec![Builtin::MaxStackSize(MaxStackSize(64))]]);
-    app.add_plugins((ItemPlugin::new(table), MenuPlugin, MenuClickPlugin));
+    app.insert_resource(table)
+        .add_plugins((ItemPlugin::default(), MenuPlugin, MenuClickPlugin));
     let source = app.allocate_request_source().unwrap();
     let world = app.world_mut();
     let viewer = world

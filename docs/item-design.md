@@ -151,7 +151,7 @@ impl CustomComponent for Soulbound {
     fn decode(bytes: &[u8]) -> Option<Self> { Some(Self(u64::from_le_bytes(bytes.try_into().ok()?))) }
 }
 
-app.add_plugins(ItemPlugin::new(table)).register_item_component::<Soulbound>()?;
+app.insert_resource(table).add_plugins(ItemPlugin::default()).register_item_component::<Soulbound>()?;
 
 let stack = ItemStack::new(kind, count).set(CustomName("Sting".into())).unset::<Lore>();
 let bytes = encode_wire(Some(&stack))?;            // the codec names come with the codec step

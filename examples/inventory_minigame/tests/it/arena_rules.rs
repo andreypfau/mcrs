@@ -35,11 +35,12 @@ struct TestSource(RequestSource);
 
 fn app() -> App {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(ItemTable::leak((0..3).map(|_| Vec::new()))),
-        VanillaInventoryPlugin,
-        ArenaRulesPlugin,
-    ));
+    app.insert_resource(ItemTable::leak((0..3).map(|_| Vec::new())))
+        .add_plugins((
+            ItemPlugin::default(),
+            VanillaInventoryPlugin,
+            ArenaRulesPlugin,
+        ));
     let source = app.allocate_request_source().unwrap();
     app.insert_resource(TestSource(source));
     app

@@ -69,7 +69,8 @@ pub fn app() -> App {
 pub fn gameplay_app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
-        .add_plugins((ItemPlugin::new(*TABLE), VanillaInventoryPlugin));
+        .insert_resource(*TABLE)
+        .add_plugins((ItemPlugin::default(), VanillaInventoryPlugin));
     app
 }
 

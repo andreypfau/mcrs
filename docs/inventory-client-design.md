@@ -78,9 +78,9 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 
 | Crate | Layer | Owns |
 |-|-|-|
-| `container_click` | 3, data, `no_std` | the click value; its codec behind the feature `wire` |
+| `container_click` | 3, data, `no_std` | the click value; `Click::from_input` (a gesture to a click); its codec behind the feature `wire` |
 | `inventory_menu` | 3, data | the layout, the menu entries |
-| `inventory_click` | 3, rules, `no_std` | a click to operations; `Click::from_input` (a gesture to a click) |
+| `inventory_click` | 3, rules, `no_std` | a click to operations |
 | `inventory_transaction` | 3, rules | the planner of a request |
 | `inventory_client_view` | 3 | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | the inventory of a player file |
@@ -114,6 +114,19 @@ layer and one contract line for each name.
 
 The player item file leaves this crate. `ItemPersistencePlugin` stays. It initializes the item
 resources of a world that loads stacks without `ItemPlugin`. It registers no codec.
+
+`ItemPlugin` takes no item table **(decided)**. `ItemPlugin::default()` registers the messages, the
+sets and the observers. `ItemTable` is a resource. It is present exactly while the app can create
+stacks. The server inserts it where it builds the table. The client bakes it from the registries of
+each session and removes it when the session ends. The client uses the previous table again when
+the inputs of the bake are equal, because each bake leaks the table data.
+A tag update in a session that changes the bake inputs bakes a new table. Live stacks keep their
+values, and the server sends the slots again.
+
+`mcrs_minecraft_engine_registries` gets `read_packet_stack`. It reads the stack of a packet into an
+`ItemStack` through `RegistryNames`. The client edge uses it for each inbound slot. It also gets
+`ItemTableInputs`, the inputs of the bake. It reads the same registry keys as `RegistryNames`, so
+a new name table is a new input of the bake.
 
 ## 4.2 `mcrs_minecraft_player_holders` (layer 5), new
 
@@ -162,10 +175,11 @@ pub struct PlayerItemFilePlugin;
 | Name | Crate | Contract |
 |-|-|-|
 | `Click`, `ClickKind`, `Clicked` | `container_click` | One gesture on one menu entry, as data. |
-| `Click::from_input` | `inventory_click` | Makes a click from a gesture of a pointer or a key. |
+| `Click::from_input` | `container_click` | Makes a click from a gesture of a pointer or a key. |
 | `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
 | `MenuClick { viewer, click }` | `inventory_client` | The one way to click on the client. |
-| `RemoteMenu` | `inventory_client` | A menu that the server opened, with its state id. |
+| `RemoteMenu` | `inventory_client` | A menu that the server opened, with its container id and the last state id of the server, as raw packet values. |
+| `StackView<'a> { stack: &'a ItemStack, table: &'a ItemTable }` | `model` | The input of the item model evaluator: a layer 3 value, not an entity. |
 | `InventoryClientPlugin` | `inventory_client` | Applies the inbound packets to the holders and predicts each `MenuClick`. |
 
 # 5. Usage
@@ -192,20 +206,33 @@ The final check of each row:
 2. Rows 2, 3 and 4 have an example or a test that runs.
 3. The names of the decisions in section 1 exist in the code with the same meaning.
 
-**Client holders.** Crates: `engine_item`, `player_holders`. The client adds
-`ItemPlugin` and `PlayerHoldersPlugin`. Each entity that gets the `Player` of `engine_world` gets
-the four holders and the inventory menu. Today the client marks its local player only with the
-`Player` of `client_world`. Step C also inserts the `Player` of `engine_world` on the local player
-**(proposal)**.
+**Client holders (decided).** Crates: `engine_item`, `player_holders`, `inventory_client`.
+`ClientRegistriesPlugin` of `client_world` adds the observer that spawns the local player. It also
+adds `ItemPlugin`, `PlayerHoldersPlugin` and `InventoryClientPlugin` when the app does not have
+them. An app that configures one of these plugins adds it before `ClientRegistriesPlugin`. Thus
+the holders always come with their slot policy and with the receive observers, and a headless bot
+needs no GUI crate. The local player does not get the `Player` of `engine_world`. The
+code that spawns the local player calls `restore_holders` with empty items. Thus the player gets
+the four holders and the open inventory menu, as a new player on the server. `client_world`
+depends on `inventory_client`. The reverse dependency does not exist. The client edge finds the
+local player as the one entity with `PlayerHolders` and `Menus`. A `respawn` packet removes the
+`RemoteMenu` of the inventory menu. A menu without `RemoteMenu` has the state id 0 (CINV-PKT-003).
+An inbound slot that changes only the count of its stack writes `Count` in place and keeps the
+stack entity.
 
 ```rust
-app.add_plugins((ItemPlugin::new(table), PlayerHoldersPlugin));
+app.add_plugins(ClientRegistriesPlugin::default());
 ```
+
+**Item icons (decided).** The item model evaluator reads a `StackView`. It is a pure function of the
+value, so a model viewer gives it a value and needs no holder. One client system makes the icon
+layers from the `engine_item` stacks. It makes them again only for the slots of `SlotChanged`, and
+for all stacks when the item models change.
 
 **Bot (use case 2) (proposal).**
 
 ```rust
-app.add_plugins((ClientWorldPlugins::headless(), InventoryClientPlugin));
+app.add_plugins((ClientNetworkPlugin { holds_vanilla_pack: true, play: Some(GAME_CLIENTBOUND) }, ClientRegistriesPlugin::default()));
 
 fn act(player: Single<Entity, With<Player>>, mut clicks: MessageWriter<MenuClick>) {
     let viewer = *player;
@@ -245,7 +272,9 @@ Each step is one pull request.
 | Step | Issue | Content |
 |-|-|-|
 | A | #982 | The holders and the slot policy are usable by a client. This document. |
-| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
-| C | #129 | The new crate `inventory_client`: the inbound packets on `engine_item` holders, `RemoteMenu`, `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
+| B | #984 | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
+| C1 | #129 (refs) | `ItemPlugin` takes no table; `ItemTable` is a session resource on the client. The new crate `inventory_client` applies the inbound packets to the `engine_item` holders of the local player, and `RemoteMenu` keeps the state id. The old slot table of the client still feeds the GUI. |
+| C1b | #129 (refs) | The evaluator reads `StackView`. The icons, the hotbar and the inventory screen read the holders. The entity stack model of `mcrs_minecraft_item` and the old slot table of the client are deleted. |
+| C2 | #129 | `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
 | D | #130 | The open and the close of the menus of the server, generic layouts, container screens, drag paint, double click, item tooltips. Specification: `spec/client-container-screen.md`. |
 | E | #131 | The creative screen. Specification: `spec/client-creative-inventory.md`. |

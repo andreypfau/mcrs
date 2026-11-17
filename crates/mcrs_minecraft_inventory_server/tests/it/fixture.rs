@@ -65,8 +65,9 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
 pub fn app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .insert_resource(*TABLE)
         .add_plugins((
-            ItemPlugin::new(*TABLE),
+            ItemPlugin::default(),
             VanillaInventoryPlugin,
             InventoryServerPlugin,
             InventoryPersistencePlugin,

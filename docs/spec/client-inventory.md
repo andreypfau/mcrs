@@ -468,10 +468,13 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### CINV-RCV-004: `set_player_inventory`
 
-- **Inputs:** a clientbound `set_player_inventory` with an index of INV-SLT-001 and a stack.
+- **Inputs:** a clientbound `set_player_inventory` with an index and a stack.
 - **Behavior:**
-  1. The stack becomes the stack of `P[i]`, where `i` is the index of the packet.
-  2. Each entry of a menu that shows `P[i]` shows the new stack.
+  1. The client applies each index from 0 to 40, which are the indices of INV-SLT-001. The index
+     40 is the off-hand slot.
+  2. The stack becomes the stack of `P[i]`, where `i` is the index of the packet.
+  3. Each entry of a menu that shows `P[i]` shows the new stack.
+- **Postconditions:** CINV-RCV-006 states an index that is not in INV-SLT-001.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -510,11 +513,11 @@ the server does not hold.
      after the last entry.
   3. In a `container_set_content` with fewer stacks than entries, each entry without a stack in
      the packet keeps its stack.
-  4. A `set_player_inventory` whose index is not in the range `0..40` changes nothing.
+  4. A `set_player_inventory` whose index is less than 0 or more than 40 changes nothing.
   5. The client keeps the connection in each case.
 
 Provenance: `design`. Kind: deviation (CINV-DEV-001). Confidence: high. Step 3, and step 4 for an
-index above 40: `source_suggested`, kind client agreement.
+index more than 42: `source_suggested`, kind client agreement.
 
 ---
 
@@ -671,6 +674,10 @@ None.
   - a `container_set_slot` with a menu index that the menu does not have;
   - a `container_set_content` with more stacks than entries;
   - a `set_player_inventory` with a negative index.
+
+  The vanilla client puts the stack of a `set_player_inventory` with the index 41 or 42 into an
+  equipment slot of the local player. These slots are the body armour slot and the saddle slot.
+  No entry of the inventory menu shows them, and the player model does not show them.
 - **Reason:** a packet with a bad index shows a defect of the server. The other stacks of the
   menu stay correct, so the client can continue.
 - **Visible to the client:** only with a server that sends such a packet. A vanilla server does
@@ -715,8 +722,9 @@ These experiments have not run.
 - **E4** (proxy). With the inventory screen open, send a clientbound `container_close` with the
   container id 5. Expect the screen to close and no serverbound `container_close`
   (CINV-CLS-003). Then send a `container_set_content` with 40 stacks. Expect that the entries 40
-  to 45 keep their stacks. Then send a `set_player_inventory` with the index 41. Expect no change
-  of a stack (CINV-RCV-006, steps 3 and 4).
+  to 45 keep their stacks. Then send a `set_player_inventory` with the index 43. Expect no change
+  of a stack (CINV-RCV-006, steps 3 and 4). Then send a `set_player_inventory` with the index 40
+  and one stone. Expect the stone in the entry with the menu index 45 (CINV-RCV-004).
 - **E5** (recorder, vanilla client). Outside a screen, press Q, then Control and Q, then F. Do
   each with a stack in the selected slot and with the empty stack. Do each again as a spectator.
   Record the serverbound packets. Expect CINV-HND-001 and CINV-HND-002.

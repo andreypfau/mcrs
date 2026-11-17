@@ -102,7 +102,8 @@ pub fn count(count: u8) -> Count {
 
 pub fn app() -> App {
     let mut app = App::new();
-    app.add_plugins(ItemPlugin::new(*TABLE))
+    app.insert_resource(*TABLE)
+        .add_plugins(ItemPlugin::default())
         .register_item_component::<Soulbound>()
         .unwrap();
     let source = app.allocate_request_source().unwrap();

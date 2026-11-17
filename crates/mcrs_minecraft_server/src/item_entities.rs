@@ -35,8 +35,9 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
         return;
     };
     add_entity_motion(sub_app);
+    sub_app.insert_resource(table);
     sub_app.add_plugins((
-        ItemPlugin::new(table),
+        ItemPlugin::default(),
         ItemEntityPlugin,
         VanillaInventoryPlugin,
         InventoryServerPlugin,

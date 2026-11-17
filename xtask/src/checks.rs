@@ -218,8 +218,9 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_engine_server",
 ];
 
-const CLIENT_USABLE_PACKAGES: [&str; 2] = [
+const CLIENT_USABLE_PACKAGES: [&str; 3] = [
     "mcrs_minecraft_engine_item",
+    "mcrs_minecraft_inventory_client",
     "mcrs_minecraft_player_holders",
 ];
 
@@ -234,7 +235,7 @@ const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
     "mcrs_minecraft_network",
     "mcrs_minecraft_protocol",
     "mcrs_minecraft_inventory_click",
-    "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_inventory_client",
     "mcrs_minecraft_inventory_server",
 ];
 
