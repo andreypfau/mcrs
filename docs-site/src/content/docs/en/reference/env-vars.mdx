@@ -11,18 +11,22 @@ sources:
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client/src/dev/knobs.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client_options/src/client_options.rs
   - src/main.rs
+  - docs/spec/proxy-forwarding.md
+  - docs/spec/proxy-protocol.md
   - issue:278
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The server reads 11 of the variables. The client reads many more, and most of those are development knobs.
+This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The server reads 14 of the variables. The client reads many more, and most of those are development knobs.
 
 <Aside type="caution" title="WIP">
 The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The server binary runs the `public` profile: a player who joins from the same machine is not an operator unless `ops.json` names them.
@@ -30,7 +34,7 @@ The tables on this page are written by hand for now. They will be generated from
 
 ## Server
 
-The `mcrs` server binary reads the variables in the table below. When a variable is not set, the server uses the default. When a value does not parse, the server writes a warning to the log and also uses the default. The code is `ServerSettings::read` in `crates/mcrs_minecraft_server_settings/src/server_settings.rs`, which `src/main.rs` calls.
+The `mcrs` server binary reads the variables in the table below. When a variable is not set, the server uses the default. When a value does not parse, the server writes a warning to the log and also uses the default. `MCRS_FORWARDING` and `MCRS_PROXY_UPSTREAMS` are stricter. A value that does not parse stops the server, and so does `MCRS_FORWARDING` turned on with an empty `MCRS_FORWARDING_SECRET`. The code is `ServerSettings::read` in `crates/mcrs_minecraft_server_settings/src/server_settings.rs`, which `src/main.rs` calls.
 
 A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off`, `0`, `false` or `no` for off, in upper or lower case. Whitespace around a value is removed before it is read.
 
@@ -47,6 +51,9 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 | `MCRS_ACCEPT_TRANSFERS` | off | Whether the server accepts players that another server transfers. |
 | `MCRS_ENABLE_STATUS` | on | Whether the server answers status requests (the server list ping). |
 | `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
+| `MCRS_FORWARDING` | off | Whether the server takes the player's UUID, name, profile properties and address from a Velocity proxy (modern forwarding). When it is on, every login must come through the proxy. |
+| `MCRS_FORWARDING_SECRET` | empty | The secret that the server shares with Velocity. The server uses the value exactly as it is and does not trim whitespace. |
+| `MCRS_PROXY_UPSTREAMS` | empty | Exact IP addresses of trusted proxies, separated by commas. A connection from one of them must start with a PROXY protocol header, version 1 or 2, and the server takes the client address from that header. Empty turns the feature off. |
 
 <Aside type="caution" title="No authentication">
 The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
@@ -56,7 +63,7 @@ The server also reads `ops.json`, `whitelist` and ban files from the working dir
 
 ## Client
 
-The client binary collects every `MCRS_*` variable of the process and removes the prefix. The code is in `crates/mcrs_minecraft_client/src/native.rs`. If a name appears twice, the first value counts. When a value is bad, the native client prints it to stderr and refuses to start. The browser build takes the same names from the query string in lower case, for example `?time=6000`.
+The client binary collects every `MCRS_*` variable of the process and removes the prefix. The code is in `crates/mcrs_minecraft_client/src/native.rs`. If a name appears twice, the first value counts. When a value is bad, the native client prints it to stderr and refuses to start. An on/off variable is the exception: the client prints the bad value and keeps the default. The browser build takes the same names from the query string in lower case, for example `?time=6000`.
 
 A client built with `singleplayer` has an integrated server, and that server also reads the server variables above, such as `WORLD_SEED` and `WORLD_PRESET`.
 
@@ -65,12 +72,12 @@ A client built with `singleplayer` has an integrated server, and that server als
 | `MCRS_SERVER` | none | `host:port` of a server to join. Without it, a singleplayer build hosts its own server. | `native.rs` |
 | `MCRS_USERNAME` | `Player` | Player name. | `config.rs` |
 | `MCRS_VIEW` | `96` | Render distance in columns, 2 to 96. Wins over the options file. | `config.rs` |
-| `MCRS_OPTIONS` | none | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`. Unknown fields are an error. | `options.rs` |
-| `MCRS_FULLSCREEN` | off | Take over a whole display. | `config.rs` |
+| `MCRS_OPTIONS` | `options.json` in the world folder | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate` and `improved_transparency`. Unknown fields are an error. Without the variable, a client started with a world folder reads `options.json` there if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
+| `MCRS_FULLSCREEN` | options file (off) | Take over a whole display. Wins over the options file. Ignored when `MCRS_RESOLUTION` is set. | `config.rs` |
 | `MCRS_OPEN_TO_LAN` | off | The integrated server listens on every interface and announces itself. There is no authentication, so anyone on the network can join under any name. | `config.rs` |
-| `MCRS_GUI_SCALE` | `0` (auto) | Fixed GUI scale. | `config.rs` |
+| `MCRS_GUI_SCALE` | options file (`0`, auto) | Fixed GUI scale. Wins over the options file and the menu. | `config.rs` |
 | `MCRS_HISTORY` | none | File that keeps the command history. | `config.rs` |
-| `MCRS_VSYNC` | off | Vertical sync. Off by default so frame times stay readable. | `config.rs` |
+| `MCRS_VSYNC` | options file (off) | Vertical sync. Off by default so frame times stay readable. Wins over the options file. | `config.rs` |
 | `MCRS_OCCLUSION` | on | Depth pyramid occlusion test. `0` draws every group that passes the frustum and cave graph. | `config.rs` |
 | `MCRS_CAVE` | on | Cave graph culling. | `config.rs` |
 | `MCRS_CHUNK_MAP`, `MCRS_LIGHT_LEVELS` | off | Debug overlays. | `config.rs` |
@@ -101,9 +108,9 @@ Do not set the variables in this section for normal play. They change on purpose
 | `MCRS_RASTER` | none | Fraction from 0 to 1 for the raster pass. |
 | `MCRS_DRAWS` | all | Comma list of draw numbers to keep. |
 | `MCRS_SKY` | all | Comma list of sky passes to draw: `disc,twilight,celestial,stars,clouds`. |
-| `MCRS_FLY`, `MCRS_TURN` | none | Scripted flight speed in blocks per tick, and seconds until one turn round. |
+| `MCRS_FLY`, `MCRS_TURN` | none | Scripted flight: the player flies forward at a sprint with this flying speed (the default ability is 0.05), and turns round once after `MCRS_TURN` seconds. |
 | `MCRS_TIME` | none | Pins every clock to a tick count. |
-| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen (`inventory`) and a cursor position, for scripted captures. |
+| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen to open (`inventory`, `pause`, `options`, `video` or `accessibility`) and a cursor position, for scripted captures. |
 | `MCRS_CAPTURE` | none | Write one screenshot to a `.png` path and exit. |
 | `MCRS_SCREENSHOT_DIR` | none | Directory for screenshots. |
 | `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Windowless scene capture directory, and a record of the vanilla client to take entities from. |
@@ -114,7 +121,7 @@ The client reads all of these in `crates/mcrs_minecraft_client/src/config.rs`, `
 
 | Variable | Used by | What it does |
 |---|---|---|
-| `MCRS_BLESS` | tests of mesh, entity model and entity animation | When it is set, a test rewrites a stale expected file. Without it the test fails and says so. |
+| `MCRS_BLESS` | tests of mesh, render shader layouts, entity model and entity animation | When it is set to `1`, a test rewrites a stale expected file. Without it the test fails and says so. |
 | `MCRS_CLIENT_JAR` | entity render test | Path to the client jar. |
 | `MCRS_VANILLA_SERVER_JAR`, `MCRS_SCENE_CLIENT`, `MCRS_SCENE_ENTITIES` | `scene_frames` test of the client | Server jar, another client binary, and where scene entities come from: `summon`, `record` or `skip` (the default). |
 | `MCRS_MOLANG_CORPUS`, `MCRS_GPU_FUZZ_PROGRAMS` | Molang tests | Path to the corpus file, and the number of fuzz programs (default 10000). |
