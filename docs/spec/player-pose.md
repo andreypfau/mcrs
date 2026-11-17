@@ -259,8 +259,8 @@ server pose, and a client reads the pose of POSE-CLI-001 or POSE-CLI-004.
 | ENV-WAL-001 | server | damage in a wall; a sleeping player takes none |
 | CPR-FIG-002 | local client | the figure in the inventory screen |
 
-The reach of an entity interaction also starts at the eye position. No document states that check
-yet (U2).
+The reach of an entity interaction also starts at the eye position. The specification of the
+interaction domain states that check. It is not in the scope of this document.
 
 ## 4. The pose on a client
 
@@ -436,7 +436,9 @@ None. No rule of this document is a deviation from the reference.
 
 ## 8. Known vanilla quirks
 
-None.
+- POSE-REN-005 uses the absolute value of the cosine. Thus a player that glides backward has the
+  same lean as a player that glides forward. mcrs keeps this behaviour for parity with vanilla
+  clients.
 
 ## 9. Experiments
 
@@ -478,8 +480,4 @@ No experiment of this section has run. Each needs a change to a tool first.
 
 ## 10. Unresolved
 
-- **U1**: POSE-REN-005 uses the absolute value of the cosine. Thus a player that glides
-  backward has the same lean as a player that glides forward. Is this a defect that a player sees?
-  The owner decides whether it stays a client agreement rule or becomes a deviation.
-- **U2**: no document states the reach check of an entity interaction. It starts at the eye
-  position (POSE-EYE-002). A document of the interaction domain must state it.
+None.
