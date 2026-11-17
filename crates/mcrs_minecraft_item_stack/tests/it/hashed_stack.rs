@@ -27,6 +27,8 @@ use mcrs_test_alloc::allocations;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
+use crate::common::GoldenSet;
+use crate::common::golden_cases;
 use crate::common::stack;
 use crate::common::unhex;
 use crate::common::var_int;
@@ -57,9 +59,12 @@ impl Names {
             NameTable::SoundEvent => &[
                 (50, "item.armor.equip_generic"),
                 (52, "item.armor.equip_iron"),
+                (653, "entity.item.break"),
                 (999, "item.shears.snip"),
             ],
             NameTable::EntityType => &[(103, "pig"), (156, "zombie")],
+            NameTable::Instrument => &[(4, "ponder_goat_horn")],
+            NameTable::Potion => &[(13, "swiftness")],
             _ => &[],
         };
         let indexed: &'static [&'static str] = match table {
@@ -67,6 +72,10 @@ impl Names {
             NameTable::ComponentType => &COMPONENT_TYPES,
             NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             NameTable::EntityTypeTag => &["skeletons"],
+            NameTable::MobEffect => &["speed", "slowness", "haste"],
+            NameTable::Potion => &["water"],
+            NameTable::TrimMaterial => &["amethyst"],
+            NameTable::TrimPattern => &["bolt", "coast"],
             _ => &[],
         };
         (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
@@ -113,7 +122,7 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 9] = [
+const PLAIN_KINDS: [&str; 20] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -123,7 +132,20 @@ const PLAIN_KINDS: [&str; 9] = [
     "map_id",
     "map_decorations",
     "profile",
+    "dyed_color",
+    "custom_model_data",
+    "enchantment_glint_override",
+    "block_state",
+    "lodestone_tracker",
+    "trim",
+    "potion_contents",
+    "custom_data",
+    "suspicious_stew_effects",
+    "ominous_bottle_amplifier",
+    "instrument",
 ];
+
+const LOW_BITS_ON_THE_WIRE: &str = r#"{"target":{"dimension":"mcrs:custom","pos":[0,4096,-1]}}"#;
 
 fn plain_cases() -> Vec<Recorded> {
     let golden: PlainGolden =
@@ -132,6 +154,7 @@ fn plain_cases() -> Vec<Recorded> {
         .values
         .into_iter()
         .filter(|value| PLAIN_KINDS.contains(&value.kind.as_str()))
+        .filter(|value| value.input.as_deref() != Some(LOW_BITS_ON_THE_WIRE))
         .filter_map(|value| {
             Some(Recorded {
                 case: value.input?,
@@ -144,35 +167,26 @@ fn plain_cases() -> Vec<Recorded> {
 }
 
 fn record_cases() -> Vec<Recorded> {
-    const CASES: [(&str, &str); 5] = [
-        ("tooltip_default", "tooltip_display"),
-        ("tooltip_full", "tooltip_display"),
-        ("food_min", "food"),
-        ("food_full", "food"),
-        ("item_model", "item_model"),
-    ];
-    let golden = fixture("item_records").text();
-    let field = |case: &str, name: &str| -> String {
-        let prefix = format!("{case} {name} = ");
-        golden
-            .lines()
-            .find_map(|line| line.strip_prefix(&prefix))
-            .expect("the golden has the field")
-            .to_owned()
-    };
-    CASES
-        .iter()
-        .map(|(case, kind)| Recorded {
-            case: (*case).to_owned(),
-            kind: (*kind).to_owned(),
-            wire: field(case, "wire"),
-            hash: field(case, "hash").parse().expect("the hash is a number"),
+    golden_cases(GoldenSet::All)
+        .into_iter()
+        .map(|golden| Recorded {
+            case: golden.case.to_owned(),
+            kind: golden.kind.to_owned(),
+            wire: golden.wire,
+            hash: golden.hash,
         })
         .collect()
 }
 
 fn registry_ref_cases() -> Vec<Recorded> {
-    const KINDS: [&str; 4] = ["enchantments", "attribute_modifiers", "tool", "equippable"];
+    const KINDS: [&str; 6] = [
+        "enchantments",
+        "attribute_modifiers",
+        "tool",
+        "equippable",
+        "potion_contents",
+        "suspicious_stew_effects",
+    ];
     let golden = fixture("item_registry_refs").text();
     let mut cases = Vec::new();
     let mut sample: Option<(String, String)> = None;
@@ -279,6 +293,16 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "map_decorations",
         "profile",
         "equippable",
+        "dyed_color",
+        "custom_model_data",
+        "enchantment_glint_override",
+        "lodestone_tracker",
+        "trim",
+        "potion_contents",
+        "custom_data",
+        "suspicious_stew_effects",
+        "ominous_bottle_amplifier",
+        "instrument",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),

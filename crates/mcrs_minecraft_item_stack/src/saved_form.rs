@@ -8,14 +8,23 @@ use crate::AttributeModifiers;
 use crate::BlockSet;
 use crate::Builtin;
 use crate::BuiltinKey;
+use crate::CustomData;
+use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
+use crate::DyedColor;
+use crate::EffectInstance;
+use crate::EnchantmentGlintOverride;
 use crate::Enchantments;
 use crate::EntityTypeSet;
 use crate::Equippable;
 use crate::Food;
 use crate::HashError;
+use crate::InlineInstrument;
+use crate::Instrument;
+use crate::InstrumentId;
 use crate::ItemName;
+use crate::LodestoneTracker;
 use crate::Lore;
 use crate::MapDecorations;
 use crate::MapId;
@@ -24,16 +33,23 @@ use crate::MaxStackSize;
 use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
+use crate::OminousBottleAmplifier;
+use crate::PotionContents;
+use crate::RegistryValue;
 use crate::RepairCost;
 use crate::SavedError;
 use crate::SlotGroup;
 use crate::SoundEventRef;
+use crate::StewEffect;
+use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
+use crate::Trim;
 use crate::Unbreakable;
 use crate::WireError;
 use crate::check_saved_form::NOT_NEGATIVE;
+use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::lore::MAX_LINES;
@@ -116,7 +132,55 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
             walk.text(sink, text)
         }
         Builtin::Lore(lore) => walk.lore(sink, lore),
+        Builtin::DyedColor(DyedColor(color)) => Ok(sink.leaf(Leaf::Int(color.0))),
+        Builtin::CustomModelData(data) => walk.custom_model_data(sink, data),
+        Builtin::EnchantmentGlintOverride(EnchantmentGlintOverride(value)) => {
+            Ok(sink.leaf(Leaf::Boolean(*value)))
+        }
+        Builtin::BlockState(state) => sink.keyed_map(state.properties(), |sink, property| {
+            Ok(KeyedEntry {
+                key: &property.name,
+                value: sink.leaf(Leaf::String(&property.value)),
+            })
+        }),
+        Builtin::LodestoneTracker(tracker) => Ok(walk.lodestone_tracker(sink, tracker)),
+        Builtin::Trim(trim) => walk.trim(sink, trim),
+        Builtin::PotionContents(contents) => walk.potion_contents(sink, contents),
+        Builtin::CustomData(CustomData(compound)) => sink
+            .compound(compound)
+            .ok_or(Fault::BadValue(walk.component)),
+        Builtin::SuspiciousStewEffects(SuspiciousStewEffects(effects)) => {
+            sink.list(effects.iter(), |sink, effect| {
+                let id = walk.entry(sink, NameTable::MobEffect, effect.effect.0)?;
+                let duration = (effect.duration != StewEffect::DEFAULT_DURATION)
+                    .then(|| sink.leaf(Leaf::Int(effect.duration)));
+                Ok(sink.fields([Field::optional("duration", duration), Field::new("id", id)]))
+            })
+        }
+        Builtin::OminousBottleAmplifier(OminousBottleAmplifier(amplifier)) => {
+            walk.int(sink, *amplifier, OMINOUS_AMPLIFIER)
+        }
+        Builtin::Instrument(Instrument(instrument)) => walk.instrument(sink, instrument),
     }
+}
+
+pub(crate) fn is_use_duration(value: f32) -> bool {
+    value.total_cmp(&0.0).is_ge() && value <= f32::MAX
+}
+
+pub(crate) fn is_instrument_range(value: f32) -> bool {
+    value.total_cmp(&0.0).is_gt() && value <= f32::MAX
+}
+
+fn listed<S: SavedSink, T>(
+    sink: &mut S,
+    items: &[T],
+    element: impl FnMut(&mut S, &T) -> Result<S::Node, Fault>,
+) -> Result<Option<S::Node>, Fault> {
+    if items.is_empty() {
+        return Ok(None);
+    }
+    sink.list(items.iter(), element).map(Some)
 }
 
 struct Walk<'names, L> {
@@ -356,7 +420,7 @@ impl<L: NameLookup> Walk<'_, L> {
 
     fn sound_event<S: SavedSink>(&self, sink: &S, sound: &SoundEventRef) -> Result<S::Node, Fault> {
         match sound {
-            SoundEventRef::Registry(id) => self.entry(sink, NameTable::SoundEvent, id.0),
+            SoundEventRef::Reference(id) => self.entry(sink, NameTable::SoundEvent, id.0),
             SoundEventRef::Inline(inline) => {
                 let range = inline.range.map(|range| sink.leaf(Leaf::Float(range)));
                 Ok(sink.fields([
@@ -365,6 +429,147 @@ impl<L: NameLookup> Walk<'_, L> {
                 ]))
             }
         }
+    }
+
+    fn custom_model_data<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        data: &CustomModelData,
+    ) -> Result<S::Node, Fault> {
+        let floats = listed(sink, &data.floats, |sink, value| {
+            Ok(sink.leaf(Leaf::Float(*value)))
+        })?;
+        let flags = listed(sink, &data.flags, |sink, value| {
+            Ok(sink.leaf(Leaf::Boolean(*value)))
+        })?;
+        let strings = listed(sink, &data.strings, |sink, value| {
+            Ok(sink.leaf(Leaf::String(value)))
+        })?;
+        let colors = listed(sink, &data.colors, |sink, color| {
+            Ok(sink.leaf(Leaf::Int(color.0)))
+        })?;
+        Ok(sink.fields([
+            Field::optional("floats", floats),
+            Field::optional("flags", flags),
+            Field::optional("strings", strings),
+            Field::optional("colors", colors),
+        ]))
+    }
+
+    fn lodestone_tracker<S: SavedSink>(&self, sink: &S, tracker: &LodestoneTracker) -> S::Node {
+        let target = tracker.target.as_ref().map(|target| {
+            let pos = [target.pos.x, target.pos.y, target.pos.z];
+            sink.fields([
+                Field::new("dimension", sink.leaf(Leaf::Name(target.dimension()))),
+                Field::new("pos", sink.leaf(Leaf::IntArray(&pos))),
+            ])
+        });
+        let tracked = (!tracker.tracked).then(|| sink.leaf(Leaf::Boolean(false)));
+        sink.fields([
+            Field::optional("target", target),
+            Field::optional("tracked", tracked),
+        ])
+    }
+
+    fn trim<S: SavedSink>(&self, sink: &mut S, trim: &Trim) -> Result<S::Node, Fault> {
+        let material = match &trim.material {
+            RegistryValue::Reference(id) => self.entry(sink, NameTable::TrimMaterial, id.0)?,
+            RegistryValue::Inline(material) => {
+                let description = self.text(sink, &material.description)?;
+                sink.fields([
+                    Field::new("palette_id", sink.leaf(Leaf::Name(material.palette_id()))),
+                    Field::new("description", description),
+                ])
+            }
+        };
+        let pattern = match &trim.pattern {
+            RegistryValue::Reference(id) => self.entry(sink, NameTable::TrimPattern, id.0)?,
+            RegistryValue::Inline(pattern) => {
+                let description = self.text(sink, &pattern.description)?;
+                sink.fields([
+                    Field::new("asset_id", sink.leaf(Leaf::Name(pattern.asset_id()))),
+                    Field::new("description", description),
+                    Field::new("decal", sink.leaf(Leaf::Boolean(pattern.decal))),
+                ])
+            }
+        };
+        Ok(sink.fields([
+            Field::new("material", material),
+            Field::new("pattern", pattern),
+        ]))
+    }
+
+    fn potion_contents<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        contents: &PotionContents,
+    ) -> Result<S::Node, Fault> {
+        let potion = (contents.potion)
+            .map(|potion| self.entry(sink, NameTable::Potion, potion.0))
+            .transpose()?;
+        let custom_effects = listed(sink, &contents.custom_effects, |sink, effect| {
+            self.effect_instance(sink, effect)
+        })?;
+        let custom_color = (contents.custom_color).map(|color| sink.leaf(Leaf::Int(color)));
+        let custom_name =
+            (contents.custom_name.as_deref()).map(|name| sink.leaf(Leaf::String(name)));
+        Ok(sink.fields([
+            Field::optional("potion", potion),
+            Field::optional("custom_color", custom_color),
+            Field::optional("custom_effects", custom_effects),
+            Field::optional("custom_name", custom_name),
+        ]))
+    }
+
+    fn effect_instance<S: SavedSink>(
+        &self,
+        sink: &S,
+        effect: &EffectInstance,
+    ) -> Result<S::Node, Fault> {
+        let id = self.entry(sink, NameTable::MobEffect, effect.effect.0)?;
+        let amplifier =
+            (effect.amplifier != 0).then(|| sink.leaf(Leaf::Byte(effect.amplifier.cast_signed())));
+        let duration = (effect.duration != 0).then(|| sink.leaf(Leaf::Int(effect.duration)));
+        let ambient = effect.ambient.then(|| sink.leaf(Leaf::Boolean(true)));
+        let show_particles = (!effect.show_particles).then(|| sink.leaf(Leaf::Boolean(false)));
+        Ok(sink.fields([
+            Field::new("id", id),
+            Field::optional("amplifier", amplifier),
+            Field::optional("duration", duration),
+            Field::optional("ambient", ambient),
+            Field::optional("show_particles", show_particles),
+            Field::new("show_icon", sink.leaf(Leaf::Boolean(effect.show_icon))),
+        ]))
+    }
+
+    fn instrument<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        instrument: &RegistryValue<InstrumentId, InlineInstrument>,
+    ) -> Result<S::Node, Fault> {
+        let inline = match instrument {
+            RegistryValue::Reference(id) => {
+                return self.entry(sink, NameTable::Instrument, id.0);
+            }
+            RegistryValue::Inline(inline) => inline,
+        };
+        if !is_use_duration(inline.use_duration)
+            || !is_instrument_range(inline.range)
+            || inline.durability_damage < 0
+        {
+            return Err(Fault::OutOfRange(self.component));
+        }
+        let description = self.text(sink, &inline.description)?;
+        let sound_event = self.sound_event(sink, &inline.sound_event)?;
+        let durability_damage =
+            (inline.durability_damage != 0).then(|| sink.leaf(Leaf::Int(inline.durability_damage)));
+        Ok(sink.fields([
+            Field::new("sound_event", sound_event),
+            Field::new("use_duration", sink.leaf(Leaf::Float(inline.use_duration))),
+            Field::new("range", sink.leaf(Leaf::Float(inline.range))),
+            Field::optional("durability_damage", durability_damage),
+            Field::new("description", description),
+        ]))
     }
 
     fn entity_type_set<S: SavedSink>(

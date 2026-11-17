@@ -5904,6 +5904,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
  "mcrs_test_alloc",
+ "mcrs_voxel",
  "serde",
  "serde_json",
 ]
