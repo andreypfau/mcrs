@@ -36,7 +36,3 @@ mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_recipe.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_value_provider.workspace = true
-
-[dev-dependencies]
-serde.workspace = true
-serde_json.workspace = true

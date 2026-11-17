@@ -742,24 +742,57 @@ fn case() -> impl Strategy<Value = Case> {
         })
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+/// SIM-MODEL-102(a), SIM-RND-001: on any world, footprints and handlers, on one thread in order
+/// or on 1 to 16 threads that run the tasks of a colour in any order, the step leaves the writes,
+/// the queued ticks and events and the re-run count of the serial order.
+fn colour_phases_equal_the_serial_order(
+    case: &Case,
+    threads: usize,
+    order: u64,
+) -> Result<(), TestCaseError> {
+    let world = world(&case.blobs, &case.rules.table());
+    let expected = reference(case, world.clone());
+    let found = match threads {
+        0 => kernel(case, world, &Serial),
+        _ => kernel(
+            case,
+            world,
+            &Shuffled {
+                threads,
+                seed: order,
+            },
+        ),
+    };
+    prop_assert_eq!(found, expected);
+    Ok(())
+}
 
-    /// SIM-MODEL-102(a), SIM-RND-001: on any world, footprints and handlers, on one thread in
-    /// order or on 1 to 16 threads that run the tasks of a colour in any order, the step leaves
-    /// the writes, the queued ticks and events and the re-run count of the serial order.
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 4, ..ProptestConfig::default() })]
+
     #[test]
     fn colour_phases_on_any_threads_equal_the_serial_order(
         case in case(),
         threads in 0usize..=16,
         order in any::<u64>(),
     ) {
-        let world = world(&case.blobs, &case.rules.table());
-        let expected = reference(&case, world.clone());
-        let found = match threads {
-            0 => kernel(&case, world, &Serial),
-            _ => kernel(&case, world, &Shuffled { threads, seed: order }),
-        };
-        prop_assert_eq!(found, expected);
+        colour_phases_equal_the_serial_order(&case, threads, order)?;
+    }
+}
+
+mod exhaustive {
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+
+        #[test]
+        fn colour_phases_on_any_threads_equal_the_serial_order(
+            case in case(),
+            threads in 0usize..=16,
+            order in any::<u64>(),
+        ) {
+            colour_phases_equal_the_serial_order(&case, threads, order)?;
+        }
     }
 }

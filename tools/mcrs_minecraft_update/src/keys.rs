@@ -731,6 +731,7 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
          edition.workspace = true\n\
          \n\
          [lib]\n\
+         test = false\n\
          doctest = false\n\
          \n\
          [lints]\n\
@@ -743,7 +744,6 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
     for krate in static_owners {
         out.push_str(&format!("{krate}.workspace = true\n"));
     }
-    out.push_str("\n[dev-dependencies]\nserde.workspace = true\nserde_json.workspace = true\n");
     out
 }
 

@@ -7,6 +7,9 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_minecraft_volume::{BlockVolume, BlockVolumeMut, SectionBlocksMut};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
+use proptest::prelude::ProptestConfig;
+use proptest::strategy::Strategy;
+use proptest::test_runner::TestCaseError;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -151,51 +154,76 @@ fn a_single_block_gets_its_share_of_the_picks() {
     );
 }
 
+fn writes() -> impl Strategy<Value = Vec<(usize, usize, u8)>> {
+    proptest::collection::vec((0usize..4096, 0usize..4, 0u8..8), 1..300)
+}
+
 proptest::proptest! {
-    /// The listed positions of a section are the positions whose state ticks, as a model of the
-    /// section finds them, after any sequence of sets and fills.
+    #![proptest_config(ProptestConfig { cases: 8, ..ProptestConfig::default() })]
+
     #[test]
-    fn the_listed_positions_are_the_ticking_positions_of_the_section(
-        writes in proptest::collection::vec((0usize..4096, 0usize..4, 0u8..8), 1..300),
-    ) {
-        let target = section(0, 0, 0);
-        let mut host = Host::new();
-        host.insert(target, C);
-        host.set_random_ticks(table(&Picks { replace: false, ticks: AtomicU32::new(0) }));
-        let states = [AIR, A, B, C];
-        let mut model = [C; 4096];
-        for (index, state, kind) in writes {
-            let local = LocalPos::from_index(index);
-            let state = states[state];
-            let mut blocks = host.section_mut(target).expect("a writable section");
-            let written = |at: LocalPos| match kind {
-                0 => true,
-                1 => at.x() <= local.x() && at.y() <= local.y() && at.z() <= local.z(),
-                _ => at == local,
-            };
-            for at in LocalPos::all().filter(|&at| written(at)) {
-                model[at.index()] = state;
-            }
-            match kind {
-                0 => blocks.fill(state),
-                1 => blocks.fill_box(LocalPos::new(0, 0, 0), local, state),
-                _ => {
-                    blocks.set(local, state);
-                }
-            }
-        }
-        let mut listed = host.random_ticking(target).to_vec();
-        listed.sort_unstable();
-        for local in LocalPos::all() {
-            let at = at_in(target, local.x().into(), local.y().into(), local.z().into());
-            proptest::prop_assert_eq!(host.block(at), Ok(model[local.index()]));
-        }
-        let modelled: Vec<u16> = LocalPos::all()
-            .filter(|&local| model[local.index()] == A)
-            .map(|local| u16::try_from(local.index()).expect("a local index"))
-            .collect();
-        proptest::prop_assert_eq!(listed, modelled);
+    fn the_listed_positions_are_the_ticking_positions_of_the_section(writes in writes()) {
+        listed_positions_are_ticking_positions(writes)?;
     }
+}
+
+mod exhaustive {
+    use super::*;
+
+    proptest::proptest! {
+        #[test]
+        fn the_listed_positions_are_the_ticking_positions_of_the_section(writes in writes()) {
+            listed_positions_are_ticking_positions(writes)?;
+        }
+    }
+}
+
+/// The listed positions of a section are the positions whose state ticks, as a model of the
+/// section finds them, after any sequence of sets and fills.
+fn listed_positions_are_ticking_positions(
+    writes: Vec<(usize, usize, u8)>,
+) -> Result<(), TestCaseError> {
+    let target = section(0, 0, 0);
+    let mut host = Host::new();
+    host.insert(target, C);
+    host.set_random_ticks(table(&Picks {
+        replace: false,
+        ticks: AtomicU32::new(0),
+    }));
+    let states = [AIR, A, B, C];
+    let mut model = [C; 4096];
+    for (index, state, kind) in writes {
+        let local = LocalPos::from_index(index);
+        let state = states[state];
+        let mut blocks = host.section_mut(target).expect("a writable section");
+        let written = |at: LocalPos| match kind {
+            0 => true,
+            1 => at.x() <= local.x() && at.y() <= local.y() && at.z() <= local.z(),
+            _ => at == local,
+        };
+        for at in LocalPos::all().filter(|&at| written(at)) {
+            model[at.index()] = state;
+        }
+        match kind {
+            0 => blocks.fill(state),
+            1 => blocks.fill_box(LocalPos::new(0, 0, 0), local, state),
+            _ => {
+                blocks.set(local, state);
+            }
+        }
+    }
+    let mut listed = host.random_ticking(target).to_vec();
+    listed.sort_unstable();
+    for local in LocalPos::all() {
+        let at = at_in(target, local.x().into(), local.y().into(), local.z().into());
+        proptest::prop_assert_eq!(host.block(at), Ok(model[local.index()]));
+    }
+    let modelled: Vec<u16> = LocalPos::all()
+        .filter(|&local| model[local.index()] == A)
+        .map(|local| u16::try_from(local.index()).expect("a local index"))
+        .collect();
+    proptest::prop_assert_eq!(listed, modelled);
+    Ok(())
 }
 
 /// The picks of a section do not depend on the other sections of the step or their order, so a

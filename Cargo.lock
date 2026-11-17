@@ -6503,8 +6503,6 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
- "serde",
- "serde_json",
 ]
 
 [[package]]
