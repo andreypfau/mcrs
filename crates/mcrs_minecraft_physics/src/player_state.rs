@@ -4,9 +4,9 @@ use mcrs_minecraft_entity_key::EntityKey;
 use crate::Body;
 use crate::MotionAttributes;
 use crate::MotionEffects;
-use crate::Pose;
 use crate::QueryEntity;
 use crate::SprintSpeed;
+use mcrs_minecraft_pose::Pose;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerState {

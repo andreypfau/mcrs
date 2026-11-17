@@ -1,5 +1,5 @@
 use bytes::{Bytes, BytesMut};
-use mcrs_minecraft_entity::Pose;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetEntityData;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};

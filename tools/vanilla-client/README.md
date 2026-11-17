@@ -23,7 +23,9 @@ The input agent in `agent/` adds one call at the start of each client tick. The 
 2. In each client tick, it sets the down state of the key mappings of the line of the tick:
    forward, backward, left, right, jump, sneak, sprint and use.
 3. At the tick of a line with a rotation, it sets the yaw and the pitch of the player.
-4. When the title `Stop` shows, it releases each key.
+4. At the tick of a line with `leave_bed`, it closes the bed screen as the Escape key does. The
+   client then sends the packet of the leave button.
+5. When the title `Stop` shows, it releases each key.
 
 The game reads the key mappings as it reads the keyboard, so the client does what a human with
 the same keys does. The agent takes no keyboard and no mouse input, and works without focus.

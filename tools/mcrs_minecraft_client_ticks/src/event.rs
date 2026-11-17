@@ -15,8 +15,11 @@ pub enum Event {
     RemoveEffect(String),
     Block(BlockChange),
     ChunkForgotten([i32; 2]),
+    EntityData(EntityData),
     Input(Keys),
     Sprinting(bool),
+    Command(String),
+    Interact(bool),
     UseItem,
     ReleaseUseItem,
     Move(Move),
@@ -69,6 +72,19 @@ pub struct Effect {
 pub struct BlockChange {
     pub position: [i32; 3],
     pub state: String,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum DataEntity {
+    Own,
+    Other(i32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntityData {
+    pub entity: DataEntity,
+    pub index: u8,
+    pub value: String,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -186,11 +202,21 @@ impl fmt::Display for Event {
                 write!(f, "< block {x} {y} {z} {}", change.state)
             }
             Self::ChunkForgotten([x, z]) => write!(f, "< forget {x} {z}"),
+            Self::EntityData(data) => {
+                f.write_str("< data ")?;
+                match data.entity {
+                    DataEntity::Own => f.write_str("self")?,
+                    DataEntity::Other(id) => write!(f, "{id}")?,
+                }
+                write!(f, " {} {}", data.index, data.value)
+            }
             Self::Input(keys) => {
                 f.write_str("> input ")?;
                 write_flags(f, &{ *keys }.flags())
             }
             Self::Sprinting(sprinting) => write!(f, "> sprint {sprinting}"),
+            Self::Command(action) => write!(f, "> command {action}"),
+            Self::Interact(secondary) => write!(f, "> interact {secondary}"),
             Self::UseItem => f.write_str("> use_item"),
             Self::ReleaseUseItem => f.write_str("> release_use_item"),
             Self::Move(step) => {
@@ -217,6 +243,8 @@ impl Event {
             self,
             Self::Input(_)
                 | Self::Sprinting(_)
+                | Self::Command(_)
+                | Self::Interact(_)
                 | Self::UseItem
                 | Self::ReleaseUseItem
                 | Self::Move(_)
@@ -274,12 +302,22 @@ impl Event {
                 state: fields.word("state")?.to_owned(),
             }),
             ("<", "forget") => Self::ChunkForgotten([fields.value("x")?, fields.value("z")?]),
+            ("<", "data") => Self::EntityData(EntityData {
+                entity: match fields.word("entity")? {
+                    "self" => DataEntity::Own,
+                    word => DataEntity::Other(parse_value("entity", word)?),
+                },
+                index: fields.value("index")?,
+                value: fields.word("value")?.to_owned(),
+            }),
             (">", "input") => {
                 let mut keys = Keys::default();
                 parse_flags(&mut fields, "keys", &mut keys.flags())?;
                 Self::Input(keys)
             }
             (">", "sprint") => Self::Sprinting(fields.value("sprint")?),
+            (">", "command") => Self::Command(fields.word("action")?.to_owned()),
+            (">", "interact") => Self::Interact(fields.value("secondary")?),
             (">", "use_item") => Self::UseItem,
             (">", "release_use_item") => Self::ReleaseUseItem,
             (">", "move") => parse_move(&mut fields)?,

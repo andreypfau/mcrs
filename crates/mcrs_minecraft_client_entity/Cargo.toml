@@ -33,6 +33,7 @@ mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true

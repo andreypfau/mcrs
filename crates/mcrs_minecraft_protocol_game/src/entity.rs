@@ -6,7 +6,6 @@ use crate::player::HumanoidArm;
 use crate::text::Text;
 use crate::{Direction, GlobalPos};
 use glam::{Vec3, Vec4};
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
     FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
@@ -14,6 +13,7 @@ use mcrs_minecraft_entity::variant::{
 pub use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item::ProtoStack;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::{Result, VarInt, VarLong};
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_registries::{FromWire, ResolveError, Wire, WireId};

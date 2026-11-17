@@ -4,7 +4,6 @@ use glam::DVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::spawn_condition::Structure;
@@ -18,6 +17,7 @@ use mcrs_minecraft_loot_condition::{
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};

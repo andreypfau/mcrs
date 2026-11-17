@@ -1,0 +1,177 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e2_8
+step shift_then_boat
+instruction After Go, hold Shift for 2 seconds; the console puts you in a boat while you hold it.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+12661090 < abilities none 0.05
+12661090 < attribute minecraft:block_interaction_range 4.5
+12661090 < attribute minecraft:entity_interaction_range 3
+12661090 < attribute minecraft:movement_speed 0.10000000149011612
+12661090 < data self 0 byte:0x00
+12661090 < data self 6 pose:standing
+12661090 < data self 9 float:20
+12661090 < data self 16 byte:0x7f
+12661090 < teleport 7 0.5 100 0.5 0 0 0 -90 0 0
+12722775 > move 0.5,100,0.5 - none
+12722776 > tick
+12724094 > move - - on_ground
+12724097 > tick
+12819510 > tick
+12820727 > tick
+12919068 > tick
+12920257 > tick
+13023778 > tick
+13027745 > tick
+13123406 > tick
+13124737 > tick
+13225728 > tick
+13227027 > tick
+13322402 > tick
+13323927 > tick
+13426695 > tick
+13427968 > tick
+13523103 > tick
+13524255 > tick
+13624981 > tick
+13626128 > tick
+13728246 > move 0.5,100,0.5 - on_ground
+13728248 > tick
+13729407 > tick
+13826041 > tick
+13827190 > tick
+13928804 > tick
+13929967 > tick
+14029701 > tick
+14030842 > tick
+14133911 > tick
+14141363 > tick
+14234497 > tick
+14235744 > tick
+14334440 > tick
+14335729 > tick
+14440614 > tick
+14442189 > tick
+14538648 > tick
+14539828 > tick
+14541050 > tick
+14644746 > tick
+14645967 > move 0.5,100,0.5 - on_ground
+14647195 > tick
+14741792 > tick
+14743094 > tick
+14839599 > tick
+14840772 > tick
+14944295 > tick
+14945883 > tick
+15041350 > tick
+15043513 > tick
+15139647 > tick
+15140798 > tick
+15243661 > tick
+15244947 > tick
+15348139 > tick
+15349579 > tick
+15449968 > tick
+15451247 > tick
+15551101 > tick
+15552282 > tick
+15653421 > tick
+15654734 > move 0.5,100,0.5 - on_ground
+15654736 > tick
+15754654 > input shift
+15754656 > tick
+15755823 > tick
+15760417 < data self 0 byte:0x02
+15811336 < data self 6 pose:crouching
+15858621 > tick
+15859940 > tick
+15958422 > tick
+15959618 > tick
+16057427 > tick
+16058802 > tick
+16159142 > tick
+16160416 > tick
+16260665 > tick
+16261881 > tick
+16363941 > tick
+16365328 > tick
+16418598 < teleport 8 2.5 99.5875 0.5 0 0 0 0 0 24
+16462462 > move - 0,0 none
+16462465 > tick
+16463674 > move - 0,0 none
+16464880 > tick
+16460077 < teleport 9 3.7722768119620014 100 0.5 0 0 0 0 0 504
+16460089 < data self 6 pose:standing
+16512921 < data self 6 pose:crouching
+16566695 > move 3.7722768119620014,100,0.5 0,0 on_ground
+16567918 > tick
+16570994 > tick
+16663905 > tick
+16663906 > tick
+16763143 > tick
+16764296 > tick
+16863632 > tick
+16864787 > tick
+16968262 > tick
+16969693 > tick
+17071661 > tick
+17076268 > tick
+17170382 > tick
+17171648 > tick
+17274973 > tick
+17274976 > tick
+17369908 > tick
+17369909 > tick
+17475177 > tick
+17475177 > tick
+17576625 > move 3.7722768119620014,100,0.5 - on_ground
+17577779 > tick
+17577780 > tick
+17677159 > tick
+17678306 > tick
+17777120 > input none
+17778264 > tick
+17778264 > tick
+17813402 < data self 0 byte:0x00
+17863441 < data self 6 pose:standing
+17880534 > tick
+17881687 > tick
+17985584 > tick
+17986819 > tick
+17988040 > tick
+18090687 > tick
+18094368 > tick
+18187002 > tick
+18188207 > tick
+18288772 > tick
+18290178 > tick
+18389945 > tick
+18391284 > tick
+18491637 > tick
+18491640 > move 3.7722768119620014,100,0.5 - on_ground
+18492866 > tick
+18596012 > tick
+18597314 > tick
+18695903 > tick
+18697099 > tick
+18798601 > tick
+18800036 > tick
+18898515 > tick
+18899695 > tick
+18997120 > tick
+18998307 > tick
+19102838 > tick
+19106607 > tick
+19202224 > tick
+19203464 > tick
+19302332 > tick
+19304260 > tick
+19403040 > tick
+19403040 > tick
+19505384 > tick
+19506530 > move 3.7722768119620014,100,0.5 - on_ground
+19506530 > tick
+19607795 > tick
+19608950 > tick

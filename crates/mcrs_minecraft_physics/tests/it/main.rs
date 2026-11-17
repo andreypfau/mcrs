@@ -5,4 +5,5 @@ mod kernel;
 mod player;
 mod push;
 mod recorded_player;
+mod select_pose;
 mod sight_ray;

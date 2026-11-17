@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 glam.workspace = true
 mcrs_minecraft_chat_server.workspace = true
 mcrs_minecraft_command_engine.workspace = true

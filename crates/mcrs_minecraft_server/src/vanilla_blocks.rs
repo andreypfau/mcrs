@@ -12,7 +12,6 @@ use mcrs_minecraft_engine::block_simulation::{
 };
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
@@ -30,6 +29,7 @@ use mcrs_minecraft_loot_condition::{
 use mcrs_minecraft_loot_table::{KeyedSeed, LootScratch, LootTables};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
