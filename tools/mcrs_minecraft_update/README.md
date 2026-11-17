@@ -53,7 +53,7 @@ after an update, port the difference into the code.
 cargo run -p mcrs_minecraft_update -- <version id> [--allow-dirty] [--diff-out <directory>]
 ```
 
-The version id is the only argument, for example `26.4-snapshot-4`. The
+The version id is the only argument, for example `26.4-snapshot-7`. The
 options are:
 
 - `--allow-dirty` lets the update run when the version file, the reports, the
@@ -220,34 +220,6 @@ recorded from this project's own output, and the two light update fixtures of
 the protocol crate, which are built by hand.
 
 ## After an update
-
-The tool does not read the reference checkout. What a new version changes in
-the protocol and the serialization formats is found by reading the reference
-sources, and this list says where to look: the five protocol table files
-(handshake, status, login, configuration and game), the directories
-`network/` and `core/registries/`, and the files `RegistryDataLoader.java`,
-`DataComponents.java`, `EntityDataSerializers.java`,
-`SerializableChunkData.java`, `Strategy.java`, `DataFixers.java` and
-`SharedConstants.java`. In the reference checkout, with the tags of the old and
-the new version:
-
-```sh
-N=src/main/java/net/minecraft
-git diff --stat <old tag> <new tag> -- \
-    $N/network/protocol/handshake/HandshakeProtocols.java \
-    $N/network/protocol/status/StatusProtocols.java \
-    $N/network/protocol/login/LoginProtocols.java \
-    $N/network/protocol/configuration/ConfigurationProtocols.java \
-    $N/network/protocol/game/GameProtocols.java \
-    $N/network $N/core/registries \
-    $N/resources/RegistryDataLoader.java \
-    $N/core/component/DataComponents.java \
-    $N/network/syncher/EntityDataSerializers.java \
-    $N/world/level/chunk/storage/SerializableChunkData.java \
-    $N/world/level/chunk/Strategy.java \
-    $N/util/datafix/DataFixers.java \
-    $N/SharedConstants.java
-```
 
 A new snapshot may also need a few compile fixes in the worldgen oracles of
 `tools/vanilla-oracle` before the fixtures can be recaptured; see its README.

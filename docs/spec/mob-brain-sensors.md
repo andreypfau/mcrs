@@ -1,7 +1,7 @@
 # Mob brain: common sensors
 
 This file is part of [mob-brain.md](mob-brain.md). Its terms, target version, fidelity classes,
-provenance conventions, hooks and experiments apply here. All sensor ids use `minecraft:`.
+provenance conventions and hooks apply here. All sensor ids use `minecraft:`.
 F means current effective `minecraft:follow_range`; Q means `minecraft:tempt_range` rounded
 to binary32. The registry defaults of these attributes are 32 and 10 blocks, each with range
 [0,2048]. The base value of F for a body is species data, with the default 16 blocks.
@@ -9,8 +9,6 @@ to binary32. The registry defaults of these attributes are 32 and 10 blocks, eac
 ## 1. Cadence and world queries
 
 **BRAIN-VAN-010** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers first water scans in 1..19 and a subsequent scan after exactly 20 updates.
-The distribution estimate is consistent with the stated probabilities; it does not prove their exact values.
 
 Sensors must use the periods and initial phase distribution of AIT-VAN-016.
 For P=20, first tick 1 must have probability 2/20, and ticks 2..19 each 1/20.
@@ -107,8 +105,6 @@ They must retain their values between scans. After a positive scan at S, player 
 not erase them before the next due scan.
 With uninterrupted updates and no other writer, that scan at S+20 must erase the outputs that have
 no match.
-[E-B1](mob-brain-experiments.md#e-b1-nearest-player-scan-and-an-observable-player-reaction) uses a consequent player reaction; [E-B11](mob-brain-experiments.md#e-b11-nearest-player-memory-and-its-exact-erasure-scan) defines the direct memory capture and mcrs behaviour
-fixture.
 
 **BRAIN-VAN-014** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 `minecraft:nearest_living_entities` must query living-entity hitboxes against the body's box
@@ -198,12 +194,11 @@ The selection of the first four new positions uses POI encounter order. The acce
 then form a set without order. Equal-quality target choice and POI encounter order remain U6.
 
 **BRAIN-VAN-018** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers deep-water unit writes without expiry and erasure after water removal.
 
 `minecraft:is_in_water` must read current water-contact state without a fresh block-area query.
 Water contact must write a unit value to `minecraft:is_in_water`; no contact must erase it.
 Submerged eyes must not be required. There must be no sorting or candidate limit.
-Fluid-contact calculation remains in the physics rules. [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) reads this persisted unit.
+Fluid-contact calculation remains in the physics rules.
 
 **BRAIN-VAN-019** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 `minecraft:nearest_adult` and `minecraft:nearest_adult_any_type` must read the latest

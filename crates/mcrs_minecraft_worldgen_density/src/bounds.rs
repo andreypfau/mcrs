@@ -14,7 +14,7 @@ pub enum Bounds {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "one arm per node kind, in the node's declaration order, so each interval rule reads against its kind"
+    reason = "one arm per node kind, in the node's declaration order"
 )]
 pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {

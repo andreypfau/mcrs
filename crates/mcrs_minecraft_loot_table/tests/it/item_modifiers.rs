@@ -33,7 +33,7 @@ fn stack(name: &str, count: u8) -> ItemStack {
 }
 
 #[test]
-fn loot_mod_count_item_damage_and_enchantment_modifiers_give_their_stacks_without_draws() {
+fn loot_mod_count_damage_enchant_modifiers_give_stacks_without_draws() {
     let sword = || stack("minecraft:iron_sword", 1);
     let cases: [(&str, Vec<Option<ItemStack>>); 10] = [
         (

@@ -83,7 +83,7 @@ fn the_end() -> ResourceKeyBuf<mcrs_minecraft_dimension::Dimension> {
 }
 
 #[test]
-fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_change() {
+fn request_in_a_dimension_moves_player_with_change_packets() {
     let (mut server, anchor, overworld, end, joined) = walker_and_its_join();
     let network_id = joined
         .iter()
@@ -171,7 +171,7 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
 }
 
 #[test]
-fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_epoch() {
+fn old_dimension_packets_leave_before_respawn_under_old_epoch() {
     let (mut server, anchor, overworld, _) = walker_in_the_overworld();
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     let epoch = epoch_of(&server, anchor);
@@ -357,7 +357,7 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
 }
 
 #[test]
-fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_list_update() {
+fn new_dimension_observer_sees_mover_with_network_id_no_list_update() {
     let (mut server, anchor, overworld, end, joined) = walker_and_its_join();
     let walker = server.app.world().get::<GameProfile>(anchor).unwrap().id;
     let network_id = joined

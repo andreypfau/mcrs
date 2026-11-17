@@ -60,7 +60,7 @@ pub fn can_reach(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the position, shape, angles, step counts, room flag, split seeding and both random sources of one tunnel walk, which the reference passes as separate values"
+    reason = "the reference passes these as separate values"
 )]
 pub fn walk_tunnel_into<T: CarveTarget, R: Random>(
     target: &mut T,

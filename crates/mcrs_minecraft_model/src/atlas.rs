@@ -64,7 +64,7 @@ struct Source {
 impl SpriteRegistry {
     #[expect(
         clippy::len_without_is_empty,
-        reason = "the registry is addressed by sprite index and nothing asks whether it is empty, so an is_empty method would only add public API"
+        reason = "the registry is addressed by sprite index and nothing asks whether it is empty"
     )]
     pub fn len(&self) -> usize {
         self.table.len()

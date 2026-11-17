@@ -1,13 +1,6 @@
 # Heightmaps: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| Block tags | `minecraft:blocks_motion_in_heightmap`, `minecraft:blocks_motion_in_heightmap_no_leaves` |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the block tags: the
-vanilla data pack, `data/minecraft/tags/block/`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the heightmap types that the game keeps, the block test of each type, the
 value of a heightmap, the life of each type, and how a command reads a value. It states the
@@ -37,7 +30,7 @@ observable values, not how an implementation computes them. The design note
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". None of the experiments has been run.
+section "Semantics, not accidents".
 
 ### 0.3 ID prefixes
 
@@ -66,9 +59,7 @@ section "Semantics, not accidents". None of the experiments has been run.
 - The type set is fixed. A data pack cannot add a type.
 
 Provenance: `source_suggested`. Kind: wire for the names and the ids, semantic for the usage.
-Confidence: medium. Experiment: open a region file of a world that the game saved. Read the
-`Heightmaps` compound of a complete chunk. It has the four keys `WORLD_SURFACE`, `OCEAN_FLOOR`,
-`MOTION_BLOCKING` and `MOTION_BLOCKING_NO_LEAVES`.
+Confidence: medium.
 
 ---
 
@@ -111,19 +102,7 @@ time.
 | `minecraft:snow` | no | no |
 
 Provenance: `source_suggested`. `black_box_confirmed` for the tag values (the data pack of the
-client jar). Kind: semantic. Confidence: medium. Experiment: in a default superflat world, the
-top block of each block column is grass at y −61. Run these commands:
-
-1. `setblock 0 -60 0 minecraft:water`
-2. `setblock 0 -55 0 minecraft:oak_leaves[persistent=true]`
-3. `setblock 0 -53 0 minecraft:cobweb`
-4. `setblock 4 -60 0 minecraft:stone_pressure_plate`
-
-Then run `execute positioned 0.5 0 0.5 positioned over <type> run tp @s ~ ~ ~` for each kept
-type. The new y is −52 for `world_surface`, −60 for `ocean_floor`, −54 for `motion_blocking` and
-−59 for `motion_blocking_no_leaves`. Then run
-`execute positioned 4.5 0 0.5 positioned over ocean_floor run tp @s ~ ~ ~`. The new y is −59: the
-pressure plate is a counting block, but it has no collision.
+client jar). Kind: semantic. Confidence: medium.
 
 ---
 
@@ -161,9 +140,7 @@ pressure plate is a counting block, but it has no collision.
 | a counting block at `min_y + height − 1` | `min_y + height` |
 
 Provenance: `source_suggested`. Kind: semantic for the value, wire for the storage. Confidence:
-medium. Experiment: in the Overworld (`min_y` −64), fill a block column from y −64 to y 319 with
-air. Run `execute positioned 0.5 0 0.5 positioned over world_surface run tp @s ~ ~ ~`. The new y
-is −64. Then place stone at y −64 and run the command again. The new y is −63.
+medium.
 
 ### HM-004: Value after a block change
 
@@ -176,10 +153,7 @@ is −64. Then place stone at y −64 and run the command again. The new y is �
   - A change below the top counting block does not change `H`.
 - **Postconditions:** the update order of the four kept types is unspecified.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: after the
-experiment of HM-002, run `setblock 0 -55 0 minecraft:air`. Then run
-`execute positioned 0.5 0 0.5 positioned over motion_blocking run tp @s ~ ~ ~`. The new y is
-−59, the value of the water at y −60.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### HM-005: Life of the types
 
@@ -195,8 +169,7 @@ experiment of HM-002, run `setblock 0 -55 0 minecraft:air`. Then run
   array has the wrong length, the server computes the values from the blocks (HM-003).
 
 Provenance: `source_suggested`. Kind: wire for the chunk packet and the save, semantic for the
-rest. Confidence: medium. Experiment: capture a `level_chunk_with_light` packet. Its heightmap
-map has the ids 1, 4 and 5 and no other id.
+rest. Confidence: medium.
 
 ---
 
@@ -214,9 +187,7 @@ map has the ids 1, 4 and 5 and no other id.
 - **Edge cases:** a read of a generation type is not possible from a command
   (`argument-keywords.md`, ARG-KW-003).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: on flat land
-with the top block at y 63, stand at `0.5 100 0.5` and run
-`execute positioned over world_surface run tp @s ~ ~ ~`. The player moves to `0.5 64 0.5`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -232,11 +203,7 @@ with the top block at y 63, stand at `0.5 100 0.5` and run
 
 ---
 
-## 6. Open questions
+## 6. Unresolved
 
 - **A change of the block tags.** A data pack reload can change the two block tags of HM-002. It
-  is not known if the reference computes the values of the loaded chunks again. Experiment: make a
-  data pack that replaces `minecraft:blocks_motion_in_heightmap` with `"replace": true` and only
-  `minecraft:stone`. Run step 4 of the experiment of HM-002, then run `reload`. Run
-  `execute positioned 4.5 0 0.5 positioned over ocean_floor run tp @s ~ ~ ~`, and record the new
-  y. Then unload the chunk, load it again, and record the y again.
+  is not known if the reference computes the values of the loaded chunks again.

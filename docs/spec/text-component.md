@@ -1,13 +1,5 @@
 # Text component: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| World version | `5127` |
-
-Source of these values: `assets/minecraft/version.json`.
-
 This document states the text component of the game as data: its parts, its saved form, its wire
 form, its equality and its hash. It has the depth that the codecs of the item components need. It
 does not prescribe an architecture.
@@ -46,11 +38,11 @@ This document states no form of Bedrock Edition.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a result in section 12.
+- `black_box_confirmed`: shown by an experiment against the game.
 - `source_suggested_black_box_confirmed`: taken from the reference behaviour, and consistent with
-  a result in section 12.
-- `source_suggested`: taken from the reference behaviour, with no result. The confidence is at most
-  medium. Section 11 attaches an experiment.
+  an experiment.
+- `source_suggested`: taken from the reference behaviour, with no experiment. The confidence is at most
+  medium.
 - `design`: a choice of this project. The rule states the reason.
 - `unresolved`: not decided. Section 10 collects these items.
 
@@ -94,11 +86,11 @@ reader takes when the key is absent. A field that is not necessary is optional.
 - an ordered list of children. Each child is a text.
 
 The list of children can be empty. The model sets no limit on the number of children, on the depth
-of the children or on the length of a string. See result R1.
+of the children or on the length of a string.
 
 **TXT-MOD-002** (`source_suggested_black_box_confirmed`, semantic). A text has no parts other than
 those of TXT-MOD-001. The text does not hold the spelling that a reader read. Thus the string form
-`"x"` and the map form `{text:"x"}` give the same text. See result R2.
+`"x"` and the map form `{text:"x"}` give the same text.
 
 **TXT-MOD-003** (`source_suggested_black_box_confirmed`, semantic). The model keeps these
 differences, because the canonical form shows them:
@@ -107,10 +99,8 @@ differences, because the canonical form shows them:
 - a named colour, and the RGB colour with the same value (TXT-STY-002);
 - the number kind of an argument (TXT-CNT-004).
 
-See results R4 and R7.
-
 **TXT-MOD-004** (`source_suggested`, semantic). The empty text is the plain text with the literal
-`""`. Its canonical form is the string `""`. See result R3.
+`""`. Its canonical form is the string `""`.
 
 ### 1.1 Content kinds
 
@@ -122,7 +112,7 @@ field:
 | `text` | string | necessary | each string |
 
 A reader does not change the string. It accepts each character, also the section sign `U+00A7`
-and a control character. A reader does not read a format code from the string. See result R1.
+and a control character. A reader does not read a format code from the string.
 
 **TXT-CNT-002** (`source_suggested_black_box_confirmed`, wire). The content kind `translatable`
 has these fields:
@@ -135,7 +125,7 @@ has these fields:
 
 A reader takes a `fallback` that is not a string as absent. It reports no error for it. A reader
 takes an empty list `with` as absent. A reader does not check that a translation has the key. It
-does not check the number of the arguments against the translation. See results R5 and R6.
+does not check the number of the arguments against the translation.
 
 **TXT-CNT-003** (`source_suggested_black_box_confirmed`, semantic). An argument is one of these:
 
@@ -147,7 +137,6 @@ does not check the number of the arguments against the translation. See results 
 A reader gives a string argument for a string. For each other value, the reader tries a number or
 a boolean first, then a text. When the text is a plain text, the reader gives a string argument
 with the string of the literal. Thus the arguments `"a"` and `{text:"a"}` are the same argument.
-See result R6.
 
 **TXT-CNT-004** (`source_suggested_black_box_confirmed`, wire). The number kind of an argument
 comes from the tree format:
@@ -163,7 +152,7 @@ comes from the tree format:
 NBT has no boolean. A writer writes a boolean argument to NBT as the Byte tag `1b` or `0b`. A
 reader of that NBT gives a byte argument. A writer writes a number argument with a tag of its
 number kind. In NBT, a reader accepts an Int Array tag as the whole list `with`. Each element is
-then an int argument. See results R6 and R7.
+then an int argument.
 
 **TXT-CNT-005** (`source_suggested_black_box_confirmed`, wire). The content kind `keybind` has one
 field:
@@ -172,7 +161,7 @@ field:
 |-------|------------|--------|-------|
 | `keybind` | string | necessary | each string: the name of a key of the client |
 
-A reader does not check the name. See result R8.
+A reader does not check the name.
 
 **TXT-CNT-006** (`source_suggested_black_box_confirmed`, wire). The content kind `score` has one
 field, `score`. It is necessary, and it is a map with these keys:
@@ -184,7 +173,7 @@ field, `score`. It is necessary, and it is a map with these keys:
 
 `name` is an entity selector or the name of a score holder. A reader accepts each string. A string
 that is not a valid selector is the name of a score holder. A reader ignores each other key of the
-map. See result R8.
+map.
 
 **TXT-CNT-007** (`source_suggested_black_box_confirmed`, wire). The content kind `selector` has
 these fields:
@@ -195,7 +184,7 @@ these fields:
 | `separator` | text | no separator | each text |
 
 `argument-entity.md` states the grammar of the entity selector argument. A player name is a valid
-argument. A `separator` that is not a valid text is an error of the field. See result R9.
+argument. A `separator` that is not a valid text is an error of the field.
 
 **TXT-CNT-008** (`source_suggested_black_box_confirmed`, wire). The content kind `nbt` has these
 fields:
@@ -210,7 +199,7 @@ fields:
 
 A reader takes an `interpret`, a `plain` or a `separator` that has a wrong form as absent. It
 reports no error for it. A content with `interpret` true and `plain` true is an error. This
-document does not state the grammar of an NBT path (open question Q2). See result R10.
+document does not state the grammar of an NBT path (open question Q2).
 
 **TXT-CNT-009** (`source_suggested_black_box_confirmed`, wire). The source of an `nbt` content is
 one of these, in this order:
@@ -225,7 +214,6 @@ one of these, in this order:
 `source` holds the name of the source. When `source` is present, the reader reads only the field
 of that source. When `source` is absent, the reader takes the first source of the table whose
 field is valid. A content with no valid source is an error. A writer does not write `source`.
-See result R10.
 
 **TXT-CNT-010** (`source_suggested_black_box_confirmed`, wire). The content kind `object` has an
 object and one more field:
@@ -246,11 +234,11 @@ The object is one of these, in this order:
 The optional key `object` holds the name of the object. When `object` is present, the reader reads
 only the fields of that object. When `object` is absent, the reader takes the first object of the
 table whose fields are valid. A writer does not write `object`. A reader does not check that the
-atlas or the sprite exists. See result R11.
+atlas or the sprite exists.
 
 **TXT-CNT-011** (`black_box_confirmed`, wire). The profile of a `player` object is a string or a
 map. The string is the name of a player. Its canonical form is the map `{name:"<string>"}`. This
-document does not state the other keys of the map (open question Q3). See result R11.
+document does not state the other keys of the map (open question Q3).
 
 ### 1.2 Style
 
@@ -273,8 +261,7 @@ field is optional. An absent field has no value: it is not equal to a default.
 
 The style fields are keys of the map form of the text. They are not in a map of their own. A
 style field with a wrong form is an error of the text. This is true for each style field. A
-document for the client states how a child takes a style field that is absent. See results R4 and
-R12.
+document for the client states how a child takes a style field that is absent.
 
 **TXT-STY-002** (`source_suggested_black_box_confirmed`, wire). The value of `color` is a named
 colour or an RGB colour. The names and their values are:
@@ -294,20 +281,19 @@ A reader compares a name exactly. Thus `RED` and `reset` are errors. A string th
 is an RGB colour. After the `#`, the string has 1 to 6 hexadecimal digits, in upper case or in
 lower case. The digits give a number from `000000` to `FFFFFF`. A writer writes a named colour as
 its name. A writer writes an RGB colour as `#` and 6 digits in upper case. A reader gives an RGB
-colour for `#FF5555`. It does not give the named colour `red`. See result R4 and deviation D1.
+colour for `#FF5555`. It does not give the named colour `red`. See deviation D1.
 
 **TXT-STY-003** (`source_suggested_black_box_confirmed`, wire). The value of `shadow_color` is an
 int. Its bits are alpha, red, green and blue, 8 bits each, from the most significant byte. A
 reader also accepts a list of 4 numbers `[red, green, blue, alpha]`. Each number is a float from
 0.0 to 1.0. The channel is the largest integer that is not larger than the number times 255. A
 writer always writes the int. For a number out of `0.0..1.0`, the result is not specified. A list
-with a different number of elements is an error. See result R13.
+with a different number of elements is an error.
 
 **TXT-STY-004** (`source_suggested_black_box_confirmed`, wire). The value of `font` is an
 identifier. A reader accepts a string without a namespace and gives the namespace `minecraft`. A
 writer always writes the namespace. A reader does not check that the font exists. An explicit
 `minecraft:default` is a value. It is not the absent field, and a writer writes it.
-See result R12.
 
 ### 1.3 The click event
 
@@ -327,12 +313,11 @@ map:
 | `custom` | `payload` | each value of the tree format | no payload | TXT-CLK-005 |
 
 An `action` that is not in this table is an error. A reader ignores each other key of the map.
-See result R14.
 
 **TXT-CLK-002** (`source_suggested_black_box_confirmed`, semantic). The `url` is a valid URI
 reference with a scheme. The scheme is `http` or `https`. The comparison of the scheme ignores the
 case. A string with a character that a URI does not allow, for example a space, is an error. The
-writer writes the string that the reader read. See result R14.
+writer writes the string that the reader read.
 
 **TXT-CLK-003** (`source_suggested_black_box_confirmed`, semantic). A `command` is an error when
 one of its UTF-16 code units is one of these:
@@ -341,21 +326,21 @@ one of its UTF-16 code units is one of these:
 - a code unit smaller than `U+0020`;
 - `U+007F`.
 
-The rule sets no limit on the length. See result R14.
+The rule sets no limit on the length.
 
 **TXT-CLK-004** (`source_suggested_black_box_confirmed`, wire). The `dialog` is a string or a map.
 The string is the identifier of an entry of the registry `minecraft:dialog`. An identifier that
 names no entry is an error. The map is one dialog that the text holds. This document does not
-state the fields of a dialog. A writer writes the form that the reader read. See result R14.
+state the fields of a dialog. A writer writes the form that the reader read.
 
 **TXT-CLK-005** (`source_suggested_black_box_confirmed`, wire). The `payload` is free NBT, as
 `item-stack.md`, STK-TYP-004, uses the term. Each tag kind is valid, also a string, a number, a
 list and an array. A reader of JSON gives each number the kind of TXT-JSN-003. A reader of JSON
-gives the Byte tag `1b` or `0b` for a boolean. See result R15.
+gives the Byte tag `1b` or `0b` for a boolean.
 
 **TXT-CLK-006** (`source_suggested`, semantic). The game has one more action, `open_file`, with
 the field `path`. The saved form does not carry it. A reader gives an error for `open_file`. A
-writer gives an error for a text that holds it. See experiment X5.
+writer gives an error for a text that holds it.
 
 ### 1.4 The hover event
 
@@ -373,13 +358,13 @@ map:
 
 An `action` that is not in this table is an error. A reader ignores each other key of the map.
 The reader of `id` accepts a string without a namespace. A hover event can hold a text that has a
-hover event. See result R16.
+hover event.
 
 **TXT-HOV-002** (`source_suggested_black_box_confirmed`, wire). The action `show_item` holds one
 item template. Its keys `id`, `count` and `components` are keys of the map of the hover event. The
 rules of `item-stack.md`, section 6.6, apply. Thus `count` has the default 1 and the range
 `1..99`, and the item is not air. A writer omits a `count` of 1 and an empty patch. A component of
-the patch can hold a text. See result R17.
+the patch can hold a text.
 
 **TXT-HOV-003** (`source_suggested_black_box_confirmed`, wire). The `uuid` has two saved forms:
 
@@ -388,13 +373,13 @@ the patch can hold a text. See result R17.
 
 A writer writes the 4 ints: an Int Array tag in NBT, and an array of 4 numbers in JSON. In NBT, a
 reader also accepts a list of 4 numeric tags. A string without the hyphens is an error. A number
-of ints that is not 4 is an error. See result R16.
+of ints that is not 4 is an error.
 
 ## 2. Which fields make a text valid
 
 **TXT-MOD-005** (`source_suggested_black_box_confirmed`, semantic). A map form is a valid text
 only when it has a valid content. A map with only style fields is an error. A map with only
-`extra` is an error. The empty map is an error. See result R18.
+`extra` is an error. The empty map is an error.
 
 ## 3. The saved form
 
@@ -411,13 +396,13 @@ three spellings, in each place where a text occurs:
 
 A text occurs at the root and in these fields: `extra`, `with`, `separator`, `fallback` of an
 object, `value` of `show_text` and `name` of `show_entity`. Each other value is an error: a number, a
-boolean, an empty list and a JSON `null`. See results R1, R2 and R18.
+boolean, an empty list and a JSON `null`.
 
 **TXT-SAV-002** (`source_suggested_black_box_confirmed`, semantic). The list form gives the text
 of its first element. Each other element becomes a child of that text, in order, after the
 children that the first element has. Thus `["a",{text:"b",bold:true},"c"]` and
 `{text:"a",extra:[{text:"b",bold:true},"c"]}` give the same text. A list with one element gives
-the text of that element. See result R19.
+the text of that element.
 
 **TXT-SAV-003** (`source_suggested_black_box_confirmed`, wire). The map form has these keys:
 
@@ -429,12 +414,12 @@ the text of that element. See result R19.
 | the style fields | section 1.2 | absent |
 
 An `extra` that is an empty list is an error of the text. An `extra` that is not a list is an
-error of the text. See results R1 and R18.
+error of the text.
 
 **TXT-SAV-004** (`source_suggested_black_box_confirmed`, semantic). When `type` is present, the
 reader reads only the fields of that content kind. It ignores the fields of each other content
 kind. A `type` that names no content kind is an error. A necessary field of the content kind that
-is absent is an error. See result R20.
+is absent is an error.
 
 **TXT-SAV-005** (`source_suggested_black_box_confirmed`, semantic). When `type` is absent, the
 reader tries the content kinds in this order: `text`, `translatable`, `keybind`, `score`,
@@ -449,13 +434,11 @@ error. For example:
 | `{text:5,translate:"t"}` | the translation `t` |
 | `{text:5}` | an error |
 
-See result R20 and experiment X6.
-
 **TXT-SAV-006** (`source_suggested_black_box_confirmed`, semantic). A reader ignores a key that
 this document does not list. This is true for the map form, for the map of `score`, for a click
 event and for a hover event. For example, `{text:"a",junk:1}` gives the plain text `a`. The keys
 `value` of an old click event and `contents` of an old hover event are such keys. The reader then
-reports the necessary field that is absent. See results R14, R16 and R18.
+reports the necessary field that is absent.
 
 ### 3.2 Wrong forms
 
@@ -470,16 +453,16 @@ one of two results:
 An error in a field of a content kind makes that content kind not valid (TXT-SAV-005). An error
 in `extra` or in a style field is an error of the text. An error in a child, in an argument or in
 a text of an event is an error of the text that holds it. A reader of a text gives the whole text
-or an error. It gives no text with a part removed. See results R5, R10 and R18.
+or an error. It gives no text with a part removed.
 
 **TXT-SAV-008** (`source_suggested_black_box_confirmed`, semantic). A string field accepts only a
 string. A number is not a string. Thus `{text:5}` and `{insertion:5,text:"x"}` are errors in each
-tree format. See result R18.
+tree format.
 
 **TXT-SAV-009** (`source_suggested_black_box_confirmed`, semantic). In NBT and SNBT, a boolean
 field accepts each numeric tag. The value is false when the number is zero, and true for each
 other number. Thus `bold:2b` and `bold:1` are true. A String tag is an error. A writer writes the
-Byte tag `1b` or `0b`. In JSON, TXT-JSN-002 applies. See result R21 and experiment X3.
+Byte tag `1b` or `0b`. In JSON, TXT-JSN-002 applies.
 
 **TXT-SAV-010** (`source_suggested_black_box_confirmed`, semantic). In NBT and SNBT, an int field
 accepts each numeric tag. The reader converts the number to an int:
@@ -492,8 +475,7 @@ accepts each numeric tag. The reader converts the number to an int:
 
 The reader checks the range of the field after the conversion. Thus `page:3.7d` gives 3, and
 `page:4294967297L` gives 1. A writer writes an Int tag. This rule applies to `page`, to
-`shadow_color` and to `count` of an item template. Experiment X3 decides the result of a NaN. In JSON, TXT-JSN-004 applies.
-See result R22 and experiment X3.
+`shadow_color` and to `count` of an item template. In JSON, TXT-JSN-004 applies.
 
 **TXT-SAV-011** (`design`, unspecified). A writer of this project must write an int field only as
 an Int tag. It must write a boolean field only as the Byte tag `0b` or `1b`. Reason: the conversions of
@@ -509,8 +491,7 @@ a text:
 
 The writer never writes the list form. This rule applies at the root and in each place where a
 text occurs. Thus a child that is a plain text is a string in `extra`. A text with the literal
-`""` and one or more children is a map with the key `text` and the value `""`. See results R2, R3
-and R19.
+`""` and one or more children is a map with the key `text` and the value `""`.
 
 **TXT-SAV-013** (`source_suggested_black_box_confirmed`, wire). The map form of the writer has
 these keys:
@@ -527,8 +508,6 @@ value `false`. The writer does not write these fields with these values:
 - `hat` with the value `true`;
 - `atlas` with the value `minecraft:blocks`;
 - `with` with no arguments.
- See results R1,
-R10, R11 and R20.
 
 **TXT-SAV-014** (`black_box_confirmed`, wire). In a format that keeps the order of keys, the
 writer writes the keys of the map form in this order:
@@ -540,13 +519,12 @@ writer writes the keys of the map form in this order:
 In an `nbt` content, the source field comes after `separator`. In an `object` content, `fallback`
 comes after the fields of the object. In a click event and in a hover event, the fields of the
 action come first, in the order of the rows. `action` comes last. This order applies to JSON.
-See result R23.
 
 **TXT-SAV-015** (`black_box_confirmed`, unspecified). The order of the keys of an NBT compound has
 no meaning. A reader must accept each order. The order in which the game writes the keys of a
 compound is an accident, and a parity test must not compare it. A test that compares bytes must
 sort the keys, or compare the SNBT, which has the keys in the order of `snbt.md`. The hash does
-not depend on the order (TXT-HSH-002). See result R23.
+not depend on the order (TXT-HSH-002).
 
 **TXT-SAV-016** (`source_suggested_black_box_confirmed`, semantic). A read and then a write gives
 the canonical form. The canonical form of a canonical form is the same form. A read does not keep
@@ -558,8 +536,6 @@ these parts of the input:
 - the case and the number of the digits of an RGB colour;
 - a `uuid` string, a `shadow_color` list and a profile string;
 - an identifier without a namespace, which gets the namespace `minecraft`.
-
-See results R2, R4, R12, R13 and R16.
 
 ## 4. NBT and the wire form
 
@@ -577,8 +553,6 @@ tags:
 | number argument | the tag of its number kind |
 | `payload` | the tag that the text holds |
 
-See results R1 and R24.
-
 **TXT-NBT-002** (`source_suggested_black_box_confirmed`, wire). An NBT List tag holds elements of
 one tag kind. A list of the saved form can hold elements of different kinds, for example a string
 and a map in `extra`. The writer then writes a list of Compound tags:
@@ -592,20 +566,19 @@ list of Compound tags replaces each wrapper with its value. When each element of
 same tag kind, the writer writes the elements without a wrapper. For example, `extra` of
 `{text:"a",extra:["b",{text:"c",color:"blue"}]}` has the bytes
 `0a 00000002 | 08 0000 0001 62 00 | 08 0005 636f6c6f72 0004 626c7565 08 0004 74657874 0001 63 00`.
-This rule is a rule of NBT. It is here because no other document states it yet. See result R24 and
-experiment X4.
+This rule is a rule of NBT. It is here because no other document states it yet.
 
 **TXT-NBT-003** (`source_suggested_black_box_confirmed`, wire). The wire form of a text is one
 network NBT of its canonical form. The plain text `plain` is `08 0005 706c61696e`. The empty text
 is `08 0000`. The tag is a String tag or a Compound tag when a vanilla writer wrote it. A reader
 accepts also a List tag (TXT-SAV-001). A tag of the kind End in the place of the text is a decode
-error. See result R25.
+error.
 
 **TXT-NBT-004** (`source_suggested_black_box_confirmed`, wire). The wire form has no difference
 from the saved form in NBT. It has the same keys, the same tags and the same optional fields. A
 reference to a registry entry is the identifier string, also in the wire form. This is true for
 `id` of `show_item`, for `id` of `show_entity` and for `dialog`. A component of a `show_item`
-patch has its saved form, not its wire form. See result R25.
+patch has its saved form, not its wire form.
 
 **TXT-NBT-005** (`source_suggested`, wire). The reader of the wire form in an item component has
 these limits:
@@ -618,15 +591,15 @@ these limits:
 A tag past a limit is a decode error. The exact measure of the size is not specified. The same
 limits apply to a text in each packet that does not state a different quota. A document for a
 packet states the quota of that packet. The depth of a text counts each list and each compound.
-Thus a chain of children uses 2 levels for each child. See experiment X2.
+Thus a chain of children uses 2 levels for each child.
 
 **TXT-NBT-006** (`source_suggested`, wire). The text sets no limit on the length of a string. NBT
 does: a String tag holds at most 65535 bytes of its encoded form. A writer gives an error for a
-longer string. JSON has no such limit. See experiment X2.
+longer string. JSON has no such limit.
 
 **TXT-NBT-007** (`source_suggested`, semantic). A saved form that is not a valid text is a decode
 error in the wire form. The reader gives no text. A text that has no saved form is an error of
-the writer (TXT-CLK-006). See experiment X5.
+the writer (TXT-CLK-006).
 
 ## 5. JSON
 
@@ -645,12 +618,11 @@ saved form with these values:
 The keys, the spellings, the content kinds and the canonical form are those of sections 1 and 3.
 A data pack file and an item definition hold a text in this form. Each `minecraft:item_name` of
 the 1686 files of `assets/mcrs/item_definition/` is an object with the one key `translate`.
-See result R1.
 
 **TXT-JSN-002** (`black_box_confirmed`, semantic). In JSON, a boolean field accepts only `true`
 and `false`. A number and a string are errors. Thus `"bold":1` is an error in JSON, and `bold:1`
 is true in NBT. For `interpret` and `plain`, the reader takes such a value as absent
-(TXT-SAV-007). See result R21.
+(TXT-SAV-007).
 
 **TXT-JSN-003** (`source_suggested_black_box_confirmed`, wire). A JSON number has no number kind.
 Where the saved form keeps a number kind, the reader of JSON gives the first kind of this list
@@ -661,16 +633,16 @@ that holds the number exactly:
 
 A number such as `2.0` has no fraction, thus it is a byte. This rule applies to a number argument
 (TXT-CNT-004) and to each number in a `payload` (TXT-CLK-005). For example, the argument `5` in
-JSON is the byte 5, and its NBT is `5b`. See results R7 and R15.
+JSON is the byte 5, and its NBT is `5b`.
 
 **TXT-JSN-004** (`black_box_confirmed`, semantic). In JSON, an int field accepts each number. The
 reader removes the fraction. It keeps the least significant 32 bits of an integer that is out of
 the int range. Thus `"page":3.5` gives 3, and `"shadow_color":4294967295` gives -1. The reader
-checks the range of the field after the conversion. A string is an error. See result R22.
+checks the range of the field after the conversion. A string is an error.
 
 **TXT-JSN-005** (`black_box_confirmed`, wire). A JSON array has no kinds, thus TXT-NBT-002 does
 not apply to JSON. A `payload` that has an NBT array is a JSON array of numbers. A read of that
-JSON gives a List tag, not the array. Thus JSON does not keep each `payload`. See result R15.
+JSON gives a List tag, not the array. Thus JSON does not keep each `payload`.
 
 **TXT-JSN-006** (`source_suggested`, semantic). The JSON form has no other difference from the
 saved form in NBT. In SNBT, the saved form is the same tree in the syntax of `snbt.md`.
@@ -686,7 +658,7 @@ true:
   position.
 
 The order of the children has a meaning. Equality compares the decoded values. It does not compare
-a saved form, a wire form or a hash. See experiment X1.
+a saved form, a wire form or a hash.
 
 **TXT-EQ-002** (`source_suggested_black_box_confirmed`, semantic). Thus two saved forms that give
 the same text give equal texts. These pairs are equal:
@@ -695,8 +667,7 @@ the same text give equal texts. These pairs are equal:
 - `["a","b"]` and `{text:"a",extra:["b"]}`;
 - a form with an optional field equal to its default, and the form without that field.
 
-The game writes one canonical form for the forms of each pair. See results R2 and R19, and
-experiment X1.
+The game writes one canonical form for the forms of each pair.
 
 **TXT-EQ-003** (`source_suggested`, semantic). Two contents are equal when they have the same
 content kind and each field is equal. These statements apply:
@@ -712,8 +683,6 @@ content kind and each field is equal. These statements apply:
 - An absent `fallback` and the fallback `""` are not equal.
 - The `name` of a `score` content compares as a string.
 
-See experiment X1.
-
 **TXT-EQ-004** (`source_suggested`, semantic). Two styles are equal when each style field is equal
 in the two styles. These statements apply:
 
@@ -727,34 +696,32 @@ in the two styles. These statements apply:
   are equal as `item-stack.md` states. Two UUIDs are equal when their 128 bits are equal.
 - An absent `font` and the font `minecraft:default` are not equal.
 
-See experiment X1.
-
 **TXT-EQ-005** (`source_suggested`, semantic). Equal texts can have different canonical forms.
 This occurs only for a named colour and the RGB colour with the same value. Such texts have
 different wire forms and different hashes. An implementation must keep the difference in the
-model (TXT-MOD-003) and must ignore it in equality. See result R4 and experiment X1.
+model (TXT-MOD-003) and must ignore it in equality.
 
 **TXT-EQ-006** (`source_suggested`, semantic). The merge of two stacks uses this equality. The
 relation "same item and components" of STK-EQ-001 compares a component that holds a text with
 TXT-EQ-001. Thus a stack with the name `"x"` and a stack with the name `{text:"x"}` can merge. A
 stack with a `red` name and a stack with a `#FF5555` name can merge. A list of texts, for example
-`minecraft:lore`, is equal when it has equal texts in the same order. See experiment X1.
+`minecraft:lore`, is equal when it has equal texts in the same order.
 
 **TXT-EQ-007** (`source_suggested`, semantic). Text equality answers the question of U9 of
 `item-stack.md`: the string `"x"` and the map `{text:"x"}` decode to equal texts. They also have
-one saved form, one wire form and one hash. See result R2.
+one saved form, one wire form and one hash.
 
 ## 7. The hash
 
 **TXT-HSH-001** (`source_suggested_black_box_confirmed`, client agreement). The hash of a text is
 the hash of its canonical form, with the node kinds of STK-HSH-005. A component that holds a text
 uses this hash in the hashed stack (STK-HSH-004). The plain text `named` is one string node, and
-its hash is `d2ee6d5e`. See result R26.
+its hash is `d2ee6d5e`.
 
 **TXT-HSH-002** (`source_suggested_black_box_confirmed`, client agreement). The map form is a map
 node. Each key is a string node. STK-HSH-006 sorts the entries by the hash of the key. Thus the
 order of the keys of the writer (TXT-SAV-014) does not change the hash. Only the set of the keys
-and their values change it. See result R26.
+and their values change it.
 
 **TXT-HSH-003** (`source_suggested`, client agreement). The parts of the canonical form have
 these node kinds:
@@ -774,17 +741,17 @@ these node kinds:
 | `components` of `show_item` | as STK-HSH-004 states for the saved form of each component |
 
 A list node has no wrapper: TXT-NBT-002 applies only to NBT. A boolean of a style field is a
-boolean node, not a byte node. See experiment X7.
+boolean node, not a byte node.
 
 **TXT-HSH-004** (`source_suggested`, client agreement). The hash has an entry only for a key that
 the canonical form has. An implementation must omit each field that TXT-SAV-013 omits. For
 example, a `bold:false` is an entry, and an `interpret:false` is not. A text in the list form or
-with a `type` key has the hash of its canonical form. See experiment X7.
+with a `type` key has the hash of its canonical form.
 
 **TXT-HSH-005** (`source_suggested`, client agreement). A `minecraft:lore` component is a list
 node whose elements are the hashes of its texts in order. `minecraft:custom_name` and
 `minecraft:item_name` are the node of the one text. The `override` display of an attribute
-modifier holds one text in its key `value`. See experiment X7.
+modifier holds one text in its key `value`.
 
 ## 8. Boundaries
 
@@ -819,7 +786,7 @@ This document does not state these subjects:
 - **Test**: a differential test must not send a sign, more than 6 digits or a digit that is not
   ASCII. The fixture `text_probe` has the case `color_plus_hex`; a parity test must skip it.
 
-## 10. Open questions
+## 10. Unresolved
 
 For the owner:
 
@@ -832,65 +799,13 @@ For the owner:
   `properties` and its skin fields?
 - **Q4**: TXT-CLK-004. Which document owns the fields of a dialog that a text holds?
 - **Q5**: TXT-NBT-002. The wrapper rule is a rule of NBT. Does it move to a document for NBT?
-- **Q6**: TXT-EQ-005. `docs/text-item-hover.md` keeps the components of a `show_item` hover as
+- **Q6**: TXT-EQ-005. The item hover keeps the components of a `show_item` hover as
   NBT below the item crate. Equality of two such hovers then compares NBT, not components. The
   owner decides if this difference from TXT-EQ-004 is acceptable below the item crate.
 
 Not decided by an experiment yet:
 
-- **U1**: TXT-NBT-005. The exact measure of the NBT quota. Experiment X2.
-- **U2**: TXT-SAV-005. The result of a `type` key that is not a string. Experiment X6.
+- **U1**: TXT-NBT-005. The exact measure of the NBT quota.
+- **U2**: TXT-SAV-005. The result of a `type` key that is not a string.
 - **U3**: TXT-SAV-009, TXT-SAV-010. The result of a NaN, of an infinity and of a fraction smaller
-  than 1 in a boolean field and in an int field. Experiment X3.
-
-## 11. Experiments
-
-Each experiment uses the game version of the table at the top of this document. An experiment of
-the kind "golden" adds cases to a fixture of `tools/fixtures.json`. Run it with
-`cargo run -p mcrs_minecraft_update -- recapture <name>`. The column "Case kind" states if the
-fixture has the case kind now. No experiment of this table has a recorded run.
-
-| Experiment | Kind | Case kind | Steps | Record |
-|------------|------|-----------|-------|--------|
-| X1 | golden | new: a comparison of two decoded values | Decode each pair: `"x"` and `{text:"x"}`; `{text:"x",color:"red"}` and `{text:"x",color:"#FF5555"}`; `{text:"x",bold:false}` and `"x"`; `{translate:"k",with:[5b]}` and `{translate:"k",with:[5]}`; `{text:"x",font:"minecraft:default"}` and `"x"`; `{text:"a",extra:["b","c"]}` and `{text:"a",extra:["c","b"]}`. Compare the two texts. Then compare two stacks with each pair as `custom_name`. | Which pairs are equal; which stacks have the same item and components. |
-| X2 | golden | new: a decode of chosen wire bytes of a component | Decode `custom_name` from a network NBT with 511, 512 and 513 levels of `extra`. Decode a String tag of 65535 bytes. Decode a text whose NBT has 2097152 bytes and one with 2097153 bytes. Encode a literal of 65536 bytes. | The error or the text of each case; the size at which the quota fails. |
-| X3 | golden | existing: `text_nbt` | Add cases: `bold` as `0.5f`, `0.0d`, `NaNf` and `-0.0f`; `page` as `NaNd`, `Infinityd` and `0.9f`; `shadow_color` as `-1.5d`. | The canonical form or the error of each case. |
-| X4 | golden | existing: `text_nbt` | Add cases: `extra` with a wrapper around a compound; `with` with a wrapper around a wrapper; a `payload` list that holds a compound with the one key `""` and a string. Encode each result to the wire form. | The JSON, the SNBT and the bytes of each case. |
-| X5 | golden | existing: `text_probe`, and new: an encode of a text that code builds | Decode a click event with the action `open_file` and a `path`. Build a text with that action in code and encode it to the saved form and to the wire form. | The error of each case. |
-| X6 | golden | existing: `text_probe` | Add cases: `{"type":5,"text":"x"}`; `{"text":5,"translate":"t"}`; `{"selector":"@a","separator":5}`; `{"translate":"k","with":[null]}`; `{"text":"x","extra":"y"}`. | The canonical form or the error of each case. |
-| X7 | golden | existing: the case kind of `item_nested` with a patch | Add stacks with `custom_name` as: a text with each style field; a translation with the arguments `5b`, `5`, `1.5f`, `"s"` and a styled text; a text with `show_entity`; a text with a `custom` click event whose `payload` has a Byte tag, a list and an Int Array tag. Add `lore` with a plain text and a styled text. | The saved form, the wire bytes and the hash of each component. |
-| X8 | server | none | Give two stacks whose `custom_name` are `"x"` and `{text:"x"}`. Give two whose names are `red` and `#FF5555`. Move one on the other with a click. Capture the `container_click` packet of a vanilla client for each stack. | If the stacks merge; the hash of each `custom_name`. |
-
-## 12. Captured results
-
-Each result is a set of cases of a fixture that the game wrote. A case name is a name in the file
-of the fixture. "→" separates the input from the canonical form that the game wrote.
-
-| Result | Fixture | Cases | What they show |
-|--------|---------|-------|----------------|
-| R1 | `text_vanilla` | `bare_literal`, `extra`, `literal_with_style` | `"hello"` → `"hello"`, NBT `08 0005 68656c6c6f`. `{text:"a",extra:["b",{text:"c",color:"blue"}]}` stays as it is. |
-| R2 | `text_vanilla` | `literal_object_collapses`, `typed_text` | `{"text":"hello"}` → `"hello"`, with the NBT of `bare_literal`. `{"type":"text","text":"typed"}` → `"typed"`. |
-| R3 | `text_vanilla`, `text_wire` | `empty_literal`, `empty_component`, `empty_appended` | `{"text":""}` → `""`, NBT `08 0000`. A literal `""` with two children → `{"text":"","extra":[...]}`. |
-| R4 | `text_probe`, `text_vanilla` | `color_hex_equals_named`, `color_hex_lower`, `color_short_hex`, `color_reset`, `color_bad`, `hex_color_and_custom_font` | `#FF5555` → `#FF5555`, not `red`. `#abcdef` → `#ABCDEF`. `#f80` → `#000F80`. `reset` and `RED` are errors. |
-| R5 | `text_probe` | `with_empty`, `translate_fallback_int` | `"with":[]` → no `with`. `"fallback":5` → no `fallback`, and no error. |
-| R6 | `text_vanilla`, `text_probe`, `text_nbt` | `translatable_heterogeneous_args`, `with_nested_list_arg`, `with_byte_array_arg`, `with_int_array` | The argument `{"text":"plain"}` → `"plain"`. The argument `["a","b"]` → `{"text":"a","extra":["b"]}`. A Byte Array tag as an argument is an error. `with:[I;1,2]` → the int arguments 1 and 2. |
-| R7 | `text_probe`, `text_nbt`, `text_wire` | `with_int`, `with_bool_float_string`, `with_long_arg`, `mixed_args` | JSON `[5]` → SNBT `[5b]`. JSON `[true,1.5,"s",2.0]` → SNBT `[1b,1.5f,"s",2b]`. `7L` stays a long. An int argument 5 has the wire bytes `03 00000005`. |
-| R8 | `text_vanilla`, `text_probe`, `text_nbt` | `keybind`, `score`, `score_bad_selector`, `score_extra_value`, `keybind_byte` | `{"score":{"name":"@zzz","objective":"o"}}` is valid. The key `value` of `score` is ignored. `{keybind:1b}` is an error. |
-| R9 | `text_vanilla`, `text_probe` | `selector`, `selector_bad`, `selector_bad_syntax` | `"notaselector"` is valid. `"@e[type="` is an error. |
-| R10 | `text_vanilla`, `text_probe`, `text_nbt` | `nbt_entity`, `nbt_typed_source`, `nbt_two_sources`, `nbt_typed_source_conflict`, `nbt_no_source`, `nbt_bad_path`, `nbt_interpret_string`, `nbt_separator_bad`, `interpret_plain` | `entity` wins over `block`. `"source":"block"` selects `block`. No source, the path `[[`, and `interpret` with `plain` are errors. `"interpret":"yes"` and `"separator":5` are taken as absent. |
-| R11 | `text_vanilla`, `text_probe`, `text_nbt` | `object_atlas`, `object_atlas_default_explicit`, `object_player_bare_name`, `object_player_nohat`, `object_player_and_sprite`, `object_atlas_only`, `object_typed_bad` | `{"object":"atlas","sprite":...}` → `{"sprite":...}`. `"atlas":"minecraft:blocks"` is omitted. `{"player":"Steve"}` → `{"player":{"name":"Steve"}}`. `sprite` wins over `player`. An `atlas` with no `sprite` is an error. |
-| R12 | `text_probe`, `text_nbt` | `font_no_ns`, `font_default`, `font_bad`, `insertion_int` | `"font":"alt"` → `minecraft:alt`. `minecraft:default` stays. `Bad Font` and `insertion:5` are errors. |
-| R13 | `text_vanilla`, `text_probe`, `text_nbt` | `shadow_color_int`, `shadow_color_floats`, `shadow_floats_3`, `shadow_list_int` | `[1.0,0.5,0.25,0.75]` → -1073774785, which is `BFFF7F3F`. `[1,0,0,1]` → -65536. A list of 3 numbers is an error. |
-| R14 | `text_vanilla`, `text_probe` | the cases `click_*` | Each action of TXT-CLK-001 stays as it is. `ftp://`, a URL with a space, and a URL with no scheme are errors. A `command` with `§` is an error. A `page` string is an error. An unknown dialog is an error. An inline dialog stays. The key `value` in `run_command` is ignored, and `value` with no `command` is an error. |
-| R15 | `text_probe`, `text_nbt` | the cases `click_custom_payload_*` and `custom_payload_*` | JSON payload `[1,2,3]` → `[1b,2b,3b]`; `true` → `1b`; `1.5` → `1.5f`; `3000000000` → a long; `1.1` → a double. An Int Array payload → JSON `[1,2]`. |
-| R16 | `text_vanilla`, `text_probe`, `text_nbt` | the cases `hover_show_text*`, `hover_show_entity*`, `uuid_*`, `hover_legacy_contents`, `hover_extra_key` | The `uuid` string → 4 ints, `[I;1,131075,262144,5]` in SNBT. An upper case string is valid. A string without hyphens and 3 ints are errors. `"id":"pig"` → `minecraft:pig`. The key `contents` with no `value` is an error. |
-| R17 | `text_vanilla`, `text_probe`, `text_nbt` | the cases `hover_show_item_*` and `show_item_*` | `count` 1 and an empty `components` are omitted. `count` 0 and 100, air and an unknown item are errors. `count:3b` and `count:3L` → 3. `max_stack_size:16b` → 16. A `custom_name` and a `lore` in the patch keep their canonical form. |
-| R18 | `text_probe`, `text_nbt` | `style_only`, `empty_object`, `extra_only`, `text_number`, `text_int`, `extra_empty`, `extra_int_list`, `unknown_top_key`, `literal_with_empty_extra_style` | `{"bold":true}`, `{}`, `{"extra":["a"]}`, `{"text":5}` and an empty `extra` are errors, also in a child. `{"text":"a","junk":1}` → `"a"`. |
-| R19 | `text_vanilla`, `text_probe`, `text_nbt` | `list_form`, `list_nested`, `list_single`, `list_single_styled`, `list_first_styled`, `list_root`, `deep_extra_collapse` | `["a",{"text":"b","bold":true},"c"]` → `{"text":"a","extra":[{"text":"b","bold":true},"c"]}`. `[["a","b"],"c"]` → `{"text":"a","extra":["b","c"]}`. `["only"]` → `"only"`. A child `{"text":"c"}` → `"c"`. |
-| R20 | `text_vanilla`, `text_probe` | `typed_keybind`, `typed_translatable_with_text`, `typed_unknown`, `typed_translatable_missing`, `keybind_and_text`, `translate_and_keybind` | With `type`, the key `text` is ignored. `"type":"bogus"` is an error. `"type":"translatable"` with no `translate` is an error. `{"keybind":"k","text":"t"}` → `"t"`. |
-| R21 | `text_nbt`, `text_probe` | `bold_2b`, `bold_int`, `bold_string`, `interpret_int`, `object_hat_byte`, `nbt_interpret_int` | NBT `bold:2b` and `bold:1` → `1b`. A string is an error in each format. JSON `"bold":1` is an error. JSON `"interpret":1` is taken as absent. |
-| R22 | `text_nbt`, `text_probe` | `page_byte`, `page_double_frac`, `page_double_big`, `page_long_big`, `shadow_long`, `shadow_float`, `shadow_big`, `click_change_page_float_frac`, `click_change_page_big`, `click_change_page_string` | NBT `3.7d` → 3; `3.0E9d` → 2147483647; `4294967297L` → 1; `1.9f` → 1. JSON `3.5` → 3; `4294967295` → -1; `2147483648` → -2147483648, which is out of the range of `page`. |
-| R23 | `text_probe`, `text_vanilla`, `text_wire` | `text_and_extra_style`, `nbt_entity`, `hover_show_text`, `literal_rgb` | JSON key order: `text`, `extra`, `color`. `nbt`, `interpret`, `separator`, `entity`. `value`, `action`. The NBT of `literal_rgb` has `color` before `text`, and the NBT of `hover_show_text_bare` has `text` before `hover_event`. |
-| R24 | `text_vanilla`, `text_wire` | `extra`, `mixed_args`, `kill_multiple` | The bytes of TXT-NBT-002. A list of arguments of one kind has no wrapper: `09 0004 77697468 03 00000001 00000005`. |
-| R25 | `text_wire` | `literal_plain`, `literal_rgb`, `show_item`, `show_dialog_inline`, `empty_component` | `"plain"` → `08 0005 706c61696e`. `{"text":"x","color":"#FF5555"}` → `0a 08 0005 636f6c6f72 0007 23464635353535 08 0004 74657874 0001 78 00`. The wire form of `show_item` has the identifier string of the item. |
-| R26 | `inventory_packets` | `container_click` | Results R3 and R6 of `item-stack.md`: the hash of `custom_name` `"named"` is `d2ee6d5e`, the hash of the string node `named`. |
+  than 1 in a boolean field and in an int field.

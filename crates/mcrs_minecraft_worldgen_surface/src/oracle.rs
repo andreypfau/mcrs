@@ -301,14 +301,8 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "compares the tape with the oracle over the whole context range from one shared setup, so the sweep reads in one place"
-    )]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "sweeps every height and combination of the context range against the oracle from one shared setup, so a mismatch names its combination"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one sweep from one shared setup")]
+    #[expect(clippy::excessive_nesting, reason = "a mismatch names its combination")]
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
         let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();

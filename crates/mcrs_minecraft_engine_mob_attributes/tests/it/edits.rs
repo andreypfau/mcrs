@@ -76,7 +76,7 @@ fn an_edit_of_an_attribute_outside_the_set_changes_nothing() {
 }
 
 #[test]
-fn a_modifier_on_the_speed_of_a_row_reaches_its_motion_and_its_removal_restores_the_base() {
+fn speed_modifier_reaches_motion_and_removal_restores_base() {
     let mut app = app();
     let pig = EntityId(7);
     spawn_pig(&mut app, pig);

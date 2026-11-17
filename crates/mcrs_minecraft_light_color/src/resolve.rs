@@ -22,7 +22,7 @@ pub fn light_weight(level: u8) -> f32 {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "mixes the known colours of each output cell lane by lane, weighted by light, with the channel sums inline"
+    reason = "channel sums inline, lane by lane"
 )]
 pub fn resolve(
     region: &Region,

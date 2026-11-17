@@ -805,7 +805,7 @@ mod tests {
     }
 
     #[test]
-    fn a_deferred_wake_delivers_the_batch_and_a_dropped_connection_then_closes_the_socket() {
+    fn deferred_wake_delivers_batch_and_dropped_connection_closes_socket() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let mut wakes = WriterWakes::on_runtime(runtime.handle().clone());
         let (mut connection, mut peer) = runtime.block_on(loopback(SwitchMode::Immediate));
@@ -833,7 +833,7 @@ mod tests {
     }
 
     #[test]
-    fn a_peer_still_sending_after_the_connection_drops_reads_its_last_packet_and_a_clean_close() {
+    fn peer_sending_after_drop_reads_last_packet_then_clean_close() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
             let (mut connection, mut peer) = loopback(SwitchMode::Immediate).await;
@@ -859,7 +859,7 @@ mod tests {
     }
 
     #[test]
-    fn an_acknowledged_login_reads_compressed_frames_from_right_after_login_acknowledged() {
+    fn acked_login_reads_compressed_frames_after_login_acknowledged() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
             let (mut connection, mut peer) = loopback(SwitchMode::Acknowledged).await;
@@ -892,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn an_acknowledged_login_compresses_each_frame_after_login_finished_also_before_the_ack() {
+    fn acked_login_compresses_frames_after_login_finished() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
             let (mut connection, mut peer) = loopback(SwitchMode::Acknowledged).await;

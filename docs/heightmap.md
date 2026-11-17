@@ -6,8 +6,7 @@ to hold, how the order of computation follows from those invariants, and how a
 heightmap relates to sky light.
 
 The document deliberately does not describe the structure of Minecraft's classes.
-References to the reference implementation are collected in the appendix — for
-checking against, not for copying.
+The map types and the block tests are in `docs/spec/heightmap.md`, HM-001 and HM-002.
 
 Terminology follows `worldgen.md` §2: a **strip** is the 1 × 1 × H run of blocks,
 a **column** is 16 × 16 × H, a **section** is 16 × 16 × 16. Vanilla's word *chunk*
@@ -54,14 +53,7 @@ yields a saving follows from one fact:
 Proof: the topmost `P`-block of the strip is also a `Q`-block, so the maximum for
 `Q` is no lower.
 
-The minimal useful set of predicates:
-
-```
-SURFACE   = ¬air
-SOLID     = blocksMotion(b)
-MOTION    = blocksMotion(b) ∨ hasFluid(b)
-NO_LEAVES = blocksMotionExceptLeaves(b) ∨ hasFluid(b)
-```
+The block tests of the four predicates `SURFACE`, `SOLID`, `MOTION` and `NO_LEAVES` are HM-002 of `docs/spec/heightmap.md`.
 
 For the ordering to work, the block registry must hold four invariants. These are
 requirements on the data, not observations about it:
@@ -185,17 +177,6 @@ This fast path is worth making an explicit first branch rather than hoping the
 general loop exits on its first iteration: the general loop still pays for
 maintaining the unresolved set.
 
-### Who maintains `H_SURFACE`
-
-Since everything starts from `H_SURFACE`, it must be obtained cheaply. The right
-place is the terrain generator: it already writes the blocks of a strip from the
-top down, and updating the map on each write costs one comparison (§5, the "rise"
-branch). By the end of terrain generation the map is ready without a single extra
-read.
-
-The other three maps are computed once, after terrain, surface rules and carving
-have all finished, by the fused descent above.
-
 **The ordering is forced, not conventional.** Carving removes blocks after fill,
 and surface rules change block types. Both can lower a map. A `SOLID` or
 `NO_LEAVES` map built during fill would be stale by the end of the stage, and
@@ -212,22 +193,16 @@ not an optimisation. Which maps to persist to disk and which to send to the
 client should be decided independently of which maps are maintained in memory
 and from what moment.
 
-**Two generations of one map are not the same data.** The reference's `_WG`
-pair is maintained by the fill, the surface stage and the carvers — every
-`ProtoChunk.setBlockState` updates it while the chunk's persisted status is
-still `BIOMES`, and `applyCarvingMask` writes through `setBlockState` — and is
-frozen when the terrain step ends; the four final maps are primed after
-carving and updated on every decoration write. So `WORLD_SURFACE_WG` at
-decoration time is the column as the carvers left it, and `WORLD_SURFACE` is
-the same column plus the objects placed so far. Twenty-seven shipped
-placements read the terrain pair (`scattering.md` §2). The predicates are
-identical; the blocks they were computed over are not. The rule here is
-therefore: the terrain `SURFACE` and `SOLID` maps are a second **generation**
-of the same two maps, built by one descent after the carvers and before any
-decoration write, held only while the column's window is being decorated, and
-never persisted — one descent recovers them, and nothing after decoration
-reads them (`scattering.md` Wn3, D3, which call the pair pre-carve; the moment
-it is taken is after the carvers).
+**Two generations of one map are not the same data.** The terrain pair is maintained by
+the fill, the surface stage and the carvers, and is frozen when the terrain step ends. The
+four final maps are primed after carving and updated on every decoration write. So the terrain
+`SURFACE` at decoration time is the column as the carvers left it, and the final `SURFACE` is
+the same column plus the objects placed so far. Many placements read the terrain pair
+(`scattering.md` §2). The predicates are identical; the blocks they were computed over are not.
+The rule here is therefore: the terrain `SURFACE` and `SOLID` maps are a second **generation**
+of the same two maps, built by one descent after the carvers and before any decoration write,
+held only while the column's window is being decorated, and never persisted. One descent
+recovers them, and nothing after decoration reads them (`scattering.md` Wn3, D3).
 
 A reasonable choice: hold `H_SURFACE` from the first block write, take the
 terrain generation of `SURFACE` and `SOLID` once carving completes, add the
@@ -444,57 +419,11 @@ ones that are not.
 
 ---
 
-## 10. Implementation order
+## Deliberate divergences from the reference
 
-A sequence in which every step is verifiable on its own:
-
-1. The bit storage and the pair of bias functions (§1).
-2. The predicates and a check of I1–I4 against the block registry — better as a
-   test than as an agreement (§2).
-3. Full construction by the fused descent, without bounds, from the column
-   ceiling. Slow, but certainly correct — this is the reference for every later
-   comparison.
-4. Incremental updates (§5). Check for equivalence with the reference after random
-   series of edits.
-5. Starting from `H_SURFACE` and the fast path (§4). Check against the reference
-   again.
-6. The light source map as a separate type, with a reference full scan (§6).
-7. Seeding the light engine by boundaries (§7). Here an error shows up as holes in
-   the lighting rather than as a crash, so checking against the reference is
-   mandatory.
-
-Steps 3, 4 and 5 are worth keeping behind one interface with a switch, so that the
-reference implementation stays in the tests forever.
-
----
-
-## Appendix: correspondences in Minecraft
-
-For checking behaviour against. Paths are relative to
-`src/main/java/net/minecraft/`.
-
-| What | Where |
-| --- | --- |
-| Map and predicate definitions | `Heightmap.MATERIAL_MOTION_BLOCKING`, `Heightmap.data`, `Heightmap.isOpaque`, `Heightmap.getRawData`, `Heightmap.getIndex`, `Heightmap.Types` |
-| Full construction (the fused descent) | `Heightmap.copyHeightmap`, `Heightmap.primeHeightmaps` |
-| Incremental update | `Heightmap.primeHeightmaps`, `Heightmap.update` |
-| Map sets per generation status | `ChunkStatus.MAX_STRUCTURE_DISTANCE`, `ChunkStatus.WORLDGEN_HEIGHTMAPS`, `ChunkStatus.FINAL_HEIGHTMAPS` |
-| Map maintenance by the terrain generator | `ChunkTerrainBuilder.fillChunk` |
-| Final maps built after carving | `world/level/chunk/status/ChunkStatusTasks.java`, `buildTerrain`'s `thenApply` |
-| The sky light source map | `world/level/lighting/ChunkSkyLightSources.java` |
-| Seeding sky light by boundaries | `world/level/lighting/SkyLightEngine.java`, `propagateLightSources` |
-| The "light properties unchanged" cut-off | `LightEngine.hasDifferentLightProperties` |
-| Serialisation of maps and light | `world/level/chunk/storage/SerializableChunkData.java` |
-| Motion-blocking block tags | `src/main/resources/data/minecraft/tags/block/blocks_motion*.json` |
-
-### Deliberate divergences from the reference
-
-- The reference keeps `WORLD_SURFACE_WG` / `OCEAN_FLOOR_WG` separate from
-  `WORLD_SURFACE` / `OCEAN_FLOOR`. The predicates in each pair are literally
-  identical, and `ImposterProtoChunk` substitutes one for the other on read;
-  but the `_WG` pair is frozen before carving while the final pair is live
-  through decoration (`ChunkStatus`,
-  `ProtoChunk.setBlockState`), and placements read both. Here the pair is
+- The reference keeps two maps for each of `SURFACE` and `SOLID`, a terrain pair and a final
+  pair, with identical predicates. The terrain pair is frozen before carving. The final pair is
+  live through decoration, and placements read both. Here the pair is
   kept as a second generation of `SURFACE` and `SOLID` that lives only during
   decoration and is never stored (§4, "On separating maps by lifetime");
   as persisted and sent data there are four maps, not six.

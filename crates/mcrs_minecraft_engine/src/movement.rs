@@ -254,7 +254,7 @@ mod tests {
     use mcrs_minecraft_engine_world::session::PlayerSession;
 
     #[test]
-    fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {
+    fn server_move_sends_one_position_with_the_next_teleport_id() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<GameTime>();
@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn an_accept_away_from_the_destination_gets_a_correction_and_never_moves_the_player() {
+    fn accept_away_from_destination_gets_a_correction_without_moving() {
         use mcrs_minecraft_core::Look;
         use mcrs_minecraft_protocol::Encode;
 

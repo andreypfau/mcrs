@@ -75,7 +75,7 @@ impl ColumnBlocks {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the box bounds are six coordinates next to the section index and value, and the placement call in lib.rs passes them this way through a public signature"
+        reason = "six box bounds beside the section index and value in a public signature"
     )]
     pub fn fill_box_in_section(
         &self,

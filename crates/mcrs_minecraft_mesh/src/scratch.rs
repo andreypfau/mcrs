@@ -86,10 +86,7 @@ impl Scratch {
         }
     }
 
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "loads the section and its apron cell by cell, filling the light, fluid and cube column bits in the same pass so each cell is read once"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "one pass reads each cell once")]
     pub(super) fn load<W>(&mut self, world: &W, catalog: &[BlockInfo], base: [i32; 3])
     where
         W: BlockVolume + LightVolume,

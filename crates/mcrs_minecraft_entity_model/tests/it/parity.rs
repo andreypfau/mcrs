@@ -269,7 +269,7 @@ fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
 }
 
 #[test]
-fn each_layer_entry_that_converts_bakes_and_rebuilds_from_its_records_to_the_artefact() {
+fn convertible_layer_entries_bake_and_rebuild_to_the_artefact() {
     let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     let mut compared = 0;
     let mut refused = Vec::new();

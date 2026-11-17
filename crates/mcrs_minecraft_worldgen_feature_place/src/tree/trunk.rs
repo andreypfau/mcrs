@@ -710,10 +710,7 @@ impl Trunk {
         points
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, and the branch step, branch probability and branch length providers of one trunk"
-    )]
+    #[expect(clippy::too_many_arguments, reason = "independent inputs of one trunk")]
     fn place_upwards_branching<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
@@ -764,7 +761,7 @@ impl Trunk {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height, the attachment list, and the log position, height, direction, offset and remaining steps of one branch"
+        reason = "independent inputs of one branch"
     )]
     fn place_branch<W: WorldGenVolume>(
         &self,
@@ -809,7 +806,7 @@ impl Trunk {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, the branch count and start offset providers, and the branch settings of one cherry trunk"
+        reason = "independent inputs of one cherry trunk"
     )]
     fn place_cherry<W: WorldGenVolume>(
         &self,
@@ -891,7 +888,7 @@ impl Trunk {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, the branch settings, the sideways axis, the direction, the offset and the upward flag of one cherry branch"
+        reason = "independent inputs of one cherry branch"
     )]
     fn generate_branch<W: WorldGenVolume>(
         &self,

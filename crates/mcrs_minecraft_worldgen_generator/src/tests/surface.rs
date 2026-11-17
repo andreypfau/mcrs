@@ -234,7 +234,7 @@ fn only_a_whole_column_is_surfaced() {
 #[test]
 #[expect(
     clippy::too_many_lines,
-    reason = "one scenario: surfaces the same columns with and without carving and compares them, so the carved and uncarved columns read side by side"
+    reason = "carved and uncarved columns read side by side"
 )]
 fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
     let ids = biome_ids();
@@ -647,7 +647,7 @@ fn surfaced_column_fixed(
 }
 
 #[test]
-fn a_fixed_badlands_source_runs_the_clay_bands_and_a_settled_run_writes_what_the_descent_would() {
+fn fixed_badlands_clay_bands_match_the_descent() {
     a_fixed_biome_source_drives_that_biome_s_material_rules();
     settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7)]);
 }

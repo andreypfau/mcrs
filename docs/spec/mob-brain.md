@@ -1,15 +1,9 @@
 # Mob brain: memories, sensors, activities and behaviours
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition) |
-| Protocol version | `1073742169` |
-| World version | `5127` |
+Version: see `assets/minecraft/version.json`.
 
-This document states the shared brain rules for
-[issue #230](https://github.com/andreypfau/mcrs/issues/230). It contains no complete mob definition.
-[The sensor rules](mob-brain-sensors.md) form part of this specification. Section 7 reserves the
-mob-specific rules. The vanilla registries contain 115 memory ids, 24 sensor ids and 26 activity ids.
+This document states the shared brain rules. It contains no complete mob definition.
+[The sensor rules](mob-brain-sensors.md) form part of this specification. The vanilla registries contain 115 memory ids, 24 sensor ids and 26 activity ids.
 
 ## 0. Conventions
 
@@ -36,7 +30,7 @@ mob-specific rules. The vanilla registries contain 115 memory ids, 24 sensor ids
 - **Running**, **stopped**: the two lifecycle states of a behaviour.
 - **Instant behaviour**: a behaviour whose action occurs in its start attempt.
 - **Group**: a behaviour that chooses and runs child behaviours.
-- **Species data**: a value that a shared rule takes as a parameter, with a default. Section 7.3
+- **Species data**: a value that a shared rule takes as a parameter, with a default. Section 7
   gives the vanilla values.
 - **Species refresh**: a species event that rebuilds the brain of a live body (BRAIN-VAN-008).
 - **Feet point**, **eye point**, **feet distance**, **home**, **walk value**: as
@@ -53,12 +47,8 @@ mob-specific rules. The vanilla registries contain 115 memory ids, 24 sensor ids
 
 ### 0.2 Evidence and scope
 
-Provenance labels follow [registry.md](registry.md), section 0.3. Section 12 gives the status of
-each experiment. The captures used the target server and its save metadata on 2026-11-11.
+Provenance labels follow [registry.md](registry.md), section 0.3.
 
-A rule can name an observation scope. An observation scope records a capture that has no
-committed artefact. It does not raise the provenance or the confidence of the rule.
-A saved NBT observation does not observe a transient value or an activity id.
 
 The `source_suggested` rules and clauses come from version `26.3`, world version `5023`.
 A comparison with the target found one difference that these rules depend on: the stuck window of
@@ -66,8 +56,7 @@ AIT-VAN-012. BRAIN-VAN-035 uses the target window through AIT-VAN-012 (U15).
 The comparison found no other difference in the BRAIN rules or in AIT-VAN-015 through AIT-VAN-017.
 This comparison does not raise provenance or confidence.
 
-Section 7 does not certify complete per-mob inventories. Species actions, path search and
-physics stay in their own specifications. [mob-goals.md](mob-goals.md), section 2, defines the
+Species actions, path search and physics stay in their own specifications. [mob-goals.md](mob-goals.md), section 2, defines the
 shared controls.
 
 ### 0.3 Kind, confidence and fidelity
@@ -207,7 +196,7 @@ kind. Only expiry has the shared countdown of BRAIN-VAN-004.
 | `breeze_leaving_water` | unit | yes |
 
 The table lists all 52 persisted vanilla kinds, and the 22 transient kinds that a rule of this
-specification or of the sensor rules uses. Section 7 covers the other 41 transient kinds.
+specification or of the sensor rules uses.
 
 **BRAIN-VAN-002** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Status tests must give these results. An entry requirement on an unregistered kind must fail.
@@ -234,8 +223,6 @@ full new expiry until the next update. Storage alone must not validate a referen
 life, dimension or loaded state. Only an explicit later action can reject that stale reference.
 
 **BRAIN-VAN-004** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) and [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) cover the countdown, zero boundary, sentinel and write-phase distinction.
-
 Expiry must be a signed 64-bit count. The value `9223372036854775807` must mean permanent.
 Every other representable value must be finite, including zero and negative values.
 
@@ -258,9 +245,6 @@ The rows share the update-count result. The next update is at T+1 in the first r
 the second row, so the first absent tick differs.
 
 **BRAIN-VAN-005** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) covers the skipped updates of `NoAI` and `/tick freeze`.
-[E-B8](mob-brain-experiments.md#e-b8-player-passengers-skipped-updates-and-the-dying-camel-exception) covers only the dying camel, camel husk and goat.
-
 Without a brain update, expiry and sensor countdowns must not advance.
 Each condition below must prevent a brain update:
 
@@ -270,7 +254,7 @@ Each condition below must prevent a brain update:
 - death, unless the species data "update while dying" permits it;
 - a species pause state.
 
-The species data defaults are: no update while dying, and no pause state. Section 7.3 gives the
+The species data defaults are: no update while dying, and no pause state. Section 7 gives the
 vanilla values.
 
 `/tick freeze` must give skipped updates to ordinary mobs; `/tick step N` must permit N eligible
@@ -279,8 +263,6 @@ can still prevent that entity's server AI. External events can still write a mem
 brain update. A schedule clock change alone must not change expiry.
 
 **BRAIN-VAN-006** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) and [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) cover the tested persisted entries, finite `ttl`, permanent omission and rejected transient input.
-
 A living entity's save must contain `Brain:{memories:{...}}`, including the empty form.
 Only registered, present memories of a persisted kind must appear in `memories`.
 Each entry's key must be the namespaced memory id. Its compound must contain `value` and,
@@ -308,11 +290,9 @@ must keep their dimension when the body changes dimension. Live entity reference
 become saved UUID memories.
 
 Active activities, behaviour states, sensor phases and retry records must not appear in `Brain`.
-A species can carry one memory outside `Brain` (section 7.3).
+A species can carry one memory outside `Brain` (section 7).
 
 **BRAIN-VAN-007** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) covers complete command replacement, independent entry rejection and the listed `ttl` conversions.
-
 A usable `Brain.memories` compound must create a fresh brain (BRAIN-VAN-008). Omitted values must
 not survive. The loader must ignore valid persisted kinds that this body does not register.
 It must diagnose individually each id that no registered memory kind declares (BRAIN-DES-003),
@@ -336,7 +316,7 @@ duration must stay present until the next expiry phase.
 When `Brain` is absent, the brain must not change. An unusable outer compound, which
 includes absent or noncompound `memories`, must produce a diagnostic and keep the current state.
 An entity data edit reloads its saved data, so a usable `Brain` in the result replaces the brain.
-A merge combines compounds. [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) uses complete replacement to test omission.
+A merge combines compounds.
 
 **BRAIN-VAN-008** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Each load with a usable `Brain` must create a fresh brain. This includes unload and reload,
@@ -351,7 +331,7 @@ After an entity data edit, navigation must keep a route that a dropped walk beha
 After an unload and reload or a travel to another dimension, the body has no route.
 A teleport within one dimension must keep the brain.
 
-A species refresh (section 7.3) must first stop the running behaviours with their stop effects.
+A species refresh (section 7) must first stop the running behaviours with their stop effects.
 It must then keep the persisted values that remain and create fresh activity, behaviour and sensor
 state. On a load, the fresh brain replaces the old brain before the species refresh. A conversion
 must create the initial brain of the destination. It must not transfer the whole old memory set.
@@ -432,7 +412,7 @@ new starts at priorities that already passed must wait for the next update.
 Both start and running passes must order behaviours by numeric priority first.
 At each priority, activities must take turns in the order in which they first have a behaviour at
 that priority. Within one activity and priority, behaviours must keep declaration order.
-BRAIN-DEV-003 records the reference order. The mcrs behaviour fixtures of E-B6 and E-B16 test it; no game capture applies.
+BRAIN-DEV-003 records the reference order.
 
 For starts, active membership must be tested at the beginning of each activity's turn at that
 priority. A transition inside that turn must not cancel its later attempts. A newly enabled
@@ -462,8 +442,6 @@ other vanilla activity and body pairs have empty lists, including all core and v
 ## 4. Schedules
 
 **BRAIN-VAN-025** (`source_suggested`, semantic, confidence: low, fidelity: exact).
-Observation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers the 21-tick request interval and the wake consequence for both ages.
-
 A schedule request at game time G must be ignored when G-L <= 20, where L is the last accepted
 request time. An accepted request must set L=G before it samples the attribute. Initially L must be
 -9999. The earliest request after one at T must be T+21. Clock changes must not reset this
@@ -480,12 +458,10 @@ These parts are species data:
 - the behaviours and species actions that issue schedule requests, with their activities and
   priorities; the default is none.
 
-A source outside this species data must not issue a schedule request. Section 7.3 gives the
+A source outside this species data must not issue a schedule request. Section 7 gives the
 vanilla values.
 
 **BRAIN-VAN-026** (`source_suggested`, semantic, confidence: low, fidelity: exact).
-Observation scope: [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) covers both interval tables and the Overworld clock effect on sleep in three dimensions.
-
 Both schedule attributes must default to `minecraft:idle` (ENVA-TYPE-006). The sampled values
 come from the data-pack timeline `minecraft:villager_schedule`, not from a list in the code.
 For the pinned data pack, the timeline repeats on the clock `minecraft:overworld` every 24000
@@ -512,9 +488,8 @@ use those values.
 
 The activities of a body and their entry requirements are species data (BRAIN-VAN-021).
 A sampled id that the body does not have must fail as unavailable and fall back to the default
-(BRAIN-VAN-023). An already-active scheduled id must skip the entry test. Section 7.3 gives the
+(BRAIN-VAN-023). An already-active scheduled id must skip the entry test. Section 7 gives the
 villager activities and requirements.
-[E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) tests a visible consequence.
 
 ## 5. Behaviours
 
@@ -576,14 +551,12 @@ It must give these results:
 - An instant child that acts counts as a child that starts.
 
 **BRAIN-VAN-033** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
-Observation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers same-update wake when rest ends.
-
 Inactive activities must prevent new starts but must not cancel running behaviours.
 A forced stop-all must include running behaviours of inactive activities and running group
 children. It must apply ordinary stop effects and must not stop an already-stopped behaviour.
 Skipped updates alone must not perform a forced stop. A behaviour whose own continuation requires
 an active activity must stop at its first running step after that activity becomes inactive.
-A transition in the start pass thus stops it in the same update. Section 7.3 gives the vanilla
+A transition in the start pass thus stops it in the same update. Section 7 gives the vanilla
 sleep case.
 
 ## 6. Walk, look and flotation
@@ -606,7 +579,7 @@ Arrival at start must also erase the failure timestamp. A failed start must not 
 pause.
 
 A successful start must write path memory and request navigation with multiplier s.
-The duration is species data, with the default 150..250 inclusive (section 7.3).
+The duration is species data, with the default 150..250 inclusive (section 7).
 
 **BRAIN-VAN-035** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Walk continuation must require all these conditions:
@@ -638,7 +611,7 @@ retry pause. Eligible later start attempts must spend one pause unit and fail wh
 An inactive activity, absent walk target or failed entry condition must not spend the pause.
 
 For K=3 at S, attempts S+1..S+3 must fail and S+4 can compute a route, if all are eligible.
-For K=0, the next eligible attempt can compute. [E-B7](mob-brain-experiments.md#e-b7-stuck-pursuit-pause-and-target-displacement) tests the visible bound; U5 and U15 state its limits.
+For K=0, the next eligible attempt can compute. U5 and U15 state its limits.
 
 The move request must use s times effective `minecraft:movement_speed` (GOAL-CTL-002).
 It must not mean blocks per tick. Airborne flight can use `minecraft:flying_speed`.
@@ -704,66 +677,12 @@ With uninterrupted fluid, jump eligibility must include T..T+60, exclude T+61, a
 at T+62. It must not erase walk or look memories. Jump control must consume each request
 in the same step (GOAL-CTL-008).
 
-## 7. Hooks
-
-Each row of sections 7.1 and 7.2 reserves later species rules. Its scope is one line. Shared rules
-above still apply. These hooks do not certify a complete sensor, activity or behaviour list for a
-mob. The 41 transient vanilla memory kinds that section 1 does not list belong to these hooks.
-
-### 7.1 Other sensors
-
-| Sensor id | Scope |
-|-----------|-------|
-| `minecraft:armadillo_scare_detected` | Armadillo threats and the danger memory. |
-| `minecraft:axolotl_attackables` | Aquatic targets, hunting eligibility and cooldown. |
-| `minecraft:breeze_attack_entity_sensor` | Breeze nearby entities, visibility and attack targets. |
-| `minecraft:dummy` | No-op sensor, unused by the vanilla mobs. |
-| `minecraft:frog_attackables` | Edible targets and unreachable-target exclusions. |
-| `minecraft:golem_detected` | Iron-golem detection and recent-detection expiry. |
-| `minecraft:hoglin_specific_sensor` | Repellents, nearby adults and piglin/hoglin counts. |
-| `minecraft:piglin_brute_specific_sensor` | Nemeses and nearby adult piglins. |
-| `minecraft:piglin_specific_sensor` | Repellents, equipment, wanted items, threats and group counts. |
-| `minecraft:secondary_pois` | Profession-specific secondary block positions. |
-| `minecraft:villager_babies` | Visible baby villagers. |
-| `minecraft:villager_hostiles` | Villager-specific threats and their ranges. |
-| `minecraft:warden_entity_sensor` | Warden nearby entities and player-first attack eligibility. |
-
-### 7.2 Mob activities and behaviours
-
-| Mob id | Scope |
-|--------|-------|
-| `minecraft:allay` | Its core/idle activities, item delivery and vibration responses. |
-| `minecraft:armadillo` | Its core/idle/panic activities, threat response and rolling. |
-| `minecraft:axolotl` | Its core/idle/fight/play-dead activities, hunting and play-dead recovery. |
-| `minecraft:breeze` | Its core/idle/fight activities, sliding, jumps and shooting. |
-| `minecraft:camel` | Its core/idle activities, temptation, riders, grazing and control limits. |
-| `minecraft:camel_husk` | Its core/idle activities, riders, grazing and species restrictions. |
-| `minecraft:copper_golem` | Its core/idle activities, container visits and item transport. |
-| `minecraft:creaking` | Its core/idle/fight activities, observation, player reaction and movement limits. |
-| `minecraft:frog` | Its core/idle/tongue/lay-spawn/long-jump/swim activities and controls. |
-| `minecraft:goat` | Its core/idle/ram/long-jump activities, temptation and cooldown requirements. |
-| `minecraft:happy_ghast` | Its baby core/idle/panic activities and the transition to adult goals. |
-| `minecraft:hoglin` | Its core/idle/fight/avoid activities, repulsion and aggression. |
-| `minecraft:nautilus` | Its core/idle/fight activities, temptation, charges, riders and swimming controls. |
-| `minecraft:piglin` | Its core/idle/admire-item/fight/avoid/celebrate/ride activities and item pursuit. |
-| `minecraft:piglin_brute` | Its core/idle/fight activities, anger and activity sound; each sound check, idle checks included, sounds when a uniform fraction in [0,1) is <0.0125. |
-| `minecraft:sniffer` | Its core/idle/sniff/dig activities, explored positions and digging output. |
-| `minecraft:tadpole` | Its core/idle activities, concurrent goals, swimming and conversion. |
-| `minecraft:villager` | Its activities by age/profession, work, play, sleep, panic, bells and raids; schedule requests from panic, hide and raid recovery; each raid entry or reset check proceeds when a uniform integer in 0..19 is zero. |
-| `minecraft:warden` | Its core/idle/emerge/dig/roar/fight/investigate/sniff activities and vibrations. |
-| `minecraft:zoglin` | Its core/idle/fight activities and aggression. |
-| `minecraft:zombie_nautilus` | Its core/idle/fight activities, charges, riders and swimming controls. |
-
-Entry conditions beyond BRAIN-VAN-039, sensor order and complete behaviour lists for those mobs
-belong to these hooks. No row is a complete reference mob. The common registration rule still
-requires all nested behaviour entry requirements, including inactive activities.
-
-### 7.3 Vanilla species data
+## 7. Species data
 
 This table gives the vanilla values of the species data that the shared rules take. A body or a
 parameter that the table does not name uses the default of its rule. BRAIN-VAN-039 gives the
 exit-erasure lists. The table facts have the provenance and confidence of the rule that they
-name. An observation scope of that rule does not raise them.
+name.
 
 | Body | Parameter | Vanilla value | Rule |
 |------|-----------|---------------|------|
@@ -773,7 +692,7 @@ name. An observation scope of that rule does not raise them.
 | happy ghast | pause state | adult | BRAIN-VAN-005 |
 | villager | species refresh | age boundary, profession assignment, profession reset; each refresh chooses the schedule attribute again and requests an immediate schedule sample | BRAIN-VAN-008, BRAIN-VAN-025 |
 | villager | schedule attribute | `minecraft:gameplay/baby_villager_activity` for a brain created as a baby, `minecraft:gameplay/villager_activity` otherwise | BRAIN-VAN-025 |
-| villager | schedule requests | a reader behaviour at priority 99 in idle, work, play, rest and meet; the species actions of the 7.2 villager hook | BRAIN-VAN-025 |
+| villager | schedule requests | a reader behaviour at priority 99 in idle, work, play, rest and meet; the species actions of the villager | BRAIN-VAN-025 |
 | villager | activities | a baby brain has no `minecraft:work`; an adult brain has no `minecraft:play` | BRAIN-VAN-021, BRAIN-VAN-026 |
 | villager | entry requirements | `minecraft:work` requires present `minecraft:job_site`; `minecraft:meet` requires present `minecraft:meeting_point`; `minecraft:rest` has no entry requirement on `minecraft:home` | BRAIN-VAN-021, BRAIN-VAN-026 |
 | villager | sleep continuation | requires active `minecraft:rest`, so a schedule change can wake the villager in the same update | BRAIN-VAN-033 |
@@ -787,28 +706,8 @@ name. An observation scope of that rule does not raise them.
 | axolotl | bucket carrier | the bucket long `HuntingCooldown` restores `minecraft:has_hunting_cooldown` true with that duration; an absent key erases it | BRAIN-VAN-006 |
 
 U3 leaves the camel grazing length without a capture.
-[E-B8](mob-brain-experiments.md#e-b8-player-passengers-skipped-updates-and-the-dying-camel-exception) compares the first corpse update of a camel, a camel husk and a goat.
 
-## 8. Cost and parallelism
-
-The target is 50,000 mobs with a small per-tick cost. This table states dependencies and costs,
-without a choice of index, container or execution algorithm. Own writes must keep the
-order of one brain. Different brains can evaluate own-only work in parallel.
-
-| Step | Reads | Writes | Parallel across mobs | Required order or boundary |
-|------|-------|--------|----------------------|----------------------------|
-| Eligibility | own age, AI/control state; entity-tick eligibility | none | yes | before brain work |
-| Expiry | own present finite durations | own values and durations | yes | before this body's sensors |
-| Sensor countdown | own sensor phase | own phase | yes | declared sensor order per body |
-| Due sensor scan | own attributes/state; player/entity/POI/block query; damage history | own sensor results and retry facts | yes with world reads fixed | preceding sensor writes visible to later sensors |
-| Visibility answers | own scan candidates and previous answers; candidate state and block rays | own answers for that scan | yes | first answer kept until the next scan |
-| Start pass | own memories, activity membership, stopped state; action-specific world reads | own state/guidance; action effects | own-only actions: yes | numeric priority, activity order, declaration order |
-| Running pass | own running participants, deadlines and continuation inputs; action-specific reads | own state/guidance; action effects | own-only actions: yes | after all starts; preserve participant order |
-| Activity transition | own requirements, active ids, default and erase lists | own activities and listed memories | yes | immediate at its ordered request point |
-| Schedule request | own last-read time, species-selected attribute; environment at feet | own last-read time and transition | yes | strict 21-tick minimum; same-body request order |
-| Walk/look/float | own memories, route, geometry, fluid; target and path inputs | own guidance and memories | yes | navigation before brain; controls after brain |
-| Cross-entity/world action | other entities, POI occupancy or world state | other entities or shared world | evaluation can be parallel | resolved shared effects follow AIT-CPL-001 and AIT-CPL-002 |
-| Save/load/refresh | own registered set and saved values | own replacement state | yes for independent mobs | a species refresh applies stop effects first; a load applies none |
+## 8. Sensor queries
 
 **BRAIN-DES-001** (`design`, semantic, confidence: medium, fidelity: envelope).
 Sensor world queries must use the entity and spatial-query facilities of
@@ -817,20 +716,6 @@ Sensor world queries must use the entity and spatial-query facilities of
 The facility must return results within the query contracts in BRAIN-VAN-011 through BRAIN-VAN-020.
 This rule must not prescribe an index layout. Batch execution can share read-only world data.
 The own memory changes that result must still appear at the specified point in each brain update.
-
-Expiry cost depends on present finite values, not the size of the memory registry.
-A sensor that is not due needs no world query. Due entity scans are proportional to query
-candidates; there is no fixed candidate cap except the bed scan's four accepted positions.
-
-Visibility needs at most one fresh answer per requested candidate per scan, plus block-ray work.
-Behaviour work is proportional to the considered start attempts and running participants.
-The ordinary schedule reader can request every update, but accepted attribute reads are at least
-21 game ticks apart.
-
-A sensor reads other entities and blocks but writes only its body. Own sensor scans can run in
-parallel over suitable world snapshots. Immediate changes within one brain must not wait for a
-cross-mob merge. Actions that damage, breed, claim a POI, change another mob or change a block
-require the AIT pair-action boundary. This specification does not authorize new shared writes.
 
 ## 9. Random sources
 
@@ -847,12 +732,13 @@ number and order of calls to a random source are outside this specification.
 | Intermediate destination sample of a body with a home | independent x and z biases, each uniform on [0,5) | BRAIN-VAN-036 | body random source |
 | Allowed flotation running tick | jump request with probability 0.8 | BRAIN-VAN-038 | body random source |
 | Weighted group start | a fresh child order, by BRAIN-DES-004 | BRAIN-DES-004 | a source that each group owns |
+| Piglin brute sound check | the sound plays when a uniform fraction in [0,1) is below 0.0125 | species action | body random source |
+| Villager raid entry or reset check | the check proceeds when a uniform integer in 0..19 is zero | species action | body random source |
 | Due baby bed scan | uniform jitter 0..19 for retry deadlines and cleanup | BRAIN-VAN-017 | world random source |
 
 Distribution fidelity permits an independent keyed stream for each choice (AIT-LAG-008).
 
-Species actions can have more random choices. Section 7.2 gives the villager and piglin brute
-choices. The specifications of species actions must state the result distributions.
+Species actions can have more random choices. The specifications of species actions must state the result distributions.
 
 ## 10. Intentional deviations
 
@@ -867,9 +753,6 @@ follow range. It must not depend on another mob's sensor phase, follow range or 
 - **Reference:** between scans, a newly requested visibility answer can depend on the follow
   range of the last body whose sensor ran, including a body in another dimension.
 - **Visible to the client:** yes; a head turn toward an already-listed entity can differ.
-- **Test:** do not compare this cross-mob range influence. Compare the observer-range rule instead.
-
-The effect has no captured observation. No experiment here tries to confirm that accident.
 
 ### BRAIN-DEV-002: Random generators can be independent
 
@@ -879,7 +762,6 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Fidelity: distribution
 - **Reference:** choices can depend on mob order and process seeds, as section 9 describes.
 - **Visible to the client:** no, as a distribution. Each chance and each range stays the same.
   One choice can differ from a vanilla run with the same seed.
-- **Test:** compare distributions and tick boundaries, not a world-seed-identical random trace.
 
 ### BRAIN-DEV-003: Equal-priority activity order is first-appearance order
 
@@ -889,21 +771,19 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Fidelity: exact.
 - **Reference:** the order depends on the number of activities that have behaviours at that
   priority, inactive activities included. It is not an activity preference.
 - **Visible to the client:** only when two behaviours of different activities at one priority have conflicting effects in the same update.
-- **Test:** do not compare the reference order. Compare first-appearance order and declaration order within an activity.
 
 ## 11. Unresolved
 
-- **U1:** work/play/meet activity membership and their actions stay proposal under [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) and [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension).
+- **U1:** work/play/meet activity membership and their actions stay proposal.
   Environment values do not expose active activity ids.
-- **U2:** the transition and cancellation clauses of BRAIN-VAN-022 and BRAIN-VAN-033 have no complete observation. E-B6 did not identify the activity transition or the stop condition of each display.
+- **U2:** the transition and cancellation clauses of BRAIN-VAN-022 and BRAIN-VAN-033 have no complete observation.
   Ordinary commands cannot configure arbitrary activity sets or expose all transient states.
-- **U3:** [E-B8](mob-brain-experiments.md#e-b8-player-passengers-skipped-updates-and-the-dying-camel-exception) is consistent with the dying camel-family exception.
+- **U3:** the dying camel-family exception is consistent with observation.
   The direct-passenger exemption from `/tick freeze`, saddle control, indirect passengers, the saddled dying camel with a passenger and the grazing and rearing ticks have no capture.
 - **U4:** a generic conversion can carry `minecraft:angry_at` as permanent, but no natural source
   and destination pair was established. Applicability stays low; no universal transfer rule is stated.
-- **U5:** [E-B7](mob-brain-experiments.md#e-b7-stuck-pursuit-pause-and-target-displacement) can observe a pursuit pause but cannot identify every eligible attempt or exact stuck
-  stop from saved NBT. The 20-subject corridor trial did not establish a qualified stuck stop.
-  Exact pause consumption and the >2-block route-change boundary need a trace.
+- **U5:** a pursuit pause cannot identify every eligible attempt or exact stuck
+  stop from saved NBT. Exact pause consumption and the >2-block route-change boundary need a trace.
 - **U6:** entity/player encounter ties after reload, bed-query encounter order and equal-quality
   path-target choice are not measured. They must not be described as a uniform random selection.
 - **U7:** nonfinite or out-of-range numeric `ttl` conversion is not specified here.
@@ -911,59 +791,13 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Fidelity: exact.
   The provisional census must not replace the registration contract or the species hooks.
 - **U9:** living-reference visibility after a referenced entity unloads needs a consumer-specific
   probe. Memory storage alone keeps the reference; it does not promise the consumer accepts it.
-- **U10:** [E-B1](mob-brain-experiments.md#e-b1-nearest-player-scan-and-an-observable-player-reaction) connected a survival player, but captured motion in both survival and spectator controls.
-  No unique activation signal identified the scan. A direct memory capture or a qualified activation witness is still required.
-- **U11:** [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) is consistent with injected expiry, skipped updates and the zero boundary.
-  Generic same-update write visibility in BRAIN-VAN-003 stays proposal under [E-B10](mob-brain-experiments.md#e-b10-status-requests-memory-writes-and-brain-replacement).
-- **U12:** [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) is consistent with the listed replacement and rejection cases.
-  Array recovery, unusable outer compounds and the complete registration inventory are not captured.
-- **U13:** [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) is consistent with first water writes within 19 updates, 20-update resampling and first finite writes with full expiry.
-  Exact phase probabilities and independence stay source-suggested. The sample counts alone do not prove them.
+- **U10:** no unique activation signal identified the nearest-player scan.
+  A direct memory capture or a qualified activation witness is still required.
+- **U11:** generic same-update write visibility in BRAIN-VAN-003 stays proposal.
+- **U12:** array recovery, unusable outer compounds and the complete registration inventory are not captured.
+- **U13:** exact phase probabilities and independence of the sensor writes stay source-suggested.
 - **U14:** BRAIN-DEV-001 has no measured client-visible head-turn effect. Its reference-effect classification stays provisional.
-  Compare the observer-range contract; do not experiment to confirm the excluded shared-range accident.
 - **U15:** the stuck window of AIT-VAN-012 changed after version `26.3`. In the target, an advance
   of the next node and the acceptance of a changed path restart it; a request for the same path
-  does not. The window sets the stop tick that chooses the pause of BRAIN-VAN-035. E-B7 must
-  predict a stuck stop from the target window. No capture confirms that stop tick.
-
-E-B10 through E-B19 need a brain capture facility that does not yet exist. Section 12 lists their rules.
-
-## 12. Experiments
-
-[Experiment procedures and captured results](mob-brain-experiments.md).
-
-| Experiment | Rules | Status |
-|------------|-------|--------|
-| [E-B1](mob-brain-experiments.md#e-b1-nearest-player-scan-and-an-observable-player-reaction) | BRAIN-VAN-009, BRAIN-VAN-010, BRAIN-VAN-013 | proposal; inconclusive trial (U10) |
-| [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) | BRAIN-VAN-004 through BRAIN-VAN-007 | captured (U11) |
-| [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) | BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033 | captured (sleep and wake); activity membership stays proposal (U1) |
-| [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) | BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007 | captured (listed cases, U12) |
-| [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) | BRAIN-VAN-004, BRAIN-VAN-010, BRAIN-VAN-018 | captured (listed probes, U13) |
-| [E-B6](mob-brain-experiments.md#e-b6-running-behaviour-across-an-activity-transition) | BRAIN-VAN-022, BRAIN-VAN-033 (BRAIN-VAN-027 in the mcrs fixture) | proposal; inconclusive trial (U2) |
-| [E-B7](mob-brain-experiments.md#e-b7-stuck-pursuit-pause-and-target-displacement) | BRAIN-VAN-034, BRAIN-VAN-035 | proposal; inconclusive trial (U5, U15) |
-| [E-B8](mob-brain-experiments.md#e-b8-player-passengers-skipped-updates-and-the-dying-camel-exception) | BRAIN-VAN-005 | captured (death, U3); passenger, control and saddled-death trials are proposals |
-| [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) | BRAIN-VAN-025, BRAIN-VAN-026 | captured (interval tables and sleep in three dimensions); activity membership stays proposal (U1) |
-| [E-B10](mob-brain-experiments.md#e-b10-status-requests-memory-writes-and-brain-replacement) | BRAIN-VAN-001, BRAIN-VAN-002, BRAIN-VAN-003, BRAIN-VAN-008 | proposal |
-| [E-B11](mob-brain-experiments.md#e-b11-nearest-player-memory-and-its-exact-erasure-scan) | BRAIN-VAN-003, BRAIN-VAN-010, BRAIN-VAN-011, BRAIN-VAN-013 | proposal |
-| [E-B12](mob-brain-experiments.md#e-b12-entity-query-visibility-and-dependent-adulttemptation-scans) | BRAIN-VAN-011, BRAIN-VAN-012, BRAIN-VAN-014, BRAIN-VAN-019, BRAIN-VAN-020 | proposal |
-| [E-B13](mob-brain-experiments.md#e-b13-damage-source-age-and-independent-attacker-retention) | BRAIN-VAN-015 | proposal |
-| [E-B14](mob-brain-experiments.md#e-b14-item-query-and-first-eligible-result) | BRAIN-VAN-011, BRAIN-VAN-016 | proposal |
-| [E-B15](mob-brain-experiments.md#e-b15-bed-candidate-cap-retry-and-retained-output) | BRAIN-VAN-017 | proposal |
-| [E-B16](mob-brain-experiments.md#e-b16-activity-requests-and-exit-effects) | BRAIN-VAN-021, BRAIN-VAN-022, BRAIN-VAN-023, BRAIN-VAN-024, BRAIN-VAN-027 (mcrs fixture only), BRAIN-VAN-039 | proposal |
-| [E-B17](mob-brain-experiments.md#e-b17-behaviour-lifecycle-durations-and-weighted-groups) | BRAIN-VAN-028 through BRAIN-VAN-033, BRAIN-DES-004 | proposal |
-| [E-B18](mob-brain-experiments.md#e-b18-intermediate-destinations-and-home-bias-distribution) | BRAIN-VAN-036 | proposal |
-| [E-B19](mob-brain-experiments.md#e-b19-look-lifetime-and-flotation-probability) | BRAIN-VAN-029, BRAIN-VAN-037, BRAIN-VAN-038 | proposal |
-
-## 13. Coverage of issue #230
-
-| What | Rules |
-|------|-------|
-| Typed memories and optional expiry | BRAIN-VAN-001 through BRAIN-VAN-008, BRAIN-DES-003 |
-| Independent sensors and player/entity/damage/item/block results | BRAIN-VAN-010 through BRAIN-VAN-020 |
-| Behaviour sets, entry conditions, memory and schedule transitions | BRAIN-VAN-021 through BRAIN-VAN-033, BRAIN-VAN-039, BRAIN-DES-004 |
-| Entity/spatial indexes #98 and #99 | BRAIN-DES-001, BRAIN-VAN-011 |
-| Vanilla plugin outside the server crate | BRAIN-DES-002; implementation review of placement and plugin registration |
-| Nearest-player write and erasure. The issue's "expires on the reference's tick" means erasure by the next due scan; no capture confirms it (U10) | BRAIN-VAN-010, BRAIN-VAN-013; [E-B11](mob-brain-experiments.md#e-b11-nearest-player-memory-and-its-exact-erasure-scan) and its mcrs behaviour fixture |
-| Finite expiry boundary | BRAIN-VAN-004; [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-and-skipped-updates) and [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) |
-| Attribute-schedule activity change | BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033; [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) and [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) |
-| Production behaviour test | [Capture proposals](mob-brain-experiments.md#122-proposals-that-need-a-brain-capture-facility); nearest-player fixture [E-B11](mob-brain-experiments.md#e-b11-nearest-player-memory-and-its-exact-erasure-scan) and schedule fixture [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) |
+  does not. The window sets the stop tick that chooses the pause of BRAIN-VAN-035.
+  No capture confirms that stop tick.

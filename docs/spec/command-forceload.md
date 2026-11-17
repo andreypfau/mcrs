@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `minecraft:column_pos` 9 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states the forms `add`, `remove` and `query` of `forceload`, the effect of a force
 load on a column, and the messages. It does not prescribe an architecture.
@@ -21,8 +19,7 @@ load on a column, and the messages. It does not prescribe an architecture.
 - **Chunk text**: the text `[cx, cz]` of a column, for example `[0, -1]`.
 - **Range**: the columns from the column of `from` to the column of `to`, on both axes, both ends
   included.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-FL`. None of the experiments has
-  been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-FL`.
 
 ---
 
@@ -139,14 +136,3 @@ second reply is `commands.forceload.added.failure`.
 Provenance: `source_suggested`. Kind: semantic; the keys and the argument order are wire.
 Confidence: high. Experiment: run `forceload add -16 0 15 0`, then `forceload query`. The reply is
 `commands.forceload.list.multiple` with 2, `minecraft:overworld` and `[0, 0], [-1, 0]`.
-
----
-
-## 1. Use in a benchmark
-
-- One command forces at most 256 columns, a square of 16 × 16 columns or 256 × 256 blocks. A
-  larger pen needs more than one command.
-- Force the area before the summons (TRK-SUM-006). Then each summoned pig ticks from its first
-  tick.
-- Force one more ring of columns around the pen. Then no pig is in a column that does not tick
-  entities, also when a push moves it to the fence.

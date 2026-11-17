@@ -35,7 +35,7 @@ impl WoodlandMansionBlocks {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the mansion's blocks, template, manifest and piece, the column's reference and clip, the volume, the random source and the two lists one column's placement fills"
+    reason = "independent inputs of one column's placement"
 )]
 pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     b: &WoodlandMansionBlocks,

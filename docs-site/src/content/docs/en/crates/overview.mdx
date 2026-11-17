@@ -1,6 +1,6 @@
 ---
 title: Crate map
-description: The 122 crates of mcrs by layer, with the ones that build without Bevy, without std or for wasm32, and which to take for a proxy, a bot, a map or a tool.
+description: The crates of mcrs by layer, with the ones that build without Bevy, without std or for wasm32, and which to take for a proxy, a bot, a map or a tool.
 sidebar:
   order: 1
 kind: reference
@@ -30,7 +30,7 @@ A script made the crate tables from `cargo metadata` and the three lists in [`xt
 
 ## How to read the tables
 
-The crates are grouped into the seven layers of the [README](https://github.com/andreypfau/mcrs/blob/main/README.md#layers). Each layer should depend only on the layers below it, so you can take the lower layers and pay for nothing above them. A few crates do not follow this yet, because the protocol and network crates still reach into game data. CI checks only one part of the rule, which is that the wire and network crates do not link game data.
+The crates are grouped by the layers in [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md#layers). CI checks only one part of the layer rule, which is that the wire and network crates do not link game data.
 
 The layer of a crate is not stored anywhere in the code. It was assigned by hand from the README table and the crate description, and no check confirms it, so use it as a guide.
 
@@ -43,7 +43,7 @@ Each table has the same five columns. The crate name is the package name, and th
 | no_std | `NO_STD_PACKAGES` in the same file. CI builds these crates without `std` |
 | wasm32 | `WASM32_PACKAGES` in the same file. CI builds these crates for the `wasm32` target |
 
-The no-Bevy list has {fact('crates_no_bevy')} names. Six of them are tools under `tools/`, so among the {fact('crates')} crates of `crates/` the count is 94. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means only that the crate is not on the CI list. The crate may still build that way.
+The no-Bevy list has {fact('crates_no_bevy')} names. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means only that the crate is not on the CI list. The crate may still build that way.
 
 ## Which crates to start with
 

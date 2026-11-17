@@ -1,11 +1,6 @@
 # GUI sprites of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client reads the scaling of a GUI sprite from the resource
 pack, and how it draws a GUI sprite into a rectangle. The tooltip (`client-tooltip.md`), the
@@ -89,9 +84,7 @@ the atlas, and the tint colour of a draw.
   "border": { "left": 20, "top": 4, "right": 20, "bottom": 4 } } } }
 ```
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in a resource pack,
-give `tooltip/frame` the border `{"left": 10, "top": 10, "right": 10, "bottom": 10}`. The
-tooltip looks the same as with the border `10`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### GSPR-META-002: Errors in the sprite metadata
 
@@ -105,10 +98,7 @@ tooltip looks the same as with the border `10`.
   rest of the resource pack load.
 - **Postconditions:** an error in one sprite metadata never stops the load of the resource pack.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in a resource pack,
-give `tooltip/background` the border 50 with the width 100. Open the chat and show a tag
-tooltip. The background is the missing sprite, and the log has an error for
-`minecraft:tooltip/background`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -124,10 +114,7 @@ tooltip. The background is the missing sprite, and the log has an error for
 - **Postconditions:** the missing sprite is opaque. Its top left and bottom right quarters are
   black, and the other two quarters are magenta.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: give an item the
-`tooltip_style` component `example:none`, with no such sprites in any pack. Put the mouse on
-the item in the inventory. The tooltip background is a stretched black and magenta pattern of
-four squares.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ---
 
@@ -138,7 +125,7 @@ four squares.
 - **Behavior:** the full sprite stretches over the target, with the nearest pixel.
 - **Edge cases:** a target with a width or a height of 0 draws nothing.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see GSPR-MISS-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### GSPR-DRAW-002: `tile`
 
@@ -150,9 +137,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
      the sprite from its top left corner that fits.
 - **Postconditions:** the tiles are not scaled.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: draw a sprite with
-`tile` 16 × 16 into a target of 40 × 16. Three tiles show, and the third shows the left half of
-the sprite.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### GSPR-DRAW-003: `nine_slice`
 
@@ -174,12 +159,10 @@ the sprite.
 - **Postconditions:** when `PW` = `sw` and `PH` = `sh`, the sprite draws with no change.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the `.mcmeta` values of the vanilla
-pack. Kind: layout. Confidence: medium. Experiment: show a tooltip with 20 lines
-(`client-tooltip.md`, TIP-BG-001). Take a screenshot. The left outline changes colour from the
-top to the bottom, because the sprite `tooltip/frame` stretches.
+pack. Kind: layout. Confidence: medium.
 
 ---
 
 ## 4. Intentional deviations
 
-No deviation is recorded.
+None.

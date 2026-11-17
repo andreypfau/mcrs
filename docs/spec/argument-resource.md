@@ -2,17 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `resource_location` 36, `dimension` 41, `resource_or_tag` 44, `resource_or_tag_key` 45 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
-`assets/mcrs/reports/registries.json`, through `commands-packet.md`, CMDP-ARG-001.
 
 This document states four argument types that read an identifier. The first two are a plain
 identifier and a dimension. The third reads an entry or a tag of a registry and checks it at
-parse time. The fourth reads an entry key or a tag key and does not check it. The document does
-not prescribe an architecture.
+parse time. The fourth reads an entry key or a tag key and does not check it.
 
 ## 0. Conventions
 
@@ -27,7 +22,7 @@ not prescribe an architecture.
 
 ### 0.2 Provenance and confidence
 
-The labels of `registry.md`, section 0.3, apply. None of the experiments has been run.
+The labels of `registry.md`, section 0.3, apply.
 
 ### 0.3 ID prefixes
 

@@ -1,19 +1,10 @@
 # Projectiles: arrows and snowballs
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| World version (`DataVersion`) | `5127` |
-| Protocol version | `1073742169` |
-| Data pack format | `126.0` |
-
 This document states the behaviour of two projectile types: the arrow and the snowball. It states
 the launch, the flight, the hit on an entity and the hit on a block. It states the pickup of an
 arrow and the packets that a client sees. It does not prescribe an architecture.
 
-The rules come from the reference implementation and from the data pack. No experiment has run
-yet. Each rule has the label `source_suggested`. Section 12 lists the experiments that decide the
-open points.
+The rules come from the reference implementation and from the data pack.
 
 ## 0. Conventions
 
@@ -76,7 +67,7 @@ Each rule has an ID with the prefix `PRJ`. The second part names the section.
 ### 0.4 Scope
 
 This document states the arrow and the snowball that a player launches, and the arrow and the
-snowball as they exist in the world. Section 9 lists what is out of scope. These are out of scope:
+snowball as they exist in the world. These are out of scope:
 tridents, eggs and fireballs, and every other projectile type.
 
 ### 0.5 Artefacts cited
@@ -144,7 +135,7 @@ has no arrow and is not in creative mode, the use of the bow does not start.
 
 The shot takes one arrow from the stack. The shot takes no arrow in two cases. The shooter has infinite
 materials (creative mode), or an enchantment of the bow sets the ammo use to 0. Such a shot is
-an ammo-free shot. The enchantments are out of scope (section 9). Each shot of a bow also takes 1
+an ammo-free shot. The enchantments are out of scope. Each shot of a bow also takes 1
 point of durability from the bow.
 
 **PRJ-LCH-006** (`source_suggested`, semantic, confidence: high). An arrow starts at the position
@@ -270,8 +261,7 @@ entity when all these conditions are true:
 3. For an arrow: the entity is not a player when the owner is a player that cannot harm that
    player. The owner cannot harm the player when the server has `pvp` off, or when the team rules
    forbid it.
-4. For a piercing arrow: the entity is not in the pierce list (section 9 states that piercing is
-   out of scope).
+4. For a piercing arrow: the entity is not in the pierce list (piercing is out of scope).
 
 **PRJ-TST-004** (`source_suggested`, semantic, confidence: medium). The left-owner flag of a
 projectile starts false. While it is false, a projectile cannot hit an entity of the owner group
@@ -335,7 +325,7 @@ is `allowed`, the server creates an item entity with the arrow item at the arrow
 (`item-entity.md`). The arrow is removed. If the status is another one, the server removes
 the arrow only. An arrow bounces in this way from a creative player, from a mob in its damage
 cooldown, and from an entity that is invulnerable. Entities with their own rules (an enderman, a
-shield that blocks) are out of scope (section 9).
+shield that blocks) are out of scope.
 
 **PRJ-ENT-006** (`source_suggested`, semantic, confidence: medium). An accepted hit of a
 non-piercing arrow removes the arrow in the same tick, and no other entity takes that arrow. A
@@ -378,8 +368,7 @@ results for the target type:
   and the red hurt flash. Its health does not change. When the damage cooldown rejects the hit,
   nothing happens.
 - A player: the hit is rejected. The player gets no damage event, no knockback and no sound.
-- An entity that is not a living entity: the rule of that entity decides. It is out of scope
-  (section 9).
+- An entity that is not a living entity: the rule of that entity decides. It is out of scope.
 
 **PRJ-SNW-003** (`source_suggested`, semantic, confidence: high). A snowball ends on each hit,
 also when the entity takes no damage and also when the hit is rejected. The server then does
@@ -390,7 +379,7 @@ these steps in this order:
 2. Remove the snowball.
 
 A snowball that hits a block does steps 1 and 2 only. The block can have its own reaction to a
-projectile hit. Such reactions are out of scope (section 9).
+projectile hit. Such reactions are out of scope.
 
 **PRJ-SNW-004** (`source_suggested`, semantic, confidence: medium). A snowball plays no hit sound.
 
@@ -573,24 +562,6 @@ and throw sounds are in PRJ-LCH-007 and PRJ-LCH-008.
 has the entity id as a 32-bit integer and the event as a byte. The event 3 on a snowball makes the
 client show 8 particles of the item of the snowball at its position, with no velocity.
 
-## 9. Out of scope
-
-| Subject | Reason |
-|---------|--------|
-| the trident, the egg and the fireballs, and each other projectile type | other types with their own rules |
-| the spectral arrow, the tipped arrow and the effects of an arrow | an arrow with an effect adds a potion rule |
-| the crossbow, the dispenser, and the launch by a mob (skeleton, snow golem) | other shooters with their own inputs |
-| the enchantments of the bow: Power, Punch, Flame, Infinity, Piercing, Multishot, Quick Charge | the enchantment system. The arrow base damage, the knockback power, the fire and the pierce list read their results |
-| a pierce level above 0 and the pierce list | needs Piercing |
-| the arrow that is on fire (the Flame effect and a burning arrow) | needs fire rules. PRJ-ENT-003 uses the flag |
-| a shield that blocks, an enderman that dodges, an entity that deflects a projectile | entity-specific rules |
-| a hit on an entity that is not living (a boat, an item frame, a painting, an armor stand) | the rule of that entity decides the result of a hit with amount 0 or more |
-| a block reaction to a projectile hit (a target block, a bell, a candle, a TNT block that burns) | block rules |
-| the advancement triggers and the statistics of a hit | advancement rules |
-| the mob that wants to kill a player by an arrow, and the anger of a mob that an arrow hurts | `mob-goals.md` |
-| the effect `levitation`, the portals and the end of the world below the lowest block | other documents |
-| the sounds that the client plays from its own code, for example the hurt sound of `damage_event` | not sent by the server |
-
 ## 10. The saved form
 
 **PRJ-SAV-001** (`source_suggested`, semantic, confidence: medium). A save keeps a projectile with
@@ -620,7 +591,7 @@ An unknown value of `pickup` is read as 0. The save also keeps the fields `Motio
 ## 11. Unresolved
 
 1. **The tick of the first move.** The question is whether a projectile that a player launches in
-   tick `T` also moves in tick `T`. Experiment E6 decides. The rules of section 2 describe the
+   tick `T` also moves in tick `T`. The rules of section 2 describe the
    moves from the first tick on.
 2. **The arrow search box in water.** The search area of the entity candidates for an arrow uses a
    velocity that the water drag has reduced. An entity at the far end of the segment can be
@@ -629,58 +600,25 @@ An unknown value of `pickup` is read as 0. The save also keeps the fields `Motio
    states the segment as the test (PRJ-TST-001).
 3. **A bounce followed by a second entity.** A rejected hit does not end the loop of an arrow in
    its tick. The loop can hit the next entity with the new velocity. The question is whether that
-   second hit is intended. Experiment E4 shows it.
+   second hit is intended.
 4. **The world border.** An arrow that meets the world border face bounces back with the velocity
    factor `−0.1` and a random yaw turn. A snowball is removed. This document states neither of the
-   two. Experiment E10 decides the result for each type.
+   two.
 5. **The left-owner timing.** The arrow updates the left-owner flag before its hit test, and the
    snowball after its move. This gives different safe ticks for the owner (PRJ-TST-004). The
    question for the owner: is one timing the correct behaviour?
 6. **A burning arrow and a fire-immune entity.** PRJ-ENT-003 sets the fire ticks of every
    entity, also of a fire-immune one. The result for the client (a flame on the entity) is not
-   known. Experiment E9 decides.
+   known.
 7. **The pickable non-living types.** PRJ-TST-003 uses "the player can aim at it". The list of
    non-living types that an arrow hits is not known here.
 8. **The arrow item that Infinity gives.** The enchantment can make a tipped arrow not free. The
    rule is in the data of the enchantment, so PRJ-LCH-005 cannot decide it.
 9. **The ammo search order.** The order of PRJ-LCH-005 (the other hand, then the inventory) is
-   not checked in the reference. Its confidence is low. Experiment E7 decides it.
+   not checked in the reference. Its confidence is low.
 10. **The draw time boundary.** The draw time is the number of server ticks between the start of the
     use and the release packet. A boundary at the tick of the packet can differ by one tick.
-    Experiment E1 decides.
-
-## 12. Experiments (proposed, not run)
-
-An experiment needs `tools/vanilla-server` for the script and
-`tools/mcrs_minecraft_client_recorder` for the packets. A capture of a game version other than
-`26.4-snapshot-7` does not confirm a rule.
-
-- **E1, the draw time.** For each draw time from 1 to 25 ticks, shoot one arrow at a flat wall.
-  Record `add_entity`, the first `set_entity_motion`, and the time of the first arrow. The result
-  decides PRJ-LCH-001 and question 10.
-- **E2, the spawn bundle.** Record the bundles of a bow arrow, an ammo-free arrow, a critical
-  arrow and a snowball. Decide PRJ-NET-001 and PRJ-NET-002, and the data indices.
-- **E3, the trajectory.** Shoot an arrow and a snowball at 0 degrees of pitch over 40 ticks, in
-  air and across a block of water. Record the position of each tick from the client. Compare
-  with PRJ-FLT-001 and PRJ-FLT-002.
-- **E4, the damage.** Shoot arrows of draw times 3, 10 and 20 at a zombie that has 20 health. Use the
-  distances 2, 10 and 30. Record the health change and the number of critical bonus values. Add a
-  line of two zombies in a row for question 3.
-- **E5, stuck arrows.** Shoot an arrow into a block. Record the in-ground entity data. Record the pickup
-  at the ticks 1 to 8 after the hit and the removal at tick 1200. Remove the block and record
-  the fall.
-- **E6, the first tick.** Record the position of an arrow and of a snowball in the ticks of the
-  launch. Decide question 1.
-- **E7, the pickup status.** Shoot as a survival player, as a creative player and with the
-  Infinity enchantment. Hold arrows in the other hand and in two slots, and record which stack the shot uses. Walk into each arrow and record the inventory and `take_item_entity`.
-  Decide PRJ-PCK-001 and PRJ-PCK-002.
-- **E8, the owner immunity.** Shoot straight up, and at the feet of the shooter. Record the tick
-  at which the arrow and the snowball can hit the shooter. Decide PRJ-TST-004 and question 5.
-- **E9, the bounce.** Shoot a creative player, a mob in its damage cooldown and an entity
-  that is invulnerable. Record the velocity and the removal. Decide PRJ-ENT-005 and question 6.
-- **E10, the world border.** Shoot an arrow and a snowball at the border. Decide question 4.
-- **E11, the snowball hits.** Throw snowballs at a blaze, a pig, a player and an item frame.
-  Record `damage_event`, `entity_event`, health and the knockback. Decide PRJ-SNW-002.
+   
 
 ## 13. Intentional deviations
 

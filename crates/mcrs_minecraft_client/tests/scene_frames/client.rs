@@ -62,7 +62,7 @@ impl McrsClient {
         while !frame.exists() {
             assert!(
                 !unsettled.exists(),
-                "the frame {name} did not settle in 60 s (CFC-RUN-004)"
+                "the frame {name} did not settle in 60 s"
             );
             self.assert_running(&format!("write {name}"));
             assert!(

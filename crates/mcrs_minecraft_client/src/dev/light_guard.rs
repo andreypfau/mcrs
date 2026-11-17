@@ -182,7 +182,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "walks the column's faces and neighbours and returns the report the moment the fault cap is reached, so the early return stays beside the loop that fills it"
+    reason = "early return stays beside the loop that fills the report"
 )]
 fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[bool]>) -> Report {
     let mut faults = Vec::new();

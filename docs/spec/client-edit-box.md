@@ -2,15 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states the one-line edit box of the vanilla client GUI. It states how the box
 draws and how the player changes its value with the keyboard and the mouse. It also states what
 a use of the box can set and observe. Each screen with a one-line text input uses these rules. The input box
-of the chat screen is one use (EDIT-OPT-002). The document does not prescribe an architecture.
+of the chat screen is one use (EDIT-OPT-002).
 
 ## 0. Conventions
 
@@ -70,7 +67,7 @@ of the chat screen is one use (EDIT-OPT-002). The document does not prescribe an
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". No experiment of this document is run (section 13).
+section "Semantics, not accidents".
 
 ### 0.3 Colours and text
 
@@ -98,33 +95,6 @@ A fill is a rectangle of one colour with no shadow. The rectangle from (`x0`, `y
 | `EDIT-HINT` | the hint and the suggestion |
 | `EDIT-API` | what a use sets and observes |
 | `EDIT-DEV` | intentional deviations |
-
-### 0.5 Scope
-
-In scope:
-
-- the options and the draw of the box, the cursor, the selection and the horizontal scroll;
-- the edit keys, the clipboard, the mouse, the focus and edit mode;
-- the hint, the suggestion, and what a use observes. `client-gui-sprite.md` states how a sprite draws.
-
-Out of scope: multi-line text input, the IME and the narrator, and the command suggestions of
-the chat. The position and the size of a box in its screen belong to the specification of that
-screen.
-
-### 0.6 Relation to `client-chat.md`
-
-The input box of the chat screen is a use of the edit box (EDIT-OPT-002). These parts of
-`client-chat.md` cite this document:
-
-- CHAT-BOX-001 cites it for the refused characters, the form and the blink of the caret, and
-  the part of the input that the box shows. The rectangle of the input box, the fill
-  `80000000` and the value of the maximum length are specific to the chat.
-- CHAT-BOX-002 cites it for the edit keys.
-
-CHAT-DEV-002 counts the maximum length of the chat in characters. This document counts code
-units (section 15).
-
----
 
 ## 1. Options
 
@@ -804,11 +774,6 @@ Experiment: open the chat and type `/gamemode creative`. Move the cursor into th
 ---
 
 ## 13. Experiments
-
-No experiment of this document is run. The owner works on the machine of the author, so no
-vanilla client or game window started. The input agent of `tools/vanilla-client` also sets only
-the movement key mappings. It sends no GUI key, no character and no mouse input, and it takes no
-screenshot. Each experiment of this document needs these inputs.
 
 These experiments decide the points of section 15:
 

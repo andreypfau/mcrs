@@ -19,7 +19,7 @@ coding agent; `CLAUDE.md` is a link to it.
 
 | Rule | Crates |
 | - | - |
-| `.agents/rules/rendering.md` | `*render*`, `mesh`, `model`, `client`, `client_gui`, `molang_wgsl` |
+| `.agents/rules/rendering.md` | `mcrs_minecraft_{render,render_controller,render_probe,entity_render,light_render,mesh,model,client,client_gui}`, `mcrs_molang_wgsl` |
 | `.agents/rules/codec.md` | registries, NBT/SNBT, data pack and pack files, text, loot, environment, dimension, predicates, worldgen, protocol, wire, save, Anvil |
 | `.agents/rules/simulation.md` | `mcrs_engine_*`, `*_engine*`, simulation, physics, brain, goals, replication, light engine, movement, server |
 | `.agents/rules/memory.md` | chunk, volume, voxel, block, entity rows, light engine, heightmap, Anvil, engine store and world |
@@ -160,7 +160,7 @@ and give any materialization exactly one owner and a stated cost model.
 - A simulation partition is a **shard**, never a thread and never a "region". A
   shard step is a library call on a kernel without Bevy.
 
-An exception to any of these is justified by a number in `PERF.md`.
+An exception to any of these is justified by a measurement in the pull request.
 
 ## Ownership, locks, dispatch and allocation
 
@@ -197,13 +197,9 @@ this file wins.
   re-exports. A file is named after its primary item.
 - A bool parameter that reads as a bare `true` at the call site is an enum. A
   returned tuple that is not a pair by nature is a struct.
-- **No comments outside `examples/`.** This covers `//`, `/* */`, `///`, `//!`
-  and the comments of every other language in the repository. The one exception
-  is the `// SAFETY:` note of an `unsafe` block or impl, which is required. Choose a name, a
-  type or an `#[expect(..., reason = "...")]` instead. The why of a change goes
-  in the commit message; a design goes in `docs/`. The `comments` check of
-  `xtask` rejects a comment; `cargo run -p xtask -- strip-comments` removes
-  them all.
+- **No comments outside `examples/`**, except `// SAFETY:`. The commit check of
+  `xtask` (`cargo run -p xtask -- commit`) rejects a comment;
+  `cargo run -p xtask -- strip-comments` removes them all.
 
 ## Working discipline
 
@@ -233,52 +229,24 @@ this file wins.
 
 ## Testing
 
-**Load `efficient-testing` before you add, change or review a test.** Do not
-write tests by default.
+**Load `efficient-testing` before you add, change or review a test.** Do not write tests by default.
 
-- **Run tests with `cargo nextest run -p <crate>`** for the crates you touched
-  and their direct dependents. Do not use `cargo test`: it ignores
-  `.config/nextest.toml`, and most crates set `doctest = false`. A Claude Code
-  hook rejects it. The whole workspace runs once, as the final check before
-  a push: `cargo nextest run --workspace`.
-- Never run the same command twice without an edit in between.
-- **Two tiers.** The default profile skips every test whose path contains
-  `exhaustive::` and kills any test that runs past a minute. Sweeps live in a
-  `mod exhaustive` and run with `cargo nextest run --profile full`. Every sweep
-  keeps a small case in the default tier.
-- **One integration-test binary per crate:** `tests/it/main.rs` plus modules.
-- **One agent per worktree and target directory.**
+- Run `cargo nextest run -p <crate>` for the crates you touched. Never use `cargo test`.
+- Run `cargo nextest run --workspace` once, before a push.
+- Sweeps live in a `mod exhaustive`; the default profile skips `exhaustive::` and `--profile full` runs it.
+- One integration-test binary per crate: `tests/it/main.rs` plus modules.
+- Every sweep keeps a small case in the default tier.
 - **A test must be able to fail because of our code.** No test that greps
   source text, restates a constant or a derive, exercises std/Bevy/serde,
   re-implements the formula under test, or repeats another test. A system under
   test is the production system.
 - **Cases that differ only in data are one test over a table.**
 - **Share expensive fixtures** through a `LazyLock`.
-- An agent hook that runs on each command or edit stays under a few seconds.
-  The `pre-push` checks are the one slow gate; do not add another without the
-  owner's word.
 
 ## Agents and context
 
-The cost of a call is the size of its context. Load `orchestrate` before you
-start a second agent or continue one.
-
-- One agent, one item, with the files, the check and the stop condition in the
-  brief. The roles are `implementer`, `spec-author` and `reviewer`; Claude Code
-  has them as agent types in `.claude/agents/`, and other tools take the role
-  text from there into the brief.
-- A new item goes to a new agent with a hand-off. Continue an agent only to
-  answer its question.
-- At 200k tokens of context, an agent reports and stops, and a main session
-  writes a prompt for a new session (`handoff`). Do not resume a large context
-  after an idle hour.
-- Show the owner the crate map, the public names and the step list before
-  implementers start in parallel.
-- Review once per pull request, in a new agent (`review-pr`).
+Load `orchestrate` before you start a second agent.
 
 ## Shipping
 
-An issue or a pull request with no other instruction means the whole path to
-`main`: fix, scoped tests, one review, the pull request, CI, the merge. Load
-`ship` and follow it without stopping between the stages. Releases, tags and
-version commits belong to the owner.
+Load `ship` for the path from a working tree to a merged pull request.

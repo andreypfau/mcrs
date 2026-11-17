@@ -27,7 +27,7 @@ pub enum CarveShape<'a> {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the chunk, the ellipsoid's centre and two radii, its shape, and the water and carving masks it writes"
+    reason = "independent inputs of one ellipsoid carve"
 )]
 pub fn carve_ellipsoid(
     chunk_x: i32,

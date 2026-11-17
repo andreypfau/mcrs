@@ -2,10 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 This document states the permission model of commands. The subjects are the permission checks
 on nodes, the permission level of a player and how the client learns the level. The last
@@ -215,8 +212,7 @@ server.
 No root literal requires `moderators`. A dedicated server does not register `publish` and
 `unpublish`. An integrated server gives `seed` and `version` the check `always_pass`. A
 dedicated server and the report give them `gamemasters`. The game registers `jfr` only when its
-runtime has a flight recorder. That condition depends on the environment, so a parity test
-must not compare the presence of `jfr`.
+runtime has a flight recorder. That condition depends on the environment.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: run
 `dumpReports`, and compare the `permissions` field of each root literal in `commands.json` with

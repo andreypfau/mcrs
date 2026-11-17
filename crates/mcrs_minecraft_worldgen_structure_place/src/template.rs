@@ -102,7 +102,7 @@ impl OceanRuinBlocks {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "the ruin's blocks, configuration, structure and piece, the frozen structures, the column's reference and clip, the region, the two lists the placement fills and the random source"
+    reason = "independent inputs of one column's placement"
 )]
 pub fn place_ocean_ruin<W: WorldGenVolume>(
     blocks: &OceanRuinBlocks,

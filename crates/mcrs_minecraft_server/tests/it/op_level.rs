@@ -141,7 +141,7 @@ fn failed(key: &'static str) -> Text {
 }
 
 #[test]
-fn op_and_deop_change_the_level_of_an_online_player_at_once_and_fail_without_a_change() {
+fn op_and_deop_change_online_level_at_once_and_fail_without_change() {
     let mut server = start_with_commands();
     let (admin, _) = server.join(ADMIN, "Admin");
     let target_id = Uuid::new_v4();

@@ -135,7 +135,7 @@ the result in the proxy. `design` for the configuration error. Kind: semantic. C
   a forwarding request to the proxy. Make sure the server is configured for Velocity
   forwarding."
 
-Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: E2.
+Provenance: `source_suggested`. Kind: wire. Confidence: medium.
 
 ### FWD-REQ-002: Content of the forwarding query
 
@@ -163,7 +163,7 @@ Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: E2.
 
 Provenance: `source_suggested` for the channel, the data byte and the selection of the proxy.
 `design` for the version `4`. Kind: wire, except the transaction id value, which is
-unspecified. Confidence: medium. Experiment: E2, E3.
+unspecified. Confidence: medium.
 
 ## 3. The forwarding answer
 
@@ -200,7 +200,7 @@ The payload of a forwarding answer has this layout for the forwarding versions 1
 
 Provenance: `source_suggested` for the layout. `design` for the limits of rows 5 to 9 and for
 the end of the payload: see "Intentional deviations". Kind: wire. Confidence: medium.
-Experiment: E3, and the test vectors of section 6.
+
 
 ## 4. Checks and results
 
@@ -225,7 +225,7 @@ the backend closes the connection.
   can add its own text around it.
 
 Provenance: `source_suggested` for rows 1 to 3 and their texts. `design` for the texts of rows
-4 and 5: see "Intentional deviations". Kind: semantic. Confidence: medium. Experiment: E1, E4.
+4 and 5: see "Intentional deviations". Kind: semantic. Confidence: medium.
 
 ### FWD-CHK-002: Signature check
 
@@ -236,8 +236,7 @@ Provenance: `source_suggested` for rows 1 to 3 and their texts. `design` for the
 - **Behavior:** the time of the comparison does not depend on the position of the first byte
   that is different.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: the test vectors
-of section 6.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### FWD-CHK-003: Forwarding version check
 
@@ -261,7 +260,7 @@ rejection of `2` and `3`. Kind: semantic. Confidence: medium.
 - **Behavior:** a proxy in a mode other than modern forwarding also answers with no payload,
   with the same result.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### FWD-CHK-005: No answer
 
@@ -274,7 +273,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E1
 - **Behavior:** the 30-second read limit of LOGIN-OTH-004 can close the connection first,
   without a packet.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: E4.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### FWD-CHK-006: Other packets during the wait
 
@@ -307,7 +306,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 - **Postconditions:** the `textures` property reaches each vanilla client unchanged. So each
   client shows the skin of the player.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E2.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### FWD-USE-002: Forwarded address
 
@@ -319,7 +318,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E2
 - **Behavior:** before a successful check, the client address is the socket address. A failed
   check does not change it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E2.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### FWD-USE-003: Sequence of a forwarded login
 
@@ -342,103 +341,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: E2
 - **Behavior:** rows 1 to 6 are plain, uncompressed frames. The compression of rows 7 and 8 is
   as `login.md`, LOGIN-SEQ-003, states.
 
-Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: E2, E3.
-
-## 6. Test vectors
-
-The key is the UTF-8 bytes of `example-secret`. The signed data has these fields:
-
-| Field | Value |
-|-------|-------|
-| forwarding version | `4` |
-| client address | `203.0.113.7` |
-| profile id | `00112233-4455-6677-8899-aabbccddeeff` |
-| profile name | `Steve` |
-| properties | one: name `textures`, value `e30=`, no signature |
-
-Signed data, 51 bytes:
-
-```text
-04 0b 32 30 33 2e 30 2e 31 31 33 2e 37 00 11 22
-33 44 55 66 77 88 99 aa bb cc dd ee ff 05 53 74
-65 76 65 01 08 74 65 78 74 75 72 65 73 04 65 33
-30 3d 00
-```
-
-Signature:
-
-```text
-0b e1 3f 34 75 9c 06 93 4e 5a 85 85 15 68 73 1b
-f3 aa 52 67 c3 f7 51 1e 0b 33 d1 6e a4 b8 14 59
-```
-
-The payload is the signature, then the signed data: 83 bytes.
-
-With forwarding version `1`, the first byte of the signed data is `01`. The other bytes do
-not change. The signature is then:
-
-```text
-cf df 31 1b 41 db 16 0b 1c a0 1c 18 16 a0 55 ec
-6c c7 17 69 18 6b 96 6f 94 ff 5d 56 44 70 60 cb
-```
-
-- A payload with one changed bit in the signed data gives row 3 of FWD-CHK-001.
-- The version `4` payload with the key of `example-secret` followed by a line feed gives row 3.
-- A correct signature over the signed data with version `5` gives row 4.
-- A correct signature over the signed data with one byte added at the end gives row 5.
-
-The values come from the layout of FWD-ANS-001 and a standard HMAC-SHA256. No proxy produced
-them. Experiment E3 confirms them.
-
-## 7. Experiments
-
-No tool of `docs/spec/README.md`, section "Experiments", starts a proxy. E2 to E4 need a
-Velocity release that supports the protocol version of the client. Use a 26.3 client when no
-release supports 26.4.
-
-**E1: direct client.**
-
-1. Configure mcrs with online mode off, forwarding on and the secret `example-secret`.
-2. Start mcrs.
-3. Let the input agent of `tools/vanilla-client` join mcrs directly.
-4. Record the `custom_query`, the answer and the `login_disconnect`.
-5. Expect the data `0x04`, an answer with no payload, and the text of FWD-CHK-004 on the
-   screen of the client.
-
-**E2: real proxy.**
-
-1. Configure mcrs with online mode off, forwarding on and the secret `example-secret`.
-2. Start mcrs.
-3. Start Velocity in online mode, with `player-info-forwarding-mode = "modern"`, the secret
-   `example-secret`, and mcrs as its only server.
-4. Let a vanilla client join the proxy.
-5. Record that the player joins.
-6. Record the profile id and the skin that a second client sees.
-7. Record the address that mcrs reports for the player.
-8. Add an address ban for the address of the player.
-9. Join again. Expect the reason of BAN-JOIN-005.
-
-**E3: bytes on the backend link.**
-
-1. Prepare the setup of E2.
-2. Capture the loopback TCP traffic between the proxy and mcrs while a player joins.
-3. Decode the LOGIN frames.
-4. Record the data byte of the query and the payload of the answer.
-5. Check the signature with the key.
-6. Compare the layout with FWD-ANS-001.
-7. Replace mcrs with Paper, with `proxies.velocity.enabled` true and the same secret.
-8. Do steps 2 to 6 again. Expect the same query data and the same payload layout.
-
-**E4: failures.**
-
-1. Prepare the setup of E2.
-2. Change the secret of mcrs to `other-secret`.
-3. Join through the proxy. Expect the text of row 3 of FWD-CHK-001 in the proxy disconnect
-   message.
-4. Let a script send `intention` and `hello` to mcrs directly, and then send nothing.
-5. Measure the time to the end of the connection.
-6. Expect one of the two results of FWD-CHK-005: `login_disconnect` with
-   `multiplayer.disconnect.slow_login`, or a close with no packet at the read limit.
+Provenance: `source_suggested`. Kind: wire. Confidence: medium.
 
 ## 8. Intentional deviations
 
@@ -476,5 +379,3 @@ These entries compare mcrs with Paper as a backend. The vanilla game has no forw
   name) for a link-local client. It is not decided whether such an address is malformed.
 - **FU-03: texts.** It is not decided whether the texts of FWD-CHK-001 must be translation
   keys of mcrs. The proxy shows them to a player in any language.
-- **FU-04: Velocity release for 26.4.** E2 to E4 need a Velocity release that supports the
-  protocol version of the client.

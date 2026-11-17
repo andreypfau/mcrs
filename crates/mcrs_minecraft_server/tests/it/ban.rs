@@ -292,7 +292,7 @@ fn ban_cmd_003_a_command_that_changes_nothing_does_not_write_the_file() {
 }
 
 #[test]
-fn ban_cmd_006_a_name_that_is_not_online_keeps_its_case_and_takes_the_id_of_that_name() {
+fn ban_cmd_006_offline_name_keeps_case_and_takes_its_id() {
     let mut server = start(BanList::default());
     let (admin, _) = server.join(ADMIN, "Admin");
 

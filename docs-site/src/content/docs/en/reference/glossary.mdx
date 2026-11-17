@@ -11,8 +11,6 @@ sources:
   - docs/replication.md
   - docs/spec/README.md
   - docs/clean-room.md
-  - docs/resource-location.md
-  - PERF.md
 verified:
   snapshot: 26.4-snapshot-7
   commit: 51d45c26a
@@ -94,9 +92,9 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 
 | Term | Meaning | Closest in Paper or Minestom |
 |---|---|---|
-| Registry, data pack | Registries, such as blocks, biomes and dimensions, load from a data pack. The server loads {fact('registries')} registries, as the "Server start" section of PERF.md reports. | Bukkit `Registry`, Minestom `DynamicRegistry`. |
-| Resource location, key | A resource location, or key, is a name like `minecraft:stone`. It lives at the edges, which are the data pack, the wire and commands, and the code inside uses numeric ids, as [`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md) explains. | `NamespacedKey`, Minestom `Key`. |
+| Registry, data pack | Registries, such as blocks, biomes and dimensions, load from a data pack. | Bukkit `Registry`, Minestom `DynamicRegistry`. |
+| Resource location, key | A resource location, or key, is a name like `minecraft:stone`. It lives at the edges, which are the data pack, the wire and commands, and the code inside uses numeric ids. | `NamespacedKey`, Minestom `Key`. |
 | Molang | Molang is an expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
 | Impostor | An impostor is a far mob that is drawn as a baked sprite. | - |
-| Arena, group table, GPU cull, depth pyramid | These renderer terms come from PERF.md and DECISIONS.md. Arenas are memory arenas for quads, models and faces, the group table is a table of section groups, GPU cull is culling on the GPU, and the depth pyramid serves two-pass occlusion. | - |
+| Arena, group table, GPU cull, depth pyramid | Arenas are memory arenas for quads, models and faces, the group table is a table of section groups, GPU cull is culling on the GPU, and the depth pyramid serves two-pass occlusion. | - |
 | Hot | Hot is a client measurement knob, `MCRS_HOT`, that keeps the fast CPU cores awake. It is not the same as hot space. | - |

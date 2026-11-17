@@ -30,7 +30,7 @@ pinned to one and biome folding disabled. That path is **not implemented here**;
 until it is, dirt under a carved overhang stays dirt where the reference would
 put grass.
 
-Its footprints are zero in both directions (`worldgen.md` §13). Horizontal
+Its footprints are zero in both directions (`scattering.md` §2). Horizontal
 gradients are read from the column's own 16 × 16 height map with the edges
 clamped inward, so no neighbour is touched. The stage is therefore trivially
 parallel and its order across columns is unobservable.
@@ -230,8 +230,7 @@ makes the shared-id files of §4 pay off.
 
 A wrong scope is the one error in this subsystem that produces plausible output:
 an `Xz`-cached `above_preliminary_surface` gives every block in a strip the
-topmost block's answer, and nothing else in the pipeline notices. §12 says how it
-is caught.
+topmost block's answer, and nothing else in the pipeline notices.
 
 A biome set that folds to `never` or `always` carries no scope at all: the fold
 is a separate per-column array, consulted ahead of the cache, so a settled
@@ -439,38 +438,6 @@ dependency walk will.
 
 ---
 
-## 11. Module layout
-
-The rule system belongs with the other data-driven worldgen machinery, beside the
-carver configuration: proto types with their holders, the compiler, and the
-evaluator with its scratch. The strip descent and the two hardcoded extensions
-belong with the generation passes, because they operate on the dense column
-buffer.
-
-The dense column buffer is already the flat representation Sf2 asks for, and its
-interior mutability already allows a reader and a writer at once, which the
-descent needs by S4.
-
----
-
-## 12. Verification
-
-**S21. The tape has an oracle.** A naive tree walker behind the same interface,
-kept for the life of the project, differentially tested against the tape over a
-fixed set of columns. Same arrangement as the density interpreter of
-`worldgen.md` §19.
-
-**S22. Memoisation is tested by disabling it.** A run with every cache forced to
-miss must produce bit-identical blocks. A condition given the wrong scope (S12)
-produces plausible terrain and passes every other test; this is the one that
-catches it.
-
-**S23. Parity is measurable here.** The stage is a field stage with zero
-footprints, so unlike decoration it can be compared block for block against a
-reference world at the same seed.
-
----
-
 ## 13. What not to do
 
 **Compile a closure per rule node.** A chain of indirect calls per block costs
@@ -486,23 +453,7 @@ load** (S8).
 
 ---
 
-## Appendix: correspondences in Minecraft
-
-For checking behaviour against, not for copying. Paths are relative to
-`src/main/java/net/minecraft/`, at the version named by `assets/minecraft/version.json`.
-
-| What | Where |
-| --- | --- |
-| The strip descent, depths, water level | `world/level/levelgen/material/MaterialSystem.java` |
-| The context and its two generation counters | `world/level/levelgen/material/MaterialRuleContext.java` |
-| Rule kinds and their codecs | `world/level/levelgen/material/rule/` |
-| Condition kinds and their codecs | `world/level/levelgen/material/condition/` |
-| Registry ids and holder codecs | `world/level/levelgen/material/MaterialRules.java` |
-| The rule referenced by a dimension | `world/level/levelgen/NoiseGeneratorSettings.java`, field `material_rule` |
-| Where the stage runs in the pipeline | `world/level/levelgen/NoiseBasedChunkGenerator.java` |
-| Clay bands, badlands pillars, icebergs | `MaterialSystem.generateBands`, `erodedBadlandsExtension`, `frozenOceanExtension` |
-| The biome zoom | `world/level/biome/BiomeManager.java` |
-| The preliminary surface level and its interpolation | `world/level/levelgen/NoiseRouterData.java`, `chunk_surface_level` |
+## Appendix
 
 ### Deliberate divergences from the reference
 

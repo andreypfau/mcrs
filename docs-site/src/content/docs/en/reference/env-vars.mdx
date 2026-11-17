@@ -22,10 +22,10 @@ import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The list comes from `grep -rn 'MCRS_' crates src` on commit `51d45c26a`. The server reads 11 of the variables. The client reads many more, and most of those are knobs for performance measurements.
+This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The server reads 11 of the variables. The client reads many more, and most of those are development knobs.
 
 <Aside type="caution" title="WIP">
-The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The old `MCRS_OP_LOCAL` variable no longer exists. The server binary runs the `public` profile: a player who joins from the same machine is not an operator unless `ops.json` names them.
+The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The server binary runs the `public` profile: a player who joins from the same machine is not an operator unless `ops.json` names them.
 </Aside>
 
 ## Server
@@ -83,7 +83,7 @@ A client built with `singleplayer` has an integrated server, and that server als
 
 ## Measurement knobs
 
-The variables in this section exist so that a performance reading can be repeated. Do not set them for normal play, because some of them change on purpose what is measured. [Performance](/docs/en/project/performance/) and `PERF.md` describe the method.
+Do not set the variables in this section for normal play. They change on purpose what the client draws or measures.
 
 | Variable | Default | What it does |
 |---|---|---|

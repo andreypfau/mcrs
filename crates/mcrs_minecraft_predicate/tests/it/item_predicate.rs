@@ -176,7 +176,7 @@ fn check(cases: &[(&str, &str, Held, bool)]) {
 }
 
 #[test]
-fn the_fields_of_an_item_predicate_test_the_item_and_the_count_pred_itm_002_003_gen_005() {
+fn item_predicate_fields_test_item_and_count_pred_itm_002_003_gen_005() {
     let stick = |count| Held::Stack(stack("minecraft:stick", count));
     check(&[
         ("PRED-GEN-005", "{}", Held::Stack(sword()), true),

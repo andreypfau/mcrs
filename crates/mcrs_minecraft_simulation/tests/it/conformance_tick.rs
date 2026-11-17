@@ -298,7 +298,7 @@ fn check_sim_sch_007(log: &[Entry], block: BlockPos, fluid: BlockPos) -> Result<
 }
 
 #[test]
-fn sim_sch_007_a_replaced_block_consumes_its_tick_and_a_fluid_tick_survives_source_and_flowing() {
+fn sim_sch_007_replaced_block_consumes_tick_fluid_tick_survives() {
     let (p, q) = (at(5, 1, 1), at(6, 1, 1));
     let mut host = filled(&[(0, 0, 0)]);
     host.put(q, FLOWING);
@@ -442,7 +442,7 @@ fn check_sim_sch_009_reschedule(log: &[Entry], pos: BlockPos) -> Result<(), Stri
 }
 
 #[test]
-fn sim_sch_009_a_block_tick_rescheduling_itself_with_delay_zero_runs_once_per_level_tick() {
+fn sim_sch_009_zero_delay_reschedule_runs_once_per_level_tick() {
     let p = at(5, 1, 1);
     let rules = vec![Rule::on(Hook::BlockTick, p, vec![schedule_block(p, 0)])];
     let mut runner = Runner::new(filled(&[(0, 0, 0)]), rules);
@@ -912,7 +912,7 @@ fn observed_copy(observed: &Observed) -> Observed {
 }
 
 #[test]
-fn a_message_for_a_section_another_partition_holds_is_refused_before_any_message_applies() {
+fn message_for_another_partitions_section_is_refused_before_apply() {
     let (owned, leased) = (at(1, 1, 1), at(17, 1, 1));
     let mut host = filled(&[(0, 0, 0), (1, 0, 0)]);
     host.set_access(section(1, 0, 0), Access::Read);

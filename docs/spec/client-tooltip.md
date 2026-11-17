@@ -1,11 +1,6 @@
 # Tooltips of the client GUI: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client draws a tooltip at the mouse in a screen. It also
 states what a hover event of a text style shows. The screens decide when a tooltip shows and
@@ -44,8 +39,7 @@ section "Semantics, not accidents".
 ### 0.3 Colours and text
 
 A colour is a 32-bit ARGB value in hexadecimal. The font and the width of a text are as
-`client-font.md` states. That document states the font of `26.4-snapshot-7`; this document is
-not yet checked against it for its own snapshot. The wrap of a text component has no general
+`client-font.md` states. The wrap of a text component has no general
 specification yet (`client-chat.md`, section 0.3); this document uses the wrap below. To wrap
 a text component at a width means to split it into lines no wider than that width:
 
@@ -112,9 +106,7 @@ narration of tooltips.
   of a widget (`client-widget.md`, WID-TIP-001 and WID-TIP-005). Except for the tooltip of a
   widget, a tooltip is a function of the mouse position only.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in the open chat,
-put the mouse on a suggestion row with a tooltip, above a chat line with a `show_text` hover
-event. Only the tooltip of the suggestion shows.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -131,7 +123,7 @@ event. Only the tooltip of the suggestion shows.
   4. With the flag and `n` ≥ 2, `h` = `10·n`.
 - **Postconditions:** a tooltip with one line has `h` = 8.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see TIP-BG-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### TIP-POS-001: Position of the content box
 
@@ -150,9 +142,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
 - **Edge cases:** step 2 tests `w` without the background. The background can go up to 4 GUI
   units past the right edge of the screen.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: at a GUI scale of 2,
-put the mouse at `mx` = 100, `my` = 100 on a one-line tooltip. Take a screenshot. The text starts
-at x = 112, y = 88.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### TIP-BOX-002: Lines in the content box
 
@@ -170,7 +160,7 @@ at x = 112, y = 88.
 - **Postconditions:** the lines keep the styles of their text component, for example bold,
   italic and colours.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see TIP-BG-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ---
 
@@ -209,9 +199,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
   comes from the sprite, which stretches 80 texels over the height `h + 4` (TIP-BG-002).
 
 Provenance: `source_suggested`, and `black_box_confirmed` for the texels of the vanilla sprites.
-Kind: layout. Confidence: high. Experiment: at a GUI scale of 1, show the tooltip
-`chat.tag.system_single_player` in the open chat. Take a screenshot. Compare each pixel of the
-background with the table.
+Kind: layout. Confidence: high.
 
 ### TIP-BG-002: Scaling of the background sprites
 
@@ -230,9 +218,7 @@ background with the table.
   24 × 24, so the borders are never reduced.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the `.mcmeta` values of the vanilla
-pack. Kind: layout. Confidence: high. Experiment: in a resource pack, give `tooltip/background`
-the scaling `stretch`. Show a tooltip. The full sprite stretches over the background
-rectangle, so the transparent margin and the cut corners grow with the tooltip.
+pack. Kind: layout. Confidence: high.
 
 ---
 
@@ -274,8 +260,6 @@ rectangle, so the transparent margin and the cut corners grow with the tooltip.
 "Advanced Tooltips" is the option that F3 + H changes. It is off by default.
 
 Provenance: `source_suggested`. Kind: semantic; layout for the wrap width. Confidence: medium.
-Experiment: on a GUI 427 units wide, send a `system_chat` with a `show_text` of 300 GUI units
-of text. Open the chat and put the mouse on it. The tooltip wraps at 213 GUI units.
 
 ### TIP-HOVER-002: The hovered text style
 
@@ -301,14 +285,12 @@ of text. Open the chat and put the mouse on it. The tooltip wraps at 213 GUI uni
   component. A child with no hover event of its own has the hover event of its parent.
 
 Provenance: `source_suggested`. Kind: semantic; layout for the hover area. Confidence: medium.
-Experiment: send a `system_chat` with the text `a b` and a `show_text` hover event. Open the
-chat and put the mouse on the space. The tooltip shows.
 
 ---
 
 ## 5. Intentional deviations
 
-No deviation is recorded.
+None.
 
 ---
 

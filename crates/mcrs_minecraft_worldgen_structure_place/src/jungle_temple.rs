@@ -121,7 +121,7 @@ fn moss_box<W: WorldGenVolume, R: Random>(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "paints the temple's walls, chambers, stairs, chests and traps as one run of canvas calls in the reference's order, so the moss draws follow its sequence"
+    reason = "one run of canvas calls keeps the random draws in sequence"
 )]
 pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
     b: &JungleTempleBlocks,

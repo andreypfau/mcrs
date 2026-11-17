@@ -185,7 +185,7 @@ fn pred_009_an_honest_client_that_walks_and_jumps_passes_each_tick() {
 }
 
 #[test]
-fn rsp_001_a_report_far_above_the_prediction_sets_the_client_back_to_the_accepted_state() {
+fn rsp_001_report_far_above_prediction_resets_to_accepted_state() {
     let mut session = Session::new();
     session.step(FORWARD);
     let accepted = *session.prediction.accepted();
@@ -487,7 +487,7 @@ fn broken_two_times() -> (Session, BlockPos, [DVec3; 2]) {
 }
 
 #[test]
-fn lat_007_the_client_moves_back_once_to_its_first_request_when_the_kept_state_meets_its_box() {
+fn lat_007_client_moves_back_once_when_kept_state_meets_its_box() {
     let (mut session, under, [first, _]) = broken_two_times();
     let outcome = ack_and_move(&mut session, under, first);
     assert!(passes(outcome), "{outcome:?}");

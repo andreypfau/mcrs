@@ -202,7 +202,7 @@ impl StateProvider {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per state provider kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per state provider kind, in the reference's declaration order"
     )]
     pub fn optional_state<W: WorldGenVolume>(
         &self,

@@ -1,16 +1,11 @@
 # Item modifiers: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states what each item modifier does to a stack. For each type, it states the change
 of the item, of the count and of the component patch. It states the parameters that the type
 reads, and the result when a parameter is absent. It states each random draw, with its order and its
-kind. It does not prescribe an architecture.
+kind.
 
 Scope: each type of the registry `minecraft:loot_function_type`, a list of modifiers, and a key of
 the registry `minecraft:item_modifier`. These documents state the parts that this document cites:
@@ -23,7 +18,7 @@ the registry `minecraft:item_modifier`. These documents state the parts that thi
 - `predicates.md`: the item predicate (PRED).
 - `item-stack.md`: the stack, the component patch and the validation (STK).
 
-Section 10 lists what this document does not state. This document replaces section 5 of
+This document replaces section 5 of
 `block-loot.md`. The rules LOOT-MOD-001 to LOOT-MOD-008 keep their ids.
 
 ## 0. Conventions
@@ -80,17 +75,15 @@ Where a rule says f32, each operation of the formula gives an f32 value.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a game-produced artefact. The artefact is a captured result of
-  `block-loot.md`, or the vanilla data pack.
+- `black_box_confirmed`: shown by a game-produced artefact. The artefact is the vanilla data pack.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
-  with a captured result.
-- `source_suggested`: taken from the reference implementation, with no captured result. The
+  with such an artefact.
+- `source_suggested`: taken from the reference implementation, with no artefact. The
   confidence is at most medium.
 - `design`: a choice of this project. The rule states the reason.
-- `unresolved`: not decided. Section 11.3 collects these items.
+- `unresolved`: not decided.
 
-The reference that the author read has the game version above. No experiment of this document ran
-(section 12). Each rule states its kind, as `docs/spec/README.md` defines it.
+Each rule states its kind, as `docs/spec/README.md` defines it.
 
 The observer of a draw is a player who opens a container whose loot has a seed. With the same seed,
 the player gets the same stacks from the vanilla server. A test of the library sees the same thing:
@@ -101,7 +94,6 @@ it compares the state of the generator after an evaluation. Each draw thus has a
 - The data pack of the client jar: `data/minecraft/loot_table/` and
   `data/minecraft/villager_trade/`. `tools/mcrs_minecraft_fixtures` installs it. The data pack has
   no entry of the registry `minecraft:item_modifier`.
-- Results L1, L3 and L7 of `block-loot.md`, section 11.
 
 The vanilla data pack uses these 23 types: `apply_bonus`, `copy_components`, `copy_state`,
 `discard`, `enchant_randomly`, `enchant_with_levels`, `enchanted_count_increase`,
@@ -116,8 +108,6 @@ The vanilla data pack uses these 23 types: `apply_bonus`, `copy_components`, `co
 |--------|-------|
 | `LOOT-MOD` | The modifiers, the NBT providers and the NBT paths |
 | `LOOT-MDV` | The intentional deviations of this document |
-
-`U1` and `E1` name an unresolved item and an experiment of this document.
 
 ## 1. The chain
 
@@ -156,7 +146,7 @@ give the count 2. In the evaluation of a table, the division (LOOT-OUT-001) is t
 an empty work stack becomes the empty stack (STK-EMP-001). For a content stack of `set_contents`,
 that point is the division of LOOT-MOD-053. For each other chain, for example a chain of
 `modify_contents`, that point is the end of the chain. No modifier limits the count to the maximum
-stack size. Experiment E2 tests this rule.
+stack size.
 
 A work stack with the item `minecraft:air` is an empty work stack for each count, and `c` is 0 for
 it. A `dynamic` entry can give such a work stack, for an empty slot of a shulker box (LOOT-EVL-007
@@ -164,8 +154,7 @@ of `loot.md`). Each modifier of its chain still tests its condition and takes th
 rule states for an empty work stack. A modifier can give it a count of more than 0 and a component
 patch. No modifier gives it another item, so it stays an empty work stack to the end of the chain.
 At the point that the paragraph above names, it becomes the empty stack, with no component patch.
-This paragraph has the confidence medium. Experiment X18 of `loot.md`
-tests it.
+This paragraph has the confidence medium.
 
 **LOOT-MOD-012** (`source_suggested`, semantic, confidence medium). A modifier takes its draws from
 the generator in the order that its rule states. A modifier takes no other draw. Where a rule says
@@ -175,8 +164,7 @@ the generator in the order that its rule states. A modifier takes no other draw.
 
 **LOOT-MOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The number
 providers of a modifier are the providers of `loot-conditions.md` (LOOT-NUM). The block tables use
-the bare number, `uniform` and `binomial` (LOOT-NUM-023). Results L2 and L3 of `block-loot.md` show
-them.
+the bare number, `uniform` and `binomial` (LOOT-NUM-023).
 
 **LOOT-MOD-059** (`source_suggested`, semantic, confidence medium). A modifier evaluates each of its
 providers one time, at the place that its rule states. A rule that says "the draws of the provider"
@@ -202,7 +190,6 @@ of `block-loot.md` shows counts below 1, which make no item.
 
 Each bound is the int read of its provider. For example, the table of `glowstone` limits
 `glowstone_dust` to `1..4`, and the table of `brown_mushroom_block` limits the count to 0 or more.
-Result L3 of `block-loot.md` shows both.
 
 **LOOT-MOD-002** (`source_suggested`, semantic, confidence medium). `explosion_decay` (REG-FLD-767)
 does nothing and takes no draw when the context has no `explosion_radius`. Otherwise `p` is `1 /
@@ -223,9 +210,7 @@ one formula, also with `L = 0`:
 
 For `ore_drops`, `L` is at most 255 (STK-SHP-015), so the bound `L + 2` is at most 257. The bound
 is thus always in `1..2³¹ − 1`. For `ore_drops` with `L > 0`, the factor is 1 with the chance
-`2 / (L + 2)`, and each value of `2..L + 1` with the chance `1 / (L + 2)`. Result L1 of
-`block-loot.md` shows `ore_drops` with `L = 3`. Result L3 shows `binomial_with_bonus_count` with
-`L = 0`. The draw of `uniform_bonus_count` for a bound of 1 has the label `source_suggested`. The
+`2 / (L + 2)`, and each value of `2..L + 1` with the chance `1 / (L + 2)`. The draw of `uniform_bonus_count` for a bound of 1 has the label `source_suggested`. The
 bound `m × L + 1` is an exact integer. It is outside `1..2³¹ − 1` only for a negative `m` or a very
 large `m`, which no vanilla table has. LOOT-MDV-003 records the reference for such a bound.
 
@@ -586,8 +571,7 @@ type that the source has and that passes these two tests:
 - `exclude` is absent, or `exclude` does not contain the type.
 
 Each copy is a value entry on the work stack. For example, the table of `chest` copies
-`minecraft:custom_name` from `block_entity`, so a named chest drops a named item. Result L7 of
-`block-loot.md` shows it. The sources other than `block_entity` have the label `source_suggested`.
+`minecraft:custom_name` from `block_entity`, so a named chest drops a named item. The sources other than `block_entity` have the label `source_suggested`.
 
 **LOOT-MOD-007** (`source_suggested`, semantic, confidence medium). The components of a source are
 these:
@@ -1017,19 +1001,7 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 | `filtered`, `sequence`, `modify_contents` | the draws of the modifiers that apply | LOOT-MOD-052, LOOT-MOD-010, LOOT-MOD-054 |
 | `set_contents` | the draws of its entries | LOOT-MOD-053 |
 
-## 10. What this document does not state
-
-- How the server decodes a modifier: `registry-fields.md`, REG-FLD-741 to REG-FLD-789.
-- The conditions and the number providers: `loot-conditions.md`.
-- The item predicate of `filtered`: `predicates.md`.
-- The context of each table type, the entries, the order of the chains of a table, the division of
-  the result and the generator: `loot.md`.
-- The format and the meaning of each component: `item-stack.md` and the documents that it cites.
-- The NBT path as a command argument, and its errors in a command.
-- The command that applies a modifier to a slot.
-- The trade of a villager that uses `additional_trade_cost`.
-
-## 11. Intentional deviations, open questions and unresolved items
+## 11. Intentional deviations and unresolved items
 
 ### 11.1 Intentional deviations
 
@@ -1040,7 +1012,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   also accepts a `.` at the end, and an empty string as a path with no node. A path with no node
   fails each time that a modifier uses it as `target`.
 - **Visible to the client**: no. The path is a field of a data pack.
-- **Test**: a differential test does not use such a path. A test of the load expects a fault.
 
 **LOOT-MDV-002.**
 
@@ -1049,7 +1020,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   not stable between two starts of the server.
 - **Visible to the client**: no. The result differs only when two entries have a provider that
   takes a draw.
-- **Test**: a differential test does not compare the generator state for such a modifier.
 
 **LOOT-MDV-003.**
 
@@ -1060,7 +1030,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   bound.
 - **Visible to the client**: no. The author of the data pack sees the count `c` in place of an
   error. No vanilla table has a negative `bonusMultiplier`.
-- **Test**: a differential test does not use a bound outside `1..2³¹ − 1`.
 
 **LOOT-MDV-004.**
 
@@ -1069,8 +1038,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   not a numeric tag, the reference removes each element of the array. The array becomes empty.
 - **Visible to the client**: no. The author of the data pack sees an empty array in the custom data.
   No vanilla table writes into an array.
-- **Test**: a differential test does not set a value that is not a numeric tag through `[]` into an
-  array.
 
 **LOOT-MDV-005.**
 
@@ -1080,7 +1047,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 - **Visible to the client**: yes, only with a data pack that adds `exploration_map` to a block
   table. No vanilla block table has it. The block then drops the stack with no map. With the
   `filtered` of the vanilla tables after it, the player gets no map.
-- **Test**: a differential test does not use `exploration_map` in a block table.
 
 **LOOT-MDV-006.**
 
@@ -1091,7 +1057,6 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   that has `exploration_map`: the stack of the slot gets no map. With `loot`, also for a vanilla
   table, for example `chests/shipwreck_map`: the command gives the stack with no map. With the
   `filtered` of the vanilla tables after `exploration_map`, the stack is discarded.
-- **Test**: a differential test does not use `exploration_map` with `item modify` or with `loot`.
 
 **LOOT-MDV-007.**
 
@@ -1100,14 +1065,8 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   villager. The offer is in the trade list from that tick.
 - **Visible to the client**: yes. An offer with a map, for example of a cartographer, is in the
   trade list some ticks after the level change.
-- **Test**: a differential test compares the trade list after each search is complete. It does not
-  compare the tick of the offer.
 
-### 11.2 Open questions
-
-None.
-
-### 11.3 Unresolved
+### 11.2 Unresolved
 
 - **U1**: `enchant_randomly` and `enchant_with_levels` replace a `book` with a new `enchanted_book`
   (LOOT-MOD-019, LOOT-MOD-020). The count and the component patch of the book do not stay, but
@@ -1126,47 +1085,4 @@ None.
 - **U8**: `set_fireworks` has no maximum for `explosions` at the time of the evaluation
   (LOOT-MOD-030). The component holds at most 256 explosions. Does the result stay as the old list
   above 256?
-- **U9**: the reads of an empty work stack (LOOT-MOD-011). The confidence is low until experiment E2
-  runs.
-Item U7 is closed: LOOT-RND-006 of `loot.md` states the draws, and LOOT-MOD-058 states the order of
-the search and the spread.
-
-## 12. Experiments
-
-No experiment of this document ran. At the base commit of this document, `tools/vanilla-oracle` has
-no task that applies a modifier. Each experiment below is a fixture for that task. A fixture has
-these inputs: the modifier as JSON, the start stack, the parameters and the seed of the generator.
-It records the result stack and the state of the generator after the chain.
-
-| Id | Fixture | Rules |
-|----|---------|-------|
-| E1 | A modifier with a `condition` that fails, for each type of section 9. Record that the generator state does not change after the draws of the condition. | LOOT-MOD-009, LOOT-MOD-012, LOOT-MOD-059 |
-| E2 | `set_count` to `-1`, then `set_damage`, `set_potion` and `set_enchantments`, then `set_count` with `add` and 2. Repeat in a table, with the last `set_count` as the modifier of the pool. | LOOT-MOD-011 |
-| E3 | `set_count`, `limit_count` with `min` above `max`, and `set_damage` with `add` on a tool with damage. | LOOT-MOD-001, LOOT-MOD-003, LOOT-MOD-016 |
-| E4 | `explosion_decay` with the counts 0, 1 and 64 and the radius 4. | LOOT-MOD-002 |
-| E5 | `apply_bonus` with each formula and the levels 0 and 3. Record the generator state for `uniform_bonus_count` with the level 0. | LOOT-MOD-004 |
-| E6 | `enchanted_count_increase` with no attacker, with the level 0 and with the level 3 and a `limit`. | LOOT-MOD-013 |
-| E7 | `enchant_randomly` on a book with the count 3 and a custom name, on a sword, and with one option whose `max_level` is 1. One case has the cost component. | LOOT-MOD-018, LOOT-MOD-019 |
-| E8 | `enchant_with_levels` with the levels 5 and 30 on a book, on a diamond sword and on a stick. Use `#minecraft:on_random_loot`. | LOOT-MOD-020, LOOT-MOD-021 |
-| E9 | `set_enchantments` on a book with the count 3, with `add`, and with a level that becomes 0. | LOOT-MOD-022 |
-| E10 | `set_attributes` with two elements, one with one slot and one with three slots, and a `uniform` amount. | LOOT-MOD-026 |
-| E11 | `set_random_dyes` with 1 and 3 dyes on a leather tunic with and without a colour, with the count 2, and on a stick. | LOOT-MOD-034, LOOT-MOD-035 |
-| E12 | `set_random_potion` with and without `options`, `set_instrument` with a tag, and `set_stew_effect` on a stew and on a bowl. | LOOT-MOD-033, LOOT-MOD-036, LOOT-MOD-037 |
-| E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. Apply each modifier of the examples of LOOT-MOD-030 to a stack with the given list, and record the length of the list and the log. Load a pack with a `set_lore` of 257 lines and a `set_writable_book_pages` with `size` 101, and record the load fault. | LOOT-MOD-029, LOOT-MOD-030, REG-FLD-769 |
-| E14 | `set_custom_model_data` with `uniform` providers in `floats` and `colors`, and an `insert` whose `offset` is above the length. | LOOT-MOD-041 |
-| E15 | `copy_custom_data` from a storage, with each `op` and with each node form in `source` and in `target`. One case has a target that fails. | LOOT-MOD-044 to LOOT-MOD-051 |
-| E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-007, LOOT-MOD-042, LOOT-MOD-043 |
-| E17 | `set_contents` with an `alternatives` entry and an item of the count 200, for each `component`. `set_contents` with a `group` of two `item` children, each with a `random_chance` 0.5 condition and a `set_count` `uniform` 1 to 3, for 20 seeds. Record the generator state. `modify_contents` with `set_count` on a container. | LOOT-MOD-053 to LOOT-MOD-055 |
-| E18 | `furnace_smelt` on raw iron with the count 3, for each value of `use_input_count`, and on a stick. | LOOT-MOD-017 |
-| E19 | `exploration_map` in a world with and without the structure in the radius, with the `filtered` of the vanilla tables after it. Record the stack and the generator state. Then put a hopper under each of two chests that roll in one tick, each with a table of two `exploration_map` entries. Record the map id of each map and the chest that holds it. This fixture needs a server with a world. | LOOT-MOD-052, LOOT-MOD-057, LOOT-MOD-058, LOOT-MOD-060 |
-| E20 | `set_components` with a patch that the validation rejects, and `set_custom_data` that makes an empty compound. | LOOT-MOD-024, LOOT-MOD-025 |
-| E21 | Apply each modifier of this list to a stack with the count 2 and a custom name, and to an empty work stack: `copy_state` with a block state, `discard`, `set_item`, `set_name`, `set_banner_pattern`, `set_potion`, `set_ominous_bottle_amplifier` with `uniform` 0 to 9, `set_loot_table`, and each type of LOOT-MOD-040. Apply them as one list, as a `sequence` with a `condition` that passes and one that fails, and as a key of `minecraft:item_modifier`. | LOOT-MOD-005, LOOT-MOD-008, LOOT-MOD-010, LOOT-MOD-014, LOOT-MOD-015, LOOT-MOD-027, LOOT-MOD-031, LOOT-MOD-032, LOOT-MOD-038, LOOT-MOD-039, LOOT-MOD-040 |
-| E22 | Start `tools/vanilla-server` with a data pack of item modifiers. Run `item modify entity @s weapon.mainhand` with `set_name` and `set_lore`, each with `entity` `this` and a text with a `selector` `@s` and a `score` component. Record the name and the lore of the stack. | LOOT-MOD-027, LOOT-MOD-028 |
-| E23 | Decode `copy_custom_data` with each of these `target` paths: `a[007]`, `a[-0]`, `a[+1]`, `a[1.0]`, `a[--1]`, `a[2147483648]`, `""`, `''`, `"".b`. Record which entries decode. For each path that decodes, apply `replace` with the value `0` to the custom data `{a:[1,2,3,4,5,6,7,8]}`. Record the custom data. | LOOT-MOD-047 |
-| E24 | Put `{l:[{t:[1]},{t:[1,2]},{t:[2,1,1]},{t:[]},{t:[I;1]}]}` in a storage. Apply `copy_custom_data` with `append` to the target `out`, with each of these `source` paths: `l[{t:[1,1]}]`, `l[{t:[1]}]`, `l[{t:[]}]`, `l[{t:[1b]}]`. Record `out` for each path. Then run `execute store result storage t:s v double -1 run data get storage t:s zero`, where `zero` holds `0`. Run `execute if data storage t:s {v:0.0d}` and record the reply. | LOOT-MOD-049, ARG-BLK-011 |
-| E25 | Start with the custom data `{b:[B;1b,2b],e:[I;],g:[L;5L]}`. Apply `replace` with each of the values `300`, `-1.5d`, `1e10f`, `"x"` and `{}` to each of the targets `b[]`, `b[0]`, `b[5]`, `e[]`, `g[-1]`, `b[{}]`, `b.x`. Apply `append` and `merge` to `b[]` and to `e[]`. Record the custom data for each case. | LOOT-MOD-048, LOOT-MOD-050, LOOT-MOD-051 |
-| E26 | Apply `replace` to empty custom data with the targets `x.y`, `x[0]`, `x[]`, `x[{k:1}]`, `x{k:1}.y`, `x[].y`, `x[0].y` and `{z:1}.a`. Apply `append` and `merge` to `x[0]`, `x[0].y` and `{z:1}.a`. Then apply `replace` to the targets `a` and `a.b.c` with values whose highest levels are 509, 510 and 511. Record the custom data for each case. | LOOT-MOD-050, LOOT-MOD-051 |
-
-The `replace` cases of E23 to E26 can also run on `tools/vanilla-server` as the command
-`data modify storage <id> <target> set value <value>`, which uses the same paths. The server needs
-the owner to accept the EULA, so these cases did not run.
+- **U9**: the reads of an empty work stack (LOOT-MOD-011). The confidence is low.

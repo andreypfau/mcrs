@@ -1,11 +1,6 @@
 # Sign text of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client draws the text of a sign and of a hanging sign. The
 board, the post and the chains are block models (`block-entity-models.md`, BEM-SHAPE-010). Only
@@ -27,9 +22,7 @@ architecture.
   direction of the sign (SIGN-PLACE-001).
 - **Side text**: the data of one side of the block entity: four messages, an optional list of
   four filtered messages, a dye colour and a glowing flag. The data is in the fields
-  `front_text` and `back_text` of the block entity. The block entity declares the two fields in
-  `crates/mcrs_minecraft_block_entity/src/generated_block_entity.rs`, and their type is in
-  `crates/mcrs_minecraft_block_entity/src/sign_text.rs`.
+  `front_text` and `back_text` of the block entity.
   A side text with no colour has the dye colour `black`. A side text with no glowing flag is not
   glowing.
 - **Message**: one text component of a side text.
@@ -52,13 +45,11 @@ architecture.
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of the sign text. `later` means a rule that a later release implements.
+section "Semantics, not accidents".
 
 ### 0.3 Artefacts cited
 
-- **Sign artefact**: the file `crates/mcrs_minecraft_model/tests/fixtures/vanilla/sign_text.json`.
-  The task `dumpSignText` of `tools/vanilla-oracle` writes it. The task runs the sign text
+- **Sign artefact**: a fixture of the game output. It comes from running the sign text
   renderers of the game against a recorder. The recorder keeps every line that a renderer
   submits. The artefact uses a stub for the font: each code point has the advance 3 text units
   (`stub_advance`), and the stub does not wrap a message. The artefact therefore states the
@@ -120,8 +111,7 @@ motion. The distance at which the client stops to draw block entities is also ou
 
 Provenance: `source_suggested_black_box_confirmed` (the rows `transform` of the sign artefact:
 the matrix of the back side is the matrix of the front side turned by 180° about the vertical
-axis through the centre of the board). Kind: semantic. Confidence: high. Milestone: 1.
-Experiment: SIGN-EXP-001.
+axis through the centre of the board). Kind: semantic. Confidence: high.
 
 ---
 
@@ -154,7 +144,7 @@ styles of the components; the rows `styles_inherited` show a colour, bold and a 
 inherits from its parent, and a font that a parent sets; a key with no translation shows as the
 key, and as the fallback text when the message has one). Item 3 and item 4 are
 `source_suggested`. Kind: semantic. Confidence: high for items 1, 2, 5 and 6, medium for items 3
-and 4. Milestone: 1. Experiment: SIGN-EXP-002.
+and 4.
 
 ---
 
@@ -173,7 +163,7 @@ and 4. Milestone: 1. Experiment: SIGN-EXP-002.
 - **Postconditions:** none.
 
 Provenance: `black_box_confirmed` (the row `constants` of the sign artefact). Kind: layout.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### SIGN-LAY-002: Position of a line
 
@@ -193,8 +183,7 @@ Confidence: high. Milestone: 1.
     the right of `u` = 0.
 
 Provenance: `source_suggested_black_box_confirmed` (the rows `layout` of the sign artefact, for
-the stub widths 0, 3, 6, 9, 12, 15, 18 and 21). Kind: layout. Confidence: high. Milestone: 1.
-Experiment: SIGN-EXP-003.
+the stub widths 0, 3, 6, 9, 12, 15, 18 and 21). Kind: layout. Confidence: high.
 
 ---
 
@@ -232,7 +221,6 @@ Experiment: SIGN-EXP-003.
 Provenance: `source_suggested_black_box_confirmed` (the 80 rows `transform` of the sign artefact:
 16 `ground` states, 4 `wall` states for `standing`, and 16 `ceiling` states, 4 `wall` states for
 `hanging`, each with two sides). Item 6 is `source_suggested`. Kind: layout. Confidence: high.
-Milestone: 1. Experiment: SIGN-EXP-004.
 
 ---
 
@@ -268,7 +256,7 @@ Milestone: 1. Experiment: SIGN-EXP-004.
   (`block-entity-models.md`, BEM-BAKE-005).
 
 Provenance: `black_box_confirmed` (the rows `dye_colors` of the sign artefact). Kind: layout.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### SIGN-COL-002: Colour and outline of a line
 
@@ -295,7 +283,7 @@ Confidence: high. Milestone: 1.
 Provenance: `source_suggested_black_box_confirmed` (the 128 rows `paint` of the sign artefact,
 64 for each family, for items 1 to 5 and 7; the rows `styles`, for the style colour of item 6). Items 6 and 8 are
 `source_suggested`. Kind: layout. Confidence: high for items 1 to 5 and 7, medium for items 6
-and 8. Milestone: 1. Experiment: SIGN-EXP-005.
+and 8.
 
 ### SIGN-COL-003: The outline range
 
@@ -307,8 +295,7 @@ and 8. Milestone: 1. Experiment: SIGN-EXP-005.
 - **Postconditions:** a glowing sign at 16 blocks or more shows no outline, if its dye is not
   `black`, unless the local player looks through a spyglass in the first person view.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
-SIGN-EXP-006.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -330,7 +317,7 @@ SIGN-EXP-006.
 
 Provenance: `source_suggested_black_box_confirmed` (the rows `paint` of the sign artefact, for both
 families, with the packed light 3145808 as input; the row `constants`, `full_bright_light`). Item 3 is
-`source_suggested`. Kind: semantic. Confidence: high. Milestone: 1. Experiment: SIGN-EXP-007.
+`source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -349,7 +336,7 @@ families, with the packed light 3145808 as input; the row `constants`, `full_bri
 - **Postconditions:** none.
 
 Provenance: `source_suggested` (item 2: the rounding up is `source_suggested`). Kind: semantic.
-Confidence: medium. Milestone: 1. The font does
+Confidence: medium. The font does
 not have a specification yet (`client-chat.md`, section 7).
 
 ### SIGN-FONT-002: Code points that the font lacks
@@ -366,7 +353,7 @@ not have a specification yet (`client-chat.md`, section 7).
 - **Postconditions:** the client draws every code point of a line. It never skips one.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium for items 1 and 3, low for
-item 2. Milestone: 1. Experiment: SIGN-EXP-008.
+item 2.
 
 ---
 
@@ -389,7 +376,7 @@ item 2. Milestone: 1. Experiment: SIGN-EXP-008.
 - **Postconditions:** the test fails when one value differs.
 
 Provenance: `source_suggested_black_box_confirmed` (the sign artefact). Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### SIGN-TEST-002: Screenshot of the signs
 
@@ -403,13 +390,13 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** the outline of each text agrees within one pixel at 1920 × 1080. The
   colour of the text agrees within 3 of 255 in each channel.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
 ## 9. Intentional deviations
 
-No deviation is recorded.
+None.
 
 ---
 
@@ -428,29 +415,3 @@ No deviation is recorded.
 6. The distance at which a sign stops to draw its text. The rule set has none.
 
 ---
-
-## 11. Experiments
-
-None of these experiments has been run. Each one is a proposal.
-
-- **SIGN-EXP-001:** put an oak sign. Write the text `FRONT` on the front side and `BACK` on the
-  back side. Look at the sign from both sides. Each viewer sees only its own text.
-- **SIGN-EXP-002:** write `0123456789 0123456789 0123456789` on one line of a sign. Only the
-  first row of the wrap shows. Repeat with a hanging sign, where the row is shorter. Turn on the
-  profanity filter of the account in a server that stores filtered messages. The filtered text
-  shows.
-- **SIGN-EXP-003:** write `i`, `ii`, `iii` and `iiii` on the four lines. Take a screenshot with
-  the camera in front of the sign. Each line is centred, with the shift to the right that
-  SIGN-LAY-002 states for an odd width.
-- **SIGN-EXP-004:** put 16 standing signs with `rotation` 0 to 15, 4 wall signs, 16 hanging signs
-  and 4 wall hanging signs. Take a screenshot of each from the front and from the back. The text
-  stays on the side where the dump places it.
-- **SIGN-EXP-005:** apply the 16 dyes to signs, once with glow ink and once with no glow ink.
-  Sample the centre of a thick glyph of each. Compare it with SIGN-COL-001.
-- **SIGN-EXP-006:** put a glowing red sign. Walk from 20 blocks to 10 blocks. The outline shows
-  when the distance is less than 16 blocks. Look at the same sign from 20 blocks through a
-  spyglass. The outline shows.
-- **SIGN-EXP-007:** put a glowing sign and a normal sign in a dark room. Only the glowing text
-  stays bright. Put the normal sign next to a torch. Its text is brighter.
-- **SIGN-EXP-008:** write the code point U+E000 (private use) on a sign. Zoom in on a screenshot.
-  The missing glyph shows. Measure its size and the distance to the next glyph.

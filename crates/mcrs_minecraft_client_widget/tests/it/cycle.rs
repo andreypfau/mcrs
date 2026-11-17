@@ -19,7 +19,7 @@ fn index(screen: &Widgets) -> Option<usize> {
 }
 
 #[test]
-fn an_activation_selects_the_next_value_shift_the_previous_and_the_wheel_up_the_previous() {
+fn activation_selects_next_value_and_shift_or_wheel_up_the_previous() {
     use Input::{Key, Press, Wheel};
     let (none, shift) = (KeyModifiers::NONE, KeyModifiers::SHIFT);
     let steps = [

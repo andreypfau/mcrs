@@ -233,7 +233,7 @@ maxSurf = max surfQ over every possible centre of the volume's lattice region
 skipY   = 12·(⌊(maxSurf + 20)/12⌋ + 1) + 10          ≥ maxSurf + 31
 ```
 
-Lemma K of §5 proves the branch changes nothing, and it is not implemented.
+Lemma K of §5 proves the branch changes nothing.
 
 ### Pressure
 
@@ -338,7 +338,7 @@ Lemma U gives `G(y).at(y)`. Otherwise some candidate has
 `y ≥ sea_level + 24`; and `y ≥ surfQ(c) + 32` for every candidate; by Q5 the
 block clears every level by more than `m_above`, Lemma A gives air, and
 `G(y).at(y)` is air at that height. The two cases are exhaustive, so the
-constant never changes an answer and is not implemented. Its one precondition:
+constant never changes an answer. Its one precondition:
 `surfQ ≥ m − 8` everywhere, so that `G(adj)` at a sampled surface is never the
 lava status; the overworld's preliminary surface cannot fall that low, and the
 surface table asserts it once per region.

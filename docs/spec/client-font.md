@@ -1,11 +1,6 @@
 # The client font: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client turns a code point into a glyph. It states the font
 definition files, the providers that make glyphs, the order in which the client searches them,
@@ -116,9 +111,7 @@ Out of scope:
 - **Edge cases:** a style that names a font with no definition draws every code point as the
   missing glyph.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: add a
-pack with a `font/default.json` that is not valid JSON. The text keeps the vanilla glyphs, and
-the log has a warning.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### FONT-DEF-002: Where the vanilla files come from
 
@@ -142,8 +135,7 @@ the log has a warning.
   a `unihex` provider from `minecraft:font/unifont.zip` with 114432 glyphs.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high.
-Evidence: `crates/mcrs_minecraft_client_jar/src/font_hint.json` gives the size 29 for the file
-`include/unifont.json` of the jar; the dump `configs[0].providers`. Experiment: none needed.
+Evidence: the dump `configs[0].providers`.
 
 ### FONT-DEF-003: The vanilla definitions
 
@@ -164,7 +156,7 @@ Evidence: `crates/mcrs_minecraft_client_jar/src/font_hint.json` gives the size 2
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high.
 Evidence: the dump `configs[*].providers`, which lists the providers that remain after
-FONT-ORD-001. Experiment: none needed.
+FONT-ORD-001.
 
 ---
 
@@ -184,10 +176,7 @@ FONT-ORD-001. Experiment: none needed.
 - **Postconditions:** the effective list of the font `minecraft:default` is the list of
   `include/space`, then the list of `include/default`, then the list of `include/unifont`.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: create a
-font `example:a` that references `example:b` and `example:b` that references `example:a`. Use
-`example:a` in a text style. Every code point draws as the missing glyph, and the log has a
-warning.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### FONT-PROV-002: The filter of a provider
 
@@ -209,8 +198,6 @@ Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Conf
 Evidence: the dump. `configs[0]` has the bitmap providers and the one Unifont provider.
 `configs[1]` has only the Unifont provider and `space`. `configs[2]` has the extra provider
 `unifont_jp.zip` before `unifont.zip`. `configs[3]` has the same providers as `configs[1]`.
-Experiment: for step 3, change "Force Unicode Font" in the options with the chat open. The
-letters change at once.
 
 ### FONT-PROV-003: The space provider
 
@@ -226,8 +213,6 @@ letters change at once.
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high.
 Evidence: the dump `configs[0].glyphs` for U+0020 and U+200C. The strings `a U+200C b` have
 the width 12. The parts about a fraction and a negative number are `source_suggested`.
-Experiment: define `{"A": 2.5}` in a space provider that is first in `minecraft:default`. The
-text `AA` has the width 5.
 
 ### FONT-PROV-004: The bitmap provider: fields
 
@@ -250,9 +235,7 @@ text `AA` has the width 5.
 - **Postconditions:** the grid of `chars` has `R` rows and `C` columns. The cell of the code
   point in row `r` and column `c` is the cell (`c`, `r`) of the texture, counted from 0.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: add a
-pack with a bitmap provider with `ascent` 9 and `height` 8. The client ignores the file and
-writes a warning.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### FONT-PROV-005: The bitmap provider: cells and advance
 
@@ -278,8 +261,7 @@ writes a warning.
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high
 for the advance, medium for the edge case. Evidence: the dump `configs[0].bitmap_advances` has
 the advance of every glyph of the three bitmap providers (indexes 1, 2 and 3). An
-implementation must give these values from the texture files. Experiment: for the edge case,
-make a texture 3 pixels wider than the grid. The glyphs stay the same.
+implementation must give these values from the texture files.
 
 ### FONT-PROV-006: The unihex provider: fields
 
@@ -294,8 +276,7 @@ make a texture 3 pixels wider than the grid. The glyphs stay the same.
 - **Postconditions:** the glyph sources of the provider are the code points that the lines of
   the `.hex` entries define.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: add a
-pack with a `unihex` provider that names a file that is not a ZIP. The font fails to load.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### FONT-PROV-007: Unifont data and the bounds of a glyph
 
@@ -326,8 +307,7 @@ pack with a `unihex` provider that names a file that is not a ZIP. The font fail
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high for
 steps 5 to 7, medium for steps 1 to 4 and 8. Evidence: the dump `glyphs` (for example U+00A0:
-width 9, advance 5; U+1F600: width 15, advance 8) and `unihex_widths`. Experiment: add a
-`.hex` line `10000:` followed by 32 zeros to an archive and draw U+10000. The advance is 5.
+width 9, advance 5; U+1F600: width 15, advance 8) and `unihex_widths`.
 
 ### FONT-PROV-008: Size overrides
 
@@ -349,9 +329,7 @@ width 9, advance 5; U+1F600: width 15, advance 8) and `unihex_widths`. Experimen
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high.
 Evidence: the dump `configs[0].glyphs`: U+4E00 has the width 16 and the advance 9, U+AC00 has
-the width 15 and the advance 8. Experiment: define an override `{"from": "A", "to": "B",
-"left": 0, "right": 3}` on a Unifont provider that comes first. The glyph U+0041 has the advance
-3.
+the width 15 and the advance 8.
 
 ### FONT-PROV-009: The ttf provider
 
@@ -380,8 +358,6 @@ Provenance: `unresolved`. Kind: unspecified. Confidence: n/a.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high.
 Evidence: the dump `configs[*].providers`. The part about several packs is `source_suggested`.
-Experiment: add a pack with `font/default.json` that has one `bitmap` provider for the letter
-`A`. The letter `A` shows from the pack. The letter `B` is as before.
 
 ### FONT-ORD-002: The glyph of a code point
 
@@ -405,7 +381,7 @@ Experiment: add a pack with `font/default.json` that has one `bitmap` provider f
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high
 for steps 1 and 2, low for step 3. Evidence: the dump `winners` and `glyphs`. Step 3 is
-`source_suggested`. Experiment: see section 9, the first item.
+`source_suggested`.
 
 ---
 
@@ -435,7 +411,7 @@ for steps 1 and 2, low for step 3. Evidence: the dump `winners` and `glyphs`. St
 - **Postconditions:** the text `U+E000` has the width 6.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high. Evidence:
-the dump `special_glyphs.missing` and `configs[0].glyphs`. Experiment: none needed.
+the dump `special_glyphs.missing` and `configs[0].glyphs`.
 
 ### FONT-GLY-002: The box of a bitmap glyph
 
@@ -452,8 +428,7 @@ the dump `special_glyphs.missing` and `configs[0].glyphs`. Experiment: none need
   is 0, 9, −3, 9. The glyph draws 3 units above the top of the line, so the accent fits.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high. Evidence:
-the dump `configs[0].glyphs`: `pixels` and `box` of U+0041, U+0404 and U+00C9. Experiment:
-none needed.
+the dump `configs[0].glyphs`: `pixels` and `box` of U+0041, U+0404 and U+00C9.
 
 ### FONT-GLY-003: The box of a Unifont glyph
 
@@ -467,9 +442,7 @@ none needed.
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high for the
 numbers, medium for the crop of the leading blank columns. Evidence: the dump `glyphs`:
 U+AC00 has the box 0, 7.5, 0, 8 and the image width 15. The crop of the columns is
-`source_suggested`. Experiment: with the font `minecraft:uniform`, which takes every glyph from
-the Unifont data, draw U+0021 next to the letter `A`. The exclamation mark starts at the pen
-position, with no gap on its left.
+`source_suggested`.
 
 ---
 
@@ -496,9 +469,7 @@ position, with no gap on its left.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high for the
 table and step 1, medium for steps 2 and 3. Evidence: the dump `glyphs`: `bold_offset`,
-`shadow_offset` and `advance_bold`. Steps 2 and 3 are `source_suggested`. Experiment: draw
-bold `日` with a shadow at GUI scale 4. The shadow is 2 pixels right and down. The bold strike
-is 2 pixels to the right.
+`shadow_offset` and `advance_bold`. Steps 2 and 3 are `source_suggested`.
 
 ### FONT-DRAW-002: Italic
 
@@ -510,8 +481,7 @@ is 2 pixels to the right.
 - **Postconditions:** for a box with `top` 0 and `bottom` 8, the top edge moves right by 1 and
   the bottom edge moves left by 1.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: draw italic `I`
-at GUI scale 4 and measure the slant of the stem.
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
@@ -558,7 +528,6 @@ to 5, medium for step 1. Evidence: the dump `configs[0].strings`; each row has `
 width), `width`, and for plain strings `string_width`, the width of the same text as a string.
 A row of the style `mixed` has `text`, the code points of the measured text without any
 separator, and `runs`, the consecutive parts of it with their code points and a `bold` flag.
-Experiment: for step 1, put `§l` in a sign line and compare the width with a bold style.
 
 ---
 
@@ -569,16 +538,6 @@ Experiment: for step 1, put `§l` in a sign line and compare the width with a bo
 - **Behavior:** with no option, the vanilla default font gives each code point of the basic
   plane to these sources:
 
-| Source | Code points (count, basic plane) |
-|--------|----------------------------------|
-| space (index 0) | U+0020, U+200C |
-| `ascii.png` (index 3) | 165, among them U+0021 to U+007E and U+00A3, U+00F7 |
-| `accented.png` (index 2) | 1189 |
-| `nonlatin_european.png` (index 1) | 1018 |
-| Unifont (index 4) | 54712 |
-| the missing glyph (index 5) | 8450 |
-
-  The count of the basic plane is the sum of the table: 65536.
   1. The Unifont gives the glyph to the code points U+0000 to U+001F, to U+007F to U+00A0
      (the dump shows U+00A0 with the advance 5), and to every other code point of the basic
      plane that no earlier source has and the Unifont data has.
@@ -597,7 +556,7 @@ Experiment: for step 1, put `§l` in a sign line and compare the width with a bo
   and the kana come from the Unifont, with the advance 8 or 9.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high. Evidence:
-the dump `configs[0].winners`, `ranges` and `glyphs`. Experiment: none needed.
+the dump `configs[0].winners`, `ranges` and `glyphs`.
 
 ### FONT-SET-002: The options change the set
 
@@ -611,13 +570,13 @@ the dump `configs[0].winners`, `ranges` and `glyphs`. Experiment: none needed.
 - **Postconditions:** the dump `configs[1]` and `configs[3]` have the same providers.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high. Evidence:
-the dump `configs[1..3]`. Experiment: none needed.
+the dump `configs[1..3]`.
 
 ---
 
 ## 8. Intentional deviations
 
-No deviation is recorded.
+None.
 
 ---
 
@@ -633,8 +592,3 @@ No deviation is recorded.
   random number source of the client. A parity test cannot compare it.
 - The right-to-left shaping of text and the order of the glyphs of right-to-left text.
 - The exact text of the warnings that the client writes (FONT-DEF-001, FONT-PROV-001).
-
-## 10. Experiments
-
-Each experiment is in the rule that it tests. None has been run by hand. The dump is the output
-of the game for the rules that cite it.

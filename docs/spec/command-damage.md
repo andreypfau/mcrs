@@ -2,12 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `brigadier:float` 1, `minecraft:resource` 46 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
 This document states the tree of `damage`, the damage source that each form makes, the hit on the
 target, and the messages. It does not prescribe an architecture.
@@ -20,8 +18,7 @@ target, and the messages. It does not prescribe an architecture.
   **source position**, **full hit**, **partial hit**, **rejected hit**: as `entity-damage.md`,
   section 0.1, defines them.
 - **Target**: the entity that the command hits.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-DMG`. None of the experiments
-  has been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-DMG`.
 
 ## 1. Scope
 
@@ -116,15 +113,3 @@ in the same tick. It fails with `commands.damage.invulnerable`.
 
 Provenance: `source_suggested`. Kind: wire for the key and the argument order, semantic for the
 broadcast. Confidence: high.
-
----
-
-## 2. Use in a benchmark
-
-A stimulus that makes a group of pigs panic must use a damage type of `panic_causes`. The type
-`minecraft:cactus` has the tag `no_knockback`, so the hit adds no velocity. The amount 0 hurts no
-pig, so the same group can take the stimulus again after 10 ticks. One run hits one pig, so the
-stimulus is `execute as <selector> run damage @s 0 minecraft:cactus`.
-
-A pig that panics does not make another pig panic. Only the pigs that take the hit panic. The
-other pigs move only when the push of a running pig moves them.

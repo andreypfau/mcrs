@@ -1,8 +1,9 @@
-# Bevy 0.19 Facts
+# Bevy facts
 
-Checked against the `bevy_ecs`, `bevy_app`, `bevy_time`, `bevy_state`,
-`bevy_tasks`, `bevy_asset` and `bevy_diagnostic` 0.19.1 sources. When an answer
-comes from memory of 0.13–0.16, check it against this table first.
+Written against the 0.19.1 sources of `bevy_ecs`, `bevy_app`, `bevy_time`,
+`bevy_state`, `bevy_tasks`, `bevy_asset` and `bevy_diagnostic`. Check a row
+against the locked 0.20.1 source before you rely on it. When an answer comes
+from memory of 0.13-0.16, check it against this table first.
 
 ## Gone or renamed
 
@@ -69,3 +70,12 @@ comes from memory of 0.13–0.16, check it against this table first.
   `app.insert_sub_app(label, sub)` builds a sub-app.
 - `App::ignore_ambiguity(schedule, a, b)` and `.ambiguous_with(x)` document an
   accepted conflict.
+
+## Renamed rendering items
+
+| Old | New |
+|---|---|
+| `bevy::render::view::VisibilityRange` | `bevy::camera::visibility::VisibilityRange` |
+| `PointLight::shadows_enabled` | `PointLight::shadow_maps_enabled` |
+| `render::render_resource::ShaderRef` | `bevy::shader::ShaderRef` |
+| material group 2 | group 3 |

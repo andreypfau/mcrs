@@ -412,7 +412,7 @@ fn path_then_namespace(a: &ResourceLocationBuf, b: &ResourceLocationBuf) -> Orde
 
 #[expect(
     clippy::too_many_lines,
-    reason = "freezes every structure in id order into its kind with one arm per structure type, so the per-step counters advance in the reference's order"
+    reason = "one arm per structure type in id order keeps the counters in order"
 )]
 fn freeze_structures(
     inputs: &StructureInputs<'_>,

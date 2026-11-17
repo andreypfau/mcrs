@@ -316,7 +316,7 @@ impl Layout {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "dispatches each mineshaft piece's child placement by piece type and direction, kept whole so it reads against the reference's addChildren"
+        reason = "one dispatch by piece type and direction"
     )]
     fn add_children(
         &mut self,

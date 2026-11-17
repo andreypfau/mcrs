@@ -126,7 +126,7 @@ fn a_position_update_moves_an_item_at_once_and_an_orb_in_three_steps() {
 }
 
 #[test]
-fn the_tick_after_an_update_that_moves_an_item_at_once_starts_from_the_new_position() {
+fn tick_after_an_instant_item_move_starts_from_the_new_position() {
     for (update, z) in [
         (Update::Move { blocks: 1.5 }, 1.5),
         (Update::Sync { z: 64.0 }, 64.0),

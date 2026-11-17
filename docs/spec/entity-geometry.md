@@ -1,12 +1,8 @@
 # Entity geometry: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Format reference | Bedrock resource pack, `Mojang/bedrock-samples` `1.26.60.5` |
+Format reference: Bedrock resource pack, `Mojang/bedrock-samples` `1.26.60.5`.
 
-Source of the game values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the client reads an entity geometry file, and what model the client
 makes from it. The file format is the geometry format of the Bedrock resource pack. The
@@ -43,14 +39,6 @@ document also states the layout of the entity pack, which `entity-animation.md` 
 The labels of `registry.md`, section 0.3, apply, including the label `design`. The kinds of
 rule are those of `README.md`, section "Semantics, not accidents". A parity test does not
 compare a rule with the label `design` with an external artefact.
-
-Each rule also has a line **Milestone**:
-
-- `1`: the first mob (pig). The geometry, animation clips without controllers, and a render
-  controller that selects a texture by variant.
-- `2`: the second mob (frog). Animation controllers and the rules that it needs.
-- `later`: no milestone uses the rule yet. An implementation of milestone 1 or 2 can
-  reject the input with a content error.
 
 ### 0.3 ID prefixes
 
@@ -102,7 +90,7 @@ model in the world (`client-entity-render.md`).
      content of the file.
 - **Postconditions:** a file outside these subdirectories is not read.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### EGEO-PACK-002: Identifiers
 
@@ -122,7 +110,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** each identifier of each kind has at most one definition.
 
 Provenance: `documentation` for 1 and 2; `design` for 3 to 6. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### EGEO-PACK-003: Lenient JSON
 
@@ -137,7 +125,7 @@ medium. Milestone: 1.
   JSON syntax.
 
 Provenance: `documentation` (vanilla Bedrock resource pack: some files contain comments,
-commas after the last element, and a duplicate key). Kind: semantic. Confidence: high. Milestone: 1.
+commas after the last element, and a duplicate key). Kind: semantic. Confidence: high.
 
 ---
 
@@ -159,8 +147,7 @@ commas after the last element, and a duplicate key). Kind: semantic. Confidence:
 
 The highest version that this document knows is `1.26.10`.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1 for the current
-shape; later for the legacy shape.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EGEO-FMT-002: The legacy shape
 
@@ -179,7 +166,7 @@ shape; later for the legacy shape.
 - **Postconditions:** the geometry has the same model as the equal current shape.
 
 Provenance: `documentation`; `unresolved` for `bind_pose_rotation`. Kind: semantic.
-Confidence: medium. Milestone: later.
+Confidence: medium.
 
 ### EGEO-FMT-003: The current shape
 
@@ -202,7 +189,7 @@ Confidence: medium. Milestone: later.
      each file.
 - **Postconditions:** each geometry of the array is a separate definition.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EGEO-FMT-004: Inheritance in the legacy shape
 
@@ -219,7 +206,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** a resolved geometry has no parent.
 
 Provenance: `documentation` for 1 and 2; `design` for 3 to 6. Kind: semantic. Confidence:
-medium. Milestone: later.
+medium.
 
 ---
 
@@ -239,7 +226,7 @@ medium. Milestone: later.
 - **Postconditions:** none.
 
 Provenance: `documentation` (the right arm bone of the vanilla player geometry has a negative
-x; the vanilla pig head has a negative z). Kind: semantic. Confidence: high. Milestone: 1.
+x; the vanilla pig head has a negative z). Kind: semantic. Confidence: high.
 
 ### EGEO-SPACE-002: Conversion to internal space
 
@@ -260,7 +247,7 @@ x; the vanilla pig head has a negative z). Kind: semantic. Confidence: high. Mil
   - a positive yaw value of the file turns the front of a bone to the right side of the entity.
 
 Provenance: `documentation` (the import conversion of Blockbench; the vanilla pig geometry).
-Kind: semantic. Confidence: high. Milestone: 1.
+Kind: semantic. Confidence: high.
 
 ---
 
@@ -287,8 +274,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
 
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1, except where the
-table says later.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EGEO-BONE-002: Bone names and parents
 
@@ -305,7 +291,7 @@ table says later.
 - **Postconditions:** the bones form a forest.
 
 Provenance: `documentation` for 3 and 4; `design` for the others. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### EGEO-BONE-003: Bone binding
 
@@ -316,13 +302,12 @@ medium. Milestone: 1.
      slot of the item that the model draws.
   2. The client compiles the expression at load. A load error of the expression is a content
      error. The client logs it, and the geometry loads.
-  3. Until the milestone of this rule, the client does not run the expression. The bone keeps
+  3. The client does not run the expression. The bone keeps
      the parent of EGEO-BONE-002.
-- **Postconditions:** a geometry with `binding` loads in each milestone.
+- **Postconditions:** a geometry with `binding` loads.
 
 Provenance: `documentation` (geometry format; bedrock-samples uses the field in attachable
-geometry with `query.item_slot_to_bone_name`). Kind: semantic. Confidence: low. Milestone:
-item 2: 1; items 1 and 3: later.
+geometry with `query.item_slot_to_bone_name`). Kind: semantic. Confidence: low.
 
 ---
 
@@ -347,7 +332,6 @@ item 2: 1; items 1 and 3: later.
 - **Postconditions:** none.
 
 Provenance: `documentation`; `design` for the negative size. Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ### EGEO-CUBE-002: The box of a cube
 
@@ -369,7 +353,7 @@ Milestone: 1.
 Provenance: `documentation`; `design` for the position of the flat box in item 2. Reason: an
 inverted box would turn its faces inside out, and the face rules of
 `client-entity-render.md`, CEREN-SURF-001, expect faces that point out of the box. Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### EGEO-CUBE-003: The cube pivot in format 1.12.0
 
@@ -379,7 +363,7 @@ semantic. Confidence: high. Milestone: 1.
 
 Provenance: `unresolved`. The format reference states that the cube pivot of `1.12.0` is
 "flipped upside-down" and that `1.14.0` corrects it. It does not state the transform. Kind:
-semantic. Confidence: low. Milestone: later.
+semantic. Confidence: low.
 
 ---
 
@@ -407,7 +391,7 @@ semantic. Confidence: low. Milestone: later.
   `block-entity-models.md`, BEM-ART-001, item 6, uses this form.
 
 Provenance: `documentation` (the box UV of Blockbench; the vanilla Bedrock resource pack).
-Kind: semantic. Confidence: high. Milestone: 1.
+Kind: semantic. Confidence: high.
 
 ### EGEO-UV-002: Mirror
 
@@ -419,7 +403,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
   4. `mirror` has no effect on a per-face UV.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### EGEO-UV-003: Per-face UV
 
@@ -440,8 +424,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
   8. The client ignores `material_instance` and logs it one time for each file.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1 for 1 to 5 and 7;
-later for 6 and 8.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### EGEO-UV-004: Normalisation
 
@@ -456,7 +439,6 @@ later for 6 and 8.
   image with a larger size than the texture size maps to the same rectangles.
 
 Provenance: `documentation` for 1; `design` for 2 and 3. Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ### EGEO-UV-005: Corners of a face
 
@@ -478,7 +460,6 @@ Milestone: 1.
   left side of the north face rectangle.
 
 Provenance: `documentation` (the vertex order of Blockbench). Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -508,7 +489,6 @@ Milestone: 1.
 Provenance: `documentation`; `design` for 4, 5 and 6. Reason for 6: the documentation does
 not state the case, and the first locator gives a result that does not depend on later bones.
 Kind: semantic. Confidence: medium.
-Milestone: later.
 
 ---
 
@@ -527,7 +507,6 @@ Milestone: later.
 
 Provenance: `design` (the GPU pose pass stores a bone index in one byte with spare values, and
 evaluates the chain of each bone in a bounded loop). Kind: semantic. Confidence: medium.
-Milestone: 1.
 
 ---
 
@@ -550,7 +529,7 @@ Milestone: 1.
   6. The visible bounds (EGEO-BAKE-002).
 - **Postconditions:** the baked geometry contains no data that changes per entity.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### EGEO-BAKE-002: Visible bounds
 
@@ -576,7 +555,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
   cube disappear at the edge of the view. This is the behaviour of the format.
 
 Provenance: `documentation` for 1, 3 and 6 (the unit of the visible bounds is the block);
-`design` for 2, 4 and 5. Kind: semantic. Confidence: medium. Milestone: 1.
+`design` for 2, 4 and 5. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -601,7 +580,7 @@ Provenance: `documentation` for 1, 3 and 6 (the unit of the visible bounds is th
 - **Postconditions:** with no animation, the vertices are those of the rest pose.
 
 Provenance: `documentation` (the bone transform of Blockbench). Kind: semantic. Confidence:
-high. Milestone: 1.
+high.
 
 ### EGEO-POSE-002: Hidden bones
 
@@ -617,7 +596,7 @@ Provenance: `unresolved` for 3. The format reference does not state whether a hi
 hides its children. The vanilla Bedrock render controllers hide all bones and then show some
 bones, so both meanings give the same result for them. Kind: semantic. Confidence: low.
 Experiment: in Blockbench, load a geometry with a child bone under a hidden parent. Compare
-with the Bedrock game. Milestone: 1.
+with the Bedrock game.
 
 ---
 

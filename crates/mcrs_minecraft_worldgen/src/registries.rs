@@ -123,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn every_reported_static_registry_is_declared_with_its_entries_in_protocol_id_order() {
+    fn reported_static_registries_are_declared_in_protocol_id_order() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../assets/mcrs/reports/registries.json"

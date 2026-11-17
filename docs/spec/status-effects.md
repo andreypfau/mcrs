@@ -1,10 +1,5 @@
 # Status effects: how an effect lives on an entity
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
 This document states how a status effect lives on a living entity. It states how an effect is
 added, how two effects of one kind merge, how an effect ticks down, and how it ends. It states
 what a server must apply each tick for each effect that acts, and the packets that a client sees.
@@ -47,8 +42,7 @@ the exhaustion and the natural regeneration.
 ### 0.2 Provenance
 
 The labels are those of `docs/spec/registry.md`, section 0.3. The rules come from the reference
-implementation and from the artefacts of section 0.5. No experiment of section 13 has run yet. Thus
-no rule has the label `black_box_confirmed`. Each rule states its kind and its confidence.
+implementation and from the artefacts of section 0.5. Each rule states its kind and its confidence.
 
 ### 0.3 ID prefix
 
@@ -550,7 +544,7 @@ in a loaded dimension. A player that leaves with the duration `d` rejoins with `
 | Subject | Reason |
 |---------|--------|
 | the effects of a beacon, a conduit, a potion item, an arrow, a suspicious stew, a golden apple and a totem of undying | items and blocks that give effects are other domains |
-| the commands `effect give` and `effect clear`, except the instant duration in EFX-ACT-004 | `command-effect.md` does not exist yet |
+| the commands `effect give` and `effect clear`, except the instant duration in EFX-ACT-004 | another document |
 | the effects `nausea`, `blindness`, `darkness`, `night_vision`, `glowing`, `levitation`, `slow_falling`, `jump_boost` motion, `haste` mining speed, `conduit_power`, `dolphins_grace`, `bad_omen`, `trial_omen`, `raid_omen`, `hero_of_the_village`, `wind_charged`, `weaving`, `oozing`, `infested`, `freezing` | these effects act in the client or in a later domain; this document only keeps the effect and its modifier |
 | the natural regeneration, the food level and the exhaustion rules | `hunger.md` states them |
 | the advancement trigger that fires when the effects of a player change | advancements are another domain |
@@ -577,27 +571,7 @@ It is also the instant effect that acts each tick of its duration in EFX-ACT-004
 - **U3.** The respawn that keeps all player data (the return from the End) adds the effects of the old
   player to the new player. This occurs before the `respawn` packet. The client then gets blend packets before
   `respawn` and plain packets after it. EFX-NET-007 states only the packets after `respawn`.
-  Experiment E6 decides if the first packets matter to the client.
 - **U4.** No artefact gives the colour, the category and the modifiers of an effect kind. Sections 5
   and 7 state the values from the reference. A later report of the game can replace them.
 - **U5.** The load of an effect does not start its modifier. A hand-edited file can have an effect and no modifier in `attributes`. The effect then has no
   attribute change until the effect changes or a hidden effect takes over. The owner must decide if the load must start the modifiers.
-
-## 13. Experiments
-
-All experiments need a vanilla server of `26.4-snapshot-7`. None has run yet. Use
-`tools/vanilla-server` and the client recorder of `tools/mcrs_minecraft_client_recorder` with the
-input agent of `tools/vanilla-client`. A rule keeps the label `source_suggested` until its
-experiment has run.
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| E1 | Freeze the tick. Give a pig `poison` 0 of 100 ticks, then `poison` 1 of 200 ticks, then `poison` 0 of 400 ticks, then `poison` 2 of 50 ticks. Read `active_effects` with `data get` after each add. | EFX-ADD-001, EFX-ADD-002 |
-| E2 | Freeze the tick. Give a pig `regeneration` 0 of 100 ticks. Step 100 ticks. Read the `Health` after each tick, with the health below the max. Repeat with the amplifiers 1 and 6, and with the infinite duration. | EFX-TCK-002, EFX-ACT-001 |
-| E3 | Give a zombie and a pig `instant_health` and `instant_damage` of the amplifier 0 and 1. Read the `Health` before and after one tick. | EFX-ACT-004 |
-| E4 | Give a pig `absorption` 1. Hit it for 100 with `/damage`. Step 2 ticks. Read `active_effects` and `AbsorptionAmount`. Repeat after you give `absorption` 0 for 600 ticks and let it end. | EFX-ACT-005 |
-| E5 | With the client recorder, give the probe player `speed` 1 of 1300 ticks, then `speed` 3 of 100 ticks. Step 1300 ticks. Record the packets 135, 79 and the attribute packet. | EFX-ADD-002, EFX-TCK-002, EFX-NET-001 to EFX-NET-004, EFX-ATT-002 |
-| E6 | With the recorder, join with `speed` saved in the player file. Then use an end portal to return from the End. Record packets 135 and 84. | EFX-NET-007, EFX-SAV-001, U3 |
-| E7 | Run `/attribute <pig> minecraft:movement_speed get` after `slowness` of the amplifiers 0, 5 and 6. Record the value and the modifier amounts. | EFX-ATT-002, EFX-ATT-003 |
-| E8 | Give a pig `invisibility` and `glowing`, and a visible and an ambient `speed`. Record the entity data of the pig for a second player. | EFX-NET-005 |
-| E9 | Give a horse `speed`. Let the probe player mount the horse, then dismount. Record the packets 135 and 79. | EFX-NET-006 |

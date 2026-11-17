@@ -12,7 +12,7 @@ pub struct OreConfig {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "follows back2beta's ore blob loops over x, y and z with the target test inline, so it reads against that source and keeps its order of draws"
+    reason = "follows back2beta's ore blob loops over x, y and z with the target test inline"
 )]
 pub fn place_beta_ore<V: BlockVolumeMut, R: Random>(
     config: &OreConfig,

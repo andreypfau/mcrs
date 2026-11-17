@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_player_of_the_host_keeps_its_skin_and_a_player_of_the_server_takes_its_profile() {
+    fn host_player_keeps_skin_and_server_player_takes_profile() {
         let mut world = World::new();
         world.init_resource::<ProfileSkins>();
         let skin = PlayerSkin(SkinImage::from_rgba(64, 64, vec![255; 64 * 64 * 4]).unwrap());

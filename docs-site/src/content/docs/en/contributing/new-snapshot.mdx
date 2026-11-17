@@ -59,10 +59,9 @@ mcrs has no datafixer, so chunks, saves and templates written at another `DataVe
 1. Search the docs for the old version string. The version in badges and FAQ text should come from `assets/minecraft/version.json`. If you find a typed copy, replace it.
 2. Go through each page that gets a warning in the PR because its `sources` changed. When the page still matches, update its `verified` block.
 3. If packet tables changed, update the numbers on [Status](/docs/en/start/status/).
-4. If `PERF.md` changed, check that the machine and scenario next to every number on the site are still right.
-5. Retake screenshots and videos that show the version.
-6. Check every interactive explainer. The field "checked against code" in its meta holds the snapshot and a date.
-7. Add a line to [News](/docs/en/project/news/) with the version, what broke and what was fixed.
+4. Retake screenshots and videos that show the version.
+5. Check every interactive explainer. The field "checked against code" in its meta holds the snapshot and a date.
+6. Add a line to [News](/docs/en/project/news/) with the version, what broke and what was fixed.
 
 <Aside type="note">
 The `check-sources` warning reads file paths and knows nothing about meaning. A green run does not prove the docs are right. Read the diffs.

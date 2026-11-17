@@ -16,8 +16,7 @@ starts the client with an offline name. The client joins `SERVER` at once.
 
 ## The input agent
 
-`agent/mcrs/input/Agent.java` adds one call at the start of each client tick. The call
-(`Input.java`) does these steps:
+The input agent in `agent/` adds one call at the start of each client tick. The call does these steps:
 
 1. When the title `Go` shows, it reads `INPUT_FILE`. The first line is `go <tick>`; each other
    line is an `input` line of the scenario format of the recorder, without the keyword.

@@ -2,11 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser ids | `brigadier:double` 2, `minecraft:entity` 6, `minecraft:block_pos` 8, `minecraft:vec3` 10, `minecraft:block_predicate` 13, `minecraft:item_predicate` 15, `minecraft:nbt_path` 23, `minecraft:objective` 24, `minecraft:rotation` 29, `minecraft:score_holder` 31, `minecraft:swizzle` 32, `minecraft:resource_location` 36, `minecraft:function` 37, `minecraft:entity_anchor` 38, `minecraft:int_range` 39, `minecraft:float_range` 40, `minecraft:dimension` 41, `minecraft:resource_or_tag` 44, `minecraft:resource` 46, `minecraft:heightmap` 51, `minecraft:loot_predicate` 53, `minecraft:slot_source` 57 |
 
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
+Source of the parser ids:
 `assets/mcrs/reports/registries.json`, registry `minecraft:command_argument_type`.
 
 This document states the tree of the `execute` command, how each branch changes or tests the
@@ -15,8 +14,7 @@ the messages and the errors. It does not prescribe an architecture.
 
 Sections 1 to 3 state the tree, the source modifiers and the run of a chain. Section 4 states
 the results and the `store` targets. Section 5 states the conditions, and section 6 the
-messages and the errors. Section 8 names the core set of a first implementation, and lists what
-each other branch needs.
+messages and the errors.
 
 ## 0. Conventions
 
@@ -292,8 +290,7 @@ of CMD-EX-032 decide the kind of each node.
   argument has no suggestion type.
 - The arguments with `minecraft:ask_server` get their suggestions from the server
   (`commands-packet.md`, CMDP-SUG). These are the score holders, the boss bar identifiers, the
-  storage identifiers, the function identifiers and the stopwatch identifiers. Section 8 lists
-  the documents that must state these suggestion sources.
+  storage identifiers, the function identifiers and the stopwatch identifiers.
 - The node `execute` has the restricted flag `0x20` (`command-permissions.md`, PERM-SET-002).
   No other node of this document has it.
 
@@ -552,9 +549,6 @@ chat shows the message of `tag`, and no message of `summon`.
 
 - **Postconditions:** each relation except `passengers` gives zero or one entity.
 
-The entity specifications must state which entities have each relation. Section 8 lists this
-gap.
-
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: ride a pig, and
 run `execute on vehicle run tag @s add v`. The pig gets the tag. Then run
 `execute as @e[type=pig,limit=1] on passengers run say a`. The player says `a`.
@@ -781,9 +775,6 @@ is `argument.entity.notfound.entity`.
   value of CMD-EX-042. A score that does not exist is made.
 - **Edge cases:** the objective can have a read-only criterion. The store target writes it.
 
-The argument types `score_holder` and `objective` and the scoreboard have no specification yet
-(section 8).
-
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: run
 `scoreboard objectives add h health` and
 `execute store result score @s h run experience query @s levels` with the level 5. Read the
@@ -826,8 +817,6 @@ with the level 7. Then `bossbar get t:b max` gives 7.
 - **Edge cases:** the data of a player cannot be written. A store into an entity that is a
   player does nothing.
 
-The argument type `nbt_path`, the saved data of entities and block entities, and the command
-storage have no specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: with the level
 300, run `execute store result storage t:s v byte 1 run experience query @s levels`.
@@ -942,8 +931,6 @@ block, and run `execute if block ~ ~-1 ~ minecraft:grass_block`. The reply is
 - **Behavior:** read the block position `pos` (CMD-EX-050). The condition is true when the biome
   of the source dimension at `pos` is the entry `biome`, or is in the tag `biome`.
 
-The biome that the game gives at a block position has no specification yet (section 8).
-
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in a plains
 biome, run `execute if biome ~ ~ ~ minecraft:plains`. The reply is
 `commands.execute.conditional.pass`.
@@ -988,8 +975,6 @@ with 32768 and 35937.
   condition is false. Otherwise the condition is true when the score is in `range`, both bounds
   included.
 
-The argument types `score_holder`, `objective` and `int_range`, and the scoreboard, have no
-specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: run
 `scoreboard players set A o 1` and `scoreboard players set B o 2`. `execute if score A o < B o`
@@ -999,8 +984,6 @@ passes. `execute unless score C o = A o` passes, because `C` has no score.
 
 The condition is true when the loot predicate passes. The loot context has the source position
 as `origin` and the source entity, if any, as `this`. Its parameter set is `minecraft:command`.
-
-The argument type `loot_predicate` and loot predicates have no specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: with a predicate
 `t:p` of the condition `minecraft:random_chance` with the chance 1, run
@@ -1026,8 +1009,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
      `unless`. A source that passes keeps its store targets.
   6. After all calls, the next stage runs with the sources that passed, in order.
 
-The argument type `function`, functions, function tags, macros and `return` have no
-specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: make a function
 `t:one` with the line `return 1`, and a function `t:none` with the line `say x`.
@@ -1039,8 +1020,6 @@ nothing, and the line `say x` sends no message.
 - **Behavior:** if the stopwatch `id` does not exist, fail with
   `commands.stopwatch.does_not_exist`, with the identifier. Otherwise the condition is true when
   the elapsed time of the stopwatch, in seconds, is in `range`.
-
-The argument type `float_range` and stopwatches have no specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: run
 `execute if stopwatch t:none 0..`. The reply is `commands.stopwatch.does_not_exist` with
@@ -1074,8 +1053,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Count of `items`:** the sum of the stack sizes of the selected items that match
   `item_predicate`.
 - **Count of `slots`:** the number of selected slots.
-
-The argument types `slot_source` and `item_predicate` have no specification yet (section 8).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: hold 5 dirt in
 the main hand, and run `execute if items entity @s weapon.mainhand minecraft:dirt`. The reply is
@@ -1123,7 +1100,7 @@ The errors of this document have no position (`command-parser.md`, CMD-ERR-001).
 | `commands.stopwatch.does_not_exist` | the identifier | CMD-EX-062 |
 
 The errors of the argument types also apply: `argument-entity.md`, ARG-ENT-012 and
-ARG-ENT-016, and the documents of section 8.
+ARG-ENT-016.
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: run each experiment
 of the rule column, and read the key and the arguments of each reply.
@@ -1132,73 +1109,11 @@ of the rule column, and read the key and the arguments of each reply.
 
 ## 7. Intentional deviations
 
-No rule of this document corrects the reference. Section 10 lists the cases where the correct
-behaviour is not known.
+None.
 
 ---
 
-## 8. Core set and dependencies
-
-### 8.1 Core set
-
-A first implementation can take these branches:
-
-- `run`;
-- `as`, `at`;
-- `positioned <pos>`, `positioned as`, `positioned over`;
-- `rotated <rot>`, `rotated as`;
-- `facing <pos>`, `facing entity`;
-- `align`;
-- `anchored`;
-- `in`;
-- `if` and `unless` with `entity`, `dimension`, `loaded` and `block`.
-
-The core set also needs sections 3 and 4 without the `store` targets, and CMD-EX-050 to
-CMD-EX-056. The core set has no `store` node, so no store target exists. The results of
-CMD-EX-040 still reach the caller, for example a command block.
-
-Each argument type of the core set has a specification: `minecraft:entity`
-(`argument-entity.md`); `minecraft:vec3`, `minecraft:rotation`, `minecraft:block_pos` and
-`minecraft:swizzle` (`argument-coordinates.md`); `minecraft:entity_anchor` and
-`minecraft:heightmap` (`argument-keywords.md`); `minecraft:block_predicate`
-(`argument-block.md`, with SNBT in `snbt.md`); and `minecraft:dimension`
-(`argument-resource.md`). `heightmap.md` states the heightmap values. Until a branch exists, the tree must not contain it.
-
-### 8.2 Other branches
-
-| Branch | Argument types without a specification | Subsystems |
-|--------|----------------------------------------|------------|
-| `summon` | none: `minecraft:resource` is in `command-time.md` | entity creation of a `summon` specification, the summonable flag of entity types, the first spawn setup of mobs, difficulty |
-| `on` | none | the relations of entities: owner, leash, attack target, last attacker, vehicle, controlling passenger, origin |
-| `if biome` | none | the biome at a block position |
-| `if score` | `minecraft:score_holder`, `minecraft:objective`, `minecraft:int_range` | scoreboard; server suggestions of score holders |
-| `if blocks` | none | block entities, their components and their saved data |
-| `if predicate` | `minecraft:loot_predicate` | loot predicates and loot contexts |
-| `if function` | `minecraft:function` | functions, function tags, macros, `return`, nested calls; server suggestions of functions |
-| `if stopwatch` | `minecraft:float_range` | stopwatches; server suggestions of stopwatches |
-| `if data` | `minecraft:nbt_path` | saved data of entities and block entities, command storage; server suggestions of storage |
-| `if items`, `if slots` | `minecraft:slot_source`, `minecraft:item_predicate` | containers, slots of entities, item components |
-| `store ... score` | `minecraft:score_holder`, `minecraft:objective` | scoreboard |
-| `store ... bossbar` | none | boss bars; server suggestions of boss bars |
-| `store ... entity`, `block`, `storage` | `minecraft:nbt_path` | saved data, command storage |
-
----
-
-## 9. Conformance tests
-
-A conformance test runs each experiment of this document on the reference and on the
-implementation, and compares:
-
-- the tree of CMD-EX-001 to CMD-EX-005 for the branches that the implementation has;
-- the messages, their keys and their arguments;
-- the world state after the command, and the values of the store targets.
-
-A differential test of `facing` compares the angles with the tolerance of CMD-EX-018. It does
-not compare the order of entities that `argument-entity.md` leaves unspecified.
-
----
-
-## 10. Open questions
+## 10. Unresolved
 
 - **Partial preparation of `if function`.** When a tag has a function that needs macro
   arguments, the reference reports the error and still calls the functions of the tag before

@@ -6,7 +6,6 @@ on:
     paths:
       - "site/**"
       - "docs-site/**"
-      - "PERF.md"
       - "assets/minecraft/version.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:

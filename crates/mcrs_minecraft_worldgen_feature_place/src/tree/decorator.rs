@@ -163,11 +163,11 @@ impl<W> TreeSink<W> for NoMoss {
 impl CompiledTreeDecorator {
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per tree decorator kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per tree decorator kind, in the reference's declaration order"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "tests the air at each candidate position inside the arm of its decorator kind, so each kind keeps the reference's order of draws"
+        reason = "tests the air at each candidate position inside the arm of its decorator kind"
     )]
     pub fn place<W: WorldGenVolume>(
         &self,
@@ -900,7 +900,7 @@ mod tests {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "replays the draws per log height and facing and skips the blocked cells, so the expected draw count is visible beside the placement"
+        reason = "replays the draws per log height and facing and skips the blocked cells"
     )]
     fn cocoa_draws_the_age_only_where_it_writes() {
         let placed = place(
