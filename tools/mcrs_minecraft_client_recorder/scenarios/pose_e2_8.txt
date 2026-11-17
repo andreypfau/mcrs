@@ -1,0 +1,37 @@
+# Ride a boat and hold Shift; hold Shift while the console mounts the player; then the console
+# kills the player. Experiment E2, step 8, of docs/spec/player-pose.md: POSE-SRV-007,
+# POSE-SRV-008, POSE-NET-005.
+experiment pose_e2_8
+arena -16 96 -16 48 110 16
+
+step boat_then_shift
+instruction Stand still; the console puts you in a boat. Hold Shift after it for 1 second.
+input 81 shift
+input 101 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run kill @e[type=!minecraft:player]
+run summon minecraft:oak_boat 2.5 100 0.5
+start 0.5 100 0.5 -90 0
+at 65 ride @a[limit=1] mount @e[type=minecraft:oak_boat,limit=1]
+ticks 140
+
+step shift_then_boat
+instruction After Go, hold Shift for 2 seconds; the console puts you in a boat while you hold it.
+input 61 shift
+input 101 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run kill @e[type=!minecraft:player]
+run summon minecraft:oak_boat 2.5 100 0.5
+start 0.5 100 0.5 -90 0
+at 75 ride @a[limit=1] mount @e[type=minecraft:oak_boat,limit=1]
+ticks 140
+
+step die
+instruction Stand still; the console kills you. Do not respawn.
+fill -16 99 -16 48 99 16 minecraft:stone
+run kill @e[type=!minecraft:player]
+start 0.5 100 0.5 -90 0
+at 70 kill @a
+ticks 120
