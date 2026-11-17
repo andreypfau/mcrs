@@ -7,13 +7,13 @@ use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_world::abilities::Abilities;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_game_mode::Abilities;
 
 const FLY_SPEED_PER_NOTCH: f32 = 0.005;
 const FLY_SPEED_MIN: f32 = 0.0;

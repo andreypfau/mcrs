@@ -12,7 +12,7 @@ use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_vanilla_inventory::HandAction;
+use mcrs_minecraft_player_holders::HandAction;
 use mcrs_minecraft_vanilla_inventory::PlayerInventories;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 

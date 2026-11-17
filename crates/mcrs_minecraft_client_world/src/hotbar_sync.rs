@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_inventory_client::InventoryClientSet;
 use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::ClientConnection;
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundSetHeldSlot};
@@ -24,10 +26,20 @@ impl Plugin for HotbarSyncPlugin {
             .add_observer(on_set_held_slot)
             .add_systems(
                 FixedUpdate,
-                send_selected_slot
-                    .in_set(SendSelectedSlot)
-                    .before(LocalPlayerTick)
-                    .run_if(any_with_component::<ClientConnection>),
+                (
+                    send_selected_slot
+                        .in_set(SendSelectedSlot)
+                        .before(LocalPlayerTick)
+                        .run_if(any_with_component::<ClientConnection>),
+                    project_selected,
+                )
+                    .before(InventoryClientSet::Predict),
+            )
+            .add_systems(
+                Update,
+                project_selected
+                    .after(ClientNetworkSystems::Receive)
+                    .before(InventoryClientSet::Predict),
             );
     }
 }
@@ -79,6 +91,15 @@ fn send_selected_slot(
         slot: u16::from(selected.0),
     });
     *last_sent = LastSentHotbarSlot(selected.0);
+}
+
+fn project_selected(
+    mut players: Query<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
+    mut commands: Commands,
+) {
+    for (player, slot) in &mut players {
+        commands.entity(player).try_insert(Selected(slot.0));
+    }
 }
 
 #[cfg(test)]

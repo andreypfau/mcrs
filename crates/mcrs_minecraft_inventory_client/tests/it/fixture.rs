@@ -25,6 +25,7 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::Decode;
+use mcrs_minecraft_wire::Encode;
 
 pub(crate) const STONE: Kind = Kind(1);
 pub(crate) const DIRT: Kind = Kind(2);
@@ -160,4 +161,10 @@ fn holder(world: &World, part: Part) -> Entity {
         Part::CraftGrid => holders.craft_grid,
         Part::CraftResult => holders.craft_result,
     }
+}
+
+pub(crate) fn body<P: Encode>(packet: &P) -> Vec<u8> {
+    let mut body = Vec::new();
+    packet.encode(&mut body).expect("the packet encodes");
+    body
 }

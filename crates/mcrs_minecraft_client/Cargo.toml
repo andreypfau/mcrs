@@ -25,7 +25,7 @@ mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_fog.workspace = true
-mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_light_render.workspace = true
 mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
@@ -78,6 +78,10 @@ mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_engine_item = { workspace = true, optional = true }
+mcrs_minecraft_item_stack = { workspace = true, optional = true }
+mcrs_minecraft_item_table = { workspace = true, optional = true }
+mcrs_minecraft_player_holders = { workspace = true, optional = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_save.workspace = true
@@ -113,8 +117,15 @@ webgl2 = ["bevy/webgl2"]
 scene = ["dep:uuid"]
 dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
+test-support = ["dep:mcrs_minecraft_engine_item", "dep:mcrs_minecraft_item_stack", "dep:mcrs_minecraft_item_table", "dep:mcrs_minecraft_player_holders"]
 
 [dev-dependencies]
+mcrs_minecraft_client = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_inventory_client.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
