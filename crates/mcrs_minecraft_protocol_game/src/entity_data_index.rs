@@ -12,3 +12,6 @@ pub const AGE_LOCKED: u8 = 17;
 
 pub const MOB_FLAG_NO_AI: i8 = 1 << 0;
 pub const MOB_FLAG_LEFT_HANDED: i8 = 1 << 1;
+
+pub const SHARED_FLAG_SHIFT: u8 = 1 << 1;
+pub const SHARED_FLAG_SPRINT: u8 = 1 << 3;

@@ -408,3 +408,16 @@ fn the_twentieth_silent_tick_is_reported_and_exempt_ticks_do_not_count() {
         [Finding::SilentTicks]
     );
 }
+
+#[test]
+fn player_input_is_dropped_until_the_client_has_loaded() {
+    let mut guard = MoveGuard::new();
+    let mut reports = Vec::new();
+    let input = checked(Serverbound::PlayerInput);
+    assert_eq!(guard.serverbound(&input, ms(0), &mut reports), Action::Drop);
+    guard.serverbound(&checked(Serverbound::PlayerLoaded), ms(0), &mut reports);
+    assert_eq!(
+        guard.serverbound(&input, ms(0), &mut reports),
+        Action::Forward
+    );
+}

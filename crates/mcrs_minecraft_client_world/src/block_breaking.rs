@@ -5,7 +5,6 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ConnectionState;
@@ -15,6 +14,8 @@ use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::{ServerboundPlayerAction, ServerboundPunch};
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId};
+
+const PLAYER_EYE_HEIGHT: f64 = 1.62;
 
 use crate::attack_input::AttackInput;
 use crate::block_prediction::BlockPredictions;

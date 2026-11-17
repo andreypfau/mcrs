@@ -11,11 +11,13 @@ doctest = false
 workspace = true
 
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_wire = { workspace = true, optional = true }
 
 [features]
 default = []
 wire = ["dep:mcrs_minecraft_wire"]
+bevy = ["dep:bevy_ecs"]
 
 [dev-dependencies]
 mcrs_minecraft_pose = { path = ".", features = ["wire"] }

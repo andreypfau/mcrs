@@ -232,7 +232,6 @@ impl EntityTypeData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PLAYER_EYE_HEIGHT, PLAYER_HEIGHT, PLAYER_WIDTH};
 
     #[test]
     fn of_finds_each_row_of_all() {
@@ -253,20 +252,5 @@ mod tests {
             EntityTypeData::ALL.len(),
             "ALL misses a row of `of`"
         );
-    }
-
-    #[test]
-    fn the_f64_player_constants_are_the_player_row() {
-        let player = EntityTypeData::PLAYER;
-        for (constant, row) in [
-            (PLAYER_WIDTH, player.width),
-            (PLAYER_HEIGHT, player.height),
-            (PLAYER_EYE_HEIGHT, player.eye_height),
-        ] {
-            assert!(
-                (constant - f64::from(row)).abs() < f64::from(f32::EPSILON) * constant,
-                "{constant} != {row}"
-            );
-        }
     }
 }

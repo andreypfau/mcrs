@@ -20,6 +20,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use mcrs_command::{End, Limits, Resume, SourceLists, Stage};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_engine::PlayerBody;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::command_handoff::CommandHandoff;
 use mcrs_minecraft_engine::coordinator::running_dimensions::RunningDimensions;
@@ -49,6 +50,7 @@ type PlayerRow = (
     &'static GameProfile,
     &'static Transform,
     &'static PlayerGameMode,
+    PlayerBody,
 );
 
 pub(crate) fn commands_pending(
@@ -297,7 +299,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
         .get_or_insert_with(|| world.query_filtered::<PlayerRow, With<Player>>());
     let requests = world.get_resource::<DepartureRequests>();
     targets.players.clear();
-    for (entity, &Owner(session), profile, transform, mode) in players.iter(world) {
+    for (entity, &Owner(session), profile, transform, mode, body) in players.iter(world) {
         let dimension = requests
             .and_then(|requests| requests.destination(entity))
             .and_then(|key| {
@@ -318,6 +320,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
             name: profile.username.clone(),
             transform: *transform,
             mode: mode.0,
+            dimensions: body.dimensions(),
         });
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
@@ -333,6 +336,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
                 name: row.name.clone(),
                 transform: row.transform,
                 mode: row.mode,
+                dimensions: row.dimensions,
             });
         }
     }

@@ -213,6 +213,7 @@ mod tests {
     use bevy_math::DVec3;
     use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
     use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_minecraft_pose::Pose;
     use mcrs_minecraft_protocol::uuid::Uuid;
 
     #[test]
@@ -229,6 +230,7 @@ mod tests {
                 rotation: Rotation::new(0.0, 0.0),
             },
             mode: GameMode::Survival,
+            dimensions: Pose::Standing.player_dimensions(),
         };
         let player = Some(&entry);
         let cases = [

@@ -19,7 +19,10 @@ use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
 use crate::hot_ticket::CellCrossing;
 use crate::network_id::player_network_id;
+use crate::player_sprinting::PlayerSprinting;
+use crate::publish_pose::pose_entries;
 use crate::replicated::Replicated;
+use crate::shift_key::ShiftKey;
 use crate::tile_events::TileEvents;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -56,6 +59,7 @@ pub fn publish_player_tiles(
             Has<AnnounceJoin>,
             Option<&CrossedAt>,
             Option<&AttributeInstances>,
+            (&mcrs_minecraft_pose::Pose, &ShiftKey, &PlayerSprinting),
         ),
         With<Player>,
     >,
@@ -72,6 +76,7 @@ pub fn publish_player_tiles(
         announce,
         crossed,
         attributes,
+        (&body_pose, &shift, &sprinting),
     ) in &mut players
     {
         if crossed.is_some() {
@@ -100,6 +105,7 @@ pub fn publish_player_tiles(
                         pose: pose(&transform),
                         game_mode,
                         attributes: attributes.map(stored_attributes).unwrap_or_default(),
+                        entries: pose_entries(body_pose, shift, sprinting),
                     })
                     .into(),
                 ),

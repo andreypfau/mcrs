@@ -37,6 +37,7 @@ use crate::persisted_registry::{
 };
 use crate::player_sprinting::PlayerSprinting;
 use crate::player_state::{Ints, PlayerFileState, player_state_keys};
+use crate::shift_key::ShiftKey;
 use crate::teleport::TeleportState;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -57,6 +58,7 @@ const TELEPORT_KEYS: &[&str] = &["mcrs:teleport"];
 const SAVED_ATTRIBUTES_KEYS: &[&str] = &["attributes"];
 const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
+const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
 
 pub struct PlayerPersistencePlugin;
@@ -103,7 +105,8 @@ impl Plugin for PlayerPersistencePlugin {
                 CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
             )
-            .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly);
+            .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly)
+            .register_persisted::<ShiftKey>(SHIFT_KEY_KEYS, PersistScope::TravelOnly);
     }
 }
 

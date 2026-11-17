@@ -3,13 +3,13 @@ use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Query, With, Worl
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::{PlayerBody, PoseSystems};
 use mcrs_minecraft_engine_item::{ItemPlugin, ItemSet};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
-use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_server::InventoryServerPlugin;
@@ -51,6 +51,7 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
             FixedUpdate,
             track_collectors
                 .in_set(TickSet::Simulate)
+                .after(PoseSystems::Select)
                 .before(ItemEntitySet),
         );
 }
@@ -66,6 +67,7 @@ fn track_collectors(
             Entity,
             &Owner,
             &Transform,
+            PlayerBody,
             Option<&PlayerGameMode>,
             Option<&GameProfile>,
             Option<&mut ItemCollector>,
@@ -73,7 +75,7 @@ fn track_collectors(
         With<Player>,
     >,
 ) {
-    for (player, owner, transform, game_mode, profile, collector) in &mut players {
+    for (player, owner, transform, body, game_mode, profile, collector) in &mut players {
         let mode = match game_mode.map_or(GameMode::Survival, |mode| mode.0) {
             GameMode::Survival | GameMode::Adventure => Collect::Survival,
             GameMode::Creative => Collect::Creative,
@@ -84,14 +86,11 @@ fn track_collectors(
                 continue;
             }
         };
+        let dimensions = body.dimensions();
         let next = ItemCollector {
             id: EntityId(u64::from(player_network_id(owner.0) as u32)),
             uuid: profile.map_or(0, |profile| profile.id.as_u128()),
-            bounds: Aabb::of_body(
-                transform.translation,
-                EntityTypeData::PLAYER.width,
-                EntityTypeData::PLAYER.height,
-            ),
+            bounds: Aabb::of_body(transform.translation, dimensions.width, dimensions.height),
             vehicle: None,
             mode,
         };
