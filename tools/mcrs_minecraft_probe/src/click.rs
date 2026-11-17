@@ -1,6 +1,7 @@
+use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol_game::item::stack::HashedPatchMap;
-use mcrs_minecraft_protocol_game::item::{ContainerInput, DelimitedStack, HashedStack, ProtoStack};
+use mcrs_minecraft_protocol_game::item::{DelimitedStack, HashedStack, ProtoStack};
 use mcrs_minecraft_registries::WireId;
 use serde::{Deserialize, Serialize};
 
@@ -32,16 +33,16 @@ pub enum ClickMode {
     PickupAll,
 }
 
-impl From<ClickMode> for ContainerInput {
+impl From<ClickMode> for ClickKind {
     fn from(mode: ClickMode) -> Self {
         match mode {
-            ClickMode::Pickup => ContainerInput::Pickup,
-            ClickMode::QuickMove => ContainerInput::QuickMove,
-            ClickMode::Swap => ContainerInput::Swap,
-            ClickMode::Clone => ContainerInput::Clone,
-            ClickMode::Throw => ContainerInput::Throw,
-            ClickMode::QuickCraft => ContainerInput::QuickCraft,
-            ClickMode::PickupAll => ContainerInput::PickupAll,
+            ClickMode::Pickup => ClickKind::PickUp,
+            ClickMode::QuickMove => ClickKind::QuickMove,
+            ClickMode::Swap => ClickKind::Swap,
+            ClickMode::Clone => ClickKind::Clone,
+            ClickMode::Throw => ClickKind::Throw,
+            ClickMode::QuickCraft => ClickKind::Drag,
+            ClickMode::PickupAll => ClickKind::PickUpAll,
         }
     }
 }

@@ -15,6 +15,7 @@ use mcrs_minecraft_client_ticks::Move;
 use mcrs_minecraft_client_ticks::Rotation;
 use mcrs_minecraft_client_ticks::SlotChange;
 use mcrs_minecraft_client_ticks::Teleport;
+use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_protocol::Decode;
@@ -234,9 +235,9 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
             Event::Click(Click {
                 container: packet.container_id.0,
                 state: packet.state_seqno.0,
-                slot: packet.slot_index,
-                button: packet.button,
-                input: snake_case(&format!("{:?}", packet.container_input)),
+                slot: i16::try_from(packet.click.clicked)?,
+                button: packet.click.button,
+                input: input_name(packet.click.kind).to_owned(),
                 cursor: hashed_stack_text(packet.carried_item.as_ref()),
                 changed: packet
                     .changed_slots
@@ -376,6 +377,18 @@ fn data_text(serializer: i32, value: &MetaDataValue<'_>) -> String {
         }
         MetaDataValue::Pose(pose) => format!("pose:{}", snake_case(&format!("{pose:?}"))),
         _ => format!("serializer:{serializer}"),
+    }
+}
+
+fn input_name(kind: ClickKind) -> &'static str {
+    match kind {
+        ClickKind::PickUp => "pickup",
+        ClickKind::QuickMove => "quick_move",
+        ClickKind::Swap => "swap",
+        ClickKind::Clone => "clone",
+        ClickKind::Throw => "throw",
+        ClickKind::Drag => "quick_craft",
+        ClickKind::PickUpAll => "pickup_all",
     }
 }
 

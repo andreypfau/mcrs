@@ -161,6 +161,7 @@ mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated
 mcrs_minecraft_banner_pattern = { path = "crates/mcrs_minecraft_banner_pattern" }
 mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
 mcrs_minecraft_inventory_menu = { path = "crates/mcrs_minecraft_inventory_menu" }
+mcrs_minecraft_container_click = { path = "crates/mcrs_minecraft_container_click" }
 mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
 mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }
 mcrs_minecraft_painting_variant = { path = "crates/mcrs_minecraft_painting_variant" }

@@ -2,6 +2,9 @@ use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::ClickKind;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
@@ -27,7 +30,6 @@ use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_protocol_game::item::ContainerInput;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
@@ -95,7 +97,7 @@ pub(crate) struct Packet {
     container_id: i32,
     state_id: i32,
     slot: i16,
-    input: ContainerInput,
+    kind: ClickKind,
     button: u8,
     changed: Vec<(u16, Option<HashedStack>)>,
     carried: Option<HashedStack>,
@@ -107,7 +109,7 @@ impl Packet {
             container_id: 0,
             state_id,
             slot: i16::try_from(slot).expect("a menu index"),
-            input: ContainerInput::Pickup,
+            kind: ClickKind::PickUp,
             button: 0,
             changed: Vec::new(),
             carried: None,
@@ -117,14 +119,14 @@ impl Packet {
     pub(crate) fn drag_start(state_id: i32) -> Self {
         Self {
             slot: -999,
-            input: ContainerInput::QuickCraft,
+            kind: ClickKind::Drag,
             ..Self::pick_up(state_id, 0)
         }
     }
 
     pub(crate) fn pick_up_all(state_id: i32, slot: u16) -> Self {
         Self {
-            input: ContainerInput::PickupAll,
+            kind: ClickKind::PickUpAll,
             ..Self::pick_up(state_id, slot)
         }
     }
@@ -149,9 +151,11 @@ pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     let packet = ServerboundContainerClick {
         container_id: VarInt(packet.container_id),
         state_seqno: VarInt(packet.state_id),
-        slot_index: packet.slot,
-        button: packet.button,
-        container_input: packet.input,
+        click: Click {
+            kind: packet.kind,
+            button: packet.button,
+            clicked: Clicked::from(packet.slot),
+        },
         changed_slots: packet.changed.into(),
         carried_item: packet.carried,
     };
@@ -318,7 +322,7 @@ fn ien_spn_001_a_throw_click_drops_an_item_entity() {
     let world = app.world_mut();
     let player = joined(world);
     let throw = Packet {
-        input: ContainerInput::Throw,
+        kind: ClickKind::Throw,
         button: 1,
         ..Packet::pick_up(1, HOTBAR_0)
     }
@@ -362,7 +366,7 @@ fn itx_mod_005_a_drag_after_a_click_applies_in_the_same_tick() {
     let drag = |slot: i16, button: u8, changed: Vec<(u16, Option<HashedStack>)>, carried: i32| {
         Packet {
             slot,
-            input: ContainerInput::QuickCraft,
+            kind: ClickKind::Drag,
             button,
             ..Packet::pick_up(1, HOTBAR_0)
         }
@@ -444,7 +448,7 @@ fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
             policy.set(9, refuses_place);
         }
         let quick_move = Packet {
-            input: ContainerInput::QuickMove,
+            kind: ClickKind::QuickMove,
             ..Packet::pick_up(1, HOTBAR_0)
         }
         .claiming(vec![(HOTBAR_0, None), (9, claim(STONE, 5))], None);

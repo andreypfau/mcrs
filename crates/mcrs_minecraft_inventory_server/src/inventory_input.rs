@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
-use mcrs_minecraft_inventory_click::Click;
+use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::ItemStack;
 

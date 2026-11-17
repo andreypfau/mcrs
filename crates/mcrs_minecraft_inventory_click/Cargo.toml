@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_inventory_player.workspace = true
 mcrs_minecraft_inventory_transaction.workspace = true
 

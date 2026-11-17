@@ -1,8 +1,8 @@
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_transaction::Op;
 
-use crate::Click;
 use crate::ClickError;
-use crate::Clicked;
 use crate::Menu;
 use crate::Slots;
 use crate::pick_up::MouseButton;

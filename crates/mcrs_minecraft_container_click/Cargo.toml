@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_container_click"
+description = "The content of a container click as a plain value: the click kind, the button and the clicked menu entry, with its wire codec"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_wire = { workspace = true, optional = true }
+
+[features]
+default = []
+wire = ["dep:mcrs_minecraft_wire"]

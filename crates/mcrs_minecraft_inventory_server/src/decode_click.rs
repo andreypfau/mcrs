@@ -2,13 +2,9 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Local;
 use mcrs_minecraft_engine_registries::RegistryNames;
-use mcrs_minecraft_inventory_click::Click;
-use mcrs_minecraft_inventory_click::ClickKind;
-use mcrs_minecraft_inventory_click::Clicked;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::read_hashed;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol_game::item::ContainerInput;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_wire::Encode;
@@ -38,26 +34,10 @@ pub(crate) fn decode_click(
         player: received.entity,
         container_id: packet.container_id.0,
         state_id: packet.state_seqno.0,
-        click: Click {
-            kind: click_kind(packet.container_input),
-            button: packet.button,
-            clicked: Clicked::from(packet.slot_index),
-        },
+        click: packet.click,
         changed,
         carried: claimed_view(packet.carried_item.as_ref(), &names, bytes),
     });
-}
-
-fn click_kind(input: ContainerInput) -> ClickKind {
-    match input {
-        ContainerInput::Pickup => ClickKind::PickUp,
-        ContainerInput::QuickMove => ClickKind::QuickMove,
-        ContainerInput::Swap => ClickKind::Swap,
-        ContainerInput::Clone => ClickKind::Clone,
-        ContainerInput::Throw => ClickKind::Throw,
-        ContainerInput::QuickCraft => ClickKind::Drag,
-        ContainerInput::PickupAll => ClickKind::PickUpAll,
-    }
 }
 
 fn claimed_view(

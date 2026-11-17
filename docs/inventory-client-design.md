@@ -31,14 +31,16 @@ alone. It also gives the plan of the client work. The users are:
 Terms. Each term has the meaning of `docs/inventory-design.md` section 1. This document adds these
 terms:
 
-- **Click**: the value `Click` of `inventory_menu`. It is one gesture on one menu entry.
+- **Click**: the value `Click` of `container_click`. It is one gesture on one menu entry.
 - **Prediction**: the result of a click on the client before the server answers.
 - **Correction**: a slot content from the server that replaces the content of the client.
 - **Remote menu**: a menu on the client that the server opened.
 
 Decisions of the owner **(decided)**:
 
-- The click value (`Click`, `ClickKind`, `Clicked`) is in `inventory_menu`.
+- The click value (`Click`, `ClickKind`, `Clicked`) is in its own crate `container_click`. The
+  crate is layer 3 data, `no_std` and has no Bevy. It is the content of the `container_click`
+  packet, and its codec is behind the feature `wire`.
 - The packet `ServerboundContainerClick` carries `Click`. `ContainerInput` does not exist.
 - No crate maps a click to a packet. No crate name has `java`, `packet` or `wire` for this purpose.
 - The client keeps its stacks in `engine_item` holders, as the server does.
@@ -75,7 +77,8 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 
 | Crate | Layer | Owns |
 |-|-|-|
-| `inventory_menu` | 3, data | the layout, the menu entries, the click value |
+| `container_click` | 3, data, `no_std` | the click value; its codec behind the feature `wire` |
+| `inventory_menu` | 3, data | the layout, the menu entries |
 | `inventory_click` | 3, rules, `no_std` | a click to operations; `Click::from_input` (a gesture to a click) |
 | `inventory_transaction` | 3, rules | the planner of a request |
 | `inventory_client_view` | 3 | `StateId`, `ClientView` |
@@ -150,7 +153,7 @@ pub struct PlayerItemFilePlugin;
 
 | Name | Crate | Contract |
 |-|-|-|
-| `Click`, `ClickKind`, `Clicked` | `inventory_menu` | One gesture on one menu entry, as data. |
+| `Click`, `ClickKind`, `Clicked` | `container_click` | One gesture on one menu entry, as data. |
 | `Click::from_input` | `inventory_click` | Makes a click from a gesture of a pointer or a key. |
 | `MenuClicks`, `MenuClicker`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
 | `MenuClick { viewer, click }` | `inventory_client` | The one way to click on the client. |
@@ -164,13 +167,13 @@ outside its row. Each crate name has the prefix `mcrs_minecraft_`.
 
 | # | User | What it does | Crates it takes | Check |
 |-|-|-|-|-|
-| 1 | Proxy, packet logger | Reads the typed `Click` of a packet. Removes a shift click in a lobby. | `protocol_game` (with its `inventory_menu`) | It builds with no rules crate and no Bevy. |
+| 1 | Proxy, packet logger | Reads the typed `Click` of a packet. Removes a shift click in a lobby. | `protocol_game` (with its `container_click`) | It builds with no rules crate and no Bevy. |
 | 2 | Bot on Bevy | Writes `MenuClick`. Gets the prediction and the packet. | `inventory_client` | An example clicks with no GUI crate and no render crate in `cargo tree`. |
-| 3 | Bot without Bevy (load test) | Keeps its own slot array. Runs the click kernel. Sends the packet. | `inventory_click`, `inventory_transaction`, `protocol_game` | It builds with no Bevy in `cargo tree`. |
+| 3 | Bot without Bevy (load test) | Keeps its own slot array. Runs the click kernel. Sends the packet. | `inventory_click`, `inventory_transaction`, `protocol_game` (with its `container_click`) | It builds with no Bevy in `cargo tree`. |
 | 4 | Minigame server | Opens a virtual chest with button entries. Locks a slot. Denies a request. | `engine_item`, `engine_inventory_menu` | A plugin opens a 27-slot menu and handles a button with no change to an inventory crate. |
 | 5 | Third-party GUI (egui, web) | Draws the slots from state. Writes `MenuClick` through `Click::from_input`. | `inventory_client` | It needs no screen crate of ours. |
 | 6 | Anti-cheat, analytics | Reads the intents and the results. Writes nothing. | the messages of `engine_item` and of the edge | One system with message readers only. |
-| 7 | Session record and replay | Stores `Click` values. Runs them through the kernel again. | `inventory_menu`, `inventory_click` | The same clicks give the same slots. |
+| 7 | Session record and replay | Stores `Click` values. Runs them through the kernel again. | `container_click`, `inventory_click` | The same clicks give the same slots. |
 | 8 | Bedrock edge | Builds a `Request` directly. Does not use `Click`. | `engine_item`, `engine_inventory_menu` | No crate below the edge knows the edition. |
 | 9 | Save viewer | Reads the inventory of a player file. | `inventory_file` | It builds with no Bevy. |
 
@@ -234,7 +237,7 @@ Each step is one pull request.
 | Step | Issue | Content |
 |-|-|-|
 | A | #982 | The holders and the slot policy are usable by a client. This document. |
-| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to `inventory_menu`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuDrag` and `MenuClickPlugin`. |
+| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuDrag` and `MenuClickPlugin`. |
 | C | #129 | The new crate `inventory_client`: the inbound packets on `engine_item` holders, `RemoteMenu`, `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
 | D | #130 | The open and the close of the menus of the server, generic layouts, container screens, drag paint, double click, item tooltips. Specification: `spec/client-container-screen.md`. |
 | E | #131 | The creative screen. Specification: `spec/client-creative-inventory.md`. |
