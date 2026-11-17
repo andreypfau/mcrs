@@ -9,6 +9,7 @@ use bevy_ecs::world::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::PersistedRegistry;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
@@ -18,6 +19,7 @@ use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_inventory_server::InventoryServerPlugin;
+use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
@@ -148,4 +150,14 @@ pub fn dropped(world: &mut World) -> Vec<(Kind, u8, i16)> {
         .collect();
     dropped.sort_unstable_by_key(|(kind, count, _)| (*kind, *count));
     dropped
+}
+
+pub fn first_menu_sync(world: &World, player: Entity) -> &MenuSync {
+    let first = world
+        .get::<Menus>(player)
+        .and_then(|menus| menus.iter().next())
+        .expect("a restored player has the inventory menu");
+    world
+        .get::<MenuSync>(first)
+        .expect("the inventory menu has a client view")
 }

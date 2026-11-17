@@ -1,8 +1,14 @@
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_inventory_menu::MenuButtons;
+use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_inventory_menu::MenuEntry;
+use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
@@ -121,5 +127,39 @@ fn hand_swap_and_close_change_the_slots_without_the_packet_edge() {
         stacks(world, holders.cursor),
         Vec::new(),
         "the cursor is empty after the close"
+    );
+}
+
+#[test]
+fn closing_a_second_menu_moves_the_cursor_and_keeps_the_craft_grid() {
+    let mut app = gameplay_app();
+    let world = app.world_mut();
+    let player = world.spawn(Player).id();
+    world.flush();
+    let holders = holders(world, player);
+    put(world, holders.cursor, 0, STONE, 3);
+    put(world, holders.craft_grid, 1, DIRT, 2);
+
+    let chest = world.spawn(Slots::new(27)).id();
+    let entries = (0..27).map(|index| MenuEntry { part: 1, index }).collect();
+    let layout = MenuLayout::new(MenuType::Generic9x3, entries, vec![]).expect("a valid layout");
+    let parts = MenuParts::new([player, chest]).expect("two parts");
+    world
+        .commands()
+        .entity(player)
+        .open_menu(layout, parts, MenuButtons::default());
+    world.flush();
+
+    world.commands().entity(player).close_menu();
+    world.flush();
+    assert_eq!(
+        stacks(world, player),
+        vec![(0, STONE, 3)],
+        "the cursor stack moves into the player inventory"
+    );
+    assert_eq!(
+        stacks(world, holders.craft_grid),
+        vec![(1, DIRT, 2)],
+        "the craft grid keeps its stack when another menu closes"
     );
 }

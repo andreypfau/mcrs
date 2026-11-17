@@ -14,7 +14,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_inventory_client_view::SlotView;
-use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -30,6 +29,7 @@ use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
+use crate::fixture::first_menu_sync;
 use crate::fixture::restore;
 use crate::fixture::saved;
 
@@ -146,9 +146,7 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     );
     assert!(content.carried_item.is_empty(), "the file has no cursor");
 
-    let sync = world
-        .get::<MenuSync>(player)
-        .expect("a restored player has a client view");
+    let sync = first_menu_sync(world, player);
     assert_eq!(sync.state_id().get(), 1);
     let views: Vec<Option<&SlotView>> = [0, 5, 9, 36].map(|index| sync.view().entry(index)).into();
     assert_eq!(

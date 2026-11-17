@@ -1,3 +1,5 @@
+use core::iter;
+
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Query;
 use bevy_ecs::world::World;
@@ -8,7 +10,7 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_transaction::Filter;
@@ -17,17 +19,10 @@ use mcrs_minecraft_inventory_transaction::Planned;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 
-use crate::holder_slots::holder_entity;
+use crate::menu_slots::MenuSlots;
 use crate::stack_size::clamp_stack_size;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
-const HOLDERS: [Holder; 4] = [
-    Holder::Inventory,
-    Holder::Cursor,
-    Holder::CraftGrid,
-    Holder::CraftResult,
-];
-const SLOT_COUNT: usize = 47;
+const CAPACITY: usize = MenuLayout::MAX_LEN as usize + 42;
 
 const OPEN: SlotAccess = SlotAccess {
     limit: 99,
@@ -51,71 +46,99 @@ enum SlotState {
     },
 }
 
+#[derive(Clone, Copy, Debug)]
+struct KnownSlot {
+    slot: SlotRef,
+    state: SlotState,
+}
+
+const UNKNOWN: KnownSlot = KnownSlot {
+    slot: SlotRef {
+        holder: Entity::PLACEHOLDER,
+        index: 0,
+    },
+    state: SlotState::Missing,
+};
+
 pub(crate) struct ClickSlots<'w> {
     world: &'w World,
     player: Entity,
-    holders: PlayerHolders,
-    slots: [SlotState; SLOT_COUNT],
+    cursor: SlotRef,
+    slots: [KnownSlot; CAPACITY],
+    len: usize,
 }
 
 impl<'w> ClickSlots<'w> {
     pub(crate) fn read(
         world: &'w World,
         player: Entity,
-        holders: PlayerHolders,
+        menu: MenuSlots,
+        cursor: SlotRef,
         holder_slots: &Query<(&Slots, Option<&SlotPolicy>)>,
         stacks: &mut Stacks,
     ) -> Self {
-        let mut slots = [SlotState::Missing; SLOT_COUNT];
-        for holder in HOLDERS {
-            let Ok((content, policy)) = holder_slots.get(holder_entity(&holders, player, holder))
-            else {
-                continue;
-            };
-            for index in 0..holder.slot_count() {
-                let Some(flat) = flat(MenuSlot::new(holder, index)) else {
-                    continue;
-                };
-                if usize::from(index) >= content.len() {
-                    continue;
-                }
-                let stack = content
-                    .get(usize::from(index))
-                    .and_then(|entity| planned(entity, flat, &slots, stacks));
-                let access = policy.map_or(OPEN, |policy| policy.access(index));
-                if let Some(slot) = slots.get_mut(flat) {
-                    *slot = SlotState::Holds { stack, access };
-                }
-            }
-        }
-        Self {
+        let mut read = Self {
             world,
             player,
-            holders,
-            slots,
+            cursor,
+            slots: [UNKNOWN; CAPACITY],
+            len: 0,
+        };
+        let entries = (0..menu.len()).filter_map(|index| menu.slot(index));
+        let inventory = (0..Holder::Inventory.slot_count()).map(|index| SlotRef {
+            holder: player,
+            index,
+        });
+        for slot in entries.chain(iter::once(cursor)).chain(inventory) {
+            read.add(slot, holder_slots, stacks);
         }
+        read
     }
 
-    pub(crate) fn slot_ref(&self, slot: MenuSlot) -> SlotRef {
-        SlotRef {
-            holder: holder_entity(&self.holders, self.player, slot.holder),
-            index: slot.index,
+    fn add(
+        &mut self,
+        slot: SlotRef,
+        holder_slots: &Query<(&Slots, Option<&SlotPolicy>)>,
+        stacks: &mut Stacks,
+    ) {
+        if self.find(slot).is_some() {
+            return;
         }
+        let Ok((content, policy)) = holder_slots.get(slot.holder) else {
+            return;
+        };
+        let index = usize::from(slot.index);
+        if index >= content.len() {
+            return;
+        }
+        let known = self.slots.get(..self.len).unwrap_or_default();
+        let stack = content
+            .get(index)
+            .and_then(|entity| planned(entity, self.len, known, stacks));
+        let access = policy.map_or(OPEN, |policy| policy.access(slot.index));
+        let Some(free) = self.slots.get_mut(self.len) else {
+            return;
+        };
+        *free = KnownSlot {
+            slot,
+            state: SlotState::Holds { stack, access },
+        };
+        self.len += 1;
     }
 
-    pub(crate) fn holds_empty(&self, slot: MenuSlot) -> bool {
-        matches!(self.state(slot), SlotState::Holds { stack: None, .. })
+    fn find(&self, slot: SlotRef) -> Option<&KnownSlot> {
+        let known = self.slots.get(..self.len).unwrap_or_default();
+        known.iter().find(|known| known.slot == slot)
     }
 
-    fn state(&self, slot: MenuSlot) -> SlotState {
-        flat(slot)
-            .and_then(|flat| self.slots.get(flat).copied())
-            .unwrap_or(SlotState::Missing)
+    fn state(&self, slot: SlotRef) -> SlotState {
+        self.find(slot)
+            .map_or(SlotState::Missing, |known| known.state)
     }
 
-    fn answer(&self, gate: Gate, slot: MenuSlot, stack: Entity) -> Filter {
+    fn answer(&self, gate: Gate, slot: SlotRef, stack: Entity) -> Filter {
         let query = GateQuery {
-            slot: self.slot_ref(slot),
+            slot,
             actor: self.player,
             stack,
         };
@@ -124,18 +147,21 @@ impl<'w> ClickSlots<'w> {
 }
 
 impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
-    type Slot = MenuSlot;
+    type Slot = SlotRef;
     type Stack = StackHandle;
 
-    fn cursor(&self) -> MenuSlot {
-        MenuSlot::new(Holder::Cursor, 0)
+    fn cursor(&self) -> SlotRef {
+        self.cursor
     }
 
-    fn inventory(&self, index: u16) -> Option<MenuSlot> {
-        (index < Holder::Inventory.slot_count()).then_some(MenuSlot::new(Holder::Inventory, index))
+    fn inventory(&self, index: u16) -> Option<SlotRef> {
+        (index < Holder::Inventory.slot_count()).then_some(SlotRef {
+            holder: self.player,
+            index,
+        })
     }
 
-    fn load(&self, slot: MenuSlot) -> Option<Loaded<StackHandle>> {
+    fn load(&self, slot: SlotRef) -> Option<Loaded<StackHandle>> {
         let SlotState::Holds { stack, access } = self.state(slot) else {
             return None;
         };
@@ -151,7 +177,7 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
         })
     }
 
-    fn place(&self, slot: MenuSlot, stack: StackHandle) -> Filter {
+    fn place(&self, slot: SlotRef, stack: StackHandle) -> Filter {
         match self.state(slot) {
             SlotState::Holds { access, .. } => self.answer(access.place, slot, stack.entity),
             SlotState::Missing => Filter::Refuses,
@@ -167,21 +193,10 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
     }
 }
 
-fn flat(slot: MenuSlot) -> Option<usize> {
-    let mut base = 0;
-    for holder in HOLDERS {
-        if holder == slot.holder {
-            return (slot.index < holder.slot_count()).then(|| base + usize::from(slot.index));
-        }
-        base += usize::from(holder.slot_count());
-    }
-    None
-}
-
 fn planned(
     entity: Entity,
-    flat: usize,
-    slots: &[SlotState],
+    position: usize,
+    known: &[KnownSlot],
     stacks: &mut Stacks,
 ) -> Option<Planned<StackHandle>> {
     let kind = stacks.kind(entity)?;
@@ -195,15 +210,15 @@ fn planned(
     } else {
         Stacking::Stacks
     };
-    let alike = (slots.iter())
-        .filter_map(|state| match state {
+    let alike = (known.iter())
+        .filter_map(|known| match known.state {
             SlotState::Holds {
                 stack: Some(stack), ..
             } => Some(stack.stack),
             _ => None,
         })
         .find(|other| stacks.mergeable(other.entity, entity))
-        .map_or(flat, |other| other.alike);
+        .map_or(position, |other| other.alike);
     Some(Planned {
         stack: StackHandle {
             entity,

@@ -7,6 +7,7 @@ mod creative;
 mod fixture;
 mod full_state;
 mod hand;
+mod menu;
 
 use mcrs_test_alloc::CountingAllocator;
 

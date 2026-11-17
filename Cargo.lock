@@ -5114,6 +5114,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_inventory_menu"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_text",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_item"
 version = "0.5.8"
 dependencies = [
@@ -5683,6 +5694,7 @@ dependencies = [
 name = "mcrs_minecraft_inventory_menu"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5694,11 +5706,14 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_inventory_file",
+ "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_inventory",
 ]
 
@@ -5729,6 +5744,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
@@ -6984,6 +7000,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
@@ -6992,6 +7009,7 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_file",
+ "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_inventory_transaction",
  "mcrs_minecraft_item_entity",

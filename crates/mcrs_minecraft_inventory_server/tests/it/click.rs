@@ -17,7 +17,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::HashScratch;
@@ -43,6 +42,7 @@ use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
 use crate::fixture::dropped;
+use crate::fixture::first_menu_sync;
 use crate::fixture::holders;
 use crate::fixture::saved;
 use crate::fixture::stacks;
@@ -92,6 +92,7 @@ fn on_wire(hashed: Option<&mcrs_minecraft_item_stack::HashedStack>) -> Option<Ha
 }
 
 pub(crate) struct Packet {
+    container_id: i32,
     state_id: i32,
     slot: i16,
     input: ContainerInput,
@@ -103,12 +104,28 @@ pub(crate) struct Packet {
 impl Packet {
     pub(crate) fn pick_up(state_id: i32, slot: u16) -> Self {
         Self {
+            container_id: 0,
             state_id,
             slot: i16::try_from(slot).expect("a menu index"),
             input: ContainerInput::Pickup,
             button: 0,
             changed: Vec::new(),
             carried: None,
+        }
+    }
+
+    pub(crate) fn drag_start(state_id: i32) -> Self {
+        Self {
+            slot: -999,
+            input: ContainerInput::QuickCraft,
+            ..Self::pick_up(state_id, 0)
+        }
+    }
+
+    pub(crate) fn pick_up_all(state_id: i32, slot: u16) -> Self {
+        Self {
+            input: ContainerInput::PickupAll,
+            ..Self::pick_up(state_id, slot)
         }
     }
 
@@ -121,11 +138,16 @@ impl Packet {
         self.carried = carried;
         self
     }
+
+    pub(crate) fn in_container(mut self, container_id: i32) -> Self {
+        self.container_id = container_id;
+        self
+    }
 }
 
 pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     let packet = ServerboundContainerClick {
-        container_id: VarInt(0),
+        container_id: VarInt(packet.container_id),
         state_seqno: VarInt(packet.state_id),
         slot_index: packet.slot,
         button: packet.button,
@@ -142,7 +164,7 @@ pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     world.flush();
 }
 
-fn summary(stack: &ProtoStack<Wire>) -> String {
+pub(crate) fn summary(stack: &ProtoStack<Wire>) -> String {
     if stack.is_empty() {
         "empty".to_owned()
     } else {
@@ -170,17 +192,15 @@ pub(crate) fn sent(world: &mut World) -> Vec<String> {
             PacketPayload::SetCursorItem(cursor) => {
                 Some(format!("cursor {}", summary(&cursor.contents)))
             }
+            PacketPayload::OpenScreen(screen) => Some(format!("open {}", screen.container_id.0)),
+            PacketPayload::ContainerClose(close) => Some(format!("close {}", close.container_id.0)),
             _ => None,
         })
         .collect()
 }
 
 fn state_id(world: &World, player: Entity) -> u16 {
-    world
-        .get::<MenuSync>(player)
-        .expect("a joined player has a client view")
-        .state_id()
-        .get()
+    first_menu_sync(world, player).state_id().get()
 }
 
 #[test]

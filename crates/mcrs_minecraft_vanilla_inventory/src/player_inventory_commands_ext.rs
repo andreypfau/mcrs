@@ -8,7 +8,6 @@ use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_stack::ItemStack;
 
 use crate::HandAction;
-use crate::apply_close::apply_close;
 use crate::apply_creative_drop::apply_creative_drop;
 use crate::apply_creative_set::apply_creative_set;
 use crate::apply_selected_slot::apply_selected_slot;
@@ -24,8 +23,6 @@ pub trait PlayerInventoryCommandsExt {
     fn creative_set(&mut self, slot: SlotRef, stack: Option<ItemStack>) -> &mut Self;
 
     fn creative_drop(&mut self, stack: ItemStack) -> &mut Self;
-
-    fn close_menu(&mut self) -> &mut Self;
 
     fn clear_items(&mut self) -> &mut Self;
 
@@ -49,10 +46,6 @@ impl PlayerInventoryCommandsExt for EntityCommands<'_> {
 
     fn creative_drop(&mut self, stack: ItemStack) -> &mut Self {
         queue_system(self, apply_creative_drop, move |player| (player, stack))
-    }
-
-    fn close_menu(&mut self) -> &mut Self {
-        queue_system(self, apply_close, |player| player)
     }
 
     fn clear_items(&mut self) -> &mut Self {

@@ -6,9 +6,14 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::Commands;
 use bevy_ecs::world::World;
 
+use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
+use mcrs_minecraft_engine_inventory_menu::Menus;
+
 use crate::InventoryInput;
+use crate::MenuSync;
 use crate::apply_click::apply_click;
 use crate::click_drag::ClickDrag;
+use crate::close_origin::CloseOrigin;
 use crate::set_creative_mode_slot::apply_creative_packet;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
@@ -39,6 +44,7 @@ fn apply_input(world: &mut World, id: usize) {
             }
             InventoryInput::Close { player } => {
                 end_drag(world, player);
+                mark_closed_by_client(world, player);
                 world.commands().entity(player).close_menu();
                 Ok(())
             }
@@ -63,5 +69,20 @@ fn apply_input(world: &mut World, id: usize) {
 fn end_drag(world: &mut World, player: Entity) {
     if let Some(mut drag) = world.get_mut::<ClickDrag>(player) {
         drag.set_if_neq(ClickDrag::default());
+    }
+}
+
+fn mark_closed_by_client(world: &mut World, player: Entity) {
+    let Some(menus) = world.get::<Menus>(player) else {
+        return;
+    };
+    let Some(open) = menus.open() else {
+        return;
+    };
+    if menus.iter().next() == Some(open) {
+        return;
+    }
+    if let Some(mut sync) = world.get_mut::<MenuSync>(open) {
+        sync.close_origin = CloseOrigin::Client;
     }
 }

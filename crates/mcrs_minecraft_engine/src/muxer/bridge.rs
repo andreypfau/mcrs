@@ -591,6 +591,8 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::ContainerSetContent(p) => sink.write_packet_fallible(&p),
         PacketPayload::ContainerSetSlot(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetCursorItem(p) => sink.write_packet_fallible(&p),
+        PacketPayload::OpenScreen(p) => sink.write_packet_fallible(&p),
+        PacketPayload::ContainerClose(p) => sink.write_packet_fallible(&p),
     }
 }
 

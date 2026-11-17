@@ -5,6 +5,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_inventory_menu::MenuPlugin;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
@@ -13,12 +14,14 @@ use crate::InventoryServerSet;
 use crate::MenuSync;
 use crate::apply_inventory_input::apply_inventory_input;
 use crate::close_container::close_container;
+use crate::close_menu_sync::close_menu_sync;
 use crate::decode_click::decode_click;
 use crate::decode_hand_action::decode_hand_action;
 use crate::forget_rejected_swap::forget_rejected_swap;
 use crate::full_sends::FullSends;
 use crate::full_sends::any_full_send;
 use crate::menu_queue::MenuQueue;
+use crate::open_menu_sync::open_menu_sync;
 use crate::queue_full_send::queue_full_send;
 use crate::send_full_state::send_full_state;
 use crate::set_carried_item::set_carried_item;
@@ -31,6 +34,9 @@ pub struct InventoryServerPlugin;
 
 impl Plugin for InventoryServerPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<MenuPlugin>() {
+            app.add_plugins(MenuPlugin);
+        }
         app.add_message::<OutboundPlayerPacket>()
             .add_message::<InventoryInput>()
             .init_resource::<FullSends>()
@@ -63,6 +69,8 @@ impl Plugin for InventoryServerPlugin {
             .add_observer(decode_hand_action)
             .add_observer(close_container)
             .add_observer(set_creative_mode_slot)
-            .add_observer(forget_rejected_swap);
+            .add_observer(forget_rejected_swap)
+            .add_observer(open_menu_sync)
+            .add_observer(close_menu_sync);
     }
 }
