@@ -50,7 +50,7 @@ experiment again.
 
 The second argument of `record.sh` is the output directory `<out>`. Without it, the recordings
 of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, the recordings of
-`pose_e2_1` to `pose_e2_8` (experiment E2 of `docs/spec/player-pose.md`, section 9) go to
+the scenarios `pose_*` (the experiments of `docs/spec/player-pose.md`, section 9) go to
 `recordings/pose` in this directory, and the others go to
 `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
@@ -140,7 +140,7 @@ Do not commit a cheat client. Commit only the recordings.
 
 The recordings in `cheats/` are proxy-emulated: no cheat client made them. A real cheat client of
 this version does not exist. With `CHEAT=<module>`, an honest vanilla client plays, and the proxy
-changes the serverbound movement as the module does. The client does not see the change. The
+changes the serverbound packets as the module does. The client does not see the change. The
 server then has `allow-flight=true`, so that it does not kick a player that floats. A step in
 which the proxy changed no packet gives no recording.
 
@@ -152,6 +152,20 @@ which the proxy changed no packet gives no recording.
 | `phase` | Each reported position is 0.5 blocks lower, in the floor. |
 | `step` | A position on the ground with a horizontal collision is reported 1 block higher. |
 | `timer` | After each fourth client tick, the proxy sends the last move packet and `client_tick_end` again. |
+| `start_fall_flying` | When `player_input` turns the jump flag on, the proxy sends `player_command` with the action `start_fall_flying` after it. |
+| `no_shift_input` | `player_input` never has the shift flag. |
+| `shift_before_loaded` | Before each `player_loaded`, the proxy sends `player_input` with the shift flag. |
+
+The last three modules are for experiment E8 of `docs/spec/player-pose.md`, section 9. Each
+module has its scenario: `pose_e8_1` for `start_fall_flying`, `pose_e8_2` for `no_shift_input`
+and `pose_e8_3` for `shift_before_loaded`. A recording shows each packet that the server
+receives, the packets of the proxy included. A packet that the proxy changes before the client
+has loaded the world changes each step.
+
+```sh
+MINECRAFT_EULA=true AUTOPLAY=true CHEAT=start_fall_flying \
+    tools/mcrs_minecraft_client_recorder/record.sh pose_e8_1
+```
 
 C1 has no wall, so `step` changes nothing in it. E13 has a wall:
 
@@ -204,6 +218,7 @@ line is a tick in which the client sent no move packet.
 | `> input <keys>` | `player_input` |
 | `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
 | `> command <action>` | `player_command` with another action |
+| `> interact <true or false>` | `interact`; true when its secondary action flag is on |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |

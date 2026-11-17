@@ -29,6 +29,7 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundInteract;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPosRot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerRot;
@@ -181,6 +182,7 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
             PlayerCommandAction::StopSprinting => Event::Sprinting(false),
             action => Event::Command(snake_case(&format!("{action:?}"))),
         },
+        "interact" => Event::Interact(ServerboundInteract::decode(r)?.using_secondary_action),
         "use_item" => Event::UseItem,
         "player_action"
             if ServerboundPlayerAction::decode(r)?.action == PlayerAction::ReleaseUseItem =>

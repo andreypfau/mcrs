@@ -19,6 +19,7 @@ pub enum Event {
     Input(Keys),
     Sprinting(bool),
     Command(String),
+    Interact(bool),
     UseItem,
     ReleaseUseItem,
     Move(Move),
@@ -215,6 +216,7 @@ impl fmt::Display for Event {
             }
             Self::Sprinting(sprinting) => write!(f, "> sprint {sprinting}"),
             Self::Command(action) => write!(f, "> command {action}"),
+            Self::Interact(secondary) => write!(f, "> interact {secondary}"),
             Self::UseItem => f.write_str("> use_item"),
             Self::ReleaseUseItem => f.write_str("> release_use_item"),
             Self::Move(step) => {
@@ -242,6 +244,7 @@ impl Event {
             Self::Input(_)
                 | Self::Sprinting(_)
                 | Self::Command(_)
+                | Self::Interact(_)
                 | Self::UseItem
                 | Self::ReleaseUseItem
                 | Self::Move(_)
@@ -314,6 +317,7 @@ impl Event {
             }
             (">", "sprint") => Self::Sprinting(fields.value("sprint")?),
             (">", "command") => Self::Command(fields.word("action")?.to_owned()),
+            (">", "interact") => Self::Interact(fields.value("secondary")?),
             (">", "use_item") => Self::UseItem,
             (">", "release_use_item") => Self::ReleaseUseItem,
             (">", "move") => parse_move(&mut fields)?,

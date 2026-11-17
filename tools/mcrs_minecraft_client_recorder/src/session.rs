@@ -87,6 +87,7 @@ pub(crate) struct Session {
     cheating: bool,
     phase: Phase,
     snapshot: Snapshot,
+    rewritten_at_join: bool,
 }
 
 impl Session {
@@ -105,6 +106,7 @@ impl Session {
             cheating,
             phase: Phase::Waiting,
             snapshot: Snapshot::default(),
+            rewritten_at_join: false,
         }
     }
 
@@ -143,7 +145,7 @@ impl Session {
                             events,
                             gap,
                             ticks: 0,
-                            rewritten: false,
+                            rewritten: self.rewritten_at_join,
                         },
                     };
                 } else if let Phase::Recording { segment, .. } = &mut self.phase {
@@ -153,11 +155,11 @@ impl Session {
                 self.snapshot.apply(&event);
             }
             Observed::Sent(time, event) => self.sent(time, event)?,
-            Observed::Rewritten => {
-                if let Phase::Recording { segment, .. } = &mut self.phase {
-                    segment.rewritten = true;
-                }
-            }
+            Observed::Rewritten => match &mut self.phase {
+                Phase::Recording { segment, .. } => segment.rewritten = true,
+                Phase::Waiting => self.rewritten_at_join = true,
+                _ => {}
+            },
         }
         Ok(())
     }

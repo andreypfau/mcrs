@@ -21,6 +21,7 @@ events
 12500 > move - 12.25,-3.5 none
 13750 > tick
 14000 > command start_fall_flying
+14500 > interact true
 15000 > input none
 ";
 
