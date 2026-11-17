@@ -13,10 +13,14 @@ sources:
   - assets/minecraft/version.json
   - issue:437
   - issue:82
+  - src/main.rs
+  - pr:768
+  - pr:770
+  - pr:933
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -37,7 +41,7 @@ The repository has been open since 2025-12-10, and the project is an early work 
 
 - World generation matches the real game on reference dumps, element by element. The check covers reference seeds and chunks, so it does not cover every seed.
 - The client draws terrain, sky, clouds, light and mobs.
-- A vanilla client of the same snapshot can join the server in offline mode, chat, change game mode and break blocks in creative.
+- A vanilla client of the same snapshot can join the server in offline mode, chat, place and break blocks, and pick up the items that broken blocks drop. Changing the game mode and other commands need operator rights.
 
 The [Status](/docs/en/start/status/) page has the full table, with a link to the issue for every missing piece.
 
