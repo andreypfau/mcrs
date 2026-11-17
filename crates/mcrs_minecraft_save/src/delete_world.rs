@@ -17,11 +17,11 @@ pub fn delete_world(dir: &Path) -> Result<(), SaveError> {
     }
     let lock = SaveLock::take(dir)?;
     retry(dir, || remove_contents(dir))?;
-    drop(lock);
     retry(dir, || {
-        fs::remove_file(dir.join(LOCK_FILE)).or_else(missing)?;
-        fs::remove_dir(dir)
-    })
+        fs::remove_file(dir.join(LOCK_FILE)).or_else(missing)
+    })?;
+    drop(lock);
+    retry(dir, || fs::remove_dir(dir))
 }
 
 fn retry(dir: &Path, mut removal: impl FnMut() -> io::Result<()>) -> Result<(), SaveError> {
