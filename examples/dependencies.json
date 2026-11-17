@@ -1,4 +1,22 @@
 {
+  "mcrs_minecraft_inventory_bot_click": [
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_gui*",
+    "mcrs_minecraft_render*",
+    "mcrs_minecraft_model*",
+    "mcrs_minecraft_mesh",
+    "mcrs_minecraft_light_render",
+    "mcrs_minecraft_entity_render",
+    "mcrs_molang_wgsl",
+    "bevy_render",
+    "bevy_winit",
+    "bevy_window",
+    "wgpu*",
+    "winit*",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_engine_server",
+    "mcrs_minecraft_inventory_server"
+  ],
   "mcrs_minecraft_inventory_minigame": [
     "mcrs_minecraft_inventory_server",
     "mcrs_minecraft_inventory_click",
