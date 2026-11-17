@@ -12,13 +12,9 @@ use mcrs_minecraft_text::Text;
 
 use crate::login::LoginState;
 
-/// Asks the server to disconnect every connection, including those that arrive later, and to
-/// write [`AppExit::Success`] once no connection or unsaved player is left and the host files are
-/// on the disk. A save that fails writes [`AppExit::error`] instead.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShutdownRequest;
 
-/// Handles [`ShutdownRequest`]. It installs no signal handler; the embedder writes the request.
 pub struct ShutdownPlugin;
 
 impl Plugin for ShutdownPlugin {
@@ -29,14 +25,11 @@ impl Plugin for ShutdownPlugin {
     }
 }
 
-/// How far the shutdown has come. One value per server, so the steps cannot disagree.
 #[derive(Default)]
 pub(crate) enum ShutdownPhase {
     #[default]
     Running,
-    /// The connections close, the dimensions save and the departing players reach the disk.
     Draining,
-    /// The host files are on their way to the disk. `failed` holds the result of the save before.
     WritingHostState {
         failed: bool,
     },

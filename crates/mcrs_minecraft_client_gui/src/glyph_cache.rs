@@ -4,14 +4,10 @@ use bevy::prelude::Resource;
 
 pub use crate::font_unihex::CELL;
 
-/// Cells of the atlas region the Unifont glyphs on screen take turns in.
 pub const COLUMNS: usize = 32;
 pub const ROWS: usize = 32;
 pub const SLOTS: usize = COLUMNS * ROWS;
 
-/// Which Unifont glyph holds each cell of the atlas's glyph region. The batch carries this table
-/// to the render world, which draws a glyph into every cell whose content changed there; so a frame
-/// the render world missed costs nothing.
 #[derive(Resource, Debug)]
 pub struct GlyphCache {
     frame: u64,
@@ -40,10 +36,6 @@ impl GlyphCache {
         &self.resident
     }
 
-    /// The cell holding `ch`, which a miss fills by evicting the cell unused for longest. `None`
-    /// when every cell is in use this frame.
-    // chisle: a frame that shows more than `SLOTS` distinct Unifont glyphs leaves the rest
-    // undrawn; a larger region lifts it.
     pub fn cell(&mut self, ch: char) -> Option<usize> {
         if let Some(&cell) = self.cells.get(&ch) {
             if let Some(used) = self.used.get_mut(cell) {
@@ -70,7 +62,6 @@ impl GlyphCache {
     }
 }
 
-/// The top left texel of `cell` in the glyph region.
 pub fn cell_origin(cell: usize) -> (u32, u32) {
     (
         (cell % COLUMNS * CELL) as u32,

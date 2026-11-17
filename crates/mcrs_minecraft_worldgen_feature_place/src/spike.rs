@@ -13,12 +13,8 @@ pub struct CompiledSpike {
     pub can_replace: Predicate,
 }
 
-/// The reference's floor for the root that hangs under a spike, absolute and
-/// independent of the dimension's own bottom.
 const ROOT_FLOOR: i32 = 50;
 
-/// An ice spike: a tapering cone of `state`, mirrored below its base when the
-/// cone is wide enough, then up to nine roots bored downwards from it.
 pub fn place_spike<W: WorldGenVolume>(
     cfg: &CompiledSpike,
     volume: &mut W,
@@ -49,8 +45,6 @@ pub fn place_spike<W: WorldGenVolume>(
             for zo in -edge..=edge {
                 let dz = zo.abs() as f32 - 0.25;
                 let inside = (xo == 0 && zo == 0) || dx * dx + dz * dz <= scale * scale;
-                // The rim draw is spent per rim cell of every disc, and only
-                // for cells the ellipse already accepted.
                 let kept = inside
                     && ((xo != -edge && xo != edge && zo != -edge && zo != edge)
                         || rng.next_f32() <= 0.75);
@@ -133,7 +127,6 @@ mod tests {
         }
     }
 
-    /// Snow under a stack of air: the descent walks down to it without drawing.
     fn snowfield() -> FakeVolume {
         let mut volume = FakeVolume::default();
         for x in ORIGIN.x - 20..=ORIGIN.x + 20 {
@@ -147,9 +140,6 @@ mod tests {
         volume
     }
 
-    /// A seed whose spike stands on the snow with no lift and no sixtieth-chance
-    /// jump, so its roots meet bedrock on their first read and the draw sequence
-    /// is a closed form.
     fn grounded_seed() -> u64 {
         for seed in 0..10_000u64 {
             let mut rng = WorldgenRandom::new(seed);
@@ -166,9 +156,6 @@ mod tests {
         panic!("no seed lands a spike flat on the snow");
     }
 
-    /// The four shaping draws come first, the sixtieth-chance roll only once the
-    /// cone is more than one wide, one rim draw per rim cell the ellipse kept,
-    /// and one per diagonal root.
     #[test]
     fn a_spike_draws_its_shape_then_its_rim_then_its_roots() {
         let cfg = config();
@@ -213,8 +200,6 @@ mod tests {
         assert!(volume.writes.iter().all(|(_, state)| *state == PACKED_ICE));
     }
 
-    /// The descent is free and the wrong ground stops the feature before the
-    /// first shaping draw.
     #[test]
     fn ground_the_predicate_refuses_draws_nothing() {
         let cfg = config();
@@ -236,8 +221,6 @@ mod tests {
     mod exhaustive {
         use super::*;
 
-        /// The cone stays inside the 3x3 volume: at most three cells of overhang
-        /// either way, far short of the sixteen the writer allows.
         #[test]
         fn the_footprint_never_leaves_the_window() {
             let cfg = config();

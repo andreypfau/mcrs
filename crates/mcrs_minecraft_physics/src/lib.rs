@@ -1,7 +1,3 @@
-//! The entity physics kernel: f64 boxes, block shapes with grid lines, the collision algorithm,
-//! step-up and the move procedure. It has no Bevy and runs over a [`CollisionWorld`] that the
-//! host implements.
-
 mod aabb;
 mod axis;
 mod block_action;

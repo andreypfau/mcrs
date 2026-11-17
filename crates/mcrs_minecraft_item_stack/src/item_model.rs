@@ -3,7 +3,6 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::identifier::Identifier;
 
-/// The item model of the stack in a resource pack. Nothing checks that the model exists.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct ItemModel(Identifier);

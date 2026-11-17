@@ -36,8 +36,6 @@ struct Fetch {
     worker: Option<JoinHandle<()>>,
 }
 
-/// The server the font objects come from, laid out as [`client_jar::OBJECTS`]. Inserted before
-/// [`register`]; a page serves them itself, since the official server sends no CORS header.
 #[derive(Resource, Clone, Debug)]
 pub struct AssetObjects(pub String);
 
@@ -47,8 +45,6 @@ impl Default for AssetObjects {
     }
 }
 
-/// Registers the `vanilla` source and starts filling it. Must run before `AssetPlugin` builds.
-/// The font objects come from the [`AssetObjects`] the app holds by then, else the official server.
 pub fn register(app: &mut App) {
     let objects = app.world().get_resource::<AssetObjects>().cloned();
     let objects = objects.unwrap_or_default().0;
@@ -84,8 +80,6 @@ pub fn register(app: &mut App) {
     });
 }
 
-// A dedicated thread rather than the IO pool: a download can block for minutes, and the pool
-// is shared with `ResourceSet::load` and every other asset load.
 #[cfg(not(target_family = "wasm"))]
 fn spawn(
     root: Dir,
@@ -97,7 +91,6 @@ fn spawn(
     std::thread::Builder::new()
         .name("client jar".to_owned())
         .spawn(move || {
-            // The font objects come from another host, so they are fetched while the jar is.
             let (sender, font_layer) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
                 let _ = sender.send(client_jar::font_assets(&objects));
@@ -113,7 +106,6 @@ fn spawn(
                 }
             };
             fill(&root, files);
-            // The asset index layer lies above the jar, so its files are laid second.
             match await_layer(&font_layer, FONT_LAYER_DEADLINE) {
                 Ok(layer) => fill(&root, layer),
                 Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
@@ -126,8 +118,6 @@ fn spawn(
         .expect("a thread for the client jar")
 }
 
-/// One overall wait for the font layer, so a stalling link cannot hold startup through every
-/// retry; the fetch thread is left to finish on its own.
 #[cfg(not(target_family = "wasm"))]
 const FONT_LAYER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
 
@@ -153,7 +143,6 @@ fn spawn_web(
     unpacked: Arc<AtomicBool>,
 ) {
     wasm_bindgen_futures::spawn_local(async move {
-        // The font objects come from another host, so they are fetched while the jar is.
         let (files, layer) = futures_lite::future::zip(
             client_jar::fetch(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
@@ -201,11 +190,9 @@ fn finish_fetch(mut fetch: ResMut<Fetch>, mut next: ResMut<NextState<VanillaAsse
     }
 }
 
-/// The game's own font, for the loading screen, before the rest of the pack is in.
 #[derive(Resource)]
 struct LoadingFont {
     font: Font,
-    /// The image of each bitmap provider's texture, by the provider's index.
     pages: Vec<(usize, Handle<Image>)>,
 }
 
@@ -412,8 +399,6 @@ fn draw_progress(
     }
 }
 
-/// The node of a glyph the loading screen can draw: one from a bitmap page, which is all the jar
-/// alone gives.
 fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
     let GuiQuad::Glyph {
         pen,

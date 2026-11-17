@@ -1,12 +1,3 @@
-//! The `minecraft:overworld` multi-noise preset.
-//!
-//! `worldgen/multi_noise_biome_source_parameter_list/overworld.json` names this
-//! preset rather than carrying it, so the table has to be built here. It is
-//! data, and the reference is the authority on it: the spans, the slice
-//! boundaries and the biome grids below are transcribed from
-//! `OverworldBiomeBuilder`, and the order entries are emitted in is part of the
-//! data because ties in the climate search go to the earlier entry.
-
 use std::sync::LazyLock;
 
 use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
@@ -141,8 +132,6 @@ const OCEANS: [[BiomeKey; 5]; 2] = [
     [FROZEN_OCEAN, COLD_OCEAN, OCEAN, LUKEWARM_OCEAN, WARM_OCEAN],
 ];
 
-/// One temperature band `t` crossed with one humidity band `h`, with the grid
-/// entries at that pair.
 #[derive(Clone, Copy)]
 struct Cell {
     t: usize,
@@ -156,7 +145,6 @@ struct Cell {
     shattered: Option<BiomeKey>,
 }
 
-/// Every cell, temperature outermost, which is the order the reference emits.
 fn cells(temperatures: [Parameter; 5], humidities: [Parameter; 5]) -> impl Iterator<Item = Cell> {
     let rows = MIDDLE_BIOMES
         .into_iter()
@@ -260,8 +248,6 @@ impl Builder {
         }
     }
 
-    /// A surface biome is entered twice, once for each end of the depth range,
-    /// so the search reaches it whether the column is at the surface or below.
     #[expect(
         clippy::too_many_arguments,
         reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
@@ -1231,7 +1217,6 @@ impl Builder {
     }
 }
 
-/// The overworld climate table, in the order the reference emits it.
 pub fn overworld_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
     static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let mut builder = Builder::new();
@@ -1243,7 +1228,6 @@ pub fn overworld_parameter_list() -> &'static ParameterList<ResourceLocation<'st
     &LIST
 }
 
-/// The `minecraft:nether` preset, which is small enough to be a literal.
 pub fn nether_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
     static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let point = Parameter::point(0.0);
@@ -1298,11 +1282,6 @@ mod tests {
     use crate::climate::TargetPoint;
     use std::collections::BTreeSet;
 
-    /// An independent check on the whole transcription: a biome carries the
-    /// overworld carver set exactly when the overworld climate table can
-    /// produce it. The two sets are written down in different places — one in
-    /// the shipped biome JSON, one in this table — so agreeing is evidence
-    /// neither is wrong.
     #[test]
     fn the_table_names_exactly_the_biomes_with_overworld_carvers() {
         let with_overworld_carvers: BTreeSet<String> = mcrs_minecraft_worldgen_testing::registry::<
@@ -1321,9 +1300,6 @@ mod tests {
         .collect();
 
         let table = overworld_parameter_list();
-        // Every climate cell of every slice, twice for the depth ends: 22
-        // off-coast, 1100 peak, 2600 high, 1432 + 1332 mid, 1032 low, 72
-        // valley and the 5 underground entries.
         assert_eq!(table.len(), 7595);
         let named: BTreeSet<String> = table
             .values()
@@ -1379,8 +1355,6 @@ mod tests {
                 climate: TargetPoint::new(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
                 biome: crate::biome_keys::ICE_CAVES,
             },
-            // Weirdness picks between a slice's plain biome and its variant, so
-            // the same climate on either side of zero must be able to differ.
             Landing {
                 climate: TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, -0.2),
                 biome: crate::biome_keys::SNOWY_PLAINS,

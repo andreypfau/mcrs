@@ -107,7 +107,6 @@ fn cmp_016_the_phase_offset_of_new_uuids_covers_zero_to_three() {
     assert_eq!(seen, [true; 4]);
 }
 
-/// Ten bins of 0.1 over 1000 values, as E54 reads the offsets of 1000 drops.
 fn bins(values: impl Iterator<Item = f64>) -> [u32; 10] {
     let mut bins = [0; 10];
     for value in values {

@@ -11,51 +11,32 @@ use crate::pure_program::{PureInput, PureInstr, PureProgram, Register};
 use crate::query::QuerySlot;
 use crate::value::Rate;
 
-/// `exp` overflows above about `88.72`.
 const EXP_LIMIT: f32 = 88.0;
-/// `2^x` overflows at `128`.
 const EXP2_LIMIT: f32 = 127.0;
-/// The relative error that the range of a transcendental result allows for a GPU evaluation.
 const INEXACT: f32 = 1e-5;
-/// Above this magnitude, `min_angle` can leave `[-180, 180]` by more than a rounding step.
 const ANGLE_LIMIT: f32 = 1e6;
 
-/// The processor class of a channel expression.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChannelClass {
-    /// The value is fixed for each pack load and host key: the host computes it once on the CPU.
     Constant,
-    /// The expression can run on a GPU, as this program.
     Pure(PureProgram),
-    /// The expression runs on the CPU, for this reason.
     State(StateReason),
 }
 
-/// Why an expression cannot run on a GPU.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StateReason {
-    /// The expression reads or computes a string or a resource.
     String,
-    /// The expression writes a variable.
     Write,
-    /// The expression tests for a missing value, as `??` does.
     MissingValue,
-    /// The expression selects from an array.
     Table,
-    /// The expression reads a query that is not a GPU input.
     NotGpuInput(QuerySlot),
-    /// A constant is NaN or infinite.
     NonFiniteConstant,
-    /// The argument of a function can leave the domain where the result is finite.
     DomainRisk(Span),
-    /// The program has more registers or inputs than a pure program can hold.
     TooLarge,
 }
 
 impl Expression {
-    /// The processor class of the expression as a channel. `gpu_input` gives the range of each
-    /// query that is a GPU input, and `None` for a query that is not one.
     pub fn classify(&self, gpu_input: impl FnMut(QuerySlot) -> Option<InputRange>) -> ChannelClass {
         match self {
             Self::Constant(_) => ChannelClass::Constant,
@@ -65,7 +46,6 @@ impl Expression {
 }
 
 impl Program {
-    /// The processor class of the program as a channel; see [`Expression::classify`].
     pub fn classify(&self, gpu_input: impl FnMut(QuerySlot) -> Option<InputRange>) -> ChannelClass {
         if self.rate <= Rate::Load {
             return ChannelClass::Constant;
@@ -141,7 +121,6 @@ impl<F: FnMut(QuerySlot) -> Option<InputRange>> Converter<F> {
         Ok(())
     }
 
-    /// A register that holds the constant `value`, for the instructions with a constant operand.
     fn constant_register(&mut self, value: f32) -> Result<Reg, StateReason> {
         if !value.is_finite() {
             return Err(StateReason::NonFiniteConstant);
@@ -447,8 +426,6 @@ fn ternary_range(function: TernaryFn, x: InputRange, y: InputRange, z: InputRang
     }
 }
 
-/// The largest value of `e · ln(b)` over the corners, in `f64`, or `None` when a bound is not
-/// finite or the base can be `0` or less.
 fn pow_exponent(base: InputRange, exponent: InputRange) -> Option<f64> {
     let finite = [base.min, base.max, exponent.min, exponent.max]
         .iter()
@@ -480,8 +457,6 @@ fn pow_bound(base: InputRange, exponent: InputRange) -> f32 {
     })
 }
 
-/// Whether the inner function of an easing stays where its result is finite. The inner argument
-/// is `t`, `1 − t`, `2t` or `2 − 2t`, by the direction.
 fn ease_in_domain(direction: EaseDirection, shape: EaseShape, t: InputRange) -> bool {
     let one = InputRange::point(1.0);
     let two = InputRange::point(2.0);

@@ -218,9 +218,6 @@ const SAME_AS_THE_GAME: [&str; 13] = [
     "zPos",
 ];
 
-/// Containers list their palettes in a different order, and the files hold an empty `structures`
-/// compound where a save writes empty `starts` and `References`, so these are
-/// compared as values.
 const COMPARED_AS_VALUES: [&str; 4] = ["Heightmaps", "block_entities", "sections", "structures"];
 
 #[test]

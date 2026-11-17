@@ -1,6 +1,3 @@
-//! The settings of a server run that the `MCRS_` environment variables set, read in one place for
-//! the server binary and the integrated server of the client.
-
 #![no_std]
 
 extern crate alloc;

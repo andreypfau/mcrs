@@ -31,8 +31,6 @@ fn air_id() -> String {
     Block::Air.as_static_str().to_owned()
 }
 
-/// A block entity a generator produced, in the compound the save, the chunk
-/// packet and the anvil reader all encode.
 #[dispatch(registry = mcrs_minecraft_block::block_entity_type_keys::BlockEntityType, key = "id", only)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum GeneratedBlockEntity {
@@ -42,8 +40,6 @@ pub enum GeneratedBlockEntity {
         z: i32,
         bees: Vec<BeeOccupant>,
     },
-    /// The loot is not rolled here: the reference stores the table's id and its
-    /// seed and rolls when a player first opens the chest.
     Chest(ContainerData),
     TrappedChest(ContainerData),
     EnderChest {
@@ -135,8 +131,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    /// A jigsaw block a non-jigsaw piece leaves in the world, the way the
-    /// ruined portals do; a jigsaw piece replaces its own before writing.
     Jigsaw {
         x: i32,
         y: i32,
@@ -376,13 +370,10 @@ fn spawner_spawn_range() -> i16 {
 }
 
 impl GeneratedBlockEntity {
-    /// The kind a save entry's `id` names when a variant describes it.
     pub fn kind_of(id: &str) -> Option<BlockEntityType> {
         BlockEntityType::read(id).filter(|kind| Self::KINDS.contains(kind))
     }
 
-    /// The kinds that are a `RandomizableContainer`: a template placing one
-    /// draws its `LootTableSeed` from the placement random.
     pub const LOOT_SEEDED_IDS: [&'static str; 9] = [
         BlockEntityType::Chest.as_static_str(),
         BlockEntityType::TrappedChest.as_static_str(),
@@ -395,7 +386,6 @@ impl GeneratedBlockEntity {
         BlockEntityType::DecoratedPot.as_static_str(),
     ];
 
-    /// Which block the entity belongs to, which is what routes it to a column.
     pub fn position(&self) -> BlockPos {
         match self {
             GeneratedBlockEntity::Beehive { x, y, z, .. }
@@ -443,9 +433,6 @@ impl GeneratedBlockEntity {
         mcrs_minecraft_nbt::from_bytes_unnamed(Cursor::new(bytes))
     }
 
-    /// A template's block nbt as the entity placed at `pos`. `Ok(None)` for an
-    /// id this type does not describe. The seed is stored only beside a table,
-    /// as the reference saves it.
     pub fn from_template(
         nbt: &NbtCompound,
         pos: BlockPos,
@@ -485,9 +472,6 @@ impl GeneratedBlockEntity {
         GeneratedBlockEntity::Chest(ContainerData::looted(pos, loot_table, loot_table_seed))
     }
 
-    /// A spawner as `MonsterRoomFeature` leaves it: every timing field still at
-    /// `BaseSpawner`'s constructed default, one entity in `SpawnData`, and the
-    /// weighted list empty because nothing ever wrote it.
     pub fn mob_spawner(pos: BlockPos, entity_id: &str) -> Self {
         let mut entity = NbtCompound::new();
         entity.put_string("id", entity_id.to_owned());

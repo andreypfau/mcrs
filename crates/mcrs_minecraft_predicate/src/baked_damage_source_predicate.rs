@@ -8,8 +8,6 @@ use crate::location_view::LocationView;
 use crate::predicate_scratch::PredicateScratch;
 use crate::predicate_tables::PredicateTables;
 
-/// A damage source predicate in its matching form; [`crate::DamageSourcePredicate::bake`] makes
-/// it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedDamageSourcePredicate {
     pub(crate) tags: Box<[BakedDamageTag]>,
@@ -25,9 +23,6 @@ pub(crate) struct BakedDamageTag {
 }
 
 impl BakedDamageSourcePredicate {
-    /// Fails for an absent `source`, also for `{}`. `world` reads the dimension of the caller,
-    /// and both entity predicates receive `origin`. Each entity predicate is a match of its own,
-    /// with its own budget of nested entity tests.
     #[must_use]
     pub fn matches<W: LocationView + EntityView>(
         &self,

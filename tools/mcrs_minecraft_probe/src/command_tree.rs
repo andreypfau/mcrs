@@ -7,12 +7,10 @@ use serde::{Deserialize, Serialize};
 
 const DEPTH_LIMIT: usize = 64;
 
-/// The subtrees that one `commands` packet has for the named children of its root.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CommandTree {
     pub client: String,
     pub node_count: usize,
-    /// Only the children of the root that the scenario names, in the order of the packet.
     pub roots: Vec<TreeNode>,
 }
 
@@ -37,9 +35,7 @@ pub enum TreeNodeKind {
     },
     Argument {
         name: String,
-        /// The key of the parser in `minecraft:command_argument_type`.
         parser: String,
-        /// The decoded properties of the parser, written as debug text.
         properties: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         suggestions: Option<String>,

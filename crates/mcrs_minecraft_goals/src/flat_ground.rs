@@ -6,20 +6,14 @@ use mcrs_minecraft_goal_world::GroundCell;
 use mcrs_minecraft_goal_world::straight_route;
 use mcrs_voxel::BlockPos;
 
-/// The malus of water for a mob that does not swim.
 const WATER_MALUS: f32 = 8.0;
 
-/// A grass floor at `y` = 0 on the square from 0 to `side` on the `x` and `z` axes, with stone
-/// below and air above; around the square, solid blocks with no floor. A pond replaces the grass
-/// with water.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FlatGround {
     pub side: i32,
     pub pond: Option<Pond>,
 }
 
-/// Water at `y` = 0 on the blocks from `min_x` to `max_x` and from `min_z` to `max_z`, all
-/// inclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Pond {
     pub min_x: i32,
@@ -83,7 +77,6 @@ impl GoalWorld for FlatGround {
         true
     }
 
-    /// The straight route wades through the pond, as a path search crosses water at its malus.
     fn route(&self, from: DVec3, target: BlockPos) -> Option<DVec3> {
         match self.pond {
             Some(_) => straight_route(&Wading(self), from, target),
@@ -92,7 +85,6 @@ impl GoalWorld for FlatGround {
     }
 }
 
-/// A [`FlatGround`] whose water has no malus.
 struct Wading<'a>(&'a FlatGround);
 
 impl GoalWorld for Wading<'_> {

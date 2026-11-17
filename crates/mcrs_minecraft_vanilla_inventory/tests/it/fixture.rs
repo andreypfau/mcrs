@@ -42,7 +42,6 @@ use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 pub const STONE: Kind = Kind(1);
 pub const DIRT: Kind = Kind(2);
 
-/// The items `stone` and `dirt` after `air`, each with the maximum stack size 64.
 static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
     let files = ["air", "stone", "dirt"].iter().zip(0..).map(|(name, id)| {
         format!(
@@ -67,7 +66,6 @@ pub fn app() -> App {
     app
 }
 
-/// The items and the gameplay of the player inventory, with no persistence.
 pub fn gameplay_app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
@@ -75,7 +73,6 @@ pub fn gameplay_app() -> App {
     app
 }
 
-/// The value of the player file for `count` items of `minecraft:<name>`.
 pub fn saved(name: &str, count: i32) -> ItemStackValue<Named> {
     let mut saved = NbtCompound::new();
     saved.put("id", NbtTag::String(format!("minecraft:{name}")));
@@ -83,7 +80,6 @@ pub fn saved(name: &str, count: i32) -> ItemStackValue<Named> {
     mcrs_minecraft_nbt::from_tag(NbtTag::Compound(saved)).expect("a valid saved stack")
 }
 
-/// Spawns a player and applies `snapshot` to it, as the engine does at a join or an arrival.
 pub fn restore(world: &mut World, snapshot: &PersistedSnapshot) -> Entity {
     let player = world.spawn(Player).id();
     apply(world, player, snapshot);
@@ -98,7 +94,6 @@ pub fn apply(world: &mut World, player: Entity, snapshot: &PersistedSnapshot) {
         .expect("the snapshot applies");
 }
 
-/// What a handover of `player` carries to another world.
 pub fn capture(world: &mut World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
     world
         .resource_scope(|world, registry: Mut<PersistedRegistry>| {
@@ -107,7 +102,6 @@ pub fn capture(world: &mut World, player: Entity, cause: CaptureCause) -> Persis
         .expect("the player captures")
 }
 
-/// What the player file of `player` holds.
 pub fn capture_file(world: &mut World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
     world
         .resource_scope(|world, registry: Mut<PersistedRegistry>| {
@@ -122,7 +116,6 @@ pub fn holders(world: &World, player: Entity) -> PlayerHolders {
         .expect("a restored player has holders")
 }
 
-/// Puts a new stack of `count` items of `kind` in the slot `index` of `holder`.
 pub fn put(world: &mut World, holder: Entity, index: u16, kind: Kind, count: u8) {
     let count = Count::new(count).expect("a count above 0");
     world
@@ -132,7 +125,6 @@ pub fn put(world: &mut World, holder: Entity, index: u16, kind: Kind, count: u8)
     world.flush();
 }
 
-/// The slot index, the item and the count of each stack of `holder`.
 pub fn stacks(world: &World, holder: Entity) -> Vec<(usize, Kind, u8)> {
     let slots = world.get::<Slots>(holder).expect("a holder has slots");
     slots
@@ -147,8 +139,6 @@ pub fn stacks(world: &World, holder: Entity) -> Vec<(usize, Kind, u8)> {
         .collect()
 }
 
-/// Three stone named `Rock` with the first enchantment at level 2: a patch with a component that
-/// the saved form writes by the name of a registry entry.
 pub fn patched_stone() -> ItemStack {
     let enchantment = EnchantmentLevel {
         enchantment: EnchantmentId(0),
@@ -159,7 +149,6 @@ pub fn patched_stone() -> ItemStack {
         .set(Enchantments::new([enchantment]).expect("one enchantment"))
 }
 
-/// The value of the stack in the slot `index` of `holder`.
 pub fn slot_stack(world: &mut World, holder: Entity, index: usize) -> Option<ItemStack> {
     let slots = world.get::<Slots>(holder).expect("a holder has slots");
     let stack = slots.iter().nth(index).flatten()?;
@@ -168,7 +157,6 @@ pub fn slot_stack(world: &mut World, holder: Entity, index: usize) -> Option<Ite
         .expect("the stack reads")
 }
 
-/// The item, the count and the pickup delay of each stack that lies in the world.
 pub fn dropped(world: &mut World) -> Vec<(Kind, u8, i16)> {
     let mut dropped: Vec<(Kind, u8, i16)> = world
         .query_filtered::<(&Kind, &Count, &ItemEntity), With<Dropped>>()

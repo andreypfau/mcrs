@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 use crate::context_param::ContextParam;
 
-/// The enum string of a field `entity` (REG-FLD-706).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum EntityTarget {
@@ -15,7 +14,6 @@ pub(crate) enum EntityTarget {
 }
 
 impl EntityTarget {
-    /// The parameter that the target names (LOOT-CND-020).
     pub(crate) const fn param(self) -> ContextParam {
         match self {
             EntityTarget::This => ContextParam::ThisEntity,

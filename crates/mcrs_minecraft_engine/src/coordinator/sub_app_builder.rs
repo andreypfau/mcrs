@@ -52,13 +52,6 @@ use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
 use mcrs_minecraft_region_disk::{RegionDisk, quarantine_dir, region_dir};
 use mcrs_minecraft_registries::CurrentRegistries;
 
-/// Builds the worlds of a dimension, one for each of its cells as [`WorldCells`] says, and
-/// places them in the host's [`DimCells`]. Returns the label entity of the dimension.
-///
-/// The label entity comes from the host's allocator, so labels are unique across all worlds:
-/// every dimension world would otherwise allocate the same low-index entities. The label
-/// entity holds no `Dimension` component. The `Dimension` entity lives inside the world, with the
-/// components that the simulation queries.
 #[expect(
     clippy::too_many_lines,
     reason = "a dimension's sub-app is assembled in the order its schedules and plugins require, and each step relies on the previous one"
@@ -134,7 +127,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             .get_resource_or_init::<DimCells>()
             .divide(label_entity, partition);
     }
-    // Each cell is a whole dimension world that owns the columns of its regions.
     for index in (0..partition.cells().get()).map(CellIndex) {
         let mut sub_app = SubApp::new();
         mcrs_minecraft_engine_registries::extract_registries(app.world(), sub_app.world_mut());
@@ -145,8 +137,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             sub_app.add_plugins(CellMailPlugin { owned });
         }
 
-        // Only the messages that a dimension writes or reads inside its own world are registered:
-        // what crosses to the host goes in the input and the output of a tick.
         sub_app.add_message::<OutboundPlayerPacket>();
         sub_app.add_message::<InboundPlayerSpawn>();
         sub_app.add_message::<crate::bus::InboundPlayerDespawn>();
@@ -163,7 +153,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         sub_app.init_resource::<ForeignPlayers>();
         sub_app.init_resource::<OwnPlayers>();
         sub_app.add_systems(Last, report_own_players);
-        // The block messages live in the dimension world alone, so the host never buffers them.
         sub_app.add_message::<BlockSetRequest>();
         sub_app.add_message::<BlockPlaced>();
 
@@ -194,7 +183,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         );
         sub_app.add_systems(
             FixedUpdate,
-            // A column packet carries the heightmaps, so they land before the columns go out.
             crate::heightmap::prime_column_heightmaps
                 .run_if(heightmaps_pending)
                 .in_set(TickSet::Project)
@@ -202,13 +190,7 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .before(crate::column_streams::ColumnStreamSet),
         );
         sub_app.add_plugins(DimensionPlugin);
-        // AssetPlugin and AppTypeRegistry must precede any plugin that calls
-        // `init_asset` / `register_asset_loader`. `AppTypeRegistry` is initialised by `App::new` but
-        // not by `SubApp::new`, so the sub-app needs the explicit `init_resource` call.
         sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
-        // Dropping a notify fsevents watcher joins its CFRunLoop thread and can
-        // block forever; one recursive watch over the 22k-file corpus per dimension
-        // also costs more than the whole sub-app spawn. Nothing here hot-reloads.
         sub_app
             .world_mut()
             .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
@@ -244,8 +226,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             .unwrap_or_default();
         sub_app.insert_resource(default_game_mode);
 
-        // The first tick hands over only what changes after the spawn, so the world starts from
-        // the copies of now.
         let host = app.world();
         if let Some(predicates) = host.get_resource::<BlockHeightmapPredicates>() {
             sub_app.insert_resource(predicates.clone());
@@ -303,8 +283,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             sub_app.insert_resource(*seed);
         }
 
-        // Before the dimension entity spawns, so a plugin can still register required components and
-        // hooks for its components and its observers see it spawn.
         let build = DimensionBuild {
             dimension: &request.dimension,
             type_config,
@@ -347,10 +325,6 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .insert(HasWeather);
         }
 
-        // Drain plugins to Ready before finish/cleanup. The built-in plugins are
-        // ready at once. A plugin from `DimensionPlugins` that overrides
-        // `Plugin::ready` blocks the server loop here, and no schedule of this
-        // world runs while it waits: its readiness must come from the task pools.
         let waiting = std::time::Instant::now();
         let mut warned = false;
         while sub_app.plugins_state() == PluginsState::Adding {
@@ -409,8 +383,6 @@ pub enum DimSpawnError {
     DimensionOutsideSave,
 }
 
-/// The region files of the dimension under the save of the world, or memory only while the
-/// world has no save.
 fn column_disk(world: &World, request: &DimSpawnRequest) -> Result<ColumnDisk, DimSpawnError> {
     let Some(save) = world.get_resource::<WorldSave>() else {
         return Ok(ColumnDisk::Memory(MemoryDisk::new()));
@@ -433,8 +405,6 @@ fn column_disk(world: &World, request: &DimSpawnRequest) -> Result<ColumnDisk, D
     Ok(ColumnDisk::Region(Box::new(disk)))
 }
 
-/// Builds a dimension world for each request of the host's `DimSpawnQueue`. The host calls it
-/// between ticks.
 pub(crate) fn drain_dim_spawn_queue(app: &mut App) {
     let Some(mut queue) = app.world_mut().get_resource_mut::<DimSpawnQueue>() else {
         return;

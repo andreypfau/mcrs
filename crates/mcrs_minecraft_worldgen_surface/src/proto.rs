@@ -122,7 +122,6 @@ mod tests {
         );
     }
 
-    /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]
     fn the_unshipped_shapes_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;

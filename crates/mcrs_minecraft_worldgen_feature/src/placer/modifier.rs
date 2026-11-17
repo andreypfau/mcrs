@@ -11,12 +11,9 @@ use mcrs_minecraft_noise::simplex::SimplexNoise;
 
 use super::{Predicate, WorldGenVolume};
 
-/// The reference's `Biome.BIOME_INFO_NOISE`: seeded 2345, no world seed in it,
-/// so every world's flower and dripstone counts follow the same field.
 static BIOME_INFO_NOISE: LazyLock<SimplexNoise> =
     LazyLock::new(|| SimplexNoise::from_random_at_origin(&mut LegacyRandom::new(2345)));
 
-/// A placement modifier with every set it names reduced to a mask.
 pub type Modifier = PlacementModifier<Predicate>;
 
 pub fn biome_info_noise(x: f64, z: f64) -> f64 {
@@ -234,8 +231,6 @@ impl PlacementModifier<Predicate> {
     }
 }
 
-/// `CountOnEveryLayerPlacement.findOnGroundYPosition`: the first solid top face
-/// below the start that is the `layer`-th one down. Empty is air, water or lava.
 fn on_ground_y<W: WorldGenVolume>(
     volume: &W,
     x: i32,

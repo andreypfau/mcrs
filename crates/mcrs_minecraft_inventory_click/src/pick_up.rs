@@ -9,7 +9,6 @@ use crate::view::Operation;
 use crate::view::Ops;
 use crate::view::View;
 
-/// The button of a pick up click and of a quick move click.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MouseButton {
     Primary,
@@ -26,7 +25,6 @@ impl MouseButton {
     }
 }
 
-/// The drop from the cursor of a click outside the window.
 pub(crate) fn drop_cursor<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     button: MouseButton,
@@ -114,7 +112,6 @@ pub(crate) fn on_entry<M: Menu<Slot = S::Slot>, S: Slots>(
     Ok(op)
 }
 
-/// `k`: the part of the cursor stack that a place moves.
 fn carried_part(count: u8, button: MouseButton) -> u8 {
     match button {
         MouseButton::Primary => count,

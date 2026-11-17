@@ -40,7 +40,6 @@ use crate::Landed;
 use crate::drop_item::drop_item;
 use crate::falling_block_rules::FallingBlockRules;
 
-/// A falling block that lands in this tick.
 #[derive(Clone, Copy, Debug)]
 struct Touchdown {
     entity: Entity,
@@ -48,9 +47,6 @@ struct Touchdown {
     cell: TargetCell,
 }
 
-/// Steps 4 to 6 of FBK-TCK-001 after the motion pass, for each falling block that the pass stepped
-/// in this tick: a falling block that lands gets its [`Landed`], one that a time limit ends drops
-/// and is removed (FBK-TCK-004, FBK-TCK-005).
 #[expect(
     clippy::too_many_arguments,
     reason = "a system takes each resource that it reads"
@@ -102,7 +98,6 @@ pub(crate) fn entity_drops(game_rules: Option<&GameRules>) -> EntityDrops {
     }
 }
 
-/// What the decisions of a tick read beside each falling block.
 struct Tick<'a, S> {
     rules: &'a FallingBlockRules,
     definitions: &'a BlockDefinitions,
@@ -112,8 +107,6 @@ struct Tick<'a, S> {
 }
 
 impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
-    /// Steps 4 to 6 of FBK-TCK-001 for `fall` after its step: the expiry, or the touchdown of a
-    /// landing.
     fn after_move(
         &self,
         commands: &mut Commands,
@@ -123,9 +116,6 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
         outcome: &StepOutcome,
     ) -> Option<Touchdown> {
         let body = motion.body;
-        // chisle: the motion pass exposes the velocity after the drag, not before it, so a block
-        // with a speed from 1.0 to 1.0 / 0.98 tests only its cell. A velocity before the drag in
-        // the outcome of the pass lifts it.
         let cell = TargetCell::find(
             &self.rules.table,
             self.definitions,
@@ -173,14 +163,10 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
         }
     }
 
-    /// The landing of `touchdown` against the world before the writes of this tick. The plugin
-    /// resolves two placements at one cell when it applies the landings, after their review.
     fn land(&self, commands: &mut Commands, touchdown: Touchdown) {
         let table = &self.rules.table;
         let target = touchdown.cell.pos;
         let replaceable_at = |state| {
-            // An empty hand: the barrier is never replaceable, so it matches no replaceable
-            // target.
             if replaceable(self.definitions, state, Block::Barrier.id(), Spot::Adjacent) {
                 Replaceable::Replaceable
             } else {
@@ -196,10 +182,6 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
         ) else {
             return;
         };
-        // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the ground,
-        // so a landing by water contact in the air keeps its velocity; an observer sees it
-        // only when the target holds `moving_piston`. The ground rule in the landing lifts it.
-        // Each landing is audible, which entity data entry 4 of a falling block lifts.
         let landing = touchdown
             .fall
             .land(table, &site, self.entity_drops, Silence::Audible);

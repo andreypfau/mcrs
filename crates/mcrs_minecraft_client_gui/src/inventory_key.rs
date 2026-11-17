@@ -12,7 +12,6 @@ use crate::cursor_grab::grab;
 
 const INVENTORY: KeyCode = KeyCode::KeyE;
 
-/// E in the game opens the inventory screen; E or Escape closes it and tells the server.
 pub struct InventoryKeyPlugin;
 
 impl Plugin for InventoryKeyPlugin {

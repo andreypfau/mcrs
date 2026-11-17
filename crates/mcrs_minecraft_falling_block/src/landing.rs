@@ -13,26 +13,19 @@ use crate::remains::Remains;
 use crate::state_flags::StateFlags;
 use crate::water_contact::WaterContact;
 
-/// Entity data entry 4 of a falling block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Silence {
     Audible,
     Silent,
 }
 
-/// A landing: the result and the sound of an anvil that goes with it. The host applies the ground
-/// rule to the velocity first, and removes the falling block for each outcome but
-/// [`LandingOutcome::Wait`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Landing {
     pub outcome: LandingOutcome,
-    /// The event of an anvil that is not silent (FBK-LND-007).
     pub anvil_event: Option<LandingEvent>,
 }
 
 impl Landing {
-    /// The events that the host sends, in this order: [`LandingEvent::BlockBreak`] for
-    /// [`LandingOutcome::Break`] (FBK-LND-005), then the event of the anvil.
     #[must_use = "the host sends each event of a landing"]
     pub fn events(&self) -> impl Iterator<Item = LandingEvent> {
         let block_break =
@@ -42,9 +35,6 @@ impl Landing {
 }
 
 impl Fall {
-    /// The landing at `site` (FBK-LND-001 to FBK-LND-007). An item of [`Remains::Item`] with
-    /// [`LandingEvent::AnvilDestroy`] stands for a drop: a host whose carried block has no item
-    /// makes neither.
     #[must_use]
     pub fn land(
         &self,

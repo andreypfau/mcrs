@@ -3,14 +3,8 @@ use mcrs_minecraft_text::{Text, TextContent, TextTypes, TranslateArg};
 
 use crate::RunStyle;
 
-/// The work of one [`flatten`]: one unit for each component it visits and one for each byte it
-/// emits. A pattern can name one argument many times, so nested translations grow without this
-/// bound.
 pub(crate) const MAX_FLAT_LEN: usize = 262_144;
 
-/// Calls `emit` with each run of `text`, in reading order. A translation shows the pattern of
-/// its key in `language`, or its fallback when the language has no such key, with the arguments
-/// filled in. The walk stops after 262144 components and bytes. A keybind, a selector and an NBT path show as written; a score shows nothing.
 pub fn flatten<I: TextTypes>(
     language: &Language,
     text: &Text<I>,

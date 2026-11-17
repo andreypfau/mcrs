@@ -43,8 +43,6 @@ fn check(label: &str, value: impl Into<ItemComponentValue>) {
     check_read_as(label, value.clone(), value);
 }
 
-/// `read` is what vanilla's own JSON output reads back as, when that is not
-/// the value it was written from.
 fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValue) {
     let row = &GOLDEN[label];
     let kind = value.kind();

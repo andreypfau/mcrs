@@ -22,10 +22,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
 
-/**
- * Asks the game for the base attributes of each living entity type and for the value of an
- * attribute after a sequence of modifier changes. Doubles are written as their raw bits in hex.
- */
 public final class AttributeOracle {
     private static final Gson COMPACT = new GsonBuilder().disableHtmlEscaping().create();
     private static final double TWO_53 = 9007199254740992.0;
@@ -72,7 +68,6 @@ public final class AttributeOracle {
         return String.format("%016x", Double.doubleToRawLongBits(v));
     }
 
-    /** One row for each type that has attributes: the type, then one pair for each attribute in id order. */
     @SuppressWarnings("unchecked")
     private static List<JsonArray> defaultAttributes() {
         List<JsonArray> rows = new ArrayList<>();
@@ -148,7 +143,6 @@ public final class AttributeOracle {
         rows.add(row);
     }
 
-    /** Each row: name, attribute, base, the steps in order, the value that the game gives. */
     private static List<JsonArray> valueCases() {
         List<JsonArray> rows = new ArrayList<>();
         String speed = "minecraft:movement_speed";
@@ -222,7 +216,6 @@ public final class AttributeOracle {
                 ids.add(step);
             }
         }
-        // The id with the most ids after it is the first one of the computation.
         int[] after = new int[ids.size()];
         for (int i = 0; i < ids.size(); i++) {
             for (int j = 0; j < ids.size(); j++) {
@@ -250,10 +243,6 @@ public final class AttributeOracle {
         rows.add(row);
     }
 
-    /**
-     * Whether the computation takes `first` before `second`. The sum of 1, 2^53 and -2^53 is 0 when
-     * 2^53 comes first and 1 when -2^53 comes first; each other modifier has the amount 0.
-     */
     private static boolean isBefore(final int operation, final String[] sequence, final String first, final String second) {
         List<Step> steps = new ArrayList<>();
         for (String step : sequence) {
@@ -274,11 +263,6 @@ public final class AttributeOracle {
         return value == 0.0;
     }
 
-    /**
-     * Each row: the operation, the steps (an id adds a modifier, "-id" removes it, "id|n" adds a
-     * modifier of the amount 0 with the operation n), and the ids of the operation in the order in
-     * which the computation takes them.
-     */
     private static List<JsonArray> orderCases() {
         List<JsonArray> rows = new ArrayList<>();
         String sprint = "minecraft:sprinting";

@@ -1,5 +1,3 @@
-//! The game time and the world clocks, owned by the host and read by every dimension.
-
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
@@ -10,22 +8,17 @@ use mcrs_minecraft_protocol::{VarInt, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundSetTime, ClockUpdate};
 use mcrs_minecraft_resource::Id;
 
-/// A change to a world clock. The host owns the clocks and applies it.
 #[derive(Event, Clone, Copy, Debug, PartialEq)]
 pub struct EditClock {
     pub clock: Id<WorldClock>,
     pub edit: ClockEdit,
 }
 
-/// The tick counter that every dimension reads as its game time.
 #[derive(
     Resource, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
 pub struct GameTime(pub i64);
 
-/// The host side of the world clocks: the game time, and the clock changes that dimensions
-/// ask for. The dimensions read both as a copy that the host extracts every tick, and the
-/// clocks again after each change a command makes, so a later stage in another dimension reads it.
 pub struct WorldClockHostPlugin;
 
 impl Plugin for WorldClockHostPlugin {
@@ -47,7 +40,6 @@ fn advance_game_time(mut time: ResMut<GameTime>) {
     time.0 = time.0.saturating_add(1);
 }
 
-/// The `set_time` entry of one clock.
 fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) -> ClockUpdate {
     ClockUpdate {
         clock: VarInt(i32::from(clock.number())),
@@ -61,8 +53,6 @@ fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) ->
     }
 }
 
-/// Sends the state of every clock to every player of the server, once `advance_time` changed
-/// from the value that the first tick saw.
 fn send_every_clock(
     clocks: Res<WorldClocks>,
     advance_time: Res<AdvanceTime>,
@@ -90,7 +80,6 @@ fn send_every_clock(
     ));
 }
 
-/// Applies the change to the clock and sends its new state to every player of the server.
 fn apply_clock_edit(
     edit: On<EditClock>,
     mut clocks: ResMut<WorldClocks>,

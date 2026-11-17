@@ -20,7 +20,6 @@ use crate::colors::{LightColors, LightType};
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
 pub const WATER_SENSITIVE: TagKey<'static, Item> = TagKey::new(rl!("mcrs:water_sensitive_light"));
 
-/// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct ItemLightFile(pub BTreeMap<ResourceLocationBuf, BlockStateRef>);
@@ -193,9 +192,6 @@ impl ItemLights {
         self.mapped.iter().flatten().count()
     }
 
-    /// Unknown properties and values in `stack_state` are skipped, as the
-    /// server skips them when it places the block. `origin` is the state of the
-    /// cell the light comes from; water there puts out water-sensitive items.
     pub fn light<'a>(
         &self,
         blocks: &BlockDefinitions,

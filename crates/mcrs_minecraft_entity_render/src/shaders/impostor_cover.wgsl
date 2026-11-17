@@ -1,6 +1,3 @@
-// The coverage of each view image of an impostor image set: the share of the covered texels and
-// their centroid, which the prepare pass uses for a small impostor.
-
 @group(0) @binding(0) var colours: texture_2d_array<f32>;
 @group(0) @binding(1) var<storage, read_write> covers: array<vec4<f32>>;
 @group(0) @binding(2) var<uniform> cover_layer: vec4<u32>;
@@ -8,14 +5,12 @@
 const TILE: u32 = #{TILE}u;
 const YAWS: i32 = #{YAWS};
 const VIEWS: u32 = #{VIEWS}u;
-/// The covers follow the views of the impostor images in the same buffer.
 const FIRST_COVER: u32 = #{FIRST_COVER}u;
 
 var<workgroup> covered: atomic<u32>;
 var<workgroup> sum_x: atomic<u32>;
 var<workgroup> sum_y: atomic<u32>;
 
-/// One workgroup for each view.
 @compute @workgroup_size(64)
 fn cover(@builtin(workgroup_id) group: vec3<u32>, @builtin(local_invocation_index) local: u32) {
     let view = group.x;

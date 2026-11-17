@@ -1,5 +1,3 @@
-//! The grammar-based generator of Molang programs that the differential tests share.
-
 use mcrs_molang::{Arguments, QueryDeclaration, QueryRegistry, Rate, UseContext, ValueType};
 use proptest::prelude::*;
 
@@ -8,13 +6,8 @@ pub const NUMBER_QUERIES: [&str; 2] = ["qa", "qb"];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Profile {
-    /// Every construct that the compiler implements, with non-finite and signed-zero inputs.
     Full,
-    /// The subset where molangjs agrees with the language, after the normalisations of
-    /// `tools/molang-diff/README.md`, section 3.
     MolangJs,
-    /// The constructs of a channel that can run on a GPU: no write, no string, no `??` and no
-    /// unknown query. Some calls keep their arguments in the domain of the function.
     Gpu,
 }
 
@@ -142,7 +135,6 @@ fn expression(profile: Profile) -> BoxedStrategy<String> {
                 inner.clone(),
             )
                 .prop_map(|(a, op, b)| format!("({a} {op} {b})"));
-            // molangjs negates as `0 - a`, which loses `-0`.
             let prefixes = match profile {
                 Profile::Full | Profile::Gpu => vec!["-", "!"],
                 Profile::MolangJs => vec!["!"],
@@ -153,8 +145,6 @@ fn expression(profile: Profile) -> BoxedStrategy<String> {
                 .prop_map(|(c, a, b)| format!("({c} ? {a} : {b})"));
             let binary_conditional =
                 (inner.clone(), inner.clone()).prop_map(|(c, a)| format!("({c} ? {a})"));
-            // molangjs keeps one missing flag for the run, so an inner `??` does not hide a
-            // missing read from an outer `??`. Its left side is a plain read here.
             let coalesce = match profile {
                 Profile::Full | Profile::Gpu => (inner.clone(), inner.clone())
                     .prop_map(|(a, b)| format!("({a} ?? {b})"))
@@ -204,8 +194,6 @@ fn expression(profile: Profile) -> BoxedStrategy<String> {
         .boxed()
 }
 
-/// Calls whose argument stays in the domain where the result is finite, so that a channel with
-/// them can still run on a GPU.
 fn in_domain(inner: BoxedStrategy<String>) -> BoxedStrategy<String> {
     let one = (
         proptest::sample::select(vec![
@@ -237,8 +225,6 @@ fn pure_queries(inner: BoxedStrategy<String>) -> BoxedStrategy<String> {
     prop_oneof![pure_query, approx].boxed()
 }
 
-/// The constructs that molangjs does not share with the language: pure queries, strings,
-/// blocks as branches and assignments of a missing value.
 fn full_only(inner: BoxedStrategy<String>) -> BoxedStrategy<String> {
     let pure_query = (
         proptest::sample::select(vec!["in_range", "all", "any"]),
@@ -310,8 +296,6 @@ pub fn program(profile: Profile) -> BoxedStrategy<String> {
         .prop_map(|(statements, result)| format!("{} return {result};", statements.concat()));
     let simple = match profile {
         Profile::Full | Profile::Gpu => expression(profile),
-        // f64 and f32 trigonometry differ in the last bits, so a comparison of a
-        // result can flip; trigonometry appears here only where nothing compares its result.
         Profile::MolangJs => prop_oneof![
             3 => expression(profile),
             1 => (

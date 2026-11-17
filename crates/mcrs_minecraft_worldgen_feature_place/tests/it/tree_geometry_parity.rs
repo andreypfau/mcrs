@@ -1,17 +1,3 @@
-//! Tree geometry against `TreeOracle`, which runs the shipped `tree` features
-//! over a `WorldGenLevel` whose floor is dirt to y 63 and air above.
-//!
-//! The dump holds every position the reference wrote, in first-write order,
-//! with the state it ended up holding, plus two `nextLong` taken after `place`
-//! returned. The order and the positions pin the geometry, the random state
-//! pins the draw count.
-//!
-//! The one thing not compared is a leaf's `distance`. The reference's
-//! relaxation pops from a `java.util.HashSet`, and the order it pops in decides
-//! which of two competing distances is written last, so the value is the JVM's
-//! and not the reference's. Everything else about a leaf state — the block,
-//! `persistent`, `waterlogged` — is compared.
-
 use bytes::Buf;
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
@@ -84,10 +70,6 @@ pub(crate) fn read_dump() -> Vec<DumpCase> {
     cases
 }
 
-/// The block states this world can hold, named the way
-/// `BlockStateParser.serialize` names them so a dumped palette entry resolves
-/// by string. Only the blocks the covered features write are modelled; a state
-/// the dump names and this table does not is a failure, not a skip.
 pub(crate) struct Blocks {
     ids: HashMap<String, VoxelId>,
     names: Vec<String>,
@@ -112,8 +94,6 @@ fn leaf_blocks() -> [String; 8] {
     LOG_BLOCKS.map(|log| log.replace("_log", "_leaves"))
 }
 
-/// `distance` runs 1..=7 and `RotatedPillarBlock.AXIS` x, y, z, in the order
-/// `TreeStates` indexes them.
 const AXES: [&str; 3] = ["x", "y", "z"];
 
 impl Blocks {
@@ -172,8 +152,6 @@ impl Blocks {
             }
         }
         TreeStates {
-            // Air plus `#replaceable_by_trees`, of which only `#leaves` occurs
-            // in a world that is dirt, air and what the tree wrote.
             valid_tree_pos: mask_of(std::iter::once(self.air).chain(self.leaves.iter().copied())),
             logs: mask_of(self.logs.iter().copied()),
             air_or_leaves: mask_of(std::iter::once(self.air).chain(self.leaves.iter().copied())),
@@ -183,8 +161,6 @@ impl Blocks {
         }
     }
 
-    /// What the flat world is made of: air is the one air, dirt and logs are
-    /// the solid faces, and leaves are replaceable alongside air.
     fn world(&self) -> WorldStates {
         WorldStates {
             air: self.air,
@@ -219,8 +195,6 @@ impl Blocks {
         distances
     }
 
-    /// The `#cannot_replace_below_tree_trunk` states present in this world:
-    /// `#dirt` covers the floor, and nothing else the tree writes is in it.
     fn below_trunk(&self) -> StateProvider {
         StateProvider::RuleBased {
             fallback: None,
@@ -235,8 +209,6 @@ impl Blocks {
     }
 }
 
-/// Dirt to `FLOOR_TOP` and air above, around `origin`. The height is the
-/// topmost block that stops motion, leaves excepted for the no-leaves map.
 fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
     let mut world = BoxRegion::new(
         BlockPos::new(origin.x - 40, MIN_Y, origin.z - 40),
@@ -260,8 +232,6 @@ fn flat_world(blocks: &Blocks, origin: BlockPos) -> BoxRegion {
     })
 }
 
-/// The features the dump is compared for; the rest of the dump is skipped. A
-/// feature this test runs is read straight from the game's `worldgen/feature` files.
 const COVERED: [&str; 20] = [
     "minecraft:oak",
     "minecraft:oak_bees_002",
@@ -343,8 +313,6 @@ pub(crate) fn compiled(
     })
 }
 
-/// A leaf's `distance` is the reference's `HashSet` iteration order talking, so
-/// it is blinded before the comparison. The block and every other property stay.
 fn blind_distance(writes: &[([i32; 3], String)]) -> Vec<([i32; 3], String)> {
     writes
         .iter()

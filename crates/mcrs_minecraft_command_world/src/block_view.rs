@@ -10,7 +10,6 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
-/// The blocks of the dimension of this world, as a command reads them.
 #[derive(SystemParam)]
 pub(crate) struct BlockView<'w, 's> {
     dimension: Query<
@@ -29,7 +28,6 @@ pub(crate) struct BlockView<'w, 's> {
 }
 
 impl BlockView<'_, '_> {
-    /// The dimension entity of this world.
     pub(crate) fn dimension(&self) -> Option<Entity> {
         self.dimension.single().ok().map(|(entity, ..)| entity)
     }
@@ -39,7 +37,6 @@ impl BlockView<'_, '_> {
         self.columns.get(index.get(&column)?.entity).ok()
     }
 
-    /// Every section of the column of `pos` is loaded.
     pub(crate) fn is_loaded(&self, pos: BlockPos) -> bool {
         self.loaded(pos.x, pos.z)
     }
@@ -57,7 +54,6 @@ impl BlockView<'_, '_> {
         })
     }
 
-    /// The position is in a loaded column and inside the world.
     pub(crate) fn readable(&self, pos: BlockPos) -> Result<(), CommandFailure> {
         if !self.loaded(pos.x, pos.z) {
             return Err(CommandFailure::translate("argument.pos.unloaded", vec![]));
@@ -74,7 +70,6 @@ impl BlockView<'_, '_> {
         Ok(())
     }
 
-    /// The state at `pos`, or `None` when its section is not loaded.
     pub(crate) fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
         let (.., sections) = self.dimension.single().ok()?;
         let local = |axis: i32| usize::try_from(axis & SectionPos::MASK as i32).ok();

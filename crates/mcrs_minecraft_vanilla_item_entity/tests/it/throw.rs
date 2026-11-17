@@ -22,7 +22,6 @@ use crate::fixture::picked_up;
 use crate::fixture::run;
 use crate::fixture::slot_count;
 
-/// A player at `feet` throws 10 `stone` straight down, onto 10 `stone` that lie there.
 #[test]
 fn ien_spn_mrg_pck_a_thrown_stack_lands_merges_with_a_near_stack_and_is_picked_up() {
     let mut app = app();

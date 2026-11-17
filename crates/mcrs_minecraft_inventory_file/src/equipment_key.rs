@@ -6,8 +6,6 @@ pub(crate) const SELECTED_KEY: &str = "SelectedItemSlot";
 pub(crate) const EQUIPMENT_KEY: &str = "equipment";
 pub(crate) const FILE_KEYS: [&str; 3] = [INVENTORY_KEY, SELECTED_KEY, EQUIPMENT_KEY];
 
-/// The keys of `equipment` that hold slots of the player inventory (INV-SAV-001), in the order of
-/// a write. The file keeps each other key.
 pub(crate) const EQUIPMENT: [EquipmentKey; 5] = [
     EquipmentKey {
         key: "offhand",
@@ -31,7 +29,6 @@ pub(crate) const EQUIPMENT: [EquipmentKey; 5] = [
     },
 ];
 
-/// A key of `equipment` and the slot of the player inventory that it holds.
 pub(crate) struct EquipmentKey {
     pub(crate) key: &'static str,
     pub(crate) index: u16,

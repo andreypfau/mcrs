@@ -16,7 +16,6 @@ use crate::view::Ops;
 use crate::view::Seat;
 use crate::view::View;
 
-/// A quick craft packet that fits the drag state.
 #[derive(Clone, Copy)]
 enum Step {
     Start,
@@ -25,7 +24,6 @@ enum Step {
 }
 
 impl Step {
-    /// The stage is in the bits 0 and 1 of the button; the stage 3 is not valid.
     fn of(button: u8, drag: &Drag) -> Option<Self> {
         match (button & 3, drag.kind()) {
             (0, None) => Some(Self::Start),
@@ -80,7 +78,6 @@ pub(crate) fn drag_click<M: Menu<Slot = S::Slot>, S: Slots>(
     Ok(())
 }
 
-/// The conditions of a slot of the set other than the count of the cursor.
 fn admits<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     index: u16,
@@ -117,7 +114,6 @@ fn end<M: Menu<Slot = S::Slot>, S: Slots>(
     }
 }
 
-/// A drag over one slot is the pick up click on that slot.
 fn pick_up_single<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     drag: &Drag,
@@ -132,7 +128,6 @@ fn pick_up_single<M: Menu<Slot = S::Slot>, S: Slots>(
     Ok(())
 }
 
-/// The `split` operations of `part` items of a drag over two or more slots.
 fn spread<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     drag: &Drag,
@@ -159,7 +154,6 @@ fn spread<M: Menu<Slot = S::Slot>, S: Slots>(
     Ok(())
 }
 
-/// The `set` operations of a creative drag over two or more slots, which make items.
 fn fill<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     drag: &Drag,
@@ -188,7 +182,6 @@ fn fill<M: Menu<Slot = S::Slot>, S: Slots>(
         })?;
         left -= i32::from(full) - i32::from(held);
     }
-    // A slot above its capacity gives a negative gain (deviation D2), so `left` can pass 255.
     let count = u8::try_from(left.max(0)).unwrap_or(u8::MAX);
     ops.push(Op::Set {
         slot: cursor.slot,

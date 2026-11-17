@@ -1,7 +1,3 @@
-//! The loot context, the loot conditions and the context number providers: their file form,
-//! their bake and their evaluation.
-// std: mcrs_minecraft_registries
-
 mod attribute_check;
 mod check_baker;
 mod clock_view;

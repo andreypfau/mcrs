@@ -2,7 +2,6 @@ use core::fmt;
 
 use crate::attribute_id::AttributeId;
 
-/// A numeric id that is not in the registry `minecraft:attribute` (ATR-CLI-006).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownAttribute(pub AttributeId);
 

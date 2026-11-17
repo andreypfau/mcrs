@@ -1,5 +1,3 @@
-//! The server process: its console on standard input and its log, one timed line at a time.
-
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
@@ -14,7 +12,6 @@ pub struct Line {
     pub text: String,
 }
 
-/// How the server is asked to stop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stop {
     Console,
@@ -32,8 +29,6 @@ pub struct ServerProcess {
 }
 
 impl ServerProcess {
-    /// Starts `command` in `dir` with standard error joined to standard output, and copies every
-    /// kept line to `log_file` when there is one.
     pub fn start(
         command: &[String],
         env: &[(String, String)],
@@ -74,8 +69,6 @@ impl ServerProcess {
         })
     }
 
-    /// Counts the lines `matches` accepts instead of keeping them: a stir answers one line a
-    /// hit, millions in a run.
     #[must_use]
     pub fn counting(mut self, matches: fn(&str) -> bool) -> Self {
         self.counted = Some(matches);
@@ -103,7 +96,6 @@ impl ServerProcess {
         self.counted_lines
     }
 
-    /// Moves the lines that arrived into the log.
     pub fn pump(&mut self) {
         while let Ok(line) = self.incoming.try_recv() {
             if self.counted.is_some_and(|matches| matches(&line.text)) {
@@ -117,8 +109,6 @@ impl ServerProcess {
         }
     }
 
-    /// Waits up to `timeout` for a line that arrives at `after` or later and that `parse`
-    /// accepts, and returns its value.
     pub fn wait_for<T>(
         &mut self,
         after: Instant,
@@ -142,14 +132,12 @@ impl ServerProcess {
         }
     }
 
-    /// The lines that arrived in `from..until`.
     pub fn lines_between(&self, from: Instant, until: Instant) -> &[Line] {
         let start = self.log.partition_point(|line| line.at < from);
         let end = self.log.partition_point(|line| line.at < until);
         self.log.get(start..end).unwrap_or_default()
     }
 
-    /// Asks the server to stop, kills it after `grace`, flushes the log file and returns the log.
     pub fn stop(mut self, stop: Stop, grace: Duration) -> Vec<Line> {
         match stop {
             Stop::Console => {

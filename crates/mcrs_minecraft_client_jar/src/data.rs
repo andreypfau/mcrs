@@ -13,14 +13,10 @@ const VERSION: &str = "version.json";
 const COMPLETE: &str = ".complete";
 const LOCK: &str = ".lock";
 
-/// Where the pinned client jar is read from when its data pack is not unpacked yet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClientJar {
-    /// This file, which must be the pinned release's jar.
     At(PathBuf),
-    /// A launcher's installation; nothing is downloaded.
     Installed,
-    /// A launcher's installation, or else a download into the official launcher's directory.
     InstalledOrDownloaded,
 }
 
@@ -57,9 +53,6 @@ fn io(path: &Path) -> impl FnOnce(std::io::Error) -> VanillaDataError + '_ {
     }
 }
 
-/// The directory holding the pinned client jar's `data/minecraft` tree and its `version.json`,
-/// unpacked once below `cache`, or the user's cache directory when it is `None`, and shared
-/// by every process after that.
 pub fn vanilla_data(
     jar: &ClientJar,
     cache: Option<&Path>,
@@ -134,9 +127,6 @@ fn verified(path: &Path, progress: &Progress) -> Result<Vec<u8>, VanillaDataErro
     }
 }
 
-// Unpacking runs under an exclusive lock, so one process reads the jar while the others wait
-// and then find the tree complete. A tree is renamed into place only once it holds everything,
-// so a reader that checks for the marker never sees half of one.
 fn unpacked(
     cache: &Path,
     release: &Release,
@@ -175,8 +165,6 @@ fn unpacked(
     published.map(|()| dir)
 }
 
-/// Removes what a process killed while it held the lock left behind: staging trees, and the
-/// unmarked tree at `dir`, which is first moved aside so the live path is never deleted.
 fn sweep(parent: &Path, dir: &Path) -> Result<(), VanillaDataError> {
     if dir.exists() {
         let aside = parent.join(format!(".stale-{}", std::process::id()));

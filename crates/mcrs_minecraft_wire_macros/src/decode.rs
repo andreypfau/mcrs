@@ -21,8 +21,6 @@ pub(super) fn derive_decode(item: TokenStream) -> Result<TokenStream> {
         ));
     }
 
-    // Use the lifetime specified in the type definition or just use `'a` if not
-    // present.
     let lifetime = input
         .generics
         .lifetimes()

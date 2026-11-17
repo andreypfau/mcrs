@@ -18,7 +18,6 @@ pub(crate) struct InboundReceiver {
 
 pub(crate) fn channel(capacity: usize, limit: usize) -> (InboundSender, InboundReceiver) {
     let (packet_sender, packet_receiver) = mpsc::channel(capacity);
-    // Credits cover the queued packets and one send waiting for a packet slot.
     let (credit_sender, credit_receiver) = mpsc::channel(capacity.saturating_add(1));
     (
         InboundSender {
@@ -43,7 +42,6 @@ impl InboundSender {
             self.queued = self.queued.saturating_sub(credit);
         }
         let bytes = packet.payload.len();
-        // A legal frame larger than the budget must still fit, on its own.
         while self.queued > 0 && self.queued.saturating_add(bytes) > self.limit {
             let Some(credit) = self.credits.recv().await else {
                 return Err(SendError(packet));
@@ -111,7 +109,6 @@ mod tests {
         future.poll(&mut Context::from_waker(Waker::noop()))
     }
 
-    /// Panics if the packet does not fit both queue bounds.
     fn send_now(sender: &mut InboundSender, packet: ReceivedPacket) {
         assert!(
             matches!(

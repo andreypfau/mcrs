@@ -5,9 +5,6 @@ use bevy::prelude::*;
 use crate::Unsettled;
 use crate::stream::Streaming;
 
-/// Tracks how long the terrain has stayed quiet. `Streaming::done` also holds in the gaps between
-/// the server's batches, so the terrain counts as quiet only once nothing new arrives and no
-/// plugin reports `Unsettled`.
 #[derive(Default)]
 pub struct Settle {
     quiet_since: Option<Duration>,
@@ -15,8 +12,6 @@ pub struct Settle {
 }
 
 impl Settle {
-    /// Reads the streaming state and the `Unsettled` messages of this frame. Returns how long
-    /// the terrain has been quiet, or `None` while it is not.
     pub fn observe(
         &mut self,
         now: Duration,

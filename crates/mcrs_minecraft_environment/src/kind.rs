@@ -1,6 +1,5 @@
 use crate::environment_attribute_keys::EnvironmentAttribute;
 
-/// The kind of value an attribute holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeType {
     Boolean,
@@ -20,7 +19,6 @@ pub enum AttributeType {
     AmbientParticles,
 }
 
-/// The closed interval a float attribute keeps after the last layer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bounds {
     pub min: f32,
@@ -39,7 +37,6 @@ impl Bounds {
         self.min <= value && value <= self.max
     }
 
-    /// The nearer bound for a value outside; a NaN stays NaN.
     #[must_use]
     pub fn clamp(self, value: f32) -> f32 {
         if value < self.min {
@@ -52,7 +49,6 @@ impl Bounds {
     }
 }
 
-/// What the attribute table states about one attribute.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttributeInfo {
     pub kind: AttributeType,
@@ -78,7 +74,6 @@ const fn row(
     }
 }
 
-/// The row of `attribute` in the attribute table.
 #[must_use]
 pub const fn info(attribute: EnvironmentAttribute) -> AttributeInfo {
     use AttributeType as T;
@@ -158,7 +153,6 @@ pub const fn info(attribute: EnvironmentAttribute) -> AttributeInfo {
     }
 }
 
-/// Whether the attribute that `id` names is sent to clients. An unknown id is not.
 #[must_use]
 pub fn is_syncable(id: &str) -> bool {
     EnvironmentAttribute::read(id).is_some_and(|attribute| info(attribute).syncable)

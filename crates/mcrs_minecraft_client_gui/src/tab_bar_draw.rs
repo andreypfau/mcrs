@@ -11,9 +11,6 @@ use crate::scene::{GuiAtlasData, GuiQuad};
 const HEADER_TILE: i32 = 16;
 const BACKGROUND_TILE: i32 = 32;
 
-/// A menu tab bar: the header background (TAB-AREA-001), the line beside the tabs
-/// (TAB-MENU-005), then each tab with its sprite (TAB-MENU-002), the background and the line of
-/// the current tab (TAB-MENU-003) and its label (TAB-MENU-004).
 pub(crate) fn draw_tab_bar(
     menu: &Menu,
     widget: &Widget,

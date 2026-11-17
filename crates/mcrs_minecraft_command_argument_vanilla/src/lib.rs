@@ -1,5 +1,3 @@
-//! The vanilla argument set, its errors, its parsers on the wire and the client tree.
-
 mod client;
 mod error;
 mod nbt_compound_argument;

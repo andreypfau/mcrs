@@ -3,7 +3,6 @@ use mcrs_minecraft_item::{SlotTable, slots};
 
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
-/// The main arm is right (no options yet), so the offhand frame sits on the left.
 pub fn hotbar(size: GuiSize, selected: u8, slots: &SlotTable, out: &mut Vec<GuiQuad>) {
     let (cx, h) = (size.width / 2, size.height);
     let offhand = slots.get(slots::OFFHAND);

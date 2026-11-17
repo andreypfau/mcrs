@@ -7,21 +7,14 @@ use mcrs_voxel::BlockPos;
 
 use crate::tree::provider::StateProvider;
 
-/// One `block_pile` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledBlockPile {
     pub state_provider: StateProvider,
-    /// A path draws a coin instead of answering from its shape.
     pub dirt_path: StateMask,
 }
 
-/// The floor the reference refuses to pile on, measured from the dimension's
-/// bottom.
 const MIN_HEIGHT_ABOVE_BOTTOM: i32 = 5;
 
-/// `BlockPileFeature.place`: a box two cells tall around the origin, visited in
-/// the reference's x, then y, then z order, with a radial test whose threshold
-/// is two fresh floats at every cell.
 pub fn place_block_pile<W: WorldGenVolume>(
     cfg: &CompiledBlockPile,
     volume: &mut W,
@@ -61,8 +54,6 @@ fn try_place<W: WorldGenVolume>(
         return;
     }
     let below = volume.get(pos - IVec3::Y);
-    // `isFaceSturdy(UP)` as the full-collision-cube flag: a top slab reads as
-    // no ground where the reference piles on it.
     let may_place = if holds(&cfg.dirt_path, below) {
         rng.next_bool()
     } else {
@@ -108,13 +99,7 @@ mod tests {
         volume
     }
 
-    /// The two radii, then two floats at every cell of the box and a third
-    /// wherever the radial test failed, in x, then y, then z order.
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "walks the box in the reference's x, y, z order and checks the floats each cell spends, so the order is visible in the loops"
-    )]
     fn every_cell_of_the_box_spends_its_floats_in_the_references_order() {
         let cfg = config();
         let mut volume = ground(DIRT);
@@ -133,13 +118,8 @@ mod tests {
                     let dz = AT.z - z;
                     let inside = (dx * dx + dz * dz) as f32
                         <= replay.next_f32() * 10.0 - replay.next_f32() * 6.0;
-                    if inside || replay.next_f32() < 0.031 {
-                        // Only the lower layer stands on dirt; the upper one
-                        // stands on whatever the lower layer left, which is
-                        // air until this cell is written.
-                        if y == AT.y {
-                            expected.push((x, y, z));
-                        }
+                    if (inside || replay.next_f32() < 0.031) && y == AT.y {
+                        expected.push((x, y, z));
                     }
                 }
             }
@@ -151,8 +131,6 @@ mod tests {
         assert!(volume.writes.iter().all(|(_, state)| *state == SNOW));
     }
 
-    /// A path below draws a coin in place of the shape test, which shifts every
-    /// later draw of the pile.
     #[test]
     fn a_path_below_spends_a_draw_the_shape_test_would_not() {
         let cfg = config();
@@ -167,8 +145,6 @@ mod tests {
         assert_ne!(plain_rng, path_rng, "the coin per candidate cell");
     }
 
-    /// The reference refuses to pile within five blocks of the bottom of the
-    /// world, before it draws anything.
     #[test]
     fn a_pile_too_close_to_the_bottom_of_the_world_draws_nothing() {
         let cfg = config();

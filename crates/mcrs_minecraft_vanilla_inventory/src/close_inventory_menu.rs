@@ -6,7 +6,6 @@ use mcrs_minecraft_item_table::ItemTable;
 use crate::close_place::Place;
 use crate::insert_stack::insert_stack;
 
-/// A slot of the player whose stack a close moves into the player inventory.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Carried {
     Cursor,
@@ -16,11 +15,9 @@ pub(crate) enum Carried {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Destination {
     Inventory(u16),
-    /// One item entity (IEN-SPN-006).
     Drop,
 }
 
-/// `count` items that leave `from` for `to`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct CloseMove {
     pub(crate) from: Carried,
@@ -28,11 +25,6 @@ pub(crate) struct CloseMove {
     pub(crate) count: u8,
 }
 
-/// The moves of the steps 1 and 2 of INV-CLS-001 for the inventory menu: the cursor stack, then
-/// each stack of the craft grid from the slot 0 to the slot 3, enters the player inventory by the
-/// insert rule, and the rest of each one drops. `place` answers for the stack of a source in a
-/// slot of the player inventory. After the moves the cursor and the craft grid hold the empty
-/// stack.
 pub(crate) fn close_inventory_menu(
     stacks: &PlayerItems,
     table: &ItemTable,
@@ -77,7 +69,6 @@ pub(crate) fn close_inventory_menu(
     moves
 }
 
-/// Applies `moves` to `stacks`. Gives the stack of each move to [`Destination::Drop`], in order.
 pub(crate) fn apply_close_moves(stacks: &mut PlayerItems, moves: &[CloseMove]) -> Vec<ItemStack> {
     let mut drops = Vec::new();
     for &CloseMove { from, to, count } in moves {

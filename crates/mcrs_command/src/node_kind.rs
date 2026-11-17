@@ -1,6 +1,5 @@
 use alloc::boxed::Box;
 
-/// What a node matches on the command line.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeKind<A> {
     Root,
@@ -9,7 +8,6 @@ pub enum NodeKind<A> {
 }
 
 impl<A> NodeKind<A> {
-    /// The literal text or the argument name; empty for the root.
     pub fn name(&self) -> &str {
         match self {
             NodeKind::Root => "",

@@ -4,15 +4,11 @@ use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::ContextParam;
 use mcrs_minecraft_resource::Id;
 
-/// Why a roll evaluated nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RollError {
-    /// The tables hold no table with this id.
     UnknownTable(Id<LootTable>),
-    /// The context lacks a parameter that its key set requires (LOOT-CTX-012).
     MissingParam(ContextParam),
-    /// The context holds a parameter that its key set does not allow (LOOT-CTX-012).
     UnexpectedParam(ContextParam),
 }
 

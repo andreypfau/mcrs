@@ -76,12 +76,8 @@ fn holder_with(world: &mut World, items: u8, policy: Option<SlotPolicy>) -> Enti
     holder
 }
 
-/// Moves one item from a holder with 64 items to a holder with one, 35 times, and gives the
-/// allocations of the last 32 moves.
 fn allocations_of_hopper_moves(policy: Option<SlotPolicy>) -> usize {
     let mut app = app();
-    // The multi-threaded executor of Bevy allocates on each schedule run, with or without
-    // systems; the single-threaded one leaves only the allocations of this crate.
     for (_, schedule) in app.world_mut().resource_mut::<Schedules>().iter_mut() {
         schedule.set_executor(SingleThreadedExecutor::default());
     }

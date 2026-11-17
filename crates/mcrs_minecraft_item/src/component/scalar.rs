@@ -42,8 +42,6 @@ var_int_newtype! {
     DyedColor(RgbInt) [RgbInt(0), RgbInt(0xFF0000), RgbInt(-6265536)],
 }
 
-/// A record codec reads a map and nothing else, where the derived visitor
-/// would also take the fields as a sequence.
 macro_rules! record_codec {
     ($($ty:ident $(<$param:ident>)?),* $(,)?) => {$(
         impl<'de $(, $param: serde::Deserialize<'de>)?> serde::Deserialize<'de> for $ty $(<$param>)? {
@@ -80,7 +78,6 @@ macro_rules! record_codec {
 }
 pub(crate) use record_codec;
 
-/// `record_codec!` for a value read and written in the named form only.
 macro_rules! named_record_codec {
     ($($ty:ident),* $(,)?) => {$(
         impl<'de> serde::Deserialize<'de> for $ty<mcrs_minecraft_registries::Named> {
@@ -158,8 +155,6 @@ pub struct AdditionalTradeCost(pub i32);
 #[serde(transparent)]
 pub struct EnchantmentGlintOverride(pub bool);
 
-/// Bounds order `-0.0` below `0.0` and `NaN` above everything, unlike
-/// `PartialOrd`.
 fn float_in_range(
     value: f32,
     min: f32,

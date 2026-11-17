@@ -27,18 +27,15 @@ use crate::ItemCollector;
 use crate::PickedUp;
 use crate::wire_stack::wire_stack_of;
 
-/// An item entity that left the world in this tick, with the tile in which its viewers know it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Release {
     pub(crate) id: EntityId,
     pub(crate) tile: TileKey,
 }
 
-/// The item entities that left the world in this tick.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Released(pub(crate) Vec<Release>);
 
-/// The takes of the pickups of this tick, by the network id of the item entity.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Takes(Vec<Take>);
 
@@ -55,9 +52,6 @@ impl Takes {
     }
 }
 
-/// Before the tile events of the motion: the take of each item entity that a pickup removed, so
-/// that it goes before the removal (IEN-NET-004), and the count of the stack in the spawn of each
-/// item entity whose stack changed before its spawn (IEN-NET-001).
 pub(crate) fn publish_takes(
     mut picked: MessageReader<PickedUp>,
     collectors: Query<&ItemCollector>,
@@ -98,8 +92,6 @@ pub(crate) fn publish_takes(
     }
 }
 
-/// After the tile events of the motion: the new stack of each item entity whose count changed
-/// after its spawn (IEN-NET-003), after the take of a partial pickup (IEN-PCK-005).
 pub(crate) fn publish_stacks(
     items: Query<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
     mut stacks: Stacks,

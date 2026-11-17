@@ -1,13 +1,8 @@
-// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
-
 use mcrs_minecraft_mesh::DrawKind;
 use wgpu::util::DrawIndirectArgs;
 
-/// Arguments written by GPU culling and consumed by indirect draw/dispatch calls.
 pub type DrawArgs = DrawIndirectArgs;
 
-/// Row inside the GPU draw-argument buffer, each spanning [`DrawKind::COUNT`] slots.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(u32)]
 pub enum DrawArgRow {
@@ -58,12 +53,9 @@ impl DrawArgRow {
     }
 }
 
-/// The draw's quads are models, with four corners of their own rather than a greedy rectangle.
 pub const PARAMS_MODEL: u32 = 1;
-/// The draw writes depth and culls back faces, so a quad is tested on its own: blended quads keep the order the blend needs and go through by group.
 pub const PARAMS_QUAD_CULL: u32 = 2;
 
-/// Per-draw culling and draw-indirect parameters.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Params {
@@ -79,8 +71,6 @@ pub struct Params {
 pub(crate) const PARAMS_SIZE: u64 = size_of::<Params>() as u64;
 const _: () = assert!(PARAMS_SIZE > 0);
 
-/// The frame's view, expressed against the origin of the section the camera stands in. Nothing
-/// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
 #[derive(Copy, Clone, Default, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct CameraUniform {
@@ -107,7 +97,6 @@ pub struct CameraUniform {
 pub(crate) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
 const _: () = assert!(CAMERA_SIZE > 0);
 
-/// GPU section descriptor placed once per resident section slot.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct SectionDesc {
@@ -118,7 +107,6 @@ pub struct SectionDesc {
 
 pub(crate) const SECTION_BYTES: u64 = size_of::<SectionDesc>() as u64;
 
-/// Sprite lookup entry pointing to its static array layer and animation index.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct SpriteEntry {
@@ -146,8 +134,6 @@ pub(crate) struct Reconstruction {
 pub(crate) const RECONSTRUCTION_SIZE: u64 = size_of::<Reconstruction>() as u64;
 const _: () = assert!(RECONSTRUCTION_SIZE > 0);
 
-/// The per-frame GPU block. Its colours are in linear light, but `disc` and `fog`, which are image
-/// values; the shader turns the linear ones into image values before the world image blends them.
 #[derive(Copy, Clone, Default, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct SkyUniform {
@@ -161,8 +147,6 @@ pub struct SkyUniform {
     pub sky_light: [f32; 4],
     pub block_light: [f32; 4],
     pub ambient: [f32; 4],
-    /// The two elevations in degrees over which the occluder fades in, then 1 when the frame has
-    /// a sky occluder and 0 when it has none.
     pub occluder: [f32; 4],
 }
 

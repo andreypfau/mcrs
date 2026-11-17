@@ -7,9 +7,6 @@ use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_voxel::BlockPos;
 use rustc_hash::FxHashSet;
 
-/// The ticks that generation scheduled in a column, as the column keeps them until a queue takes
-/// them. Generation keeps no delay: each tick is due when its section first runs ticks. A later
-/// tick of the same block or fluid at the same position is dropped.
 pub(crate) fn column_ticks(
     ticks: &[PendingTick<GenerationKinds>],
     definitions: &BlockDefinitions,

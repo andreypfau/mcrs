@@ -19,8 +19,6 @@ use crate::keyed_numbers::KeyedNumbers;
 use crate::list_operation::{self, ListOperation, StandaloneList};
 use crate::loot_table_file::{EntryFile, TagName};
 
-/// An item modifier as a data pack writes it (REG-FLD-741): a tag or the key of registered
-/// modifiers, a list applied in order, or one object.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ModifierFile {
@@ -36,7 +34,6 @@ impl mcrs_minecraft_resource::RegistryValue for ModifierFile {
 
 mcrs_minecraft_registries::resolve_as_is!(ModifierFile);
 
-/// An element of a list of modifiers: a key or an object. A list is not an element (REG-FLD-780).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ModifierElement {
@@ -44,7 +41,6 @@ pub enum ModifierElement {
     Inline(Box<ModifierObject>),
 }
 
-/// The `functions` of a `sequence`: a tag, a list, or one element.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ModifierSetFile {
@@ -60,7 +56,6 @@ pub struct ModifierObject {
     pub kind: ModifierKind,
 }
 
-/// A set of registry entries: a tag, a list, or one key.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum KeySetFile {
@@ -69,8 +64,6 @@ pub enum KeySetFile {
     One(ResourceLocationBuf),
 }
 
-/// The type of a modifier and its fields, REG-FLD-743 to REG-FLD-789; a type without a variant
-/// fails the decode.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
 pub enum ModifierKind {
@@ -265,7 +258,6 @@ pub enum ModifierKind {
         alias = "set_written_book_pages"
     )]
     SetWrittenBookPages {
-        // chisle: the 32767 bound of a page (REG-FLD-561) is unchecked until the item crate exports it.
         pages: Vec<Filterable<Text<Named>>>,
         #[serde(flatten)]
         operation: ListOperation,
@@ -309,8 +301,6 @@ pub enum LimitFile {
     },
 }
 
-/// The `formula` of `apply_bonus` with its `parameters`, each of them required (REG-FLD-765).
-/// An absent `parameters` reads as `{}`, which only `ore_drops` accepts.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(tag = "formula")]
 pub enum BonusFormula {
@@ -346,8 +336,6 @@ pub struct BinomialParameters {
     pub probability: f32,
 }
 
-/// An element of `colors.values` of `set_custom_model_data`: an int provider, or on read an RGB
-/// color `[r, g, b]` (REG-FLD-789).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ColorFile {
@@ -392,8 +380,6 @@ pub enum EntityTarget {
     InteractingEntity,
 }
 
-/// The source of `copy_components`: an entity target, the block entity, or the tool
-/// (REG-FLD-781).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CopySource {
@@ -407,8 +393,6 @@ pub enum CopySource {
     Tool,
 }
 
-/// The source of `copy_name` and the target of an NBT provider: an entity target or the block
-/// entity (REG-FLD-759, REG-FLD-773).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextTarget {
@@ -436,7 +420,6 @@ pub struct StewEffectFile {
     pub duration: IntProviderFile,
 }
 
-/// The component that `set_contents` and `modify_contents` write (REG-FLD-760).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum ContentsComponent {
     #[serde(rename = "minecraft:container", alias = "container")]
@@ -450,7 +433,6 @@ pub enum ContentsComponent {
     ChargedProjectiles,
 }
 
-/// An NBT provider (REG-FLD-773).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum NbtSourceFile {
@@ -492,12 +474,10 @@ pub enum FireworkShape {
     Burst,
 }
 
-/// The `toggles` of `toggle_tooltips`: a flag for each component type.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(transparent)]
 pub struct KeyedFlags(pub BTreeMap<ResourceLocationBuf, bool>);
 
-/// The `generation` of `set_book_cover`: from 0 to 3 (REG-FLD-784).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(try_from = "u8")]
 pub struct Generation(pub u8);

@@ -6,7 +6,6 @@ use mcrs_minecraft_entity_rows::RowStore;
 use crate::mob_life::MobChanges;
 use crate::mob_life::Struck;
 
-/// Hurts the mob row `at` and queues what its viewers see; `None` when `at` is not a living row.
 pub fn hurt_mob<M>(
     rows: &mut RowStore<M>,
     changes: &mut MobChanges,
@@ -30,8 +29,6 @@ pub fn hurt_mob<M>(
     Some(outcome)
 }
 
-/// Queues what the viewers see of the crowd hits of the last pass of `rows`, which have the
-/// damage type `damage_type` (DMG-CRW-001).
 pub(crate) fn report_crowd_hits<M>(rows: &RowStore<M>, changes: &mut MobChanges, damage_type: u32) {
     for hit in rows.crowd_hits() {
         changes.strikes.push(Struck {

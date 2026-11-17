@@ -9,8 +9,6 @@ use crate::Decision;
 use crate::StageConfig;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The decisions of one issue tick, per tile of the mob at the issue, each tile in the order of
-/// the order keys.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct IssuedDecisions {
     pub tick: u64,
@@ -29,9 +27,6 @@ impl IssuedDecisions {
     }
 }
 
-/// The decisions between their issue and their application. The hot tick of `T'` takes the
-/// decisions that are due; no decision applies later than `max_lag` ticks after its issue tick,
-/// and the decisions of one mob apply in the order of their issue ticks.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecisionPipeline {
     delay: AiDelay,
@@ -54,7 +49,6 @@ impl Slot {
     }
 }
 
-/// The hot tick must wait for the decisions of an issue tick that are not ready.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Wait {
     pub issue_tick: u64,
@@ -82,7 +76,6 @@ impl DecisionPipeline {
         }
     }
 
-    /// The hot tick issued the work of `tick` to the stage.
     pub fn issue(&mut self, tick: u64) {
         if self.slots.iter().any(|slot| slot.tick() == tick) {
             return;
@@ -91,7 +84,6 @@ impl DecisionPipeline {
         self.slots.insert(at, Slot::Pending(tick));
     }
 
-    /// The stage finished the work of `decisions.tick`.
     pub fn ready(&mut self, decisions: IssuedDecisions) {
         let tick = decisions.tick;
         let at = self.slots.partition_point(|slot| slot.tick() < tick);
@@ -101,7 +93,6 @@ impl DecisionPipeline {
         }
     }
 
-    /// The decisions that apply in the hot tick `apply_tick`, oldest issue tick first.
     pub fn take_due(&mut self, apply_tick: u64) -> Result<Vec<IssuedDecisions>, Wait> {
         let lag = u64::from(self.delay.ticks());
         let due = match self.delay {

@@ -17,12 +17,9 @@ use crate::ShapeClass;
 use crate::ShapeId;
 use crate::StateCollision;
 
-/// The input for one block state of a [`CollisionTableBuilder`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StateSpec<'a> {
-    /// The shape for an entity that has no context, in block units relative to the block position.
     pub boxes: &'a [Aabb],
-    /// The shape for an entity, when it differs from `boxes`.
     pub context: Option<ContextShape>,
     pub flags: BlockFlags,
     pub inside: InsideEffect,
@@ -31,14 +28,12 @@ pub struct StateSpec<'a> {
     pub path: PathType,
 }
 
-/// A shape that depends on the entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContextShape {
     Scaffolding { bottom: bool },
     PowderSnow,
 }
 
-/// Builds a [`CollisionTable`]. The states get their ids in the order of [`Self::push`].
 #[derive(Debug)]
 pub struct CollisionTableBuilder {
     table: CollisionTable,
@@ -91,7 +86,6 @@ impl CollisionTableBuilder {
         builder
     }
 
-    /// Adds a state and returns its id, or `None` when the table is full.
     pub fn push(&mut self, spec: StateSpec<'_>) -> Option<BlockStateId> {
         let number = u16::try_from(self.table.states.len()).ok()?;
         let mut flags = spec.flags;

@@ -1,10 +1,3 @@
-//! Finds every Molang expression in Bedrock packs and reports aggregate statistics.
-//!
-//! The parse is `mcrs_molang::parse`, so that the tool and the kernel cannot disagree on the
-//! grammar. The tool embeds no pack content. It reads the packs from the path that the caller gives,
-//! prints statistics as Markdown, and writes the expressions to a JSON Lines file only on
-//! request, for a parse coverage gate outside the repository.
-
 #![expect(
     clippy::disallowed_types,
     reason = "a pack file has no fixed shape, so the extractor walks a JSON value"
@@ -73,7 +66,6 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// One line of the JSON Lines file: an expression and its context.
 #[derive(Serialize)]
 struct Line<'entry> {
     expr: &'entry str,

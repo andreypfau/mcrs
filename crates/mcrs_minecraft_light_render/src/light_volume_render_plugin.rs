@@ -23,9 +23,6 @@ impl Plugin for LightVolumeRenderPlugin {
             .add_plugins(ExtractResourcePlugin::<VolumeSettings>::default());
     }
 
-    /// The volume is coloured by compute passes over storage buffers, so without them (WebGL2)
-    /// the render part is left out: the lighting pass then draws block light without a tint, and
-    /// the volume, never opened, asks the feeder for nothing.
     fn finish(&self, app: &mut App) {
         let world = app.world();
         match (

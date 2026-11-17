@@ -7,7 +7,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
-/// The command level of a player with `op_level`.
 pub fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
     CommandLevel::from(op_level.clamped())
 }
@@ -15,8 +14,6 @@ pub fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
 pub(crate) type PlayerLevels<'w, 's> =
     Query<'w, 's, (&'static PlayerOpLevel, &'static PlayerGameMode), With<Player>>;
 
-/// The source of the player of the session `player`, from its entry in the targets and its
-/// level in this world, which holds it.
 pub(crate) fn player_source(
     targets: &CommandTargets,
     levels: &PlayerLevels,

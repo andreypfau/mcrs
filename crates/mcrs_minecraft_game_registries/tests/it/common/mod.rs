@@ -107,7 +107,6 @@ pub fn tag_members<R: Registered>(set: &Registries, tag: &str) -> Vec<String> {
         .collect()
 }
 
-/// The repository's local packs over the built-in worldgen assets.
 pub fn pack_layering() -> PackLayering {
     PackLayering {
         local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
@@ -115,8 +114,6 @@ pub fn pack_layering() -> PackLayering {
     }
 }
 
-/// Registers the pack sources of [`pack_layering`] and names its local packs for the registry
-/// load.
 fn register_packs(app: &mut App) {
     let layering = pack_layering();
     app.world_mut()
@@ -221,7 +218,6 @@ impl WithFiles {
         self.with(format!("{root}/pack.mcmeta"), metadata)
     }
 
-    /// The test additions with the local packs this source added.
     pub fn additions(&self) -> RegistryAdditions {
         let mut additions = test_additions();
         additions.local_packs.extend(self.packs.iter().cloned());

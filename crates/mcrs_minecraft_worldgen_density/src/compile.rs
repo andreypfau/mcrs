@@ -44,10 +44,8 @@ pub enum CompileError {
     UnknownBlockState(String),
     #[error("unknown biome or biome tag in {0}")]
     UnknownBiomes(String),
-    /// A condition kind this build parses but cannot evaluate.
     #[error("material condition minecraft:{0} cannot be evaluated by this build")]
     UnsupportedCondition(&'static str),
-    /// An upscale that is not linear on every axis with one cell size for X and Z.
     #[error("upscale with axes {0:?} cannot be evaluated by this build")]
     UnsupportedUpscale([UpscaleAxis; 3]),
 }
@@ -63,9 +61,6 @@ pub fn build_router(
         .map(|(router, ())| router)
 }
 
-/// [`build_router`] with `extra` compiling more roots into the same graph, so
-/// they share its nodes. They are numbered after the eight router roots and
-/// before the aquifer's.
 pub fn build_router_with<T>(
     settings: &NoiseGeneratorSettings,
     registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
@@ -145,8 +140,6 @@ pub struct Compiler<'a> {
     splines: HashMap<ProtoSpline, Arc<CompiledSpline>>,
     blended: HashMap<[u64; 5], Arc<BlendedNoise>>,
     end_islands: Option<Arc<EndIslandParams>>,
-    /// Both are an 82- and a 10-octave `LegacyRandom` walk; the ids that resolve
-    /// to them are separate assets, so without this each one reseeds from zero.
     beta_terrain: Option<Arc<BetaTerrainNoises>>,
     beta_climate: Option<Arc<BetaClimateNoises>>,
     cells: usize,
@@ -182,17 +175,11 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    /// Drops every node no root can reach — a root that failed halfway leaves
-    /// its partial subgraph behind, and `Program::fill` evaluates the whole
-    /// array rather than a reachable subset.
     pub(crate) fn into_program(self, roots: Vec<NodeId>) -> Program {
         let (nodes, axes, ranges, roots) = prune(self.nodes, self.axes, self.node_ranges, roots);
         Program::new(nodes, axes, ranges, roots)
     }
 
-    /// A node's stratum and its declared bound are both functions of its own
-    /// kind and of its inputs, which are interned before it. Deriving them here
-    /// is what keeps them off a second walk over the tree the node came from.
     fn intern(&mut self, key: Key, node: Node) -> NodeId {
         if let Some(&id) = self.interned.get(&key) {
             return id;
@@ -231,10 +218,6 @@ impl<'a> Compiler<'a> {
         self.intern(Key::Constant(value.to_bits()), Node::Constant(value))
     }
 
-    /// The value vanilla's fallback returns where this build has no blender and
-    /// no beardifier, carrying the wider bound the real function declares. A key
-    /// of its own keeps it off the plain constant of the same value, whose bound
-    /// is exact and would delete branches vanilla keeps.
     fn declared_constant(&mut self, value: f32, declared: Interval) -> NodeId {
         let key = Key::DeclaredConstant(
             value.to_bits(),
@@ -254,12 +237,6 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    // --- compilation --------------------------------------------------------
-
-    /// Only a named reference can bring the same subtree back a second time: a
-    /// function spelled inline is a tree, not a shared node. So the memo hangs
-    /// here rather than over every holder, where keying it would clone and hash
-    /// a whole subtree at every level of the walk.
     fn compile_reference(&mut self, id: &ResourceLocationBuf) -> Result<NodeId, CompileError> {
         if let Some(&node) = self.compiled.get(id) {
             return Ok(node);
@@ -280,14 +257,9 @@ impl<'a> Compiler<'a> {
         result
     }
 
-    /// The `instanceof ConstantFunction` test a shifted noise performs on its
-    /// three shifts, applied through whatever spelling the datapack used: a
-    /// named function, or a `cache` around one.
     fn resolves_to_zero_constant(&self, holder: &DensityFunctionHolder) -> bool {
         let registry = self.registry;
         let mut current = holder;
-        // Only a reference hop can revisit a name, so a chain longer than the
-        // registry is a cycle; it is reported where the reference compiles.
         let mut hops = registry.len();
         loop {
             match current {
@@ -321,18 +293,11 @@ impl<'a> Compiler<'a> {
         match &**function {
             P::Constant(value) => Ok(self.constant(value.value.0 as f32)),
 
-            // No blender and no beardifier here, so each is the value vanilla's
-            // fallback returns. Their declared ranges stay conservative, which
-            // is what keeps branch elimination from deleting a branch vanilla
-            // would keep.
             P::BlendAlpha => Ok(self.declared_constant(1.0, Interval::of(0.0, 1.0))),
             P::BlendOffset => Ok(self.declared_constant(0.0, Interval::INFINITE)),
             P::Beardifier => Ok(self.declared_constant(0.0, Interval::INFINITE)),
             P::BlendDensity(x) => self.compile(&x.input),
 
-            // A cache memoizes for an engine that re-walks the graph per
-            // position; the flat array evaluates every node once per fill, so
-            // the marker is its input.
             P::Cache(x) => self.compile(&x.input),
 
             P::Gradient(g) => {
@@ -411,8 +376,6 @@ impl<'a> Compiler<'a> {
                 ))
             }
 
-            // `shift` and `shift_a` are a plain noise scaled by four, so they
-            // lower onto nodes a bare `noise` of the same parameters shares.
             P::ShiftA { noise } => self.compile_shift(noise, 0.0),
             P::Shift { noise } => self.compile_shift(noise, 0.25),
             P::ShiftB { noise } => {
@@ -571,8 +534,6 @@ impl<'a> Compiler<'a> {
 
             P::Spline { spline } => self.compile_spline(spline),
 
-            // A slice whose input already ignores the sliced axis is the
-            // identity.
             P::Slice {
                 axis,
                 coordinate,
@@ -609,9 +570,6 @@ impl<'a> Compiler<'a> {
                 }
                 let cell = self.cells;
                 self.cells += 1;
-                // The lattice is addressed by the column being filled, which the
-                // per-fill phase has none of, so this never lands there however
-                // little its input varies.
                 Ok(self.intern(
                     key,
                     Node::Interpolated {
@@ -711,8 +669,6 @@ impl<'a> Compiler<'a> {
         ))
     }
 
-    // --- the specialization ladder -----------------------------------------
-
     fn unary(&mut self, op: UnaryOp, input: NodeId) -> NodeId {
         if let Some(value) = self.as_constant(input) {
             return self.constant(op.apply(value));
@@ -720,16 +676,10 @@ impl<'a> Compiler<'a> {
         self.intern(Key::Unary(op, input), Node::Unary { op, input })
     }
 
-    /// The rectifier vanilla emits for `half_negative` and `quarter_negative`:
-    /// unit slope above zero, `negative_scale` below.
     fn leaky_relu(&mut self, input: NodeId, negative_scale: f32) -> NodeId {
         self.piecewise_affine(input, negative_scale, 1.0, 0.0)
     }
 
-    /// `input * scale + offset`, with the two chained forms vanilla emits as
-    /// separate samplers folded into one node. Only the scale-then-offset order
-    /// fuses: `(v * s + 0) + o` and `v * s + o` are the same two roundings,
-    /// while `(v * s1) * s2` and `v * (s1 * s2)` are not.
     fn affine(&mut self, input: NodeId, scale: f32, offset: f32) -> NodeId {
         if let Some(value) = self.as_constant(input) {
             return self.constant(jmath::mul_add(value, scale, offset));
@@ -737,10 +687,6 @@ impl<'a> Compiler<'a> {
         if scale == 1.0 && offset == 0.0 {
             return input;
         }
-        // The slopes the inner node contributes, when it can absorb this one.
-        // Multiplying by a power of two is exact, so `(v*m)*s` and `v*(m*s)`
-        // round once on the same real number and the two slopes may absorb the
-        // outer scale. The rectifier's are 0.5 and 0.25.
         let fusion = match self.nodes.get(input as usize) {
             Some(Node::Affine {
                 input: inner,
@@ -828,7 +774,6 @@ impl<'a> Compiler<'a> {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a - b),
             (Some(value), None) => self.const_binary(BinaryOp::Sub, right, value, true),
-            // `x - c` is `x + (-c)`: negation is exact in binary floating point.
             (None, Some(c)) => self.affine(left, 1.0, -c),
             (None, None) => self.binary(BinaryOp::Sub, left, right),
         }
@@ -847,9 +792,6 @@ impl<'a> Compiler<'a> {
         match (self.as_constant(left), self.as_constant(right)) {
             (Some(a), Some(b)) => self.constant(a / b),
             (Some(value), None) => self.const_binary(BinaryOp::Div, right, value, true),
-            // Vanilla compiles `x / c` to the reciprocal multiply, not to a
-            // division, and the two disagree in the last bit for a divisor that
-            // is not a power of two.
             (None, Some(c)) => self.affine(left, 1.0 / c, 0.0),
             (None, None) => self.binary(BinaryOp::Div, left, right),
         }
@@ -859,8 +801,6 @@ impl<'a> Compiler<'a> {
         let left_range = self.range_of(left);
         let right_range = self.range_of(right);
         let constants = (self.as_constant(left), self.as_constant(right));
-        // The accumulator is the operand that is not the baked-in constant, so
-        // the fold takes the operands in the order the sampler would.
         if let (Some(a), Some(b)) = constants {
             let folded = match op {
                 BinaryOp::Min => jmath::vmin(b, a),
@@ -894,8 +834,6 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    /// One operand folded into the operation. `swapped` puts the constant on
-    /// the left, which only subtraction, division and a power distinguish.
     fn const_binary(&mut self, op: BinaryOp, input: NodeId, value: f32, swapped: bool) -> NodeId {
         self.intern(
             Key::ConstBinary(op, input, value.to_bits(), swapped),
@@ -947,8 +885,6 @@ impl<'a> Compiler<'a> {
                 };
                 return self.constant(folded);
             }
-            // A zero multiple returns the input untouched, which is the one case
-            // `IntegerMultipleRound` cannot express.
             if m == 0.0 {
                 return input;
             }
@@ -989,8 +925,6 @@ impl<'a> Compiler<'a> {
             },
         )
     }
-
-    // --- noise construction -------------------------------------------------
 
     fn noise_params(
         &mut self,
@@ -1043,8 +977,6 @@ impl<'a> Compiler<'a> {
         if let Some(params) = self.blended.get(&key) {
             return Arc::clone(params);
         }
-        // Beta seeds the three stacks straight off the world seed instead of
-        // forking the terrain hash, and the two streams are unrelated.
         let mut random = if self.legacy_random {
             RandomSource::new(self.seed, true)
         } else {
@@ -1089,8 +1021,6 @@ impl<'a> Compiler<'a> {
         &mut self,
         id: &ResourceLocationBuf,
     ) -> Result<NoiseStack<Octave>, CompileError> {
-        // The two nether climate noises are seeded from the raw world seed, not
-        // from the hashed fork every other noise takes.
         if id == mcrs_minecraft_noise::noise_keys::NETHER_TEMPERATURE.location() {
             return Ok(normal_noise::create_parity(
                 -7,
@@ -1121,14 +1051,10 @@ impl<'a> Compiler<'a> {
         Ok(normal_noise::create(param, &mut random))
     }
 
-    /// The unnamed `PositionalRandomFactory` the whole generator forks from,
-    /// which the surface depth draw and the iceberg draw use directly.
     pub fn positional_random(&self) -> RandomSource {
         self.random.clone()
     }
 
-    /// `PositionalRandomFactory` for a named stream: the returned source is the
-    /// factory itself, and `fork_at` on a clone of it is one `at(x, y, z)`.
     pub fn hashed_random(&self, name: &str) -> RandomSource {
         let mut root = self.random.clone();
         root.fork_hash(name)
@@ -1148,8 +1074,6 @@ impl<'a> Compiler<'a> {
         )
     }
 
-    /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
-    /// have no `worldgen/noise` entry, so the ids are resolved here instead.
     fn create_legacy_noise(&mut self, id: &ResourceLocationBuf) -> Option<NoiseStack<Octave>> {
         if id == mcrs_minecraft_noise::noise_keys::OFFSET.location() {
             let mut root = self.random.clone();
@@ -1167,10 +1091,6 @@ impl<'a> Compiler<'a> {
     }
 }
 
-/// Drops every node no root can reach — a root that failed halfway leaves its
-/// partial subgraph behind, and `Program::fill` evaluates the whole array rather
-/// than a reachable subset. Compaction preserves order, so the result is still
-/// topologically sorted.
 fn prune(
     mut nodes: Vec<Node>,
     mut axes: Vec<Axes>,
@@ -1216,8 +1136,6 @@ fn prune(
     (nodes, axes, ranges, roots)
 }
 
-/// Excludes zero and the infinities, both of which share a power of two's zero
-/// mantissa.
 fn is_power_of_two(value: f32) -> bool {
     value != 0.0 && value.is_finite() && value.to_bits() & 0x007f_ffff == 0
 }
@@ -1357,8 +1275,6 @@ pub(crate) mod tests {
         out[0]
     }
 
-    /// For the shapes the builders do not cover: a kind no shipped function
-    /// uses, or a noise written inline rather than named.
     fn json(text: &str) -> Df {
         serde_json::from_str(text).unwrap_or_else(|e| panic!("{text}: {e}"))
     }
@@ -1376,16 +1292,12 @@ pub(crate) mod tests {
         )
     }
 
-    /// The input's range would confine this to the out-of-range branch, and
-    /// vanilla still reports the hull of both.
     #[test]
     fn range_choice_keeps_the_unreachable_branch() {
         let bounds = build(Df::range_choice(100.0, 0.0..1.0, -5.0, 5.0)).range();
         assert_eq!((bounds.min(), bounds.max()), (-5.0, 5.0));
     }
 
-    /// `interval_select` is the mirror image: the input is excluded from the
-    /// range and included in the axes.
     #[test]
     fn interval_select_ignores_its_input() {
         let functions = vec![Df::from(1.0), Df::from(2.0)];
@@ -1393,8 +1305,6 @@ pub(crate) mod tests {
         assert_eq!((bounds.min(), bounds.max()), (1.0, 2.0));
     }
 
-    /// A flat segment must not pick up the ±0.25 overshoot term, and the end
-    /// probes are strict, so a coordinate inside the span adds nothing either.
     #[test]
     fn a_flat_spline_is_exactly_its_values() {
         let points = || ProtoSpline::points(&Df::from(0.5));
@@ -1414,8 +1324,6 @@ pub(crate) mod tests {
         );
     }
 
-    /// The clamp-alpha lerp cannot leave the two limit noises' common interval,
-    /// so the declared bound is one fbm's.
     #[test]
     fn the_overworld_blended_noise_matches_its_published_bound() {
         let bounds = build(Df::old_blended_noise(0.25, 0.125, 80.0, 160.0, 8.0)).range();
@@ -1423,8 +1331,6 @@ pub(crate) mod tests {
         assert_eq!(bounds.min(), -2.1670623);
     }
 
-    /// A zero scale is the only way a `noise` sheds an axis, and the shifts add
-    /// theirs back on top of whatever survives.
     #[test]
     fn a_zero_scale_drops_the_axes_it_flattens() {
         let flat_y = build(json(&inline_noise(1.0, 0.0)));
@@ -1479,8 +1385,6 @@ pub(crate) mod tests {
         assert!(matches!(built.node(), Node::Constant(v) if *v == 6.0));
     }
 
-    /// A zero multiple is the one case `IntegerMultipleRound` cannot express,
-    /// because the generic sampler returns the input untouched there.
     #[test]
     fn a_zero_multiple_round_is_the_identity() {
         let built = build(json(&format!(
@@ -1522,7 +1426,6 @@ pub(crate) mod tests {
 
     #[test]
     fn a_scaled_rectifier_becomes_one_piecewise_affine() {
-        // Straddles zero, so the rectifier's negative half is reachable.
         let signed = Df::y_gradient(-16, 16, -16.0, 16.0);
         let function = signed.half_negative() * 2.0 + 1.0;
         let built = build(&function);
@@ -1544,7 +1447,6 @@ pub(crate) mod tests {
             }
             other => panic!("expected a piecewise affine, got {other:?}"),
         }
-        // The gradient reads -8 at y = -8, halved by the rectifier.
         assert_eq!(sample(&function, IVec3::new(0, -8, 0)), -7.0);
         assert_eq!(sample(&function, IVec3::new(0, 8, 0)), 17.0);
     }
@@ -1621,8 +1523,6 @@ pub(crate) mod tests {
         assert_eq!(built.nodes.len(), 3, "gradient, square, add");
     }
 
-    /// The gradient runs 0..16 over y, so pinning y to 3 has to answer 3
-    /// everywhere rather than tracking the position being filled.
     #[test]
     fn a_slice_pins_its_axis_to_the_coordinate() {
         let function = y_gradient().slice_y(3);
@@ -1634,8 +1534,6 @@ pub(crate) mod tests {
             "the pinned axis is dropped"
         );
     }
-
-    // --- the shipped corpus -------------------------------------------------
 
     pub(crate) fn corpus() -> (
         BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
@@ -1697,10 +1595,6 @@ pub(crate) mod tests {
         );
     }
 
-    /// `end/islands` is the one shipped graph that slices, and it slices Y over
-    /// a `distance_to_point` that varies along Y. The value is checked against
-    /// the arithmetic by hand, because a slice that tracked the filled position
-    /// instead of the pinned one would still be smooth and still be plausible.
     #[test]
     fn the_end_islands_slice_pins_y_to_zero_and_the_end_final_density_is_a_real_field() {
         let (functions, noises) = corpus();
@@ -1713,8 +1607,6 @@ pub(crate) mod tests {
         let mut ws = Workspace::new();
         router.program.fill(&mut ws, &volume, EROSION, &mut out);
 
-        // euclidean distance from the origin at y = 0, not at the filled y:
-        // (100 - hypot(25, 25) - 8) * 0.0078125.
         let distance = ((25.0f64 * 25.0 + 25.0 * 25.0) as f32).sqrt();
         let expected = (100.0f32 - distance - 8.0) * 0.0078125;
         assert_eq!(out[0], expected);

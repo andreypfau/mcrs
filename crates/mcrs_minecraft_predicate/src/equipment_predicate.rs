@@ -9,7 +9,6 @@ use crate::baked_item_predicate::BakedItemPredicate;
 use crate::entity_view::EntityView;
 use crate::predicate_issue::PredicateIssue;
 
-/// An item predicate for each equipment slot of a living entity.
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub(crate) struct EquipmentPredicate<M: Refs = Resolved> {
@@ -23,7 +22,6 @@ pub(crate) struct EquipmentPredicate<M: Refs = Resolved> {
     offhand: Option<ItemPredicate<M>>,
 }
 
-/// The item predicate of one equipment slot in its matching form.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct BakedEquipmentTest {
     slot: EquipmentSlot,

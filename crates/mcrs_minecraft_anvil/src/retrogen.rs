@@ -42,15 +42,10 @@ fn missing_bedrock<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<i64
     Ok(words)
 }
 
-/// A list or an array of any element width reads number by number, one word
-/// per element. A value holding anything else reads as absent, consumed so the
-/// rest of the record still loads; every other field of the record is strict.
 pub(crate) struct Words(pub(crate) Option<Vec<i64>>);
 
 impl<'de> Deserialize<'de> for Words {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        // A float element narrows as a cast does: toward zero, saturating, and
-        // not floored the way a float tag read as an integer field is.
         let word = |tag: &NbtTag| match *tag {
             NbtTag::Byte(v) => Some(i64::from(v)),
             NbtTag::Short(v) => Some(i64::from(v)),

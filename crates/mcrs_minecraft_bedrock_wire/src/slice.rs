@@ -35,7 +35,6 @@ impl<'a> BedrockDecode<'a> for &'a [u8] {
     }
 }
 
-/// Reads `count` items of `T`, reserving no more than the input can hold.
 pub fn decode_items<'a, T: BedrockDecode<'a>>(
     count: usize,
     r: &mut &'a [u8],
@@ -47,10 +46,6 @@ pub fn decode_items<'a, T: BedrockDecode<'a>>(
     Ok(items)
 }
 
-/// The capacity to reserve for `declared` items of `T` that the bytes of `remaining` hold.
-///
-/// A declared count is untrusted: each item takes at least one byte of input, so the input
-/// length bounds the count, and a fixed byte budget bounds large items.
 #[must_use]
 pub(crate) fn bounded_capacity<T>(declared: usize, remaining: &[u8]) -> usize {
     declared

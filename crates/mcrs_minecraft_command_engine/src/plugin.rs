@@ -23,9 +23,6 @@ use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
-/// Owns the command tree of the set `S`: plugins register commands while the app builds, and
-/// the tree freezes when it finishes. Every dimension world gets a copy of the tree and runs the
-/// command lines of its players in its own tick.
 pub struct CommandPlugin<S>(PhantomData<fn() -> S>);
 
 impl<S> CommandPlugin<S> {
@@ -82,8 +79,6 @@ impl<S: CommandSet> Plugin for CommandPlugin<S> {
     }
 }
 
-/// The command tree, the handlers and the command run of one dimension world, and the
-/// `commands` packets the world sends.
 struct DimCommandPlugin<S: CommandSet> {
     packets: CommandTreePackets,
     graph: SetGraph<S>,

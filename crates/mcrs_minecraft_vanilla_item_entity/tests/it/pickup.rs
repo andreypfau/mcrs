@@ -39,7 +39,6 @@ fn at(position: DVec3) -> Launch {
     }
 }
 
-/// A player at [`FEET`] whose main slots 0 to 34 hold 64 `dirt`.
 fn crowded(mode: Collect) -> (App, Entity) {
     let mut app = app();
     let world = app.world_mut();
@@ -155,7 +154,6 @@ fn ien_pck_007_of_two_collectors_in_reach_the_lower_uuid_takes_the_item() {
     );
 }
 
-/// INV-INS-003: the pickup skips each slot whose place filter refuses the stack.
 #[test]
 fn inv_ins_003_a_pickup_skips_each_slot_that_refuses_the_stack() {
     let mut app = app();

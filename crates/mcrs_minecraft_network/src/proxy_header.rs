@@ -9,7 +9,6 @@ const V1_MAX_LEN: usize = 107;
 pub(crate) async fn read_proxy_header<R: AsyncRead + Unpin>(
     stream: &mut R,
 ) -> Result<Option<SocketAddr>> {
-    // Both versions are longer than 12 bytes, so this never reads past the header.
     let mut start = [0; 12];
     stream.read_exact(&mut start).await?;
     if start == V2_SIGNATURE {

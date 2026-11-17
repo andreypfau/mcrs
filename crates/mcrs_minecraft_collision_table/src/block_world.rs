@@ -12,17 +12,11 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// The blocks of a volume as the kernel reads them. A section of one state carries its masks; any
-/// other section takes the per-block path.
 pub struct BlockWorld<'a, V> {
-    /// The volume whose sections the kernel reads; a section it does not hold is not loaded.
     pub blocks: &'a V,
-    /// The collision table of the block states of `blocks`, from which each section takes its
-    /// masks.
     pub table: &'a CollisionTable,
 }
 
-/// A loaded section of a [`BlockWorld`].
 pub struct BlockSection<S> {
     blocks: S,
     masks: SectionMasks,

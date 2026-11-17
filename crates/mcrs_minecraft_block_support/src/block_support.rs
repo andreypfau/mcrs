@@ -15,7 +15,6 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::face_test;
 
-/// The support of each block state, baked from the block definitions and the tags of a data pack.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct BlockSupport {
@@ -31,7 +30,6 @@ struct Subject {
     block: Option<Id<Block>>,
 }
 
-/// The part of a tall plant (SUP-VEG-002) that a state is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Part {
     Whole,
@@ -54,8 +52,6 @@ enum Node {
     AllOf(Box<[Node]>),
 }
 
-/// A name that a support predicate reads and the loaded data pack does not hold. The leaf that
-/// reads it matches no state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupportIssue {
     pub block: ResourceLocationBuf,
@@ -87,8 +83,6 @@ impl fmt::Display for SupportIssue {
 }
 
 impl BlockSupport {
-    /// Bakes the support predicate of each state of `definitions` against the registries and the
-    /// block tags of `registries`.
     pub fn bake(
         definitions: &BlockDefinitions,
         registries: &Registries,
@@ -110,7 +104,6 @@ impl BlockSupport {
                 let Some(state) = entry.state_at(offset) else {
                     continue;
                 };
-                // The upper part of a tall plant needs no filter of its own: its lower part has one.
                 let lower = || {
                     (part_of(entry, state) == Part::Upper)
                         .then(|| entry.with_text(state, "half", "lower"))
@@ -162,8 +155,6 @@ impl BlockSupport {
         (support, baker.issues)
     }
 
-    /// Whether a block in `state` at `at` can stay among the states that `read` gives
-    /// (SUP-PRED-001, SUP-VEG-002). A state without a support predicate can always stay.
     pub fn can_stay(
         &self,
         state: BlockStateId,
@@ -179,8 +170,6 @@ impl BlockSupport {
         }
     }
 
-    /// The shape function of a subject (SUP-RUN-001): whether it stays after a shape update that
-    /// comes from `from`. A subject that does not stay is removed.
     pub fn stays_after_update(
         &self,
         state: BlockStateId,
@@ -210,7 +199,6 @@ impl BlockSupport {
         }
     }
 
-    /// Whether `state` is one part of a block of two parts.
     pub fn is_two_part(&self, state: BlockStateId) -> bool {
         self.subject(state)
             .is_some_and(|subject| subject.part != Part::Whole)
@@ -266,7 +254,6 @@ fn part_of(entry: &BlockEntry, state: BlockStateId) -> Part {
     }
 }
 
-/// The default tested directions (SUP-PRED-003): the directions of the offsets of the leaves.
 fn directions_of(node: &Node) -> DirectionSet {
     let mut set = DirectionSet::default();
     let mut stack = vec![node];
@@ -295,7 +282,6 @@ struct Baker<'a> {
 }
 
 impl Baker<'_> {
-    /// The short form becomes a predicate as SUP-DATA-002 states.
     fn rule(&mut self, rule: &PlacementRule) -> Node {
         match rule {
             PlacementRule::Predicate(predicate) => self.predicate(predicate),
@@ -464,7 +450,6 @@ impl Baker<'_> {
         }
     }
 
-    /// The index of the set of the states that `matches` accepts, shared with an equal set.
     fn states(&mut self, matches: impl Fn(BlockStateId) -> bool) -> usize {
         let mut set = FixedBitSet::with_capacity(self.definitions.state_count());
         for state in self.definitions.states().filter(|state| matches(*state)) {

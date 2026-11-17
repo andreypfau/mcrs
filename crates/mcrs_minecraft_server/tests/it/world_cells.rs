@@ -1,13 +1,3 @@
-//! A world divided into cells must look the same as the world of one cell: the blocks, the light
-//! and the ticking markers of every column at its owner, where each player stands, and what each
-//! client gets.
-//!
-//! In one scenario, the players stand on both sides of the boundary between two regions, place
-//! blocks and light on both sides of it, and walk across it. In the other, a column at the
-//! boundary changes and goes cold, and then a player of the other cell comes near it. Each run
-//! waits after every tick for the generation, light and store steps, so the stages land at the
-//! same tick in both runs.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
@@ -72,13 +62,10 @@ use crate::world_server::{
 
 const TICKS: usize = 90;
 const SHORT_TICKS: usize = 60;
-/// The sections of a column of the beta overworld, which is 128 blocks high.
 const SECTIONS: usize = 8;
 const COLD_TICKS: usize = 100;
 const COLD_LIGHT_TICKS: usize = 220;
 
-/// Places a session in `label` and sends the spawn of its player at `position`, with a client
-/// that sees `view_distance` columns far.
 fn admit(
     app: &mut App,
     label: Entity,
@@ -86,7 +73,6 @@ fn admit(
     position: DVec3,
     view_distance: u8,
 ) -> PlayerSession {
-    // The runs compare the entity bytes of their clients, which carry the uuid of each player.
     let uuid = Uuid::from_u128(name.bytes().fold(0, |id, byte| id << 8 | u128::from(byte)));
     let arrival = Arrival {
         uuid,
@@ -98,7 +84,6 @@ fn admit(
     host_app::session_of(app, anchor).expect("a placed session")
 }
 
-/// What one client got over the run: what a client keeps of it, with no order between ticks.
 #[derive(Debug, Default, PartialEq)]
 struct Client {
     logins: usize,
@@ -106,23 +91,16 @@ struct Client {
     loaded: BTreeSet<(i32, i32)>,
     forgotten: BTreeSet<(i32, i32)>,
     blocks: BTreeMap<(i32, i32, i32), u16>,
-    /// The entity packets of the client, in order.
     entities: Vec<(i32, Vec<u8>)>,
-    /// The light that the client holds of each section row of each column, as the columns and
-    /// the light updates set it.
     light: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
 }
 
-/// The block light and the sky light of one section row of a column on the client, one value
-/// for each block. An empty value is a layer that the client got no light for.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct RowLight {
     block: Vec<u8>,
     sky: Vec<u8>,
 }
 
-/// One light layer of a `LightData` row by row: the values of a row that the data sets, and a
-/// dark row for a row that the data marks empty.
 fn light_rows(mask: &[u64], empty: &[u64], arrays: &[LightChunk]) -> BTreeMap<usize, Vec<u8>> {
     let bit = |words: &[u64], row: usize| {
         words
@@ -224,7 +202,6 @@ impl Client {
     }
 }
 
-/// The blocks and the light of one section, at the cell that owns its column.
 #[derive(Debug, PartialEq)]
 struct Section {
     stage: String,
@@ -244,7 +221,6 @@ fn light(storage: Option<&LightStorage>) -> Vec<u8> {
     }
 }
 
-/// The sections of `columns` at their owners.
 fn owned_sections(
     app: &mut App,
     label: Entity,
@@ -283,15 +259,12 @@ fn owned_sections(
     sections
 }
 
-/// The ticking markers of one section, at the cell that owns its column.
 #[derive(Debug, PartialEq)]
 struct Ticking {
     block: bool,
     entity: bool,
 }
 
-/// The ticking markers of the loaded sections of `columns` at their owners. No cell marks a
-/// section of its halo.
 fn ticking_sections(
     app: &mut App,
     label: Entity,
@@ -315,8 +288,6 @@ fn ticking_sections(
     ticking
 }
 
-/// What a world looks like after a column of one cell at the boundary changed, went cold, and
-/// a player of the other cell came near it.
 struct ColdRun {
     sections: BTreeMap<(i32, i32, i32), Section>,
     ticking: BTreeMap<(i32, i32, i32), Ticking>,
@@ -345,12 +316,10 @@ fn run_cold_boundary(cells: u32) -> ColdRun {
     wait_for_generation(&mut app, label);
     let glowstone = block_state(&app, "minecraft:glowstone");
 
-    // Region 0 starts at x = 0, and the light of a block at x = 0 reaches into region -1.
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     for at in 0..COLD_TICKS {
         match at {
             30 => place(&mut app, label, east, BlockPos::new(0, 92, 3), glowstone),
-            // Far enough that no ticket loads the boundary, so its owner writes the column.
             35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
             60 => {
                 admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
@@ -368,15 +337,11 @@ fn run_cold_boundary(cells: u32) -> ColdRun {
     }
 }
 
-/// The light of a column at a box edge as a client got it from the data layer, and as the
-/// dimension lit it once it was hot.
 struct ColdLightRun {
     client: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
     hot: BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>,
 }
 
-/// The light of `columns` at their owners, by wire row: the rows of the sections, one up from
-/// the row below the world.
 fn owned_light(
     app: &mut App,
     label: Entity,
@@ -413,9 +378,6 @@ fn owned_light(
     light
 }
 
-/// A viewer sees the columns at the box edge from the data layer while their neighbour across
-/// the edge is hot in its owner, with changes that its owner never wrote: one before the data
-/// layer lit the cold column, one after the client got it.
 fn run_cold_light(cells: u32) -> ColdLightRun {
     let mut app = server(cells);
     let label = label_of(&app, OVERWORLD);
@@ -429,8 +391,6 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
     let glowstone = block_state(&app, "minecraft:glowstone");
     let edge = [ColumnPos::new(-1, 0), ColumnPos::new(0, 0)];
 
-    // Column 0 is in the outer ring of the hot area around column 4: hot, and lit from the
-    // data layer. Column -1 is cold and in another region.
     let east = admit(&mut app, label, "east", DVec3::new(72.5, 100.0, 8.5), 2);
     let mut viewer = None;
     let mut client = Client::default();
@@ -465,7 +425,6 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
         }
     }
     let hot = owned_light(&mut app, label, &edge);
-    // The rows below and above the world carry no section to compare with.
     let client = seen
         .into_iter()
         .filter(|(column, _)| edge.contains(&ColumnPos::new(column.0, column.1)))
@@ -483,7 +442,6 @@ fn run_cold_light(cells: u32) -> ColdLightRun {
 struct Run {
     sections: BTreeMap<(i32, i32, i32), Section>,
     positions: Vec<DVec3>,
-    /// The cell of each player at the start and at the end of the scenario.
     holders: Vec<[usize; 2]>,
     clients: Vec<Client>,
 }
@@ -499,7 +457,6 @@ fn run(cells: u32, ticks: usize) -> Run {
     let glowstone = block_state(&app, "minecraft:glowstone");
     let stone = block_state(&app, "minecraft:stone");
 
-    // Region -1 and region 0 meet at x = 0: one cell owns each side.
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     let sessions = [west, east];
@@ -563,7 +520,6 @@ fn run(cells: u32, ticks: usize) -> Run {
     }
 }
 
-/// Every section of `one` equals the same section of `two`.
 fn assert_same_sections(
     one: &BTreeMap<(i32, i32, i32), Section>,
     two: &BTreeMap<(i32, i32, i32), Section>,
@@ -615,10 +571,6 @@ fn a_world_of_two_cells_is_the_world_of_one_cell() {
 const RELAY_DELAY: usize = 2;
 const SLOW_DELAY: usize = 60;
 
-/// Probe rules, not the rules of any game block. An unlit redstone lamp next to a lit one or to a
-/// redstone block lights [`RELAY_DELAY`] ticks after a neighbour changed, so a line of lamps
-/// lights one lamp after the other. A note block that is placed turns into a lit lamp
-/// [`SLOW_DELAY`] ticks later.
 #[derive(Clone, Copy, Debug)]
 struct Relay {
     unlit: BlockStateId,
@@ -720,7 +672,6 @@ fn relay_server(cells: u32) -> App {
     server_with(cells, DimensionBlockRules(Relay::install))
 }
 
-/// The block at `pos` at the cell that owns its column, while that cell holds it.
 fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId> {
     let section = SectionPos::from(pos);
     for world in cell_worlds(app, label) {
@@ -736,14 +687,12 @@ fn block_at(app: &mut App, label: Entity, pos: BlockPos) -> Option<BlockStateId>
     None
 }
 
-/// The lamps of the line run from x = -6 to x = 5, across the boundary at x = 0.
 const LINE: RangeInclusive<i32> = -6..=5;
 
 fn lamp(x: i32) -> BlockPos {
     BlockPos::new(x, 120, 5)
 }
 
-/// The tick at which each lamp of the line lit, and the sections of the line at their owners.
 struct LineRun {
     lit_at: BTreeMap<i32, usize>,
     sections: BTreeMap<(i32, i32, i32), Section>,
@@ -785,9 +734,6 @@ fn run_relay_line(cells: u32, ticks: usize) -> LineRun {
     }
 }
 
-/// A line of relays across the boundary lights in a world of two cells as in a world of one
-/// cell. The first relay past the boundary hears of its neighbour one tick late, so it and every
-/// relay after it light one tick later.
 fn assert_relay_line_lights_one_tick_late(ticks: usize) {
     let one = run_relay_line(1, ticks);
     let two = run_relay_line(2, ticks);
@@ -857,7 +803,6 @@ mod exhaustive {
         super::assert_relay_line_lights_one_tick_late(TICKS);
     }
 
-    /// When a scheduled tick ran, and when its column went cold and ticked again.
     #[derive(Debug, Default)]
     struct SlowRun {
         cooled_at: Option<usize>,
@@ -874,15 +819,12 @@ mod exhaustive {
         let pos = BlockPos::new(0, 120, 3);
         let section = SectionPos::from(pos);
 
-        // The column of x = 0 is in region 0: the cell of the player owns it in both worlds.
         let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
         let mut run = SlowRun::default();
         for at in 0..220 {
             match at {
                 30 => place(&mut app, label, east, pos, slow),
-                // Far enough that no ticket loads the column; the tick has 55 ticks left then.
                 35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
-                // Later than the tick was due, so a due time that counts the cold ticks shows.
                 120 => walk(&mut app, label, east, DVec3::new(-320.0, 0.0, 0.0)),
                 _ => {}
             }
@@ -904,8 +846,6 @@ mod exhaustive {
         run
     }
 
-    /// A scheduled tick of a column that goes cold runs after the column ticks again, with the delay
-    /// that it had left when the column went cold: the cold ticks do not count.
     #[test]
     fn a_scheduled_tick_survives_a_cold_column_with_its_remaining_delay() {
         for cells in [1, 2] {
@@ -925,7 +865,6 @@ mod exhaustive {
 
     type ColumnLight = BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>;
 
-    /// The blocks whose light differs between `left` and `right`, by column, row and layer.
     fn light_differences(left: &ColumnLight, right: &ColumnLight) -> Vec<String> {
         let mut differences = Vec::new();
         let columns: BTreeSet<&(i32, i32)> = left.keys().chain(right.keys()).collect();
@@ -990,7 +929,6 @@ mod exhaustive {
         runs.0 += 1;
     }
 
-    /// How often the schedules of each cell of `label` ran so far.
     fn runs(app: &mut App, label: Entity) -> Vec<usize> {
         cell_worlds(app, label)
             .into_iter()
@@ -1036,8 +974,6 @@ mod exhaustive {
         );
     }
 
-    /// Probe rules, not the rules of any game block: a note block that is placed queues a block
-    /// event, which it takes.
     #[derive(Clone, Copy, Debug)]
     struct Chime {
         note: BlockStateId,
@@ -1087,8 +1023,6 @@ mod exhaustive {
 
     impl BlockDrops for Chime {}
 
-    /// The block events that each client got after the note block was placed, and the columns that
-    /// the far client held.
     struct ChimeRun {
         near: Vec<ClientboundBlockEvent>,
         far: Vec<ClientboundBlockEvent>,
@@ -1105,8 +1039,6 @@ mod exhaustive {
             .collect()
     }
 
-    /// In two cells, the note block is in the west cell. Both clients stand in the east cell: the
-    /// near one holds the column of the note block, the far one does not.
     fn run_chime() -> ChimeRun {
         let mut app = server_with(2, DimensionBlockRules(Chime::install));
         let label = label_of(&app, OVERWORLD);
@@ -1169,8 +1101,6 @@ mod exhaustive {
         assert_eq!(run.far, []);
     }
 
-    /// Probe rules, not the rules of any game block: a random tick turns a note block into a lit
-    /// lamp.
     #[derive(Clone, Copy, Debug)]
     struct Sprout {
         note: BlockStateId,
@@ -1215,8 +1145,6 @@ mod exhaustive {
 
     impl BlockDrops for Sprout {}
 
-    /// A layer of note blocks on each side of the boundary, and the blocks of each layer that a random
-    /// tick reached.
     fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
         let mut app = server_with(cells, DimensionBlockRules(Sprout::install));
         let label = label_of(&app, OVERWORLD);
@@ -1248,9 +1176,6 @@ mod exhaustive {
         reached
     }
 
-    /// The random ticks of the simulation area reach the blocks that take them on both sides of the
-    /// boundary, in a world of one cell and in a world of two cells. Each side takes about
-    /// 3 / 16 of a block a tick.
     #[test]
     fn random_ticks_reach_the_blocks_of_the_simulation_area_in_every_cell() {
         for cells in [1, 2] {
@@ -1264,8 +1189,6 @@ mod exhaustive {
         }
     }
 
-    /// Probe rules, not the rules of any game block: a shape update breaks a note block, which
-    /// drops one note block item.
     #[derive(Clone, Copy, Debug)]
     struct Fragile {
         note: BlockStateId,
@@ -1322,8 +1245,6 @@ mod exhaustive {
         seen.0.extend(dropped.read().copied());
     }
 
-    /// A block that a shape update destroys leaves the items that the rules name for it, at its
-    /// position.
     #[test]
     fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         let mut app = server_with(1, DimensionBlockRules(Fragile::install));
@@ -1367,7 +1288,6 @@ mod exhaustive {
         let [(_, position)] = items[..] else {
             panic!("one item in motion: {items:?}");
         };
-        // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
         assert!(
             (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
             "the item starts at the block: {position}"
@@ -1379,7 +1299,6 @@ mod exhaustive {
             .collect();
         assert_eq!(stacks, [(Kind(Item::NoteBlock.id().number()), 1)]);
 
-        // The item starts with 0.2 upward, so it is back near its start ten ticks later.
         for _ in 0..20 {
             lockstep_tick(&mut app, label);
         }
@@ -1467,7 +1386,6 @@ mod exhaustive {
 
     const HALO_PROBE: BlockPos = BlockPos::new(1, 120, 1);
 
-    /// Whether the entity pass of the last tick of a cell saw the probe block in its copy.
     #[derive(Resource, Default)]
     struct SeenAtSimulate {
         probe: Option<BlockStateId>,
@@ -1483,8 +1401,6 @@ mod exhaustive {
         seen.seen = state.is_some() && state == seen.probe;
     }
 
-    /// For each cell that holds the column of the probe, the tick at which its entity pass first
-    /// saw the block that the owner placed.
     fn run_halo_probe(cells: u32) -> Vec<usize> {
         let mut app = server(cells);
         let label = label_of(&app, OVERWORLD);
@@ -1528,8 +1444,6 @@ mod exhaustive {
             .collect()
     }
 
-    /// PHY-INV-014, PHY-CMP-009: a block that the owner sets in tick `T` is in the copy of every
-    /// other cell before the entities of `T + 1` move, as in a world of one cell.
     #[test]
     fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
         let one = run_halo_probe(1);
@@ -1538,8 +1452,6 @@ mod exhaustive {
         assert_eq!(four, [31; 4]);
     }
 
-    /// Probe rules, not the rules of any game block: a note block that is placed queues a block
-    /// event, and the event lights a lamp south of it.
     #[derive(Clone, Copy, Debug)]
     struct Echo {
         note: BlockStateId,
@@ -1593,7 +1505,6 @@ mod exhaustive {
 
     impl BlockDrops for Echo {}
 
-    /// The block packets and block events of one tick, in wire order.
     fn block_traffic(packets: Vec<PacketPayload>) -> Vec<String> {
         packets
             .into_iter()
@@ -1608,8 +1519,6 @@ mod exhaustive {
             .collect()
     }
 
-    /// SIM-SET-005, SIM-MODEL-107(a), SIM-TICK-002: the writes of a tick leave in one packet per
-    /// section before the block events, and a write of a block event leaves in the next broadcast.
     #[test]
     fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
         let mut app = server_with(1, DimensionBlockRules(Echo::install));
@@ -1644,9 +1553,6 @@ mod exhaustive {
         );
     }
 
-    /// A player breaks a block of the column of the other cell, across the boundary at x = 0. The
-    /// cell of the player reads the block from its halo and sends the write to the owner. A client
-    /// of the other cell that holds the column sees the break as a client of the same cell does.
     #[test]
     fn a_block_of_the_other_cell_breaks_for_a_client_of_that_cell() {
         let mut app = server(2);
@@ -1735,7 +1641,6 @@ mod exhaustive {
                 "block_update 0".to_owned()
             ]
         );
-        // The owner applies the write one tick after the cell of the breaker acknowledges it.
         assert_eq!(seen(breaker), ["ack 5", "block_update 0"]);
         assert_eq!(
             block_at(&mut server.app, label, target),

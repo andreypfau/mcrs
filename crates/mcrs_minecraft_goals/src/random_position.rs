@@ -4,7 +4,6 @@ use mcrs_minecraft_goal_world::CellFlags;
 use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_voxel::BlockPos;
 
-/// The horizontal and the vertical range of a random position search.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SearchRange {
     pub horizontal: u32,
@@ -23,8 +22,6 @@ impl SearchRange {
 
 const TRIES: u32 = 10;
 
-/// The default search `D(h, v)` of GOAL-POS-002, for a mob with no home: the bottom centre of the
-/// candidate with the largest walk value among 10 tries, the earlier try on a tie.
 pub fn default_search<W: GoalWorld + ?Sized>(
     world: &W,
     feet: DVec3,
@@ -40,8 +37,6 @@ pub fn default_search<W: GoalWorld + ?Sized>(
     })
 }
 
-/// The land search `L(h, v)` of GOAL-POS-003, for a mob with no home: as the default search, but a
-/// candidate in a solid block moves up out of it, and water rejects it.
 pub fn land_search<W: GoalWorld + ?Sized>(
     world: &W,
     feet: DVec3,

@@ -1,6 +1,5 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-/// A number of any numeric tag kind, which the saved reader converts to the kind of its field.
 #[derive(Clone, Copy)]
 pub(crate) enum TagNumber {
     Integer(i64),
@@ -21,8 +20,6 @@ impl TagNumber {
         }
     }
 
-    // `as` is the conversion of the saved form: the low 32 bits of an integer; for a float, the
-    // value toward zero, the nearest limit out of range, and 0 for a NaN.
     pub(crate) fn to_int(self) -> i32 {
         match self {
             Self::Integer(value) => value as i32,

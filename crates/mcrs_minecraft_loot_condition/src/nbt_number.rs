@@ -1,4 +1,3 @@
-/// A number tag that a command storage holds.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NbtNumber {
     Byte(i8),
@@ -10,8 +9,6 @@ pub enum NbtNumber {
 }
 
 impl NbtNumber {
-    /// The value for an int provider (LOOT-NUM-017): a long gives its low 32 bits, and a float
-    /// or a double gives `toI32` of its value.
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
@@ -28,8 +25,6 @@ impl NbtNumber {
         }
     }
 
-    /// The value for a float provider (LOOT-NUM-017): an integer gives the nearest f32, and a
-    /// double gives its narrow.
     #[must_use]
     #[expect(
         clippy::cast_precision_loss,

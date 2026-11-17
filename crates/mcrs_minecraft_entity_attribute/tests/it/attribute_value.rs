@@ -19,7 +19,6 @@ struct Fixture {
 #[derive(Deserialize)]
 struct ValueCase(String, String, String, Vec<Step>, String);
 
-/// `["add", id, amount bits, operation id]` or `["remove", id]`.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Step {

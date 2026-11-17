@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CONSUME_EFFECT_TYPE: RegistryKey<crate::consume_effect_type_keys::ConsumeEffectType> =

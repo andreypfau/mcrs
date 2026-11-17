@@ -11,12 +11,9 @@ use crate::pipeline::descriptor;
 use crate::shared_bindings::show;
 use crate::terrain::Terrain;
 
-/// Draws reverse-Z depth over the whole view as greyscale: near white, far dark, sky black.
 #[derive(Resource)]
 pub struct DepthDisplay {
     shader: Handle<Shader>,
-    /// The view depth and the pyramid level alike, as a float texture, and the sampler that reads
-    /// the depth (`depth.wesl`).
     layout: BindGroupLayoutDescriptor,
     nearest: Sampler,
     depth: Option<CachedRenderPipelineId>,
@@ -25,7 +22,6 @@ pub struct DepthDisplay {
 
 pub enum DepthSource<'a> {
     Depth(&'a ViewDepthStencilTexture),
-    /// The first level of the terrain's depth pyramid.
     Pyramid(&'a Terrain),
 }
 

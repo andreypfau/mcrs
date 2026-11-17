@@ -1,7 +1,3 @@
-//! The entity pass gives the same rows and the same grid for any thread count, task split and
-//! order of the task bins (PHY-INV-015, PHY-CMP-012, PHY-CMP-015), and the grid that the pass
-//! writes and the freeze patches equals a grid built again from the rows.
-
 use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
@@ -25,8 +21,6 @@ fn dense_scene() -> TestScene {
     TestScene::<()>::new(2, 400, 400, 7)
 }
 
-/// Impulses from two writers on the first rows of each tile, binned by two tasks and gathered in
-/// the order `reversed` picks.
 fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
     let mut tasks = [EffectBuffer::default(), EffectBuffer::default()];
     for (tile, tile_rows) in rows.tiles() {
@@ -56,7 +50,6 @@ fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
     writes
 }
 
-/// The rows and the grid after the run, as text that tells every bit of each value.
 fn run(
     mut scene: TestScene,
     threads: usize,
@@ -96,7 +89,6 @@ fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() 
 
 #[test]
 fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
-    // The sparse scene has tiles in which every body walks, and tiles with no body that moves.
     for start in [dense_scene(), TestScene::<()>::new(2, 12, 0, 3)] {
         let (_, mut scene) = run(start, 4, 2, false);
         scene.rows.apply_writes(&mut EntityWrites::default().0);

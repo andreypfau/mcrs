@@ -36,6 +36,5 @@ mcrs_minecraft_worldgen_density = { path = ".", default-features = false, featur
 [features]
 default = ["fast"]
 bevy = ["dep:bevy_asset", "dep:bevy_reflect"]
-# Counts node evaluations for the tests that prove a cone was skipped.
 eval-count = []
 fast = ["mcrs_minecraft_noise/fast"]

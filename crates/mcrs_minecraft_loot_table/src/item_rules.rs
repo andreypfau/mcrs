@@ -5,11 +5,9 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
 
-/// The data of the loaded items and enchantments that the modifiers read.
 #[derive(Debug, Clone)]
 pub(crate) struct ItemRules {
     pub(crate) items: ItemTable,
-    /// The enchantments in registry order (LOOT-MOD-018).
     pub(crate) enchantments: Box<[EnchantmentRule]>,
     pub(crate) book: Option<Kind>,
     pub(crate) enchanted_book: Option<Kind>,
@@ -19,7 +17,6 @@ pub(crate) struct ItemRules {
 pub(crate) struct EnchantmentRule {
     pub(crate) id: EnchantmentId,
     pub(crate) max_level: u32,
-    /// The items of `supported_items`, sorted.
     pub(crate) supported: Box<[Kind]>,
 }
 

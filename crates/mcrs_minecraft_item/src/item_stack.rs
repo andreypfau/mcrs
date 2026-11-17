@@ -2,8 +2,6 @@ use bevy_ecs::prelude::Component;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_resource::Id;
 
-/// On a stack entity only a stack transaction assigns the fields; the
-/// constructor serves inline prototype-only values such as mob equipment.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ItemStack {
     pub item: Id<Item>,

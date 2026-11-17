@@ -18,7 +18,6 @@ const EXPIRATION_FORMAT: &[BorrowedFormatItem<'_>] = format_description!(
 );
 pub const BANLIST_FILE: &str = "banned-players.json";
 
-/// The host side of the ban list: it applies the edits that the dimensions send.
 pub struct BanListHostPlugin;
 
 impl Plugin for BanListHostPlugin {
@@ -28,7 +27,6 @@ impl Plugin for BanListHostPlugin {
     }
 }
 
-/// A ban was added, so a player that is online can be banned now.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceBans;
 
@@ -41,8 +39,6 @@ fn apply_ban_edit(edit: On<EditBans>, mut bans: ResMut<BanList>, mut commands: C
     }
 }
 
-/// A change to the ban list. The host owns the list, applies the change, writes the file and
-/// tells every dimension.
 #[derive(Event, Clone, Debug)]
 pub enum EditBans {
     Add(BanEntry),
@@ -170,8 +166,6 @@ impl BanList {
                 (Vec::new(), Self::set_aside(path))
             }
         };
-        // A file that could not be set aside keeps its bans for an administrator, so no write
-        // may replace it.
         let list = Self {
             path: may_write.then(|| Arc::from(path)),
             ..Self::new(entries)
@@ -188,7 +182,6 @@ impl BanList {
             .is_ok()
     }
 
-    /// Returns whether the entries changed, so the file needs a write.
     pub fn apply(&mut self, edit: &EditBans) -> bool {
         match edit {
             EditBans::Add(entry) => self.add(entry.clone()),

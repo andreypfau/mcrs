@@ -14,10 +14,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::time;
 
-// A command and a leave wait up to `FIRST_EVENT` for the first chat message, disconnect or close,
-// so that a slow server does not end the step before its answer.
 const FIRST_EVENT: Duration = Duration::from_secs(10);
-// The server answers a game packet in the next ticks or not at all, so a silent step ends sooner.
 const FIRST_PACKET: Duration = Duration::from_secs(2);
 const JOIN_LIMIT: Duration = Duration::from_secs(60);
 
@@ -32,11 +29,6 @@ struct Clients {
     events: UnboundedReceiver<Event>,
 }
 
-/// Runs the steps of `scenario` with clients that connect to `address`, and returns what they
-/// observed. A step is complete when no client reported a chat message, a menu packet, a
-/// disconnect or a close for `quiet`. `host` reads the files of the target, runs its console and restarts it.
-///
-/// Does not apply `scenario.target`: the caller does that before the call.
 pub async fn run<H: Host>(
     scenario: &Scenario,
     address: SocketAddr,
@@ -298,8 +290,6 @@ impl Clients {
             .with_context(|| format!("the connection of {name} ended"))
     }
 
-    /// Collects the events until none arrives for `quiet`; the first has `first_limit` to arrive.
-    /// Keeps the menu packets aside for the trace of the step and returns the other events.
     async fn settle(&mut self, first_limit: Duration) -> Vec<Event> {
         let mut seen = Vec::new();
         let mut limit = first_limit;

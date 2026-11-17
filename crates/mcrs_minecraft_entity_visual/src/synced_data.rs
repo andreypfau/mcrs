@@ -11,13 +11,10 @@ const SWIMMING: u8 = 1 << 4;
 const INVISIBLE: u8 = 1 << 5;
 const GLOWING: u8 = 1 << 6;
 
-/// The plain texts of a custom name that turn an entity upside down.
 pub const UPSIDE_DOWN_NAMES: [&str; 2] = ["Dinnerbone", "Grumm"];
 
-/// The frozen ticks from which an entity is fully frozen.
 pub const FULLY_FROZEN_TICKS: i32 = 140;
 
-/// The numeric variant id that the entity data of a variant type carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VariantId {
     Pig(Id<PigVariant>),
@@ -25,7 +22,6 @@ pub enum VariantId {
 }
 
 impl VariantId {
-    /// The position of the entry in the synced registry of its variant type.
     #[must_use]
     pub fn number(self) -> u16 {
         match self {
@@ -35,11 +31,9 @@ impl VariantId {
     }
 }
 
-/// The entity data that the client keeps for an entity, and its scale attribute.
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct SyncedData {
     pub shared_flags: u8,
-    /// The plain text of the custom name is one of [`UPSIDE_DOWN_NAMES`].
     pub upside_down: bool,
     pub name_visible: bool,
     pub pose: Pose,
@@ -49,9 +43,7 @@ pub struct SyncedData {
     pub mob_flags: u8,
     pub baby: bool,
     pub age_locked: bool,
-    /// `None` until the server sends a variant: the type then has its default variant.
     pub variant: Option<VariantId>,
-    /// The value of the attribute `minecraft:scale`.
     pub scale: f64,
 }
 

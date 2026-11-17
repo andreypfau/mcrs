@@ -1,6 +1,3 @@
-//! Vanilla parity of the entity pass: the fixtures of the kernel run through the rows by tile,
-//! the freeze, the pass and the tile moves, and each tick gives the states that a vanilla server
-//! printed.
 #![expect(clippy::unwrap_used, reason = "a malformed fixture fails the test")]
 
 use bevy_tasks::TaskPool;
@@ -29,12 +26,8 @@ use fixture::Fixture;
 use fixture::compare;
 use fixture::start_state;
 
-/// The loaded air around an experiment, in sections from its origin; the recorder force-loads
-/// the area of every experiment.
 const AREA: i32 = 3;
 
-/// The fixtures with a world border or a collider entity, which the world of the pass does not
-/// have yet.
 const SKIPPED: [&str; 2] = ["e15_border", "e16_shulker"];
 
 fn scene_of(fixture: &Fixture) -> TestScene {
@@ -62,7 +55,6 @@ fn scene_of(fixture: &Fixture) -> TestScene {
     scene
 }
 
-/// Fills the box and stirs the tile of each block, as a block change of the world does.
 fn fill(scene: &mut TestScene, min: BlockPos, max: BlockPos, state: BlockStateId) {
     let tiles = TileGrid {
         x: TILE_WIDTH,
@@ -82,8 +74,6 @@ fn fill(scene: &mut TestScene, min: BlockPos, max: BlockPos, state: BlockStateId
     }
 }
 
-/// Spawns each simulated entity of `fixture` as a row and runs the scene one step per recorded
-/// tick; gives the first tick that differs for each entity.
 fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
     let mut scene = scene_of(fixture);
     let recorded: Vec<_> = fixture::simulated(fixture).collect();

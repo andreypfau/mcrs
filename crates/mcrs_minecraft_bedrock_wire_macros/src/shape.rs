@@ -4,7 +4,6 @@ use syn::{
     Attribute, Data, DeriveInput, Error, Expr, Field, Fields, GenericParam, Lifetime, Result, Type,
 };
 
-/// A derive input reduced to what the Bedrock codecs support.
 pub(crate) enum Shape {
     Struct(StructShape),
     Enum(EnumShape),

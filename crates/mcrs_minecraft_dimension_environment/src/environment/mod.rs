@@ -1,12 +1,3 @@
-//! The environment attribute layers of one dimension.
-//!
-//! A value starts at the default of its attribute. The entry of the dimension type applies,
-//! then the track of each timeline of the dimension type's tag, in the order of the tag. The
-//! biome layer goes between the dimension type and the timelines, and the weather layer after
-//! the timelines; neither exists yet. A float that leaves its range after the last layer
-//! becomes the nearer bound. Nothing memoizes an effective value: every read composes the
-//! layers afresh, so a read after a change of a clock sees the new clock state.
-
 #[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_registries::Registries;
@@ -19,9 +10,6 @@ use mcrs_minecraft_environment::{AttributeValue, Interpolation, ModifierMap, def
 use mcrs_minecraft_environment::{Timeline, Track};
 use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
-/// How much it is raining and thundering, in `[0; 1]`.
-///
-/// Truth until the reader that supplies it from the save lands.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct WeatherLevel {
@@ -45,8 +33,6 @@ struct TrackLayer {
     track: Track,
 }
 
-/// The layers of one attribute, with the default and the dimension type's entry already
-/// folded into `base`.
 #[derive(Debug, Clone)]
 pub struct AttributeStack {
     attribute: EnvironmentAttribute,
@@ -60,13 +46,11 @@ impl AttributeStack {
         self.attribute
     }
 
-    /// Whether a timeline track can still move this value.
     #[must_use]
     pub fn is_dynamic(&self) -> bool {
         !self.tracks.is_empty()
     }
 
-    /// The value at the whole ticks of `ctx`. A clock's partial tick has no effect.
     #[must_use]
     pub fn evaluate(&self, ctx: &EnvironmentContext) -> AttributeValue {
         self.tracks
@@ -78,8 +62,6 @@ impl AttributeStack {
             .sanitized(self.attribute)
     }
 
-    /// The value in a frame: the values of the previous and the current tick, moved between
-    /// by `partial`, the frame's fraction of the current tick.
     #[must_use]
     pub fn frame_value(
         &self,
@@ -101,10 +83,6 @@ impl AttributeStack {
     }
 }
 
-/// What a dimension contributes to its layer stack, apart from its timelines.
-///
-/// Narrower than the whole dimension type so the stack does not drag the asset
-/// graph — an infiniburn tag has nothing to say about the sky.
 #[derive(Debug, Clone, Copy)]
 pub struct DimensionEnvironment<'a> {
     pub attributes: &'a ModifierMap,
@@ -113,7 +91,6 @@ pub struct DimensionEnvironment<'a> {
 }
 
 impl<'a> DimensionEnvironment<'a> {
-    /// The end has no weather by its key, whatever type it is given.
     pub fn of(
         dimension: &ResourceKeyBuf<Dimension>,
         dimension_type: &DimensionType,
@@ -129,9 +106,6 @@ impl<'a> DimensionEnvironment<'a> {
     }
 }
 
-/// The layer stacks of one dimension, one per attribute, in registry order.
-///
-/// Derived once from the dimension type and the timelines its tag names.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct DimensionAttributes {
@@ -248,8 +222,6 @@ impl DimensionAttributes {
         &self.clocks
     }
 
-    /// The total ticks of every clock this dimension's timelines run on, in the order a track
-    /// layer indexes them. A clock without a state stands at 0.
     pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<i64>) {
         out.clear();
         out.extend(
@@ -259,7 +231,6 @@ impl DimensionAttributes {
         );
     }
 
-    /// The dimension value of `attribute` at the whole ticks of `ctx`.
     #[must_use]
     pub fn value(
         &self,
@@ -270,8 +241,6 @@ impl DimensionAttributes {
     }
 }
 
-/// Everything a layer stack needs that is not fixed for the dimension: the total ticks of each
-/// clock, as [`DimensionAttributes::clock_ticks`] orders them.
 pub struct EnvironmentContext<'a> {
     pub ticks: &'a [i64],
 }

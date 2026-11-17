@@ -15,20 +15,15 @@ use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::Wire;
 use mcrs_voxel::BlockPos;
 
-/// The index of the stack in the entity data of an item entity.
 const ITEM_STACK: u8 = 8;
 
-/// The index of the start position in the entity data of a falling block (FBK-DAT-003).
 const FALLING_BLOCK_START: u8 = 8;
 
-/// The default start position of a falling block (FBK-DAT-003).
 const NO_START: BlockPos = BlockPos::new(0, 0, 0);
 
-/// The living entries of a mob that change in its life.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct LivingEntries {
     pub(crate) health: f32,
-    /// The pose is `dying`.
     pub(crate) dying: bool,
 }
 
@@ -42,34 +37,26 @@ impl LivingEntries {
 }
 
 impl PartialEq for LivingEntries {
-    /// Compares the bits of the health, as the entry on the wire does.
     fn eq(&self, other: &Self) -> bool {
         self.health.to_bits() == other.health.to_bits() && self.dying == other.dying
     }
 }
 
-/// The entity data entries of a tracked entity that change in its life.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Entries {
     Living(LivingEntries),
-    /// The stack of an item entity (IEN-NET-003).
     Item(ProtoStack<Wire>),
-    /// The start position of a falling block.
     FallingBlock(BlockPos),
-    /// The entries of a custom kind, one for each index, in the order of the indices.
     Custom(Vec<MetadataEntry<'static>>),
 }
 
 impl Entries {
-    /// The entries of a custom kind; a later entry replaces an earlier one of the same index.
     pub(crate) fn custom(entries: &[MetadataEntry<'static>]) -> Self {
         let mut custom = Self::Custom(Vec::with_capacity(entries.len()));
         custom.merge(entries);
         custom
     }
 
-    /// Replaces the entries of a custom kind that have the index of an entry of `entries`, and
-    /// adds the others in the order of the indices. Does nothing for another kind.
     pub(crate) fn merge(&mut self, entries: &[MetadataEntry<'static>]) {
         let Self::Custom(custom) = self else {
             return;
@@ -86,7 +73,6 @@ impl Entries {
         }
     }
 
-    /// Every entry, for a client that missed updates.
     pub(crate) fn all(&self) -> Vec<MetadataEntry<'static>> {
         match self {
             Self::Living(living) => {
@@ -103,7 +89,6 @@ impl Entries {
         }
     }
 
-    /// The entries that differ from `sent`.
     pub(crate) fn changed_from(&self, sent: &Self) -> Vec<MetadataEntry<'static>> {
         match (self, sent) {
             (Self::Living(now), Self::Living(sent)) => {
@@ -126,8 +111,6 @@ impl Entries {
     }
 }
 
-/// The entity data of a mob that differ from the defaults, in the order of the indices
-/// (TRK-DATA-002, TRK-DATA-006): its pose, its health, its mob flags and the entries of its type.
 #[must_use]
 pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'static> {
     let mut entries = Vec::with_capacity(3 + looks.type_entries.len());
@@ -179,11 +162,6 @@ fn start_entry(start: BlockPos) -> MetadataEntry<'static> {
     }
 }
 
-/// The packets of the spawn bundle of the entity `id` after its `add_entity`, as records. A mob
-/// has its `set_entity_data` and, when an instance differs from that of a new mob of its type, its
-/// `update_attributes` (TRK-DATA-004). An item entity has the `set_entity_data` with its stack
-/// (IEN-NET-001), and a falling block the one with its start position when it is not the default
-/// (FBK-SPN-002). A custom kind has the `set_entity_data` with its entries when it has one.
 pub(crate) fn spawn_extras(
     id: VarInt,
     looks: &MobLooks,

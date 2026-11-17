@@ -13,7 +13,6 @@ use crate::widget_placement::WidgetPlacement;
 use crate::widgets::{Drag, Press, Widgets, activate, set_offset};
 use crate::widgets_focus::FocusEntry;
 
-/// The longest time in milliseconds between the two presses of a double click.
 pub const DOUBLE_CLICK_MS: u64 = 250;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -25,15 +24,10 @@ struct Click {
 }
 
 impl Widgets {
-    /// A move of the mouse to the mouse position `mouse` (WID-IN-001). A move with the left button
-    /// down also calls [`Self::mouse_drag`].
     pub fn mouse_move(&mut self, mouse: GuiPoint) {
         self.input.move_mouse(mouse);
     }
 
-    /// A press of a pointer button; `width` is the text width of the font (WID-PTR-002,
-    /// WID-SLD-002, SCRL-BAR-003, LIST-SEL-002, LIST-WID-001, TAB-CLICK-001, EDIT-PTR-001,
-    /// EDIT-PTR-002).
     pub fn mouse_press(
         &mut self,
         press: PointerPress,
@@ -118,9 +112,6 @@ impl Widgets {
         }
     }
 
-    /// A move with the left button down to the event position `x` at `now_ms`, which goes to
-    /// the focused widget while the screen drags (WID-PTR-003, WID-SLD-002, SCRL-BAR-003,
-    /// EDIT-PTR-003).
     pub fn mouse_drag(
         &mut self,
         x: f64,
@@ -145,8 +136,6 @@ impl Widgets {
                 }
             }
             Drag::Scrollbar { area, last_y } => {
-                // chisle: the scrollbar drag reads the integer mouse position of the last
-                // mouse_move; an event y in mouse_drag lifts it.
                 let y = f64::from(self.input.mouse().y);
                 self.drag = Drag::Scrollbar { area, last_y: y };
                 if let Some(widget) = self.widgets.get_mut(area)
@@ -158,8 +147,6 @@ impl Widgets {
         }
     }
 
-    /// A release of `button`; the left button ends the drag, and a slider that applies at once
-    /// moves its handle to the position of its value (WID-PTR-003, WID-SLD-007).
     pub fn mouse_release(&mut self, button: PointerButton) {
         if button != PointerButton::Left {
             return;
@@ -174,8 +161,6 @@ impl Widgets {
         self.drag = Drag::None;
     }
 
-    /// A wheel event with the amount down `down` at the event position (`x`, `y`)
-    /// (WID-PTR-004, WID-CYC-002, SCRL-AREA-002).
     pub fn mouse_wheel(&mut self, x: f64, y: f64, down: f64, events: &mut Vec<WidgetEvent>) {
         self.input.set_device(InputDevice::Mouse);
         let Some(widget) = self

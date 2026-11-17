@@ -1,10 +1,7 @@
 use bevy::math::{Rect, Vec2};
 
-/// The growth of the box of a bold strike on each side.
 const BOLD_GROWTH: f32 = 0.1;
 
-/// What a font gives for a code point. The bold strike and the shadow share one offset in every
-/// vanilla provider.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Glyph {
     pub advance: f32,
@@ -12,7 +9,6 @@ pub struct Glyph {
     pub image: Option<GlyphImage>,
 }
 
-/// The picture of a glyph and its box in GUI units from the pen position.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GlyphImage {
     pub source: ImageSource,
@@ -24,16 +20,8 @@ pub struct GlyphImage {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ImageSource {
-    /// A cell of the texture of the bitmap provider at index `source`, in texels.
-    Bitmap {
-        source: usize,
-        texels: Rect,
-    },
-    /// Columns of a Unifont glyph, drawn from the glyph cache.
-    Unifont {
-        source: usize,
-        columns: u32,
-    },
+    Bitmap { source: usize, texels: Rect },
+    Unifont { source: usize, columns: u32 },
     Missing,
 }
 
@@ -45,7 +33,6 @@ pub enum Weight {
 }
 
 impl GlyphImage {
-    /// The box of one strike with the pen at `pen`.
     pub fn strike(&self, pen: Vec2, weight: Weight) -> Rect {
         let growth = match weight {
             Weight::Regular => 0.0,
@@ -76,7 +63,6 @@ pub(crate) const MISSING: Glyph = Glyph {
     }),
 };
 
-/// The missing glyph as RGBA pixels, 5 × 8.
 pub fn missing_glyph_pixels() -> Vec<u8> {
     MISSING_ROWS
         .iter()

@@ -5,8 +5,6 @@ use serde::{Deserialize, Serialize};
 
 validated!(NoiseParam);
 
-/// `RegistryCodecs.holder(Registries.NOISE, …)` with inlining allowed: an id
-/// into `worldgen/noise`, or the parameters object itself.
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum NoiseHolder {
@@ -19,16 +17,11 @@ pub const MAX_BASE_OCTAVE: i32 = 32;
 pub const MIN_OCTAVE_COUNT: usize = 1;
 pub const MAX_OCTAVE_COUNT: usize = 32;
 pub const MAX_AMPLITUDE: f64 = 1_000_000.0;
-/// `Codec.doubleRange(1.0E-5F, …)`: a float literal widened, so the bound is
-/// `1.0000000474974513e-5` and not the decimal it looks like.
 pub const MIN_BASE_AMPLITUDE: f64 = 1.0e-5f32 as f64;
 
 const TARGET_DEVIATION: f64 = 0.3333333333333333;
 const PERLIN_STANDARD_DEVIATION: f64 = 0.2702247831245211;
 
-/// `NormalNoise.Parameters`: the datapack shape alone. Everything derived from
-/// it — the surviving octaves, their weights and the declared range — belongs to
-/// [`crate::normal::NormalNoise`].
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct NoiseParam {
@@ -112,7 +105,6 @@ impl Validate for NoiseParam {
 }
 
 impl NoiseParam {
-    /// `octave_count` octaves from `base_octave` up, none of them reweighted.
     pub fn uniform(base_octave: i32, octave_count: usize) -> Self {
         NoiseParam {
             base_octave,
@@ -123,10 +115,6 @@ impl NoiseParam {
         }
     }
 
-    /// The parameters whose sampler matches a noise given as bare octave
-    /// amplitudes and normalized over its octave span. This shape normalizes
-    /// over the octaves' deviation instead, so the base amplitude carries the
-    /// ratio between the two factors.
     pub fn parity(base_octave: i32, amplitudes: &[f64]) -> Self {
         let unit = NoiseParam {
             base_octave,
@@ -156,18 +144,12 @@ impl NoiseParam {
         }
     }
 
-    /// `getAmplitudeModifier`: an empty list means every octave is unmodified.
-    /// A non-empty one is validated at load to have exactly `octave_count`
-    /// entries, so indexing can never miss.
     pub fn octave_amplitudes(&self) -> Vec<f64> {
         (0..self.octave_count)
             .map(|i| self.amplitude_modifiers.get(i).map(|m| m.0).unwrap_or(1.0))
             .collect()
     }
 
-    /// Everything the parameters decide before a seed is drawn: which octaves
-    /// survive, what each weighs, and the factor that scales them all. Building
-    /// the sampler reads this rather than deriving it a second time.
     pub fn octaves(&self) -> Octaves {
         let modifiers = self.octave_amplitudes();
         let count = modifiers.len() as i32;
@@ -177,8 +159,6 @@ impl NoiseParam {
             _ => base_amplitude * (2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0)),
         };
 
-        // Octaves with a zero modifier are dropped, not zeroed: they contribute
-        // to neither the amplitude sum nor the deviation.
         let mut amplitudes = Vec::with_capacity(modifiers.len());
         for modifier in &modifiers {
             amplitudes.push((*modifier != 0.0).then_some(amplitude * *modifier));
@@ -211,21 +191,13 @@ impl NoiseParam {
     }
 }
 
-/// What [`NoiseParam::octaves`] decides before any seed is drawn.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Octaves {
-    /// One entry per declared octave; `None` where the modifier was zero and the
-    /// octave is dropped rather than weighted to nothing.
     pub amplitudes: Vec<Option<f64>>,
-    /// Scales every layer so the summed octaves reach the target deviation.
     pub factor: f64,
-    /// The summed absolute octave amplitudes, after the legacy adjustment.
     pub target_amplitude: f64,
 }
 
-/// Six sigma on the summed octaves, deliberately not the analytically rigorous
-/// extreme — that is about twice as wide. Branch elimination consumes this, so
-/// widening it silently changes generated terrain.
 pub(crate) fn declared_range(target_amplitude: f64) -> Interval {
     Interval::symmetric((target_amplitude * TARGET_DEVIATION * 6.0) as f32)
 }
@@ -244,8 +216,6 @@ pub(crate) fn parity_normalization_factor(base_amplitude: f64, octave_span: f64)
     base_amplitude * 0.5 * TARGET_DEVIATION / expected_deviation
 }
 
-/// `DoubleStream.sum` is Kahan-compensated and falls back to the naive total
-/// when compensation produces a NaN from infinite inputs.
 pub(crate) fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
     let mut sum = 0.0f64;
     let mut compensation = 0.0f64;
@@ -320,10 +290,6 @@ impl<'de> Deserialize<'de> for Normalization {
     }
 }
 
-/// Equality and hashing over the raw bits of a `f64` newtype, because vanilla
-/// compares these records with `Double.compare`: `-0.0` and `0.0` are distinct
-/// keys, and a derived `PartialEq` would call them equal while the bit hash
-/// disagreed.
 #[macro_export]
 macro_rules! eq_by_bits {
     ($name:ident) => {
@@ -343,10 +309,6 @@ macro_rules! eq_by_bits {
     };
 }
 
-/// A bounded `f64`, held as `serde_json` parses it. `$as` is the type the
-/// reference compares and writes in: `f32` for a `floatRange`, `f64` for a
-/// `doubleRange`. The `eq_by_bits` form compares like [`eq_by_bits!`] instead
-/// of deriving `PartialEq`.
 #[macro_export]
 macro_rules! bounded_float {
     (eq_by_bits $($(#[$doc:meta])* $name:ident as $as:ident in [$min:expr, $max:expr];)*) => {$(
@@ -391,7 +353,6 @@ macro_rules! bounded_float {
     };
 }
 
-/// A `Codec.DOUBLE` payload.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HashableF64(pub f64);
 

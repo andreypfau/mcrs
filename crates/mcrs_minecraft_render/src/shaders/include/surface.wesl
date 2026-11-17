@@ -16,8 +16,6 @@ struct Surface {
     ddy: vec2<f32>,
 };
 
-/// Sprites live in one of a few atlases, chosen by resolution, and WGSL has no array of
-/// textures to index, so the choice is a branch.
 fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     switch array {
         case 1u: { return textureSampleGrad(atlas1, atlas_sampler, uv, layer, ddx, ddy); }
@@ -41,8 +39,6 @@ fn sprite_color(sprite: u32, uv: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> v
     return mix(color, sample_atlas(array, uv, frame.next, ddx, ddy), frame.blend);
 }
 
-/// 0 is untinted, the next few sample a biome colour map where the face stands, and the rest are
-/// colours the block state fixes.
 fn tint(index: u32, world_xz: vec2<f32>) -> vec3<f32> {
     if (index == 0u) {
         return vec3<f32>(1.0);

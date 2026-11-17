@@ -8,26 +8,19 @@ use mcrs_molang::{ChannelClass, Expression, InputRange, PureInput, QuerySlot, Va
 
 use crate::records::{CLIP_SLOTS, INPUT_VALUES};
 
-/// Where the pose pass of a definition takes the weight and the time of an `animate` entry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntryInputs {
-    /// The input value that holds the weight, which the CPU computes in each frame; `None` when
-    /// the GPU computes it.
     pub weight: Option<usize>,
-    /// The clip slot that holds the start of a clip with the time of the entity clock.
     pub clip: Option<usize>,
-    /// The input value that holds the time, for a time update that the GPU cannot compute.
     pub time: Option<usize>,
 }
 
-/// The inputs that the CPU writes for a definition: one entry for each `animate` entry.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct InputLayout {
     pub entries: Vec<EntryInputs>,
 }
 
 impl InputLayout {
-    /// Whether a slot of this definition has an input record.
     #[must_use]
     pub fn is_used(&self) -> bool {
         self.entries
@@ -36,15 +29,12 @@ impl InputLayout {
     }
 }
 
-/// The WGSL of the animated offsets of one client entity definition, and the inputs it reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoseProgram {
-    /// The functions of the channels, then `fn pose_offsets(ctx: PoseContext)`.
     pub wgsl: String,
     pub inputs: InputLayout,
 }
 
-/// Why a definition has no GPU pose.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoseProgramError(pub String);
 
@@ -56,8 +46,6 @@ impl std::fmt::Display for PoseProgramError {
 
 impl std::error::Error for PoseProgramError {}
 
-/// The WGSL value of a pose input that the pose pass computes from the slot records, with its
-/// range; `None` for a query that the pose pass does not compute.
 fn pose_input(query: EntityQuery) -> Option<(&'static str, InputRange)> {
     use EntityQuery as Q;
     let angle = InputRange::new(-180.0, 180.0);
@@ -81,9 +69,7 @@ fn pose_input(query: EntityQuery) -> Option<(&'static str, InputRange)> {
 
 struct Generator<'a> {
     rig: &'a Rig,
-    /// The palette index of each rig bone.
     palette_of_bone: &'a [usize],
-    /// The rest rotation in file space of each palette entry.
     rest: &'a [Vec3],
     functions: String,
     body: String,
@@ -91,9 +77,6 @@ struct Generator<'a> {
 }
 
 impl PoseProgram {
-    /// Generates the pose program of `rig`. `palette_of_bone` gives the palette index of each
-    /// rig bone and `rest` the rest rotation in file space of each palette entry, which `this`
-    /// reads.
     pub fn generate(
         rig: &Rig,
         palette_of_bone: &[usize],
@@ -128,8 +111,6 @@ impl PoseProgram {
     }
 }
 
-/// A definition with a weight that is not a constant reads its weights from the CPU; then each
-/// clip that plays on the entity clock needs the start that the CPU gives.
 fn input_layout(rig: &Rig) -> Result<InputLayout, PoseProgramError> {
     let constant = |expression: &Expression| expression.as_constant().is_some();
     let needs_input = rig.animate.iter().any(|entry| {
@@ -315,7 +296,6 @@ impl Generator<'_> {
         Ok(())
     }
 
-    /// WGSL that declares `v`, the sample of `channel` at the time `t`, limited to the pose range.
     fn sample(
         &mut self,
         channel: &Channel,
@@ -378,8 +358,6 @@ impl Generator<'_> {
         Ok(out)
     }
 
-    /// A WGSL expression of one number field. `this` is the value of `this`, and `time` the
-    /// WGSL value of `query.anim_time`.
     fn scalar(
         &mut self,
         expression: &Expression,

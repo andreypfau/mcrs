@@ -9,8 +9,6 @@ use crate::grid_lines::BoxLines;
 use crate::grid_lines::MAX_BOX_LINES;
 use crate::tolerance::COLLISION;
 
-/// A block shape relative to its block position: the grid lines of each axis and the solid cells
-/// between them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shape {
     lines: [Box<[f64]>; 3],
@@ -19,15 +17,11 @@ pub struct Shape {
 
 #[derive(Clone, Debug, PartialEq)]
 enum Cells {
-    /// One box: the cells whose indices are in the range on each axis.
     Block([Range<u16>; 3]),
-    /// Bit `(x × ny + y) × nz + z` is the cell at `(x, y, z)`.
     Bits(Box<[u64]>),
 }
 
 impl Shape {
-    /// The shape that the boxes give, or `None` when it has no box with each edge at least
-    /// `1.0E-7`.
     #[must_use]
     pub fn from_boxes(boxes: &[Aabb]) -> Option<Self> {
         let kept: Vec<Aabb> = boxes
@@ -49,19 +43,16 @@ impl Shape {
         Some(Self { lines, cells })
     }
 
-    /// The grid lines of `axis` in ascending order, relative to the block position.
     #[must_use]
     pub fn lines(&self, axis: Axis) -> &[f64] {
         axis.pick(&self.lines)
     }
 
-    /// True when the shape is one box.
     #[must_use]
     pub fn is_one_box(&self) -> bool {
         matches!(self.cells, Cells::Block(_))
     }
 
-    /// True when the cell is solid. Indices out of the grid are open.
     #[must_use]
     pub fn is_solid(&self, x: usize, y: usize, z: usize) -> bool {
         match &self.cells {
@@ -76,8 +67,6 @@ impl Shape {
         }
     }
 
-    /// The top of the highest solid cell, relative to the block position. The grid lines can go
-    /// above it.
     #[must_use]
     pub fn top(&self) -> f64 {
         let lines = self.lines(Axis::Y);
@@ -94,8 +83,6 @@ impl Shape {
         lines.get(end).copied().unwrap_or(0.0)
     }
 
-    /// True when `hit` is true for one box of the shape, given as its min and max corners. A
-    /// compound shape gives each solid cell as a box.
     pub(crate) fn any_box(&self, mut hit: impl FnMut(DVec3, DVec3) -> bool) -> bool {
         let corner = |cell: [usize; 3]| {
             DVec3::from_array(Axis::ALL.map(|axis| {
@@ -137,7 +124,6 @@ impl Shape {
     }
 }
 
-/// A shape moved by a block position.
 pub(crate) struct PlacedShape<'a> {
     shape: &'a Shape,
     offset: DVec3,
@@ -165,8 +151,6 @@ impl CellGrid for PlacedShape<'_> {
     }
 }
 
-/// The union of the grid lines of the boxes on one axis; a line joins the last kept line when it is
-/// at most `1.0E-7` above it.
 fn union_lines(boxes: &[Aabb], axis: Axis) -> Box<[f64]> {
     let mut all = Vec::with_capacity(boxes.len() * MAX_BOX_LINES);
     let mut buffer = [0.0; MAX_BOX_LINES];
@@ -184,7 +168,6 @@ fn union_lines(boxes: &[Aabb], axis: Axis) -> Box<[f64]> {
     merged.into_boxed_slice()
 }
 
-/// The cells of `lines` whose middle is inside the interval.
 pub(crate) fn covered(lines: &[f64], min: f64, max: f64) -> Range<u16> {
     let mut first = None;
     let mut last = 0;

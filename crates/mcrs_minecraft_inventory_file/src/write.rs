@@ -14,9 +14,6 @@ use crate::equipment_key::EquipmentKey;
 use crate::equipment_key::INVENTORY_KEY;
 use crate::player_file::PlayerFile;
 
-/// Writes `Inventory`, `SelectedItemSlot` and `equipment` of `file` into `player`
-/// (INV-SAV-001). It writes `equipment` only when it has a key, and no cursor or craft grid
-/// stack.
 pub fn write<L: NameLookup>(
     file: &PlayerInventoryFile,
     names: &L,

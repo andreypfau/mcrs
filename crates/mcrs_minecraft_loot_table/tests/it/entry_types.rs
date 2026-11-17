@@ -45,10 +45,6 @@ fn with_luck(luck: f32) -> LootContext<'static, ()> {
     context
 }
 
-/// LOOT-EVL-009, LOOT-EVL-010, LOOT-EVL-011, LOOT-OUT-001: a `tag` entry without `expand` makes
-/// each item of its tag in member order; a `loot_table` entry evaluates a named and an inline
-/// table in order, with the same generator; the stacks of a nested table reach the modifier of
-/// the entry before the division. None of these takes a draw of its own.
 #[test]
 fn loot_evl_010_a_nested_table_rolls_in_the_same_evaluation() {
     let empty = (String::new(), 0);
@@ -73,8 +69,6 @@ fn loot_evl_010_a_nested_table_rolls_in_the_same_evaluation() {
     }
 }
 
-/// LOOT-EVL-003, LOOT-EVL-009, LOOT-EVL-010: an entry with `expand` gives one candidate for each
-/// member, and the roll selects one of them with one draw `B(2)`.
 #[test]
 fn loot_evl_009_an_expanded_entry_gives_one_candidate_per_member() {
     for (name, members) in [
@@ -91,10 +85,6 @@ fn loot_evl_009_an_expanded_entry_gives_one_candidate_per_member() {
     }
 }
 
-/// LOOT-EVL-007: a `dynamic` entry makes the stacks that the context gives for its name, in
-/// order, with their component patch and with the empty stack, and not the stacks of another
-/// name. A name that no source gives makes nothing. It takes no draw. LOOT-OUT-001, STK-CNT-002:
-/// a stack is divided at the maximum stack size of its patch.
 #[test]
 fn loot_evl_007_a_dynamic_entry_makes_the_stacks_of_the_context() {
     let enchanted = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);
@@ -119,10 +109,6 @@ fn loot_evl_007_a_dynamic_entry_makes_the_stacks_of_the_context() {
     }
 }
 
-/// LOOT-EVL-003, LOOT-CTX-015: the weight of a candidate is `floor(weight + quality × luck)`,
-/// at least 0. A roll with one candidate of a weight above 0 takes no draw; otherwise it takes
-/// `B(t)` over the sum `t`. The first candidate is a stick of weight 1; the second a snowball
-/// of weight 3 and quality -1.
 #[test]
 fn loot_evl_003_quality_and_luck_change_the_weights() {
     for (luck, total) in [(0.0, Some(4)), (-1.0, Some(5)), (2.5, None), (3.0, None)] {
@@ -139,8 +125,6 @@ fn loot_evl_003_quality_and_luck_change_the_weights() {
     }
 }
 
-/// LOOT-EVL-002, LOOT-CTX-015: a pool rolls `rolls + floor(bonus_rolls × luck)` times, and not
-/// at all when that is 0 or less.
 #[test]
 fn loot_evl_002_the_luck_adds_bonus_rolls() {
     for (luck, rolls) in [(0.0, 1), (2.0, 4), (0.5, 1), (-1.0, 0)] {
@@ -153,12 +137,6 @@ fn loot_evl_002_the_luck_adds_bonus_rolls() {
     }
 }
 
-/// LOOT-CTX-013, LOOT-CTX-014, LOOT-CTX-016: a reference back to a table that contains it, also
-/// through an inline table, a composite entry without children, an `alternatives` child other
-/// than the last without a condition, and a nested table that reads a parameter outside the
-/// type of the table that contains it, a table and an item tag that the load does not hold, are
-/// issues at their paths. A table named two times is not a cycle. A table with a cycle still
-/// rolls, and ends. Which table of a cycle reports it depends on the order of the load.
 #[test]
 fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
     let mut issues: Vec<_> = ADDED
@@ -239,9 +217,6 @@ fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
     assert_eq!(roll_with_stream("f:a"), (vec![], fresh("f:a")));
 }
 
-/// LOOT-CTX-017: in a line of 66 tables, the chain from the first table gets 65 members at the
-/// entry of the table 64, and the chain from the second at the entry of the table 65. The cut
-/// keeps each chain of the roll at 64 tables.
 #[test]
 fn loot_ctx_017_a_chain_of_nested_tables_past_the_limit_is_an_issue_at_each_place() {
     let issues: Vec<_> = ADDED
@@ -264,8 +239,6 @@ fn loot_ctx_017_a_chain_of_nested_tables_past_the_limit_is_an_issue_at_each_plac
     }
 }
 
-/// REG-FLD-790, REG-FLD-797, REG-FLD-801: an entry of a type without a rule fails the decode of
-/// its table; a `slots` entry decodes with a key, a bare `group` and a typed slot source.
 #[test]
 fn reg_fld_790_an_unknown_entry_type_fails_the_decode() {
     let table = |entry: &str| format!(r#"{{"pools": [{{"rolls": 1, "entries": [{entry}]}}]}}"#);

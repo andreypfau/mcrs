@@ -216,8 +216,6 @@ pub(super) fn dump() -> &'static Dump {
     &DUMP
 }
 
-/// The parity program: the corpus over one biome with every pool element
-/// compiled, at the world seed the oracle's stub level answers.
 pub(super) fn program() -> &'static FeatureProgram {
     static PROGRAM: LazyLock<FeatureProgram> = LazyLock::new(|| {
         build_program_with(
@@ -287,7 +285,6 @@ pub(super) fn fnv(entries: &[([i32; 3], u32)]) -> u64 {
     hash
 }
 
-/// First write fixes the order, last write fixes the state.
 pub(super) fn written(writes: &[(BlockPos, VoxelId)]) -> Vec<(BlockPos, VoxelId)> {
     let mut slot: HashMap<BlockPos, usize> = HashMap::new();
     let mut out: Vec<(BlockPos, VoxelId)> = Vec::new();
@@ -354,7 +351,6 @@ struct Outcome {
     rng: [i64; 2],
 }
 
-/// Every way one placement can differ from the oracle's, as one line each.
 #[expect(
     clippy::too_many_lines,
     reason = "compares one placement's flag, blocks, entities and random state with the oracle's and reports every difference as a line"
@@ -615,7 +611,6 @@ pub(super) fn feature_program(node: &Feature) -> FeatureProgram {
     )
 }
 
-/// `RuinedPortalPiece.makeSettings`, from the properties the case key spells.
 fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     let fields: BTreeMap<&str, &str> = key
         .strip_prefix("portal:")

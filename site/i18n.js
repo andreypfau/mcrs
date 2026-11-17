@@ -1,6 +1,4 @@
 (() => {
-  // To add a language: add an entry here and a site/i18n/<code>.json holding the same keys
-  // as ru.json, then run `node scripts/check-site-i18n.mjs`. The switcher renders from this list.
   const LANGUAGES = [
     { code: 'en', label: 'EN', name: 'English' },
     { code: 'ru', label: 'RU', name: 'Русский' },
@@ -13,7 +11,7 @@
     try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
   };
   const save = (code) => {
-    try { localStorage.setItem(STORAGE_KEY, code); } catch { /* private mode: the choice lasts until reload */ }
+    try { localStorage.setItem(STORAGE_KEY, code); } catch { }
   };
 
   const supported = (tag) => LANGUAGES.find((l) => l.code.toLowerCase() === tag)?.code;

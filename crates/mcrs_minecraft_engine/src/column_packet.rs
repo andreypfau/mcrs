@@ -21,7 +21,6 @@ use crate::heightmap::client_heightmaps;
 use crate::light_codec::{build_fullbright_light_data, build_stored_light_data};
 use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// The bits a palette entry takes when a section is too varied for a palette.
 #[derive(Clone, Copy)]
 pub(crate) struct DirectBits {
     block: u32,
@@ -41,22 +40,16 @@ impl DirectBits {
     }
 }
 
-/// A light array and the length ahead of it on the wire.
 const WIRE_LIGHT_ARRAY_BYTES: usize = size_of::<LightChunk>() + 3;
 
-/// Room for the column's position, masks, heightmaps and block entities.
 const PACKET_SLACK_BYTES: usize = 4 * 1024;
 
-/// How a column from the data layer puts its light on the wire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StoredLight {
-    /// The world lights its columns, and the column holds the light it had.
     Kept { has_sky_light: bool },
-    /// The world does not light its columns, so the column goes out at full sky light.
     Fullbright,
 }
 
-/// Encodes the packet of a column from the data layer.
 pub(crate) fn encode_stored_column(
     column: ColumnPos,
     stored: &StoredColumn,
@@ -68,8 +61,6 @@ pub(crate) fn encode_stored_column(
         let non_air = PalettedSection(&section.blocks.0.0)
             .palette(&mut PaletteBuffer::default())
             .count(|state| state != BlockStateId::AIR);
-        // A section cut short shifts every section after it, so the client would
-        // read the rest of the column as garbage.
         if let Err(err) = encode_section(
             non_air,
             0,

@@ -13,7 +13,6 @@ pub const STONE: u16 = 1;
 pub const DIRT: u16 = 2;
 pub const PEARL: u16 = 3;
 
-/// The components of a handle. Two handles with the same components are equal stacks.
 pub fn components(handle: u16) -> u16 {
     handle / 10
 }
@@ -31,12 +30,10 @@ pub fn stone(count: u8) -> Stack {
     stack(10, STONE, count, 64)
 }
 
-/// A second handle with the components of [`stone`].
 pub fn more_stone(count: u8) -> Stack {
     stack(11, STONE, count, 64)
 }
 
-/// Stone with a different component patch.
 pub fn named_stone(count: u8) -> Stack {
     stack(40, STONE, count, 64)
 }
@@ -54,7 +51,6 @@ pub struct Slot {
     pub stack: Stack,
     pub limit: u8,
     pub take: Filter,
-    /// The components that the place filter refuses.
     pub refuses: Option<u16>,
 }
 
@@ -118,8 +114,6 @@ pub struct Outcome {
     pub dropped: Vec<Planned<u16>>,
 }
 
-/// Plans `ops` over `slots` in `scratch`. Panics when a change names a slot that does not exist
-/// or states a stack before that the slot did not hold.
 pub fn request_in(
     scratch: &mut Plan<usize, u16>,
     slots: &[Slot],

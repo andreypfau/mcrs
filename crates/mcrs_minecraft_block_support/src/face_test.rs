@@ -4,10 +4,8 @@ use mcrs_minecraft_core::voxel_shape::Aabb;
 
 const EPSILON: f32 = 1.0e-4;
 
-/// A rectangle on the square of a face, in sixteenths: `[min_u, min_v, max_u, max_v]`.
 type Rect = [f32; 4];
 
-/// Whether the face `direction` of `shape` passes `test` (SUP-FACE-001).
 pub fn passes(shape: &[Aabb], direction: Direction, test: FaceTest) -> bool {
     let area: Vec<Rect> = shape
         .iter()
@@ -40,8 +38,6 @@ fn face_rect(aabb: &Aabb, direction: Direction) -> Option<Rect> {
     })
 }
 
-/// Whether the union of `rects` covers `region`: each cell of the grid that the edges of both
-/// cut out of the region has its centre in some rectangle.
 fn covers(rects: &[Rect], region: &Rect) -> bool {
     let cuts = |span: fn(&Rect) -> [f32; 2]| {
         let [low, high] = span(region);

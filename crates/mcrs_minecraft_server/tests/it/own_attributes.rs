@@ -97,8 +97,6 @@ fn own_updates(packets: &[PacketPayload]) -> Vec<OwnUpdate> {
     packets.iter().filter_map(own_update).collect()
 }
 
-/// ATR-NET-003 and MVC-PKT-031: the own player gets the entry of `movement_speed` when its sprint
-/// starts and when it stops, and nothing in a tick without a change.
 #[test]
 fn atr_net_003_the_own_player_gets_each_change_of_its_sprint_modifier() {
     let mut app = host_app::make_host_app();
@@ -141,8 +139,6 @@ fn atr_net_003_the_own_player_gets_each_change_of_its_sprint_modifier() {
     assert_eq!(idle, []);
 }
 
-/// ATR-SRC-001: a source that runs for a player whose instance it leaves as it is sends nothing
-/// and leaves the instances unchanged for every other reader.
 #[test]
 fn a_sprint_stop_without_a_sprint_sends_nothing_and_changes_nothing() {
     let mut app = host_app::make_host_app();
@@ -172,8 +168,6 @@ fn a_sprint_stop_without_a_sprint_sends_nothing_and_changes_nothing() {
     assert_eq!(last_changed(&mut server), before);
 }
 
-/// ATR-NET-002 and ATR-NET-003: two instances that change in one tick go out in one packet, in
-/// the order of their numeric ids.
 #[test]
 fn two_instances_changed_in_one_tick_go_out_in_one_packet_in_id_order() {
     let mut app = host_app::make_host_app();
@@ -202,7 +196,6 @@ fn two_instances_changed_in_one_tick_go_out_in_one_packet_in_id_order() {
     );
 }
 
-/// The `update_attributes` of the muxer in `packets`.
 fn tracked_updates(packets: &[PacketPayload]) -> Vec<OwnUpdate> {
     replicated(packets)
         .into_iter()
@@ -211,8 +204,6 @@ fn tracked_updates(packets: &[PacketPayload]) -> Vec<OwnUpdate> {
         .collect()
 }
 
-/// ATR-NET-003: a player that tracks a sprinter gets the entry of its `movement_speed` once, and
-/// the sprinter gets none about itself from the muxer.
 #[test]
 fn atr_net_003_a_tracking_player_gets_the_sprint_modifier_of_the_player_it_tracks() {
     let mut app = host_app::make_host_app();
@@ -263,8 +254,6 @@ fn atr_net_003_a_tracking_player_gets_the_sprint_modifier_of_the_player_it_track
     );
 }
 
-/// TRK-DATA-004 and TRK-SPN-001: the spawn bundle of a creative player holds its two range
-/// instances, right after its `add_entity`.
 #[test]
 fn trk_data_004_the_spawn_bundle_of_a_creative_player_holds_its_range_modifiers() {
     let mut app = host_app::make_host_app();
@@ -332,8 +321,6 @@ fn creative_ranges() -> [Entry; 2] {
     expected
 }
 
-/// ATR-NET-005: a player that joins in creative mode gets its two range modifiers after the
-/// `login`.
 #[test]
 fn atr_net_005_a_creative_player_gets_its_range_modifiers_after_the_login() {
     let mut app = host_app::make_host_app();
@@ -362,7 +349,6 @@ fn atr_net_005_a_creative_player_gets_its_range_modifiers_after_the_login() {
     assert_eq!(updates[0].entries, creative_ranges());
 }
 
-/// The world of the cell that holds the player of `session`, and the player.
 fn held(app: &mut App, label: Entity, session: PlayerSession) -> (&mut World, Entity) {
     let Holder { cell, player } = holder(app, label, session).expect("the player is in a cell");
     (cell_worlds(app, label).swap_remove(cell), player)
@@ -376,8 +362,6 @@ fn set_sprinting(app: &mut App, label: Entity, session: PlayerSession, sprinting
         .set_if_neq(PlayerSprinting(sprinting));
 }
 
-/// ATR-SRC-002 across a cell border: the player keeps its sprint modifier, and the stop of its
-/// sprint in the new cell reaches a tracking player as one entry with no modifier.
 #[test]
 fn a_sprinter_that_crosses_a_cell_border_keeps_its_sprint_modifier_until_it_stops() {
     let mut app = WorldServer {
@@ -452,8 +436,6 @@ fn a_sprinter_that_crosses_a_cell_border_keeps_its_sprint_modifier_until_it_stop
     );
 }
 
-/// ATR-NET-005: a player keeps a modifier through a change of dimension, and its
-/// client gets the entry after the `respawn`.
 #[test]
 fn a_modifier_of_a_player_holds_after_a_change_of_dimension() {
     let mut app = host_app::make_host_app();
@@ -572,8 +554,6 @@ fn a_new_player_that_leaves_has_an_empty_attribute_list_in_its_file() {
     assert_eq!(attributes.map(<[NbtTag]>::len), Some(0));
 }
 
-/// ATR-SAV-001 and ATR-SAV-002: the leave writes a changed base and a permanent modifier to the
-/// player file, and a join with that file holds them again.
 #[test]
 fn a_player_that_leaves_and_joins_again_keeps_its_base_and_permanent_modifier() {
     let mut app = host_app::make_host_app();

@@ -3,31 +3,23 @@ use mcrs_minecraft_numeric as numeric;
 
 use crate::angle;
 
-/// A mob that moves more than this squared horizontal distance in a tick faces its yaw.
 pub const MOVING_DISTANCE_SQUARED: f64 = 2.5e-7;
-/// A head turn of more than this many degrees since the last turn makes the body follow.
 pub const HEAD_TURN_DEGREES: f32 = 15.0;
-/// The ticks after a turn in which a still body keeps its yaw.
 pub const BODY_REST_TICKS: u32 = 10;
-/// The ticks over which a still body then closes the gap to the head.
 pub const BODY_CATCH_UP_TICKS: u32 = 10;
 
-/// A living entity that is not a mob, moving faster than this squared distance a tick, turns
-/// its body towards its movement.
 const WALKER_DISTANCE_SQUARED: f64 = 0.0025;
 const WALKER_BACKWARD_MIN: f32 = 95.0;
 const WALKER_BACKWARD_MAX: f32 = 265.0;
 const WALKER_FOLLOW: f32 = 0.3;
 const WALKER_BODY_LIMIT: f32 = 50.0;
 
-/// The yaws that a body turn sets.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Turn {
     pub body_yaw: f32,
     pub head_yaw: f32,
 }
 
-/// What a mob remembers of its last turn: the head yaw after it and the still ticks since.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BodyTurn {
     turn_head_yaw: f32,
@@ -35,8 +27,6 @@ pub struct BodyTurn {
 }
 
 impl BodyTurn {
-    /// The body yaw of a mob after one tick in which it moved by `movement` (X and Z) and
-    /// looks with `head_yaw`. The head stays within `head_limit` of a body that faces `yaw`.
     pub fn follow(
         &mut self,
         yaw: f32,
@@ -72,8 +62,6 @@ impl BodyTurn {
     }
 }
 
-/// The body yaw of a living entity that is not a mob after one tick in which it moved by
-/// `movement` (X and Z) and looks with `yaw`.
 #[must_use]
 pub fn follow_movement(yaw: f32, body_yaw: f32, movement: DVec2) -> f32 {
     let mut target = body_yaw;
@@ -147,7 +135,6 @@ mod tests {
             seen.push(body_yaw);
         }
         assert!(seen[..10].iter().all(|&yaw| yaw == 0.0), "{seen:?}");
-        // Tick 11 allows 67.5, tick 13 allows 52.5: the first that pulls the body.
         assert_eq!(seen[11], 0.0);
         assert!((seen[12] - 7.5).abs() < 1e-4, "{}", seen[12]);
         assert!((seen[16] - 37.5).abs() < 1e-4, "{}", seen[16]);

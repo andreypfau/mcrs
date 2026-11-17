@@ -16,15 +16,12 @@ use super::shared_types::DrawArgRow;
 use super::stats::{DISPATCH_BYTES, DISPATCHES, args_reset, dispatch_offset};
 use super::{Budget, DrawMask, PassSlot, PassTimestamps, VISIBLE_BYTES};
 
-/// Entries the visible list starts at, and the granularity it grows in.
 const VISIBLE_STEP: usize = 1 << 20;
 
 pub(super) const CULL_THREADS: u32 = 32;
 pub(super) const GROUP_THREADS: u32 = 256;
-/// Groups a quad-cull workgroup tests at once.
 const GROUPS_PER_STEP: u32 = 2;
 
-// The quad cull gives each quad of a group a lane, and each quad a pass leaves a bit of one word.
 const _: () =
     assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
 
@@ -39,18 +36,10 @@ struct Pipelines {
     quads_second: CachedComputePipelineId,
 }
 
-/// The lists the kernels write and the draw arguments they count into.
 struct Lists {
-    /// A quad and its section per entry, which the vertex shader finds its quad through.
     visible: Buffer,
-    /// One count per batch of `CULL_THREADS` groups, which the ordered cull turns into where
-    /// each batch's survivors start.
     batches: Geometry,
-    /// Three words per group: the quads the first cull pass left to the second, a place in the
-    /// list of groups a pass's group cull kept, and one in the list of groups the first pass left
-    /// quads of.
     candidates: Geometry,
-    /// The cave walk's bits, then the frame's, which the cull writes.
     cave: Buffer,
     args: Buffer,
 }
@@ -65,15 +54,9 @@ struct Binds {
     quad: BindGroup,
 }
 
-/// What only the full path has: the compute passes that choose on the GPU what is drawn, the
-/// lists and draw arguments they write, and the depth pyramid they test against.
 pub(super) struct Cull {
     lists: Lists,
-    // Copied over the args once a frame so the cull pass starts from zeroed instance counts
-    // without one small clear per draw.
     args_reset: Buffer,
-    /// The dispatch sizes the cull computes into the args, copied here because a dispatch cannot
-    /// read its size from a buffer it may also write.
     dispatch: Buffer,
     pub hiz: Hiz,
     layouts: Layouts,
@@ -100,11 +83,6 @@ fn visible_list(entries: usize, device: &RenderDevice) -> Buffer {
     })
 }
 
-/// `cull.wesl` strides over the group arena, so the dispatch is capped by the device instead of
-/// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
-/// workgroups per dimension. wgpu reports no core count, so the cap is stated in invocations and
-/// clamped by the limits it does report; a workgroup left with no group exits at once, but not
-/// for free, so a draw holding fewer groups than the cap still dispatches only what it needs.
 fn cull_grid(limits: &WgpuLimits, threads: u32) -> u32 {
     const RESIDENT_INVOCATIONS: u32 = 1 << 19;
     let threads = threads
@@ -154,8 +132,6 @@ impl Pipelines {
                 shader: shader.clone(),
                 shader_defs: shader_defs.clone(),
                 entry_point: Some(entry.to_owned().into()),
-                // The cull reads its workgroup counters before it first writes them. Metal hands out
-                // zeroed workgroup memory; DX12 and Vulkan hand out garbage unless wgpu zeroes it.
                 zero_initialize_workgroup_memory: true,
                 ..default()
             })
@@ -280,22 +256,18 @@ impl Cull {
         }
     }
 
-    /// Names the arrays as they stand in the two bind groups, after any of them was replaced.
     pub fn rebind(&mut self, arenas: &Arenas, device: &RenderDevice, cache: &PipelineCache) {
         self.binds = Binds::new(&self.layouts, &self.lists, &self.hiz, arenas, device, cache);
     }
 
-    /// The quad and the section of each quad the cull kept, which a vertex finds its quad in.
     pub fn visible(&self) -> &Buffer {
         &self.lists.visible
     }
 
-    /// The indirect arguments of each draw, as the cull counted them.
     pub fn args(&self) -> &Buffer {
         &self.lists.args
     }
 
-    /// Grows the per-group lists to a group arena of `groups` records.
     pub fn fit_groups(
         &mut self,
         groups: usize,
@@ -313,12 +285,6 @@ impl Cull {
         (entries * VISIBLE_BYTES) as u64 <= self.lists.visible.size()
     }
 
-    /// Replaces the visible list with one that holds `entries`. A new buffer is a new binding,
-    /// so the caller rebuilds the bind groups that name it.
-    ///
-    /// The list is never shared out or clamped: a draw that does not fit would
-    /// lose quads by their place in the arena, which reads as terrain blinking
-    /// out rather than as a budget being spent.
     pub fn grow_visible(&mut self, entries: usize, device: &RenderDevice) {
         let entries = (entries + entries / HEADROOM)
             .next_multiple_of(VISIBLE_STEP)
@@ -331,7 +297,6 @@ impl Cull {
         &self.lists.cave
     }
 
-    /// Whether a frame with `list` to draw has a second cull, and so a second set of draws.
     pub fn second_pass(&self, list: &DrawList, pipeline_cache: &PipelineCache) -> bool {
         list.visible_entries != 0
             && pipeline_cache
@@ -339,7 +304,6 @@ impl Cull {
                 .is_some()
     }
 
-    /// The first cull of a frame: against the frustum, the cave walk and the last frame's depth.
     #[expect(
         clippy::too_many_arguments,
         reason = "the view bindings, the draws and the section count of the terrain, the pipeline cache, the pass timestamps, the draw mask and the encoder of one cull"
@@ -386,8 +350,6 @@ impl Cull {
                 1,
             );
         }
-        // Blending is not commutative, so translucent draws have to reach the rasteriser in the order
-        // the list holds them; opaque ones may be compacted.
         {
             let mut pass = timed_compute(
                 encoder,
@@ -446,8 +408,6 @@ impl Cull {
         }
     }
 
-    /// Rebuilds the pyramid from what the first pass drew and culls again against it, which
-    /// brings back what only the last frame's depth hid.
     pub fn cull_second(
         &self,
         binds: &Bindings,
@@ -515,8 +475,6 @@ impl Cull {
         );
     }
 
-    /// Dispatches `pipeline` once a draw of `group`, as many workgroups as the cull counted into
-    /// the draw's row of the dispatch table.
     #[expect(
         clippy::too_many_arguments,
         reason = "the pass, the view bindings and the draws of one layer group, the kernel, the draw mask and the row of the dispatch table"
@@ -555,14 +513,12 @@ fn timed_compute<'e>(
     })
 }
 
-/// A workgroup to every `per_workgroup` groups of a draw, up to `grid` workgroups.
 #[derive(Clone, Copy)]
 struct Dispatch {
     per_workgroup: u32,
     grid: u32,
 }
 
-/// Dispatches `pipeline` once a draw of `group`.
 fn cull_group<'pass>(
     pass: &mut ComputePass<'pass>,
     binds: &'pass Bindings,

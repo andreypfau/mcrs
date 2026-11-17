@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Runs the 50,000-pig scene on each server and client mode, one run at a time, each in a fresh
-# folder on a free port, and writes one JSON report a run plus summary.csv to OUT.
-# See benchmarks/mob-bench/README.md for the method and every setting.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -46,8 +43,6 @@ fi
 vanilla_jar="${VANILLA_JAR:-$("$root/tools/vanilla-server/run.sh" fetch)}"
 mkdir -p "$out" "$work/logs"
 
-# The Horizon watcher is horizon-bots: the harness's own client speaks the protocol of
-# 26.4-snapshot-7, and Horizon (26.3) refuses it as incompatible.
 client_mode() {
     if [ "$1" = horizon ] && [ "$2" = watcher ]; then echo bot; else echo "$2"; fi
 }

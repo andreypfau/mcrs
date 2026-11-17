@@ -1,6 +1,3 @@
-//! Block entities in the typed shape the save, the chunk packet and the anvil reader share.
-// std: mcrs_minecraft_nbt (`from_bytes_unnamed` reads through `std::io::Cursor`).
-
 mod banner_layer;
 mod bee_occupant;
 mod container_data;

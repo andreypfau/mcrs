@@ -1,7 +1,6 @@
 use crate::block::Pass;
 use crate::quad_format::QuadFormat;
 
-/// Pair of render layer and quad encoding that identifies one indirect terrain draw.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 pub struct DrawKind {
     pub layer: Pass,

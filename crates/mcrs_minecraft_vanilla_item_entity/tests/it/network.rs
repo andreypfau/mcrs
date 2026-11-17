@@ -35,7 +35,6 @@ use crate::fixture::launch;
 use crate::fixture::move_collector;
 use crate::fixture::run;
 
-/// What the item entities published since the last call, by subject.
 fn published(world: &mut World) -> Vec<(EntityId, EntityEvent<ReplicationData>)> {
     let deltas = world.resource_mut::<TileEvents>().take();
     deltas
@@ -46,7 +45,6 @@ fn published(world: &mut World) -> Vec<(EntityId, EntityEvent<ReplicationData>)>
         .collect()
 }
 
-/// The ticks of `ticks` in a row, with what each published.
 fn run_publishing(
     app: &mut bevy_app::App,
     ticks: u32,
@@ -59,7 +57,6 @@ fn run_publishing(
     all
 }
 
-/// The same throw, merge and pickup as the throw test, seen from the network.
 #[test]
 fn ien_net_001_003_004_the_spawns_the_merged_stack_and_the_take_before_the_removal() {
     let mut app = app();
@@ -327,7 +324,6 @@ fn an_item_at_rest_whose_velocity_changes_at_the_same_position_sends_a_move() {
     );
 }
 
-/// What the item entities published in one tick, with the tile of each event.
 fn published_by_tile(
     app: &mut bevy_app::App,
 ) -> Vec<(TileKey, EntityId, EntityEvent<ReplicationData>)> {

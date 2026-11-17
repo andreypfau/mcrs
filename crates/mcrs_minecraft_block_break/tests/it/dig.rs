@@ -15,7 +15,6 @@ fn dig_after(ticks: u32, rate: f32) -> Dig {
     dig
 }
 
-/// The tick count where the stage first reaches `stage`, or 1000 when it does not.
 fn first_tick_with_stage(rate: f32, stage: u8) -> u32 {
     let mut dig = Dig::start(rate);
     while dig.stage() < stage && dig.ticks() < 1000 {
@@ -109,7 +108,6 @@ fn brk_srv_005_the_stage_wraps_at_256() {
         Seen { tick: 67, stage: 1 },
         Seen { tick: 68, stage: 9 },
     ];
-    // A diamond pickaxe with Efficiency V has the speed 8 + 26.
     let miner = Miner {
         item_speed: 34.0,
         ..WOODEN_PICKAXE

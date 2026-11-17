@@ -21,16 +21,12 @@ const BUTTONS: [(MouseButton, PointerButton); 3] = [
     (MouseButton::Middle, PointerButton::Middle),
 ];
 
-/// The keys that still act while an edit box captures the keyboard: Escape and the default keys
-/// of screenshot and fullscreen (EDIT-KEY-005).
 const CAPTURE_EXEMPT: [KeyCode; 3] = [KeyCode::Escape, KeyCode::F2, KeyCode::F11];
 
-/// The milliseconds on the clock of the menu: real time, which a pause does not stop.
 pub(crate) fn menu_clock(time: &Time<Real>) -> u64 {
     u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-/// The text width of the GUI font; without the atlas every text has no width.
 pub(crate) fn text_width(atlas: Option<&GuiAtlas>) -> impl Fn(&str) -> i32 + '_ {
     move |text| atlas.map_or(0, |atlas| atlas.0.font.str_width(text))
 }
@@ -46,8 +42,6 @@ pub(crate) struct Pointer<'w, 's> {
 }
 
 impl Pointer<'_, '_> {
-    /// Whether the pointer at `at` neither moved from the last frame nor from `mouse`, the menu's
-    /// mouse, and no button or wheel acted this frame.
     fn is_idle(&mut self, at: Option<DVec2>, mouse: GuiPoint) -> bool {
         let moved = std::mem::replace(&mut *self.last, at) != at
             || at.is_some_and(|at| gui_point(at) != mouse);
@@ -57,7 +51,6 @@ impl Pointer<'_, '_> {
         !moved && !acted && self.scroll.delta.y == 0.0
     }
 
-    /// The event position in GUI units, on the scale of the frame the player sees.
     fn position(&self) -> Option<DVec2> {
         if let Some(cursor) = self.config.cursor {
             return Some(cursor.as_dvec2());
@@ -69,7 +62,6 @@ impl Pointer<'_, '_> {
     }
 }
 
-/// Moves, presses, drags, wheel turns and releases of the mouse.
 pub(crate) fn menu_pointer(
     mut menu: ResMut<Menu>,
     mut pointer: Pointer,
@@ -132,10 +124,6 @@ pub(crate) struct MenuKeys<'w, 's> {
     clipboard: Option<ResMut<'w, Clipboard>>,
 }
 
-/// Key presses, repeats included. Escape is the close request. The keys of the frame in which
-/// the menu opens are dropped, since one of them may have opened it. While an edit box captures
-/// the keyboard, its typed characters do not reach the screen, and no key but those of
-/// [`CAPTURE_EXEMPT`] is just pressed for the game (WID-FOC-003, EDIT-KEY-005).
 pub(crate) fn menu_keys(
     mut menu: ResMut<Menu>,
     mut input: MenuKeys,
@@ -181,15 +169,12 @@ pub(crate) fn menu_keys(
     }
 }
 
-/// The text that a key press types: none with the edit modifier held, and none for a key whose
-/// text is a control character, such as Backspace, Tab or Enter.
 fn typed(key: &KeyboardInput, modifiers: KeyModifiers) -> Option<&str> {
     key.text
         .as_deref()
         .filter(|text| !modifiers.control && !text.chars().any(char::is_control))
 }
 
-/// A shortcut of the edit box, by the key of the keyboard layout (EDIT-KEY-001).
 #[derive(Clone, Copy)]
 enum Shortcut {
     SelectAll,
@@ -213,8 +198,6 @@ impl Shortcut {
         .find_map(|(letter, shortcut)| text.eq_ignore_ascii_case(letter).then_some(shortcut))
     }
 
-    /// Acts on the focused edit box (EDIT-KEY-003): a paste inserts the text that
-    /// `clipboard_text` reads, and a copy or a cut returns the text for the clipboard.
     fn apply(
         self,
         widgets: &mut Widgets,
@@ -239,7 +222,6 @@ impl Shortcut {
     }
 }
 
-/// The text of the system clipboard; a read that is still pending, as on the web, gives none.
 fn clipboard_text(clipboard: &mut Clipboard) -> Option<String> {
     match clipboard.fetch_text() {
         ClipboardRead::Ready(Ok(text)) => Some(text),
@@ -247,14 +229,12 @@ fn clipboard_text(clipboard: &mut Clipboard) -> Option<String> {
     }
 }
 
-/// The values that deferred sliders store once their wait ends (WID-SLD-007).
 pub(crate) fn menu_deferred(
     mut menu: ResMut<Menu>,
     time: Res<Time<Real>>,
     mut out: MessageWriter<MenuEvent>,
     mut events: Local<Vec<WidgetEvent>>,
 ) {
-    // A slider changes only when its wait ends, and then it reports the change.
     menu.bypass_change_detection()
         .widgets
         .apply_deferred(menu_clock(&time), &mut events);
@@ -267,7 +247,6 @@ pub(crate) fn menu_deferred(
 pub(crate) fn modifiers(keys: &ButtonInput<KeyCode>) -> KeyModifiers {
     let mut modifiers = KeyModifiers::NONE;
     modifiers.shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    // Ctrl is Command on macOS (TAB-KEY-001).
     modifiers.control = keys.any_pressed([
         KeyCode::ControlLeft,
         KeyCode::ControlRight,

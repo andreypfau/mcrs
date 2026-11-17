@@ -123,15 +123,10 @@ pub struct JigsawPiece {
     pub junctions: Vec<Junction>,
 }
 
-/// The one piece of a desert pyramid: its box as laid out, at the fixed floor
-/// of 64, and the ground it is sunk to at placement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DesertPyramidPiece {
     pub bounds: BoundingBox,
     pub orientation: Orientation,
-    /// The lowest ground under the box, which the reference reads from the
-    /// live heightmap of the first decorating chunk and this layout fixes from
-    /// the density heights.
     pub height_position: i32,
 }
 
@@ -142,15 +137,10 @@ impl DesertPyramidPiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
-/// The one piece of a jungle temple, at the fixed floor of 64 as laid out and
-/// raised to its ground at placement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JungleTemplePiece {
     pub bounds: BoundingBox,
     pub orientation: Orientation,
-    /// The mean ground under the box, which the reference averages over the
-    /// live heightmap of the first decorating chunk and this layout fixes
-    /// from the density heights.
     pub height_position: i32,
 }
 
@@ -161,14 +151,10 @@ impl JungleTemplePiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
-/// The one piece of a swamp hut: its box as laid out, at the fixed floor of
-/// 64, and the ground it is raised to at placement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwampHutPiece {
     pub bounds: BoundingBox,
     pub orientation: Orientation,
-    /// The mean ground under the box, which the reference reads from the
-    /// live heightmap and this layout fixes from the density heights.
     pub height_position: i32,
 }
 
@@ -179,8 +165,6 @@ impl SwampHutPiece {
     pub const LAYOUT_FLOOR: i32 = 64;
 }
 
-/// The one piece of a buried treasure: the block at (9, 90, 9) of its chunk,
-/// from which placement walks the column down to the chest's resting block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuriedTreasurePiece {
     pub bounds: BoundingBox,
@@ -191,7 +175,6 @@ impl BuriedTreasurePiece {
     pub const CHUNK_OFFSET: i32 = 9;
 }
 
-/// The fortress piece types, each with the state its constructor draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FortressKind {
     BridgeCrossing,
@@ -210,12 +193,8 @@ pub enum FortressKind {
     StairsRoom,
 }
 
-/// The mineshaft piece types, each with the state its constructor draws or
-/// its children hand back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MineshaftKind {
-    /// The start: the box each child corridor cuts through its wall, kept so
-    /// the wall is opened whichever column places the room.
     Room {
         entrances: Vec<BoundingBox>,
     },
@@ -223,8 +202,6 @@ pub enum MineshaftKind {
         has_rails: bool,
         spider_corridor: bool,
         num_sections: i32,
-        /// The one column that places a spider corridor's spawner, chosen at
-        /// layout; not in the reference's tag, so a reloaded piece has none.
         spawner_host: Option<ColumnPos>,
     },
     Crossing {
@@ -237,8 +214,6 @@ pub enum MineshaftKind {
 pub struct MineshaftPiece {
     pub kind: MineshaftKind,
     pub bounds: BoundingBox,
-    /// `None` for the room. A crossing keeps its direction without orienting
-    /// its writes; only corridors and stairs draw through their facing.
     pub direction: Option<Orientation>,
     pub gen_depth: i32,
 }
@@ -260,8 +235,6 @@ pub struct FortressPiece {
     pub gen_depth: i32,
 }
 
-/// The one template piece of a shipwreck: laid out at the fixed floor of 90,
-/// with the height it is lowered to at placement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShipwreckPiece {
     pub template: TemplateId,
@@ -269,9 +242,6 @@ pub struct ShipwreckPiece {
     pub rotation: Rotation,
     pub is_beached: bool,
     pub bounds: BoundingBox,
-    /// The template position's `y` once lowered to the ground, which the
-    /// reference reads from the live heightmaps of the first decorating chunk
-    /// and this layout fixes from the density heights.
     pub height: i32,
 }
 
@@ -284,8 +254,6 @@ impl ShipwreckPiece {
     }
 }
 
-/// One ruin of an ocean ruin start: a template at its laid-out position on
-/// the reference's fixed layout floor, and the floor it is placed on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OceanRuinPiece {
     pub template: TemplateId,
@@ -295,9 +263,6 @@ pub struct OceanRuinPiece {
     pub integrity: f32,
     pub biome_temp: OceanTemperature,
     pub large: bool,
-    /// The height the reference reads from the live world at placement, fixed
-    /// here at layout from the density heights; the save carries it as the
-    /// template's `TPY`, which the reference rewrites once placed.
     pub floor_y: i32,
 }
 
@@ -305,8 +270,6 @@ impl OceanRuinPiece {
     pub const LAYOUT_FLOOR: i32 = 90;
 }
 
-/// The one piece of a ruined portal: a template placed mirrored and rotated
-/// about the pivot at half its size.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuinedPortalPiece {
     pub template: TemplateId,
@@ -318,8 +281,6 @@ pub struct RuinedPortalPiece {
     pub properties: PortalProperties,
 }
 
-/// One cell of the monument's room graph: which of its six faces are open,
-/// indexed by `Direction::id`, and which cell lies past each face.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonumentRoom {
     pub index: i32,
@@ -337,7 +298,6 @@ impl MonumentRoom {
         self.index >= 75
     }
 
-    /// The room past `direction`, its faces indexed by `Direction::id`.
     pub fn connection(&self, direction: Direction) -> Option<usize> {
         face(&self.connections, direction).map(usize::from)
     }
@@ -379,7 +339,6 @@ fn face_mut<T>(faces: &mut [T; 6], direction: Direction) -> &mut T {
     }
 }
 
-/// The rooms fitted into the graph, each naming the cell it grows from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MonumentRoomKind {
     Entry { room: u8 },
@@ -401,8 +360,6 @@ pub struct MonumentChild {
     pub bounds: BoundingBox,
 }
 
-/// The one piece of an ocean monument the save carries: the building, whose
-/// rooms the reference keeps in memory and rebuilds from the seed on load.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OceanMonumentPiece {
     pub bounds: BoundingBox,
@@ -418,17 +375,12 @@ impl OceanMonumentPiece {
     pub const FLOOR: i32 = 39;
 }
 
-/// One template of an igloo at the layout height of 90, with the height the
-/// whole igloo is lowered to at placement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IglooPiece {
     pub template: IglooTemplate,
     pub position: IVec3,
     pub rotation: Rotation,
     pub bounds: BoundingBox,
-    /// The template position's `y` once lowered to the ground under the
-    /// entrance, which the reference reads from the live heightmaps in every
-    /// decorating chunk and this layout fixes from the density heights.
     pub height: i32,
 }
 
@@ -438,7 +390,6 @@ impl IglooPiece {
     }
 }
 
-/// One fossil template at its position, unmirrored and unpivoted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetherFossilPiece {
     pub template: TemplateId,
@@ -447,8 +398,6 @@ pub struct NetherFossilPiece {
     pub bounds: BoundingBox,
 }
 
-/// One template of an end city at its position and rotation; `overwrite`
-/// says whether the template's air is written over what stands there.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndCityPiece {
     pub template: TemplateId,
@@ -456,17 +405,13 @@ pub struct EndCityPiece {
     pub rotation: Rotation,
     pub overwrite: bool,
     pub bounds: BoundingBox,
-    /// The collision tag the layout stamps on each recursion's children.
     pub gen_depth: i32,
 }
 
 pub const END_CITY_TEMPLATE_PREFIX: &str = "end_city/";
 
-/// The stronghold piece types, each with the state its constructor draws or
-/// derives from its box.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StrongholdKind {
-    /// The stairs the whole stronghold grows from.
     Start,
     StairsDown,
     Straight {
@@ -505,9 +450,6 @@ pub struct StrongholdPiece {
     pub gen_depth: i32,
 }
 
-/// One template of a woodland mansion at its position under a rotation and a
-/// mirror, with no pivot; `StructureBlock` markers stay where the template
-/// has them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WoodlandMansionPiece {
     pub template: TemplateId,
@@ -563,7 +505,6 @@ impl Piece {
         }
     }
 
-    /// `StructurePiece.move`, which for a template piece carries its position too.
     pub fn move_by(&mut self, delta: IVec3) {
         match self {
             Piece::Jigsaw(piece) => {
@@ -633,7 +574,6 @@ pub struct Start {
 }
 
 impl Start {
-    /// `None` for no pieces or a structure `frozen` does not hold.
     pub fn new(
         frozen: &FrozenStructures,
         structure: StructureId,
@@ -653,8 +593,6 @@ impl Start {
     }
 }
 
-/// What the reference's `StructurePieceSerializationContext` supplies: the
-/// tables that turn the ids a piece holds back into the names the save carries.
 #[derive(Clone, Copy)]
 pub struct PieceContext<'a> {
     pub frozen: &'a FrozenStructures,
@@ -675,8 +613,6 @@ impl PieceContext<'_> {
         }
     }
 
-    /// `MST`: the structure's `mineshaft_type` ordinal, which every piece
-    /// writes and none holds.
     fn mineshaft_type(&self) -> i32 {
         match self.kind() {
             Some(StructureKind::Mineshaft {
@@ -698,7 +634,6 @@ impl PieceContext<'_> {
         Ok(Piece::Mineshaft(piece))
     }
 
-    /// `None` for a template the context's tables do not name.
     pub fn template_name(&self, template: TemplateId) -> Option<ResourceLocationBuf> {
         self.frozen
             .template_ids
@@ -715,8 +650,6 @@ impl PieceContext<'_> {
             .ok_or_else(|| E::custom("a piece names a template no loaded pool holds"))
     }
 
-    /// The template's path under `prefix`, the name a save of a piece that
-    /// only draws from one directory carries.
     fn template_suffix<E: serde::ser::Error>(
         &self,
         template: TemplateId,
@@ -785,8 +718,6 @@ impl PieceContext<'_> {
         })
     }
 
-    // chisle: SAVE-POOL-003 says a saved element needs no equal element in a loaded pool, but this
-    // search fails the load for one; a piece that owns its saved element lifts this.
     fn element_id<E: serde::de::Error>(
         &self,
         saved: &SavedPoolElement,
@@ -860,7 +791,6 @@ impl PieceContext<'_> {
     }
 }
 
-/// `Direction.NORTH.get2DDataValue()`: every template piece faces north.
 const NORTH_ORIENTATION: i32 = 2;
 
 const NO_ORIENTATION: i32 = -1;
@@ -937,9 +867,6 @@ impl DoorTagExt for DoorTag {
     }
 }
 
-/// Gives a saved monument building the room graph that generation of the start at `chunk` makes
-/// from `seed`. A building whose bounds or orientation differ from that generation is not a
-/// start of this seed, and stays as saved.
 pub fn rebuild_monument_rooms(
     seed: i64,
     chunk: ColumnPos,
@@ -1191,7 +1118,6 @@ impl Serialize for PieceNbt<'_> {
 }
 
 impl PieceContext<'_> {
-    /// The saved form of `piece`, with every key its kind writes.
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per piece kind, each writing that kind's tag, in the reference's kind order"
@@ -1516,9 +1442,6 @@ impl fmt::Debug for PieceNbt<'_> {
     }
 }
 
-/// Reads one piece, resolving the names it carries against the context's
-/// tables; the box is read as written, so a piece the expansion hack stretched
-/// keeps its stretched box.
 pub struct PieceSeed<'a>(pub PieceContext<'a>);
 
 impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
@@ -1536,7 +1459,6 @@ fn location<E: serde::de::Error>(text: &str) -> Result<ResourceLocationBuf, E> {
 }
 
 impl PieceContext<'_> {
-    /// The piece that `saved` describes, resolving the names it carries against the tables.
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per piece tag, each rebuilding that kind's piece, in the reference's kind order"

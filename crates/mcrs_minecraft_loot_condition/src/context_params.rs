@@ -3,7 +3,6 @@ use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use crate::context_param::ContextParam;
 use crate::param_not_allowed::ParamNotAllowed;
 
-/// A set of the parameters of LOOT-CTX-010.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ContextParams(u32);
 
@@ -41,21 +40,17 @@ impl ContextParams {
         self.0 & bit(param) != 0
     }
 
-    /// The parameters that a context of `key_set` always holds (LOOT-CTX-011).
     #[must_use]
     pub fn required(key_set: ContextKeySet) -> Self {
         columns(key_set).required
     }
 
-    /// The parameters that a context of `key_set` can hold (LOOT-CTX-011).
     #[must_use]
     pub fn allowed(key_set: ContextKeySet) -> Self {
         let columns = columns(key_set);
         columns.required.union(columns.optional)
     }
 
-    /// Checks that each parameter of this set, the parameters that a part of a table reads, is
-    /// allowed in `key_set`, the type of the table (LOOT-CTX-013).
     pub fn check(self, key_set: ContextKeySet) -> Result<(), ParamNotAllowed> {
         let allowed = Self::allowed(key_set);
         match ContextParam::ALL

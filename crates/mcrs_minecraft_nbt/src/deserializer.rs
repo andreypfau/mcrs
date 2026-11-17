@@ -14,13 +14,8 @@ use serde::{Deserialize, forward_to_deserialize_any};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A declared length is a claim the input has yet to back: a buffer sized by
-/// one grows this far at a time, so the room set aside stays within about
-/// twice the bytes that have actually arrived.
 pub(crate) const READ_STEP: usize = 64 * 1024;
 
-/// The room to set aside for a declared number of elements before any of them
-/// has been read.
 pub fn cautious_capacity<T>(declared: usize, max_bytes: usize) -> usize {
     declared.min(max_bytes / size_of::<T>().max(1))
 }
@@ -211,23 +206,19 @@ impl<R: Read + Seek, E: NbtEncoding> Deserializer<R, E> {
     }
 }
 
-/// Deserializes struct using Serde Deserializer from normal NBT with standard BigEndian encoding
 pub fn from_bytes<'a, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     from_bytes_with::<BigEndian, T>(r)
 }
 
-/// Deserializes struct using Serde Deserializer from normal NBT with specified encoding
 pub fn from_bytes_with<'a, E: NbtEncoding, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     let mut deserializer = Deserializer::<_, E>::with_encoding(r, true);
     T::deserialize(&mut deserializer)
 }
 
-/// Deserializes struct using Serde Deserializer from network NBT with standard BigEndian encoding
 pub fn from_bytes_unnamed<'a, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     from_bytes_unnamed_with::<BigEndian, T>(r)
 }
 
-/// Deserializes struct using Serde Deserializer from network NBT with specified encoding
 pub fn from_bytes_unnamed_with<'a, E: NbtEncoding, T: Deserialize<'a>>(
     r: impl Read + Seek,
 ) -> Result<T> {

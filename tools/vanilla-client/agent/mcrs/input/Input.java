@@ -16,11 +16,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.sdl.SDLVideo;
 
-/**
- * Plays the input script of one step: the held keys and the view rotation of each client tick.
- * The title {@code Go} starts the script at the tick after the {@code go} tick of the step, and the
- * title {@code Stop} ends it. Outside a script, no key is held.
- */
 public final class Input {
 
     private static final boolean MINIMIZE = Boolean.getBoolean("mcrs.minimize");
@@ -38,7 +33,6 @@ public final class Input {
     private static Object seen;
     private static boolean minimized;
     private static int tick;
-    /** Each line: the first step tick, the held keys, and an optional yaw and pitch. */
     private static List<String[]> lines = List.of();
 
     private Input() {}

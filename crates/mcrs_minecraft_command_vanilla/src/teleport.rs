@@ -25,45 +25,29 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// Where a teleport sends one victim.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Teleport {
-    /// The label of the destination dimension.
     pub dimension: Entity,
-    /// The destination, with each relative axis already resolved against the source.
     pub position: DVec3,
-    /// `None` keeps the rotation of the victim.
     pub rotation: Option<Look>,
-    /// The axes of the position that the client receives as a change.
     pub relative_position: BVec3,
-    /// The angles of the rotation that the client receives as a change.
     pub relative_rotation: RelativeRotation,
-    /// What the victim turns to after the move.
     pub facing: Option<Facing>,
-    /// The anchor of the source, from which the victim looks at its facing target.
     pub anchor: LookAnchor,
 }
 
-/// What a victim turns to after its move.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Facing {
-    /// A fixed position.
     Position(DVec3),
-    /// The player of this session, at its feet or its eyes, read after each move.
     Player {
-        /// The session of the player.
         player: PlayerSession,
-        /// The part of the player to face.
         at: LookAnchor,
     },
 }
 
-/// The command effect that moves the player of the session `player`, in any dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TeleportPlayer {
-    /// The session of the victim.
     pub player: PlayerSession,
-    /// Where the victim goes.
     pub to: Teleport,
 }
 
@@ -168,13 +152,11 @@ fn spawnable(position: DVec3) -> bool {
         && (-MAX_Y..MAX_Y).contains(&block.y)
 }
 
-/// Where each victim goes, and the name of the entity the victims go to.
 struct Destination {
     to: Teleport,
     to_entity: Option<Text>,
 }
 
-/// The first entity a selector argument finds.
 fn one<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
@@ -188,9 +170,6 @@ fn one<'c>(
     first.ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
 }
 
-/// The failure of a teleport that would move a mob or face one: the physics rows have no move
-/// of a mob to an arbitrary position yet, and a silent skip would report a move that did not
-/// happen.
 fn mob_not_supported() -> CommandFailure {
     CommandFailure(Text::text(
         "teleport does not move or face a mob yet; only players can be victims or facing targets",
@@ -222,7 +201,6 @@ fn to_entity(
     })
 }
 
-/// Where the branch of the call sends each victim.
 fn destination(
     command: &TeleportCommand,
     context: &VanillaContext,
@@ -301,9 +279,6 @@ fn coordinate(value: f64) -> Text {
     format!("{value:.6}").into_text()
 }
 
-/// The victims move one after another in the order of the selector, each in the world that
-/// holds it, and the message follows the last move. A victim the search found is still where
-/// the search found it when its move applies, so each victim moves and counts.
 pub(crate) fn run(
     In(call): In<Call<Branch, TeleportCommand>>,
     context: VanillaContext,
@@ -351,7 +326,6 @@ pub(crate) fn run(
     })
 }
 
-/// The message of a teleport of `moved` victims, the first of which is `first`.
 fn success_message(first: &PlayerEntry, moved: usize, destination: Destination) -> Text {
     let single = moved == 1;
     let subject = if single {
@@ -385,8 +359,6 @@ fn success_message(first: &PlayerEntry, moved: usize, destination: Destination) 
     }
 }
 
-/// The position a victim turns to, and the entity of `player_look_at`, read after the moves
-/// before it. A victim that faces itself faces its destination `at`.
 fn facing(
     worlds: &Worlds,
     victim: PlayerSession,
@@ -412,7 +384,6 @@ fn facing(
     }
 }
 
-/// Moves one victim, to another dimension when the destination holds a different one.
 pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: TeleportPlayer) {
     let targets = worlds.targets();
     let (Some(victim), Some(destination)) =

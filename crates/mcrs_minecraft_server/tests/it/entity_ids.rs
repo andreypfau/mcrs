@@ -55,7 +55,6 @@ fn a_dimension_that_spends_its_range_gets_another_one() {
     for _ in 0..ENTITY_ID_RANGE_LEN {
         ids.insert(spawn_entity(&mut server, overworld));
     }
-    // The output of the next tick asks for a range, and the input of the tick after it grants it.
     server.ticks_all(2);
     for _ in 0..ENTITY_ID_RANGE_LEN {
         ids.insert(spawn_entity(&mut server, overworld));

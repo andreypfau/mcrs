@@ -21,23 +21,16 @@ use crate::coordinator::clock::GameTime;
 use crate::stored_columns_landing::TakenFromStore;
 use mcrs_minecraft_simulation::GameTick;
 
-/// Present on a tick that saves. The host sets it from its input, and the save systems remove it.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveRequest {
-    /// A periodic save: only loaded columns with a changed section go to the data layer.
     Dirty,
-    /// Every loaded column goes to the data layer and every queued player file reaches the disk,
-    /// as at the shutdown.
     All,
 }
 
-/// The light of the column, and of the eight around it, settled while it was loaded, so the
-/// light it holds is the light it keeps when it goes cold.
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct ColumnLightFinal;
 
-/// A block of the section changed since it was generated or taken from the data layer.
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct SectionChanged;
@@ -89,25 +82,13 @@ type SectionMarks = (
 
 type ColumnMarks = (&'static ColumnSections, Has<ColumnLightFinal>);
 
-/// Where the content of a column came from since it was loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Origin {
-    /// Every section came back from the data layer, and none changed.
     Unchanged,
-    /// Some section came back from the data layer, or some section changed.
     Kept,
-    /// Every section was generated, and none changed.
     Generated,
 }
 
-/// Writes the last version of each column that stopped being loaded, while its sections still
-/// hold their blocks.
-///
-/// A column that never landed whole keeps the version the data layer already holds, and so
-/// does a column that the data layer handed back and that did not change. A generated column
-/// whose light never settled is not written: its light at the edge of the loaded space was
-/// lit without the neighbours, and the data layer generates the same column again. Either column
-/// is written still when its scheduled ticks changed since it landed, so that they are kept.
 #[expect(
     clippy::too_many_arguments,
     reason = "the write reads the marks, the content and the ticks of each column that cools"
@@ -126,7 +107,6 @@ pub(crate) fn write_cold_columns(
     let now = GameTick(time.0);
     for (loading, index) in &dims {
         for &column in loading.cooling() {
-            // A column of the halo is a copy: its owner writes it.
             if loading.is_column_loaded(column) || !owned_columns::owns(owned.as_deref(), column) {
                 continue;
             }
@@ -140,7 +120,6 @@ pub(crate) fn write_cold_columns(
             let Ok((column_sections, light_final)) = columns.get(slot.entity) else {
                 continue;
             };
-            // The sections go now, so their ticks leave the queues whether or not they are kept.
             let min_y = column_sections.min_section_y;
             let rows = (0..column_sections.sections.len())
                 .map_while(|index| i32::try_from(index).ok()?.checked_add(min_y));
@@ -157,8 +136,6 @@ pub(crate) fn write_cold_columns(
                 Origin::Generated if unlit && !ticks_changed => continue,
                 Origin::Unchanged | Origin::Generated | Origin::Kept => {}
             }
-            // The light of the dimension may lag the last change, so the data layer lights the
-            // column again from its blocks before a view gets it.
             if let Some(mut stored) = snapshots.take_unlit(slot.entity) {
                 stored.last_update = now.0;
                 if let Some(taken) = taken {
@@ -170,8 +147,6 @@ pub(crate) fn write_cold_columns(
     }
 }
 
-/// Writes the loaded columns whose blocks changed since they landed, or whose scheduled ticks
-/// changed, without taking the ticks out of the queues: a periodic save leaves the world running.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -244,7 +219,6 @@ fn dirty_sections(column: &ColumnSections, marks: &Query<SectionMarks>) -> Vec<E
         .collect()
 }
 
-/// Writes every loaded column, so a shutdown does not lose what the views still hold.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -293,7 +267,6 @@ pub(crate) fn save_all_loaded_columns(
     commands.remove_resource::<SaveRequest>();
 }
 
-/// Where the content of a column came from, or `None` when a section has not landed.
 fn origin(column: &ColumnSections, marks: &Query<SectionMarks>) -> Option<Origin> {
     let mut any_taken = false;
     let mut all_taken = true;

@@ -2,7 +2,6 @@ use crate::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{AttributeBases, TypeBase};
 
-/// The bases of `entity_type`, or `None` for a type that is not a living entity type.
 #[must_use]
 pub const fn attribute_bases(entity_type: EntityType) -> Option<AttributeBases> {
     match BY_TYPE.split_at_checked(entity_type.id().number() as usize) {
@@ -11,7 +10,6 @@ pub const fn attribute_bases(entity_type: EntityType) -> Option<AttributeBases> 
     }
 }
 
-/// The bases of each entity type, indexed by its protocol id.
 const BY_TYPE: [Option<AttributeBases>; EntityType::ALL.len()] = {
     let mut table = [None; EntityType::ALL.len()];
     let mut rest = ROWS;
@@ -36,8 +34,6 @@ const fn base(attribute: Attribute, base: f64) -> TypeBase {
     TypeBase { attribute, base }
 }
 
-/// Appendix A of `attributes.md`, one row per line: the attributes of a type beside the common
-/// set, and its bases that differ from the attribute defaults.
 #[rustfmt::skip]
 const ROWS: &[TypeRow] = {
     use Attribute::*;

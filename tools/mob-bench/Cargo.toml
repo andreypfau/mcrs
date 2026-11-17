@@ -23,7 +23,6 @@ test = false
 [lints]
 workspace = true
 
-# std: tokio, process and Mach counters
 [dependencies]
 anyhow.workspace = true
 glam = { workspace = true, features = ["std"] }

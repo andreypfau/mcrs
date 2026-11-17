@@ -12,12 +12,9 @@ use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_game_registries::registry_load::load_registries;
 use mcrs_minecraft_registries::NetworkSnapshot;
 
-/// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]
 pub struct SyncedRegistries(pub NetworkSnapshot);
 
-/// Loads the registries, the block and item definitions and the block sound sets when the app
-/// finishes, and walks the app through loading the data pack to playing.
 pub struct RegistryLoadPlugin;
 
 impl Plugin for RegistryLoadPlugin {
@@ -41,7 +38,6 @@ impl Plugin for RegistryLoadPlugin {
     }
 }
 
-/// Loads the registries, the block and item definitions and the block sound sets into `world`.
 fn install(world: &mut World) -> Result<(), String> {
     let asset_server = world
         .get_resource::<AssetServer>()
@@ -105,7 +101,6 @@ fn install(world: &mut World) -> Result<(), String> {
     Ok(())
 }
 
-/// Enters `AppState::Playing`.
 pub fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::Playing);
     tracing::info!("entering Playing state");

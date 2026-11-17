@@ -10,8 +10,6 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 
 use crate::player::Player;
 
-/// The local player's game mode as the server last set it. Absent until the
-/// login packet arrives.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalGameMode {
     pub current: GameMode,
@@ -26,8 +24,6 @@ impl LocalGameMode {
         }
     }
 
-    /// A change event only moves the old mode into `previous` when the mode
-    /// actually differs.
     pub fn changed_to(self, mode: GameMode) -> Self {
         Self {
             current: mode,
@@ -86,8 +82,6 @@ fn on_respawn(
     }
 }
 
-/// A login or respawn stands up a fresh local player, whose permissions start
-/// empty until the server sends the level again.
 fn spawned(info: &PlayerSpawnInfo, player: Query<Entity, With<Player>>, mut commands: Commands) {
     if let Ok(player) = player.single() {
         commands

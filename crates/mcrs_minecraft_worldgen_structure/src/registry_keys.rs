@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const POOL_ALIAS_BINDING: RegistryKey<crate::pool_alias_binding_keys::PoolAliasBindingType> =
@@ -27,7 +25,6 @@ impl Registered for crate::structure_type_keys::StructureType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
 }
 
-/// The static registries of this crate, which the catalog does not list.
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         STRUCTURE_PLACEMENT.location(),

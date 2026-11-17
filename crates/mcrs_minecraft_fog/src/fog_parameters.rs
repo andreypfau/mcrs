@@ -7,29 +7,19 @@ const THUNDER_DARKNESS: f32 = 0.5;
 const SKY_TERM_CHUNKS: f32 = 32.0;
 const SKY_TERM_LOW_END: f32 = 0.25;
 const SKY_TERM_EXPONENT: f64 = 0.25;
-// CFOG-DEV-003: 16 blocks times 32 chunks, the largest render distance.
 const MAX_ENVIRONMENTAL_FOG_END: f32 = 512.0;
 
-/// The fog of one frame, which each draw of the world in that frame reads. A distance is in
-/// blocks.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FogParameters {
-    /// The colour that the fog mixes into a draw, three image values in `[0, 1]`.
     pub color: [f32; 3],
-    /// The environmental fog, over the spherical distance of a point.
     pub environmental: FogRamp,
-    /// The render-distance fog, over the cylindrical distance of a point.
     pub render_distance: FogRamp,
-    /// The distance at which the sky takes the full fog.
     pub sky_end: f32,
-    /// The distance at which the clouds take the full fog.
     pub cloud_end: f32,
 }
 
 impl FogParameters {
-    /// The fog of the frame that `inputs` describe. The environmental fog takes no rain: it is
-    /// the fog start and end distances, or no fog when the end is beyond 512 blocks.
     #[must_use]
     pub fn from_inputs(inputs: &FogInputs) -> Self {
         let render_end = BLOCKS_PER_CHUNK * f32::from(inputs.render_distance);

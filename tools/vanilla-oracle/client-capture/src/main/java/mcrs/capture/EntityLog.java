@@ -36,7 +36,6 @@ import net.minecraft.world.entity.Relative;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
-/// Records, on the client thread, every entity packet the client applies and the entity state after each entity update.
 public final class EntityLog {
 	private static boolean active;
 	private static int updates;

@@ -1,5 +1,3 @@
-//! `summon minecraft:item` puts a stack into the world as an item entity at rest (IEN-SPN-001).
-
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
@@ -18,7 +16,6 @@ use crate::host_app::{self, PlayServer};
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
 
-/// The items `air` and `stone`, at their wire ids 0 and 1.
 fn table() -> ItemTable {
     let files: Vec<String> = ["air", "stone"]
         .iter()
@@ -50,7 +47,6 @@ fn start() -> PlayServer {
     PlayServer::start(app, &[(OPERATOR, 2)], 0)
 }
 
-/// The translation key of the reply to `line`.
 fn run(server: &mut PlayServer, operator: Entity, line: &str) -> String {
     let replies = server.send(
         operator,

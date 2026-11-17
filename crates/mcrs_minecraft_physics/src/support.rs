@@ -14,23 +14,18 @@ use crate::block_scan::floor_block;
 use crate::tolerance::CLIP;
 use crate::tolerance::SUPPORT_DEPTH;
 
-/// The offset under the entity of the block that supports it.
 pub const SUPPORT_OFFSET: f32 = 1.0e-5;
 
-/// The offset of the block whose bounce, step and fall actions apply.
 pub const EFFECT_OFFSET: f32 = 0.2;
 
-/// The offset of the block whose friction, speed factor and jump factor apply.
 pub const MOVEMENT_OFFSET: f32 = 0.500_001;
 
-/// The result of the search for the supporting block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Support {
     pub(crate) block: Option<BlockPos>,
     pub(crate) missed: bool,
 }
 
-/// Finds the supporting block under the box, after a move by `resolved`.
 pub(crate) fn find_support<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -64,8 +59,6 @@ pub(crate) fn find_support<W: CollisionWorld>(
     }
 }
 
-/// The block position under the entity for an offset: the support position, the effect
-/// position or the movement position.
 pub fn offset_block(
     support: Option<BlockPos>,
     support_flags: BlockFlags,

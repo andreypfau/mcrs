@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::Text;
 
-/// A container saves its loot table instead of its items; any other container saves
-/// `Items`, even when empty.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct ContainerData {
     pub x: i32,

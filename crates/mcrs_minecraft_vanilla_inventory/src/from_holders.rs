@@ -6,8 +6,6 @@ use mcrs_minecraft_item_stack::ItemStack;
 
 use crate::PlayerHolders;
 
-/// The stacks that the holders of a player hold now: `inventory` and, with `holders`, the cursor
-/// and the craft grid.
 pub(crate) fn from_holders(
     inventory: &Slots,
     selected: u8,

@@ -26,13 +26,9 @@ const MIN_ZOOM: f32 = 0.1;
 const MAX_ZOOM: f32 = 1.5;
 const NEAR_PLANE: f32 = 0.05;
 const BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE: f32 = 64.0;
-/// Chunks; mcrs has no option for the cloud range, so it keeps the default.
 const CLOUD_RANGE: u8 = 128;
 const BLOCKS_PER_CHUNK_OF_CLOUD_RANGE: f32 = 16.0;
 
-/// Places the first-person camera of the local player in each frame, filters its eye height and
-/// zoom in each tick, and keeps [`RenderDistance`] and the far plane at the render distance.
-/// Without a [`RequestedViewDistance`] both stay at the default render distance.
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
@@ -59,17 +55,12 @@ impl Plugin for CameraPlugin {
     }
 }
 
-/// The world camera, at the eye of the local player.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PlayerCamera;
 
-/// The field of view that the user selects, and the scale of the changes that the state of the
-/// player makes to it.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
 pub struct FovOptions {
-    /// Degrees, in `[30, 110]`.
     pub fov: u8,
-    /// In `[0, 1]`.
     pub effect_scale: f32,
 }
 
@@ -122,8 +113,6 @@ impl ViewFilters {
     }
 }
 
-/// Empty until the first tick or frame that sees a local player, which starts both filters
-/// settled so the first frame of a world is already at the eye and at the target zoom.
 #[derive(Component, Debug, Default)]
 struct CameraFilters(Option<ViewFilters>);
 
@@ -163,7 +152,6 @@ fn target_zoom(motion: Motion, walking_speed: f32, effect_scale: f32) -> f32 {
     1.0 + (modifier - 1.0) * effect_scale
 }
 
-/// Vertical, in degrees.
 #[must_use]
 fn field_of_view(options: FovOptions, zoom: Smoothed, partial_tick: f32) -> f32 {
     f32::from(options.fov) * zoom.at(partial_tick)
@@ -179,7 +167,6 @@ fn orientation(yaw: f32, pitch: f32) -> Quat {
         .rotation
 }
 
-/// The stored yaws are wrapped, so the turn between them is taken the short way round.
 #[must_use]
 fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
     let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
@@ -188,9 +175,6 @@ fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Q
     orientation(yaw, pitch)
 }
 
-/// The distance the options ask for, capped by the server radius once that is above 0.
-// chisle: there is no render-distance fog (MENU-DIST-001 steps 5 to 7). A fog that reads it
-// lifts this.
 #[must_use]
 fn render_distance(requested: u8, server_radius: i32) -> u8 {
     match u8::try_from(server_radius) {
@@ -210,17 +194,12 @@ fn spawn_camera(mut commands: Commands) {
         PlayerCamera,
         CameraFilters::default(),
         Camera3d {
-            // The cull reads the last frame's depth back as a pyramid.
             depth_texture_usages: (TextureUsages::RENDER_ATTACHMENT
                 | TextureUsages::TEXTURE_BINDING)
                 .into(),
             ..default()
         },
-        // The sky pipelines are built for a single sample; multisampling the view would leave
-        // them unable to render into it.
         Msaa::Off,
-        // The default tonemapper needs the `tonemapping_luts` feature, which nothing else here
-        // requires.
         Tonemapping::None,
         Projection::Perspective(PerspectiveProjection {
             fov: f32::from(FovOptions::default().fov).to_radians(),

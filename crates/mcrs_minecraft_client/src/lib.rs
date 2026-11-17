@@ -5,8 +5,6 @@
     clippy::unwrap_used,
     reason = "an application has no caller to return an error to"
 )]
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 #![cfg_attr(
     test,
@@ -62,7 +60,6 @@ pub mod web;
 #[cfg(not(target_family = "wasm"))]
 pub mod window_options;
 
-/// A plugin still has work a scripted capture must wait for.
 #[derive(Message)]
 pub struct Unsettled;
 
@@ -162,8 +159,6 @@ fn step_debug_view(
     }
 }
 
-/// `O` turns the depth pyramid's occlusion test off and on, and `F8` the per-quad tests, so a
-/// hole in the terrain can be traced to the cull stage that makes it.
 fn toggle_culls(
     keys: Res<ButtonInput<KeyCode>>,
     mut occlusion: ResMut<mcrs_minecraft_render::Occlusion>,

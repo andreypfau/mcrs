@@ -1,6 +1,5 @@
 use crate::closed::Closed;
 
-/// What Escape does with an unsent input.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum UnsentDraft {
     #[default]
@@ -8,7 +7,6 @@ pub enum UnsentDraft {
     Save,
 }
 
-/// The input the client keeps after the screen closed, if any.
 #[must_use]
 pub fn keeps_draft(input: &str, closed: Option<&Closed>, unsent: UnsentDraft) -> bool {
     if input.trim().is_empty() {

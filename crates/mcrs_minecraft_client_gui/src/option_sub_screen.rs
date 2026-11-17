@@ -11,8 +11,6 @@ pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const DONE: WidgetId = WidgetId(1);
 pub(crate) const LIST: WidgetId = WidgetId(2);
 
-/// The title `title_key` in the header and "Done" of the size `done` in the footer of an option
-/// sub-screen on a screen of the size `screen` (MENU-SUB-001).
 pub(crate) fn option_sub_screen(
     screen: GuiExtent,
     language: &ClientLanguage,
@@ -51,8 +49,6 @@ pub(crate) fn option_sub_screen(
     ])
 }
 
-/// The option list of a sub-screen while the screen adds its rows, between the header and the
-/// footer (MENU-SUB-001, step 3; LIST-GEO-001).
 pub(crate) struct OptionList {
     list: WidgetList,
     area: GuiRect,
@@ -72,7 +68,6 @@ impl OptionList {
         }
     }
 
-    /// Adds a section label row whose label `id` shows `text` (LIST-OPT-002).
     pub(crate) fn section_label(
         &mut self,
         id: WidgetId,
@@ -91,7 +86,6 @@ impl OptionList {
         Some(label)
     }
 
-    /// Adds a row that holds `widgets` from the index 0, each 150 × 20 (LIST-OPT-001).
     pub(crate) fn option_row<const N: usize>(
         &mut self,
         widgets: [Widget; N],
@@ -109,7 +103,6 @@ impl OptionList {
         }))
     }
 
-    /// The list widget with the rows added so far.
     pub(crate) fn into_widget(self) -> Widget {
         Widget::new(
             LIST,

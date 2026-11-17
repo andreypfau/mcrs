@@ -104,8 +104,6 @@ fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
     load_text(&[(&format!("minecraft/{registry}/{name}.json"), json)])
 }
 
-/// One load for many refused files: each case is written as its own entry, and its text is
-/// what the diagnostics say about that entry.
 fn refused_each(cases: &[(&str, String)]) -> Vec<(String, String)> {
     let names: Vec<String> = (0..cases.len()).map(|at| format!("odd{at:03}")).collect();
     let paths: Vec<String> = cases

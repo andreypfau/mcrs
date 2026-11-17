@@ -2,16 +2,13 @@ use std::fmt::Write as _;
 
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-/// The channel a byte of a packed colour gives.
 #[must_use]
 pub const fn channel(byte: u32) -> f32 {
     (byte & 0xFF) as f32 / 255.0
 }
 
-/// The byte a channel writes as.
 #[must_use]
 pub fn byte(channel: f32) -> u8 {
-    // The cast rounds toward zero, which is the floor of a clamped channel; a NaN casts to 0.
     (channel.clamp(0.0, 1.0) * 255.0) as u8
 }
 
@@ -30,13 +27,11 @@ pub const fn argb(packed: u32) -> [f32; 4] {
     ]
 }
 
-/// `#rrggbb`.
 #[must_use]
 pub fn rgb_hex([red, green, blue]: [f32; 3]) -> String {
     hex(&[red, green, blue])
 }
 
-/// `#aarrggbb`.
 #[must_use]
 pub fn argb_hex([red, green, blue, alpha]: [f32; 4]) -> String {
     hex(&[alpha, red, green, blue])

@@ -10,7 +10,6 @@ macro_rules! kit {
     };
 }
 
-/// The name of a template, checked when the crate compiles.
 macro_rules! name {
     ($name:expr) => {
         const {
@@ -22,10 +21,6 @@ macro_rules! name {
     };
 }
 
-/// The table of a village family whose villagers are of `kind`: under `both`
-/// the pieces painted once for the living village and once for the abandoned
-/// one, under `single` the rest. The villagers themselves are the same in
-/// every family.
 macro_rules! templates {
     (
         $family:literal $kind:ident;
@@ -70,7 +65,6 @@ use mcrs_minecraft_worldgen_structure::blueprint::{
     fence_joined, log, settled, stairs, wall_joined,
 };
 
-/// A template's name under `structure`, its size and the procedure that paints it.
 type Entry = (ResourceLocation<'static>, [i32; 3], fn(&mut Canvas));
 
 const FAMILIES: [&[Entry]; 7] = [
@@ -95,7 +89,6 @@ pub fn all() -> impl Iterator<Item = (ResourceLocationBuf, Result<Template, Blue
     listed().map(|entry| (entry.0.into(), paint(entry)))
 }
 
-/// `None` for a name no procedure paints or a procedure that paints a mistake.
 pub fn build(id: &ResourceLocationBuf) -> Option<Template> {
     listed()
         .find(|(name, ..)| name == id)
@@ -184,8 +177,6 @@ fn path(c: &mut Canvas, along: Axis, middle: i32, range: [i32; 2]) {
     path_strip(c, &S.path, along, middle, range);
 }
 
-/// Path three wide on the bottom layer, its middle on the line `middle`
-/// and running along `along` over `range`.
 fn path_strip(c: &mut Canvas, path: &Cell, along: Axis, middle: i32, range: [i32; 2]) {
     let (near, far) = (middle - 1, middle + 1);
     if along == X {
@@ -195,8 +186,6 @@ fn path_strip(c: &mut Canvas, path: &Cell, along: Axis, middle: i32, range: [i32
     }
 }
 
-/// A village family, and whether the village is the abandoned one, whose
-/// pieces draw from the zombie pools.
 #[derive(Clone, Copy)]
 struct Village {
     family: &'static str,
@@ -218,7 +207,6 @@ impl Village {
     }
 }
 
-/// Leaves the air of the layers `ys` out of the template, but for `kept`.
 fn open(c: &mut Canvas, ys: std::ops::RangeInclusive<i32>, kept: &[[i32; 3]]) {
     let air = block(AIR);
     let absent: Vec<[i32; 3]> = c
@@ -249,7 +237,6 @@ fn decorations(c: &mut Canvas, v: Village, soil: &str, cells: &[[i32; 2]]) {
     }
 }
 
-/// The end of a street, open to the next piece of `pool`.
 fn street_end(c: &mut Canvas, at: [i32; 3], pool: &str) {
     c.socket(at, "minecraft:street", pool, NOTHING);
 }
@@ -261,14 +248,12 @@ fn street_ends(c: &mut Canvas, v: Village, ends: &[[i32; 2]]) {
 }
 
 fn street(c: &mut Canvas, v: Village, ends: &[[i32; 2]]) {
-    // The game's snowy streets hold air above the path where the others leave it out.
     if v.family != "snowy" {
         c.jigsaw_layer(1);
     }
     street_ends(c, v, ends);
 }
 
-/// A place beside a street for a building of `pool`, entered from `side`.
 fn house_socket(c: &mut Canvas, at: [i32; 3], side: Direction, pool: &str) {
     let orientation = format!("{}_up", side.name());
     c.socket_facing(
@@ -280,8 +265,6 @@ fn house_socket(c: &mut Canvas, at: [i32; 3], side: Direction, pool: &str) {
     );
 }
 
-/// Places for houses entered from `side`, in a row over `range` on the
-/// line `line`, one layer above the path.
 fn houses(c: &mut Canvas, v: Village, side: Direction, line: i32, range: [i32; 2]) {
     let pool = v.pool("houses");
     for along in range[0]..=range[1] {
@@ -307,7 +290,6 @@ fn wall_torch(facing: Direction) -> Cell {
     block(&format!("minecraft:wall_torch[facing={}]", facing.name()))
 }
 
-/// `even` where x and z sum to an even number, `odd` elsewhere.
 fn checker(c: &mut Canvas, [even, odd]: [&Cell; 2], y: i32, min: [i32; 2], max: [i32; 2]) {
     for x in min[0]..=max[0] {
         for z in min[1]..=max[1] {
@@ -335,7 +317,6 @@ fn adult(c: &mut Canvas, villager: &[Fields]) {
 mod mob {
     use super::{Fields, Tag};
 
-    /// What every mob of the village templates is saved with.
     pub const MOB: Fields = &[("AbsorptionAmount", Tag::Float(0.0)), ("Air", Tag::Short(300)), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[])])), ("CanPickUpLoot", Tag::Byte(0)), ("DeathTime", Tag::Short(0)), ("Dimension", Tag::Int(0)), ("FallFlying", Tag::Byte(0)), ("Fire", Tag::Short(-1)), ("HandItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[])])), ("Health", Tag::Float(20.0)), ("HurtByTimestamp", Tag::Int(0)), ("HurtTime", Tag::Short(0)), ("Invulnerable", Tag::Byte(0)), ("LeftHanded", Tag::Byte(0)), ("Motion", Tag::List(&[Tag::Double(0.0), Tag::Double(-0.0784000015258789), Tag::Double(0.0)])), ("OnGround", Tag::Byte(1)), ("PersistenceRequired", Tag::Byte(1)), ("PortalCooldown", Tag::Int(0)), ("attributes", Tag::List(&[])), ("fall_distance", Tag::Double(0.0))];
     pub const ANY_VILLAGER: Fields = &[("Pos", Tag::List(&[Tag::Double(-178.2795013809144), Tag::Double(5.0), Tag::Double(184.63145528989816)])), ("Rotation", Tag::List(&[Tag::Float(48.821632), Tag::Float(0.0)])), ("UUID", Tag::IntArray(&[1383272762, 272124144, -1415224788, -1032494613])), ("Age", Tag::Int(0)), ("CanPickUpLoot", Tag::Byte(1)), ("ForcedAge", Tag::Int(0)), ("Gossips", Tag::List(&[])), ("Inventory", Tag::List(&[])), ("Xp", Tag::Int(0))];
     pub const VILLAGER: Fields = &[("id", Tag::String(mcrs_minecraft_entity::entity_type_keys::EntityType::Villager.as_static_str())), ("PersistenceRequired", Tag::Byte(0))];

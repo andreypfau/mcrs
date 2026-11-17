@@ -1,5 +1,3 @@
-// std: bevy_ecs
-
 mod asset_reader_packs;
 mod item_definitions;
 mod loading_state;

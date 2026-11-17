@@ -31,26 +31,15 @@ use crate::fall_request::propose_falls;
 use crate::falling_block_rules::FallingBlockRules;
 use crate::falling_block_rules::build_rules;
 
-/// The falling block in a dimension world: each [`FallRequest`] becomes a falling block that moves
-/// in the pass of `EntityMotionPlugin` and lands as a block or drops as an item. The embedder adds
-/// `EntityMotionPlugin`, `EntityMotionReplicationPlugin`, a consumer of [`BlockSetRequest`], and
-/// `ItemEntityPlugin` for the drops to move.
 #[derive(Clone, Debug, Default)]
 pub struct FallingBlockPlugin {
     pub settings: Settings,
-    // chisle: the load of the data pack reads only registry files, so the concrete pairs of each
-    // pack come through the plugin. A reader of the non-registry files of a pack in the registry
-    // load lifts it.
-    /// The concrete pairs file of each pack, lowest pack first (FBK-CON-001).
     pub concrete_pairs: Vec<PackConcretePairs>,
 }
 
-/// The public points of the falling block in `Simulate`.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FallingBlockSet {
-    /// Each requested fall is a [`PendingFall`] here, before the world writes and the spawn.
     StartReview,
-    /// Each landing of this tick is a [`Landed`] here, before the world writes.
     LandingReview,
 }
 

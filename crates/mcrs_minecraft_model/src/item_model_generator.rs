@@ -40,8 +40,6 @@ impl Side {
     }
 }
 
-/// Extrudes one `layerN` sprite of a `builtin/generated` item: a front and back quad plus a
-/// one-pixel side quad wherever an opaque texel of any frame borders a transparent one.
 pub fn extrude(
     sprite: u16,
     side: u32,

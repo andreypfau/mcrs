@@ -10,9 +10,6 @@ use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use crate::forced_columns::ForcedColumns;
 use crate::{fill, forceload, gamerule, server_change, tick, weather};
 
-/// The commands `fill`, `forceload`, `gamerule`, `weather` and `tick` of the vanilla command
-/// set, the effect [`ServerChange`](crate::ServerChange) they write, and the report of a sprint
-/// in the server log.
 pub struct WorldCommandsPlugin;
 
 impl Plugin for WorldCommandsPlugin {
@@ -37,7 +34,6 @@ fn report<T>(name: &str, result: Result<T, RegistrationError>) {
     }
 }
 
-/// The forced columns of a dimension world.
 #[derive(Clone)]
 struct ForcedColumnsPlugin;
 
@@ -47,7 +43,6 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
-/// Writes the report of a sprint that ended to the server log, as the server source does.
 fn report_sprint(pace: Option<ResMut<TickPace>>, mut packets: MessageWriter<OutboundPlayerPacket>) {
     let Some(mut pace) = pace else {
         return;

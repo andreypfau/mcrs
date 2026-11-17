@@ -36,8 +36,6 @@ pub(crate) struct SummonCommand {
     nbt: ArgumentHandle<NbtCompoundArgument>,
 }
 
-/// The summons of the current tick of this world: the sequence of each pair of a spawn point and
-/// a source block, and the UUIDs that the requests of the tick hold.
 #[derive(Default)]
 pub(crate) struct SummonOrder {
     tick: u64,
@@ -77,7 +75,6 @@ fn spawnable(position: DVec3) -> bool {
         && (-MAX_Y..MAX_Y).contains(&block.y)
 }
 
-/// The queues of the spawns of a summon, and the item table that reads the stack of an item.
 #[derive(SystemParam)]
 pub(crate) struct Spawns<'w> {
     mobs: ResMut<'w, EffectQueue<MobSpawnRequest>>,
@@ -85,7 +82,6 @@ pub(crate) struct Spawns<'w> {
     table: Option<Res<'w, ItemTable>>,
 }
 
-/// What a summon makes.
 enum Summon {
     Mob {
         kind: &'static EntityTypeData,
@@ -95,7 +91,6 @@ enum Summon {
     Item(SummonedItem),
 }
 
-/// The type data of `entity_type` when this server makes mobs of it (TRK-TYPE-002).
 fn server_mob(entity_type: EntityType) -> Option<&'static EntityTypeData> {
     match entity_type {
         EntityType::Pig
@@ -107,8 +102,6 @@ fn server_mob(entity_type: EntityType) -> Option<&'static EntityTypeData> {
     }
 }
 
-/// The summon of `entity_type` with the keys of `nbt`, and the UUID that the keys give. `None`
-/// when the server makes no such entity or a key does not load.
 fn read_summon(
     entity_type: EntityType,
     nbt: Option<NbtCompound>,
@@ -143,11 +136,6 @@ fn read_summon(
     })
 }
 
-/// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
-/// of its type. A summon without a UUID gives the mob a new one from the world seed, the
-/// dimension, the birth clock, the block of the spawn point, the block of the source and the
-/// sequence of that pair in the tick. An item entity starts at rest with the stack of its keys
-/// (IEN-SPN-001).
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
@@ -245,9 +233,6 @@ pub(crate) fn run(
     Ok(1)
 }
 
-/// The engine refuses a spawn whose UUID a mob or an earlier request holds, and the request of a
-/// summon of this tick has no mob in the lookup yet. A UUID that the lookup finds leaves the
-/// requests of the tick, so a clock that stands still cannot keep it taken after the mob is gone.
 fn taken(order: &mut SummonOrder, context: &VanillaContext, uuid: u128) -> bool {
     if context.lookup().mob_by_uuid(uuid).is_some() {
         order.uuids.remove(&uuid);
@@ -256,17 +241,12 @@ fn taken(order: &mut SummonOrder, context: &VanillaContext, uuid: u128) -> bool 
     order.uuids.contains(&uuid)
 }
 
-/// What the keys of `<nbt>` set: the values of the new mob, and its UUID.
 #[derive(Default)]
 struct Summoned {
     extras: MobExtras,
     uuid: Option<u128>,
 }
 
-/// The keys of `<nbt>` that this server loads (TRK-SUM-003, TRK-DEV-002): `NoAI`, `CustomName`
-/// as a string, `Tags`, `UUID` as four ints, the most significant first, and
-/// `PersistenceRequired`, which changes nothing for a farm animal. `None` when the
-/// compound holds another key. A value with the wrong tag keeps the default.
 fn read_keys(compound: NbtCompound) -> Option<Summoned> {
     let mut summoned = Summoned::default();
     let extras = &mut summoned.extras;
@@ -289,8 +269,6 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                     })
                     .collect();
             }
-            // `PersistenceRequired` only keeps a mob from the removal steps of the despawn check,
-            // which no farm animal takes (TRK-SUM-007).
             ("NoAI" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
             _ => return None,
         }
@@ -302,7 +280,6 @@ pub(crate) fn apply(worlds: &mut Worlds, request: MobSpawnRequest) {
     worlds.world_mut().write_message(request);
 }
 
-/// A dimension world without item entities drops the request.
 pub(crate) fn apply_item(worlds: &mut Worlds, request: ItemSpawnRequest) {
     let world = worlds.world_mut();
     if world.contains_resource::<Messages<ItemSpawnRequest>>() {
@@ -310,7 +287,6 @@ pub(crate) fn apply_item(worlds: &mut Worlds, request: ItemSpawnRequest) {
     }
 }
 
-/// The keys of `<nbt>` for an item entity: its saved form (IEN-DAT-003) and `UUID`.
 struct SummonedItem {
     stack: ItemStack,
     values: ItemEntity,
@@ -319,8 +295,6 @@ struct SummonedItem {
     uuid: Option<u128>,
 }
 
-/// `None` when the compound holds another key, or when `Item` is absent or empty: the summon then
-/// fails, where the reference removes the item entity at once (IEN-DAT-004).
 fn read_item_keys(compound: NbtCompound, table: &ItemTable) -> Option<SummonedItem> {
     let mut stack = None;
     let mut values = ItemEntity::default();
@@ -347,7 +321,6 @@ fn read_item_keys(compound: NbtCompound, table: &ItemTable) -> Option<SummonedIt
     })
 }
 
-/// A UUID as four ints, the most significant first.
 fn uuid_of(words: &[i32]) -> Option<u128> {
     let [a, b, c, d] = words[..] else {
         return None;

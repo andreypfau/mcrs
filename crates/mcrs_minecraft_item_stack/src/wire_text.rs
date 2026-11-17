@@ -8,8 +8,6 @@ use mcrs_minecraft_wire::Encode;
 use crate::BuiltinKey;
 use crate::WireError;
 
-// The measure of the quota is not specified; this reader counts the bytes of the network NBT. The
-// NBT reader enforces the depth limit of 512 levels.
 const NBT_QUOTA: usize = 2_097_152;
 
 pub(crate) fn read_text(input: &mut &[u8], component: BuiltinKey) -> Result<Text, WireError> {

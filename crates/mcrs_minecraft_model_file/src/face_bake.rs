@@ -5,7 +5,6 @@ use crate::block_state_file::Variant;
 use crate::face_bake_error::FaceBakeError;
 use crate::model_file::{Axis, Element, ElementTurn, FaceEntry};
 
-/// The turn of a whole model that a blockstate variant gives, in degrees, and its texture lock.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VariantTransform {
     pub x: u16,
@@ -25,22 +24,18 @@ impl From<&Variant> for VariantTransform {
     }
 }
 
-/// One face entry of an element, baked: corners in block space with their sprite coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElementFace {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub direction: Direction,
     pub cull: Option<Direction>,
-    /// The `texture` string of the face entry.
     pub texture: String,
     pub tint: Option<u32>,
     pub shade_face: Option<Direction>,
     pub light_emission: u8,
 }
 
-/// The baked faces of the elements, in element order and, inside an element, in direction
-/// order. A face whose corners do not form a box face after the variant turn is an error.
 pub fn bake_elements(
     elements: &[Element],
     transform: VariantTransform,
@@ -66,8 +61,6 @@ pub fn bake_elements(
     Ok(faces)
 }
 
-/// Whether an element draws its face entry of `direction`: each flat axis of the element must
-/// be the axis of the direction.
 #[must_use]
 pub fn draws_face(element: &Element, direction: Direction) -> bool {
     let axis = axis_index(direction);
@@ -88,8 +81,6 @@ fn normal(direction: Direction) -> DVec3 {
     direction.normal().as_dvec3()
 }
 
-/// The corners of the `direction` face of the box from `lo` to `hi`: top-left, bottom-left,
-/// bottom-right and top-right, seen from outside.
 #[must_use]
 pub fn box_face_corners(direction: Direction, lo: DVec3, hi: DVec3) -> [DVec3; 4] {
     let (right, up) = face_axes(direction);
@@ -115,7 +106,6 @@ pub fn box_face_corners(direction: Direction, lo: DVec3, hi: DVec3) -> [DVec3; 4
     ]
 }
 
-/// The directions in which the texture of a face goes right and up, seen from outside.
 fn face_axes(direction: Direction) -> (Direction, Direction) {
     match direction {
         Direction::Down => (Direction::East, Direction::South),
@@ -251,8 +241,6 @@ fn element_matrix(turn: ElementTurn, rescale: bool) -> DMat3 {
         ))
 }
 
-/// The direction of a face with this normal: the largest positive dot product, the first in
-/// direction order on a tie, and `up` when no direction has a positive one.
 fn facing(normal: DVec3) -> Direction {
     let mut best = Direction::Up;
     let mut best_dot = 0.0;
@@ -266,8 +254,6 @@ fn facing(normal: DVec3) -> Direction {
     best
 }
 
-/// The direction whose normal has the largest dot product with `vector`, the first in direction
-/// order on a tie.
 #[must_use]
 pub fn nearest(vector: DVec3) -> Direction {
     let mut best = Direction::Down;
@@ -282,7 +268,6 @@ pub fn nearest(vector: DVec3) -> Direction {
     best
 }
 
-/// The turn that maps +Z to the normal of the direction.
 fn face_frame(direction: Direction) -> DMat3 {
     let rows = |rows: [[f64; 3]; 3]| DMat3::from_cols_array_2d(&rows).transpose();
     match direction {
@@ -295,8 +280,6 @@ fn face_frame(direction: Direction) -> DMat3 {
     }
 }
 
-/// A product of quarter turns about the axes, with only the entries `0`, `1` and `-1`, so it
-/// moves a point with no rounding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct QuarterTurn {
     rows: [[i8; 3]; 3],
@@ -330,7 +313,6 @@ impl QuarterTurn {
         turn
     }
 
-    /// `self · first`: `first` applies first.
     fn then_after(self, first: QuarterTurn) -> QuarterTurn {
         let mut rows = [[0i8; 3]; 3];
         for (row, out) in self.rows.iter().zip(&mut rows) {

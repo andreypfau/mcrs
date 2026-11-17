@@ -1,6 +1,3 @@
-//! The widgets of the client GUI without rendering: rectangles in GUI units, the layout
-//! arithmetic, the pointer and keyboard input, the focus and the state of each widget.
-
 #![no_std]
 
 extern crate alloc;

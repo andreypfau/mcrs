@@ -8,8 +8,6 @@ use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_vanilla_item_entity::Form;
 use mcrs_minecraft_vanilla_item_entity::Launch;
 
-/// The launch of a stack from the hand of a player at `transform` along its look, with the pickup
-/// delay of `cause` (IEN-SPN-001, IEN-SPN-002).
 pub(crate) fn hand_launch(transform: Transform, source: u128, cause: Cause) -> Launch {
     Launch {
         source: BirthSource::Entity(EntityKey(source)),

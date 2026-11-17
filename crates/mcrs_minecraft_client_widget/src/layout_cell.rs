@@ -4,8 +4,6 @@ use crate::gui_extent::GuiExtent;
 use crate::gui_rect::GuiRect;
 use crate::padding::Padding;
 
-/// The padding and the alignment of a child in its layout; the default has no padding and sits
-/// at the top left.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LayoutCell {
     pub padding: Padding,
@@ -13,7 +11,6 @@ pub struct LayoutCell {
 }
 
 impl LayoutCell {
-    /// The default cell of a frame: no padding, centred.
     pub const CENTER: Self = Self {
         padding: Padding {
             left: 0,
@@ -24,8 +21,6 @@ impl LayoutCell {
         alignment: Alignment::CENTER,
     };
 
-    /// The bounds of a child of `size` in `area`: the offset across is truncated toward zero,
-    /// the offset down is rounded half up.
     #[must_use]
     pub fn place(self, size: GuiExtent, area: GuiRect) -> GuiRect {
         let padding = self.padding;

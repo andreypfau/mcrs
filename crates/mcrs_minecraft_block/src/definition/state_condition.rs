@@ -1,8 +1,3 @@
-//! Permutation conditions of block definitions. A condition is Molang in the `block` context:
-//! `query.block_state('<property>')` reads a property of the state under test. The loader
-//! compiles each condition against the property table of its block and evaluates it once for
-//! each state; no expression survives into a tick.
-
 use core::fmt;
 
 use mcrs_molang::{
@@ -13,7 +8,6 @@ use mcrs_molang::{
 
 use super::schema::{BlockProperties, PropertyValue};
 
-/// The load errors of one condition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConditionError(pub Vec<Diagnostic>);
 
@@ -33,8 +27,6 @@ impl fmt::Display for ConditionError {
 
 impl core::error::Error for ConditionError {}
 
-/// The query host of one block: `query.block_state` with a literal property name, one slot for
-/// each property.
 struct BlockQueries<'a> {
     properties: &'a BlockProperties,
 }
@@ -135,7 +127,6 @@ impl QueryHost for BlockQueries<'_> {
     }
 }
 
-/// The query values of one state of a block, which a condition reads.
 #[derive(Clone, Debug)]
 pub struct StateInputs {
     properties: Vec<PropertyInputs>,
@@ -145,7 +136,6 @@ pub struct StateInputs {
 #[derive(Clone, Debug)]
 struct PropertyInputs {
     values: Vec<u64>,
-    /// The raw value of a value that the property does not have: no literal equals it.
     absent: u64,
 }
 
@@ -170,8 +160,6 @@ impl StateInputs {
         }
     }
 
-    /// Selects the state where property `i` holds the value at index `indices[i]` of its value
-    /// list. An index outside the list stands for a value that no literal equals.
     pub fn select(&mut self, indices: &[u8]) {
         for (slot, property) in self.properties.iter().enumerate() {
             let raw = indices
@@ -194,7 +182,6 @@ fn raw_value(value: &PropertyValue) -> u64 {
     }
 }
 
-/// A compiled permutation condition.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StateCondition {
     expression: Expression,
@@ -213,7 +200,6 @@ impl StateCondition {
         })
     }
 
-    /// Whether the condition holds for the selected state of `inputs`.
     pub fn matches(&self, vm: &mut ScalarVm, inputs: &StateInputs) -> bool {
         let value = match &self.expression {
             Expression::Constant(value) => *value,

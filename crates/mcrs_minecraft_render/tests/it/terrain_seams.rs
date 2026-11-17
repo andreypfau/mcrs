@@ -332,7 +332,6 @@ impl Renderer {
             contents: bytemuck::cast_slice(&quads),
             usage: BufferUsages::STORAGE,
         });
-        // The camera viewport may differ from the default raster viewport of the target.
         let camera_scale = if matches!(coverage, Coverage::Greedy | Coverage::Model) {
             0.5
         } else {
@@ -516,7 +515,6 @@ fn a_pixel_on_a_shared_edge_has_the_same_color_in_either_draw_order() {
             &BACKGROUND,
             "edge at {shift_pixels} pixels must remain covered"
         );
-        // At this scale the f32 projected endpoints cannot reliably distinguish the side.
         if shift_pixels <= -0.001 {
             assert_eq!(&first[pixel..pixel + 4], &[0, 0, 255, 255]);
         } else if shift_pixels >= 0.001 {
@@ -580,7 +578,6 @@ fn ray_hit(faces: &[Face], inverse: DMat4, x: f64, y: f64) -> RayHit {
         let point = origin + direction * distance - face.anchor;
         let u = point.dot(face.u_axis);
         let v = point.dot(face.v_axis);
-        // Matrix conversion to f32 can move an exact boundary by a few millionths of a block.
         let tolerance = 2e-5;
         if u >= -tolerance && u <= 1.0 + tolerance && v >= -tolerance && v <= 1.0 + tolerance {
             boundary |= u

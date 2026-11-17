@@ -18,10 +18,8 @@ use crate::muxer::entity_replication;
 use crate::muxer::muxer_link::{self, Answers};
 use crate::to_muxer::{Destination, RoutedDeparture};
 
-/// Both bits of the data to keep: the attribute modifiers and the entity data.
 const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
 
-/// The host anchor of `session` while the session is placed in the dimension `source`.
 fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
     host.get_resource::<SessionAnchors>()
         .and_then(|anchors| anchors.get(session))
@@ -31,10 +29,6 @@ fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option
         })
 }
 
-/// Sends the departure of `routed`, which the dimension `source` handed over, on to its
-/// destination for its next tick, and sends the client the packets of a respawn. A departure
-/// without a destination, or whose session is no longer placed in `source`, goes back to
-/// `source`.
 pub fn route_departure(host: &mut World, source: Entity, routed: RoutedDeparture) {
     let RoutedDeparture {
         mut departure,
@@ -64,12 +58,7 @@ fn send(host: &mut World, dim: Entity, transfer: PlayerTransfer) {
     }
 }
 
-/// Places the session of `departure` in `destination` and sends it the packets of a respawn
-/// there, after the packets of the dimension it leaves.
 fn announce(host: &mut World, anchor: Entity, destination: Destination, departure: &mut Departure) {
-    // The packets stamped for the dimension the player leaves go out before its epoch changes,
-    // or the bridge drops them as stale. The muxer bytes of that dimension are among them, and
-    // the muxer may still work on them, so the host waits for it here.
     entity_replication::leave(host, departure.session);
     muxer_link::deliver(host, Answers::All);
     if let Err(error) = host.try_run_schedule(OutboundFlush) {

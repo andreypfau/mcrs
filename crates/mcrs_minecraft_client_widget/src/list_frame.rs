@@ -8,16 +8,11 @@ const SEPARATOR_HEIGHT: i32 = 2;
 const ROW_SPACE: i32 = 2;
 const SCROLLBAR_GAP: i32 = 8;
 
-/// What a list draws outside its rows: the background and the two separators (LIST-BG-001,
-/// LIST-BG-002).
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ListFrame {
-    /// The point of the 32 × 32 background tile that shows at the top left corner of the list.
     pub background_origin: GuiPoint,
-    /// The rectangle of the header separator.
     pub header_separator: GuiRect,
-    /// The rectangle of the footer separator.
     pub footer_separator: GuiRect,
 }
 

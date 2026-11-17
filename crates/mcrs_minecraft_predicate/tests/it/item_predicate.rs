@@ -54,7 +54,6 @@ impl NameLookup for RegistryLookup {
     }
 }
 
-/// The id of `name` in `registry`; panics when the test registries lack it.
 fn id(registry: &str, name: &str) -> u16 {
     registries()
         .id_of(

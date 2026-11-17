@@ -28,7 +28,6 @@ use mcrs_minecraft_render::{RenderDistance, SkyUniform, WorldFog};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
-/// Layer 0 is the sun; the moon phases follow in `MoonPhase::ALL` order.
 fn celestial_paths() -> impl Iterator<Item = String> {
     std::iter::once(SUN.to_owned()).chain(MoonPhase::ALL.iter().map(|phase| {
         format!(
@@ -52,7 +51,6 @@ impl SkySources {
     }
 }
 
-/// Exists only once both arrays are assembled.
 #[derive(Resource)]
 pub struct SkyTextures {
     pub celestials: Handle<Image>,
@@ -61,7 +59,6 @@ pub struct SkyTextures {
 
 pub struct SkyPlugin;
 
-/// Vanilla's "Clouds" option. mcrs draws one kind of cloud, so only off and on exist.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Clouds {
     Off,
@@ -118,27 +115,17 @@ impl Plugin for SkyPlugin {
     }
 }
 
-// chisle: mcrs has no Cloud Distance option, so the clouds fade at its default; the option lifts it.
 const CLOUD_DISTANCE: u8 = 128;
 
-/// The elevations in degrees over which the sky occluder fades in, from the eye at or above the
-/// lowest block of the dimension and from below it.
 const OCCLUDER_ANGLES: [f32; 2] = [-1.0, -8.0];
 const OCCLUDER_ANGLES_BELOW_MIN_Y: [f32; 2] = [15.0, 10.0];
 
 const CLOUD_BLOCKS_PER_TICK: f64 = 0.030000001;
 
-/// No attribute carries it: the reference client multiplies the block-light
-/// term by this after the lightmap curve.
 const BLOCK_LIGHT_FACTOR: f32 = 1.4;
 
-/// The widest cloud field the march can wrap is 4096 cells of 12 blocks, so
-/// folding the drift into that span keeps the shader's own wrap intact while
-/// the value stays small enough for `f32` to resolve single blocks.
 const CLOUD_DRIFT_SPAN: f64 = 4096.0 * 12.0;
 
-/// Everything the sky needs that holds for as long as the player stays in one
-/// dimension. Rebuilt whole, never patched.
 #[derive(Resource)]
 pub struct SkyEnvironment {
     attributes: DimensionAttributes,
@@ -195,7 +182,6 @@ impl SkyEnvironment {
                 self.scalar(frame, SkyField::StarAngle).to_radians(),
                 Srgba::gamma_function(self.scalar(frame, SkyField::StarBrightness)),
             ],
-            // Layer 0 of the celestial array is the sun; the phases follow it.
             moon: [
                 1.0 + self.scalar(frame, SkyField::MoonPhase),
                 1.0 - frame.rain,
@@ -315,8 +301,6 @@ fn build_sky_environment(
     });
 }
 
-/// The clock ticks of the sky's dimension before the clocks last advanced: the ticks of the
-/// previous client tick.
 #[derive(Resource, Default)]
 struct PreviousClockTicks(Vec<i64>);
 
@@ -328,7 +312,6 @@ fn record_previous_ticks(
     environment.attributes.clock_ticks(&clocks, &mut previous.0);
 }
 
-/// What a frame reads to place itself between two client ticks.
 #[derive(bevy::ecs::system::SystemParam)]
 struct FrameClocks<'w> {
     clocks: Res<'w, WorldClocks>,
@@ -355,7 +338,6 @@ fn evaluate_sky(
         .attributes
         .clock_ticks(&frame_clocks.clocks, &mut ticks);
     let previous = &frame_clocks.previous.0;
-    // Before the first tick of a dimension there is no previous tick to move from.
     let previous_ticks: &[i64] = if previous.len() == ticks.len() {
         previous
     } else {
@@ -427,7 +409,6 @@ fn rgba(color: [f32; 4], w: f32) -> [f32; 4] {
     rgb(color).map(Srgba::gamma_function).extend(w).to_array()
 }
 
-/// The light colours feed vanilla's lightmap, which works on the bytes as they are written.
 fn raw(color: [f32; 4], w: f32) -> [f32; 4] {
     rgb(color).extend(w).to_array()
 }
@@ -459,9 +440,6 @@ fn assemble_arrays(
     sources: Res<SkySources>,
     mut images: ResMut<Assets<Image>>,
     assembled: Option<Res<SkyTextures>>,
-    // `insert_resource` below is deferred, so `assembled` still reads `None` on
-    // the frame after the first build; without this the leftover `Added` events
-    // would build a second pair of arrays and orphan the first.
     mut created: Local<bool>,
     mut commands: Commands,
 ) {
@@ -572,10 +550,6 @@ fn array(
         RenderAssetUsages::RENDER_WORLD,
     );
     array.sampler = ImageSampler::nearest();
-    // Only a stack of layers is an array. A GL backend picks the texture
-    // target from the layer count when it creates the texture, so a one-layer
-    // texture is a plain 2D one there whatever view is asked for, and binding
-    // it against an array in the shader silently samples nothing.
     if handles.len() > 1 {
         array.texture_view_descriptor = Some(TextureViewDescriptor {
             dimension: Some(TextureViewDimension::D2Array),
@@ -692,8 +666,6 @@ mod sky_regression {
         }
     }
 
-    /// The uniform the attribute system produces at `ticks`, from a camera
-    /// above the horizon in clear weather.
     fn ticks_at(attributes: &DimensionAttributes, ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {

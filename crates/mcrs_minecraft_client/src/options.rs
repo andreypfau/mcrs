@@ -12,14 +12,9 @@ use crate::camera::FovOptions;
 use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
-/// Keeps the client options as the one resource that the field of view, the terrain light, the
-/// clouds, the brightness, Improved Transparency, the GUI scale, the requested view distance and, on a native client,
-/// the window mode, the present mode and the frame limit follow, and writes them to `file` as
-/// JSON each time they change after start-up. The web has no file, so there `file` is ignored.
 pub struct ClientOptionsPlugin {
     pub options: ClientOptions,
     pub file: Option<PathBuf>,
-    /// The GUI scale the client shows in place of the one of the options; it is never saved.
     pub gui_scale: Option<u32>,
 }
 
@@ -74,7 +69,6 @@ impl Plugin for ClientOptionsPlugin {
     }
 }
 
-/// Reads and validates the options file at `path`.
 pub(crate) fn read(path: &Path) -> Result<ClientOptions, String> {
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let options: ClientOptions = serde_json::from_str(&text).map_err(|error| error.to_string())?;
@@ -207,8 +201,6 @@ mod tests {
         app.world_mut().resource_mut::<WindowFullscreen>().0 = fullscreen;
     }
 
-    /// The option and the window mode stay at `fullscreen`, nothing writes the options again, and
-    /// the fullscreen systems go idle.
     fn assert_rests_at(app: &mut App, fullscreen: bool) {
         let changed = app.world().resource_ref::<ClientOptions>().last_changed();
         run_frames(app, 2 * grace_frames());

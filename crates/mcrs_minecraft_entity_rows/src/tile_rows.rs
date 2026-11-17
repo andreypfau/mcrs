@@ -8,28 +8,18 @@ use rustc_hash::FxHashMap;
 
 use crate::MobRows;
 
-/// The rows of the server entities of one tile, one column per field. A spawn or a despawn of an
-/// item, an orb or a projectile is a row operation here and never touches ECS; tiles do them in
-/// parallel. A despawn moves the last row into the gap, so the row order is not kept.
-///
-/// The mob column `M` is dense: only the rows that carry one hold its bytes, so items and orbs
-/// pay four bytes for it, and it moves with its row from tile to tile.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileRows<M> {
     state: Vec<EntityState>,
     motion: Vec<MotionRow>,
     id: Vec<EntityId>,
-    /// The slot in `mobs` of each row, plus one; `None` for a row without a mob column.
     mob_slot: Vec<Option<NonZeroU32>>,
     mobs: Vec<M>,
-    /// The position in the columns of the row of each mob.
     mob_row: Vec<usize>,
-    /// The position of each id in the columns.
     rows: FxHashMap<EntityId, usize>,
     free_ids: Vec<EntityId>,
 }
 
-/// One row, out of its tile.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Row<M> {
     pub state: EntityState,
@@ -38,7 +28,6 @@ pub struct Row<M> {
     pub mob: Option<M>,
 }
 
-/// One row in its tile.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RowRef<'a> {
     pub state: &'a EntityState,
@@ -46,7 +35,6 @@ pub struct RowRef<'a> {
     pub id: EntityId,
 }
 
-/// One row in its tile, with its state open to the writer of the phase.
 #[derive(Debug, PartialEq)]
 pub(crate) struct RowMut<'a> {
     pub(crate) state: &'a mut EntityState,
@@ -70,7 +58,6 @@ impl<M> Default for TileRows<M> {
 }
 
 impl<M> TileRows<M> {
-    /// Gives the tile ids from the range of its cell, for the spawns of later ticks.
     #[cfg_attr(
         not(test),
         expect(
@@ -82,8 +69,6 @@ impl<M> TileRows<M> {
         self.free_ids.extend(ids);
     }
 
-    /// Adds a row with one of the reserved ids and no mob column; `None` when the tile has no
-    /// reserved id left.
     #[cfg_attr(
         not(test),
         expect(
@@ -102,7 +87,6 @@ impl<M> TileRows<M> {
         Some(id)
     }
 
-    /// Adds a row that keeps its id, such as a row that comes from another tile.
     pub(crate) fn insert_row(&mut self, row: Row<M>) {
         let at = self.id.len();
         self.rows.insert(row.id, at);
@@ -115,8 +99,6 @@ impl<M> TileRows<M> {
         }
     }
 
-    /// Removes the row of `id` and gives it, with its mob column; `None` when the tile has no
-    /// such row.
     pub(crate) fn despawn_row(&mut self, id: EntityId) -> Option<Row<M>> {
         let row = self.row_of(id)?;
         self.rows.remove(&id);
@@ -139,8 +121,6 @@ impl<M> TileRows<M> {
         Some(removed)
     }
 
-    /// Gives the row of `id` the mob column `mob`, in place of the one it had. The tile drops
-    /// `mob` when it has no such row.
     pub(crate) fn set_mob(&mut self, id: EntityId, mob: M) {
         let Some(row) = self.row_of(id) else {
             return;
@@ -151,7 +131,6 @@ impl<M> TileRows<M> {
         }
     }
 
-    /// The position of the row of `id` in [`Self::ids`]; `None` when the tile has no such row.
     #[must_use]
     pub fn row_of(&self, id: EntityId) -> Option<usize> {
         self.rows
@@ -165,28 +144,22 @@ impl<M> TileRows<M> {
         &self.id
     }
 
-    /// The state of each row, in the order of [`Self::ids`].
     #[must_use]
     pub fn states(&self) -> &[EntityState] {
         &self.state
     }
 
-    /// The mob column of the row of `id`; `None` when the tile has no such row or the row has
-    /// no mob column.
     #[must_use]
     pub fn mob(&self, id: EntityId) -> Option<&M> {
         let slot = self.slot_at(self.row_of(id)?)?;
         self.mobs.get(slot)
     }
 
-    /// The count of the rows with a mob column.
     #[must_use]
     pub fn mob_count(&self) -> usize {
         self.mobs.len()
     }
 
-    /// The mob columns of the tile, open to their writer, beside the states of their rows, which
-    /// stay read-only.
     pub fn mobs_mut(&mut self) -> MobRows<'_, M> {
         MobRows {
             ids: &self.id,
@@ -198,7 +171,6 @@ impl<M> TileRows<M> {
         }
     }
 
-    /// Each row, in the order of [`Self::ids`].
     pub fn rows(&self) -> impl Iterator<Item = RowRef<'_>> {
         iter::zip(
             iter::zip(&self.state, &self.motion),
@@ -207,7 +179,6 @@ impl<M> TileRows<M> {
         .map(|((state, motion), id)| RowRef { state, motion, id })
     }
 
-    /// The row of `id`, open to its writer; `None` when the tile has no such row.
     pub(crate) fn row_mut(&mut self, id: EntityId) -> Option<RowMut<'_>> {
         let row = self.row_of(id)?;
         Some(RowMut {
@@ -230,8 +201,6 @@ impl<M> TileRows<M> {
         usize::try_from(slot.get() - 1).ok()
     }
 
-    /// Adds `mob` as the column of the row at `row`, which has none. A tile with `u32::MAX`
-    /// mobs drops it.
     fn attach(&mut self, row: usize, mob: M) {
         let Some(slot) = u32::try_from(self.mobs.len())
             .ok()
@@ -247,7 +216,6 @@ impl<M> TileRows<M> {
         self.mob_row.push(row);
     }
 
-    /// Takes the mob column of the row at `row` out; the last mob moves into its slot.
     fn detach(&mut self, row: usize) -> Option<M> {
         let slot = self.slot_at(row)?;
         if slot >= self.mobs.len() {

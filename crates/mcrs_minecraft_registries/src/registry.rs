@@ -11,10 +11,8 @@ use serde::de::DeserializeOwned;
 
 use crate::refs::Resolve;
 
-// An id is a u16, so a registry holds at most 65 536 entries; widening `Id` lifts it.
 pub(crate) const MAX_ENTRIES: usize = u16::MAX as usize + 1;
 
-/// What a data registry holds: a value read from the named form its files and packets carry.
 pub trait DataValue:
     RegistryValue + Resolve<Named: DeserializeOwned + 'static> + Send + Sync + 'static
 {
@@ -33,7 +31,6 @@ pub(crate) struct Names {
 }
 
 impl Names {
-    /// `origins` holds the pack of each entry, or nothing for a registry no pack fills.
     pub(crate) fn new(
         names: Vec<ResourceLocationBuf>,
         origins: Vec<PackIndex>,
@@ -74,8 +71,6 @@ impl Names {
     }
 }
 
-/// The entries of one registry in id order, whatever values it holds: a static registry, a data
-/// registry or one read by its names alone.
 pub struct Entries<'a, R> {
     names: &'a Names,
     registry: PhantomData<fn() -> R>,

@@ -10,7 +10,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: Vec and Box for the shape table and the scratch buffers
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
 glam = { workspace = true, features = ["std"] }
@@ -31,8 +30,6 @@ mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 
 [features]
 default = []
-# A block world in a hash map, a small block table and the reading of recorded client ticks, for
-# tests and benches of this and other crates.
 testing = [
     "dep:mcrs_minecraft_client_ticks",
     "dep:mcrs_minecraft_entity",

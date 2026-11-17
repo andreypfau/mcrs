@@ -16,8 +16,6 @@ const FIRST_ROW_PADDING_TOP: i32 = 50;
 const FULL_WIDTH: i32 = 204;
 const HALF_WIDTH: i32 = 98;
 
-/// The title and the buttons of the pause screen on a screen of the size `screen`, with the
-/// caption `last_key` on the last button (MENU-PAUSE-002, MENU-PAUSE-006).
 pub(crate) fn pause_screen(
     screen: GuiExtent,
     language: &ClientLanguage,

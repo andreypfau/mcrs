@@ -1,6 +1,3 @@
-//! What the server benchmarks share: the server child process, the status probe, the tick-time
-//! parsers and maths, and the upkeep a headless protocol client owes the server.
-
 mod client;
 mod clock;
 mod kind;

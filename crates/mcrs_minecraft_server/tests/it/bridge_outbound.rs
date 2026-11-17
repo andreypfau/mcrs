@@ -1,8 +1,3 @@
-//! Integration tests for `bridge_outbound`: packet drain, `PacketTarget`
-//! resolution against the sessions, and the order of the writes.
-//!
-//! All tests are pure ECS routing — no sockets, no network I/O.
-
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
@@ -17,9 +12,6 @@ use mock_connection::{
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
 };
 
-/// Two players in one dimension and one in another; each target reaches
-/// exactly the sockets it names, and a listed entity without a session is
-/// skipped without a panic.
 #[test]
 fn a_packet_target_reaches_exactly_its_players() {
     #[derive(Debug)]
@@ -68,19 +60,12 @@ fn a_packet_target_reaches_exactly_its_players() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// packet_target_missing_queue_counted
-// ---------------------------------------------------------------------------
-
-/// A target that resolves to an entity with no `OutboundQueue` increments
-/// `outbound_no_queue_total` and is NOT silently dropped.
 #[test]
 fn packet_target_missing_queue_counted() {
     let mut world = build_bridge_world();
 
     let dim = Entity::from_raw_u32(400).expect("nonzero");
 
-    // Spawn a socket entity WITHOUT an OutboundQueue.
     let socket_no_queue = world.spawn_empty().id();
     let (_, session) = register_player(&mut world, socket_no_queue, dim);
 
@@ -109,12 +94,6 @@ fn packet_target_missing_queue_counted() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// write_order
-// ---------------------------------------------------------------------------
-
-/// MVC-LAT-001: the queue drains in the order of the writes, so the
-/// client applies the changes in the order the server made them.
 #[test]
 fn the_queue_drains_in_the_order_of_the_writes() {
     let mut world = build_bridge_world();
@@ -146,8 +125,6 @@ fn the_queue_drains_in_the_order_of_the_writes() {
     assert_eq!(seqs, vec![3, 2, 1]);
 }
 
-/// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players changes
-/// the prediction exactly when it does for one player, so the probes bracket it the same way.
 #[test]
 fn a_shared_packet_changes_the_prediction_as_for_one_player() {
     use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
@@ -209,29 +186,15 @@ fn a_shared_packet_changes_the_prediction_as_for_one_player() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// broadcast_delivered_to_post_transfer_session
-// ---------------------------------------------------------------------------
-
-/// Regression: broadcasts carry the default epoch 0 and are never re-stamped,
-/// so they must NOT be epoch-filtered. A recipient whose session epoch has
-/// advanced past 0 (after one or more dim transfers) must still receive
-/// AllInDim and AllPlayers broadcasts. The epoch stale-drop applies only to
-/// SinglePlayer packets that may be in flight across a transfer.
 #[test]
 fn broadcast_delivered_to_post_transfer_session() {
     let mut world = build_bridge_world_with_sessions();
 
-    // register_session places the session in dim Entity::from_raw_u32(9998).
     let dim = Entity::from_raw_u32(9998).expect("nonzero");
     let session = PlayerSession(1);
     let socket = spawn_connection(&mut world);
-    register_session(&mut world, session, socket, 2); // epoch 2 = two dim transfers
+    register_session(&mut world, session, socket, 2);
 
-    // Both broadcasts carry the default epoch 0. Write both, then run
-    // bridge_outbound once (a single MessageReader pass) so each message is
-    // read exactly once. Under the old per-recipient epoch filter both would be
-    // dropped (0 != 2); both must now be delivered.
     write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim), 1);
     write_packet_broadcast(&mut world, PacketTarget::AllPlayers, 2);
     run_system(&mut world, bridge_outbound);

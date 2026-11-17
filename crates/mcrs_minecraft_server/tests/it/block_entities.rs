@@ -1,6 +1,3 @@
-//! A block entity is an entity under its section, and the typed state it
-//! holds is the one type the save, the anvil reader and the chunk packet share.
-
 use std::borrow::Cow;
 
 use crate::support::saved_block_entities;
@@ -34,8 +31,6 @@ fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)
 }
 
-/// What the beehive tree decorator writes: two or three occupants, each with the hive's
-/// minimum stay.
 fn generated_nest() -> GeneratedBlockEntity {
     GeneratedBlockEntity::Beehive {
         x: 35,
@@ -45,8 +40,6 @@ fn generated_nest() -> GeneratedBlockEntity {
     }
 }
 
-/// Every kind a generator leaves, each in `section_pos`, with the wire type id the
-/// built-in registry gives it.
 fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
     vec![
         (generated_nest(), 33),
@@ -79,9 +72,6 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
     ]
 }
 
-/// A region file the save would hold, carrying these block entity compounds
-/// and nothing else, read back through the reader a loading dimension uses.
-/// The column carries no sections, so no palette entry is ever asked for.
 struct NoPalette;
 
 impl<V> PaletteLookup<V> for NoPalette {
@@ -132,10 +122,6 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
         .expect("every entry names a kind this build reads")
 }
 
-/// A jukebox is a kind this build does not read and is dropped; a beehive it
-/// does read but cannot parse is an error, so a generated entity never goes
-/// missing without a word. A compound without its coordinates is refused when
-/// the column is read.
 #[test]
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
     let jukebox = positioned("minecraft:jukebox");
@@ -160,8 +146,6 @@ fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
     }
 }
 
-/// What the section's forward index says one held entity is, read back out of
-/// its components rather than out of anything the spawn kept.
 fn wire_form(world: &World, entity: Entity) -> GeneratedBlockEntity {
     world.get::<BlockEntity>(entity).expect("a kind").0.clone()
 }
@@ -311,9 +295,6 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
     }
 }
 
-/// The game's occupant reader requires `entity_data`, and a `bees`
-/// element without it fails the list codec outright, so a vanilla reader loads
-/// the hive with no bees at all.
 #[test]
 fn a_saved_occupant_names_the_entity_it_holds() {
     let compound = mcrs_minecraft_nbt::to_nbt_compound(&generated_nest()).expect("the hive writes");

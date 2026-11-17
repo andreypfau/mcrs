@@ -21,8 +21,6 @@ impl<'de> IntoDeserializer<'de, Error> for NbtTag {
     }
 }
 
-/// Integer tags keep their low bits; float tags floor and saturate, since
-/// the game's number tags do not wrap a float.
 macro_rules! numeric_read {
     ($name:ident, $visit:ident, $target:ty, $float:path, $double:path) => {
         fn $name<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -74,7 +72,6 @@ impl<'de> de::Deserializer<'de> for NbtTag {
         }
     }
 
-    /// Any numeric tag, true when non-zero.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self {
             NbtTag::Byte(v) => visitor.visit_bool(v != 0),

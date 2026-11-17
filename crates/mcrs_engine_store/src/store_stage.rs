@@ -9,21 +9,14 @@ use crate::store_input::StoreInput;
 use crate::store_output::StoreOutput;
 use crate::versioned_chunk::{VersionedChunk, keep_latest};
 
-/// The number of cooled chunks that the cache may hold before the stage flushes by itself.
-/// Between timed flushes this bounds the memory of the cache; the bound is a count and not bytes
-/// because each chunk of one kind has a similar size.
 pub(crate) const MAX_UNFLUSHED_CHUNKS: usize = 256;
 
-/// What the stage emits: the answer to a `Get`, or the outcome of a `Flush`. `ok` is false when
-/// the disk did not make every chunk durable. The disk keeps those chunks for the next flush.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum StageOutput<K, C> {
     Answer(StoreOutput<K, C>),
     Flushed { ok: bool },
 }
 
-/// The data layer as a stage: the chunks in memory, by key, over the disk store. It answers the
-/// requests in the order it receives them, so a request sent after a put sees that put.
 pub(crate) struct StoreStage<D: DiskStore> {
     cache: FxHashMap<D::Key, VersionedChunk<D::Chunk>>,
     disk: D,
@@ -39,8 +32,6 @@ impl<D: DiskStore> StoreStage<D> {
         }
     }
 
-    /// Keeps `chunk` as the version of `key` that the disk does not hold yet. It keeps a later
-    /// version that it already holds instead.
     fn put(&mut self, key: D::Key, chunk: VersionedChunk<D::Chunk>) {
         keep_latest(&mut self.cache, key, chunk);
     }
@@ -62,8 +53,6 @@ impl<D: DiskStore> StoreStage<D> {
         }
     }
 
-    /// Hands every cached version to the disk and flushes it. Returns whether every chunk is
-    /// durable. The disk keeps a chunk that it did not make durable for the next flush.
     fn flush(&mut self) -> bool {
         for (key, chunk) in self.cache.drain() {
             self.disk.write(key, chunk);
@@ -119,7 +108,6 @@ mod tests {
     use mcrs_engine_link::{Link, Placement};
     use rustc_hash::FxHashMap;
 
-    /// A disk that holds what it is handed until a flush moves it into `chunks`.
     #[derive(Default)]
     struct MapDisk {
         chunks: FxHashMap<u32, VersionedChunk<&'static str>>,

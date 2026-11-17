@@ -16,8 +16,6 @@ const CENTRE_POST: Aabb = Aabb {
     max: Vec3::new(10.0 / 16.0, 1.0, 10.0 / 16.0),
 };
 
-/// The block states of the smoke test, a bit per state: the lit campfires, and the states whose
-/// collision shape intersects the centre post. Bake one per registry set and lend it to each match.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SmokeTable {
     lit_campfires: FixedBitSet,
@@ -25,7 +23,6 @@ pub struct SmokeTable {
 }
 
 impl SmokeTable {
-    /// Fails when the registry set has no block tags.
     pub fn bake(
         registries: &Registries,
         definitions: &BlockDefinitions,
@@ -62,7 +59,6 @@ impl SmokeTable {
         })
     }
 
-    /// The result of the smoke test at `pos`; `None` when a block that it reads is absent.
     pub(crate) fn smoke<W: LocationView>(&self, world: &W, pos: BlockPos) -> Option<bool> {
         for depth in 1..=DEPTH {
             let state = world.block_state(pos.offset(0, -depth, 0))?;

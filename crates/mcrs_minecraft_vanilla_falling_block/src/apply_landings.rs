@@ -38,7 +38,6 @@ use crate::decide_falls::entity_drops;
 use crate::drop_item::drop_item;
 use crate::falling_block_rules::FallingBlockRules;
 
-/// A landing that its review kept, in the order of the world writes of the tick.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Kept {
     target: BlockPos,
@@ -46,7 +45,6 @@ pub(crate) struct Kept {
     entity: Entity,
 }
 
-/// The state that a landing of this tick places at `pos`.
 #[derive(Clone, Copy, Debug)]
 struct Claim {
     pos: BlockPos,
@@ -54,8 +52,6 @@ struct Claim {
 }
 
 impl Claim {
-    /// The site of a later landing of the tick at the claimed cell. A landing at a cell that is
-    /// not replaceable reads only the state at the cell, so the other values do not matter.
     fn site(self) -> LandingSite {
         LandingSite {
             target: self.state,
@@ -68,10 +64,6 @@ impl Claim {
     }
 }
 
-/// Applies each landing that its review kept, in the order of the target cell and then of the key:
-/// the sets of the block, the drop and the level events, then the removal of the falling block
-/// (FBK-LND-001 to FBK-LND-007). A placement at a cell that a kept landing before it fills lands on
-/// an occupied cell (FBK-LND-002).
 #[expect(
     clippy::too_many_arguments,
     reason = "a system takes each resource that it reads"
@@ -118,10 +110,6 @@ pub(crate) fn apply_landings(
             }
             LandingOutcome::Break | LandingOutcome::Item(Remains::Nothing) => {}
             LandingOutcome::Place(placement) => {
-                // chisle: the block set reaches the viewers after the removal of the entity, in no
-                // stated order, and with no `add_transient_block` (FBK-NET-002), so a viewer can
-                // see a gap for one frame. A block packet in the event stream of the entity, or a
-                // stated order in the muxer, lifts it.
                 let set = |new_state| BlockSetRequest {
                     new_state,
                     ..remove_block(*dimension, *target)

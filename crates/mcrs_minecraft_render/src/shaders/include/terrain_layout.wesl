@@ -1,6 +1,3 @@
-// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
-
 @if(MINIMAL) @group(1) @binding(0) var quads: texture_2d_array<u32>;
 @else @group(1) @binding(0) var<storage, read> quads: array<u32>;
 @if(MINIMAL) @group(1) @binding(1) var vertices: texture_2d_array<u32>;

@@ -20,29 +20,17 @@ use crate::light_link::LightLink;
 use crate::light_output::LightOutput;
 use crate::light_stage::LightStage;
 
-/// The tick-loop steps.
 #[derive(SystemSet, Hash, Eq, PartialEq, Debug, Clone)]
 pub enum LightSet {
-    /// What the light stage published is written into [`BlockLight`] and [`SkyLight`], in the
-    /// schedule [`LightPlugin::publish`] names.
     Publish,
-    /// The edits pushed to the [`LightLink`] and any change to the budgets go to the stage, in
-    /// `Last`.
     Intake,
 }
 
-/// Light computed by a light stage, one per world, at the far end of a [`LightLink`]. The stage
-/// stops when the world drops its [`LightLink`].
 pub struct LightPlugin {
     pub registry: Arc<LightRegistry>,
     pub bounds: LightBounds,
-    /// Clear for a dimension with no sky, so the sky layer never gains a source.
     pub sky: bool,
-    /// The schedule the light lands in. A world whose simulation reads the light names the
-    /// start of its tick, so the light changes only at a tick boundary.
     pub publish: InternedScheduleLabel,
-    /// Where the stage runs. [`Placement::Inline`] lights everything handed to the stage in
-    /// [`LightSet::Publish`], on the thread of the world.
     pub placement: Placement,
 }
 
@@ -64,12 +52,6 @@ impl Plugin for LightPlugin {
     }
 }
 
-/// Writes what the light stage published since the last run into the sections, and answers
-/// the columns whose light settled.
-///
-/// The outputs of the stage are cut into batches by its thread timing, so they are folded into
-/// one latest answer per section and written in section order: what lands, and the messages it
-/// raises, do not depend on how the outputs were cut.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -107,7 +89,6 @@ pub fn publish_light(
     }
 }
 
-/// A later layer replaces an earlier one; a layer the later answer leaves out stays.
 fn fold_light(latest: &mut FxHashMap<u64, PublishedLight>, light: PublishedLight) {
     match latest.get_mut(&light.entity) {
         Some(earlier) => {
@@ -132,9 +113,6 @@ fn write_light(
 ) {
     let section = Entity::from_bits(published.entity);
     match lit.get_mut(section) {
-        // Only a real change should wake whatever rebuilds meshes, and the
-        // epoch already decided that: a layer it hands back is one whose
-        // answer moved, so assigning it wakes nothing that should have slept.
         Ok((mut block, mut sky)) => {
             relit.write(SectionRelit {
                 section,
@@ -148,8 +126,6 @@ fn write_light(
                 sky.0 = light;
             }
         }
-        // A section reaches its entity for the first time with both layers
-        // in hand, because nothing was published for it to match against.
         Err(_) => {
             if let Ok(mut entity) = commands.get_entity(section) {
                 entity.insert((

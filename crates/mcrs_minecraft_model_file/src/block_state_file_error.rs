@@ -1,45 +1,46 @@
 use std::error::Error;
 use std::fmt;
 
-/// Why a blockstate file, or one of its variant keys, is a content error.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BlockStateFileError {
-    /// The file is not JSON of the blockstate shape.
-    Syntax { message: String },
-    /// The file has neither `variants` nor `multipart`.
+    Syntax {
+        message: String,
+    },
     NoParts,
-    /// The `variants` object has no member, so no state has a model: the whole file is rejected.
     EmptyVariants,
-    /// The `multipart` array has no entry, so no state has a model: the whole file is rejected.
     EmptyMultipart,
-    /// A variant key is wrong; the key matches no state.
     VariantKey {
         key: String,
         cause: Box<BlockStateFileError>,
     },
-    /// A term of a variant key has no `=`.
-    TermWithoutEquals { term: String },
-    /// A key or condition names a property the block lacks.
-    UnknownProperty { name: String },
-    /// A key or condition names a value the property lacks.
-    UnknownValue { name: String, value: String },
-    /// `AND` or `OR` stands beside another member of a condition.
+    TermWithoutEquals {
+        term: String,
+    },
+    UnknownProperty {
+        name: String,
+    },
+    UnknownValue {
+        name: String,
+        value: String,
+    },
     CombinatorBesideMember,
-    /// `AND` or `OR` holds no array.
     CombinatorWithoutArray,
-    /// A `when` condition with no member would match each state by accident: the file is rejected.
     EmptyCondition,
-    /// A property test takes one value or alternatives joined by `|`, never an array.
-    TestIsArray { name: String },
-    /// A property test has an empty alternative.
-    EmptyAlternative { name: String, text: String },
-    /// A part with no variant has nothing to choose from: the file is rejected.
+    TestIsArray {
+        name: String,
+    },
+    EmptyAlternative {
+        name: String,
+        text: String,
+    },
     EmptyPart,
-    /// A variant rotation is no quarter turn.
-    Rotation { degrees: i64 },
-    /// A variant weight is below 1.
-    Weight { weight: i64 },
+    Rotation {
+        degrees: i64,
+    },
+    Weight {
+        weight: i64,
+    },
 }
 
 impl fmt::Display for BlockStateFileError {

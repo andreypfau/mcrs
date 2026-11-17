@@ -16,17 +16,12 @@ use crate::tables::BlockTables;
 use crate::tree::decorator::java_set_order;
 use crate::tree::provider::StateProvider;
 
-/// The `waterlogged = false` states and what each becomes with the property
-/// set, as a table over state ids. A state outside it either lacks the property
-/// or already carries it, which are the two cases the reference leaves alone.
 #[derive(Clone, Debug, Default)]
 pub struct Waterlogging {
     pub water: VoxelId,
     pub flooded: HashMap<u16, VoxelId>,
 }
 
-/// One `vegetation_patch` — or, with `waterlogged` set, one
-/// `waterlogged_vegetation_patch` — with every name it carries resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledVegetationPatch {
     pub replaceable: StateMask,
@@ -38,13 +33,10 @@ pub struct CompiledVegetationPatch {
     pub vegetation_chance: f32,
     pub xz_radius: IntProvider,
     pub extra_edge_column_chance: f32,
-    /// The `waterlogged_vegetation_patch` variant of the feature.
     pub waterlogged: bool,
     pub tables: Arc<BlockTables>,
 }
 
-/// `VegetationPatchFeature.place`. `place_vegetation` runs the nested placed
-/// feature — its own modifier chain over the same random source.
 pub fn place_vegetation_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
@@ -73,9 +65,6 @@ fn inwards(surface: CaveSurface) -> IVec3 {
     }
 }
 
-/// The ground columns the patch laid, in `java.util.HashSet` iteration order:
-/// the reference collects them in a set and the vegetation pass draws once per
-/// element as it walks it.
 fn place_ground_patch<W>(
     config: &CompiledVegetationPatch,
     volume: &mut W,
@@ -174,8 +163,6 @@ where
     true
 }
 
-/// `WaterloggedVegetationPatchFeature.isExposed`: a ground block with any of
-/// these five faces unbacked would leak, so it stays ground rather than water.
 const EXPOSED_SIDES: [IVec3; 5] = [
     IVec3::new(0, 0, -1),
     IVec3::new(1, 0, 0),
@@ -249,8 +236,6 @@ mod tests {
         }
     }
 
-    /// Stone up to `FLOOR_TOP`, air above it, over a span wider than any patch
-    /// this fixture places.
     fn flat_world() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.sturdy_up = mask_of([STONE, MOSS, DRY, WET]);
@@ -272,10 +257,6 @@ mod tests {
         )
     }
 
-    /// The two radius draws, one depth draw per column the patch accepts, and
-    /// one vegetation draw per ground block it laid — in that order. With every
-    /// edge column dropped by a zero edge chance, the accepted columns are the
-    /// interior of the rectangle.
     #[test]
     fn a_floor_patch_lays_moss_over_the_interior_and_seeds_it() {
         let config = config();
@@ -330,8 +311,6 @@ mod tests {
         );
     }
 
-    /// A non-zero edge chance spends one float on every edge column that is not
-    /// a corner, before the column is scanned at all.
     #[test]
     fn the_edge_columns_each_cost_one_draw() {
         let mut config = config();
@@ -375,8 +354,6 @@ mod tests {
         );
     }
 
-    /// A column whose ground is not replaceable places nothing and contributes
-    /// no vegetation roll, but still spends its depth draw.
     #[test]
     fn a_floor_the_patch_may_not_replace_stays_bare() {
         let mut config = config();
@@ -401,9 +378,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Ground the patch would lay on top of its own block is left alone: the
-    /// provider is still sampled, the write is not made, and the column does not
-    /// descend, so a second patch over the first writes nothing.
     #[test]
     fn ground_that_is_already_the_patch_block_is_not_rewritten() {
         let config = config();
@@ -424,9 +398,6 @@ mod tests {
         assert!(volume.writes.is_empty(), "{:?}", volume.writes);
     }
 
-    /// The waterlogged variant turns every ground block whose five faces are
-    /// backed into water, drops the exposed ones from the set, and sets the
-    /// property on whatever the vegetation left in the water block.
     #[test]
     fn a_waterlogged_patch_floods_its_enclosed_ground() {
         let mut config = config();
@@ -483,7 +454,6 @@ mod tests {
         );
     }
 
-    /// A ceiling patch scans upwards and hangs its ground under the roof.
     #[test]
     fn a_ceiling_patch_climbs_to_the_roof() {
         let mut config = config();

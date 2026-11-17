@@ -1,9 +1,6 @@
 use crate::program::{BinaryOp, Node, NodeId};
 use mcrs_minecraft_noise::interval::Interval;
 
-/// Whether the nodes behind one guarded input are needed anywhere in the column
-/// about to be filled. Every test reads one already-evaluated run and answers
-/// for the whole run at once.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum GuardTest {
     InRange {
@@ -17,14 +14,17 @@ pub(crate) enum GuardTest {
         selector: NodeId,
         arm: u32,
     },
-    /// `min`: the right operand is read only where the left rises above the
-    /// lowest value the right can take.
-    LeftAbove { left: NodeId, limit: f32 },
-    /// `max`, mirrored.
-    LeftBelow { left: NodeId, limit: f32 },
-    /// `mul`: a zero left annihilates a right whose sign and finiteness are
-    /// known at compile time.
-    LeftNonZero { left: NodeId },
+    LeftAbove {
+        left: NodeId,
+        limit: f32,
+    },
+    LeftBelow {
+        left: NodeId,
+        limit: f32,
+    },
+    LeftNonZero {
+        left: NodeId,
+    },
 }
 
 impl GuardTest {
@@ -38,9 +38,6 @@ impl GuardTest {
     }
 }
 
-/// What to write into a guarded site whose own evaluation would have read the
-/// operand that was skipped. The selection kinds need none: they read the arm
-/// they chose and never the other.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Fallback {
     pub site: NodeId,
@@ -50,11 +47,9 @@ pub(crate) struct Fallback {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Step {
-    /// Evaluate the order up to `end`.
-    Eval { end: u32 },
-    /// Take the next step when `test` holds; otherwise resume at `skip_to` in
-    /// the order and `next_step` in the schedule, which is past every step the
-    /// guarded range contains.
+    Eval {
+        end: u32,
+    },
     Guard {
         test: GuardTest,
         fallback: Option<Fallback>,
@@ -82,9 +77,6 @@ struct Cone {
     member: Vec<bool>,
 }
 
-/// Reorders `column_order` so every guarded input's exclusive cone is one
-/// contiguous run, and returns the schedule that jumps over a run the column
-/// does not need.
 pub(crate) fn build(
     nodes: &[Node],
     ranges: &[Interval],
@@ -132,9 +124,6 @@ pub(crate) fn build(
         }
     }
 
-    // Disjoint or nested is what makes a contiguous run correct, and the
-    // argument runs through edge dominance rather than anything locally
-    // visible; a violation would silently drop live nodes out of the schedule.
     for (a, x) in cones.iter().enumerate() {
         for y in cones.iter().skip(a + 1) {
             if !x.nodes.iter().any(|&n| is(&y.member, n)) {
@@ -338,8 +327,6 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
         }),
         Node::Binary { op, a, b } => {
             let (left, right) = (*a, ranges.get(*b as usize).copied()?);
-            // A zero times a right operand of known sign is that same zero, sign
-            // included; an infinite right would make it a NaN instead.
             let (test, negate) = match op {
                 BinaryOp::Min if right.min().is_finite() => (
                     GuardTest::LeftAbove {
@@ -391,7 +378,6 @@ fn mark(set: &mut [bool], id: NodeId) {
     }
 }
 
-/// The nodes up to and including `last`, last first.
 fn walk_down(nodes: &[Node], last: NodeId) -> impl Iterator<Item = (usize, &Node)> {
     nodes
         .get(..=last as usize)
@@ -412,9 +398,6 @@ fn reachable(nodes: &[Node], start: NodeId) -> Vec<bool> {
     seen
 }
 
-/// What the fill still reaches when the guarded inputs of `site` are cut: a node
-/// left out of this is one no other consumer, no other arm and no root can get
-/// to except through the arm being guarded.
 fn reachable_past_arms(
     nodes: &[Node],
     target: NodeId,

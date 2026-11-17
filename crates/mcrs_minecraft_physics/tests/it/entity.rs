@@ -1,4 +1,3 @@
-//! Kernel and property tests of the tick of server-simulated entities.
 #![expect(
     clippy::indexing_slicing,
     reason = "the generators index small fixed tables"
@@ -147,8 +146,6 @@ fn a_viewer_neither_frees_an_item_from_a_block_nor_lands_a_falling_block() {
     }
 }
 
-/// The fall distance after one tick in which the entity, with a fall distance of 5, falls into
-/// `block`, and the drop of that tick.
 fn fall_into(row: &MotionRow, living: bool, block: BlockStateId) -> (f64, f64) {
     let mut fixture = TestFixture::new();
     floor(&mut fixture.world, fixture.blocks.stone);
@@ -160,8 +157,6 @@ fn fall_into(row: &MotionRow, living: bool, block: BlockStateId) -> (f64, f64) {
     (state.body.fall_distance, start.y - state.body.position.y)
 }
 
-/// E53: an item with `Motion` `[0.1, 0, 0.07]` on stone has both horizontal components in
-/// `[-1.0E-6, 1.0E-6]` first at tick 67; from there they are 0 and the item rests.
 #[test]
 fn dev_014_an_item_on_the_ground_stops_and_rests() {
     let mut fixture = TestFixture::new();
@@ -250,8 +245,6 @@ fn fall_004_the_feet_reset_the_fall_when_the_centre_stays_above_the_block() {
     );
 }
 
-/// A table can give a state an inside effect or a fall reset with no inside action; the section
-/// masks must still send the box through the inside step.
 #[test]
 fn fall_004_a_block_acts_inside_a_masked_section_without_an_inside_action() {
     let mut builder = CollisionTableBuilder::new();
@@ -383,8 +376,6 @@ fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
     }
 }
 
-/// A random scene: a floor of a random state with random blocks on it, and an entity of a random
-/// category with a random start state.
 fn scene(fixture: &mut TestFixture, rng: &mut TestRng) -> (MotionRow, EntityState) {
     let mut world = TestWorld::new();
     let floors = [

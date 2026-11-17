@@ -4,7 +4,6 @@ use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 use crate::access::Unavailable;
 use crate::block::{BlockVolume, SectionBlocks};
 
-/// Per-block reads that look a section up once and keep it while the reads stay in it.
 pub struct Cursor<'v, V: BlockVolume + ?Sized + 'v> {
     volume: &'v V,
     last: Option<(SectionPos, Result<V::Section<'v>, Unavailable>)>,

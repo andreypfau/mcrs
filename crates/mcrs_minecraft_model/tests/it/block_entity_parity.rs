@@ -1,6 +1,3 @@
-//! The baked faces of each static block entity agree with the faces and the placements that
-//! the reference reports in the oracle artefacts.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
@@ -21,7 +18,6 @@ const PLACEMENT_TOLERANCE: f64 = 1e-6;
 struct ExpectedFace {
     texture: String,
     dye: Option<u8>,
-    /// Each corner in block space with its texture coordinate in sprite space.
     corners: Vec<(DVec3, [f64; 2])>,
     normal: DVec3,
     back_faces: bool,
@@ -189,8 +185,6 @@ fn matches(quad: &ShapeQuad<'_>, face: &ExpectedFace) -> Option<f64> {
     all_found.then(|| (p2 - p0).cross(p3 - p1).dot(face.normal))
 }
 
-/// Takes from `unused` the quads that draw `face`: one quad that faces the artefact normal,
-/// and a second one that faces away from it when the face shows from both sides.
 fn take_quads(
     quads: &[ShapeQuad<'_>],
     unused: &mut Vec<usize>,

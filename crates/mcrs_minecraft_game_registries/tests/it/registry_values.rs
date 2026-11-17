@@ -148,8 +148,6 @@ fn walk(ours: &NbtTag, game: &NbtTag) -> Vec<Difference> {
 const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are replaced]";
 const SECTION_OTHERS: &str = "[other compared registries]";
 
-/// The vanilla pack's entries of `registry` as the server sends them: a client that knows the
-/// vanilla pack is sent those entries without data.
 fn vanilla_entries(registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let sent = |known| {
         sent_by(test_registries(), known)

@@ -1,8 +1,3 @@
-//! Entity animation on the CPU: the clips of animation files, the play list and the scripts of
-//! a client entity, and the bone pose of each frame.
-
-// std: mcrs_minecraft_pack_file
-
 mod channel;
 mod clip;
 mod clip_library;

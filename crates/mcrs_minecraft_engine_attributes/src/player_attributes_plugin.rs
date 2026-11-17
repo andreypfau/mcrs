@@ -3,8 +3,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::{AttributeBases, AttributeInstances};
 
-/// The attribute instances of the players of a dimension world: each [`Player`] requires an
-/// [`AttributeInstances`] with the bases of the type `player`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerAttributesPlugin;
 

@@ -1,6 +1,3 @@
-//! The observers of the clientbound packets that feed the chat: the log, the overlay, the
-//! command tree, the suggestions and the player list.
-
 use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
@@ -23,10 +20,6 @@ use crate::chat::{
     OnlinePlayers,
 };
 
-/// The registries whose identifiers the client can name, so their arguments parse on the
-/// client.
-// A fixed list; an argument of another registry reads as a type without a grammar and
-// asks the server. Registry keys that are not static lift it.
 const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_biome::registry_keys::BIOME.location(),
     mcrs_minecraft_entity::registry_keys::STRUCTURE.location(),
@@ -95,8 +88,6 @@ pub(crate) fn on_suggestions(
         .reply(reply.id.0, start, length, &reply.suggestions, &cx);
 }
 
-/// A text the server sent, or `None` when it does not decode, as when the packet around it does
-/// not.
 fn server_text(raw: &RawText<'_>) -> Option<Text> {
     raw.to_text().ok()?.map(&ItemHoverMap).ok()
 }
@@ -132,7 +123,6 @@ pub(crate) fn on_action_bar(
     }
 }
 
-/// The `chat` decoration of a chat type around a content.
 fn decorate(
     registries: Option<&Registries>,
     chat_type: u32,
@@ -231,7 +221,6 @@ pub(crate) fn on_player_chat(
     });
 }
 
-/// The body with each hidden code unit as a dark grey `#`.
 fn filtered(body: &str, mask: &FilterMask) -> Text {
     let mut text = Text::text("");
     let mut run = String::new();
@@ -261,7 +250,6 @@ fn filtered(body: &str, mask: &FilterMask) -> Text {
                 flush(&mut run, hidden_run, &mut text);
                 hidden_run = hidden;
             }
-            // A pair split by the mask keeps a lone surrogate, which a `str` cannot hold.
             run.push(match (hidden, hidden_units) {
                 (true, _) => '#',
                 (false, 0) if unit == index => c,

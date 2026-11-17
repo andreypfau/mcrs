@@ -1,9 +1,3 @@
-//! The command engine: the command tree, the registration of commands and their handlers, and
-//! the run of the command lines of the players inside the tick of each dimension world.
-//! It registers no command and knows no argument type: the application composes a
-//! [`CommandSet`].
-
-// std: bevy_ecs needs it.
 mod answer_suggestion;
 mod app_commands;
 mod call;

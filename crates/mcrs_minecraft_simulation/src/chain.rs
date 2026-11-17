@@ -281,8 +281,6 @@ where
             ChainLimit::Unlimited => (false, false),
         };
         chain.count = chain.count.saturating_add(1);
-        // Keyed on the count, not a per-piece flag: a continuation seeded past the limit
-        // belongs to a chain whose sender already reported the overflow.
         if first_over {
             bump(&mut self.out.report.chain_overflows);
             self.out.report.first_chain_overflow.get_or_insert(pos);
@@ -293,8 +291,6 @@ where
     fn admit(&mut self, request: UpdateRequest<K>) {
         let access = self.volume.access(SectionPos::from(request.pos()));
         match (access, request) {
-            // An around request's position is its source, not a block it updates; with no
-            // owner to send it to, run it here and let each neighbour route by its own access.
             (Access::Write, _)
             | (Access::Unloaded | Access::Outside, UpdateRequest::Around { .. }) => {
                 self.shard.chain.added.push(request);

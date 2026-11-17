@@ -7,10 +7,6 @@ use bevy::tasks::futures;
 use bevy::tasks::{IoTaskPool, Task, block_on};
 use mcrs_minecraft_client_options::ClientOptions;
 
-/// The file the options are saved to. At most one write runs at a time, so a later value never
-/// lands before an earlier one; a change during a write is owed and saved after it. A write that
-/// failed is tried again when the client stops and not on each frame: its cause seldom passes
-/// (MENU-DEV-005, MENU-DEV-006).
 #[derive(Resource)]
 struct OptionsFile {
     path: PathBuf,
@@ -19,7 +15,6 @@ struct OptionsFile {
     failed: bool,
 }
 
-/// Writes the options to `path` as JSON each time they change after start-up.
 pub(crate) fn save_options_to(app: &mut App, path: PathBuf) {
     app.insert_resource(OptionsFile {
         path,
@@ -45,8 +40,6 @@ fn owe_save(mut file: ResMut<OptionsFile>) {
     file.owed = true;
 }
 
-/// Takes the outcome of a write that ended. The held left button does not delay it, so the stop
-/// of the client knows of each failure that came before it.
 fn collect_write(mut file: ResMut<OptionsFile>) {
     if let Some(write) = &mut file.write
         && let Some(saved) = futures::check_ready(write)
@@ -56,7 +49,6 @@ fn collect_write(mut file: ResMut<OptionsFile>) {
     }
 }
 
-/// A slider drag holds the left button; its steps are saved once, after the release.
 fn save_pending(file: Res<OptionsFile>, buttons: Option<Res<ButtonInput<MouseButton>>>) -> bool {
     file.owed
         && file.write.is_none()
@@ -73,8 +65,6 @@ fn save_options(options: Res<ClientOptions>, mut file: ResMut<OptionsFile>) {
 }
 
 fn save_options_at_exit(options: Res<ClientOptions>, mut file: ResMut<OptionsFile>) {
-    // The client ends after this frame, so a write that still runs may block it. If it fails,
-    // its cause has no time to pass before the end, so it is not tried again.
     if let Some(write) = file.write.take() {
         let _ = block_on(write);
         file.failed = false;
@@ -102,9 +92,6 @@ fn write_options(path: &Path, text: &str) -> io::Result<()> {
     })
 }
 
-/// Writes `text` to a file beside `path`, flushes it to the disk and renames it over `path`, so
-/// a write that a crash or a power loss cuts short keeps the last saved options: the client
-/// refuses to start on an options file it cannot read (MENU-DEV-007).
 fn replace_file(path: &Path, text: &str) -> io::Result<()> {
     use io::Write as _;
 
@@ -207,7 +194,6 @@ mod tests {
 
         app.world_mut().resource_mut::<ClientOptions>().fov = 90;
         app.update();
-        // The held button must not hide the failure from the stop.
         app.world_mut()
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Left);

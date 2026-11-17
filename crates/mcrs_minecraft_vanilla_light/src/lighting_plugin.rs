@@ -10,10 +10,6 @@ use mcrs_minecraft_light_engine::level::LightBounds;
 
 use crate::dim_light_plugin::DimLightPlugin;
 
-/// Light propagation in every dimension. Without it every column goes to the client at full
-/// sky light, and the world loads without the propagation cost.
-///
-/// The host inserts [`Blocks`] before `Startup`.
 pub struct LightingPlugin;
 
 impl Plugin for LightingPlugin {

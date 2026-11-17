@@ -1,6 +1,3 @@
-// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
-
 use std::num::NonZeroU64;
 
 use bevy::render::render_resource::binding_types::{

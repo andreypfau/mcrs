@@ -1,4 +1,3 @@
-//! Positions and block state ids of a voxel world made of 16³ sections.
 #![no_std]
 
 mod block_pos;

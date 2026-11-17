@@ -24,8 +24,6 @@ fn pure(text: &str) -> PureProgram {
     }
 }
 
-/// Every operator, function and control form, so that naga sees each WGSL call that the lowering
-/// can write.
 const EVERY_FORM: [&str; 12] = [
     "-q.qa + !q.qb - (q.qa * q.qb) / v.a",
     "(q.qa < q.qb) + (q.qa <= q.qb) + (q.qa > q.qb) + (q.qa >= q.qb) + (q.qa == q.qb) + (q.qa != q.qb)",

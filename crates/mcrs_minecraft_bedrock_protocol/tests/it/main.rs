@@ -41,7 +41,6 @@ mod counting_allocator {
     #[global_allocator]
     static GLOBAL: CountingAllocator = CountingAllocator;
 
-    /// Returns the bytes that `run` allocates on this thread, with its result.
     pub fn allocated_by<T>(run: impl FnOnce() -> T) -> (usize, T) {
         let before = ALLOCATED.with(Cell::get);
         let result = run();

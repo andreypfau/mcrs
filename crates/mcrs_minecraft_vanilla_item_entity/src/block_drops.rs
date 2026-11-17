@@ -13,8 +13,6 @@ use crate::Form;
 use crate::Launch;
 use crate::item_entity_commands_ext::ItemEntityCommandsExt;
 
-/// Makes each item that a block left an item entity, as the row "drop of a block" of IEN-SPN-001
-/// states.
 pub(crate) fn launch_block_drops(mut dropped: MessageReader<ItemDropped>, mut commands: Commands) {
     for drop in dropped.read() {
         let Some(count) = Count::new(drop.stack.count) else {

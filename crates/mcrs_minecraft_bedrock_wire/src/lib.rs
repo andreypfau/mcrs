@@ -1,4 +1,3 @@
-//! Bedrock Edition wire encoding: varints, little-endian primitives, optional values, byte arrays and the packet header.
 #![no_std]
 
 extern crate alloc;

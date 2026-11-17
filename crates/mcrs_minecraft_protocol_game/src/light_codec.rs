@@ -2,8 +2,6 @@ use crate::chunk::{LightChunk, LightData};
 use mcrs_minecraft_protocol::Result;
 use mcrs_minecraft_protocol::wire::{Context, bail, ensure};
 
-/// What one wire row says about a layer. A row absent from both masks is not
-/// "dark": vanilla means "unchanged", and a delta update leans on that.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(
     clippy::large_enum_variant,
@@ -20,8 +18,6 @@ pub struct ColumnLight {
     pub block: Vec<RowLight>,
 }
 
-/// The inverse of `pack_chunk` over a whole column: `rows` is the padded row
-/// count, one more than the dimension's section count at each end.
 pub fn unpack_light_data(data: &LightData<'_>, rows: usize) -> Result<ColumnLight> {
     Ok(ColumnLight {
         sky: unpack_layer(

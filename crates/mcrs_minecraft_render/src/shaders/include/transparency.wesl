@@ -9,7 +9,6 @@ fn sky_texel(pixel: vec2<i32>) -> vec4<f32> {
     return textureLoad(sky_image, pixel, 0);
 }
 
-/// `cl` and `ca` of the cloud image in image values. The image holds them as the target blends.
 fn cloud_at(pixel: vec2<i32>) -> vec4<f32> {
     let stored = textureLoad(cloud_image, pixel, 0);
     if (stored.a <= 0.0) {
@@ -22,13 +21,11 @@ fn cloud_depth_at(pixel: vec2<i32>) -> f32 {
     return depth_at(cloud_depth, cloud_nearest, pixel);
 }
 
-/// The fog of a face at `pixel` and the reverse-Z `depth`, where a smaller depth is farther.
 fn transparent_fog(rgb: vec3<f32>, pixel: vec2<i32>, depth: f32, values: vec2<f32>, color: vec3<f32>) -> vec3<f32> {
     let sky = sky_texel(pixel).rgb;
     return improved_fog_mix(rgb, values, color, sky, cloud_at(pixel), cloud_depth_at(pixel) <= depth);
 }
 
-/// The cloud image over the image value `rgb` of the pixel at the reverse-Z `depth`.
 fn with_clouds(rgb: vec3<f32>, pixel: vec2<i32>, depth: f32) -> vec3<f32> {
     return cloud_over(rgb, cloud_at(pixel), cloud_depth_at(pixel), depth);
 }

@@ -39,7 +39,6 @@ use InstanceChange::*;
 use ModifierOperation::*;
 use Outcome::*;
 
-/// The set of every living type and luck, each attribute with its default base.
 const BASES: AttributeBases = AttributeBases::new(&[Attribute::Luck], &[]);
 
 const CASES: &[Case] = &[

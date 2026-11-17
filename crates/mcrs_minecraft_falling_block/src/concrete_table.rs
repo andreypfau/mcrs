@@ -7,16 +7,12 @@ use crate::concrete_pairs_error::ConcretePairsError;
 use crate::concrete_pairs_error::ConcretePairsErrorKind;
 use crate::pack_concrete_pairs::PackConcretePairs;
 
-/// The concrete of each powder block after the merge of the packs, indexed by block.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConcreteTable {
     concrete: Box<[Option<Id<Block>>]>,
 }
 
 impl ConcreteTable {
-    /// Merges the pairs of `packs` in their load order and resolves them against `definitions`
-    /// (FBK-TRG-002). A pack with `replace` discards the pairs before it; a later pair of a key
-    /// replaces the earlier one. Every pair of every pack must name two different blocks.
     pub fn load(
         packs: &[PackConcretePairs],
         definitions: &BlockDefinitions,
@@ -50,7 +46,6 @@ impl ConcreteTable {
         Ok(Self { concrete })
     }
 
-    /// The concrete of `powder`, or `None` when `powder` is not a concrete powder.
     #[must_use]
     pub fn concrete(&self, powder: Id<Block>) -> Option<Id<Block>> {
         self.concrete.get(powder.index()).copied().flatten()

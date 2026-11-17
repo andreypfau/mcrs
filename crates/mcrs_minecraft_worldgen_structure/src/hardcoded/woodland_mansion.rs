@@ -12,7 +12,6 @@ use crate::frozen::FrozenStructures;
 use crate::piece::{Piece, WoodlandMansionPiece};
 use crate::site::{Context, Site, Stub};
 
-/// A mansion template's name, checked when the crate compiles.
 macro_rules! mansion {
     ($path:literal) => {
         const {
@@ -137,7 +136,6 @@ const ROOM_CORRIDOR: i32 = 1 << 23;
 const ROOM_TYPE_MASK: i32 = 0xF_0000;
 const ROOM_ID_MASK: i32 = 0xFFFF;
 
-/// `Direction.from2DDataValue` of a `nextInt(4)` draw.
 fn from_2d_data(value: i32) -> Direction {
     match value {
         0 => Direction::South,
@@ -152,7 +150,6 @@ fn step(direction: Direction) -> (i32, i32) {
     (normal.x, normal.z)
 }
 
-/// `SimpleGrid`: an 11×11 plan whose cells outside read as blocked.
 #[derive(Clone)]
 struct Grid {
     cells: [[i32; SIZE]; SIZE],
@@ -564,7 +561,6 @@ const ROOMS_2X2_B: &[ResourceLocation<'static>] = &[
     mansion!("2x2_b5"),
 ];
 
-/// The three floors' room pools; the second and third share one.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FloorRooms {
     First,
@@ -906,7 +902,6 @@ impl Placer<'_> {
         }
     }
 
-    /// The world position of grid cell `(x, y)` from `origin`.
     fn grid_pos(&self, origin: IVec3, rotation: Rotation, x: i32, y: i32) -> IVec3 {
         let pos = rotation
             .rotate(Direction::South)

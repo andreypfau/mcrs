@@ -8,7 +8,6 @@ interface Props { file: string; from?: string; to?: string; title?: string }
 const { file, from, to, title, ...rest } = Astro.props;
 if (from === undefined && to !== undefined) throw new Error(`Example ${file}: "to" needs "from"`);
 if ("lines" in rest) throw new Error(`Example: "lines" is gone, pass from="..." (and to="...") with text from ${file}`);
-// docs-site lives one level below the repository root; the build runs from docs-site.
 const full = path.resolve(process.cwd(), "..", file);
 if (!existsSync(full)) throw new Error(`Example: file not found in repository: ${file}`);
 const text = readFileSync(full, "utf8");

@@ -3,8 +3,6 @@ use crate::GaussianBank;
 const F32_MULTIPLIER: f32 = 1.0 / (1u64 << 24) as f32;
 const F64_MULTIPLIER: f64 = 1.0 / (1u64 << 53) as f64;
 
-/// `BitRandomSource`: every draw assembled from `next(bits)` the way
-/// `java.util.Random` assembles it, whatever produces the bits.
 pub(crate) trait BitSource {
     fn next_bits(&mut self, bits: usize) -> u64;
 
@@ -14,8 +12,6 @@ pub(crate) trait BitSource {
         (self.next_bits(32) << 32) + self.next_bits(32)
     }
 
-    /// `nextLong`: both 32-bit halves are sign-extended before combining, so
-    /// a lower half with its high bit set comes out 2^32 below `bits_u64`.
     fn bits_java_long(&mut self) -> i64 {
         let hi = self.next_bits(32) as i32 as i64;
         let lo = self.next_bits(32) as i32 as i64;
@@ -46,9 +42,6 @@ pub(crate) trait BitSource {
         self.next_bits(24) as f32 * F32_MULTIPLIER
     }
 
-    /// `BitRandomSource.DOUBLE_MULTIPLIER` is declared from the float literal
-    /// `1.110223E-16F`, which rounds exactly onto `2^-53`, so the modern source and
-    /// `java.util.Random` agree bit for bit here.
     fn bits_f64(&mut self) -> f64 {
         let hi = self.next_bits(26);
         let lo = self.next_bits(27);

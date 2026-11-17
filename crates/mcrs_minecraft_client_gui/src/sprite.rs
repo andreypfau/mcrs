@@ -1,5 +1,3 @@
-//! GUI sprites and how their `.mcmeta` scaling fills a target.
-
 use std::fmt;
 
 use bevy::math::{IRect, IVec2, Rect};
@@ -9,7 +7,6 @@ use serde::{Deserialize, Deserializer};
 
 use crate::scene::GuiQuad;
 
-/// The widths of the edges of a nine-slice sprite, in texels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub struct Border {
     pub left: i32,
@@ -19,7 +16,6 @@ pub struct Border {
 }
 
 impl Border {
-    /// The same width on every edge.
     pub fn splat(border: i32) -> Self {
         Self {
             left: border,
@@ -30,7 +26,6 @@ impl Border {
     }
 }
 
-/// How a GUI sprite fills a target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scaling {
     Stretch,
@@ -77,7 +72,6 @@ enum ScalingRepr {
     },
 }
 
-/// A `nine_slice` border: one integer for every side, or an object with each side.
 struct BorderField(Border);
 
 impl<'de> Deserialize<'de> for BorderField {
@@ -117,8 +111,6 @@ fn size(width: u32, height: u32) -> Result<IVec2, String> {
 }
 
 impl Scaling {
-    /// The scaling in the sprite metadata, or `stretch` without one. An error
-    /// stops the load of this sprite only.
     pub fn read(mcmeta: Option<&[u8]>) -> Result<Self, String> {
         let Some(bytes) = mcmeta else {
             return Ok(Self::Stretch);
@@ -159,7 +151,6 @@ impl Scaling {
     }
 }
 
-/// A GUI sprite placed in the GUI atlas, with its scaling.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GuiSprite {
     texels: Rect,
@@ -167,7 +158,6 @@ pub struct GuiSprite {
 }
 
 impl GuiSprite {
-    /// A sprite at `texels` in the GUI atlas.
     pub fn new(texels: IRect, scaling: Scaling) -> Self {
         Self {
             texels: texels.as_rect(),
@@ -175,7 +165,6 @@ impl GuiSprite {
         }
     }
 
-    /// Fills `target` by the scaling.
     pub fn draw(&self, target: IRect, out: &mut Vec<GuiQuad>) {
         match self.scaling {
             Scaling::Stretch => {

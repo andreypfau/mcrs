@@ -15,11 +15,6 @@ use crate::forget_removed_rows::{any_row_attributes, forget_removed_rows};
 use crate::project_row_motion::project_row_motion;
 use crate::row_attributes::RowAttributes;
 
-/// The attribute instances of the mob rows of a dimension world: [`RowAttributes`] for the rows
-/// of the [`RowStore<M>`] with the mob column `M`. The edits of a row apply in
-/// [`AttributeEdits`], which runs after [`RowMoves`] and before [`MobPublish`] and also writes
-/// the changed motion values of a row into its row; the entry of a row leaves in the tick of its
-/// removal.
 #[derive(Debug)]
 pub struct MobAttributesPlugin<M> {
     column: PhantomData<fn() -> M>,

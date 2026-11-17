@@ -26,7 +26,6 @@ fn at(holder: Entity, index: u16) -> SlotRef {
     SlotRef { holder, index }
 }
 
-/// Each case starts from three slots with five plain items in slot 0.
 const CASES: [Case; 6] = [
     Case {
         name: "put_at",

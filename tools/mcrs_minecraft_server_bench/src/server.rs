@@ -7,8 +7,6 @@ use mcrs_minecraft_bench_support::{
 
 const LINUX_CLOCK_TICKS_PER_SECOND: f64 = 100.0;
 
-/// The resident memory in bytes and the CPU time in seconds of `root` and its descendants, read
-/// from `/proc`; `None` where there is no `/proc`.
 pub fn process_tree(root: u32) -> Option<Usage> {
     let mut stats: Vec<ProcStat> = Vec::new();
     for entry in fs::read_dir("/proc").ok()?.flatten() {
@@ -53,7 +51,6 @@ struct ProcStat {
 
 fn proc_stat(pid: u32) -> Option<ProcStat> {
     let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    // The command name may hold spaces and parentheses; the fields after it do not.
     let fields: Vec<&str> = stat.get(stat.rfind(')')? + 2..)?.split(' ').collect();
     let field = |index: usize| fields.get(index)?.parse::<u64>().ok();
     let status = fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
@@ -70,8 +67,6 @@ fn proc_stat(pid: u32) -> Option<ProcStat> {
     })
 }
 
-/// The tick windows that close inside `from..until`: for vanilla the answers to `/tick query`,
-/// for mcrs the logged ticks cut into windows of the same size.
 pub fn windows(kind: Kind, log: &[Line], from: Instant, until: Instant) -> Vec<TickWindow> {
     let inside = log
         .iter()

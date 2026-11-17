@@ -7,15 +7,12 @@ use crate::clip::Clip;
 use crate::clip_library::ClipLibrary;
 use crate::entity_query::EntityQuery;
 
-/// What an element of the `animate` list plays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AnimateTarget {
-    /// The index of the clip in [`Rig::clips`].
     Clip(usize),
 }
 
-/// An element of the `animate` list with its compiled weight.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnimateEntry {
     pub short_name: String,
@@ -23,14 +20,12 @@ pub struct AnimateEntry {
     pub target: AnimateTarget,
 }
 
-/// A query slot that the query source fills.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct HostQuery {
     pub slot: QuerySlot,
     pub query: EntityQuery,
 }
 
-/// The query slots of a rig.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct QueryBindings {
     pub host: Vec<HostQuery>,
@@ -40,45 +35,35 @@ pub(crate) struct QueryBindings {
     pub count: usize,
 }
 
-/// When the client runs a script.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Evaluation {
     EveryFrame,
-    /// Only when one of these inputs changed since the last run; otherwise the run would give
-    /// the same result and the same variables.
     OnChange {
         queries: Vec<QuerySlot>,
         variables: Vec<VariableSlot>,
     },
 }
 
-/// A script of the client entity and the frames in which it runs.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Script {
     pub expressions: Vec<Expression>,
     pub evaluation: Evaluation,
 }
 
-/// The animation of one client entity, compiled: its clips, its play list and its scripts, with
-/// one variable layout and one set of query slots for every expression.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rig {
     pub identifier: String,
-    /// The bone names that the clips animate, in lower case.
     pub bones: Vec<String>,
     pub clips: Vec<Clip>,
     pub animate: Vec<AnimateEntry>,
     pub(crate) initialize: Option<Expression>,
     pub(crate) pre_animation: Option<Script>,
-    /// `scale`, `scalex`, `scaley` and `scalez`.
     pub(crate) scale: Script,
     pub(crate) layout: VariableLayout,
     pub(crate) queries: QueryBindings,
 }
 
 impl Rig {
-    /// Compiles the client entity with the clips of `library`. A problem gives a diagnostic and
-    /// the default of the field.
     pub fn compile(
         definition: &ClientEntityFile,
         library: &ClipLibrary,
@@ -152,7 +137,6 @@ impl Rig {
         }
     }
 
-    /// The index of a bone name in [`Rig::bones`], without regard to letter case.
     #[must_use]
     pub fn bone(&self, name: &str) -> Option<usize> {
         self.bones
@@ -160,7 +144,6 @@ impl Rig {
             .position(|bone| bone.eq_ignore_ascii_case(name))
     }
 
-    /// The index of an element of the `animate` list by its short name.
     #[must_use]
     pub fn entry(&self, short_name: &str) -> Option<usize> {
         self.animate
@@ -168,14 +151,12 @@ impl Rig {
             .position(|entry| entry.short_name.eq_ignore_ascii_case(short_name))
     }
 
-    /// The variable layout that each entity of this rig stores its variables in.
     #[must_use]
     pub fn layout(&self) -> &VariableLayout {
         &self.layout
     }
 }
 
-/// The clips and bone names that a rig compiled so far.
 struct Resolved<'a> {
     clips: &'a mut Vec<Clip>,
     bones: &'a mut Vec<String>,
@@ -250,9 +231,6 @@ fn bindings(registry: &QueryRegistry) -> QueryBindings {
 }
 
 impl Script {
-    /// A script can skip a frame when no input changed, when it does not read a variable that
-    /// it writes, and when no other expression writes its variables: then a skipped run is not
-    /// visible.
     fn new(compiler: &FieldCompiler, expressions: Vec<Expression>) -> Self {
         let mut accesses = Accesses::default();
         for expression in &expressions {

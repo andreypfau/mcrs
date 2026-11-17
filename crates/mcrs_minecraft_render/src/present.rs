@@ -19,7 +19,6 @@ pub(crate) fn present_bind_group(
     )
 }
 
-/// Copies the world image into the view target, the one place its image values are encoded.
 pub(crate) fn present(
     view: ViewQuery<&ViewTarget>,
     frame: Option<Res<DeferredFrame>>,

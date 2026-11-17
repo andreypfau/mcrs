@@ -5,44 +5,23 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::Direction;
 use mcrs_voxel::BlockPos;
 
-/// Which shape a state's block takes. A block that answers `None` overrides
-/// nothing and takes the default `canSurvive`, which is true.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurviveFamily {
-    /// `MushroomBlock`: the light requirement is met wherever features run,
-    /// because the light engine has not run yet and the raw brightness is 0.
-    /// The floor has to support the centre of its top face.
     Mushroom,
-    /// A snow layer: a full top face or a full stack of layers below, unless
-    /// the tags say otherwise.
     SnowLayer,
-    /// Stands on the face its `facing` points away from, which has to be
-    /// sturdy.
     OnFacingFace,
-    /// `CarpetBlock`, and `MossyCarpetBlock` in its base form.
     OnAnythingBelow,
-    /// `LeafLitterBlock`, and `FireBlock` reduced to its sturdy-floor arm.
     OnSturdyFaceBelow,
-    /// `SeaPickleBlock`: the block below only has to present some upward face.
     SeaPickle,
-    /// `SporeBlossomBlock`: hangs from a ceiling that supports its centre, out
-    /// of water.
     SporeBlossom,
     LilyPad,
     SugarCane,
     Cactus,
-    /// `SeagrassBlock`: a sturdy face below outside `cannot_support_seagrass`.
     Seagrass,
-    /// `TallSeagrassBlock`: the same, and its own square must be water.
     TallSeagrass,
-    /// `SmallDripleafBlock`: `supports_small_dripleaf` below, or vegetation
-    /// soil below when its own square is water.
     SmallDripleaf,
 }
 
-/// A block whose `canSurvive` is one tag carries that as the
-/// `minecraft:placement_filter` component of its definition instead and has no
-/// family here.
 pub fn family_of(block: &str) -> Option<SurviveFamily> {
     use SurviveFamily::*;
     let name = block.strip_prefix("minecraft:").unwrap_or(block);
@@ -64,18 +43,12 @@ pub fn family_of(block: &str) -> Option<SurviveFamily> {
     })
 }
 
-/// One family's rule with every set it reads reduced to a mask over state ids.
 #[derive(Clone, Debug)]
 pub enum SurviveRule {
-    /// One neighbour on the vertical against one mask. `offset_y` is -1 below,
-    /// +1 above.
     SupportedBy {
         offset_y: i32,
         supports: FixedBitSet,
     },
-    /// The same, and the state at the position itself must stay out of
-    /// `blocked`: the lily pad's own square must hold no fluid, the spore
-    /// blossom's no water.
     SupportedByUnless {
         offset_y: i32,
         supports: FixedBitSet,
@@ -84,31 +57,21 @@ pub enum SurviveRule {
     SugarCane {
         sugar_cane: FixedBitSet,
         supports: FixedBitSet,
-        /// The block tag and the fluid tag of `supports_sugar_cane_adjacently`
-        /// together: the reference reads both at each neighbour and ors them.
         adjacent: FixedBitSet,
     },
     Cactus {
-        /// Below: cactus itself, or `supports_cactus`.
         supports: FixedBitSet,
-        /// A horizontal neighbour that refuses the cactus: solid, or lava.
         blocked: FixedBitSet,
-        /// Above, as `BlockState.liquid`.
         liquid: FixedBitSet,
     },
     SmallDripleaf {
         supports: FixedBitSet,
-        /// Below, only when the position itself holds water.
         wet_supports: FixedBitSet,
         water: FixedBitSet,
     },
     OnFacingFace {
-        /// The first state id of the block.
         base: u16,
-        /// Per state of the block, its `facing`.
         facing: Vec<Direction>,
-        /// Per direction, by [`Direction::id`], the states whose face that
-        /// way is full.
         sturdy: [FixedBitSet; 6],
     },
 }
@@ -188,9 +151,6 @@ mod tests {
     const STONE: VoxelId = VoxelId(6);
     const LEAVES: VoxelId = VoxelId(7);
 
-    /// A one-column world: `below` under the origin, `air` everywhere else,
-    /// with the four horizontal neighbours of the origin and of `below`
-    /// answered from the two rings.
     fn world(
         below: VoxelId,
         above: VoxelId,

@@ -4,17 +4,12 @@ use std::time::Duration;
 use std::time::Instant;
 use std::vec;
 
-/// Holds the data of one direction between the client and the proxy for the one-way delays of
-/// a trace. Each item waits for half of the next round trip sample, and never passes an item
-/// that came before it. An item is one frame from the client, or the bytes of one poll for the
-/// client.
 pub(crate) struct Delay<T> {
     samples: Cycle<vec::IntoIter<Duration>>,
     queue: VecDeque<(Instant, T)>,
 }
 
 impl<T> Delay<T> {
-    /// No sample: each item passes at once.
     pub(crate) fn new(samples: Vec<Duration>) -> Self {
         Self {
             samples: samples.into_iter().cycle(),
@@ -38,7 +33,6 @@ impl<T> Delay<T> {
     }
 }
 
-/// Reads a trace: one round trip time in milliseconds on each line; `#` starts a comment.
 pub(crate) fn parse_trace(text: &str) -> anyhow::Result<Vec<Duration>> {
     text.lines()
         .map(|line| line.split('#').next().unwrap_or_default().trim())

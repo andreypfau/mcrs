@@ -4,11 +4,9 @@ use mcrs_voxel::ColumnPos;
 
 use crate::bus::PacketPayload;
 
-/// A change of a column that the muxer subscribes to, for the clients that hold the column.
 #[derive(Message, Clone, Debug)]
 pub struct ColumnChange {
     pub column: ColumnPos,
     pub payload: PacketPayload,
-    /// A holder that does not get the change, because its client made the change itself.
     pub except: Option<PlayerSession>,
 }

@@ -10,8 +10,6 @@ use crate::option_sub_screen::{OptionList, option_sub_screen};
 
 pub(crate) const SENSITIVITY: WidgetId = WidgetId(3);
 
-/// The "Mouse Settings" screen on a screen of the size `screen` with the values of `options`
-/// (CTRL-MOUSE-003).
 pub(crate) fn mouse_settings_screen(
     screen: GuiExtent,
     language: &ClientLanguage,
@@ -35,7 +33,6 @@ pub(crate) fn mouse_settings_screen(
     Some([title, list.into_widget(), sensitivity, done])
 }
 
-/// Stores the value of Sensitivity after its change: the slider position (CTRL-VAL-001).
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == SENSITIVITY
         && let WidgetKind::Slider(slider) = &widget.kind
@@ -44,7 +41,6 @@ pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     }
 }
 
-/// The caption of Sensitivity at `sensitivity` (CTRL-VAL-001, steps 3 to 5).
 fn sensitivity_caption(language: &ClientLanguage, sensitivity: f32) -> String {
     let named = |key| {
         option_caption(

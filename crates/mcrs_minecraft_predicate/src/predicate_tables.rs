@@ -2,8 +2,6 @@ use mcrs_minecraft_item_table::ItemTable;
 
 use crate::smoke_table::SmokeTable;
 
-/// The per-registry tables that a match borrows. Each comes from the registry set of the bake of
-/// the predicate.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct PredicateTables<'a> {

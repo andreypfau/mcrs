@@ -10,17 +10,12 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
 use crate::local_player::LocalPlayerTick;
 use crate::player::Player;
 
-/// The slot of the last `set_carried_item` that the client sent (CHB-SYN-001).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct LastSentHotbarSlot(pub(crate) u8);
 
-/// Sends the selected slot when it differs from the last sent slot. A system that sends a packet
-/// whose result depends on the main hand runs after this set, so the server applies the packet
-/// to the slot the HUD shows (CHB-SYN-002).
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SendSelectedSlot;
 
-/// Keeps the selected slot of the local player and the slot of the server equal.
 pub struct HotbarSyncPlugin;
 
 impl Plugin for HotbarSyncPlugin {
@@ -134,7 +129,6 @@ mod tests {
         use std::thread;
         use std::time::Duration;
 
-        /// The slots of the `set_carried_item` packets in each of the next `ticks` client ticks.
         fn carried_items(server: &mut Server, ticks: usize) -> Vec<Vec<u16>> {
             let mut sent = vec![Vec::new()];
             while sent.len() <= ticks {

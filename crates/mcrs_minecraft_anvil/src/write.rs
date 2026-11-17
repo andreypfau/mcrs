@@ -16,8 +16,6 @@ use crate::record::NoEntities;
 use crate::structures::Structures;
 use crate::ticks::FluidTicks;
 
-/// An id a [`PaletteNames`] can hand out; the width bounds how many distinct
-/// entries one table holds.
 pub trait PaletteId: Copy {
     fn from_index(index: usize) -> Option<Self>;
     fn index(self) -> usize;
@@ -43,9 +41,6 @@ impl PaletteId for u8 {
     }
 }
 
-/// Names a palette entry by its own text instead of a registry, so a chunk read
-/// through it writes back with every name and property order it was read with.
-/// Ids are handed out in the order entries are first seen.
 pub struct PaletteNames<V> {
     names: RefCell<Names>,
     id: PhantomData<V>,
@@ -72,7 +67,6 @@ impl<V: PaletteId> PaletteNames<V> {
         Self::default()
     }
 
-    /// `None` once every id `V` can express is taken.
     pub fn intern<'p>(
         &self,
         name: &str,
@@ -97,8 +91,6 @@ impl<V: PaletteId> PaletteNames<V> {
         Some(id)
     }
 
-    /// The name and properties, in their original order, that `id` was handed
-    /// out for.
     pub fn entry(&self, id: V) -> Option<(String, Vec<(String, String)>)> {
         let names = self.names.borrow();
         names.entries.get(id.index()).map(|(name, properties)| {
@@ -139,8 +131,6 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
     }
 }
 
-/// The chunk as NBT, uncompressed, at the current `DataVersion`, with the
-/// lowest section of its dimension as `yPos`.
 pub fn write_chunk(
     chunk: &Chunk,
     min_section_y: i32,
@@ -208,8 +198,6 @@ pub fn write_chunk(
     Ok(out)
 }
 
-/// The inverse of the reader's `unpack`: the width comes from the same
-/// `storage_bits`, and a single-entry palette carries no `data`.
 fn pack<K: SectionKind, V: PaletteId + Hash + Eq + Default, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     names: &PaletteNames<V>,

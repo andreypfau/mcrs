@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Writes summary.csv in the given folder: one row a phase of every run report in it.
 set -euo pipefail
 dir=${1:?usage: summary.sh <folder of run reports>}
 {

@@ -15,9 +15,6 @@ use crate::modifier_kind::ModifierKind;
 #[cfg(feature = "wire")]
 use crate::unknown_attribute::UnknownAttribute;
 
-/// The attribute instances of one entity with the bases of its type (`attributes.md`, section 3),
-/// and the attributes that an edit changed since the last [`take_dirty`](Self::take_dirty).
-/// Equality compares the bases and the instances only.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct AttributeInstances {
@@ -27,14 +24,11 @@ pub struct AttributeInstances {
 }
 
 impl AttributeInstances {
-    /// The instances of a new entity of a type with the bases `bases`.
     #[must_use]
     pub const fn new(bases: AttributeBases) -> Self {
         Self::with_set(bases, AttributeSet::new())
     }
 
-    /// The instances of `set` over `bases`, with no attribute changed: a consumer of
-    /// [`take_dirty`](Self::take_dirty) treats a new or replaced value as wholly changed.
     #[must_use]
     pub const fn with_set(bases: AttributeBases, set: AttributeSet) -> Self {
         Self {
@@ -44,32 +38,26 @@ impl AttributeInstances {
         }
     }
 
-    /// The bases of the type of the entity.
     #[must_use]
     pub fn bases(&self) -> AttributeBases {
         self.bases
     }
 
-    /// The instances that differ from those of a new entity of the type.
     #[must_use]
     pub fn set(&self) -> &AttributeSet {
         &self.set
     }
 
-    /// The value of ATR-VAL-001, or `None` when the attribute is not in the set of the type.
     #[must_use]
     pub fn value(&self, attribute: Attribute) -> Option<f64> {
         self.set.value(self.bases, attribute)
     }
 
-    /// The base value, or `None` when the attribute is not in the set of the type.
     #[must_use]
     pub fn base(&self, attribute: Attribute) -> Option<f64> {
         self.set.base(self.bases, attribute)
     }
 
-    /// Applies `edit` to the instance of `attribute` and marks the attribute changed when the
-    /// edit changed the instance.
     pub fn apply(&mut self, attribute: Attribute, edit: &InstanceEdit) -> InstanceChange {
         let change = edit.apply(&mut self.set, self.bases, attribute);
         if change == InstanceChange::Changed {
@@ -78,8 +66,6 @@ impl AttributeInstances {
         change
     }
 
-    /// Removes every modifier and keeps every base, and marks each attribute that lost one.
-    /// Returns [`InstanceChange::Changed`] when at least one modifier was removed.
     pub fn clear_modifiers(&mut self) -> InstanceChange {
         let mut change = InstanceChange::Unchanged;
         for attribute in self.bases.attributes() {
@@ -91,7 +77,6 @@ impl AttributeInstances {
         change
     }
 
-    /// The attributes changed since the last call, which this call clears.
     pub fn take_dirty(&mut self) -> AttributeMask {
         mem::take(&mut self.dirty)
     }
@@ -99,17 +84,11 @@ impl AttributeInstances {
 
 #[cfg(feature = "wire")]
 impl AttributeInstances {
-    /// The entry of the instance of `attribute` (ATR-NET-002), or `None` when the attribute is
-    /// not in the set of the type.
     #[must_use]
     pub fn snapshot(&self, attribute: Attribute) -> Option<AttributeSnapshot<'_>> {
         AttributeSnapshot::from_instance(self.bases, attribute, self.set.instance(attribute))
     }
 
-    /// Takes the base and the modifiers of `snapshot` as transient modifiers (ATR-CLI-002) and
-    /// marks the attribute changed when its instance changed. An attribute outside the set of
-    /// the type and a second modifier of one identifier change nothing (ATR-CLI-003); an id
-    /// outside the registry is an error and changes nothing (ATR-CLI-006).
     pub fn receive(
         &mut self,
         snapshot: &AttributeSnapshot<'_>,
@@ -140,7 +119,6 @@ impl AttributeInstances {
     }
 }
 
-/// The instance of `base` and `modifiers` equals the one that `snapshot` gives.
 #[cfg(feature = "wire")]
 fn holds(base: f64, modifiers: &[InstanceModifier], snapshot: &AttributeSnapshot<'_>) -> bool {
     if base.to_bits() != snapshot.base.to_bits() {

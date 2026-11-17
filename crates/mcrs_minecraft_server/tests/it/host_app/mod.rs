@@ -50,8 +50,6 @@ use mcrs_minecraft_protocol::{Decode, Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
-/// The asset plugin over the repository's assets and the game's data pack, with the pack
-/// sources a dimension's sub-app reads.
 pub fn add_assets(app: &mut App) {
     let roots = mcrs_minecraft_assets::packs::PackRoots {
         assets: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),
@@ -72,17 +70,8 @@ pub fn add_assets(app: &mut App) {
     });
 }
 
-/// Build a host `App` wired for the production per-dim sub-app builder path.
-///
-/// Registers the host-side bus messages, the dimension cells, the spawn/despawn
-/// queues and registries that the dimension tick and `take_dim_outputs`
-/// read — without them the first `app.update()` after a spawn drain panics.
-/// The message set is the union required across the sub-app tests, so callers
-/// that need only a subset still get a valid host app.
 pub fn make_host_app() -> App {
     let mut app = App::new();
-    // The worldgen startup uses AssetServer::load, which spawns
-    // onto IoTaskPool; TaskPoolPlugin must run first or sub-app Startup panics.
     app.add_plugins(TaskPoolPlugin {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
@@ -109,16 +98,12 @@ pub fn make_host_app() -> App {
     app
 }
 
-/// Give the dimensions spawned from this host a lighting engine. Production
-/// builds the same table at `Startup`.
 pub fn enable_lighting(app: &mut App) {
     app.add_plugins(LightingPlugin);
     let blocks = app.world().resource::<Blocks>().clone();
     app.insert_resource(BlockLightRegistry(block_light_registry(&blocks)));
 }
 
-/// Transition the host app into `AppState::Playing` and run one update so the
-/// state change is applied.
 pub fn drive_to_playing(app: &mut App) {
     app.world_mut()
         .resource_mut::<NextState<AppState>>()
@@ -126,7 +111,6 @@ pub fn drive_to_playing(app: &mut App) {
     app.update();
 }
 
-/// Push a single dimension spawn request onto the host spawn queue.
 pub fn enqueue_spawn(app: &mut App, id: &str, dimension_type: &str) {
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
@@ -139,8 +123,6 @@ pub fn enqueue_spawn(app: &mut App, id: &str, dimension_type: &str) {
         });
 }
 
-/// Enqueue every `(dimension, dimension type)` pair and drain the queue through the
-/// production builder, materialising one sub-app per request.
 pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
     for (id, dimension_type) in dimensions {
         enqueue_spawn(app, id, dimension_type);
@@ -148,9 +130,6 @@ pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
     drain_dim_spawn_queue(app);
 }
 
-/// The world of the dimension `label`, lent out of its cell until the next update.
-///
-/// Panics when no dimension has the label.
 pub fn sub_app(app: &mut App, label: Entity) -> &mut SubApp {
     app.world_mut()
         .resource_mut::<DimCells>()
@@ -160,12 +139,10 @@ pub fn sub_app(app: &mut App, label: Entity) -> &mut SubApp {
         .expect("the dimension is running")
 }
 
-/// [`sub_app`]'s world.
 pub fn world(app: &mut App, label: Entity) -> &mut World {
     sub_app(app, label).world_mut()
 }
 
-/// Every dimension world, lent out as [`sub_app`] lends one, in the order they tick.
 pub fn sub_apps(app: &mut App) -> Vec<&mut SubApp> {
     app.world_mut()
         .resource_mut::<DimCells>()
@@ -184,8 +161,6 @@ pub fn label_of(app: &App, dimension: &str) -> Entity {
         .unwrap_or_else(|| panic!("{dimension} was spawned"))
 }
 
-/// Places a new session joining `label`, sends its spawn to the dimension, ticks until the
-/// dimension answers and returns the login it sent.
 pub fn join(
     app: &mut App,
     label: Entity,
@@ -232,22 +207,17 @@ pub fn join(
         .expect("a login is sent")
 }
 
-/// A host app in `Playing` with one overworld dimension, whose players join through the
-/// dimension's channels.
 pub struct PlayServer {
     pub app: App,
     pub dim: Entity,
 }
 
 impl PlayServer {
-    /// Finishes `app`, lists `ops` as `(uuid, level)` and gives every other player
-    /// `default_level`.
     pub fn start(app: App, ops: &[(Uuid, u8)], default_level: u8) -> Self {
         let overworld = [("minecraft:overworld", "minecraft:overworld")];
         Self::start_in(app, &overworld, ops, default_level)
     }
 
-    /// A server that runs `dimensions`; the first one is where `join` places a player.
     pub fn start_in(
         mut app: App,
         dimensions: &[(&str, &str)],
@@ -278,14 +248,12 @@ impl PlayServer {
         world(&mut self.app, dim)
     }
 
-    /// Runs `n` updates and returns the packets sent to `anchor` or to every player.
     pub fn ticks(&mut self, anchor: Entity, n: usize) -> Vec<PacketPayload> {
         let session = self.session_of(anchor);
         let packets = self.ticks_all(n);
         session.map_or_else(Vec::new, |session| sent_to(session, packets))
     }
 
-    /// Runs `n` updates and returns every packet sent.
     pub fn ticks_all(&mut self, n: usize) -> Vec<OutboundPlayerPacket> {
         let mut packets = Vec::new();
         for _ in 0..n {
@@ -298,7 +266,6 @@ impl PlayServer {
         submit_to(&mut self.app, dim, message);
     }
 
-    /// Returns the host anchor of the new player and the packets of its first ticks.
     pub fn join(&mut self, uuid: Uuid, name: &str) -> (Entity, Vec<PacketPayload>) {
         self.join_in(self.dim, uuid, name)
     }
@@ -309,8 +276,6 @@ impl PlayServer {
         (anchor, packets)
     }
 
-    /// Places a new session in `dim` and sends its spawn, without running a tick. Returns its
-    /// host anchor.
     pub fn admit(&mut self, dim: Entity, uuid: Uuid, name: &str) -> Entity {
         let arrival = Arrival {
             uuid,
@@ -321,8 +286,6 @@ impl PlayServer {
         admit(&mut self.app, dim, &arrival)
     }
 
-    /// Raises `packet` from `anchor` on its connection in the host, then queues it in the
-    /// dimension its session is placed in, as the bridge does with a packet from a socket.
     pub fn queue<P: Packet + Encode>(&mut self, anchor: Entity, packet: &P) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
@@ -362,7 +325,6 @@ impl PlayServer {
         assert!(sent.is_ok(), "the dimension takes the packet");
     }
 
-    /// Queues `packet` from `anchor` and returns the packets of the next two ticks.
     pub fn send<P: Packet + Encode>(&mut self, anchor: Entity, packet: &P) -> Vec<PacketPayload> {
         self.queue(anchor, packet);
         self.ticks(anchor, 2)
@@ -383,7 +345,6 @@ impl PlayServer {
             .map(|(player, _)| player)
     }
 
-    /// The session the host anchor `anchor` carries, while it is connected.
     pub fn session_of(&self, anchor: Entity) -> Option<PlayerSession> {
         session_of(&self.app, anchor)
     }
@@ -394,8 +355,6 @@ impl PlayServer {
     }
 }
 
-/// Runs one update, hands the dimension outputs on, delivers every answer of the muxer, and
-/// returns the packets sent.
 pub fn tick(app: &mut App) -> Vec<OutboundPlayerPacket> {
     app.update();
     mcrs_minecraft_engine_server::runner::between_ticks(app);
@@ -414,12 +373,10 @@ pub fn submit_to(app: &mut App, dim: Entity, message: ToDim) {
     assert!(sent, "the dimension takes the message");
 }
 
-/// The session the host anchor `anchor` carries, while it is connected.
 pub fn session_of(app: &App, anchor: Entity) -> Option<PlayerSession> {
     app.world().get::<Session>(anchor).map(|session| session.0)
 }
 
-/// A player that joins: who it is, where it stands and how far its client sees.
 pub struct Arrival<'a> {
     pub uuid: Uuid,
     pub name: &'a str,
@@ -427,13 +384,10 @@ pub struct Arrival<'a> {
     pub view_distance: u8,
 }
 
-/// Places a new session in `dim` and sends the spawn of its player, without running a tick.
-/// Returns its host anchor.
 pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
     admit_with_file(app, dim, arrival, &PersistedSnapshot::new())
 }
 
-/// [`admit`] of a player whose file holds the keys of `file`, as the host reads them at a join.
 pub fn admit_with_file(
     app: &mut App,
     dim: Entity,
@@ -481,7 +435,6 @@ pub fn admit_with_file(
     anchor
 }
 
-/// The packets of the muxer in `packets`, in order: the id of each packet and its body.
 pub fn replicated(packets: &[PacketPayload]) -> Vec<(i32, Vec<u8>)> {
     let mut out = Vec::new();
     for packet in packets {
@@ -503,7 +456,6 @@ pub fn replicated(packets: &[PacketPayload]) -> Vec<(i32, Vec<u8>)> {
     out
 }
 
-/// The packets of `packets` that reach `session`, in order.
 pub fn sent_to(session: PlayerSession, packets: Vec<OutboundPlayerPacket>) -> Vec<PacketPayload> {
     packets
         .into_iter()

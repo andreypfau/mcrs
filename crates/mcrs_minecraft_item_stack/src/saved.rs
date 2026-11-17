@@ -75,10 +75,6 @@ const COMPONENTS: &str = "components";
 const SLOT: &str = "Slot";
 const AIR: &str = "air";
 
-/// Reads the saved stack: a map with the item, the count and the component patch.
-///
-/// A component of a type without a Rust type in this crate becomes a [`PatchEntry::Undecoded`]. The reader has no partial result: one bad key of the
-/// patch gives the error and no stack.
 pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemStack, SavedError> {
     let Some(NbtTag::String(id)) = saved.get(ID) else {
         return Err(SavedError::BadItemId);
@@ -116,10 +112,6 @@ pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemS
     Ok(stack)
 }
 
-/// Writes the saved stack. The result always has the item and the count, and has the patch when
-/// the patch is not empty.
-///
-/// The writer omits a custom component, which has no saved form.
 pub fn write_saved<L: NameLookup>(stack: &ItemStack, names: &L) -> Result<NbtCompound, SavedError> {
     let item = names
         .name(NameTable::Item, stack.kind.0)
@@ -144,7 +136,6 @@ pub fn write_saved<L: NameLookup>(stack: &ItemStack, names: &L) -> Result<NbtCom
     Ok(saved)
 }
 
-/// Reads the optional saved stack: a map without keys gives `None`, the empty stack.
 pub fn read_saved_optional<L: NameLookup>(
     saved: &NbtCompound,
     names: &L,
@@ -156,7 +147,6 @@ pub fn read_saved_optional<L: NameLookup>(
     }
 }
 
-/// Writes the optional saved stack: `None`, the empty stack, gives a map without keys.
 pub fn write_saved_optional<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -167,7 +157,6 @@ pub fn write_saved_optional<L: NameLookup>(
     }
 }
 
-/// Reads the saved stack with slot. An absent slot is the slot 0.
 pub fn read_saved_with_slot<L: NameLookup>(
     saved: &NbtCompound,
     names: &L,
@@ -181,7 +170,6 @@ pub fn read_saved_with_slot<L: NameLookup>(
     Ok(SlotStack { slot, stack })
 }
 
-/// Writes the saved stack with slot.
 pub fn write_saved_with_slot<L: NameLookup>(
     slotted: &SlotStack,
     names: &L,

@@ -7,7 +7,6 @@ use crate::font_definition::Filter;
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
 
 const DEFAULT_HEIGHT: i32 = 8;
-/// The row of the line that a glyph with ascent 7 sits on.
 const BASELINE: i32 = 7;
 
 #[derive(Deserialize)]
@@ -22,7 +21,6 @@ pub(crate) struct BitmapSpec {
 }
 
 impl BitmapSpec {
-    /// FONT-PROV-004: the rules of the fields that serde cannot state.
     pub(crate) fn check(&self) -> Result<(), String> {
         if self.ascent > self.height {
             return Err(format!(
@@ -48,7 +46,6 @@ struct Cell {
     advance: f32,
 }
 
-/// One texture of glyph cells and the glyphs its grid names.
 #[derive(Debug)]
 pub struct BitmapPage {
     pixels: Vec<u8>,
@@ -60,7 +57,6 @@ pub struct BitmapPage {
 }
 
 impl BitmapPage {
-    /// `pixels` are the RGBA bytes of the texture of `width` × `height` pixels.
     pub(crate) fn new(
         spec: &BitmapSpec,
         pixels: Vec<u8>,
@@ -108,7 +104,6 @@ impl BitmapPage {
         (self.width, self.height)
     }
 
-    /// The glyph of `ch` in this texture, whose provider has the index `source`.
     pub(crate) fn glyph(&self, source: usize, ch: char) -> Option<Glyph> {
         let cell = self.cells.get(&ch)?;
         let texels = cell.texels;
@@ -134,7 +129,6 @@ impl BitmapPage {
     }
 }
 
-/// The columns up to and including the rightmost one with ink, counted from the cell's left edge.
 fn ink_width(pixels: &[u8], width: u32, cell: URect) -> u32 {
     (0..cell.width())
         .rev()

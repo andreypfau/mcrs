@@ -29,7 +29,6 @@ pub fn screen_with_input(input: GuiInput, widgets: impl IntoIterator<Item = Widg
     screen
 }
 
-/// A font whose glyphs are each 6 GUI units wide.
 pub fn mono(text: &str) -> i32 {
     i32::try_from(text.chars().count() * 6).unwrap_or(i32::MAX)
 }

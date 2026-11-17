@@ -1,5 +1,3 @@
-//! The game time, weather, game rules and world clocks that the save keeps across a restart.
-
 use bevy_app::{App, FixedFirst, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
@@ -22,8 +20,6 @@ use crate::coordinator::clock::GameTime;
 use crate::persistence::{AutosavePlugin, advance_autosave_cadence, autosave_due};
 use crate::server_edit::Weather;
 
-/// Loads the server state that the save keeps, and writes it back on the autosave cadence from
-/// the I/O pool.
 pub struct WorldStatePlugin;
 
 impl Plugin for WorldStatePlugin {
@@ -47,7 +43,6 @@ impl Plugin for WorldStatePlugin {
     }
 }
 
-/// The spawn point that `level.dat` held when the server started.
 #[derive(Resource, Debug, Clone)]
 pub struct SavedSpawn(pub RespawnData);
 
@@ -97,8 +92,6 @@ fn load_world_state(
     }
 }
 
-/// A host file as the disk has it. A file that exists but does not parse is never replaced: the
-/// load keeps the values of the run and the write leaves the file alone.
 enum Loaded<T> {
     Missing,
     Present(T),
@@ -128,7 +121,6 @@ impl<T> Loaded<T> {
         }
     }
 
-    /// The file, or `missing()` when there is none; `None` when the file is unreadable.
     fn or_missing(self, missing: impl FnOnce() -> T) -> Option<T> {
         match self {
             Self::Present(value) => Some(value),
@@ -138,8 +130,6 @@ impl<T> Loaded<T> {
     }
 }
 
-/// The host files that a restart reads, as the values of one tick. The write that follows
-/// reads the files of the save again, so a field that the tick does not own stays as it is.
 #[derive(Default)]
 pub struct WorldStateWrite {
     dir: PathBuf,
@@ -159,7 +149,6 @@ impl WorldStateWrite {
         }
     }
 
-    /// Takes the fields that `newer` carries over those of `self`.
     fn absorb(&mut self, newer: Self) {
         self.dir = newer.dir;
         self.time = newer.time.or(self.time);
@@ -169,8 +158,6 @@ impl WorldStateWrite {
         self.birth_clock = newer.birth_clock.or(self.birth_clock);
     }
 
-    /// Writes every file. A file that exists but does not read back is left alone instead of
-    /// being replaced by defaults. Gives whether no write failed.
     fn write(self) -> bool {
         let dir = self.dir.as_path();
         let mut ok = true;
@@ -214,8 +201,6 @@ impl WorldStateWrite {
     }
 }
 
-/// The host files on their way to the disk: one write at a time on the I/O pool, so a file has at
-/// most one write in flight, and the newest values that came while it ran wait for the next one.
 #[derive(Resource, Default)]
 pub struct WorldStateWriter {
     writer: BackgroundWriter<WorldStateWrite>,
@@ -240,7 +225,6 @@ impl WorldStateWriter {
         self.writer.submit(write, |ok| *failed = !ok);
     }
 
-    /// Collects a finished write and starts the one that waits.
     pub fn reap(&mut self) {
         let failed = &mut self.failed;
         self.writer.reap(|ok| *failed = !ok);
@@ -251,14 +235,12 @@ impl WorldStateWriter {
         self.writer.is_idle()
     }
 
-    /// Whether the last finished write failed to write a file.
     #[must_use]
     pub fn failed(&self) -> bool {
         self.failed
     }
 }
 
-/// What a write of the host files reads from the world.
 #[derive(SystemParam)]
 pub struct WorldStateSources<'w> {
     save: Option<Res<'w, WorldSave>>,
@@ -270,7 +252,6 @@ pub struct WorldStateSources<'w> {
 }
 
 impl WorldStateSources<'_> {
-    /// The values to write, or `None` when the world has no save.
     #[must_use]
     pub fn snapshot(&self) -> Option<WorldStateWrite> {
         let save = self.save.as_ref()?;

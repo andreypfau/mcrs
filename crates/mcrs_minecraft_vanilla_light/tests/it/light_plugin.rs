@@ -10,8 +10,6 @@ use mcrs_minecraft_light_engine::prelude::*;
 use mcrs_minecraft_vanilla_light::{LightLink, LightPlugin, LightSet};
 use mcrs_voxel::{BlockPos, SectionPos};
 
-/// One update that hands the stage the pushed edits, a wait for its answer, and one update
-/// that publishes the answer.
 fn settle(app: &mut App) {
     app.update();
     block_on(app.world_mut().resource_mut::<LightLink>().answered());
@@ -69,9 +67,6 @@ fn a_torch_lights_its_neighbour_through_the_plugin() {
     assert_eq!(sky.0.get(0, 15, 0), 15);
 }
 
-/// A section can be despawned and respawned at the same position within one
-/// tick. The later load names the new entity, so it supersedes the old one
-/// without anything having to notice that the old one died.
 #[test]
 fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
     use bevy_ecs::prelude::*;
@@ -117,8 +112,6 @@ fn a_section_respawned_the_tick_its_predecessor_died_is_still_published() {
 
 type Snapshot = Vec<(SectionPos, Option<BlockLight>, Option<SkyLight>)>;
 
-/// The light of every section after each tick, where each tick waits for the stage to answer
-/// what the tick handed it before the next one starts.
 fn light_by_tick(placement: Placement) -> Vec<Snapshot> {
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin::default())

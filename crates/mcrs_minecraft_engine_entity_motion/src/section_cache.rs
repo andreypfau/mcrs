@@ -9,12 +9,8 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// The window spans 4 blocks on `x` and `z` and 8 on `y`, so at most 2 sections on each axis.
 const WINDOW_SECTIONS: usize = 8;
 
-/// The sections that one step reads, each looked up once: those from 2 blocks around the position
-/// on `x` and `z` and 4 blocks on `y`, the window that the rows pass reads around the rows of a
-/// tile. A section out of the window comes from the base world.
 pub(crate) struct SectionCache<'a, W: CollisionWorld + 'a> {
     base: &'a W,
     low: IVec3,

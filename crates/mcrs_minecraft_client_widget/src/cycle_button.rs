@@ -1,4 +1,3 @@
-/// The selected value of a cycle button among its `count` values (WID-CYC-001).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CycleButton {
     index: usize,
@@ -6,7 +5,6 @@ pub struct CycleButton {
 }
 
 impl CycleButton {
-    /// The value `index` of `count` values; none unless `index < count`.
     #[must_use]
     pub const fn new(count: usize, index: usize) -> Option<Self> {
         if index < count {
@@ -16,7 +14,6 @@ impl CycleButton {
         }
     }
 
-    /// A Boolean cycle button, whose values are true at index 0, then false.
     #[must_use]
     pub const fn boolean(value: bool) -> Self {
         Self {
@@ -25,7 +22,6 @@ impl CycleButton {
         }
     }
 
-    /// The index of the selected value.
     #[must_use]
     pub const fn index(&self) -> usize {
         self.index

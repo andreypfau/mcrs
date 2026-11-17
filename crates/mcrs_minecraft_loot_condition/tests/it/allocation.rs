@@ -11,8 +11,6 @@ use mcrs_test_alloc::allocations;
 use crate::condition::{condition, empty_context, item};
 use crate::number_provider::{VANILLA, inputs};
 
-/// LOOT-CND-007, LOOT-CND-008, LOOT-CND-009, LOOT-CND-013, LOOT-CND-015, LOOT-CND-019: a test that
-/// reads no saved data allocates nothing after the scratch has warmed up.
 #[test]
 fn loot_cnd_a_test_without_saved_data_allocates_nothing_after_warm_up() {
     let tree = condition(

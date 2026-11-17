@@ -17,53 +17,32 @@ use crate::loopback_ops::ServerProfile;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
-/// The listener, login, configuration and keep-alive of every connection.
 pub struct ServerNetworkPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`](mcrs_minecraft_network::BoundAddress).
     pub bind_address: SocketAddr,
-    /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
-    /// Turned off, the server offers no known pack, so a client receives every registry entry's
-    /// data instead of only the entries that are not in the vanilla pack.
     pub offer_known_packs: bool,
     pub compression_threshold: NetworkCompressionThreshold,
     pub singleplayer_profile: Option<SingleplayerProfile>,
-    /// Its player limit is also the maximum that the status response shows.
     pub join_limits: JoinLimits,
     pub motd: String,
     pub favicon: Option<String>,
-    /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
-    /// `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
-    /// Turned on, the status response keeps the online and maximum counts but carries no sample
-    /// of player names.
     pub hide_online_players: bool,
-    /// Turned off, a status connection closes after the handshake without a packet; a login is
-    /// not affected.
     pub enable_status: bool,
-    /// The kernel send buffer of each connection, in bytes.
     pub send_buffer_bytes: usize,
-    /// The length of the kernel queue of connections that wait for the accept loop.
     pub accept_backlog: u32,
-    /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
     pub profile: ServerProfile,
-    /// Set, every login takes the player's profile and address from the proxy that shares this
-    /// secret.
     pub forwarding: Option<ForwardingSecret>,
     pub proxy_upstreams: Vec<IpAddr>,
 }
 
 impl ServerNetworkPlugin {
-    /// A listener on loopback only, on an OS-assigned port and without compression, for a
-    /// server that shares a process with its client.
     pub fn embedded() -> Self {
         Self {
             bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
-            // Both ends share one process, so compression only spends CPU on each side.
             compression_threshold: NetworkCompressionThreshold(-1),
             ..Default::default()
         }

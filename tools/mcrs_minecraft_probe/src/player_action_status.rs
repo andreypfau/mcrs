@@ -1,7 +1,6 @@
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use serde::{Deserialize, Serialize};
 
-/// The status of a player action, by the names of the protocol enum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerActionStatus {

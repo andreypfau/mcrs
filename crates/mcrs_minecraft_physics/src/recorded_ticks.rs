@@ -13,16 +13,11 @@ use crate::SprintSpeed;
 use crate::TestBlocks;
 use crate::movement_speeds::movement_speeds;
 
-// chisle: the range of `movement_speed` in the data pack; a recording does not carry it, and a
-// host reads it from the attribute definition.
 const MOVEMENT_SPEED_RANGE: ValueRange = ValueRange {
     min: 0.0,
     max: 1024.0,
 };
 
-/// Sets the value of a recorded attribute. `movement_speed` sets the pair of
-/// `movement_speeds`, in the range of the attribute. A modifier with an unknown operation or
-/// an invalid identifier is skipped.
 pub fn set_attribute(
     attributes: &mut MotionAttributes,
     sprint_speed: &mut SprintSpeed,
@@ -57,7 +52,6 @@ pub fn set_attribute(
     *field = value;
 }
 
-/// Sets the effect that a recorded event names: `level` is `None` when the effect ends.
 pub fn set_effect(effects: &mut MotionEffects, name: &str, level: Option<u8>) {
     match name {
         "minecraft:slow_falling" => effects.slow_falling = level.is_some(),
@@ -69,7 +63,6 @@ pub fn set_effect(effects: &mut MotionEffects, name: &str, level: Option<u8>) {
     }
 }
 
-/// The state of the small test table that stands for a recorded block state.
 pub fn test_state(blocks: &TestBlocks, state: &str) -> Result<BlockStateId, String> {
     let (block, properties) = state.split_once('[').unwrap_or((state, ""));
     let has = |property: &str| properties.contains(property);

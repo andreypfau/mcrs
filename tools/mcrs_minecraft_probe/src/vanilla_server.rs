@@ -18,10 +18,8 @@ use std::time::Instant;
 
 const START_LIMIT: Duration = Duration::from_secs(300);
 const CONSOLE_LIMIT: Duration = Duration::from_secs(120);
-// The server logs the text that a command sends to its console after this prefix.
 const REPLY_PREFIX: &str = "System chat: ";
 
-/// The vanilla dedicated server as a child process, driven through its console.
 pub(crate) struct VanillaServer {
     child: Child,
     input: ChildStdin,
@@ -30,7 +28,6 @@ pub(crate) struct VanillaServer {
 }
 
 impl VanillaServer {
-    /// Starts `jar` in `directory` in offline mode on a new flat world and waits until it is up.
     pub(crate) fn start(jar: &Path, directory: &Path, port: u16) -> anyhow::Result<Self> {
         fs::write(directory.join("eula.txt"), "eula=true\n")?;
         let properties = format!(
@@ -71,15 +68,12 @@ impl VanillaServer {
         Ok(server)
     }
 
-    /// Prints what the server printed since the last call.
     pub(crate) fn echo(&self) {
         for line in self.output.try_iter() {
             println!("server: {line}");
         }
     }
 
-    /// Sends the commands to the console and returns the reply text that the server logged for
-    /// them. A `say` with a counter ends the batch: the console runs commands in order.
     pub(crate) fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>> {
         self.marker += 1;
         let marker = format!("probe-marker-{}", self.marker);
@@ -113,7 +107,6 @@ impl VanillaServer {
         self.shut_down()
     }
 
-    /// Stops the server, which saves the world, and starts it again in `directory`.
     pub(crate) fn restart(
         &mut self,
         jar: &Path,
@@ -152,7 +145,6 @@ impl VanillaServer {
     }
 }
 
-/// A probe that fails leaves no server behind on the port.
 impl Drop for VanillaServer {
     fn drop(&mut self) {
         let _ = self.child.kill();

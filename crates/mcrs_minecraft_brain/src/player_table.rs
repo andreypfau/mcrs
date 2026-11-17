@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 use crate::PlayerRow;
 use glam::DVec3;
 
-/// The players of one dimension, with an index by 16 × 16 columns for the box queries of a tile.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlayerTable {
     rows: Vec<PlayerRow>,
@@ -14,7 +13,6 @@ pub struct PlayerTable {
 const COLUMN: f64 = 16.0;
 
 impl PlayerTable {
-    /// The table of `rows`, ordered by their order keys.
     #[must_use]
     pub fn new(rows: impl IntoIterator<Item = PlayerRow>) -> Self {
         let mut rows: Vec<PlayerRow> = rows.into_iter().collect();
@@ -47,8 +45,6 @@ impl PlayerTable {
         self.rows.is_empty()
     }
 
-    /// Appends to `out` the players whose position is in the box from `min` to `max` on the `x`
-    /// and `z` axes, in the order of their order keys.
     pub fn collect_in(&self, min: DVec3, max: DVec3, out: &mut Vec<PlayerRow>) {
         let start = out.len();
         let (min_x, min_z) = column(min.x, min.z);

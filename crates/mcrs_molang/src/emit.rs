@@ -1,6 +1,3 @@
-//! The emission of bytecode from the IR, with a linear scan over the structured regions to
-//! give each value a register.
-
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -28,7 +25,6 @@ fn binary_form(function: &Function, a: ValueId, b: ValueId) -> Form {
     }
 }
 
-/// The operands of an instruction that need a register.
 fn register_uses(function: &Function, op: &Op) -> Vec<ValueId> {
     match *op {
         Op::Binary(_, a, b) => match binary_form(function, a, b) {
@@ -41,7 +37,6 @@ fn register_uses(function: &Function, op: &Op) -> Vec<ValueId> {
     }
 }
 
-/// The positions of the uses of each value, in the order of emission.
 struct Uses {
     last: Vec<Option<u32>>,
     position: u32,
@@ -144,7 +139,6 @@ impl Emitter<'_> {
         self.last.get(id.index()).copied().flatten().is_some()
     }
 
-    /// Frees the register of `id` when this position is its last use.
     fn release(&mut self, id: ValueId) {
         if self.last.get(id.index()).copied().flatten() != Some(self.position) {
             return;
@@ -383,7 +377,6 @@ impl Emitter<'_> {
     }
 }
 
-/// The fastest rate of the values that the body reaches.
 fn reached_rate(function: &Function, region: &Region) -> Rate {
     let mut rate = Rate::Constant;
     for id in &region.insts {

@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::Direction;
 
-/// What a placement reads of the click and of the look of the placer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Click {
     pub face: Direction,
@@ -14,7 +13,6 @@ impl Click {
         Direction::from_y_rot(self.yaw)
     }
 
-    /// The look with a pitch below -45 as up and above 45 as down (PLC-STA-002).
     pub(crate) fn look(&self) -> Direction {
         if self.pitch < -45.0 {
             Direction::Up
@@ -25,8 +23,6 @@ impl Click {
         }
     }
 
-    /// The upper half for a click on the bottom of a block or on the upper half of a side
-    /// (PLC-STA-004).
     pub(crate) fn upper_half(&self) -> bool {
         match self.face {
             Direction::Up => false,

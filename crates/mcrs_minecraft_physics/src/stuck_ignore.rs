@@ -1,6 +1,5 @@
 use crate::InsideEffect;
 
-/// The stuck multipliers that an entity type ignores.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StuckIgnore {
     None,

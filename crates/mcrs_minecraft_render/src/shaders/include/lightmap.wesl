@@ -1,4 +1,3 @@
-/// Lightmap lookup; the caller passes the bindings it reads.
 fn lightmap_sample(levels: texture_2d<f32>, level_sampler: sampler, block: f32, sky: f32) -> vec3<f32> {
     let uv = clamp(
         vec2<f32>(block, sky) / 256.0 + 0.5 / 16.0,

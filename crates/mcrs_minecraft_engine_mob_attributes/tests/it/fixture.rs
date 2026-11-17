@@ -46,7 +46,6 @@ pub fn despawn_row(app: &mut App, id: EntityId) {
     rows.despawn(tile, id).expect("the tile holds the row");
 }
 
-/// Writes `edit`, runs one tick and gives the instances that the tick announced as changed.
 pub fn edit(
     app: &mut App,
     target: AttributeTarget,

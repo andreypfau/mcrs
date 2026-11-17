@@ -1,15 +1,9 @@
-/// One part of a translation pattern.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece<'a> {
-    /// Text that shows as it is.
     Literal(&'a str),
-    /// The argument at this index, from zero.
     Argument(usize),
 }
 
-/// Splits `pattern` into its pieces, in order: `%s` takes the next argument, `%n$s` the argument
-/// `n`, and `%%` is a literal `%`. `%0$s` names no argument and shows nothing. A `%` that starts
-/// no placeholder is a literal.
 pub fn fill_pattern<'a>(pattern: &'a str, mut emit: impl FnMut(Piece<'a>)) {
     let mut next = 0;
     let mut rest = pattern;

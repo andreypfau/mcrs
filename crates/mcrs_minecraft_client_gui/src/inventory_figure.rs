@@ -23,19 +23,14 @@ const CENTRE: Vec2 = Vec2::new(50.5, 43.0);
 const FEET_DROP_BLOCKS: f32 = 0.0625;
 const TURN_DISTANCE: f32 = 40.0;
 const TURN_DEGREES_PER_RADIAN: f32 = 20.0;
-// The turned and tilted figure stays within about 2.1 blocks of its feet along the view axis.
 const DEPTH_HALF_RANGE_BLOCKS: f32 = 4.0;
 const LIGHT_0: Vec3 = Vec3::new(0.2, 1.0, 1.0);
 const LIGHT_1: Vec3 = Vec3::new(-0.2, 1.0, 0.0);
 const FULL_LIGHT: EntityLight = EntityLight { block: 15, sky: 15 };
 
-/// The player figure of the inventory screen. Only the figure view draws it.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InventoryFigure;
 
-/// The figure of the local player with the UUID `uuid`: a player of the host at the origin of
-/// figure space, in full light, that takes the skin of the profile with that UUID. `None` when
-/// the type table does not list the player as living.
 #[must_use]
 pub fn inventory_figure(uuid: Uuid) -> Option<impl Bundle> {
     let host = host_living_entity(EntityType::Player, uuid, Placement::default())?;
@@ -49,8 +44,6 @@ pub fn inventory_figure(uuid: Uuid) -> Option<impl Bundle> {
     ))
 }
 
-/// Turns the figure to the cursor and gives the figure view its frame while the inventory
-/// screen is open, and no frame otherwise or while the local player is invisible.
 pub(crate) fn pose_inventory_figure(
     screen: Res<Screen>,
     scene: Res<GuiScene>,
@@ -81,7 +74,6 @@ pub(crate) fn pose_inventory_figure(
     };
     view.set_if_neq(FigureView(Some(frame)));
 
-    // A yaw of 0 faces +Z, toward the viewer, and a positive yaw turns the front to -X.
     let body_yaw = -angles.turn;
     let head_yaw = 2.0 * body_yaw;
     let pitch = -angles.tilt;
@@ -96,31 +88,24 @@ pub(crate) fn pose_inventory_figure(
     }
 }
 
-/// The box height and the eye height of the local player in its pose, in blocks, before the
-/// scale attribute.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FigureBox {
     pub(crate) height: f32,
     pub(crate) eye_height: f32,
 }
 
-/// The feet point and the eye point of the figure, in GUI units with `y` down.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FigurePoints {
     pub(crate) feet: Vec2,
     pub(crate) eye: Vec2,
 }
 
-/// The turn of the figure to the mouse, in degrees. A positive `turn` turns the front to the
-/// right of the screen; a positive `tilt` turns the head up and the top of the model away from
-/// the viewer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FigureAngles {
     pub(crate) turn: f32,
     pub(crate) tilt: f32,
 }
 
-/// The rectangle that clips the figure, in GUI units, for the origin of the inventory image.
 #[must_use]
 pub(crate) fn figure_rect(origin: IVec2) -> IRect {
     let min = origin + IVec2::new(RECT_LEFT, RECT_TOP);
@@ -136,7 +121,6 @@ pub(crate) fn figure_points(origin: IVec2, figure_box: FigureBox) -> FigurePoint
     FigurePoints { feet, eye }
 }
 
-/// The angles for the mouse at `mouse`, in GUI units, and the eye point `eye`.
 #[must_use]
 pub(crate) fn figure_angles(eye: Vec2, mouse: Vec2) -> FigureAngles {
     let angle = |offset: f32| TURN_DEGREES_PER_RADIAN * (offset / TURN_DISTANCE).atan();
@@ -146,9 +130,6 @@ pub(crate) fn figure_angles(eye: Vec2, mouse: Vec2) -> FigureAngles {
     }
 }
 
-/// The parallel projection from figure space to clip space: `x` to the right, `y` up and `z` to
-/// the viewer, one block for each unit, the feet at the origin. Clip depth grows toward the
-/// viewer. `window` has at least one pixel on each side.
 #[must_use]
 pub(crate) fn clip_from_figure(feet: Vec2, tilt_degrees: f32, window: UVec2, scale: u32) -> Mat4 {
     let gui_size = window.as_vec2() / scale.max(1) as f32;
@@ -166,8 +147,6 @@ pub(crate) fn clip_from_figure(feet: Vec2, tilt_degrees: f32, window: UVec2, sca
     clip_from_gui * gui_from_figure
 }
 
-/// The two light directions in figure space. They turn against the tilt, so they stay fixed on
-/// the screen.
 #[must_use]
 pub(crate) fn figure_lights(tilt_degrees: f32) -> [Vec3; 2] {
     let untilt = Mat4::from_rotation_x(tilt_degrees.to_radians());

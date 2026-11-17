@@ -19,19 +19,9 @@ use crate::network_id::player_network_id;
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
-/// The system that sends each player its own attribute instances and records the changed
-/// instances of a published player in the tile events.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OwnAttributesSet;
 
-/// Gives the client of each player one `update_attributes` about its own entity, inside the
-/// probes of its prediction (MVC-PKT-031). It holds the state of each syncable instance that
-/// changed since the last run (ATR-NET-003), and, for a player that a `login` or a `respawn` just
-/// placed, each stored syncable instance (ATR-NET-005). It also records the state of each changed
-/// instance of a published player for the players that track it (ATR-NET-003). It is the one
-/// reader of the changed attributes of a player.
-// A placed player is a new entity whose operator level is announced with the `login` or the
-// `respawn`, which went out before the tick that runs this system.
 pub(crate) fn send_own_attributes(
     mut announced: MessageReader<OpLevelAnnounced>,
     mut players: Query<
@@ -103,8 +93,6 @@ pub(crate) fn send_own_attributes(
     }
 }
 
-/// Records the state of each instance of `owed` of a published player in its tile. A player that
-/// is not published yet carries its instances in its spawn.
 fn publish_changes(
     owed: &[(Entity, Attribute)],
     players: &Query<

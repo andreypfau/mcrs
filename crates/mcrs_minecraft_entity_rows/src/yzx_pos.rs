@@ -1,7 +1,5 @@
 use mcrs_voxel::BlockPos;
 
-/// A block position that compares by `y`, then `z`, then `x`: the block order of the claims and
-/// of the block actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct YzxPos {
     pub y: i32,

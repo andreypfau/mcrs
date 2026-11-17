@@ -1,13 +1,11 @@
 use core::ops::Range;
 
-/// The order in which a [`MenuRange`] visits its menu indices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MenuOrder {
     Ascending,
     Descending,
 }
 
-/// The menu indices `start..end`, visited in `order`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MenuRange {
     pub start: u16,
@@ -39,7 +37,6 @@ impl IntoIterator for MenuRange {
     }
 }
 
-/// The menu indices of a [`MenuRange`], in its order.
 #[derive(Clone, Debug)]
 pub struct MenuRangeIter {
     indices: Range<u16>,

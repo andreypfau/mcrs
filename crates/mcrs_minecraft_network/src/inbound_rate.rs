@@ -6,7 +6,6 @@ use mcrs_minecraft_text::Text;
 
 use crate::Instant;
 
-/// The largest average of packets per second of one connection; 0 turns the limit off.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InboundRateLimit(pub u32);
 
@@ -17,7 +16,6 @@ impl Default for InboundRateLimit {
 }
 
 impl InboundRateLimit {
-    /// The reason of the disconnect.
     #[must_use]
     pub fn reason() -> Text {
         Text::translate("disconnect.exceeded_packet_rate", [])
@@ -25,13 +23,8 @@ impl InboundRateLimit {
 }
 
 const SECOND: Duration = Duration::from_secs(1);
-/// Each second keeps this share of the average and takes the rest from its own count.
 const KEEP: f32 = 0.75;
 
-/// The packets of a connection in each second, and their running average.
-///
-/// The seconds follow the arrival times of the packets, not the server ticks: a server that
-/// stalls reads a backlog in one go, and that burst is the server's, not the client's.
 #[derive(Component, Clone, Debug, Default)]
 pub struct InboundPacketRate {
     second_start: Option<Instant>,
@@ -40,8 +33,6 @@ pub struct InboundPacketRate {
 }
 
 impl InboundPacketRate {
-    /// Counts a packet that arrived at `arrival`. Answers `false` when the average of a finished
-    /// second is more than `limit`.
     pub fn count(&mut self, arrival: Instant, limit: InboundRateLimit) -> bool {
         if limit.0 == 0 {
             return true;
@@ -67,8 +58,6 @@ impl InboundPacketRate {
 mod tests {
     use super::*;
 
-    /// Counts the packets of each second, spread evenly over it, and answers the second in
-    /// which the rate first ends the connection.
     fn first_refused(per_second: &[u32], limit: u32) -> Option<usize> {
         let mut rate = InboundPacketRate::default();
         let start = Instant::now();

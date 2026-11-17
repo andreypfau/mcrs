@@ -1,7 +1,3 @@
-//! A column's surface is only ever a bound on the sky scan. These pin that it
-//! never changes an answer, and that it is dropped the moment the light world's
-//! own copy of the column moves out from under it.
-
 use std::sync::Arc;
 
 use crate::common::{
@@ -16,9 +12,6 @@ fn world() -> LightWorld {
     LightWorld::new(registry(), LightBounds::new(0, SECTIONS_Y - 1))
 }
 
-/// Terrain in section 0, a canopy scattered through section 2, air elsewhere:
-/// the shape the prologue cannot skip, because the canopy section is neither
-/// uniform nor empty.
 fn stack() -> Vec<SectionBlocks> {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)
         .map(|y| filled(if y == 0 { STONE } else { AIR }))
@@ -28,8 +21,6 @@ fn stack() -> Vec<SectionBlocks> {
     for i in 0..8u8 {
         canopy.set_cell(i as usize, 4, i as usize, state(LEAVES));
         canopy.set_cell((i) as usize, 5_usize, (i + 1) as usize, state(GLASS));
-        // A top slab directly under a bottom slab seals a seam neither seals
-        // alone, so the shortcut has to leave these columns to the full walk.
         canopy.set_cell((i + 8) as usize, 7_usize, (i) as usize, state(TOP_SLAB));
         canopy.set_cell((i + 8) as usize, 8_usize, (i) as usize, state(BOTTOM_SLAB));
     }
@@ -49,8 +40,6 @@ fn load(world: &mut LightWorld, sections: &[SectionBlocks]) {
     world.update_now(edits);
 }
 
-/// One past the topmost non-air Y of each block column, which is what the
-/// server's `SurfaceHeightmap` holds.
 fn surface_of(sections: &[SectionBlocks]) -> Arc<ColumnSurface> {
     let mut surface = ColumnSurface::new((SECTIONS_Y * 16) as u32, 0);
     for z in 0..SectionPos::SIZE {
@@ -102,7 +91,6 @@ fn a_surface_bound_never_changes_a_sky_floor() {
         column: ColumnPos::new(0, 0),
         surface: surface_of(&sections),
     }]);
-    // The bound only takes effect on the next scan of the column.
     bounded.update_now(vec![Edit::LoadSection {
         entity: 0,
         pos: SectionPos::new(0, 4, 0),
@@ -131,8 +119,6 @@ fn an_edit_above_the_bound_drops_it() {
         surface: surface_of(&sections),
     }]);
 
-    // A block far above every column's surface. If the stale bound survived the
-    // edit, the scan would skip the section holding it and report open sky.
     let raised = BlockPos::new(3, 70, 3);
     bounded.update_now(vec![Edit::SetBlock {
         pos: raised,
@@ -164,7 +150,6 @@ fn a_section_arriving_drops_the_bound() {
         surface: surface_of(&sections),
     }]);
 
-    // Section 3 comes back holding terrain the bound says is not there.
     let mut ceiling = filled(AIR);
     for i in 0..16u8 {
         ceiling.set_cell(i as usize, 9_usize, i as usize, state(STONE));
@@ -184,8 +169,6 @@ fn a_section_arriving_drops_the_bound() {
     assert_lit_correctly(&bounded);
 }
 
-/// The shortcut reads the section's top block to carry into the next seam, so a
-/// column whose bound sits exactly at a section boundary must still see it.
 #[test]
 fn a_bound_on_a_section_boundary_is_exact() {
     let mut sections: Vec<SectionBlocks> = (0..SECTIONS_Y)

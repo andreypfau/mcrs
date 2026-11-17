@@ -1,7 +1,3 @@
-//! The gameplay of the player inventory: the four holders of each player (INV-SLT-002), the hand
-//! actions, the close, the creative set, the drops and the player file.
-// std: mcrs_minecraft_engine
-
 mod apply_close;
 mod apply_creative_drop;
 mod apply_creative_set;

@@ -1,5 +1,3 @@
-// std: mcrs_minecraft_registries
-
 mod baker;
 mod issue_owner;
 mod item_rules;

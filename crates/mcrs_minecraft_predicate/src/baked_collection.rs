@@ -1,7 +1,6 @@
 use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_item::component::predicate::CollectionPredicate;
 
-/// A collection predicate whose element predicates are in their matching form.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct BakedCollection<P> {
     contains: Box<[P]>,

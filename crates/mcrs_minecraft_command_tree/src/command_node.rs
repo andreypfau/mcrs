@@ -12,17 +12,12 @@ const REDIRECT: u8 = 0x08;
 const SUGGESTIONS: u8 = 0x10;
 const RESTRICTED: u8 = 0x20;
 
-/// One node of the command tree of a `commands` packet.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CommandNode<'a> {
     pub kind: CommandNodeKind<'a>,
-    /// The indices of the child nodes in the node list.
     pub children: Vec<VarInt>,
-    /// The index of the node that the rest of the input continues at.
     pub redirect: Option<VarInt>,
-    /// The input that ends at this node is a complete command.
     pub executable: bool,
-    /// Only a source with the restricted permission may use the node.
     pub restricted: bool,
 }
 

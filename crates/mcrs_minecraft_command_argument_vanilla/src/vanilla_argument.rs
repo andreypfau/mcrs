@@ -24,64 +24,36 @@ use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 
-/// The command tree of the vanilla argument types, with handlers of type `H`.
 pub type VanillaGraph<H> = Graph<VanillaArgument, PermissionCheck, H>;
 
-/// The argument types of the vanilla commands.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum VanillaArgument {
-    /// `brigadier:bool`.
     Bool(BoolArgument),
-    /// `brigadier:integer`.
     Integer(IntegerArgument),
-    /// `brigadier:long`.
     Long(LongArgument),
-    /// `brigadier:float`.
     Float(FloatArgument),
-    /// `brigadier:double`.
     Double(DoubleArgument),
-    /// `brigadier:string`.
     String(StringArgument),
-    /// `minecraft:entity`.
     Entity(EntityArgument),
-    /// `minecraft:vec3`.
     Vec3(Vec3Argument),
-    /// `minecraft:rotation`.
     Rotation(RotationArgument),
-    /// `minecraft:resource_location`.
     ResourceLocationBuf(ResourceLocationArgument),
-    /// `minecraft:entity_anchor`.
     EntityAnchor(EntityAnchorArgument),
-    /// `minecraft:dimension`.
     Dimension(DimensionArgument),
-    /// `minecraft:gamemode`.
     GameMode(GameModeArgument),
-    /// `minecraft:resource_or_tag` or `minecraft:resource_or_tag_key`.
     ResourceOrTag(ResourceOrTagArgument),
-    /// `minecraft:block_pos`.
     BlockPos(BlockPosArgument),
-    /// `minecraft:column_pos`.
     ColumnPos(ColumnPosArgument),
-    /// `minecraft:block_state`.
     BlockState(BlockStateArgument),
-    /// `minecraft:swizzle`.
     Swizzle(SwizzleArgument),
-    /// `minecraft:heightmap`.
     Heightmap(HeightmapArgument),
-    /// `minecraft:block_predicate`.
     BlockPredicate(BlockPredicateArgument),
-    /// `minecraft:time`.
     Time(TimeArgument),
-    /// `minecraft:resource`.
     Resource(ResourceArgument),
-    /// A time marker of a clock.
     TimeMarker(TimeMarkerArgument),
-    /// A timeline of a clock.
     Timeline(TimelineArgument),
-    /// The name of a player that may not be online.
     PlayerName(PlayerNameArgument),
-    /// `minecraft:nbt_compound_tag`.
     NbtCompound(NbtCompoundArgument),
 }
 
@@ -225,7 +197,6 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
     }
 }
 
-/// The suggestion type of the `commands` packet.
 const ASK_SERVER: ResourceLocation<'static> = mcrs_minecraft_resource::rl!("minecraft:ask_server");
 
 fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
@@ -236,7 +207,6 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
     (range.min.unwrap_or(any.0), range.max.unwrap_or(any.1))
 }
 
-/// The arguments with no properties on the wire, each told apart by its parser id alone.
 const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
@@ -253,7 +223,6 @@ const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
     VanillaArgument::NbtCompound(NbtCompoundArgument),
 ];
 
-/// The parser of an argument has no id in the `command_argument_type` registry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownParser(pub ResourceLocation<'static>);
 
@@ -275,7 +244,6 @@ fn parser_id(key: ResourceLocation<'static>) -> Result<VarInt, UnknownParser> {
 }
 
 impl VanillaArgument {
-    /// The registry whose entries the argument reads, if it reads one.
     pub(crate) fn registry(&self) -> Option<ResourceLocation<'static>> {
         match self {
             VanillaArgument::ResourceOrTag(argument) => Some(argument.registry),
@@ -288,9 +256,6 @@ impl VanillaArgument {
         }
     }
 
-    /// The inverse of [`WireArgument::wire`], or `None` when no argument has that parser, or
-    /// `registry` does not resolve its registry. A time marker and a timeline read back as the
-    /// resource location and the resource they are sent as: their clock is not on the wire.
     pub(crate) fn from_wire(
         parser: &ArgumentParser<'_>,
         registry: impl Fn(ResourceLocation<'_>) -> Option<ResourceLocation<'static>>,
@@ -367,7 +332,6 @@ impl VanillaArgument {
 impl WireArgument for VanillaArgument {
     type WireError = UnknownParser;
 
-    /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
     fn suggestion_type(&self) -> Option<ResourceLocation<'static>> {
         matches!(
             self,

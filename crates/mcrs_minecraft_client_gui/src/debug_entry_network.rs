@@ -42,8 +42,6 @@ pub fn display(
     displayer.add_line(hop_medians(&traces, &mut samples, &mut hops));
 }
 
-/// The median time a column that reached the screen spent getting into each stage from the
-/// one before it, over the columns still traced.
 fn hop_medians(
     traces: &JoinedTraces,
     samples: &mut Vec<ColumnSample>,

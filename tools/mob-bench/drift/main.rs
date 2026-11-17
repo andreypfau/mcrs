@@ -1,8 +1,3 @@
-//! Runs a small fenced pen of pigs at the density of the 50,000-pig scene with one still player
-//! outside the west fence, and writes the pig positions the player's client sees at a list of
-//! game times. Each checkpoint writes two snapshots `window` ticks apart, so that the pigs that
-//! walk can be told from the pigs that stand.
-
 use std::fmt::Write as _;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::PathBuf;
@@ -18,10 +13,7 @@ use mcrs_mob_bench::scene::{self, Area};
 use mcrs_mob_bench::session::{self, CONSOLE_TIMEOUT};
 use mcrs_mob_bench::watcher::{PigSnapshot, Watcher};
 
-/// Pigs a block, as in the 50,000-pig pen of 250 × 250 blocks.
 const DENSITY: f64 = 0.8;
-/// How far the player stands outside the west fence and above the floor, as in the user's scene
-/// at (-134.5, -50, 0.5) next to the pen of x -125..125.
 const PLAYER_OUTSIDE: f64 = 8.5;
 const PLAYER_ABOVE: f64 = 10.0;
 

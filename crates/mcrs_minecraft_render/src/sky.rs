@@ -22,8 +22,6 @@ use crate::transparency_targets::CLOUD_IMAGE_FORMAT;
 use crate::{DEPTH_COMPARE, FrameCounts, ImprovedTransparency, SkyUniform, uniform_buffer};
 
 bitflags! {
-    /// Which of the sky draws exist at all. A draw whose effect is off is not
-    /// skipped at runtime — its pipeline is never built.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SkyEffects: u8 {
         const DISC = 1;
@@ -36,8 +34,6 @@ bitflags! {
 }
 
 impl SkyEffects {
-    /// Parses the comma-separated draw list a profiling run uses to leave
-    /// individual passes out, e.g. `disc,twilight,celestial,stars`.
     pub fn parse(list: &str) -> Result<Self, String> {
         list.split(',')
             .map(str::trim)
@@ -52,10 +48,6 @@ impl SkyEffects {
 
 const STAR_COUNT: u32 = 1500;
 
-// The alpha component keeps the destination rather than replacing it: these
-// draws add light, and a star whose colour has faded to zero would otherwise
-// leave the pixel under it transparent. That is invisible in an opaque native
-// window and punches holes through to the page behind a browser canvas.
 const ADDITIVE: BlendState = BlendState {
     color: BlendComponent {
         src_factor: BlendFactor::SrcAlpha,
@@ -77,7 +69,6 @@ struct SkyDraw {
     blend: Option<BlendState>,
     vertices: u32,
     writes_depth: bool,
-    /// Whether the draw would put any colour on screen with these values.
     visible: fn(&SkyUniform) -> bool,
 }
 
@@ -175,14 +166,11 @@ pub(crate) struct Sky {
         SkyEffects,
         [Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
     )>,
-    /// The clouds into the cloud image, queued on the first frame of Improved Transparency.
     cloud_image: Option<CachedRenderPipelineId>,
     textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
     view: Option<(BufferId, BindGroup)>,
 }
 
-/// Restricts the sky to a subset of its draws, so a profiling run can price
-/// one pass by leaving it out.
 #[derive(Resource)]
 pub struct SkyDrawsOnly(pub SkyEffects);
 
@@ -348,7 +336,6 @@ fn prepare_sky_bind_groups(
     commands.insert_resource(SkyBindGroups { view, textures });
 }
 
-/// The sky opens the world pass and the clouds open the forward pass.
 #[derive(SystemParam)]
 pub struct SkyDraws<'w> {
     sky: Option<Res<'w, Sky>>,
@@ -394,7 +381,6 @@ impl SkyDraws<'_> {
         self.counts.sky_draws.store(draws, Ordering::Relaxed);
     }
 
-    /// The pipeline of the cloud image is compiled, or the dimension draws no clouds.
     pub fn cloud_image_ready(&self, cache: &PipelineCache) -> bool {
         let draws_clouds = self
             .extracted
@@ -408,7 +394,6 @@ impl SkyDraws<'_> {
                 .is_some_and(|id| cache.get_render_pipeline(id).is_some())
     }
 
-    /// Into the cloud image, with no other draw: the clouds are only tested against themselves.
     pub fn draw_cloud_image<'pass>(
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,

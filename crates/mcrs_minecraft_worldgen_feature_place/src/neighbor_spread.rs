@@ -7,8 +7,6 @@ use mcrs_voxel::BlockPos;
 
 use crate::tree::provider::StateProvider;
 
-/// One `random_neighbor_spread` feature with every name it carries already
-/// resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledNeighborSpread {
     pub block: StateProvider,
@@ -19,12 +17,6 @@ pub struct CompiledNeighborSpread {
     pub y_offset: IntProvider,
 }
 
-/// `RandomNeighborSpreadFeature.place`: a block at the origin, then one
-/// candidate per attempt that goes in only where exactly one of its six
-/// neighbours is already part of the growth.
-///
-/// The three offsets are drawn for every attempt, whether or not the candidate
-/// is anywhere the feature could write.
 pub fn place_random_neighbor_spread<W: WorldGenVolume>(
     cfg: &CompiledNeighborSpread,
     volume: &mut W,
@@ -98,8 +90,6 @@ mod tests {
         }
     }
 
-    /// Three offsets per attempt in x, y, z order, spent whether or not the
-    /// candidate can be written.
     #[test]
     fn every_attempt_draws_its_three_offsets_in_order() {
         let cfg = config(12);
@@ -129,8 +119,6 @@ mod tests {
         );
     }
 
-    /// A candidate touching two of the growth is refused; one is the whole
-    /// rule.
     #[test]
     fn a_candidate_with_two_neighbours_is_refused() {
         let mut cfg = config(1);

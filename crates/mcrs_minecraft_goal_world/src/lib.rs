@@ -1,5 +1,3 @@
-//! The read-only block world of the goals of mobs, which a host implements on its block snapshot.
-
 #![no_std]
 
 mod goal_world;

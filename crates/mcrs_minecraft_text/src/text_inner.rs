@@ -15,7 +15,6 @@ use crate::{
 };
 use mcrs_minecraft_core::codec::{ArgbInt, optional_flag};
 
-/// Text data and formatting.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(bound(serialize = "I: TextSerde"))]
 pub struct TextInner<I: TextTypes> {
@@ -29,12 +28,6 @@ pub struct TextInner<I: TextTypes> {
     pub style: Style<I>,
 }
 
-/// Style keys are read as they arrive; every other key is kept as the tag it
-/// came as and handed to the content codec once the map ends. Serde's own
-/// `flatten` buffer would do the same through `Content`, which has no array
-/// tags, so an int array below `with` or a hover item would come back a list.
-/// `with` is read directly too: a JSON `true` argument is a boolean, which
-/// an NBT buffer would turn into a byte.
 impl<I: TextTypes> Default for TextInner<I> {
     fn default() -> Self {
         TextInner {

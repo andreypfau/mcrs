@@ -26,11 +26,8 @@ use mcrs_minecraft_client_world::columns::{
 };
 
 pub struct LightVolumePlugin {
-    /// Columns around the camera whose block light is coloured; 0 is off.
     pub radius: u8,
-    /// Sections the GPU colours in one frame.
     pub sections_per_frame: u32,
-    /// Section bricks that may start building in one frame.
     pub bricks_per_frame: usize,
 }
 
@@ -82,8 +79,6 @@ impl Plugin for LightVolumePlugin {
 #[derive(Resource)]
 struct BricksPerFrame(usize);
 
-/// What the feeder has handed the renderer and what it still owes it, kept only while the
-/// light volume is open. The column store stays the truth.
 #[derive(Resource, Default)]
 pub struct LightVolumeFeed {
     active: bool,
@@ -98,8 +93,6 @@ pub struct LightVolumeFeed {
     evicting: Vec<IVec3>,
 }
 
-/// Bricks reach one column past the coloured radius, so every coloured section has all 27 of
-/// its neighbours built.
 #[derive(Clone, Copy, Debug)]
 struct Scope {
     camera: IVec3,
@@ -156,8 +149,6 @@ fn emitter_rows(column: &Column, registry: &LightRegistry) -> Vec<i32> {
         .collect()
 }
 
-/// The rows of `column` whose brick is wanted: some emitter section lies within two sections of
-/// them on every axis.
 fn wanted_rows<'a>(
     scope: &Scope,
     column: ColumnPos,
@@ -180,8 +171,6 @@ fn wanted_rows<'a>(
         .collect()
 }
 
-/// A brick holds the east, up and south vetoes of its own cells, so a column's arrival changes
-/// the bricks of its west and north neighbours as well as its own.
 fn rebuilt_by(at: ColumnPos) -> [ColumnPos; 3] {
     [
         at,
@@ -198,8 +187,6 @@ fn dirtied_by(at: ColumnPos, extent: Extent) -> impl Iterator<Item = IVec3> {
 }
 
 impl LightVolumeFeed {
-    /// Nothing to build, nothing building and nothing dirty; a feeder that is not running holds
-    /// nothing and so is idle.
     pub fn idle(&self) -> bool {
         self.to_build.is_empty() && self.building.is_empty() && self.dirty.is_empty()
     }
@@ -273,8 +260,6 @@ impl LightVolumeFeed {
         }
     }
 
-    /// Evicts the column's bricks and whatever colour it may hold. Its neighbours keep the colour
-    /// its light gave them.
     fn depart(&mut self, at: ColumnPos, scope: &Scope) {
         self.emitters.remove(&at);
         self.to_build.retain(|&section| column_of(section) != at);
@@ -288,9 +273,6 @@ impl LightVolumeFeed {
         }
     }
 
-    /// Bricks more than one column past the radius are evicted, those coming within it are built,
-    /// and sections coming inside the radius are dirtied. The renderer drops the colour of
-    /// sections leaving the radius itself.
     fn follow(&mut self, scope: &Scope, loaded: impl Fn(ColumnPos) -> bool) {
         let camera = column_of(scope.camera);
         if camera == self.camera {
@@ -339,8 +321,6 @@ impl LightVolumeFeed {
         }
     }
 
-    /// A block's light type may have changed with the colours, so every wanted brick is built
-    /// again and every section in the radius coloured again.
     fn recolour(&mut self, scope: &Scope, loaded: impl Fn(ColumnPos) -> bool) {
         self.to_build.extend(self.built.keys().copied());
         self.to_build
@@ -375,8 +355,6 @@ impl LightVolumeFeed {
         }
     }
 
-    /// A block change can add or remove an emitter and change a veto, so the column's bricks
-    /// are built again as at its arrival, and the sections around it are coloured again.
     fn reblock(
         &mut self,
         at: ColumnPos,
@@ -446,7 +424,6 @@ impl LightVolumeFeed {
         }
     }
 
-    /// Dirty sections none of whose 27 neighbours still has a brick to build.
     fn take_ready(&mut self) -> Vec<IVec3> {
         let pending = self.to_build.len() + self.building.len();
         let ready: Vec<IVec3> = if pending == 0 {
@@ -820,7 +797,6 @@ mod tests {
         LightColors::new(vec![rgb], types)
     }
 
-    /// A column of `extent` with one glowstone block in each of the `lit` rows.
     fn column_in(extent: Extent, lit: &[i32]) -> Column {
         let lamp = glowstone();
         let sections = extent.min_section_y..extent.min_section_y + extent.sections as i32;
@@ -869,7 +845,6 @@ mod tests {
         app.world_mut().resource_mut::<ColumnStore>()
     }
 
-    /// Every command the feeder sends until it has nothing left to build or dirty.
     fn settle_commands(app: &mut App) -> Vec<VolumeCommand> {
         let queue = app.world().resource::<VolumeQueue>().clone();
         let mut commands = Vec::new();

@@ -42,18 +42,11 @@ use crate::mobs::Mob;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 
-/// The chance of a left hand in the first spawn setup (ANIM-SPAWN-001).
 const LEFT_HANDED: f64 = 0.05;
 
-/// The spawn requests that wait for an entity id, in the order of the life cycle. The cell gets
-/// [`ENTITY_ID_RANGE_LEN`](mcrs_minecraft_engine_world::entity_ids::ENTITY_ID_RANGE_LEN) ids in each
-/// tick, so a longer run of requests spawns over several ticks instead of losing its mobs.
 #[derive(Resource, Debug, Default)]
 pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
 
-/// What happened to the mobs in this tick beside their moves: their spawns, the rows that a
-/// command or a hit changed and the hits. The publish of the tick reads them, and the end of the
-/// tick clears them.
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
@@ -62,44 +55,36 @@ pub struct MobChanges {
 }
 
 impl MobChanges {
-    /// The mobs that spawned in this tick, in spawn order.
     #[must_use]
     pub fn spawned(&self) -> &[Spawned] {
         &self.spawned
     }
 
-    /// The rows that a command or a crowd hit changed, in the order of the changes.
     #[must_use]
     pub fn touched(&self) -> &[Placed] {
         &self.touched
     }
 
-    /// The hits that a mob took and did not reject, in the order of the hits.
     #[must_use]
     pub fn strikes(&self) -> &[Struck] {
         &self.strikes
     }
 }
 
-/// A mob that came into the world, with its state at the spawn, where its tracking starts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spawned {
     pub id: EntityId,
     pub start: EntityState,
 }
 
-/// A hit that the mob row `at` did not reject.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Struck {
     pub at: Placed,
-    /// The network id of the damage type of the hit.
     pub damage_type: u32,
     pub outcome: HitOutcome,
-    /// Whether the mob is dying after the hit.
     pub died: bool,
 }
 
-/// The motion row of a mob of `kind`: a walker with the adult box of the type.
 #[must_use]
 pub fn mob_row(kind: &EntityTypeData) -> MotionRow {
     MotionRow::living(
@@ -108,8 +93,6 @@ pub fn mob_row(kind: &EntityTypeData) -> MotionRow {
     )
 }
 
-/// The state of a new mob of `kind` at `position`, with no velocity and no rotation
-/// (TRK-LIFE-003) and the base attributes of the type.
 #[must_use]
 pub fn mob_body(
     kind: &EntityTypeData,
@@ -135,9 +118,6 @@ pub fn mob_body(
     state
 }
 
-/// The life cycle of the mobs: each spawn request of the tick becomes a row, in the order of the
-/// UUIDs (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
-/// request, spawns nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -200,8 +180,6 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
     }
 }
 
-/// The end of the tick of the mobs, after their publish: the cold table forgets the mobs whose
-/// rows left the world, and the changes of the tick clear.
 pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
     rows: Res<RowStore<M>>,
     mut mobs: ResMut<Mobs>,
@@ -218,9 +196,6 @@ pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
     changes.strikes.clear();
 }
 
-/// The values of the first spawn setup of an animal that its viewers see (ANIM-SPAWN-001): a
-/// sound variant of equal chances and a left hand with the chance 0.05, from the keyed stream of
-/// the new mob. The variant keeps its default.
 fn first_looks(
     kind: &EntityTypeData,
     stream: &KeyedStream,
@@ -268,8 +243,6 @@ fn first_looks(
     }
 }
 
-/// An entry of `registry` of equal chances for the uniform value `unit`, or `None` when it is the
-/// entry `default`.
 fn pick<R>(
     registries: Option<&Registries>,
     registry: ResourceLocation<'static>,
@@ -293,8 +266,6 @@ mod tests {
 
     use super::*;
 
-    /// ANIM-VAR-004: the first spawn setup gives each sound variant entry of the type the same
-    /// chance, and a default entry sends nothing.
     #[test]
     fn the_first_setup_draws_each_sound_variant_with_an_equal_chance() {
         let cases = [

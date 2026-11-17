@@ -5,7 +5,6 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-/// A map of keys to providers in the order of the file (LOOT-MOD-023).
 #[derive(Debug, Clone, Default)]
 pub struct KeyedNumbers(pub Vec<KeyedNumber>);
 

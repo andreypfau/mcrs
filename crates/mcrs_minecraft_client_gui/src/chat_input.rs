@@ -1,5 +1,3 @@
-//! The keys and the mouse of the chat screen, and the log wrapped into lines.
-
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::InputSystems;
@@ -31,11 +29,9 @@ use mcrs_minecraft_client_world::chat::{
 use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
 use mcrs_minecraft_client_world::screen::Screen;
 
-/// The lines of the chat log as the GUI wraps them, and the scroll of the open chat.
 #[derive(Resource, Default)]
 pub struct ChatLines(pub mcrs_minecraft_chat_client::ChatLines<Vec<Span>>);
 
-/// The chat screen: its keys, its mouse and the lines of the log it shows.
 pub struct ChatScreenPlugin;
 
 impl Plugin for ChatScreenPlugin {
@@ -49,8 +45,6 @@ impl Plugin for ChatScreenPlugin {
     }
 }
 
-/// Wraps the messages of the log into lines: the new ones as they arrive, and every kept
-/// message again when the font or the language changes.
 fn project_lines(
     chat: Res<Chat>,
     screen: Res<Screen>,
@@ -106,7 +100,6 @@ fn capture_keys(keys: &mut ButtonInput<KeyCode>) {
     keys.clear();
 }
 
-/// The key of the chat screen, or `None` for a key that types text or does nothing.
 fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
     let step = if modifiers.control {
         Step::Word
@@ -167,7 +160,6 @@ struct ChatState<'w> {
     lines: ResMut<'w, ChatLines>,
 }
 
-/// The initial input of a key that opens the chat screen, and its style.
 fn opening(
     keys: &ButtonInput<KeyCode>,
     screen: Screen,
@@ -198,8 +190,6 @@ fn opening(
     })
 }
 
-/// Opens the chat screen on its keys, and while it is open gives it every key,
-/// so no game key fires under it.
 fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,
@@ -286,11 +276,9 @@ fn chat_keys(
     }
 }
 
-/// What the keys of one frame did to the open chat screen beyond its input.
 struct Typed {
     closed: Option<Closed>,
     page: isize,
-    /// Whether the view must follow the caret; select all leaves the view at the start.
     scroll: bool,
 }
 
@@ -346,7 +334,6 @@ fn type_keys(
     typed
 }
 
-/// Sends what Enter sent, keeps the draft and leaves the screen.
 fn close(state: &mut ChatState, closed: Closed, sends: &mut MessageWriter<SendChat>) {
     let chat = &mut *state.chat;
     let screen = &state.input.0;
@@ -410,7 +397,6 @@ fn input_mouse(
     }
 }
 
-/// The wheel and the left button over the open chat; returns whether the input changed.
 fn mouse(
     keys: &ChatKeys,
     moved: bool,

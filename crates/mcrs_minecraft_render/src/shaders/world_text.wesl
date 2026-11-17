@@ -23,7 +23,6 @@ struct Fragment {
 @vertex
 fn vertex(in: Vertex) -> Fragment {
     var out: Fragment;
-    // The block is subtracted from the camera section in i32, as the terrain does.
     let relative = vec3<f32>(in.block - frame.section * i32(SECTION_SIZE)) + in.offset;
     out.clip_position = frame.clip_from_relative * vec4<f32>(relative, 1.0);
     out.uv = in.uv;

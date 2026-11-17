@@ -1,7 +1,3 @@
-//! Block support in a dimension world under the vanilla block rules: a set that removes the base
-//! of a plant removes the plant through the shape updates of the set, and the plant drops the
-//! items of its block table.
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
@@ -123,7 +119,6 @@ impl World {
         self.server.ticks_all(2);
     }
 
-    /// Sets each block with flags 3, from the bottom up.
     fn build(&mut self, blocks: &[(BlockPos, BlockStateId)]) {
         for (pos, state) in blocks {
             self.set(*pos, *state, BlockUpdateFlags::ALL);
@@ -157,8 +152,6 @@ fn one(item: Item) -> Vec<(Kind, u8)> {
     vec![(Kind(item.id().number()), 1)]
 }
 
-/// SUP-RUN-001, SUP-VEG-001, R6: a set that removes the base of a plant destroys the plant, and
-/// the plant drops its item.
 #[test]
 fn sup_run_001_a_plant_whose_base_goes_is_destroyed_and_drops_its_item() {
     let mut world = World::new();
@@ -172,8 +165,6 @@ fn sup_run_001_a_plant_whose_base_goes_is_destroyed_and_drops_its_item() {
     assert_eq!(world.item_entities(), one(Item::Poppy));
 }
 
-/// SUP-RUN-001, SIM-SET-004, R5: a waterlogged subject that loses its support changes to a water
-/// source, not to air, and still drops its item. A propagule drops only at age 4.
 #[test]
 fn sim_set_004_a_waterlogged_plant_whose_base_goes_leaves_a_water_source() {
     let mut world = World::new();
@@ -192,8 +183,6 @@ fn sim_set_004_a_waterlogged_plant_whose_base_goes_leaves_a_water_source() {
     assert_eq!(world.item_entities(), one(Item::MangrovePropagule));
 }
 
-/// SUP-RUN-001: a set with keep-shape makes no shape update, so the plant stays without its
-/// base until a shape update comes from below.
 #[test]
 fn sup_run_001_a_plant_stays_after_a_set_with_keep_shape() {
     let mut world = World::new();
@@ -209,8 +198,6 @@ fn sup_run_001_a_plant_stays_after_a_set_with_keep_shape() {
     assert_eq!(world.block_at(P), BlockStateId::AIR);
 }
 
-/// SUP-VEG-002, R5, R6: the base of a sunflower goes, so the lower part goes, and its removal
-/// removes the upper part in the same tick. One sunflower drops.
 #[test]
 fn sup_veg_002_both_parts_of_a_sunflower_go_with_its_base() {
     let mut world = World::new();
@@ -229,8 +216,6 @@ fn sup_veg_002_both_parts_of_a_sunflower_go_with_its_base() {
     assert_eq!(world.item_entities(), one(Item::Sunflower));
 }
 
-/// The corpus with a poppy whose filter has the predicate form and tests all directions, as a plant
-/// of SUP-PRED-003 does, so that a change beside it reads the block below it.
 fn poppy_testing_all_directions() -> Blocks {
     let directory = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -268,8 +253,6 @@ fn poppy_testing_all_directions() -> Blocks {
     Blocks(Arc::new(definitions))
 }
 
-/// SUP-RUN-001: a shape update whose support read reaches a section that is not available keeps
-/// the subject; only the void outside the world reads as void air.
 #[test]
 fn sup_run_001_an_unavailable_base_keeps_the_plant() {
     let mut world = World::with_blocks(Some(poppy_testing_all_directions()));
@@ -284,7 +267,6 @@ fn sup_run_001_an_unavailable_base_keeps_the_plant() {
     assert_eq!(world.block_at(lowest), poppy);
 }
 
-/// SUP-VEG-002: a change beside a part of a tall plant, not above or below it, leaves the plant.
 #[test]
 fn sup_veg_002_a_side_neighbour_leaves_a_tall_plant() {
     let mut world = World::new();

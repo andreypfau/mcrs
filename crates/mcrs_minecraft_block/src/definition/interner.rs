@@ -2,7 +2,6 @@ use core::hash::Hash;
 
 use rustc_hash::FxHashMap;
 
-/// Numbers distinct values in the order of their first appearance.
 pub(super) struct Interner<T> {
     values: Vec<T>,
     index: FxHashMap<T, u16>,

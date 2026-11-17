@@ -1,5 +1,3 @@
-//! The processor class of a channel expression (`docs/molang.md`, section 10.1).
-
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -12,8 +10,6 @@ use mcrs_molang::{
     compile_text,
 };
 
-/// `q.time` is a GPU input of the range `[0, 1e9]`, `q.walk` one with no known range, `q.load`
-/// a value of the pack load, and `q.name` a string that is not a GPU input.
 fn classify(text: &str) -> ChannelClass {
     let mut registry = QueryRegistry::new(UseContext::Entity);
     for (name, result, rate) in [

@@ -6,14 +6,10 @@ use mcrs_minecraft_wire::{Decode, Encode, Error, Result};
 
 use crate::{ItemHover, Text, TextSerde};
 
-/// The network bytes of one text component, checked to be one well-formed NBT tag of a type
-/// that a text takes. A packet that only forwards a text keeps it in this form; a reader that
-/// needs the text calls [`RawText::to_text`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawText<'a>(Cow<'a, [u8]>);
 
 impl RawText<'static> {
-    /// Encodes `text` once, so that every packet that carries the result writes the same bytes.
     pub fn from_text<I: TextSerde>(text: &Text<I>) -> Result<RawText<'static>> {
         let mut bytes = Vec::new();
         text.encode(&mut bytes)?;

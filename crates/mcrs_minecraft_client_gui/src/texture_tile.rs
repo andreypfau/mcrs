@@ -4,8 +4,6 @@ use crate::gui_texture_id::GuiTextureId;
 use crate::scene::{GuiAtlasData, GuiQuad};
 
 impl GuiAtlasData {
-    /// Repeats `texture` over `rect` in tiles of `size` GUI units, each the full image, on a grid
-    /// through `start`. A tile across an edge of `rect` shows only its part inside.
     pub fn tile(
         &self,
         texture: GuiTextureId,

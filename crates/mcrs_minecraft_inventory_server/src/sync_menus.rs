@@ -33,10 +33,6 @@ pub(crate) struct SyncScratch {
     bytes: Vec<u8>,
 }
 
-/// Compares the inventory menu of each player with its client view in each tick, and sends each
-/// entry and the cursor that do not match (INV-SYN-003, INV-SYN-004, ITX-JAV-004). The comparison
-/// reads the stacks in place and builds a stack value only to send it. A player in [`MenuQueue`]
-/// gets the content of the menu instead (INV-SYN-005).
 pub(crate) fn sync_menus(
     mut queue: ResMut<MenuQueue>,
     mut players: Query<(Entity, &Owner, &Slots, &PlayerHolders, &mut MenuSync)>,
@@ -109,10 +105,7 @@ pub(crate) fn sync_menus(
 
 enum Check {
     Matches,
-    /// A hashed view matches this value; the view becomes the value, so that the next
-    /// comparison reads the stack in place.
     Confirmed(Option<ItemStack>),
-    /// The view does not match; the value is the stack to send.
     Differs(Option<ItemStack>),
 }
 

@@ -36,9 +36,6 @@ use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-/// The vanilla rules of the blocks in every dimension world: the drops from the block tables of
-/// the loaded data pack (`block-loot.md`) and the removal of a block without support
-/// (`block-support.md`), whose [`BlockSupport`] the placement of a block also reads.
 pub struct VanillaBlocksPlugin;
 
 impl Plugin for VanillaBlocksPlugin {
@@ -47,8 +44,6 @@ impl Plugin for VanillaBlocksPlugin {
     }
 }
 
-/// Block rules whose drops are the block tables (`block-loot.md`) and whose shape function
-/// removes a block that lost its support (SUP-RUN-001).
 #[derive(Clone, Debug)]
 pub struct VanillaBlocks {
     loot: LootTables,
@@ -99,7 +94,6 @@ impl BlockDrops for VanillaBlocks {
         let Some(table) = table else {
             return;
         };
-        // chisle: a stack holds no enchantments, so each enchantment of the tool has the level 0.
         let tool = block.tool.and_then(|stack| {
             Some(StackValue::new(
                 Kind(stack.item.number()),
@@ -115,7 +109,6 @@ impl BlockDrops for VanillaBlocks {
             f64::from(block.at.z) + 0.5,
         ));
         context.block_state = Some(block.state);
-        // chisle: no `block_entity` until the block source passes the broken block's saved data.
         context.tool = Some(tool.as_ref().map_or(Tool::Empty, Tool::Stack));
         context.this_entity = block.breaker;
         let random = self.loot.keyed_stream(KeyedSeed {
@@ -128,8 +121,6 @@ impl BlockDrops for VanillaBlocks {
                 None => REMOVAL,
             },
         });
-        // chisle: the buffers are made for each drop; a block source that owns its scratch
-        // lifts it.
         let mut stacks = Vec::new();
         let rolled = random.and_then(|mut random| {
             self.loot.roll(
@@ -152,12 +143,9 @@ impl BlockDrops for VanillaBlocks {
     }
 }
 
-/// The cause of a survival break with a harvest, in the key of the drop stream.
 const BREAK: u64 = 1;
-/// The cause of a removal that drops, such as a block that lost its support.
 const REMOVAL: u64 = 2;
 
-/// The world of a drop as a location view: the block states that the drop can read.
 struct BlockAt<F>(F);
 
 impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
@@ -165,33 +153,26 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
         (self.0)(pos)
     }
 
-    // chisle: a position counts as loaded when its block state is known; the loaded check of the
-    // dimension (build height, coordinate limits, full chunk) lifts it.
     fn is_loaded(&self, pos: BlockPos) -> bool {
         (self.0)(pos).is_some()
     }
 
-    // chisle: the drop reads no fluid; a fluid view of the dimension lifts it.
     fn fluid_state(&self, _: BlockPos) -> Option<mcrs_minecraft_block::definition::FluidState> {
         None
     }
 
-    // chisle: the drop reads no light; the light engine of the dimension lifts it.
     fn block_light(&self, _: BlockPos) -> Option<u8> {
         None
     }
 
-    // chisle: the drop reads no light; the light engine of the dimension lifts it.
     fn sky_light(&self, _: BlockPos) -> Option<u8> {
         None
     }
 
-    // chisle: the drop reads no environment attribute; the attributes of the dimension lift it.
     fn sky_light_level(&self) -> Option<f32> {
         None
     }
 
-    // chisle: the drop reads no biome; the biome storage of the dimension lifts it.
     fn biome(
         &self,
         _: BlockPos,
@@ -199,7 +180,6 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
         None
     }
 
-    // chisle: the drop reads no structure; the structure starts of the dimension lift it.
     fn inside_structure(
         &self,
         _: BlockPos,
@@ -208,14 +188,12 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
         None
     }
 
-    // chisle: the drop does not know its dimension; the dimension key of the world lifts it.
     fn dimension(
         &self,
     ) -> Option<mcrs_minecraft_resource::Id<mcrs_minecraft_dimension::Dimension>> {
         None
     }
 
-    // chisle: the drop reads no block entity; the block entity storage of the dimension lifts it.
     fn block_entity_data(
         &self,
         _: BlockPos,
@@ -225,7 +203,6 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
     }
 }
 
-// chisle: the drop reads no entity; an entity view of the dimension lifts it.
 impl<F> EntityView for BlockAt<F> {
     type Entity = Entity;
 
@@ -334,22 +311,18 @@ impl<F> EntityView for BlockAt<F> {
     }
 }
 
-// chisle: the drop reads no scoreboard; a scoreboard view of the server lifts it.
 impl<F, E> ScoreView<E> for BlockAt<F> {
     fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
         None
     }
 }
 
-// chisle: the drop reads no command storage; a storage view of the server lifts it.
 impl<F> StorageView for BlockAt<F> {
     fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
         None
     }
 }
 
-// chisle: the drop reads the default value of each environment attribute; the attributes of the
-// dimension lift it.
 impl<F> EnvironmentView for BlockAt<F> {
     fn environment_value(
         &self,
@@ -361,26 +334,21 @@ impl<F> EnvironmentView for BlockAt<F> {
 }
 
 impl<F> WeatherView for BlockAt<F> {
-    // chisle: the drop reads no weather; the weather state of the dimension lifts it.
     fn rain_strength(&self) -> Option<f32> {
         None
     }
 
-    // chisle: the drop reads no weather; the weather state of the dimension lifts it.
     fn thunder_strength(&self) -> Option<f32> {
         None
     }
 }
 
 impl<F> ClockView for BlockAt<F> {
-    // chisle: the drop reads no clock; the clock state of the dimension lifts it.
     fn total_ticks(&self, _: Id<WorldClock>) -> Option<i64> {
         None
     }
 }
 
-// chisle: the tables are baked once per dimension world at its spawn, so a reload of the data
-// pack reaches only the worlds spawned after it; rebaking on a new registry snapshot lifts it.
 fn add_loot_rules(sub_app: &mut SubApp) {
     let world = sub_app.world();
     let parts = (
@@ -394,8 +362,6 @@ fn add_loot_rules(sub_app: &mut SubApp) {
         return;
     };
     let (loot, issues) = LootTables::bake(blocks, registries, items);
-    // chisle: a loot issue must refuse the load (LOOT-CTX-016); the bake at the registry load,
-    // with its refusal, lifts this.
     for issue in &issues {
         tracing::error!("{issue}");
     }

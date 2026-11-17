@@ -3,8 +3,6 @@ use crate::grid_child::GridChild;
 use crate::gui_extent::GuiExtent;
 use crate::gui_rect::GuiRect;
 
-/// Children in rows and columns: a row is as high as the largest share of a cell in it, a
-/// column as wide as the largest share, and neighbour rows and columns are a gap apart.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Grid<'a> {
     pub row_gap: i32,
@@ -13,7 +11,6 @@ pub struct Grid<'a> {
 }
 
 impl<'a> Grid<'a> {
-    /// The width and the height of the grid; 0 × 0 without a child.
     #[must_use]
     pub fn size(self) -> GuiExtent {
         GuiExtent::new(
@@ -22,7 +19,6 @@ impl<'a> Grid<'a> {
         )
     }
 
-    /// The bounds of the children, in their order, for the grid at (`x`, `y`).
     pub fn rects(self, x: i32, y: i32) -> impl Iterator<Item = GuiRect> + 'a {
         let columns = self.tracks(Axis::Horizontal);
         let rows = self.tracks(Axis::Vertical);
@@ -50,8 +46,6 @@ impl<'a> Grid<'a> {
     }
 }
 
-// chisle: a track length rescans the children, O(children² · tracks) per call; a caller-owned
-// buffer of track lengths lifts it when a grid holds hundreds of children.
 #[derive(Clone, Copy)]
 struct Tracks<'a> {
     children: &'a [GridChild],

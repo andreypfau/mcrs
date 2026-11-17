@@ -1,6 +1,3 @@
-//! What the block simulation of a dimension ticks: blocks and fluids by their registry ids, and
-//! the facts of the block table that the simulation kernels ask for.
-
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateFlags};
@@ -10,7 +7,6 @@ use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{BlockFacts, Kinds};
 use mcrs_voxel::BlockStateId;
 
-/// A scheduled tick of a dimension names a block or a fluid by its registry id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WorldKinds;
 
@@ -26,7 +22,6 @@ const RAILS: [Block; 4] = [
     Block::ActivatorRail,
 ];
 
-/// The facts of one block table.
 #[derive(Clone, Copy, Debug)]
 pub struct WorldFacts<'a> {
     definitions: &'a BlockDefinitions,
@@ -34,8 +29,6 @@ pub struct WorldFacts<'a> {
     wire: Option<WireLayout>,
 }
 
-/// The state-id digits of the four sides of redstone wire, resolved once so that a tick reads a
-/// side by arithmetic instead of by property name.
 #[derive(Clone, Copy, Debug)]
 struct WireLayout {
     base: u16,
@@ -161,13 +154,9 @@ impl BlockFacts<WorldKinds> for WorldFacts<'_> {
     fn has_analog_output(&self, state: BlockStateId) -> bool {
         self.definitions
             .entry(self.block_of(state))
-            // chisle: only containers; a block with an analog output and no container (composter,
-            // cauldron, cake, lectern) waits for an analog output component in the definitions.
             .is_some_and(|entry| entry.container_slots.is_some())
     }
 
-    /// The block of a fluid on its own: a source is level 0 of the fluid block, and a flowing
-    /// fluid of amount `n` is level `8 - n`. The table states no falling fluid, so none is made.
     fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId {
         let Some(fluid) = self.definitions.state(state).fluid else {
             return BlockStateId::AIR;

@@ -5,9 +5,6 @@ use crate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
 
 use super::build_settings_router;
 
-/// A lattice node's value is a function of the node, not of the volume it was
-/// asked about as part of. Nothing may share a plane between neighbouring
-/// columns until that holds bit for bit.
 #[test]
 fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     use glam::IVec3;
@@ -54,13 +51,6 @@ fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
 mod exhaustive {
     use super::*;
 
-    /// `docs/worldgen.md` R6. A cell bound that is understated writes stone through
-    /// air, and no test that is not written against it would notice: the fill does
-    /// not crash, does not slow down, and the wrong blocks look like terrain.
-    ///
-    /// So, over a region of both ocean and land: every bound must contain every
-    /// density in its cell, and every cell the bound settles must hold only
-    /// densities of the sign it settled on.
     #[test]
     #[expect(
         clippy::excessive_nesting,
@@ -71,7 +61,6 @@ mod exhaustive {
         use mcrs_minecraft_noise::sample_grid::SampleGrid;
         use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
 
-        /// Chunks per side, per region. Widening this is the whole knob.
         const SIDE: i32 = 64;
 
         let router = build_settings_router("overworld", 845);
@@ -108,8 +97,6 @@ mod exhaustive {
                                 continue;
                             };
 
-                            // The lattice is pinned, so this is the interpolation
-                            // the production fill would have done for these blocks.
                             let volume = SampleGrid::dense(cell, min);
                             router
                                 .program

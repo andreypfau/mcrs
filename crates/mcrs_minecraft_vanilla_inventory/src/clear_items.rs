@@ -7,7 +7,6 @@ use mcrs_minecraft_engine_item::Slots;
 
 use crate::PlayerHolders;
 
-/// Despawns each stack of the four holders of the player. Each holder keeps its slots.
 pub(crate) fn clear_items(
     In(player): In<Entity>,
     players: Query<&PlayerHolders>,

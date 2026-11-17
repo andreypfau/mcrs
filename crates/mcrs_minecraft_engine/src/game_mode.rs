@@ -11,8 +11,6 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChangeGameMode, ServerboundPlayerAbilities,
 };
 
-/// The game mode that the player list shows for a player, which the login and a dimension
-/// change leave as it was told.
 #[derive(
     Component, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
@@ -62,12 +60,9 @@ fn handle_player_abilities(
     }
 }
 
-// The flying and walking speeds are the defaults, because the saved speeds of a player
-// are not read yet; reading them with the rest of the player data lifts it.
 const FLYING_SPEED: f32 = 0.05;
 const WALKING_SPEED: f32 = 0.1;
 
-/// The abilities of a player in `mode` that flew as `flying` before.
 pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlayerAbilities {
     let (invulnerable, flying, may_fly, instant_build) = match mode {
         GameMode::Survival | GameMode::Adventure => (false, false, false, false),
@@ -84,11 +79,6 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
     }
 }
 
-/// Gives a player the abilities of its new game mode and tells it both. The change of
-/// [`ListedGameMode`] tells the viewers that have its profile entry. A mode that the login or a
-/// dimension change already told is not sent again.
-// A player that flies near the ground keeps its flight on a change to creative, since
-// the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
     mut players: Query<
         (

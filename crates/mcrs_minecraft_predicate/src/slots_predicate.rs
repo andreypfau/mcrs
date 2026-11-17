@@ -11,7 +11,6 @@ use crate::entity_view::EntityView;
 use crate::predicate_issue::PredicateIssue;
 use crate::slot_range::{SlotRange, UnknownSlotRange};
 
-/// An item predicate for each slot range name; each entry needs one slot of its range.
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub(crate) struct SlotsPredicate<M: Refs = Resolved>(Vec<SlotPredicate<M>>);
 
@@ -21,7 +20,6 @@ pub(crate) struct SlotPredicate<M: Refs = Resolved> {
     item: ItemPredicate<M>,
 }
 
-/// The item predicate of one slot range in its matching form.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct BakedSlotTest {
     range: SlotRange,
@@ -61,8 +59,6 @@ impl SlotsPredicate {
 }
 
 impl BakedSlotTest {
-    /// A slot that the entity does not have, or whose stack the host does not have, holds no
-    /// passing stack.
     pub(crate) fn matches<W: EntityView>(
         &self,
         world: &W,

@@ -22,7 +22,6 @@ use mcrs_minecraft_inventory_transaction::Op;
 use mcrs_minecraft_inventory_transaction::Plan;
 use mcrs_minecraft_inventory_transaction::Planned;
 
-/// The handle of a stack: the parts that the filters and the equality read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Item {
     pub components: u8,
@@ -75,7 +74,6 @@ pub fn helmet() -> Stack {
     )
 }
 
-/// A helmet with an enchantment that prevents an armour change.
 pub fn locked_helmet() -> Stack {
     stack(
         4,
@@ -89,7 +87,6 @@ pub fn locked_helmet() -> Stack {
     )
 }
 
-/// A stackable item that the head slot accepts; `components` tells two such stacks apart.
 pub fn pumpkin(components: u8, count: u8) -> Stack {
     stack(
         5,
@@ -103,7 +100,6 @@ pub fn pumpkin(components: u8, count: u8) -> Stack {
     )
 }
 
-/// The slots of one player, addressed by the entries of the inventory menu.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Player {
     inventory: [Stack; 41],
@@ -117,7 +113,6 @@ pub struct Player {
 
 pub const CURSOR: MenuSlot = MenuSlot::new(Holder::Cursor, 0);
 
-/// The slot of the menu index `index`. Panics for an index that is not an entry.
 pub fn entry(index: u16) -> MenuSlot {
     InventoryMenu::slot(index).expect("the test names an entry of the inventory menu")
 }
@@ -140,7 +135,6 @@ impl Player {
         self
     }
 
-    /// Gives the entry `index` a place filter that refuses each stack.
     pub fn refusing(mut self, index: u16) -> Self {
         self.refusing.push(entry(index));
         self
@@ -166,7 +160,6 @@ impl Player {
         }
     }
 
-    /// Panics for a slot that the player does not have.
     fn stack_mut(&mut self, slot: MenuSlot) -> &mut Stack {
         let index = usize::from(slot.index);
         match slot.holder {
@@ -229,7 +222,6 @@ impl Slots for Player {
     }
 }
 
-/// The inventory menu over the slots of `Player`.
 pub struct Window<'a>(pub &'a Player);
 
 impl Menu for Window<'_> {
@@ -266,8 +258,6 @@ impl Menu for Window<'_> {
     }
 }
 
-/// The operations of `kind` with `button` on `clicked`. Panics when the request that the click
-/// gives does not apply, because a request of a click applies by construction (ITX-JAV-003).
 pub fn click(
     player: &Player,
     kind: ClickKind,
@@ -277,7 +267,6 @@ pub fn click(
     send(player, &mut Drag::new(), kind, button, clicked)
 }
 
-/// [`click`] with the drag state `drag` of the menu.
 pub fn send(
     player: &Player,
     drag: &mut Drag,
@@ -308,7 +297,6 @@ pub fn send(
     Ok(ops)
 }
 
-/// The slots after `ops`. Panics when the request has a rejection.
 pub fn apply(player: &Player, ops: &[Operation]) -> Player {
     let mut scratch = Plan::new();
     let result = mcrs_minecraft_inventory_transaction::plan(
@@ -348,7 +336,6 @@ pub struct Case {
     pub ops: Vec<Operation>,
 }
 
-/// Checks the operations of each case for the click kind `kind`.
 pub fn check(kind: ClickKind, cases: Vec<Case>) {
     for case in cases {
         let ops = click(&case.player, kind, case.button, case.clicked);

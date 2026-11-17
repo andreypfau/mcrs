@@ -15,8 +15,6 @@ use crate::PlayerHolders;
 use crate::PlayerItemsRestored;
 use crate::player_policy::player_policy;
 
-/// Gives the player its four holders with `stacks`. The holders that the player had keep their
-/// entities and lose their stacks.
 pub(crate) fn restore_holders(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
@@ -42,7 +40,6 @@ pub(crate) fn restore_holders(
     commands.trigger(PlayerItemsRestored { entity: player });
 }
 
-/// Puts the cursor and the craft grid of `stacks` into the holders of the player.
 pub(crate) fn restore_carried(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
@@ -61,8 +58,6 @@ pub(crate) fn restore_carried(
     commands.trigger(PlayerItemsRestored { entity: player });
 }
 
-/// Gives a new player four empty holders and the selected slot 0 (INV-SLT-002). A player file or
-/// a handover that the engine applies after the spawn fills the same holders.
 pub(crate) fn hold_new_player(
     add: On<Add<Player>>,
     mut commands: Commands,
@@ -74,8 +69,6 @@ pub(crate) fn hold_new_player(
     }
 }
 
-/// The holders of the player. A player without them gets new ones, and each of its four holders
-/// gets its [`SlotPolicy`](mcrs_minecraft_engine_item::SlotPolicy).
 fn holders_of(
     commands: &mut Commands,
     player: Entity,

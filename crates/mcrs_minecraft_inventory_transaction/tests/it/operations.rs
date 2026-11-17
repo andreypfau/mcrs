@@ -155,7 +155,6 @@ fn cases() -> Vec<Case> {
             dropped: vec![dirt(2), stone(1), dirt(3)],
         },
         Case {
-            // INV-CRE-001
             name: "set puts a stack with its count past every filter and limit, replaces a stack and empties a slot",
             slots: vec![
                 refusing(
@@ -179,7 +178,6 @@ fn cases() -> Vec<Case> {
             dropped: vec![],
         },
         Case {
-            // INV-CRE-001
             name: "a later operation uses the stack that a set put",
             slots: vec![open(None), open(None)],
             ops: vec![set(0, stone(10), 10), split(0, 1, 4)],

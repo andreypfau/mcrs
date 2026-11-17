@@ -1,6 +1,3 @@
-//! The replication of the moving entities that are not living: each one gets a network id before
-//! it moves, and its spawn, its moves and its removal become tile events.
-
 mod appearance;
 mod assign_ids;
 mod departures;

@@ -13,8 +13,6 @@ use crate::local_player::{LastSentMovement, Sprint};
 #[require(LastSentHotbarSlot)]
 pub struct Player;
 
-/// The unit vector a look of `yaw` and `pitch`, in Minecraft degrees, points along: yaw 0 faces
-/// +Z, yaw 90 faces -X, and a positive pitch looks down.
 pub fn look_direction(yaw: f32, pitch: f32) -> Vec3 {
     let (pitch, yaw) = (pitch.to_radians(), -yaw.to_radians());
     Vec3::new(

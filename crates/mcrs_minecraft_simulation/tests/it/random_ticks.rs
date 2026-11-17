@@ -13,8 +13,6 @@ use proptest::test_runner::TestCaseError;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-/// Block `A` takes random ticks. A random tick of `A` turns it into `B` when `replace` is set,
-/// and counts it either way.
 struct Picks {
     replace: bool,
     ticks: AtomicU32,
@@ -104,8 +102,6 @@ fn at_in(section: SectionPos, x: i32, y: i32, z: i32) -> BlockPos {
     at(section.x * 16 + x, section.y * 16 + y, section.z * 16 + z)
 }
 
-/// Only a section that holds a state that takes random ticks gets picks, and it gets `speed` of
-/// them in each step.
 #[test]
 fn picks_reach_only_sections_that_hold_a_randomly_ticking_state() {
     let (ticking, inert) = (section(0, 0, 0), section(1, 0, 0));
@@ -129,9 +125,6 @@ fn picks_reach_only_sections_that_hold_a_randomly_ticking_state() {
     assert_eq!(count(&host, inert, C), 4096, "a section of C takes no tick");
 }
 
-/// SIM-RND-002: one probe in a section gets a mean of 3 * 10000 / 4096 = 7.32 ticks over 10,000
-/// steps at speed 3. 64 probes, one in each section, sum to 469 with a deviation of 21.6; a pick
-/// that skips the y offset gives about 117 for each probe.
 #[test]
 fn a_single_block_gets_its_share_of_the_picks() {
     let sections: Vec<SectionPos> = (0..64).map(|i| section(i % 8, i / 8 - 4, 0)).collect();
@@ -178,8 +171,6 @@ mod exhaustive {
     }
 }
 
-/// The listed positions of a section are the positions whose state ticks, as a model of the
-/// section finds them, after any sequence of sets and fills.
 fn listed_positions_are_ticking_positions(
     writes: Vec<(usize, usize, u8)>,
 ) -> Result<(), TestCaseError> {
@@ -226,8 +217,6 @@ fn listed_positions_are_ticking_positions(
     Ok(())
 }
 
-/// The picks of a section do not depend on the other sections of the step or their order, so a
-/// world of many cells picks as a world of one cell.
 #[test]
 fn the_picks_of_a_section_do_not_depend_on_the_other_sections() {
     let (first, second) = (section(0, 0, 0), section(1, 0, 0));
@@ -255,7 +244,6 @@ fn the_picks_of_a_section_do_not_depend_on_the_other_sections() {
     assert_eq!(picked(&[second, first]), alone);
 }
 
-/// Records the columns that precipitation picks hit.
 #[derive(Default)]
 struct Rain {
     hits: Mutex<Vec<(i32, i32)>>,
@@ -273,8 +261,6 @@ impl BlockBehaviour<ProbeKinds> for Rain {
     }
 }
 
-/// SIM-RND-004: a column takes precipitation picks whatever its blocks are, and the hits of a
-/// column do not depend on the columns of other block tiles or their order.
 #[test]
 fn precipitation_hits_of_a_column_do_not_depend_on_other_tiles() {
     let (first, far) = (ColumnPos::new(0, 0), ColumnPos::new(5, 0));
@@ -331,9 +317,6 @@ fn precipitation_hits_of_a_column_do_not_depend_on_other_tiles() {
     assert_eq!(rained_on_first(&[far, first]), alone);
 }
 
-/// SIM-RND-001..003: the picks of a section with a fixed seed keep their positions. Half the
-/// section ticks, so draws both hit and miss, and the draws of a step index the list of the start
-/// of the step, though each hit shrinks the list.
 #[test]
 fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
     let target = section(1, -1, 2);
@@ -377,10 +360,6 @@ fn the_picks_of_a_section_keep_their_positions_for_a_fixed_seed() {
     );
 }
 
-/// SIM-MODEL-106(a), SIM-RND-002: each position of a section takes `k` uniform picks in each
-/// step. The hits of a section where every position ticks spread evenly over its positions; a
-/// section where half the positions tick gets half the hits, and the hits of two such sections
-/// do not correlate.
 #[test]
 fn the_drawn_hits_are_uniform_over_the_positions_and_independent_across_sections() {
     const STEPS: i64 = 20_000;
@@ -423,7 +402,6 @@ fn the_drawn_hits_are_uniform_over_the_positions_and_independent_across_sections
         "the hits of a full section are uniform: chi-square {chi_square:.0} on 4095 degrees"
     );
     let steps = STEPS as f64;
-    // Binomial(3, 1/2) in one step: a mean of 1.5 and a variance of 0.75.
     let bound = 5.0 * 0.75_f64.sqrt() / steps.sqrt();
     let mean_even = halves.iter().map(|half| half.0).sum::<f64>() / steps;
     let mean_odd = halves.iter().map(|half| half.1).sum::<f64>() / steps;

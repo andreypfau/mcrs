@@ -1,23 +1,13 @@
-//! The CPU twin of the generated WGSL: it runs a `PureProgram` with the algorithms of
-//! `library.wgsl` and gives the bits of the GPU result. It is the oracle of the GPU parity tests
-//! and must change together with the library.
-
 use mcrs_molang::{PureInstr, PureProgram, Register};
 
 mod gpu_math;
 
-/// The result of one run of the CPU twin.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TwinRun {
-    /// The value that the generated WGSL function returns for the same inputs.
     pub value: f32,
-    /// Whether each value that the run computed was finite. When it is `false`, the GPU result
-    /// is not specified: a GPU can assume that no value is NaN or infinite.
     pub stayed_finite: bool,
 }
 
-/// Runs a [`PureProgram`] on the CPU with the algorithms of the generated WGSL, so that the
-/// result has the bits of the GPU result. It keeps its registers between runs.
 #[derive(Clone, Debug, Default)]
 pub struct Twin {
     registers: Vec<f32>,
@@ -29,8 +19,6 @@ impl Twin {
         Self::default()
     }
 
-    /// Runs `program` once. `inputs` holds one value for each entry of
-    /// [`PureProgram::inputs`]; a missing value reads as `0.0`.
     pub fn run(&mut self, program: &PureProgram, inputs: &[f32]) -> TwinRun {
         self.registers.clear();
         self.registers.resize(program.registers(), 0.0);

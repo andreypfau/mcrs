@@ -15,8 +15,6 @@ use crate::HotTick;
 use crate::MobColumn;
 use crate::mob_column_ext::MobColumnExt;
 
-/// The hot side of one tile in one AI tick: the snapshot of its mobs, the application of the
-/// due decisions in the order of their issue ticks and keys, and the controls before the travel.
 pub(crate) struct TileTask<'a> {
     pub(crate) tile: TileKey,
     pub(crate) mobs: MobRows<'a, MobColumn>,
@@ -26,13 +24,10 @@ pub(crate) struct TileTask<'a> {
     pub(crate) tick: u64,
 }
 
-/// What the task of one tile gives back.
 pub(crate) struct TileOut {
     pub(crate) tile: TileKey,
     pub(crate) views: Vec<MobView>,
-    /// The wake events for the snapshot of this tick.
     pub(crate) facts: Vec<Fact>,
-    /// The mobs whose path ended in this tick, for the snapshot of the next one.
     pub(crate) ended: Vec<EntityId>,
     pub(crate) intents: Vec<MobIntent>,
     pub(crate) applied: usize,

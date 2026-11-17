@@ -35,9 +35,6 @@ pub(crate) fn build(
     Ok(DataCommand { target, path })
 }
 
-/// `data get entity <target> <path>` for a mob and the paths `Pos`, `Rotation` and `Health`: the
-/// value as SNBT in `commands.data.entity.query`. The result is the value as an integer for a
-/// number, and the length for a list.
 pub(crate) fn run(
     In(call): In<Call<(), DataCommand>>,
     context: VanillaContext,

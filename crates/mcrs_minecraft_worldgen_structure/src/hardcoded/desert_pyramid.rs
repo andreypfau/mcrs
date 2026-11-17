@@ -11,9 +11,6 @@ pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, St
     single_piece_site(ctx, DesertPyramidPiece::WIDTH, DesertPyramidPiece::DEPTH)
 }
 
-/// The reference sinks the piece at placement to the lowest
-/// `MOTION_BLOCKING_NO_LEAVES` height under its whole box, read from the live
-/// world; the four corners of the box answer from the density column instead.
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let orientation = Orientation::random(&mut site.rng);
     let origin = IVec3::new(

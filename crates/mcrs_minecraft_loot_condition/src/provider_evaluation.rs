@@ -20,8 +20,6 @@ use crate::score_target::ScoreTarget;
 use crate::score_view::ScoreHolder;
 use crate::weighted_entry::WeightedEntry;
 
-/// One evaluation of a provider: `None` is an evaluation error (LOOT-NUM-001), which stops the
-/// evaluation with the draws before it taken.
 pub(crate) struct Evaluation<'e, 'i, 'c, E, W, R> {
     inputs: LootInputs<'i, 'c, E, W>,
     random: &'e mut R,
@@ -309,8 +307,6 @@ impl<'e, 'i, 'c, E: Copy, W: LootWorld<E>, R: Random> Evaluation<'e, 'i, 'c, E, 
         })
     }
 
-    /// The position to read the attribute at; `None` for a positional attribute without an
-    /// `origin`, which takes the default value (LOOT-CND-019).
     fn position<T>(&self, read: &EnvironmentRead<T>) -> Option<Option<DVec3>> {
         match read.positional {
             true => self.inputs.context.origin.map(Some),

@@ -28,7 +28,6 @@ impl BakedEnchantmentPredicate {
         })
     }
 
-    /// The component holds no level 0, so each entry is an enchantment that it holds.
     pub(crate) fn matches(&self, component: &Enchantments) -> bool {
         component.entries().iter().any(|entry| {
             self.enchantments

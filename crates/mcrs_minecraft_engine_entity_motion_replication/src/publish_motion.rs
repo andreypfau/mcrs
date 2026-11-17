@@ -23,13 +23,6 @@ use crate::assign_ids::Assigned;
 use crate::departures::Departures;
 use crate::subject::Subject;
 
-/// Records the tile events of the tick in the order of the ids: the spawn of each entity that got
-/// its id, the change of tile and the move of each entity whose body changed, and the removal of
-/// each entity that lost its motion. A spawn shows the body before the step of its tick, and the
-/// move of that step follows it (FBK-SPN-001, TRK-UPD-015). The move of an entity that the pass
-/// skipped shows no kernel outcome. An entity that left before its spawn
-/// sends nothing. A change of tile and a removal start from the [`PublishedTile`], so that they
-/// reach the viewers that know the entity.
 #[expect(
     clippy::too_many_arguments,
     reason = "a system takes each resource that it reads"

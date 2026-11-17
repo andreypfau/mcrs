@@ -18,8 +18,6 @@ const CURSOR_KEY: &str = "mcrs:cursor";
 const CRAFT_GRID_KEY: &str = "mcrs:craft_grid";
 pub(crate) const CARRIED_KEYS: &[&str] = &[CURSOR_KEY, CRAFT_GRID_KEY];
 
-/// The cursor and the craft grid, which only a cell crossing carries (INV-SLT-002). A leave and a
-/// dimension change empty them first, and the player file never holds them.
 pub(crate) fn capture_carried(
     world: &mut World,
     player: Entity,
@@ -28,7 +26,6 @@ pub(crate) fn capture_carried(
     if cause != CaptureCause::CellCrossing {
         return Ok(None);
     }
-    // The capture queues moves and drops of stacks, so a missing lookup must fail before it runs.
     registry_names(world).map_err(|missing| encode_error(CURSOR_KEY, missing))?;
     let Some(items) = world
         .run_system_cached_with(capture_holders, (player, cause))
@@ -57,12 +54,10 @@ pub(crate) fn apply_carried(
         .map_err(|error| decode_error(CURSOR_KEY, error))
 }
 
-/// True when the cursor or the craft grid holds a stack.
 pub(crate) fn has_carried(items: &PlayerItems) -> bool {
     items.cursor.is_some() || items.craft_grid.iter().any(Option::is_some)
 }
 
-/// Puts the cursor and the craft grid that `carried` holds into `items`.
 fn read_carried(
     items: &mut PlayerItems,
     carried: &NbtCompound,
@@ -85,7 +80,6 @@ fn read_carried(
     Ok(())
 }
 
-/// The cursor and the craft grid as the values that cross to another cell.
 fn write_carried(
     items: &PlayerItems,
     names: &RegistryNames<'_>,

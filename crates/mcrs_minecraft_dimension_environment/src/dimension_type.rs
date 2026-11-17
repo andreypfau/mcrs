@@ -122,8 +122,6 @@ impl Serialize for DimensionTypeFile<Named> {
     }
 }
 
-/// The environment attributes, timelines and default clock of a dimension type,
-/// the column the environment stacks are built from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionTypeEnvironment {
     pub attributes: ModifierMap,
@@ -189,7 +187,6 @@ impl<M: Refs> DimensionTypeFile<M> {
     }
 }
 
-/// A dimension type as the client receives it: only the attributes it is allowed to see.
 #[derive(Debug, Clone, Resolve)]
 pub struct NetworkDimensionType<M: Refs = Resolved>(DimensionTypeFile<M>);
 

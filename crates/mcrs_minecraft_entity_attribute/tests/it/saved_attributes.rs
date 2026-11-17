@@ -45,7 +45,6 @@ fn instances(edits: &[(Attribute, InstanceEdit)]) -> AttributeInstances {
     instances
 }
 
-/// Compound keys in name order, since a save reader does not depend on their order.
 fn sorted(tag: NbtTag) -> NbtTag {
     match tag {
         NbtTag::Compound(mut compound) => {

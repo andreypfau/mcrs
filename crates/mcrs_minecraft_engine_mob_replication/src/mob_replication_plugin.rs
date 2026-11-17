@@ -13,9 +13,6 @@ use mcrs_minecraft_engine_physics::MobPublish;
 use crate::publish_mob_attributes::publish_mob_attributes;
 use crate::publish_mobs::publish_mobs;
 
-/// The tile events of the mobs of a dimension world whose rows have the mob column `M`, in the
-/// [`MobPublish`] systems of the entity pass, with the attribute instances of the mobs that the
-/// [`AttributeChanged`] messages name.
 #[derive(Debug)]
 pub struct MobReplicationPlugin<M> {
     column: PhantomData<fn() -> M>,
@@ -42,15 +39,11 @@ impl<M: Send + Sync + 'static> Plugin for MobReplicationPlugin<M> {
         app.init_resource::<TileEvents>();
         app.init_resource::<RowAttributes>();
         app.add_message::<AttributeChanged>();
-        // The take of the tile events sorts the subjects; the order only settles the ambiguity
-        // check.
         app.configure_sets(FixedUpdate, OwnAttributesSet.before(MobPublish));
         app.add_systems(
             FixedUpdate,
             (
                 publish_mobs::<M>,
-                // The other systems of the set write other subjects, which the take of the tile
-                // events sorts, or forget the instances of rows that left, whose events go.
                 publish_mob_attributes::<M>
                     .run_if(on_message::<AttributeChanged>)
                     .ambiguous_with(MobPublish),

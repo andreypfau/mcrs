@@ -5,21 +5,14 @@ use crate::BuiltinKey;
 use crate::ComponentType;
 use crate::NameTable;
 
-/// Why the hash of a stack was not computed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HashError {
-    /// The item id of the stack names no item.
     UnknownItem,
-    /// The table of component types has no type id for the type of a patch entry.
     UnregisteredType,
-    /// This crate holds the component of this type only as bytes, so it has no tree to hash.
     UndecodedComponent(ComponentType),
-    /// The value of this component type has no saved form to hash.
     BadValue(BuiltinKey),
-    /// A number of this component type is out of the range of its saved form.
     OutOfRange(BuiltinKey),
-    /// The value of this component type holds a numeric id that has no name in the table.
     UnknownEntry {
         component: BuiltinKey,
         table: NameTable,

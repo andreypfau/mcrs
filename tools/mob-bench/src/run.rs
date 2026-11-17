@@ -1,5 +1,3 @@
-//! One run: one server, one client mode, the phases in order.
-
 use std::collections::{HashMap, VecDeque};
 use std::net::TcpListener;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -28,22 +26,15 @@ use crate::stir::{self, Stir};
 use crate::watcher::{PigSnapshot, Watcher};
 
 const POPULATE_TIMEOUT: Duration = Duration::from_secs(900);
-/// A pig count that has not changed for this long will not reach its target.
 const STALL_TIMEOUT: Duration = Duration::from_secs(60);
 const ANSWER_SLACK: Duration = Duration::from_secs(3);
 const STOP_GRACE: Duration = Duration::from_secs(90);
-/// The watcher hovers this high above the floor, out of the pigs' way.
 const HOVER: f64 = 2.0;
-/// The least ticks of a warm-up: one `tick query` answer covers the last 100 ticks.
 const WARMUP_TICKS: i64 = 120;
-/// The share of the panic period over which one round's lines go out.
 const PANIC_SPREAD: f64 = 0.8;
-/// Blocks beyond the open area that the stir strips cover: the pigs stroll out of it.
 const ROAM_STIR_MARGIN: i32 = 32;
-/// A stir clock query with no answer for this long is sent again.
 const STIR_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The pigs standing in the world.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Population {
     area: Area,
@@ -56,28 +47,20 @@ struct Bench<'a> {
     server: ServerProcess,
     watcher: Option<Watcher>,
     bot: Option<Child>,
-    /// The name of the connected client's player, once it joined.
     player: Option<String>,
-    /// Where the pigs stand now, `None` while there are none.
     pigs_in: Option<Population>,
     console: bool,
     metric: TickMetric,
-    /// The population the pigs now standing belong to; their UUIDs carry it.
     generation: u32,
     panic: PanicHits,
     stir: StirClock,
-    /// When the last probe round went out; the next waits for its game time answer.
     probe_sent: Option<Instant>,
     probe_rounds_skipped: usize,
 }
 
-/// The panic hits of the stimulus phase.
 struct PanicHits {
-    /// When the next round is due, while the phase runs.
     next: Option<Instant>,
     round: usize,
-    /// The lines of the current round not sent yet: a round goes out over most of its period,
-    /// so no single tick takes all of it.
     lines: VecDeque<String>,
     started: Instant,
     total: usize,
@@ -86,11 +69,8 @@ struct PanicHits {
 
 #[derive(Default)]
 struct StirClock {
-    /// The stir of a stirred phase while it runs.
     stir: Option<Stir>,
-    /// When the last `time query gametime` of the stir went out, while its answer is due.
     query: Option<Instant>,
-    /// The first game tick the stir has not served lines for yet.
     next_tick: Option<i64>,
     ticks_served: u64,
     lines_sent: u64,
@@ -103,7 +83,6 @@ struct StirCounts {
     damage_answers: u64,
 }
 
-/// The window of a measured phase, kept until the watcher's log is in.
 struct Window {
     from: Instant,
     until: Instant,
@@ -124,7 +103,6 @@ pub fn run(args: &Args) -> anyhow::Result<RunReport> {
     })?;
     let started_unix = unix_now();
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, launch.port));
-    // A status answer from another server on the port would pass for this one's.
     TcpListener::bind((Ipv4Addr::UNSPECIFIED, launch.port))
         .with_context(|| format!("port {} is in use", launch.port))?;
     let runtime = tokio::runtime::Runtime::new()?;
@@ -318,8 +296,6 @@ impl Bench<'_> {
         Ok(())
     }
 
-    /// Sets the game mode of the client's player, also where the server default already did, and
-    /// checks it.
     fn set_player_mode(&mut self) -> Option<PlayerModeCheck> {
         let player = self.player.clone()?;
         let command = self.answered(&scene::game_mode(&player, self.args.player_mode));
@@ -375,9 +351,6 @@ impl Bench<'_> {
         }
     }
 
-    /// Serves the stir lines of each game tick that passed since the last served one. The game
-    /// time comes from a `time query gametime` that goes out once the one before is answered, so
-    /// a slow server gets the same lines a game tick as a fast one.
     fn stir_when_due(&mut self) {
         let Some(stir) = self.stir.stir else {
             return;
@@ -448,8 +421,6 @@ impl Bench<'_> {
             .wait_for(sent, CONSOLE_TIMEOUT, probe::game_time)
     }
 
-    /// Waits until `ticks` game ticks passed since `since`, so that a `tick query` answer in the
-    /// window holds no tick from before the warm-up.
     fn wait_ticks(&mut self, since: Option<i64>, ticks: i64) {
         let Some(since) = since else {
             return;
@@ -483,7 +454,6 @@ impl Bench<'_> {
             .wait_for(sent, CONSOLE_TIMEOUT, probe::count_or_zero)
     }
 
-    /// Puts the pigs of `population` in the world, or removes them for `None`.
     fn populate(&mut self, population: Option<Population>) -> anyhow::Result<()> {
         if self.pigs_in == population {
             return Ok(());
@@ -597,9 +567,6 @@ impl Bench<'_> {
         (report, Some(window))
     }
 
-    /// Sends one probe round, `time query gametime` last, unless the game time answer of the
-    /// previous round is still out: a server that answers slower than the rounds go out would
-    /// otherwise build a backlog of commands.
     fn probe_round(&mut self, first: bool) {
         if !self.console {
             return;
@@ -794,8 +761,6 @@ impl Bench<'_> {
         }
         let sent = Instant::now();
         self.server.send(&format!("tick sprint {ticks}")).ok()?;
-        // No console line goes out until the sprint reports its end, and a server that never
-        // reports it leaves the sprint unmeasured.
         let timeout = Duration::from_secs(60).max(Duration::from_millis(1500) * ticks);
         let server_ms = self.server.wait_for(sent, timeout, probe::sprint_millis)?;
         let wall = sent.elapsed().as_secs_f64() * 1e3;

@@ -122,8 +122,6 @@ impl Columns {
     }
 }
 
-/// A square of chunk columns carved by one walk per source. Slot `i` is the
-/// column at `origin_x + i / width`, `origin_z + i % width`.
 pub struct Region<'a> {
     origin_x: i32,
     origin_z: i32,
@@ -243,7 +241,6 @@ impl CarveTarget for Region<'_> {
     }
 }
 
-/// The chunks along one axis in which `carve_ellipsoid`'s clipped bounds are not empty.
 #[inline]
 fn chunks_touched(center: f64, horizontal_radius: f64) -> (i32, i32) {
     let first = (center - horizontal_radius).floor() as i32 - 1;

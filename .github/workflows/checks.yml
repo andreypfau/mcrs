@@ -20,12 +20,7 @@ env:
   CARGO_PROFILE_DEV_DEBUG: 0
   GENERATION_CRATES: '^mcrs_minecraft_((vanilla_)?worldgen[a-z_]*|noise|biome|block_entity_oracle)$'
 
-# A pull request from this repository runs on the self-hosted runner, whose build directory is
-# always warm. A pull request from a fork never runs there: it runs on hosted runners from the
-# build caches that each push to main saves. A push to main runs both.
 jobs:
-  # Documentation, the docs site, agent instructions and the GitHub forms build nothing. The
-  # Rust jobs skip such a change; the job checks still reports a result.
   changes:
     runs-on: ubuntu-24.04
     permissions:
@@ -55,8 +50,6 @@ jobs:
           echo "code=${code}" >> "${GITHUB_OUTPUT}"
           echo "worldgen=${worldgen}" >> "${GITHUB_OUTPUT}"
 
-  # Close the issue from the body, so the tracker follows main. A rerun of the failed jobs reads
-  # the body and the labels again.
   issue-link:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -89,7 +82,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -107,7 +100,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -117,7 +110,6 @@ jobs:
         with:
           test-tools: true
 
-      # The three triggers only read the worktree, and one build directory serves them all.
       - name: run clippy, the tests and the portability builds at once
         run: |
           cargo build --locked --quiet -p xtask --target-dir "${CARGO_TARGET_DIR:-target}/xtask"
@@ -146,7 +138,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
@@ -163,7 +155,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -173,8 +165,6 @@ jobs:
         with:
           test-tools: true
 
-      # A runner that runs out of memory is shut down with no message of its own: add swap, and
-      # log memory each minute.
       - name: add swap
         run: |
           sudo fallocate -l 16G /swapfile-ci
@@ -188,10 +178,9 @@ jobs:
           (while sleep 60; do free -m | awk 'NR > 1'; done) &
           scripts/hooks/run-checks test
 
-      # Tests download the jar when the restore misses; a save of a key that exists is a no-op.
       - name: save the client jar
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.minecraft/versions
           key: client-jars-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
@@ -203,7 +192,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
@@ -213,9 +202,6 @@ jobs:
       - name: build without Bevy, for wasm32 and without std
         run: scripts/hooks/run-checks portability
 
-  # The default test tier skips exhaustive:: sweeps. A change to a generation crate runs them,
-  # for that crate and the generation crates that depend on it, before the merge. A fork pull
-  # request has no self-hosted runner and gets them from the nightly schedule only.
   worldgen-full:
     needs: changes
     if: needs.changes.outputs.worldgen != '' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -223,7 +209,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: check out the commit under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           filter: blob:none
@@ -232,7 +218,6 @@ jobs:
         with:
           test-tools: true
 
-      # A crate that the pull request deletes or renames is no longer in the tree; it is dropped.
       - name: run the full test tier for the changed generation crates and their dependents
         env:
           CHANGED: ${{ needs.changes.outputs.worldgen }}

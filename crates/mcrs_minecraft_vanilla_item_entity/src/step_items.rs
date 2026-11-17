@@ -20,11 +20,8 @@ use mcrs_minecraft_item_entity::Lifetime;
 use mcrs_minecraft_item_entity::merge_due;
 use mcrs_minecraft_physics::block_at;
 
-/// How far below the bottom of the dimension an item entity is removed (IEN-MOV-004).
 const VOID_DEPTH: f64 = 64.0;
 
-/// The item entities that live after the counters of the tick, by UUID, with their positions
-/// after the pass.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Stepped(pub(crate) Vec<SteppedItem>);
 
@@ -33,12 +30,9 @@ pub(crate) struct SteppedItem {
     pub(crate) stack: Entity,
     pub(crate) key: EntityKey,
     pub(crate) position: DVec3,
-    /// The item looks for merge partners in this tick (IEN-MRG-001).
     pub(crate) merges: bool,
 }
 
-/// Reads the motion of each item entity after the pass, runs its counters, and removes it below
-/// the world (IEN-MOV-002, IEN-MOV-004).
 pub(crate) fn step_items(
     mut commands: Commands,
     mut items: Query<(Entity, &mut ItemEntity, &MotionState, &StepOutcome), With<MotionId>>,
@@ -73,8 +67,6 @@ pub(crate) fn step_items(
     stepped.0.sort_unstable_by_key(|item| item.key);
 }
 
-/// Increases the age of each item entity after its merges, and removes it at the end of its
-/// lifetime: steps 8 and 10 of IEN-MOV-006. The merges read the age before this step.
 pub(crate) fn age_items(
     mut commands: Commands,
     mut items: Query<(Entity, &mut ItemEntity), With<MotionId>>,
@@ -86,8 +78,6 @@ pub(crate) fn age_items(
     }
 }
 
-/// Writes the position of each item entity after the pass into its placement, the one writer of
-/// [`Dropped::pos`] while the stack is an item entity.
 pub(crate) fn project_positions(stepped: Res<Stepped>, mut items: Query<&mut Dropped>) {
     for item in &stepped.0 {
         if let Ok(mut dropped) = items.get_mut(item.stack)

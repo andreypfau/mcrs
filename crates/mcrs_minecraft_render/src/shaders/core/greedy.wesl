@@ -72,7 +72,6 @@ fn vertex_greedy(in: TerrainVertex) -> GreedyOut {
         let size = vec2<f32>(span) * scale;
         let u = face_u_dir(face) * size.x;
         let v = face_v_dir(face) * size.y;
-        // Corner 2 stays at (1, 1) even on shortened fluid sides where corner 0 shifts by drop / size.y.
         let anchor = greedy_corner(words, origin, scale, 2u, 0.0).world - u - v;
         let projection = quad_projection(
             camera.clip_from_relative * vec4<f32>(anchor, 1.0),
@@ -118,7 +117,6 @@ fn greedy_face(in: GreedyOut) -> GreedyFace {
 fn greedy_surface(in: GreedyOut) -> Surface {
     let face = greedy_face(in);
 
-    // A fluid sprite is drawn at half scale and repeats, so its gradients halve with it.
     let fluid = face_field(face.attr, FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
     let scale = select(1.0, 0.5, fluid);
 
@@ -136,8 +134,6 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     return s;
 }
 
-/// The sprite coordinates at `uv` of a face whose cell `cell` lays its sprite with the
-/// orientation bits of `UvOrientation`: swap, then mirror u, then mirror v.
 fn oriented_uv(uv: vec2<f32>, cell: vec2<u32>, orientation: u32) -> vec2<f32> {
     var inside = clamp(uv - vec2<f32>(cell), vec2<f32>(0.0), vec2<f32>(1.0));
     if ((orientation & 1u) != 0u) {
@@ -156,9 +152,6 @@ fn oriented_gradient(gradient: vec2<f32>, orientation: u32) -> vec2<f32> {
     return select(gradient, gradient.yx, (orientation & 1u) != 0u);
 }
 
-/// A corner's vertex colour as vanilla computes it, before the lightmap: the occlusion byte
-/// scaled by the face shade, over 255, and the light in sixteenths. Light is stored in quarter
-/// levels.
 fn corner_light(ao: u32, block: u32, sky: u32, corner: u32, directional: f32) -> vec3<f32> {
     let ao_mask = (1u << FACE_AO_CORNER_BITS) - 1u;
     let light_mask = (1u << FACE_LIGHT_CORNER_BITS) - 1u;
@@ -176,8 +169,6 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
         corners[k] = corner_light(face.ao, face.block, face.sky, k, in.directional);
     }
     let f = clamp(face.uv - vec2<f32>(face.cell), vec2<f32>(0.0), vec2<f32>(1.0));
-    // Vanilla draws each block face as two triangles split from corner 0 to corner 2, and the
-    // colour is interpolated across each triangle on its own, not bilinearly across the face.
     if (f.y > f.x) {
         return corners[0] + (corners[2] - corners[1]) * f.x + (corners[1] - corners[0]) * f.y;
     }
@@ -219,8 +210,6 @@ fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_render::shaders::inclu
 @fragment
 fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let coverage = greedy_coverage(in);
-    // Taken before the test: behind a short-circuit the derivative inside would sit in
-    // non-uniform control flow, which WebGPU rejects for the whole module.
     let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
     let color = shade_surface(greedy_surface(coverage.surface));
     if (coverage.outside || color.a < 0.5 || wireframe_discards) {

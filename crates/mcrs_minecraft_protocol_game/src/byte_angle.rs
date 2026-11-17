@@ -3,19 +3,14 @@ use mcrs_minecraft_protocol::{Decode, Encode, Result};
 use std::fmt;
 use std::io::Write;
 
-/// Represents an angle in steps of 1/256 of a full turn.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Deref)]
 pub struct ByteAngle(pub u8);
 
 impl ByteAngle {
-    /// The low 8 bits of `floor(degrees × 256 / 360)` in f32, as the game packs an angle: a
-    /// fraction of a step rounds down, and NaN packs to 0.
     pub fn from_degrees(degrees: f32) -> ByteAngle {
         ByteAngle((degrees * 256.0 / 360.0).floor() as i32 as u8)
     }
 
-    /// The angle in `[-180, 180)`: a pitch above the horizon is negative, so it must not decode
-    /// to an angle past 180.
     pub fn to_degrees(self) -> f32 {
         f32::from(self.0 as i8) / 256.0 * 360.0
     }

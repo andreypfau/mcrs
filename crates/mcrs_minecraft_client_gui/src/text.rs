@@ -1,5 +1,3 @@
-//! Text components as styled spans, and the wrap of spans into rows.
-
 use mcrs_minecraft_protocol_game::text::color::RgbColor;
 use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
 
@@ -31,7 +29,6 @@ impl Inherited<'_> {
     }
 }
 
-/// An opaque ARGB colour.
 pub fn argb(color: Color) -> u32 {
     let rgb = match color {
         Color::Rgb(rgb) => rgb,
@@ -100,8 +97,6 @@ fn collect<'a>(
     }
 }
 
-/// The spans of a text component in `color` where it sets none. Content that needs the world
-/// (scores, selectors, NBT) shows nothing.
 pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
     let mut out = Vec::new();
     collect(
@@ -119,17 +114,12 @@ pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Spa
     out
 }
 
-/// How [`wrap`] starts a row after a break.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Wrap {
-    /// Each row after the first starts with one unstyled space.
     ChatLog,
-    /// A space at the wrap point is dropped, and an empty text gives no row.
     Tooltip,
 }
 
-/// Breaks spans into rows no wider than `width`: at the last space that fits, or inside a word
-/// that alone is too wide. A line break starts a new row.
 pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec<Vec<Span>>) {
     let tooltip = style == Wrap::Tooltip;
     if tooltip && spans.iter().all(|span| span.text.is_empty()) {
@@ -200,7 +190,6 @@ fn trim_space(row: &mut Vec<Span>) {
     }
 }
 
-/// Removes the text after the last space of a row, when the row has a space after its start.
 fn take_last_word(row: &mut Vec<Span>) -> Vec<Span> {
     let Some((index, at)) = row
         .iter()

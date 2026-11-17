@@ -57,8 +57,6 @@ fn fbk_spn_001_a_requested_fall_leaves_the_leftover_and_spawns_the_falling_block
     );
 }
 
-/// The landing of a falling block that starts at [`START`] over the block `under` at [`FLOOR`]:
-/// the block at the floor after it, the item it drops and the level events of the landing.
 #[test]
 fn fbk_lnd_the_landings_on_the_floor() {
     struct Case {
@@ -133,8 +131,6 @@ fn fbk_lnd_the_landings_on_the_floor() {
     }
 }
 
-/// A concrete powder that drops from `start` and, after its spawn, gets `velocity` and the blocks
-/// `set`: the block at `landed` after it.
 #[test]
 fn fbk_the_water_of_a_concrete_powder() {
     struct Case {
@@ -196,7 +192,6 @@ fn fbk_the_water_of_a_concrete_powder() {
     }
 }
 
-/// A falling block that the floor 40 blocks below does not reach in `max_age` ticks.
 #[test]
 fn fbk_tck_004_the_maximum_age_drops_the_item_and_0_disables_it() {
     let high = BlockPos::new(0, 40, 0);
@@ -211,8 +206,6 @@ fn fbk_tck_004_the_maximum_age_drops_the_item_and_0_disables_it() {
     }
 }
 
-/// Two falls of the block at [`START`] in one tick, the falling blocks after the first tick, and
-/// the block at [`FLOOR`] and the items after the landing.
 #[test]
 fn one_falling_block_for_a_block_and_one_block_for_a_cell() {
     struct Case {
@@ -274,8 +267,6 @@ fn one_falling_block_for_a_block_and_one_block_for_a_cell() {
     }
 }
 
-/// A falling block whose section is not loaded, which the pass does not step, over the block
-/// `floor` at [`FLOOR`], with `velocity` after its spawn.
 #[test]
 fn fbk_tck_001_a_falling_block_that_the_pass_does_not_step_takes_no_tick() {
     struct Case {

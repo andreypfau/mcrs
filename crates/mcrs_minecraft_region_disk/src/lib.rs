@@ -38,7 +38,6 @@ const OPEN_REGIONS: usize = 4;
 
 const SECTIONS_PER_COLUMN: i32 = 16;
 
-/// `<world>/dimensions/<namespace>/<path>/region`, or `None` when the key would leave the world.
 pub fn region_dir(world: &Path, dimension: &ResourceKeyBuf<Dimension>) -> Option<PathBuf> {
     Some(key_dir(world, "dimensions", dimension)?.join("region"))
 }
@@ -63,7 +62,6 @@ fn key_dir(world: &Path, root: &str, dimension: &ResourceKeyBuf<Dimension>) -> O
     )
 }
 
-/// The anvil files under one dimension, as the data layer over them.
 pub struct RegionDisk {
     dir: PathBuf,
     blocks: Blocks,
@@ -76,16 +74,10 @@ pub struct RegionDisk {
     fates: FxHashMap<ColumnPos, ColumnFate>,
 }
 
-/// What the disk knows about a column that it did not read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ColumnFate {
-    /// The column failed to decode. It reads as missing until a replacement is written.
     Quarantined,
-    /// The column was saved below `full`. It reads as missing, and its bytes stay on disk until
-    /// the world produces a full column for it.
     BelowFull,
-    /// The damaged region of the column could not be copied. The column is never read as missing
-    /// and never written over.
     Unreadable,
 }
 
@@ -195,7 +187,6 @@ impl DiskStore for RegionDisk {
         }
     }
 
-    /// A column whose region failed stays pending, and the next flush writes it again.
     fn flush(&mut self) -> Result<(), Self::Error> {
         let mut regions: FxHashMap<RegionPos, Vec<(ColumnPos, VersionedChunk<StoredColumn>)>> =
             FxHashMap::default();
@@ -395,7 +386,6 @@ pub enum RegionDiskError {
     },
 }
 
-/// Resolves a saved block name and properties to a state of the block corpus.
 pub struct CorpusBlockStates<'a>(pub &'a BlockDefinitions);
 
 impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
@@ -409,7 +399,6 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
     }
 }
 
-/// Resolves a saved biome name to its number in the biome registry.
 pub struct RegistryBiomes<'a>(pub &'a Registry<BiomeFile>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {

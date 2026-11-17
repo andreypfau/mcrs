@@ -1,11 +1,8 @@
 use core::fmt;
 
-/// A get-or-create or a set of an NBT path that fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NbtPathOperationError {
-    /// A node before the last one gives no tag.
     NoTag,
-    /// The number of nodes plus the depth of the value is 512 or more.
     TooDeep,
 }
 

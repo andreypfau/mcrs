@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 
-/// The client entity of each network id.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct NetworkEntities(HashMap<i32, Entity>);
 

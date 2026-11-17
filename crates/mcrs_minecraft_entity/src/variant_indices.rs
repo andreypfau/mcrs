@@ -1,5 +1,3 @@
-/// The entity data indices of the variant entries of a type (`entity-tracking.md`,
-/// TRK-DATA-006), or `None` for a type without that entry.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct VariantIndices {
@@ -8,7 +6,6 @@ pub struct VariantIndices {
 }
 
 impl VariantIndices {
-    /// A type without variant entries.
     pub const NONE: Self = Self {
         variant: None,
         sound_variant: None,

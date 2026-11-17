@@ -24,7 +24,6 @@ fn drawn_quads(args: &[DrawArgs]) -> u32 {
         .sum()
 }
 
-/// Quads the last frame's depth hid and this frame's did not revive.
 fn hidden_quads(args: &[DrawArgs]) -> u32 {
     let hidden: u32 = row_slice(args, DrawArgRow::HiddenQuads)
         .iter()
@@ -37,7 +36,6 @@ fn hidden_quads(args: &[DrawArgs]) -> u32 {
     hidden.saturating_sub(revived)
 }
 
-/// What the CPU issued last frame, kept where the main world can read it.
 #[derive(Resource, Clone, Default)]
 pub struct ReportedCounts(Arc<FrameCounts>);
 

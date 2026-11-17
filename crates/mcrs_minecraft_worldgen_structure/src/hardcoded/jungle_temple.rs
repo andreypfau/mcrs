@@ -11,10 +11,6 @@ pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, St
     single_piece_site(ctx, JungleTemplePiece::WIDTH, JungleTemplePiece::DEPTH)
 }
 
-/// The reference raises the piece at placement to the mean
-/// `MOTION_BLOCKING_NO_LEAVES` height of the columns inside the first
-/// decorating chunk, read from the live world; the four corners of the box
-/// answer from the density column instead.
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let orientation = Orientation::random(&mut site.rng);
     let origin = IVec3::new(

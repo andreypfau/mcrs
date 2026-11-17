@@ -1,4 +1,3 @@
-//! The corpus loaders of the tests of this crate.
 #![expect(
     clippy::unwrap_used,
     reason = "the corpus loaders fail the test by panicking"

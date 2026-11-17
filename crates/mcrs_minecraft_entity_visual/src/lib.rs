@@ -1,8 +1,3 @@
-//! The state of an entity that a viewer draws: its placement and interpolation, head and body
-//! yaw, walk, hurt and death, entity data and equipment, the tick that advances that state, and
-//! the values that a renderer reads in a frame.
-// std: bevy_ecs
-
 pub mod angle;
 mod body_turn;
 mod client_entity;

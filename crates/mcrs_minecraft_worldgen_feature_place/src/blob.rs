@@ -8,12 +8,6 @@ use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 use mcrs_voxel::BlockPos;
 
-/// `BlockPos.withinBoxByManhattanDistance` cut at `max_depth`: shells of
-/// ascending Manhattan distance, and inside a shell a mirrored `z` follows its
-/// positive twin immediately.
-///
-/// Both callers stop at the first position past `max(reach)`, which the shell
-/// order makes a bound on the depth rather than a test per position.
 fn manhattan_ordered(reach: IVec3, max_depth: i32, mut visit: impl FnMut(IVec3)) {
     for depth in 0..=max_depth {
         let max_x = reach.x.min(depth);
@@ -39,8 +33,6 @@ pub struct CompiledBlockBlob {
     pub can_place_on: Predicate,
 }
 
-/// `BlockBlobFeature`: three overlapping boxes, each drifting down and to the
-/// north-west of the last.
 pub fn place_block_blob<W: WorldGenVolume>(
     cfg: &CompiledBlockBlob,
     volume: &mut W,
@@ -84,17 +76,11 @@ pub fn place_block_blob<W: WorldGenVolume>(
 
 #[derive(Clone, Debug)]
 pub struct CompiledReplaceBlobs {
-    /// Every state of the target block: the reference compares blocks, not
-    /// states.
     pub target: StateMask,
     pub state: VoxelId,
     pub radius: IntProvider,
 }
 
-/// `ReplaceBlobsFeature`: fall down the column to the first target block, then
-/// replace every target inside a Manhattan ball around it.
-///
-/// A column with no target spends no draw at all.
 pub fn place_replace_blobs<W: WorldGenVolume>(
     cfg: &CompiledReplaceBlobs,
     volume: &mut W,
@@ -134,8 +120,6 @@ pub fn place_replace_blobs<W: WorldGenVolume>(
 #[derive(Clone, Debug)]
 pub struct CompiledDelta {
     pub contents: VoxelId,
-    /// Every state of the contents block, which is what the clearance test
-    /// refuses to overwrite.
     pub contents_block: StateMask,
     pub rim: VoxelId,
     pub size: IntProvider,
@@ -143,8 +127,6 @@ pub struct CompiledDelta {
     pub cannot_replace: StateMask,
 }
 
-/// `DeltaFeature`: a flat Manhattan patch of lava with the rim laid down first
-/// and the contents offset from it by the rim size.
 pub fn place_delta<W: WorldGenVolume>(
     cfg: &CompiledDelta,
     volume: &mut W,
@@ -189,8 +171,6 @@ pub fn place_delta<W: WorldGenVolume>(
     placed
 }
 
-/// Open sky above, solid on the five other faces, and nothing the delta refuses
-/// to overwrite.
 fn is_clear<W: WorldGenVolume>(cfg: &CompiledDelta, volume: &W, pos: BlockPos) -> bool {
     let state = volume.get(pos);
     if holds(&cfg.contents_block, state) || holds(&cfg.cannot_replace, state) {
@@ -235,8 +215,6 @@ mod tests {
         volume
     }
 
-    /// The blob walks down to the first position its predicate accepts, then
-    /// spends six draws per box: three reaches and three steps of the drift.
     #[test]
     fn a_block_blob_settles_on_the_ground_and_draws_six_per_box() {
         let cfg = CompiledBlockBlob {
@@ -282,7 +260,6 @@ mod tests {
         );
     }
 
-    /// Nothing to stand on within the column is a refusal that spends no draw.
     #[test]
     fn a_block_blob_over_the_void_places_nothing() {
         let cfg = CompiledBlockBlob {
@@ -305,8 +282,6 @@ mod tests {
         assert_eq!(rng, before);
     }
 
-    /// The three radii are drawn only once a target has been found, and every
-    /// replacement sits inside the Manhattan ball around it.
     #[test]
     fn replace_blobs_draws_three_radii_after_finding_its_target() {
         let cfg = CompiledReplaceBlobs {
@@ -347,7 +322,6 @@ mod tests {
         );
     }
 
-    /// A column with no target refuses before the first draw.
     #[test]
     fn replace_blobs_without_a_target_draws_nothing() {
         let cfg = CompiledReplaceBlobs {
@@ -379,8 +353,6 @@ mod tests {
         }
     }
 
-    /// The clearance test wants open sky over the position and rock on the five
-    /// other faces, so a delta buried under stone writes nothing.
     #[test]
     fn a_buried_delta_writes_nothing() {
         let cfg = delta_config();
@@ -395,8 +367,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// On an open floor the patch fills in one flat layer, every cell of it
-    /// either inside the Manhattan reach or the rim offset from a cell that is.
     #[test]
     fn a_delta_fills_an_open_floor_flat() {
         let cfg = delta_config();

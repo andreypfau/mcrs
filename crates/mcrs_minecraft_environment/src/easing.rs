@@ -5,7 +5,6 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
-/// A named easing curve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NamedEasing {
     Constant,
@@ -209,7 +208,6 @@ fn out_bounce(x: f32) -> f32 {
     }
 }
 
-/// The easing of a track: a named curve or a cubic Bézier curve through `(0, 0)` and `(1, 1)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Easing {
     Named(NamedEasing),
@@ -238,8 +236,6 @@ impl Easing {
             Easing::CubicBezier([x1, y1, x2, y2]) => {
                 let (ax, bx, cx) = bezier_coefficients(x1, x2);
                 let (ay, by, cy) = bezier_coefficients(y1, y2);
-                // With x1 and x2 in [0, 1] the curve's X rises over [0, 1], so a bisection
-                // finds the parameter.
                 let (mut low, mut high) = (0.0f32, 1.0f32);
                 let mut u = 0.5;
                 for _ in 0..32 {

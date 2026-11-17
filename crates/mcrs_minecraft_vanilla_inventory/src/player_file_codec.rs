@@ -18,14 +18,11 @@ use crate::kept_equipment::KeptEquipment;
 use crate::player_file::INVENTORY_KEY;
 use crate::restore_holders::restore_holders;
 
-/// The player inventory, its selected slot and the kept keys of `equipment`, after the close that
-/// `cause` asks for.
 pub(crate) fn capture_player_file(
     world: &mut World,
     player: Entity,
     cause: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
-    // The capture queues moves and drops of stacks, so a missing lookup must fail before it runs.
     registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
     let Some(items) = world
         .run_system_cached_with(capture_holders, (player, cause))

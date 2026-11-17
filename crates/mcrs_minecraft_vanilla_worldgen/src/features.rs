@@ -38,13 +38,6 @@ pub struct FeaturePlugin;
 
 impl Plugin for FeaturePlugin {
     fn build(&self, app: &mut App) {
-        // Beside the routers: the seed is known, the block and tag registries
-        // are frozen, and no sub-app exists yet to miss the program.
-        //
-        // Once, and never again: the program is what a column's blocks are a
-        // function of, so rebuilding it under a running world would make the
-        // same chunk generate differently before and after a reload. A changed
-        // feature asset needs a restart, by design.
         app.add_systems(
             OnEnter(AppState::Playing),
             build_dimension_features
@@ -54,7 +47,6 @@ impl Plugin for FeaturePlugin {
     }
 }
 
-/// A biome's decoration steps in the form the feature compiler reads.
 fn decoration_steps(
     steps: &[IdSet<mcrs_minecraft_biome::PlacedFeature>],
     registries: &Registries,
@@ -70,7 +62,6 @@ fn decoration_steps(
         .collect()
 }
 
-/// Every placed feature tag by name, with its members by name.
 fn placed_feature_tags(
     registries: &Registries,
     tags: &Tags<mcrs_minecraft_biome::PlacedFeature>,
@@ -86,14 +77,6 @@ fn placed_feature_tags(
         .collect()
 }
 
-/// Resolve every dimension's biomes into the ordered feature steps, and those
-/// into the program its columns run.
-///
-/// Every half is a loaded value: which features a biome carries comes from the
-/// biome JSON, what each one is from the feature tables, and what it writes
-/// from the block definitions and tags, so a datapack that changes any of them
-/// is picked up here. A name that resolves to nothing stops the server naming
-/// the entry.
 fn named_providers(
     registries: &Registries,
     providers: &Registry<DirectBlockStateProvider>,
@@ -206,9 +189,6 @@ fn build_dimension_features(
         let dimension = dimension.location();
         let biome_order = possible_biomes(&generator.biome_source, &registries, &parameter_lists);
         let program = (|| -> Result<FeatureProgram, String> {
-            // Dropping the biome would shorten the sort's input, and the
-            // sort's positions are the seeds, so a missing definition is a
-            // different world rather than one biome's worth less.
             let steps = biome_order
                 .iter()
                 .map(|id| {

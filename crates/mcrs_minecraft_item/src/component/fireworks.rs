@@ -94,8 +94,6 @@ fn flight_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     unsigned_byte(d).map(|b| b as u8 as i32)
 }
 
-/// The wire carries any VarInt, so a peer's value only fails here, as
-/// vanilla's does.
 fn unsigned_byte_tag<S: Serializer>(value: &i32, s: S) -> Result<S::Ok, S::Error> {
     if *value > 255 {
         return Err(S::Error::custom(format_args!(

@@ -1,6 +1,3 @@
-// Generated from the field table in pack.rs. `cargo nextest run -p mcrs_minecraft_mesh`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_mesh` rewrites it.
-
 const QUAD_X_WORD: u32 = 0u;
 const QUAD_X_SHIFT: u32 = 0u;
 const QUAD_X_BITS: u32 = 5u;

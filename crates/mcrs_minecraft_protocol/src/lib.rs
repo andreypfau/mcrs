@@ -42,38 +42,21 @@ pub use record::{RECORD_LENGTH_BYTES, write_record};
 use serde::{Deserialize, Serialize};
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, mcrs_minecraft_wire as wire, uuid};
 
-/// How large a packet should be before it is compressed by the packet encoder.
-///
-/// If the inner value is >= 0, then packets with encoded lengths >= to this
-/// value will be compressed. If the value is negative, then compression is
-/// disabled and no packets are compressed.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Into)]
 pub struct CompressionThreshold(pub i32);
 
-/// No compression.
 impl Default for CompressionThreshold {
     fn default() -> Self {
         Self(-1)
     }
 }
 
-/// Types considered to be Minecraft packets.
-///
-/// In serialized form, a packet begins with a [`VarInt`] packet ID followed by
-/// the body of the packet. If present, the implementations of [`Encode`] and
-/// [`Decode`] on `Self` are expected to only encode/decode the _body_ of this
-/// packet without the leading ID.
 pub trait Packet: std::fmt::Debug {
-    /// The leading VarInt ID of this packet.
     const ID: i32;
-    /// The name of this packet for debugging purposes.
     const NAME: &'static str;
-    /// The side this packet is intended for.
     const SIDE: PacketSide;
-    /// The state in which this packet is used.
     const STATE: ConnectionState;
 
-    /// Encodes this packet's VarInt ID first, followed by the packet's body.
     fn encode_with_id(&self, mut w: impl Write) -> Result<()>
     where
         Self: Encode,
@@ -86,16 +69,12 @@ pub trait Packet: std::fmt::Debug {
     }
 }
 
-/// The side a packet is intended for.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub enum PacketSide {
-    /// Server -> Client
     Clientbound,
-    /// Client -> Server
     Serverbound,
 }
 
-/// The state in which a packet is used.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum ConnectionState {

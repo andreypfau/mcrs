@@ -1,9 +1,3 @@
-//! The GPU math of `library.wgsl`, operation for operation, on the CPU. Each function here and
-//! its WGSL namesake must change together: the GPU fuzz test compares their bits.
-//!
-//! Every float result goes through [`flush`], as on the GPU. Division, square root and remainder
-//! use integer long division, so their bits are the correctly rounded results.
-
 use mcrs_molang::{BinaryFn, EaseDirection, EaseShape, Easing, TernaryFn, UnaryFn};
 
 const SIGN: u32 = 0x8000_0000;
@@ -68,7 +62,6 @@ const ATAN: [f32; 9] = [
     f32::from_bits(0xbd57_9436),
 ];
 
-/// A subnormal value becomes a zero with its sign.
 #[must_use]
 pub(super) fn flush(x: f32) -> f32 {
     let bits = x.to_bits();
@@ -111,7 +104,6 @@ fn select(otherwise: f32, then: f32, condition: bool) -> f32 {
     if condition { then } else { otherwise }
 }
 
-/// `p[0] + x · (p[1] + x · (…))`.
 fn horner(x: f32, coefficients: &[f32]) -> f32 {
     let mut result = 0.0;
     let mut first = true;
@@ -126,18 +118,15 @@ fn horner(x: f32, coefficients: &[f32]) -> f32 {
     result
 }
 
-/// `2^k` for `k` in `[-126, 127]`.
 fn power_of_two(k: i32) -> f32 {
     f32::from_bits(((k + 127) as u32) << 23)
 }
 
-/// `x · 2^k` for `k` in `[-252, 254]`, in two steps so that each factor is a normal number.
 fn scale(x: f32, k: i32) -> f32 {
     let half = k / 2;
     mul(mul(x, power_of_two(half)), power_of_two(k - half))
 }
 
-/// The correctly rounded quotient; `0.0` for a zero divisor.
 #[must_use]
 pub(super) fn divide(a: f32, b: f32) -> f32 {
     let (ua, ub) = (a.to_bits(), b.to_bits());
@@ -179,8 +168,6 @@ pub(super) fn divide(a: f32, b: f32) -> f32 {
     finish(sign, exponent, mantissa)
 }
 
-/// The bits of a result with a 24-bit mantissa that can carry into the exponent. A result below
-/// the normal range is a zero; one above it is infinite.
 fn finish(sign: u32, exponent: i32, mantissa: u32) -> f32 {
     if exponent <= 0 {
         return f32::from_bits(sign);
@@ -195,7 +182,6 @@ fn finish(sign: u32, exponent: i32, mantissa: u32) -> f32 {
     f32::from_bits(sign | bits)
 }
 
-/// The correctly rounded square root; NaN below zero.
 #[must_use]
 pub(super) fn sqrt(x: f32) -> f32 {
     let bits = x.to_bits();
@@ -238,7 +224,6 @@ pub(super) fn sqrt(x: f32) -> f32 {
     finish(0, (exponent >> 1) + 127, rounded)
 }
 
-/// The exact remainder of `a / b` with the sign of `a`; `0.0` for a zero divisor.
 #[must_use]
 pub(super) fn remainder(a: f32, b: f32) -> f32 {
     let (ua, ub) = (a.to_bits(), b.to_bits());
@@ -285,7 +270,6 @@ pub(super) fn remainder(a: f32, b: f32) -> f32 {
     f32::from_bits(sign | ((ex as u32) << 23) | (mx & MANTISSA))
 }
 
-/// The Molang reduction to `[-180, 180]`, then the quadrant `k` and the rest in `[-45, 45]`.
 fn quadrant(degrees: f32) -> (i32, f32) {
     let mut reduced = remainder(degrees, 360.0);
     reduced = select(reduced, sub(reduced, 360.0), reduced > 180.0);
@@ -325,7 +309,6 @@ fn cos_degrees(degrees: f32) -> f32 {
     }
 }
 
-/// `e^r` for `|r| ≤ 0.35`.
 fn exp_poly(r: f32) -> f32 {
     add(1.0, mul(r, horner(r, &EXP)))
 }
@@ -370,7 +353,6 @@ fn pow(base: f32, exponent: f32) -> f32 {
     exp(mul(exponent, ln(base)))
 }
 
-/// `atan(t)` in radians for `t` in `[0, 1]`.
 fn atan_unit(t: f32) -> f32 {
     let big = t > TAN_EIGHTH_PI;
     let u = select(t, divide(sub(t, 1.0), add(t, 1.0)), big);
@@ -540,8 +522,6 @@ pub(super) fn ternary(function: TernaryFn, a: f32, b: f32, c: f32) -> f32 {
     }
 }
 
-/// The value that the pose pass samples: NaN gives `0.0`, and the rest is limited to
-/// `[-1e6, 1e6]`.
 #[must_use]
 pub(super) fn pose_clamp(x: f32) -> f32 {
     let bits = x.to_bits();
@@ -559,7 +539,6 @@ pub(super) fn pose_clamp(x: f32) -> f32 {
 mod tests {
     use super::*;
 
-    /// Normal numbers over the whole exponent range, with both signs.
     fn normals(count: usize, mut state: u64) -> impl Iterator<Item = f32> {
         core::iter::repeat_with(move || {
             state ^= state << 13;

@@ -4,8 +4,6 @@ use crate::child::Child;
 use crate::gui_extent::GuiExtent;
 use crate::gui_rect::GuiRect;
 
-/// Children in a row or a column of a fixed length, with the free length split evenly into the
-/// gaps between neighbours.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EqualGaps<'a> {
     pub(crate) axis: Axis,
@@ -15,7 +13,6 @@ pub struct EqualGaps<'a> {
 }
 
 impl<'a> EqualGaps<'a> {
-    /// A row `width` wide and at least `min_height` high.
     #[must_use]
     pub const fn row(width: i32, min_height: i32, children: &'a [Child]) -> Self {
         Self {
@@ -26,7 +23,6 @@ impl<'a> EqualGaps<'a> {
         }
     }
 
-    /// A column `height` high and at least `min_width` wide.
     #[must_use]
     pub const fn column(height: i32, min_width: i32, children: &'a [Child]) -> Self {
         Self {
@@ -37,7 +33,6 @@ impl<'a> EqualGaps<'a> {
         }
     }
 
-    /// The fixed length along the layout, and the largest of the minimum and the cells across it.
     #[must_use]
     pub fn size(self) -> GuiExtent {
         let cross = self.cross();
@@ -47,8 +42,6 @@ impl<'a> EqualGaps<'a> {
         }
     }
 
-    /// The bounds of the children, in order, for the layout at (`x`, `y`); the cells overlap when
-    /// they are longer together than the layout.
     pub fn rects(self, x: i32, y: i32) -> impl Iterator<Item = GuiRect> + 'a {
         let axis = self.axis;
         let cross = self.cross();

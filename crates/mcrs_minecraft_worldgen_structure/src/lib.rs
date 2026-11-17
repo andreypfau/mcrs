@@ -74,11 +74,9 @@ pub enum StructurePlacement {
         count: Bounded<1, 4095>,
         preferred_biomes: KeySet<Biome>,
     },
-    // An empty struct variant, not a unit one: only the former refuses extra keys.
     DimensionOrigin {},
 }
 
-// Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Spreading {
     pub salt: NonNegativeInt,
@@ -226,8 +224,6 @@ impl Structure {
         }
     }
 
-    /// The `minecraft:` template paths the type's generator draws from, which
-    /// no datapack file names.
     pub fn templates(&self) -> &'static [ResourceLocation<'static>] {
         match self {
             Structure::EndCity { .. } => hardcoded::end_city::TEMPLATES,
@@ -242,7 +238,6 @@ impl Structure {
     }
 }
 
-// Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructureSettings {
     pub biomes: KeySet<Biome>,
@@ -297,7 +292,6 @@ pub struct RuinedPortalSetup {
     pub weight: PositiveFloat,
 }
 
-// Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JigsawConfig {
     pub start_pool: ResourceLocationBuf,
@@ -317,7 +311,6 @@ pub struct JigsawConfig {
     pub liquid_settings: LiquidSettings,
 }
 
-/// A bare int sets both axes; the object form defaults `vertical` to the world height.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MaxDistance(pub Either<Bounded<1, 128>, MaxDistanceFull>);
@@ -346,7 +339,6 @@ impl MaxDistance {
     }
 }
 
-/// A bare int pads both ends; the object form defaults each end to 0.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DimensionPadding(pub Either<NonNegativeInt, DimensionPaddingFull>);

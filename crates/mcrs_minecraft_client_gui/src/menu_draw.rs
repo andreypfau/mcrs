@@ -25,17 +25,12 @@ const BACKGROUND_TILE: i32 = 32;
 const SEPARATOR_HEIGHT: i32 = 2;
 const ELLIPSIS: &str = "...";
 
-/// Whether the client is in a world, which picks the in-world textures of the background and
-/// of the separators (WID-SCR-004, WID-SCR-006).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WorldPresence {
     NoWorld,
     InWorld,
 }
 
-/// The background, the separators and the visible widgets of `menu` at `now_ms`, in the order
-/// of WID-SCR-007; the widgets of a scroll area draw with it (LIST-BG-003). A sprite the pack
-/// lacks draws as the missing sprite.
 pub fn draw_menu(
     menu: &Menu,
     world: WorldPresence,
@@ -81,8 +76,6 @@ pub(crate) fn draw_widget(
     }
 }
 
-/// Makes the tooltip request of the widgets of `menu` at `now_ms`, with the lines wrapped at the
-/// width of a widget tooltip (WID-TIP-001, WID-TIP-002, WID-TIP-005). Call it once in each frame.
 pub fn request_menu_tooltip(menu: &mut Menu, now_ms: u64, font: &Font, tooltip: &mut Tooltip) {
     let Some(request) = menu.widgets.tooltip(now_ms) else {
         return;
@@ -117,7 +110,6 @@ pub(crate) fn draw(
     let now_ms = menu_clock(&time);
     let scene = &mut *scene;
     draw_menu(&menu, world, now_ms, scene.size, &atlas.0, &mut scene.quads);
-    // The request writes only the hover start of the tooltips, which no other system reads.
     let menu = menu.bypass_change_detection();
     request_menu_tooltip(menu, now_ms, &atlas.0.font, &mut scene.tooltip);
 }
@@ -249,8 +241,6 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
     }
 }
 
-/// The caption of `widget`. A checkbox label and a multi-line text draw one line for each line
-/// of the caption, which the screen wraps and cuts.
 fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad>) {
     let caption = widget.caption.as_str();
     let color = widget.caption_color();
@@ -303,7 +293,6 @@ fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad
     }
 }
 
-/// The width left for the start of a one-line text that its limit cuts (WID-TXT-001, step 5).
 fn cut_room(widget: &Widget, text_width: i32, font: &Font) -> Option<i32> {
     let WidgetKind::Text {
         max_width,
@@ -316,7 +305,6 @@ fn cut_room(widget: &Widget, text_width: i32, font: &Font) -> Option<i32> {
     (text_width > limit).then(|| limit - font.str_width(ELLIPSIS))
 }
 
-/// The byte length of the longest start of `text` no wider than `room`.
 fn cut_end(font: &Font, text: &str, room: i32) -> usize {
     let mut width = 0.0;
     for (index, ch) in text.char_indices() {

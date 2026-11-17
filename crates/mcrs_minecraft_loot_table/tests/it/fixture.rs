@@ -67,7 +67,6 @@ fn enchantment(name: &str) -> EnchantmentId {
     EnchantmentId(id.number())
 }
 
-/// One `name` with the levels of `enchantments` in its component patch.
 pub fn tool(name: &str, enchantments: &[(&str, u8)]) -> ItemStack {
     let stack = ItemStack::new(item(name), Count::new(1).expect("a count of 1"));
     if enchantments.is_empty() {
@@ -80,8 +79,6 @@ pub fn tool(name: &str, enchantments: &[(&str, u8)]) -> ItemStack {
     stack.set(Enchantments::new(levels).expect("distinct enchantments"))
 }
 
-/// The context of a break of `state` at the origin by an entity with `tool`; `None` is the
-/// empty hand.
 pub fn context(state: BlockStateId, tool: Option<&ItemStack>) -> LootContext<'_, ()> {
     let mut context = LootContext::try_new(ContextKeySet::Block).expect("a source key set");
     context.origin = Some(ORIGIN);
@@ -96,7 +93,6 @@ pub fn block_table(loot: &LootTables, state: BlockStateId) -> Id<LootTable> {
     loot.block_table(loot_id).expect("a loaded table")
 }
 
-/// The key of a survival break at the origin at `tick`.
 pub fn keyed(table: Id<LootTable>, tick: u64) -> KeyedSeed {
     KeyedSeed {
         world: 7,
@@ -107,13 +103,11 @@ pub fn keyed(table: Id<LootTable>, tick: u64) -> KeyedSeed {
     }
 }
 
-/// The keyed stream of `table` in `loot` for a survival break at the origin at `tick`.
 pub fn stream(loot: &LootTables, table: Id<LootTable>, tick: u64) -> XoroshiroRandom {
     loot.keyed_stream(keyed(table, tick))
         .expect("a baked table")
 }
 
-/// The stacks as item names and counts; the empty stack is `("", 0)`.
 pub fn names(stacks: impl IntoIterator<Item = Option<ItemStack>>) -> Vec<(String, u8)> {
     let items = test_registries().entries::<Item>().expect("items");
     stacks
@@ -129,9 +123,6 @@ pub fn names(stacks: impl IntoIterator<Item = Option<ItemStack>>) -> Vec<(String
         .collect()
 }
 
-/// The blocks around the origin of a break, and the stack in the main hand of the entity of the
-/// context. With a stack the entity is living and has no other equipment; without one it is not
-/// living.
 pub struct Around<'a> {
     pub blocks: &'a [(BlockPos, BlockStateId)],
     pub main_hand: Option<&'a ItemStack>,

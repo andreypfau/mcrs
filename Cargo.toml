@@ -284,6 +284,7 @@ unreachable = "deny"
 todo = "deny"
 unimplemented = "deny"
 indexing_slicing = "deny"
+undocumented_unsafe_blocks = "deny"
 type_complexity = "allow"
 
 [dependencies]

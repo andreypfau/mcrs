@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_core::RegionPos;
 use mcrs_voxel::ColumnPos;
 
-/// Copies a region and the external chunks it references beside the world, so a damaged
-/// source is never overwritten before a person sees it.
 pub(crate) fn quarantine_region(
     root: &Path,
     region_dir: &Path,
@@ -58,8 +56,6 @@ fn copy_durably(from: &Path, to: &Path) -> io::Result<()> {
     std::fs::File::open(to)?.sync_all()
 }
 
-/// The external chunk files in `region_dir` that lie in the range of `at`, for a region whose
-/// header cannot be read and so cannot name the records that use them.
 pub(crate) fn existing_externals(region_dir: &Path, at: RegionPos) -> Vec<ColumnPos> {
     (0..32)
         .flat_map(|z| (0..32).map(move |x| at.column_at(x, z)))

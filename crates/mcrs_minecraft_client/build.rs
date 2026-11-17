@@ -31,8 +31,6 @@ fn main() {
         return;
     }
 
-    // The browser has no asset folder, so what the client reads from one travels inside the
-    // binary. The game's data pack is not among it: a server sends the registries.
     let assets = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .ancestors()
         .nth(2)
@@ -70,8 +68,6 @@ fn pack(assets: &Path, path: &Path, blob: &mut Vec<u8>, files: &mut usize) {
         }
         return;
     }
-    // The asset paths of the browser use `/`; a Windows host joins the children of a folder
-    // with `\`.
     let name = path
         .strip_prefix(assets)
         .unwrap()

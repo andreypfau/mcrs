@@ -217,8 +217,6 @@ public final class PlacementOracle {
             .toList();
     }
 
-    /// Every type with its own `findGenerationPoint` except the mineshaft, whose
-    /// site builds its whole piece tree first.
     static List<Holder.Reference<Structure>> hardcoded(final RegistryAccess.Frozen registries, final ChunkGeneratorStructureState state) {
         return registries.lookupOrThrow(Registries.STRUCTURE).listElements()
             .filter(holder -> !(holder.value() instanceof JigsawStructure) && !(holder.value() instanceof MineshaftStructure))
@@ -241,13 +239,10 @@ public final class PlacementOracle {
         return cells(state, placement, 0, SITE_CASES);
     }
 
-    /// The placement's cells in the same walk, after the first `skip` of them.
     static List<ChunkPos> cellsBeyond(final ChunkGeneratorStructureState state, final StructurePlacement placement, final int skip) {
         return cells(state, placement, skip, Integer.MAX_VALUE);
     }
 
-    /// The expanding square walk around the origin over the placement's cells,
-    /// dropping the first `skip` and stopping at `limit` or the radius cap.
     private static List<ChunkPos> cells(
         final ChunkGeneratorStructureState state, final StructurePlacement placement, final int skip, final int limit
     ) {
@@ -427,8 +422,6 @@ public final class PlacementOracle {
         }
     }
 
-    /// `ChunkGenerator.createStructures` over one set at one chunk: the weighted
-    /// draw with removal, each entry tried through `Structure.generate`.
     private static Optional<String> selected(
         final RegistryAccess.Frozen registries,
         final StructureTemplateManager templates,
@@ -498,8 +491,6 @@ public final class PlacementOracle {
         }
     }
 
-    /// `findGenerationPoint` is protected on `Structure`; every shipped type
-    /// widens it to public, but the call must go through the base type here.
     @SuppressWarnings("unchecked")
     private static Optional<Structure.GenerationStub> findGenerationPoint(
         final Structure structure, final Structure.GenerationContext context

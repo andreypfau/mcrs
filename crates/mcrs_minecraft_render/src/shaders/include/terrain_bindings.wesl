@@ -96,15 +96,11 @@ fn animation_frame(animation: u32) -> AnimationFrame {
     );
 }
 
-/// What a vertex is drawn from: its index, and on the minimal path the group it is an instance
-/// of, as the first quad, the quad count and the section of the group's record.
 struct TerrainVertex {
     @builtin(vertex_index) index: u32,
     @if(MINIMAL) @location(0) group: vec3<u32>,
 }
 
-/// The quad a vertex belongs to and the section the quad lies in. A group holds fewer quads than
-/// an instance has room for, and `drawn` is false for a vertex past the last of them.
 struct QuadRef {
     quad: u32,
     section: u32,

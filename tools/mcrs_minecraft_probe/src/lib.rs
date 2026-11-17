@@ -1,5 +1,3 @@
-//! Scripted clients that run one scenario against a server over TCP and record what they observe.
-
 mod click;
 mod client;
 mod command_tree;

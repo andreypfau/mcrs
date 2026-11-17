@@ -1,6 +1,3 @@
-// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
-
 struct Sky {
     disc: vec4<f32>,
     sunrise: vec4<f32>,

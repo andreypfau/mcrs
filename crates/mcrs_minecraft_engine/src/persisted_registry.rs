@@ -12,32 +12,21 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 
-/// Where the state of a registered component goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PersistScope {
-    /// The component goes into the player file and into a dimension handover.
     Persisted,
-    /// The component goes into a dimension handover only. The player file never holds it and
-    /// never overwrites it.
     TravelOnly,
 }
 
-/// Why the engine captures the registered components of a player. A codec can act on the cause,
-/// such as to close what the player holds open before a leave.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum CaptureCause {
-    /// The periodic save writes the player file.
     Autosave,
-    /// The player leaves the server; the engine writes its file and despawns it.
     Leave,
-    /// The player leaves its dimension world for another dimension.
     DimensionChange,
-    /// The player leaves its cell for another cell of the same dimension.
     CellCrossing,
 }
 
-/// A saved component held as NBT, under the root keys of the player file.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PersistedSnapshot {
     fields: BTreeMap<&'static str, NbtTag>,
@@ -58,8 +47,6 @@ impl PersistedSnapshot {
         Self::default()
     }
 
-    /// A snapshot of a player file that could not be read. It holds no file key, and applying
-    /// it marks the player so that no save overwrites the file.
     #[must_use]
     pub fn unreadable() -> Self {
         Self {
@@ -93,8 +80,6 @@ impl PersistedSnapshot {
         self.fields.iter().map(|(key, tag)| (*key, tag))
     }
 
-    /// The value under `keys`, `None` when the snapshot holds none of them. A value over one key
-    /// is that key's tag. A value over several keys is a compound of the keys that are present.
     pub fn get_as<T: DeserializeOwned>(
         &self,
         keys: &[&'static str],
@@ -105,8 +90,6 @@ impl PersistedSnapshot {
         decode(keys.first().copied().unwrap_or_default(), tag).map(Some)
     }
 
-    /// Stores `value` under `keys`: a value over several keys must serialize to a compound that
-    /// has those keys as fields.
     pub fn put<T: Serialize>(
         &mut self,
         keys: &[&'static str],
@@ -158,8 +141,6 @@ fn decode<T: DeserializeOwned>(key: &'static str, tag: NbtTag) -> Result<T, Pers
     from_tag(tag).map_err(|source| PersistedError::Decode { key, source })
 }
 
-/// The persisted form of a component that does not derive serde itself, or whose saved shape is
-/// not its in-memory shape.
 pub trait PersistedForm<T>: Serialize + DeserializeOwned {
     fn from_value(value: &T) -> Self;
 
@@ -177,9 +158,6 @@ struct PersistedCodec {
     apply: Apply,
 }
 
-/// The components that a snapshot of a player holds, each under its root keys of the player file.
-/// A plugin adds its own with [`PersistedAppExt::register_persisted`] in the main app and in each
-/// dimension app.
 #[derive(Default, Resource)]
 pub struct PersistedRegistry {
     codecs: Vec<PersistedCodec>,
@@ -190,12 +168,6 @@ impl PersistedRegistry {
         Self::default()
     }
 
-    /// Registers a codec over `keys`. A codec over exactly the same keys is replaced.
-    ///
-    /// # Errors
-    ///
-    /// [`PersistedError::OverlappingKeys`] when a codec shares some but not all keys with `keys`.
-    /// The registry stays as it was.
     pub fn register_codec(
         &mut self,
         keys: &'static [&'static str],
@@ -222,7 +194,6 @@ impl PersistedRegistry {
         Ok(())
     }
 
-    /// See [`Self::register_codec`] for the errors.
     pub fn register<T>(
         &mut self,
         keys: &'static [&'static str],
@@ -234,7 +205,6 @@ impl PersistedRegistry {
         self.register_codec(keys, scope, capture_component::<T>, apply_component::<T>)
     }
 
-    /// See [`Self::register_codec`] for the errors.
     pub fn register_as<T, F>(
         &mut self,
         keys: &'static [&'static str],
@@ -247,7 +217,6 @@ impl PersistedRegistry {
         self.register_codec(keys, scope, capture_form::<T, F>, apply_form::<T, F>)
     }
 
-    /// The root keys of the player file that a [`PersistScope::Persisted`] codec claims.
     pub fn file_keys(&self) -> impl Iterator<Item = &'static str> + '_ {
         self.codecs
             .iter()
@@ -259,7 +228,6 @@ impl PersistedRegistry {
         self.file_keys().find(|claimed| *claimed == key)
     }
 
-    /// Every registered component of `entity`, for a handover.
     pub fn capture(
         &self,
         world: &mut World,
@@ -269,7 +237,6 @@ impl PersistedRegistry {
         self.capture_scoped(world, entity, cause, |_| true)
     }
 
-    /// The [`PersistScope::Persisted`] components of `entity`, for the player file.
     pub fn capture_file(
         &self,
         world: &mut World,
@@ -318,12 +285,6 @@ impl PersistedRegistry {
     }
 }
 
-/// Registers persisted components on an app. A plugin calls these in the main app and in each
-/// dimension app that holds the component.
-///
-/// A plugin build cannot return an error, so a registration that [`PersistedRegistry::register_codec`]
-/// refuses is logged and skipped. The keys of the skipped codec then fail the load of a player
-/// file as unclaimed. Call the registry directly to handle the error.
 pub trait PersistedAppExt {
     fn register_persisted<T>(
         &mut self,
@@ -350,7 +311,6 @@ pub trait PersistedAppExt {
         apply: Apply,
     ) -> &mut Self;
 
-    /// Adds a plugin that registers persisted components to this app and to every dimension app.
     fn add_persistence_plugin(&mut self, plugin: impl Plugin + Clone) -> &mut Self;
 }
 

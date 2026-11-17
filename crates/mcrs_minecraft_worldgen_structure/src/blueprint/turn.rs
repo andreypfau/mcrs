@@ -8,7 +8,6 @@ pub(super) fn direction(name: &str) -> Option<Direction> {
 }
 
 impl Turn {
-    /// A mirror across z is a mirror across x followed by a half turn.
     fn flip_and_quarters(self) -> (bool, i32) {
         let quarters = match self.rotation {
             Rotation::None => 0,
@@ -41,10 +40,6 @@ fn swap_left_right(value: &str) -> String {
         .replace('\0', "right")
 }
 
-// `rotate_state` and `mirror_state` in the feature placement turn
-// numeric ids through `WorldStates` and keep the game's own handling of
-// mirrored stairs and `type`; this is the plain geometric turn the blueprints
-// rely on. Turning by property tables shared with the block definitions lifts it.
 pub fn turned(state: &PaletteState, turn: Turn) -> PaletteState {
     let Some(properties) = &state.properties else {
         return state.clone();

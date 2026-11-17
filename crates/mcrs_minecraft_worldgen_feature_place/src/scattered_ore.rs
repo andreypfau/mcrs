@@ -7,13 +7,6 @@ use crate::ore_modern::{CompiledOre, can_place_ore};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 const MAX_DIST_FROM_ORIGIN: i32 = 7;
 
-/// `ScatteredOreFeature.place`: up to `size` single blocks, each drifting a
-/// little further from the origin than the last. It shares its configuration
-/// and its air-exposure test with the vein of [`crate::ore_modern`];
-/// only the spread differs.
-///
-/// It reports success whether or not anything was replaced, which is the
-/// reference's unconditional `true`.
 pub fn place_scattered_ore<W: WorldGenVolume>(
     config: &CompiledOre,
     volume: &mut W,
@@ -40,8 +33,6 @@ pub fn place_scattered_ore<W: WorldGenVolume>(
     true
 }
 
-/// `Math.round(float)` is `floor(x + 0.5)` over the exact value, which a `f32`
-/// addition does not always give; the widening does.
 fn axis_offset(rng: &mut WorldgenRandom, max: i32) -> i32 {
     let drift = (rng.next_f32() - rng.next_f32()) * max as f32;
     (drift as f64 + 0.5).floor() as i32
@@ -76,8 +67,6 @@ mod tests {
         }
     }
 
-    /// One bounded int for the try count, then two floats per axis per try, and
-    /// nothing else while the discard chance is 1 — the air check is a read.
     #[test]
     fn every_try_costs_six_floats_and_lands_within_its_own_radius() {
         let config = config(1.0);
@@ -99,8 +88,6 @@ mod tests {
         assert!(volume.writes.iter().all(|(_, state)| *state == DEBRIS));
     }
 
-    /// The first try never drifts: its radius is zero, so all three draws round
-    /// to the origin.
     #[test]
     fn the_first_try_sits_on_the_origin() {
         let config = config(1.0);
@@ -110,8 +97,6 @@ mod tests {
         assert_eq!(volume.writes.first().map(|(at, _)| *at), Some(ORIGIN));
     }
 
-    /// A fractional discard chance draws one more float per candidate, and a
-    /// candidate the rule rejects draws none.
     #[test]
     fn a_fractional_discard_chance_draws_once_per_candidate() {
         let config = config(0.5);
@@ -130,7 +115,6 @@ mod tests {
         assert_eq!(rng, replay);
     }
 
-    /// A size of zero draws the try count and stops, and still reports success.
     #[test]
     fn a_zero_size_vein_draws_once_and_places_nothing() {
         let mut config = config(1.0);

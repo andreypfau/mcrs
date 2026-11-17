@@ -43,8 +43,6 @@ pub struct FrozenStructure {
     pub kind: StructureKind,
 }
 
-/// One variant per `StructureType`, each with its own `type`-specific fields
-/// resolved against the registries.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StructureKind {
     Jigsaw {
@@ -59,7 +57,6 @@ pub enum StructureKind {
     JungleTemple,
     Mineshaft {
         mineshaft_type: MineshaftType,
-        /// `#minecraft:mineshaft_blocking`.
         blocking: BiomeMask,
     },
     NetherFossil {
@@ -67,7 +64,6 @@ pub enum StructureKind {
         templates: Vec<TemplateId>,
     },
     OceanMonument {
-        /// `#minecraft:required_ocean_monument_surrounding`.
         surrounding: BiomeMask,
     },
     OceanRuin(OceanRuinConfig),
@@ -78,7 +74,6 @@ pub enum StructureKind {
     },
     Shipwreck {
         is_beached: bool,
-        /// The variant's template list in the reference's draw order.
         templates: Vec<TemplateId>,
     },
     Stronghold,
@@ -91,15 +86,12 @@ pub struct OceanRuinConfig {
     pub biome_temp: OceanTemperature,
     pub large_probability: f32,
     pub cluster_probability: f32,
-    /// `#minecraft:more_frequent_drowned_spawns`, which keeps a drowned off
-    /// its nautilus.
     pub frequent_drowned: BiomeMask,
 }
 
 pub struct FrozenPool {
     pub id: ResourceLocationBuf,
     pub fallback: PoolId,
-    /// Every element repeated `weight` times, in file order: what the shuffle draws from.
     pub expanded: Vec<ElementId>,
     pub max_size: i32,
 }
@@ -138,7 +130,6 @@ impl FrozenElement {
 #[derive(Default)]
 pub struct FrozenStructures {
     pub sets: Vec<FrozenSet>,
-    /// Sorted by (path, namespace): the order `step_index` counts in.
     pub structures: Vec<FrozenStructure>,
     pub pools: Vec<FrozenPool>,
     pub elements: Vec<FrozenElement>,
@@ -148,7 +139,6 @@ pub struct FrozenStructures {
     pub structure_ids: BTreeMap<ResourceLocationBuf, StructureId>,
     pub pool_ids: BTreeMap<ResourceLocationBuf, PoolId>,
     pub template_ids: hashbrown::HashMap<ResourceLocationBuf, TemplateId>,
-    /// The variant registries the structures' mobs draw from.
     pub variants: VariantTables,
 }
 
@@ -173,7 +163,6 @@ impl FrozenStructures {
         self.template_ids.get(&name).copied()
     }
 
-    /// The template named `name` and the size of its manifest.
     pub fn sized_template(&self, name: ResourceLocation<'_>) -> Option<(TemplateId, [u16; 3])> {
         let id = self.template_id(name)?;
         Some((id, self.manifest(id)?.size))

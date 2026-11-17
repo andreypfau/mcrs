@@ -5,7 +5,6 @@ use serde_json::error::Category;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonError {
-    /// The file is not JSON at all, as opposed to JSON of the wrong shape.
     pub malformed: bool,
     pub field: Option<String>,
     pub message: String,
@@ -57,9 +56,6 @@ fn text(bytes: &[u8]) -> Cow<'_, str> {
     String::from_utf8_lossy(bytes)
 }
 
-/// Reads one data pack file as the game does: a byte order mark is skipped, an empty file is an
-/// error of its shape, a value that nests deeper than 128 lists and objects fails, and anything
-/// after the value fails.
 pub fn read_json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, JsonError> {
     let text = text(bytes);
     if text.trim_matches([' ', '\t', '\n', '\r']).is_empty() {
@@ -77,8 +73,6 @@ pub fn read_json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, JsonError> {
         });
     }
     let mut json = serde_json::Deserializer::from_str(&text);
-    // serde_json alone stops at 127 decoded levels and skips an ignored value with no bound; the
-    // scan above bounds both at 128.
     json.disable_recursion_limit();
     let mut track = serde_path_to_error::Track::new();
     let value = T::deserialize(serde_path_to_error::Deserializer::new(

@@ -52,22 +52,13 @@ impl<'a> mcrs_minecraft_protocol::Decode<'a> for MetadataEntry<'a> {
 
 const METADATA_END: u8 = 0xFF;
 
-/// The entity data of a mob that its type does not fix. A field that holds the default of its
-/// entry sends no entry.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MobLooks {
-    /// The [`MOB_FLAG_NO_AI`](crate::entity_data_index::MOB_FLAG_NO_AI) bit.
     pub no_ai: bool,
-    /// The [`MOB_FLAG_LEFT_HANDED`](crate::entity_data_index::MOB_FLAG_LEFT_HANDED) bit.
     pub left_handed: bool,
-    /// The entries of the type that differ from their defaults, such as its variants, in the
-    /// order of their indices. Each index is above the mob flags; the type table gives them
-    /// ([`EntityTypeData::variant_indices`](mcrs_minecraft_entity::EntityTypeData)).
     pub type_entries: Vec<MetadataEntry<'static>>,
 }
 
-/// A list of entity data entries terminated by the `0xFF` index instead of a
-/// length prefix.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Metadata<'a>(pub Vec<MetadataEntry<'a>>);
 
@@ -170,8 +161,6 @@ pub enum MetaDataValue<'a> {
     DyeColor(DyeColor),
 }
 
-/// `Optional<BlockState>` on the wire: the state id, with 0 (air) standing for
-/// absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct OptionalBlockState(pub Option<BlockStateNumber>);
 
@@ -188,7 +177,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for OptionalBlockState {
     }
 }
 
-/// `OptionalInt` on the wire: the value plus one, with 0 standing for absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct OptionalUnsignedInt(pub Option<u32>);
 

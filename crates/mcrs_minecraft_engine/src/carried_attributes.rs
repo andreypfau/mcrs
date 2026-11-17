@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::persisted_registry::PersistedForm;
 
-/// The attribute instances of a player in a handover, never in a file. A number is kept as its
-/// bits, since the NBT encoder of a double folds `-0.0` into `0.0`.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CarriedAttributes {
     instances: Vec<CarriedInstance>,

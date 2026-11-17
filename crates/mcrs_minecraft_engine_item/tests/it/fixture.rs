@@ -65,7 +65,6 @@ impl CustomComponent for Soulbound {
     }
 }
 
-/// A custom type that no world registers.
 #[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Unregistered(pub u8);
 

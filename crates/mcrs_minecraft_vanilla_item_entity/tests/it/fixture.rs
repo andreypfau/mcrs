@@ -53,14 +53,10 @@ use mcrs_voxel::SectionPos;
 
 pub const STONE: Kind = Kind(1);
 pub const DIRT: Kind = Kind(2);
-/// The top of the stone floor.
 pub const FLOOR: f64 = 0.0;
 pub const PLAYER: u128 = 7;
-/// The network id of the player, below the ids of the cell.
 pub const PLAYER_ID: EntityId = EntityId(1);
 
-/// The items `stone` and `dirt` after `air`, whose wire id 0 is the empty stack, named so that
-/// their stacks have a wire form.
 static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
     let files = ["air", "stone", "dirt"].iter().zip(0..).map(|(name, id)| {
         format!(
@@ -79,8 +75,6 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
     .table
 });
 
-/// A dimension from `y = -64` with stone under `y = 0` and air above it, its sections loaded from
-/// `x, z = -16` to `31`, its motion pass, stacks and item entities.
 pub fn app() -> App {
     ComputeTaskPool::get_or_init(TaskPool::default);
     let blocks = TestBlocks::new();
@@ -150,7 +144,6 @@ pub fn run(app: &mut App, ticks: u32) {
     }
 }
 
-/// Spawns a stack of `count` items of `kind` and launches it.
 pub fn launch(world: &mut World, kind: Kind, count: u8, launch: Launch) -> Entity {
     let count = Count::new(count).expect("a count above 0");
     let stack = world
@@ -162,8 +155,6 @@ pub fn launch(world: &mut World, kind: Kind, count: u8, launch: Launch) -> Entit
     stack
 }
 
-/// A player of the UUID [`PLAYER`] standing at `feet` with 41 slots and the hotbar slot 0
-/// selected.
 pub fn collector(world: &mut World, feet: DVec3, mode: Collect) -> Entity {
     world
         .spawn((
@@ -187,7 +178,6 @@ pub fn move_collector(world: &mut World, collector: Entity, feet: DVec3) {
         .bounds = Aabb::of_body(feet, 0.6, 1.8);
 }
 
-/// Each item entity from west to east: its stack, position, count and values.
 pub fn items(world: &mut World) -> Vec<(Entity, DVec3, u8, ItemEntity)> {
     let mut items: Vec<(Entity, DVec3, u8, ItemEntity)> = world
         .query::<(Entity, &Dropped, &Count, &ItemEntity)>()
@@ -202,13 +192,11 @@ pub fn picked_up(world: &mut World) -> Vec<PickedUp> {
     world.resource_mut::<Messages<PickedUp>>().drain().collect()
 }
 
-/// The count of the stack in the slot `index` of `holder`.
 pub fn slot_count(world: &World, holder: Entity, index: usize) -> Option<u8> {
     let stack = world.get::<Slots>(holder)?.get(index)?;
     world.get::<Count>(stack).map(|count| count.get())
 }
 
-/// Fills the slot `index` of `holder` with `count` items of `kind`.
 pub fn fill_slot(world: &mut World, holder: Entity, index: u16, kind: Kind, count: u8) {
     let count = Count::new(count).expect("a count above 0");
     world

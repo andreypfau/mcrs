@@ -31,16 +31,12 @@ const DATAPACK_REPORT: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/reports/datapack.json"
 ));
 
-/// The packs of the client's own vanilla pack, whose files fill the entries a server leaves out.
 #[derive(Resource)]
 pub struct LocalCorpus(DirectoryPacks);
 
-/// What the server sent in its last configuration. A tag update in play replaces the tags of the
-/// registries it names and loads the registries again from it.
 #[derive(Component)]
 pub struct LastConfiguration {
     pub received: Received,
-    /// The client accepted the vanilla pack, so the server may have left its entries' data out.
     pub vanilla_known: bool,
 }
 
@@ -52,8 +48,6 @@ pub enum SessionSet {
 
 #[derive(Default)]
 pub struct ClientRegistriesPlugin {
-    /// The packs the vanilla pack's entries are read from, to fill what a server leaves out.
-    /// A client with them sets `ClientNetworkPlugin::holds_vanilla_pack`.
     pub local_corpus: Option<DirectoryPacks>,
 }
 
@@ -127,8 +121,6 @@ pub fn load_registries(
     )
 }
 
-/// The item table is derived from the loaded registries as they are installed, so no frame sees
-/// the numbers of one load beside the values of another.
 fn install(
     (registries, _): (Registries, Diagnostics),
     (assets, blocks): (&AssetServer, &Blocks),
@@ -229,9 +221,6 @@ fn check_corpus_version(assets: &AssetServer) -> Result<(), String> {
         .map_err(|error| format!("{}: {error}", path.display()))
 }
 
-/// True once a connection has entered configuration, from play or at its start. The server
-/// sends the next registries only after the client's acknowledgement, a frame or more later, so
-/// no set arrives before the clearing this gates has run.
 pub fn entered_configuration(
     connections: Query<&ConnectionState, Changed<ConnectionState>>,
 ) -> bool {
@@ -240,8 +229,6 @@ pub fn entered_configuration(
         .any(|state| *state == ConnectionState::Configuration)
 }
 
-/// The tables resolved from the previous set hold its numbers. They are dropped here and built
-/// again from the set that replaces it, so no table holds the numbers of two sets.
 fn clear_derived_tables(
     mut clocks: ResMut<WorldClocks>,
     dimensions: Query<Entity, With<CurrentDimension>>,

@@ -9,14 +9,9 @@ use mcrs_voxel::BlockPos;
 
 use std::marker::PhantomData;
 
-/// `LightDebugRenderer.MAX_RENDER_DIST`.
 const RADIUS: i32 = 10;
-/// The nearest labels the pool can hold. A 21-cube of lit cells reaches several
-/// thousand, and every one of them is a laid-out text node.
 const LABELS: usize = 512;
 const FONT_SIZE: f32 = 22.0;
-/// Distance at which a label draws at its font size, standing in for the
-/// perspective a billboarded quad would have had.
 const FULL_SIZE_AT: f32 = 8.0;
 const SCALE_MIN: f32 = 0.7;
 const SCALE_MAX: f32 = 1.6;
@@ -73,14 +68,12 @@ struct Label {
     color: Color,
 }
 
-/// Labels every block near the camera marked `C` with its light level.
 pub struct LightLevelsPlugin<C> {
     visible: bool,
     camera: PhantomData<C>,
 }
 
 impl<C> LightLevelsPlugin<C> {
-    /// `visible` shows the labels from the first frame.
     pub fn new(visible: bool) -> Self {
         Self {
             visible,
@@ -168,8 +161,6 @@ fn label(
     })
 }
 
-/// `ARGB.srgbLerp`: the endpoints are mixed as they are written, not in linear
-/// light.
 fn colour(level: u8, dim: Srgba, bright: Srgba) -> Color {
     dim.mix(&bright, f32::from(level) / 15.0).into()
 }
@@ -233,8 +224,6 @@ fn render<C: Component>(
         }
     }
 
-    // Nearest first to survive the cap, then reversed: the pool is drawn in
-    // order, so the last one written lands on top of the ones behind it.
     wanted.sort_unstable_by(|a, b| a.distance.total_cmp(&b.distance));
     wanted.truncate(LABELS);
     wanted.reverse();
@@ -250,8 +239,6 @@ fn render<C: Component>(
             text.0 = label.text.to_owned();
         }
         color.set_if_neq(TextColor(label.color));
-        // A node's transform sits at its centre, so half its own size is what
-        // puts the digit on the cell rather than beside it.
         let half = node.size() * node.inverse_scale_factor() / 2.0;
         transform.set_if_neq(UiTransform {
             translation: Val2::px(label.screen.x - half.x, label.screen.y - half.y),

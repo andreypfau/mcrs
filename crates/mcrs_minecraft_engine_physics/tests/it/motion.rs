@@ -35,8 +35,6 @@ use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
 
-/// A dimension from `y = -64` with the floor block under `y = 0` and air above it, its sections
-/// loaded from `x, z = -16` to `31`, and the motion plugin alone.
 fn app(floor: fn(&TestBlocks) -> BlockStateId) -> App {
     ComputeTaskPool::get_or_init(TaskPool::default);
     let blocks = TestBlocks::new();

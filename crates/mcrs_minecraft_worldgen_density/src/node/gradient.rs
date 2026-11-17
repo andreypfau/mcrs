@@ -33,7 +33,6 @@ impl GradientParams {
         self.fill(out, |i| coordinate(ext, i as i32));
     }
 
-    /// The gradient at each of `coordinates`, in order.
     pub fn eval_coordinates<const N: usize>(&self, out: &mut [f32; N], coordinates: [i32; N]) {
         self.fill(out, |i| coordinates.get(i).copied().unwrap_or_default());
     }
@@ -50,8 +49,6 @@ impl GradientParams {
             Tiling::ClampToEdge => {
                 let lo = from_coordinate.min(to_coordinate);
                 let hi = from_coordinate.max(to_coordinate);
-                // The clamp uses the sorted pair while the offset uses the
-                // original from_coordinate; a descending gradient needs both.
                 self.fill_with(out, coordinate, |c| {
                     mul_add((c.clamp(lo, hi) - from_coordinate) as f32, factor, base)
                 })
@@ -63,16 +60,12 @@ impl GradientParams {
                 let relative = c - from_coordinate;
                 let tile = floor_div(relative, range);
                 let local = relative - tile * range;
-                // Two's-complement parity, which stays correct for a negative
-                // tile; `tile % 2 == 0` does not.
                 let offset = if tile & 1 == 0 { local } else { range - local };
                 mul_add(offset as f32, factor, base)
             }),
         }
     }
 
-    /// The stratum of a gradient is exactly its own axis, so the extent has one
-    /// sample on the other two and the buffer walks that axis end to end.
     fn fill_with(
         &self,
         out: &mut [f32],
@@ -144,7 +137,6 @@ mod tests {
         assert_eq!(at(-64), -1.0);
         assert_eq!(at(100), 1.0, "clamped to the sorted maximum");
         assert_eq!(at(-100), -1.0);
-        // Collapsing the sorted minimum into from_coordinate would answer 2.0.
         assert_eq!(at(0), 0.0);
     }
 

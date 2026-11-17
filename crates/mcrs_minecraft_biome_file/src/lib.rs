@@ -37,7 +37,6 @@ impl mcrs_minecraft_resource::RegistryValue for BiomeFile {
     type Registry = mcrs_minecraft_biome::Biome;
 }
 
-/// A decoration step writes a single entry as a list, where any other set writes it bare.
 pub trait ListForm {
     fn serialize_listed<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error>;
 }
@@ -63,20 +62,12 @@ fn serialize_steps<T: ListForm, S: Serializer>(steps: &[T], s: S) -> Result<S::O
     s.collect_seq(steps.iter().map(Listed))
 }
 
-/// A biome described in code: carvers and placed features are still names.
-///
-/// The builder methods chain, so the first argument an attribute refuses is
-/// kept and [`BiomeDraft::finish`] returns it.
 #[derive(Debug)]
 pub struct BiomeDraft {
     biome: BiomeFile<Named>,
     refused: Option<AttributeError>,
 }
 
-/// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
-///
-/// Sent to clients during Configuration; excludes carvers, features, and the
-/// attributes the client is not allowed to see.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkBiome {
     pub temperature: f32,
@@ -108,7 +99,6 @@ impl From<&BiomeFile> for NetworkBiome {
     }
 }
 
-/// A client holds no generation settings: the network leaves them out.
 impl From<NetworkBiome> for BiomeFile {
     fn from(biome: NetworkBiome) -> Self {
         BiomeFile {
@@ -126,8 +116,6 @@ impl From<NetworkBiome> for BiomeFile {
 
 pub type PlacedFeatureKey = ResourceKey<'static, PlacedFeature>;
 
-/// The carvers and the per-step placed features of a biome, in the order they
-/// were added. A step is listed up to the last one that was given a feature.
 #[derive(Debug, Default)]
 pub struct BiomeGeneration {
     carvers: Vec<ResourceKeyBuf<Carvers>>,
@@ -192,8 +180,6 @@ impl BiomeDraft {
         .water(Self::NORMAL_WATER_COLOR)
     }
 
-    /// The biome file, or the first attribute argument the draft was given that
-    /// the attribute or its modifier does not take.
     pub fn finish(self) -> Result<BiomeFile<Named>, AttributeError> {
         match self.refused {
             Some(error) => Err(error),
@@ -209,8 +195,6 @@ impl BiomeDraft {
         self.modified(attribute, Operation::Override, value)
     }
 
-    /// Leaves the attribute unchanged on an argument the attribute or the
-    /// modifier does not take, and [`BiomeDraft::finish`] reports it.
     pub fn modified<T>(
         mut self,
         attribute: Attribute<T>,
@@ -264,8 +248,6 @@ impl BiomeDraft {
     }
 }
 
-/// The carvers and the per-step placed features of a biome, the column the
-/// generator reads.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BiomeGenerationSettings {
     pub carvers: mcrs_minecraft_registries::IdSet<Carvers>,

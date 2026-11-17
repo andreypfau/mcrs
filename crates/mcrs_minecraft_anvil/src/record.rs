@@ -6,8 +6,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::ticks::{SavedBlockTick, SavedFluidTick};
 
-/// The packed heightmaps a column carries, one long array each. A full column has the four
-/// that carry no `_WG` suffix; a column below full has the two `_WG` arrays also.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default, rename_all = "SCREAMING_SNAKE_CASE")]
 pub struct Heightmaps {
@@ -38,11 +36,9 @@ impl Heightmaps {
     }
 }
 
-/// The scheduled ticks and block indices that wait for a neighbouring column to upgrade.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpgradeData {
-    /// The keys are section numbers as decimal strings.
     #[serde(
         rename = "Indices",
         default,
@@ -86,7 +82,6 @@ impl UpgradeData {
     }
 }
 
-/// The range of sections that blend with old terrain, and the optional heights of its edge.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlendingData {
@@ -96,8 +91,6 @@ pub struct BlendingData {
     pub heights: Option<[f32; 16]>,
 }
 
-/// An `entities` list of a column record. Entity save compounds have no typed layout, so the
-/// list can only be empty.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct NoEntities;
 

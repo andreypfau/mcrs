@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 #[cfg(feature = "std")]
 use mcrs_minecraft_static_registry::static_registry;
 #[cfg(not(feature = "std"))]

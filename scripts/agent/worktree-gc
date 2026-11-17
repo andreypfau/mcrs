@@ -116,7 +116,6 @@ def main(argv):
         print(f"{path}\t{branch}")
         if apply:
             git("worktree", "remove", path)
-            # The expected old value keeps a commit that landed after the check.
             git("update-ref", "-d", f"refs/heads/{branch}", tip)
     verb = "removed" if apply else "would remove"
     print(f"worktree-gc: {verb} {len(found)} worktree(s)")

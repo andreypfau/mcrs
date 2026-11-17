@@ -16,7 +16,6 @@ fn an_argument_reads_the_properties_of_its_parser() {
         (48, item, registry("minecraft:item")),
     ];
     for (id, properties, expected) in cases {
-        // Argument, no children, name "a", the parser id, its properties.
         let mut bytes = vec![0x02, 0x00, 0x01, b'a', id];
         bytes.extend_from_slice(properties);
         let mut slice = &bytes[..];

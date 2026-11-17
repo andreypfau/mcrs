@@ -1,8 +1,6 @@
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_physics::MotionAttributes;
 
-/// The field of [`MotionAttributes`] that holds the value of `attribute`; `None` when motion
-/// does not read the attribute.
 pub(crate) fn motion_field(attribute: Attribute) -> Option<fn(&mut MotionAttributes) -> &mut f64> {
     let field: fn(&mut MotionAttributes) -> &mut f64 = match attribute {
         Attribute::Gravity => |attributes| &mut attributes.gravity,

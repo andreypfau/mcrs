@@ -9,7 +9,6 @@ use crate::text::map_text;
 use crate::{Text, TextMap, TextSerde, TextTypes};
 use mcrs_minecraft_core::codec::IntArray;
 
-/// Action to take when mouse-hovering on the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(
     tag = "action",
@@ -68,7 +67,6 @@ impl<'de, I: TextSerde> Deserialize<'de> for HoverEvent<I> {
     }
 }
 
-/// Four ints, or on read the hyphenated string of 36 characters.
 mod uuid_form {
     use super::*;
 

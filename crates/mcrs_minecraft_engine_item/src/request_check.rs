@@ -4,9 +4,6 @@ use bevy_ecs::event::EntityEvent;
 use crate::Denial;
 use crate::Request;
 
-/// Triggered on the actor before the plan of each [`RequestKind::Action`](crate::RequestKind)
-/// request. An observer reads the request and can deny it; a denied request changes nothing. An
-/// observer must not change a slot that the request names (ITX-ATM-011).
 #[derive(EntityEvent, Clone, Debug, PartialEq)]
 pub struct RequestCheck {
     #[event_target]
@@ -29,7 +26,6 @@ impl RequestCheck {
         &self.request
     }
 
-    /// Denies the request. The first denial wins; a later one changes nothing (ITX-ATM-009).
     pub fn deny(&mut self, denial: Denial) {
         if self.denial.is_none() {
             self.denial = Some(denial);

@@ -1,4 +1,3 @@
-// std: std::fs
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -19,11 +18,6 @@ pub(crate) fn temp_path(path: &Path) -> io::Result<PathBuf> {
     Ok(path.with_file_name(name))
 }
 
-/// Replaces `path` with `bytes` so that a crash at any point leaves the previous file whole.
-///
-/// The bytes go to a temporary file next to `path` and reach the disk before the rename. The
-/// directory is synced after the rename, so the new name survives a power loss too. A failed
-/// write removes the temporary file and leaves `path` as it was.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let parent = path
         .parent()
@@ -40,8 +34,6 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let _ = fs::remove_file(&tmp);
         return Err(err);
     }
-    // The new file is already in place; a failed directory sync only weakens durability of the
-    // name, and reporting it would make the caller treat a finished save as failed.
     #[cfg(unix)]
     let _ = File::open(parent.unwrap_or(Path::new("."))).and_then(|dir| dir.sync_all());
     Ok(())

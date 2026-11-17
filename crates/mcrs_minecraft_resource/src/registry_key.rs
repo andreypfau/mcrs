@@ -56,8 +56,6 @@ pub trait Registered: Sized + 'static {
     const REGISTRY: RegistryKey<Self>;
 }
 
-/// The type a registry holds as its values. A registered type holds itself; a value type that a
-/// crate above the registered marker defines names that marker.
 pub trait RegistryValue {
     type Registry: Registered;
 }

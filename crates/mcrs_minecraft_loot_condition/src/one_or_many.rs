@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-/// A field that holds one value bare, or a list.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum OneOrMany<T> {

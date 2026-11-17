@@ -17,20 +17,13 @@ use crate::PlayerHolders;
 use crate::request_ids::HAND_DROP_REQUEST;
 use crate::request_ids::HAND_SWAP_REQUEST;
 
-/// An action of a player on its hands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HandAction {
-    /// The drop key: one item of the selected slot.
     DropOne,
-    /// The drop key with the modifier: the whole stack of the selected slot.
     DropStack,
-    /// The exchange of the selected slot and the off hand.
     SwapHands,
 }
 
-/// Makes the request of a drop key or of the hand swap of a player who is no spectator
-/// (INV-SEL-004, INV-SEL-005). A drop from an empty hand and a swap of two empty slots request
-/// nothing.
 pub(crate) fn apply_hand_action(
     In((player, action)): In<(Entity, HandAction)>,
     players: Query<(&Slots, &Selected, Option<&PlayerGameMode>), With<PlayerHolders>>,

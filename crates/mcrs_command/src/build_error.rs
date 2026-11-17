@@ -1,25 +1,15 @@
 use crate::node_id::NodeId;
 use core::fmt;
 
-/// How a [`GraphBuilder`](crate::GraphBuilder) call failed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BuildError {
     UnknownNode(NodeId),
-    /// A child with this name exists with another kind, argument type or requirement.
-    Conflict {
-        parent: NodeId,
-        existing: NodeId,
-    },
-    /// The node has another redirect already.
+    Conflict { parent: NodeId, existing: NodeId },
     RedirectConflict(NodeId),
-    /// A node with a redirect has children.
     RedirectWithChildren(NodeId),
-    /// Following the redirects from this node never reaches a node without one.
     RedirectCycle(NodeId),
-    /// The node has an argument child with a redirect next to another argument child.
     RedirectSibling(NodeId),
-    /// The node has a modifier and no redirect.
     ModifierWithoutRedirect(NodeId),
     TooManyNodes,
 }

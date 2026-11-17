@@ -5,7 +5,6 @@ use crate::gui_rect::GuiRect;
 use crate::saturate;
 use crate::standard_sizes::LINE_HEIGHT;
 
-/// Where a caption draws: the start of its text, and the label area that cuts it, if any.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CaptionLayout {
@@ -13,8 +12,6 @@ pub struct CaptionLayout {
     pub clip: Option<GuiRect>,
 }
 
-/// How far left the label scroll has moved a caption that is `overflow` GUI units wider than its
-/// label area, at `now_ms` on the clock of the client (WID-BTN-005).
 #[must_use]
 fn label_scroll_offset(overflow: i32, now_ms: u64) -> i32 {
     let overflow = f64::from(overflow);

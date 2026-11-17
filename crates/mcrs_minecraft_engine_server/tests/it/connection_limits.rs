@@ -17,8 +17,6 @@ use crate::server::RunningServer;
 const SEVEN: &str = "203.0.113.7";
 const EIGHT: &str = "203.0.113.8";
 
-/// Joins as `name`, from `source` behind a PROXY v1 header when one is given, and answers the
-/// refusal as text.
 async fn join_from(
     address: SocketAddr,
     name: &'static str,
@@ -46,7 +44,6 @@ async fn join_from(
     joined.map_err(|error| format!("{error:#}"))
 }
 
-/// Waits for the `login` packet of PLAY, so the server holds the player in PLAY.
 async fn in_play(joined: &mut Joined) {
     loop {
         if let Some(packet) = joined.connection.try_recv().unwrap()
@@ -114,7 +111,6 @@ fn lim_full_001_a_slot_comes_free_when_its_player_leaves() {
         let mut a = join_from(address, "a", None).await.unwrap();
         in_play(&mut a).await;
         drop(a);
-        // The server removes `a` some ticks after the socket closes; until then `b` is refused.
         loop {
             match join_from(address, "b", None).await {
                 Ok(_) => break,

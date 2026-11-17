@@ -97,8 +97,6 @@ impl Gen {
                 let mut slots: Vec<Option<Template>> = (0..n)
                     .map(|_| self.rng.random_bool(0.6).then(|| self.template(depth)))
                     .collect();
-                // The persistent form lists occupied slots only, so a trailing
-                // empty slot would not survive the JSON round trip.
                 if let Some(last @ None) = slots.last_mut() {
                     *last = Some(self.template(depth));
                 }

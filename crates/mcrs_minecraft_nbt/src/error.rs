@@ -34,7 +34,6 @@ pub enum Error {
     TooDeep,
 }
 
-/// `NbtAccounter.defaultQuota`: lists and compounds may nest this far.
 pub const MAX_DEPTH: u32 = 512;
 
 impl ser::Error for Error {

@@ -7,8 +7,6 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::modifier_kind::ModifierKind;
 
-/// A modifier of an instance: an identifier, an amount, an operation and a kind
-/// (`attributes.md`, ATR-INS-003 and ATR-INS-005), with the home slot of its identifier.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InstanceModifier {
     id: ResourceLocationBuf,
@@ -36,7 +34,6 @@ impl InstanceModifier {
         }
     }
 
-    /// A transient modifier with the identifier, amount and operation of `modifier`.
     #[must_use]
     pub fn transient(modifier: &AttributeModifier<'_>) -> Self {
         Self::new(
@@ -67,7 +64,6 @@ impl InstanceModifier {
         self.kind
     }
 
-    /// Equal under ATR-INS-004: the same identifier, amount bits, operation and kind.
     pub(crate) fn same_as(&self, other: &Self) -> bool {
         self.id == other.id
             && self.amount.to_bits() == other.amount.to_bits()

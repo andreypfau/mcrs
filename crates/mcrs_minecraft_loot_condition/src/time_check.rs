@@ -10,8 +10,6 @@ use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
 use crate::number_range::NumberRange;
 
-/// The fields of `time_check` (LOOT-CND-015); `clock` is `None` for a clock that the bake did
-/// not find.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TimeCheck {
     pub(crate) clock: Option<Id<WorldClock>>,

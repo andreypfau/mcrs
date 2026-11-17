@@ -15,10 +15,6 @@ use crate::world_generation::{
     WorldGeneration, ask_world_columns, build_world_generation, deliver_world_columns,
 };
 
-/// Generates and reads the columns of every dimension. The host inserts the
-/// [`DimensionList`](mcrs_minecraft_engine_world::world::dimension_list::DimensionList),
-/// [`DimensionGenerators`](mcrs_minecraft_engine::dimension_generators::DimensionGenerators) and [`WorldSeed`](mcrs_minecraft_engine_world::world_seed::WorldSeed) before
-/// `OnEnter(AppState::Playing)`.
 #[derive(Clone, Debug, Default)]
 pub struct WorldGenPlugin;
 

@@ -34,7 +34,6 @@ use mcrs_minecraft_wire::nested;
 use mcrs_minecraft_wire::{Context, Decode, Encode, Result, VarInt, ensure};
 use std::io::Write;
 
-/// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Filterable<T> {
@@ -136,7 +135,6 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for Filterable<T> {
     }
 }
 
-/// Written as its key alone; only the wire form carries the value inline.
 pub struct WireRef<M: Refs, R: Registered, V>(pub Ref<M, R, V>);
 
 impl<M: Refs, R: Registered, V> Clone for WireRef<M, R, V> {
@@ -293,8 +291,6 @@ pub struct MobEffectInstance<M: Refs = Resolved> {
     pub details: MobEffectDetails,
 }
 
-/// `show_icon` is resolved on read (absent means `show_particles`) and always
-/// written.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(from = "MobEffectDetailsRepr")]
 pub struct MobEffectDetails {
@@ -367,7 +363,6 @@ pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
     value.0 == 1
 }
 
-/// A map kept in the order read, refusing a repeated key.
 pub(crate) fn serialize_entries<K: Serialize, V: Serialize, S: Serializer>(
     entries: &[(K, V)],
     s: S,
@@ -375,8 +370,6 @@ pub(crate) fn serialize_entries<K: Serialize, V: Serialize, S: Serializer>(
     s.collect_map(entries.iter().map(|(key, value)| (key, value)))
 }
 
-/// A record reads a map and nothing else, where the derived visitor would
-/// also take the fields as a sequence.
 pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     d: D,
 ) -> Result<T, D::Error> {
@@ -397,8 +390,6 @@ pub(crate) fn map_only<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     d.deserialize_map(MapOnly(PhantomData))
 }
 
-/// A compound whose `id` names the type, read from a compound or an SNBT
-/// string; the `id` is lifted out and written back first.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedEntityData<R> {
     pub id: ResourceKeyBuf<R>,
@@ -462,12 +453,9 @@ ordinal_enum! {
 
 pub use mcrs_minecraft_value_provider::bounds::{Bound, MinMaxBounds};
 
-/// A compound written as SNBT text, read from either.
 #[derive(Clone, Debug, Default, Encode, Decode)]
 pub struct NbtPredicate(pub NbtCompound);
 
-/// Equality is map equality at every depth; the SNBT writer sorts keys, so
-/// its text is that comparison.
 impl PartialEq for NbtPredicate {
     fn eq(&self, other: &Self) -> bool {
         mcrs_minecraft_snbt::write_compound(&self.0)
@@ -487,7 +475,6 @@ impl<'de> Deserialize<'de> for NbtPredicate {
     }
 }
 
-/// Writes `{}` and reads any map, ignoring its fields.
 pub fn serialize_unit<S: Serializer>(s: S) -> Result<S::Ok, S::Error> {
     s.serialize_map(Some(0))?.end()
 }
@@ -511,7 +498,6 @@ pub fn deserialize_unit<'de, D: Deserializer<'de>>(d: D) -> Result<(), D::Error>
     d.deserialize_map(AnyMap)
 }
 
-/// A kind whose value carries no fields: `{}` persistent, nothing on the wire.
 macro_rules! unit_component {
     ($($(#[$meta:meta])* $ty:ident),* $(,)?) => {$(
         $(#[$meta])*
@@ -652,8 +638,6 @@ impl Decode<'_> for MobEffectDetails {
     }
 }
 
-/// The type a typed entity data names is an entry of a static registry, numbered without the
-/// registries.
 macro_rules! typed_entity_data_wire {
     ($($registry:ty),* $(,)?) => {$(
         impl Encode for TypedEntityData<$registry> {

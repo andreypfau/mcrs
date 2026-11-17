@@ -1,5 +1,3 @@
-//! The JSON report of one run and the statistics its numbers come from.
-
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -14,11 +12,7 @@ use crate::phase::Phase;
 use crate::scene::Area;
 use crate::watcher::{PigSnapshot, TimeSample};
 
-/// A path shorter than this over the window counts as not moved: below the wire precision of
-/// the deltas summed over a minute, and below the jitter of a pig pushed in place.
 const MOVED_BLOCKS: f64 = 0.1;
-/// A pig whose last position is this far from its first counts as displaced: the test of the
-/// stroll experiment E-G13 of `docs/spec/mob-goals.md`.
 const DISPLACED_BLOCKS: f64 = 0.5;
 
 #[derive(Serialize)]
@@ -50,13 +44,10 @@ pub struct Answered {
     pub answer: Option<String>,
 }
 
-/// How the run set the game mode of its client's player, and what shows the mode.
 #[derive(Serialize)]
 pub struct PlayerModeCheck {
     pub command: Answered,
-    /// The answer to `execute if entity @a[gamemode=spectator]`.
     pub spectators: Option<usize>,
-    /// The game mode of the watcher's last login or game event packet.
     pub watcher_game_mode: Option<String>,
 }
 
@@ -90,7 +81,6 @@ pub struct PhaseReport {
     pub load_average_end: [f64; 3],
     pub load_average_1m_max: f64,
     pub contended: bool,
-    /// Probe rounds not sent because the game time answer of the round before was still out.
     pub probe_rounds_skipped: usize,
 }
 
@@ -121,27 +111,20 @@ impl PhaseReport {
     }
 }
 
-/// The server's own tick times over the window, in milliseconds.
 #[derive(Serialize)]
 pub struct Mspt {
-    /// `tick query`: answers, each over the last 100 ticks; `mcrs_tick`: ticks.
     pub samples: usize,
     pub mean: f64,
     pub p50: f64,
     pub p95: f64,
     pub p99: f64,
-    /// The highest P99 of one `tick query` answer; for `mcrs_tick` the longest tick.
     pub worst: f64,
 }
 
 #[derive(Serialize, Default)]
 pub struct External {
-    /// Game time from `time query gametime` against the arrival of its answers.
     pub console_game_time: Option<Rate>,
-    /// Game time from the watcher's `set_time` packets against their arrival: one sample per
-    /// pair of packets (vanilla sends one every 20 ticks).
     pub watcher_set_time: Option<Intervals>,
-    /// `tick sprint` timed from the command to its answer.
     pub sprint: Option<Sprint>,
 }
 
@@ -170,27 +153,20 @@ pub struct Sprint {
     pub server_ms_per_tick: Option<f64>,
 }
 
-/// The stir lines of the window and their answers.
 #[derive(Serialize)]
 pub struct StirReport {
     pub mode: crate::stir::Mode,
-    /// What paces the lines: the game time from `time query gametime`.
     pub pacing: &'static str,
-    /// Game ticks the stir served lines for.
     pub ticks_served: u64,
     pub lines_sent: u64,
-    /// The `damage` lines of the panic hits, also answered with `Applied`.
     pub panic_lines_sent: u64,
-    /// `Applied ... damage` answers: one a hit pig, of the stir and the panic hits.
     pub damage_answers: u64,
     pub damage_answers_per_second: f64,
 }
 
 #[derive(Serialize, Default)]
 pub struct Motion {
-    /// The named sample pigs, from `data get entity` every probe interval.
     pub console: Option<MotionSummary>,
-    /// Every pig the watcher tracked at both ends of the window.
     pub watcher: Option<MotionSummary>,
     pub watcher_move_packets_per_second: Option<f64>,
 }
@@ -199,13 +175,9 @@ pub struct Motion {
 pub struct MotionSummary {
     pub pigs: usize,
     pub moved_fraction: f64,
-    /// The mean path length a second: the sum of the steps between position samples.
     pub mean_path_blocks_per_second: f64,
-    /// The mean distance between the first and the last position, a second.
     pub mean_net_blocks_per_second: f64,
-    /// The mean distance between the first and the last position.
     pub mean_net_blocks: f64,
-    /// The share of pigs whose last position is more than 0.5 blocks from the first.
     pub displaced_fraction: f64,
 }
 
@@ -306,7 +278,6 @@ pub struct Sighting {
     pub position: DVec3,
 }
 
-/// Motion of the named pigs from their position samples.
 #[must_use]
 pub fn console_motion(samples: &HashMap<usize, Vec<Sighting>>) -> Option<MotionSummary> {
     let mut paths = Vec::new();
@@ -336,7 +307,6 @@ pub fn console_motion(samples: &HashMap<usize, Vec<Sighting>>) -> Option<MotionS
     summary(&paths, &nets, &durations, moved)
 }
 
-/// Motion of the pigs the watcher tracked at both ends of the window.
 #[must_use]
 pub fn watcher_motion(start: &PigSnapshot, end: &PigSnapshot) -> Option<MotionSummary> {
     let seconds = end.at.duration_since(start.at).as_secs_f64();

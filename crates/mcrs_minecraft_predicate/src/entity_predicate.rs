@@ -25,14 +25,8 @@ use crate::predicate_issue::PredicateIssue;
 use crate::slots_predicate::SlotsPredicate;
 use crate::type_specific_predicate::{TypeSpecificPredicate, TypeSpecificScope};
 
-/// The most entity predicates on one path from the outer predicate down through `vehicle`,
-/// `passenger`, `targeted_entity`, `entity_struck` and `looking_at`, the outer predicate included.
 pub(crate) const MAX_NESTED_ENTITY_PREDICATES: usize = 32;
 
-/// A test of an optional entity, as a data pack writes it (`M = Named`) or with its references
-/// resolved (`M = Resolved`). The decode refuses an unknown or repeated sub-predicate type, an
-/// unknown slot range name and each other unknown type id. It ignores a field of a sub-predicate
-/// that registry-fields.md does not list.
 #[derive(Clone, Debug, Default, PartialEq, Resolve)]
 pub struct EntityPredicate<M: Refs = Resolved> {
     entity_type: Option<M::Set<EntityType>>,
@@ -144,7 +138,6 @@ impl<'de> Visitor<'de> for EntityPredicateVisitor {
     }
 }
 
-/// Reads the value of the current key into `slot`; `true` when `slot` already held one.
 fn put<'de, T: Deserialize<'de>, A: MapAccess<'de>>(
     slot: &mut Option<T>,
     map: &mut A,
@@ -153,7 +146,6 @@ fn put<'de, T: Deserialize<'de>, A: MapAccess<'de>>(
     Ok(slot.replace(value).is_some())
 }
 
-/// `true` when `kinds` already held a sub-predicate of the kind of `predicate`.
 fn push(
     kinds: &mut Vec<TypeSpecificPredicate<Named>>,
     predicate: TypeSpecificPredicate<Named>,
@@ -166,10 +158,6 @@ fn push(
 }
 
 impl EntityPredicate {
-    /// The matching form: each entry set expanded to ids. Fails when one path of nested entity
-    /// predicates (`vehicle`, `passenger`, `targeted_entity`, `entity_struck`, `looking_at`) holds
-    /// more than 32 entity predicates. `names` bakes the item predicates of `equipment` and `slots`
-    /// as [`crate::BakedItemPredicate::bake`] does.
     pub fn bake<L: NameLookup>(
         &self,
         registries: &Registries,
@@ -289,7 +277,6 @@ impl EntityPredicate {
     }
 }
 
-/// The ids of `types` in the registry set; a type that the set does not have matches no entity.
 fn type_bits(types: &[EntityType], registries: &Registries) -> Result<FixedBitSet, PredicateIssue> {
     let entries = registries
         .entries::<EntityType>()

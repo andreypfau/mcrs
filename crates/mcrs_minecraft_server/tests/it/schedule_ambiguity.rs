@@ -25,7 +25,6 @@ fn is_bevy_state_system(graph: &ScheduleGraph, key: SystemKey) -> bool {
     })
 }
 
-// bevy_state's exclusive transition runners are unordered against its own entity-scoping systems.
 fn without_bevy_state_pairs(
     error: ScheduleBuildError,
     graph: &ScheduleGraph,
@@ -70,7 +69,6 @@ fn ambiguous_schedules(app: &str, world: &mut World) -> Vec<String> {
                     let report = without_bevy_state_pairs(error, schedule.graph()).map(|error| {
                         format!("{app} {label:?}: {}", error.to_string(schedule.graph(), world))
                     });
-                    // Rebuilt leniently so the app still runs far enough to check the dimension.
                     schedule.set_build_settings(settings);
                     schedule.initialize(world).ok();
                     report

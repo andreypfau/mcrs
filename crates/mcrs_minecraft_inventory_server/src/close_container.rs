@@ -5,7 +5,6 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClose;
 
 use crate::InventoryInput;
 
-/// Writes the [`InventoryInput::Close`] of each `container_close` packet.
 pub(crate) fn close_container(
     received: On<Received<ServerboundContainerClose>>,
     mut inputs: MessageWriter<InventoryInput>,

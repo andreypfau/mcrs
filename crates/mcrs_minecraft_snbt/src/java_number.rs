@@ -61,15 +61,12 @@ impl Digits {
     }
 }
 
-/// Java's `Double.toString`: the shortest digits that round-trip but never
-/// fewer than two, plain notation in `[1e-3, 1e7)` and `d.dddE±n` outside.
 pub fn java_double(v: f64) -> String {
     let mut out = String::new();
     _ = write_java_number(&mut out, v);
     out
 }
 
-/// Java's `Float.toString`, with the same notation as [`java_double`].
 pub fn java_float(v: f32) -> String {
     let mut out = String::new();
     _ = write_java_number(&mut out, v);

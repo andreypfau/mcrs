@@ -46,7 +46,6 @@ fn holding(value: NbtTag) -> NbtCompound {
     root
 }
 
-/// What the value reads as from a file and from a tag held in memory.
 fn seen(value: NbtTag) -> [Seen; 2] {
     let root = holding(value);
     let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
@@ -178,8 +177,6 @@ fn status_or_none<'de, D: serde::Deserializer<'de>>(
     Ok(Status::deserialize(deserializer).ok())
 }
 
-/// The read from a file and the read from a tag held in memory, each as its
-/// value or the text of its error.
 fn both<T: DeserializeOwned>(value: NbtTag) -> [Result<T, String>; 2] {
     let root = holding(value);
     let bytes = Nbt::new(String::new(), root.clone()).write().unwrap();
@@ -216,8 +213,6 @@ fn a_string_names_an_enum_variant() {
 
 #[test]
 fn an_enum_stored_as_a_number_is_a_type_error_and_the_fields_after_it_still_read() {
-    // Taken as a string, the second int is a length of one, the letter `A`
-    // and a zero that closes the enclosing compound.
     let numbers = [
         NbtTag::Int(7),
         NbtTag::Int(0x0001_4100),
@@ -240,9 +235,6 @@ fn an_enum_stored_as_a_number_is_a_type_error_and_the_fields_after_it_still_read
 
 #[test]
 fn an_enum_stored_as_an_array_declaring_more_bytes_than_the_input_holds_is_an_error() {
-    // Taken as a string, the declared count is a length of 14 followed by
-    // `mi`, so the field spells `minecraft:full` and the fields after it are
-    // read out of what the header calls the array's payload.
     let mut bytes = vec![0x0a, 0, 0];
     bytes.extend([0x07, 0, 4]);
     bytes.extend(b"data");

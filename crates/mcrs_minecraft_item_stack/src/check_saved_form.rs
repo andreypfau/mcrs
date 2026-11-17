@@ -18,9 +18,6 @@ pub(crate) const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
 pub(crate) const POSITIVE: RangeInclusive<i32> = 1..=i32::MAX;
 pub(crate) const STACK_SIZE: RangeInclusive<i32> = 1..=MAX_COUNT as i32;
 
-/// Checks that each decoded part of the stack has a saved form: the count is at most 99, each
-/// number is in the range of its saved form, and each numeric id has a name. A component that this
-/// crate does not decode, or that holds a text, is not checked.
 pub(crate) fn check_saved_form<L: NameLookup>(
     stack: &ItemStack,
     names: &L,
@@ -44,7 +41,6 @@ fn wire_error(fault: Fault) -> WireError {
     }
 }
 
-/// A sink that builds nothing, so the walk only checks the ranges and the names.
 struct Check;
 
 impl SavedSink for Check {

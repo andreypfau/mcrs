@@ -6,40 +6,30 @@ use mcrs_minecraft_physics::SprintSpeed;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
-/// A clientbound packet that changes the prediction of the player, as the client applies it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Change {
-    /// `set_entity_motion` for the player, with the velocity that the client decodes.
     Motion(DVec3),
-    /// The impulse of `explode`, which adds to the velocity.
     Impulse(DVec3),
-    /// The clientbound `player_abilities`.
     Abilities {
         may_fly: bool,
         flying: bool,
         flight_speed: f32,
     },
-    /// The values after an `update_attributes`: the attributes without the sprint modifier, and
-    /// `movement_speed` with it.
     Attributes {
         attributes: MotionAttributes,
         sprint_speed: SprintSpeed,
     },
-    /// The effects after an `update_mob_effect` or a `remove_mob_effect`.
     Effects(MotionEffects),
-    /// A block that the server sends: `block_update` or one entry of `section_blocks_update`.
     Block {
         at: BlockPos,
         old: BlockStateId,
         new: BlockStateId,
     },
-    /// `block_changed_ack`: the client stops to keep the server states of its own edits.
     BlockAck,
 }
 
 impl Change {
-    /// Applies the change to the state of one candidate. A block changes the world view instead.
     pub(crate) fn apply(&self, state: &mut PlayerState) {
         match *self {
             Change::Motion(velocity) => state.body.velocity = velocity,

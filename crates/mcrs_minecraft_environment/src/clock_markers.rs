@@ -5,7 +5,6 @@ use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
 use crate::Timeline;
 use crate::world_clocks::WorldClock;
 
-/// A time marker of a clock, with the period of the timeline that declares it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClockTimeMarker {
     pub ticks: u32,
@@ -14,7 +13,6 @@ pub struct ClockTimeMarker {
 }
 
 impl ClockTimeMarker {
-    /// Whether the clock stands on the marker at `total_ticks`.
     #[must_use]
     pub fn occurs_at(&self, total_ticks: i64) -> bool {
         let ticks = i64::from(self.ticks);
@@ -24,8 +22,6 @@ impl ClockTimeMarker {
         }
     }
 
-    /// The total ticks at which the marker next occurs, for a marker that does not occur at
-    /// `total_ticks`. Without a period this can lie before `total_ticks`.
     #[must_use]
     pub fn next_after(&self, total_ticks: i64) -> i64 {
         let ticks = i64::from(self.ticks);
@@ -50,7 +46,6 @@ struct Entry {
     marker: ClockTimeMarker,
 }
 
-/// The time markers of every clock, from the timelines that run on it.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct ClockTimeMarkers(Vec<Entry>);

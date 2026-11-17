@@ -1,4 +1,3 @@
-/// A range of bytes of a text, `start ≤ end`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Span {
     pub start: usize,

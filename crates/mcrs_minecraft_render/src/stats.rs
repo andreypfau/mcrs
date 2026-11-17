@@ -5,9 +5,6 @@ use mcrs_minecraft_mesh::DrawKind;
 
 use crate::shared_types::{DrawArgRow, DrawArgs};
 
-/// Quads are drawn as two triangles each, one draw and no instancing: the cull adds six
-/// vertices per surviving quad and the vertex shader finds its quad and corner in the
-/// vertex index.
 pub const VERTICES_PER_QUAD: u32 = 6;
 
 pub(super) fn quad_list() -> DrawArgs {
@@ -17,10 +14,6 @@ pub(super) fn quad_list() -> DrawArgs {
     }
 }
 
-/// The draw args as a frame starts: a list per draw kind for the first pass, one for the second,
-/// then per draw kind the quads the first pass hid, the groups each pass's group cull kept and
-/// the groups the first pass left quads of, and last the workgroups the kernels reading those three
-/// lists dispatch, laid out as [`DISPATCHES`] expects.
 pub fn args_reset() -> Vec<DrawArgs> {
     let dispatch = DrawArgs {
         vertex_count: 0,
@@ -57,12 +50,9 @@ const _: () = {
     );
 };
 
-/// Where the dispatch sizes start in the args, and how many bytes they take: the quad cull's of
-/// each pass, then the second pass's group cull's.
 pub(super) const DISPATCHES: u64 = DrawArgRow::FirstPassQuadDispatch.first_offset_bytes();
 pub(super) const DISPATCH_BYTES: u64 = DrawArgRow::byte_len(3);
 
-/// Byte offset inside the copied dispatch buffer for indirect compute dispatch of `row` and `draw`.
 pub(super) const fn dispatch_offset(row: DrawArgRow, draw: DrawKind) -> Option<u64> {
     match row {
         DrawArgRow::FirstPassQuadDispatch
@@ -72,7 +62,6 @@ pub(super) const fn dispatch_offset(row: DrawArgRow, draw: DrawKind) -> Option<u
     }
 }
 
-/// What the CPU issued this frame.
 #[derive(Resource, Default)]
 pub struct FrameCounts {
     pub terrain_draws: AtomicU32,

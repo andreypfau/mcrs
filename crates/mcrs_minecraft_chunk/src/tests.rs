@@ -81,7 +81,6 @@ fn the_word_wise_bound_test_matches_a_cell_by_cell_scan() {
     }
 }
 
-/// The tail of the last word holds no cell, so a stray value there is not one.
 #[test]
 fn padding_past_the_last_cell_is_not_an_entry() {
     let entry_count = 10;
@@ -102,8 +101,6 @@ fn first_entry_past_finds_the_earliest_offender() {
     assert_eq!(first_entry_past(4, &packed, 64, 7), None);
 }
 
-/// A random array cannot tell a check of every lane from a check of half of
-/// them: with one offender per lane position, it can.
 #[test]
 fn a_single_out_of_range_entry_is_found_wherever_it_sits() {
     for bits in 1..=16u32 {
@@ -131,8 +128,6 @@ fn a_single_out_of_range_entry_is_found_wherever_it_sits() {
     }
 }
 
-/// The O(1) split of a homogeneous cube must produce exactly what a full
-/// `from_cube` scan of the same cells would: same palette order, same counts.
 #[test]
 fn splitting_a_homogeneous_cube_matches_a_full_scan() {
     type C = PalettedContainer<u16, 16>;

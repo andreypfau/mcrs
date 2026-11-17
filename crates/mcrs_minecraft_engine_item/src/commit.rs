@@ -44,9 +44,6 @@ use crate::request_scratch::RequestScratch;
 use crate::slot_changed::write_slot_changed;
 use crate::spawn_stack::spawn_stack;
 
-/// What an applied request does to the entities: each changed slot, the stack of each changed
-/// slot that is not empty after it, the dropped stacks in the order of the operations, and the
-/// stacks that end.
 #[derive(Default)]
 pub(crate) struct Settlement {
     changed: Vec<SlotRef>,
@@ -77,24 +74,16 @@ struct Placed {
 
 #[derive(Clone, Copy)]
 enum Source {
-    /// The entity itself goes to the slot.
     Same(Entity),
-    /// A new entity with the item and the components of this one goes to the slot. A stack with
-    /// no place goes to the first such slot itself, so that a set does not leave it behind.
     CopyOf(Entity),
 }
 
-/// The buffers of the plan of a request, used again by each request.
 #[derive(Default)]
 struct PlanBuffers {
     ops: Vec<Op<SlotRef, Planned<Entity>>>,
     plan: Box<Plan<SlotRef, Entity>>,
 }
 
-/// Triggers [`RequestCheck`] on `actor` for an [`RequestKind::Action`] request, then plans the
-/// request unless an observer denied it and, when it applies, changes the stacks to its result.
-/// Writes [`SlotChanged`] for each changed slot and a [`RequestDrop`] for each dropped stack, then
-/// writes and triggers [`RequestResult`] for `actor`.
 pub(crate) fn commit(world: &mut World, actor: Entity, request: Request) {
     let id = request.id();
     let kind = request.kind();
@@ -105,7 +94,6 @@ pub(crate) fn commit(world: &mut World, actor: Entity, request: Request) {
     let outcome = match check.denial() {
         Some(denial) => Err(Refusal::Denied(denial)),
         None => {
-            // An observer of the check can queue commands; the plan must read the world after them.
             world.flush();
             let Some(outcome) = plan_and_apply(world, actor, check.request()) else {
                 return;
@@ -142,8 +130,6 @@ fn plan_and_apply(
     planned.ok()
 }
 
-/// Plans with the world lent to the gates: every parameter beside `&World` reads only, so the
-/// gates read the same world as the planner.
 fn plan_request(
     (InRef(request), In(actor), InMut(settlement)): (InRef<Request>, In<Entity>, InMut<Settlement>),
     world: &World,
@@ -166,13 +152,9 @@ fn plan_request(
         let stack = (slots.get(index)).and_then(|stack| planned(&mut stacks, stack));
         let access = access(policy, slot);
         let take = match (access.take, stack) {
-            // The moves of a close read no take filter, so a close always empties its sources.
             _ if request.kind() == RequestKind::Close => Filter::Permits,
             (Gate::Permits, _) => Filter::Permits,
             (Gate::Refuses, _) => Filter::Refuses,
-            // chisle: an empty slot has no stack to ask about, so a stack that enters it and
-            // leaves it within one request passes the asking take gate unasked; a planner that
-            // asks at the take lifts it.
             (Gate::Ask(_), None) => Filter::Permits,
             (gate @ Gate::Ask(_), Some(stack)) => {
                 let query = GateQuery {
@@ -239,8 +221,6 @@ fn planned(stacks: &mut Stacks, stack: Entity) -> Option<Planned<Entity>> {
     })
 }
 
-/// A stack ends when no changed slot holds it after the request. A changed slot holds its own
-/// stack when it is the claimant of that stack, and a new copy in the other case.
 fn settle(plan: &Plan<SlotRef, Entity>, settlement: &mut Settlement) {
     for (index, entry) in plan.changes().enumerate() {
         settlement.changed.push(entry.slot);
@@ -283,9 +263,6 @@ fn holds(stack: Option<Planned<Entity>>, entity: Entity) -> bool {
     stack.is_some_and(|stack| stack.stack == entity)
 }
 
-/// The changed slot that keeps the entity `stack`: its own slot when that slot still holds it,
-/// else the first changed slot that holds it. `None` when its own slot did not change, because
-/// that slot keeps it.
 fn claimant(plan: &Plan<SlotRef, Entity>, stack: Entity) -> Option<usize> {
     let mut changes = plan.changes().enumerate();
     let (home, entry) = changes.find(|(_, entry)| holds(entry.before, stack))?;

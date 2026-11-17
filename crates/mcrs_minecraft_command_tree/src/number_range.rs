@@ -1,7 +1,6 @@
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
-/// The bounds of a number argument; a missing bound is the limit of the type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NumberRange<T> {
     pub min: Option<T>,

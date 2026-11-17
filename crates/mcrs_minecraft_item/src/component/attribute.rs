@@ -89,8 +89,6 @@ pub struct AttributeModifierValue {
     pub operation: ModifierOperation,
 }
 
-/// An unknown operation id reads as `add_value`, as an unknown id of each ordinal enum of an
-/// item component reads as its first entry.
 impl Decode<'_> for AttributeModifierValue {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let id = ResourceLocationBuf::decode(r)?;
@@ -204,7 +202,6 @@ impl Encode for AttributeDisplay<Wire> {
     }
 }
 
-/// An unknown type id reads as `Default`.
 impl Decode<'_> for AttributeDisplay<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         Ok(match VarInt::decode(r)?.0 {

@@ -1,5 +1,3 @@
-//! Parity with the environment artefact that the reference game wrote.
-
 use std::sync::LazyLock;
 
 use mcrs_minecraft_fixtures::fixture;
@@ -30,7 +28,6 @@ fn rows(value: &Value) -> &Vec<Value> {
     value.as_array().unwrap()
 }
 
-/// The artefact as a tag: a number with a fraction stays a float, so `-0.0` keeps its sign.
 fn tag(value: &Value) -> NbtTag {
     match value {
         Value::Bool(value) => NbtTag::Byte(i8::from(*value)),
@@ -49,7 +46,6 @@ fn tag(value: &Value) -> NbtTag {
     }
 }
 
-/// The artefact writes an ambient particle by its type alone.
 fn particle_tag(value: &Value) -> NbtTag {
     let mut list = Vec::new();
     for item in rows(value) {
@@ -95,7 +91,6 @@ fn floats(value: &AttributeValue) -> Vec<f32> {
     }
 }
 
-/// Floats agree bit for bit, the sign of zero too.
 fn assert_exact(actual: &AttributeValue, expected: &AttributeValue, context: &str) {
     let bits = |value: &AttributeValue| -> Vec<u32> {
         floats(value).iter().map(|float| float.to_bits()).collect()
@@ -210,9 +205,6 @@ fn the_easings_agree_with_the_artefact() {
     }
 }
 
-/// The span of Y over the parameters whose X lies within the solver tolerance of `x`. The
-/// rule lets a solver stop at any such parameter, so a steep curve admits a span wider than
-/// the stated precision.
 fn bezier_y_within_tolerance(controls: &[f32], x: f32) -> (f32, f32) {
     let [x1, y1, x2, y2] = [0, 1, 2, 3].map(|at| f64::from(controls[at]));
     let axis = |p1: f64, p2: f64, u: f64| {
@@ -255,8 +247,6 @@ fn vanilla_timeline(name: &str) -> Timeline<Named> {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-/// An eased sample agrees to 10^-4 of the track's largest argument: the solver tolerance of a
-/// cubic Bézier curve moves the eased fraction, and the arguments' span scales that move.
 fn assert_close(actual: &Argument, expected: &Argument, scale: f32, context: &str) {
     let (Argument::Value(actual), Argument::Value(expected)) = (actual, expected) else {
         assert_eq!(actual, expected, "{context}");

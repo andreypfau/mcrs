@@ -254,7 +254,6 @@ pub(crate) fn world() -> Vec<Mob> {
 enum Order {
     Exact,
     Unordered,
-    /// Each candidate of an earlier dimension first; unordered inside one dimension.
     ByDimension,
 }
 

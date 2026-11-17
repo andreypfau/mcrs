@@ -11,10 +11,6 @@ use crate::row::Row;
 use crate::row::bit;
 use crate::undecoded::Undecoded;
 
-/// Makes the entity a stack equal to `value`. It despawns the entity when the table has no
-/// prototype of the kind.
-// chisle: each component is one insert and one archetype move; a bundle built by component ids
-// lifts it when the spawn cost shows in a profile.
 pub(crate) fn spawn_stack(mut entity: EntityWorldMut, value: ItemStack) {
     let prototype =
         (entity.world().get_resource::<ItemTable>()).and_then(|table| table.prototype(value.kind));

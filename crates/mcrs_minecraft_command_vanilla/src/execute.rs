@@ -30,7 +30,6 @@ pub(crate) enum Test {
     Entity,
 }
 
-/// Whether a condition passes when its test holds (`if`) or when it fails (`unless`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Polarity {
     If,
@@ -112,7 +111,6 @@ impl ExecuteCommand {
     }
 }
 
-/// The condition subtree of `if` or `unless`, with the branches of the core set.
 fn conditions(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     parent: NodeId,
@@ -156,7 +154,6 @@ fn conditions(
     })
 }
 
-/// The `positioned` subtree: a position, `as` an entity, or `over` a heightmap.
 fn positioned(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -185,7 +182,6 @@ fn positioned(
     })
 }
 
-/// The `rotated` subtree: a rotation, or `as` an entity.
 fn rotated(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -208,7 +204,6 @@ fn rotated(
     })
 }
 
-/// The `facing` subtree: an `entity` and its anchor, or a position.
 fn facing(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -454,7 +449,6 @@ pub(crate) fn modify(
     }
 }
 
-/// A condition as the run stage.
 pub(crate) fn run(
     In(call): In<Call<Branch, ExecuteCommand>>,
     view: ExecuteView,

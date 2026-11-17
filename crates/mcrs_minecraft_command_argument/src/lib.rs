@@ -1,6 +1,3 @@
-//! The resource, keyword, coordinate, rotation, swizzle and time arguments.
-
-// std: mcrs_minecraft_core needs it.
 mod align;
 mod block_floor;
 mod block_pos_argument;

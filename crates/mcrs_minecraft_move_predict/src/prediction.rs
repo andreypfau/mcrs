@@ -38,7 +38,6 @@ use crate::kept_changes::KeptChanges;
 use crate::rollback::Edit;
 use crate::rollback::Rollback;
 
-/// The fields of a teleport that add to the value of the client.
 const KEPT_FROM_CLIENT: Relative = Relative::X
     .union(Relative::Y)
     .union(Relative::Z)
@@ -46,12 +45,9 @@ const KEPT_FROM_CLIENT: Relative = Relative::X
     .union(Relative::VELOCITY_Y)
     .union(Relative::VELOCITY_Z);
 
-/// Layer 2 for one player: the candidates of its client, the record of its last client ticks
-/// and the response to a violation.
 #[derive(Clone, Debug)]
 pub struct Prediction {
     limits: Limits,
-    /// The first candidate of the accepted state; the server takes its results from it.
     first: Candidate,
     others: Vec<Candidate>,
     reference: DVec3,
@@ -64,12 +60,10 @@ pub struct Prediction {
     after_accept: bool,
     rollback: Option<Rollback>,
     work: Work,
-    /// The start candidates of a record that left, for the next record.
     spare: Vec<Candidate>,
 }
 
 impl Prediction {
-    /// A player in `state`, with no change sent yet.
     #[must_use]
     pub fn new(state: PlayerState, limits: Limits) -> Self {
         Self {
@@ -90,13 +84,11 @@ impl Prediction {
         }
     }
 
-    /// The state that the server takes its results of the movement from.
     #[must_use]
     pub fn accepted(&self) -> &PlayerState {
         &self.first.state
     }
 
-    /// A predicted-state change goes out, in the order that layer 1 numbers the changes.
     pub fn change(&mut self, change: Change) {
         let number = self.kept.push(change);
         if change == Change::BlockAck
@@ -106,11 +98,6 @@ impl Prediction {
         }
     }
 
-    /// The client edits the block `at` with a sequence. From the next client tick on, its world
-    /// view has `state` at `at` until it applies the acknowledgement, and it can move itself back
-    /// to where it was at the first request for that block. `state` is the new state of an
-    /// accepted edit, or the state that a refused action gives in the world of the server; `None`
-    /// when the server cannot compute it.
     pub fn block_requested(&mut self, at: BlockPos, state: Option<BlockStateId>) {
         let position = self.first.state.body.position;
         let rollback = match &mut self.rollback {
@@ -127,13 +114,10 @@ impl Prediction {
         }
     }
 
-    /// A teleport goes out; no client tick is predicted until its accept.
     pub fn teleport(&mut self, teleport: Teleport) {
         self.pending = Some(teleport);
     }
 
-    /// The accept of the pending teleport, at the position that the client reports. The
-    /// prediction starts again at the destination of the candidate that the accept matches.
     pub fn accept(&mut self, position: DVec3) -> Outcome {
         let Some(teleport) = self.pending else {
             return Outcome::from(Mode::Exempt);
@@ -166,10 +150,6 @@ impl Prediction {
         Outcome::default()
     }
 
-    /// Predicts one client tick from the tick packets and the world view of the client.
-    /// `pushers` holds each living entity and boat near the player that the client has and that
-    /// the team rules can let push the player. Its hull also holds the position before the
-    /// oldest server tick that the client shows, because the client interpolates from it.
     pub fn tick<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
@@ -195,8 +175,6 @@ impl Prediction {
         } else {
             self.predict(view, pushers, tick)
         };
-        // A candidate never applies fewer changes than the start it ran from, so the oldest
-        // record holds the fewest.
         let oldest = match self.records.front() {
             Some(record) => record.start.as_slice(),
             None => &[],
@@ -211,8 +189,6 @@ impl Prediction {
         outcome
     }
 
-    /// A relative teleport applies to the state of the client when it arrives, so the candidates
-    /// follow the client ticks that run before that, with no check.
     fn follow<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
@@ -298,8 +274,6 @@ impl Prediction {
         outcome
     }
 
-    /// Before a record leaves, a tick in which the fast path left candidates out runs them all,
-    /// so the accepted state holds each candidate that a later replay could need.
     fn drop_old_record<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
@@ -375,8 +349,6 @@ impl Prediction {
         outcome
     }
 
-    /// The tick reached the cap of the physics steps, the push bound cannot hold the pushers, or
-    /// the movement touches an edited block that is not settled.
     fn stopped(&mut self, tick: &ClientTick, stop: Stop) -> Outcome {
         let open = tick.changes.seen.saturating_sub(tick.changes.applied);
         if stop == Stop::Steps && open > self.limits.max_open_windows {
@@ -388,8 +360,6 @@ impl Prediction {
         self.coarse(tick)
     }
 
-    /// Accepts the reported position with the velocity of the first candidate; the next tick
-    /// with a position resyncs the velocity.
     fn coarse(&mut self, tick: &ClientTick) -> Outcome {
         let mut first = self.first;
         let applied = first.applied.max(tick.changes.applied);
@@ -403,8 +373,6 @@ impl Prediction {
         Outcome::from(Mode::Coarse)
     }
 
-    /// The first position after a coarse tick: the reported position, with each velocity that
-    /// the change of position can give.
     fn resync<W: CollisionWorld, B: BodyView>(
         &mut self,
         view: View<'_, W, B>,
@@ -469,8 +437,6 @@ impl Prediction {
         Outcome::from(Mode::Resync)
     }
 
-    /// Refuses the tick and sends the client to `state`: absolute position and velocity, and
-    /// the rotation of the client kept.
     fn set_back_to(&mut self, state: PlayerState) -> Teleport {
         let correction = Teleport {
             position: state.body.position,
@@ -511,9 +477,6 @@ impl Prediction {
     }
 }
 
-/// Runs every candidate of each record from the oldest one in which the fast path left
-/// candidates out. Returns true when each of these ticks has a match; the candidates of the
-/// newest tick are then in `work.matched`.
 fn replay<W: CollisionWorld, B: BodyView>(
     context: &Context<'_, W, B>,
     records: &mut VecDeque<Record>,

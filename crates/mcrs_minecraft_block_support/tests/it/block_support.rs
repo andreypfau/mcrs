@@ -11,7 +11,6 @@ use serde_json::{Value, json};
 
 const P: BlockPos = BlockPos::new(0, 64, 0);
 
-/// The vanilla corpus, with the components below laid over it for the cases the tests need.
 static WORLD: LazyLock<(BlockDefinitions, BlockSupport, Vec<SupportIssue>)> = LazyLock::new(|| {
     let below = |predicate: Value| json!({ "predicate": predicate });
     let face_below = |test: &str| json!({"type": "minecraft:has_sturdy_face", "offset": [0, -1, 0], "direction": "up", "face_test": test});
@@ -158,7 +157,6 @@ fn state(text: &str) -> BlockStateId {
         })
 }
 
-/// A world of air that holds `blocks` around P.
 fn world(blocks: &[(Direction, &str)]) -> impl FnMut(BlockPos) -> BlockStateId + use<> {
     let placed: Vec<(BlockPos, BlockStateId)> = blocks
         .iter()
@@ -237,7 +235,6 @@ fn a_shape_update_runs_the_test_only_from_a_tested_direction() {
         Direction::all()
             .map(|from| support().stays_after_update(state(subject), P, from, world(&[])))
     };
-    // In the order down, up, north, south, west, east.
     let cases = [
         ("torch", [false, true, true, true, true, true]),
         ("poppy", [false; 6]),

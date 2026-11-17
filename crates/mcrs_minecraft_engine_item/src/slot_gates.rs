@@ -6,7 +6,6 @@ use crate::GateFn;
 use crate::GateId;
 use crate::RegisterError;
 
-/// The gate functions of a world, in the order of their registration.
 #[derive(Resource, Default)]
 pub(crate) struct SlotGates {
     gates: Vec<GateFn>,

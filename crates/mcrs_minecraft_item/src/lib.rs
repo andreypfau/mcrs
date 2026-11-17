@@ -91,7 +91,6 @@ pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, T
 #[cfg(feature = "bevy")]
 pub use value::{StackError, item_of, same_item_same_components, stack_to_slot, stack_to_value};
 
-/// Text whose `show_item` hover carries an item stack template.
 pub type Text<M = mcrs_minecraft_registries::Resolved> = mcrs_minecraft_text::Text<Template<M>>;
 
 #[cfg(feature = "bevy")]

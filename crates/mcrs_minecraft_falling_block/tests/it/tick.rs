@@ -47,20 +47,17 @@ fn fbk_tck_004_005_the_time_limits_after_the_move() {
     let airborne = (Ground::Airborne, WaterContact::Dry);
     let item = AfterMove::Expire(Remains::Item);
     let cases = [
-        // FBK-TCK-004: the block exists for 600 ticks and drops in tick 601.
         (599, default, airborne, 64, AfterMove::Fall),
         (600, default, airborne, 64, item),
         (4, five, airborne, 64, AfterMove::Fall),
         (5, five, airborne, 64, item),
         (2_147_483_647, disabled, airborne, 64, AfterMove::Fall),
-        // FBK-TCK-005: more than 100 ticks outside the height, also with the limit disabled.
         (100, disabled, airborne, -100, item),
         (99, disabled, airborne, -100, AfterMove::Fall),
         (100, disabled, airborne, -64, item),
         (100, disabled, airborne, -63, AfterMove::Fall),
         (100, disabled, airborne, 319, AfterMove::Fall),
         (100, disabled, airborne, 320, item),
-        // FBK-TCK-001 step 5: a landing comes before the limits.
         (
             700,
             default,

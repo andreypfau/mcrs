@@ -5,8 +5,6 @@ use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_visual::ClientEntity;
 use mcrs_minecraft_physics::{Body, EntityState, MotionRow};
 
-/// The motion of a simulated entity that the server added at `position` with `velocity`, or
-/// `None` for an entity that the client does not simulate.
 pub(crate) fn simulated_motion(
     client: &ClientEntity,
     position: DVec3,

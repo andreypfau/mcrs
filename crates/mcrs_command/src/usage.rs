@@ -4,24 +4,19 @@ use crate::node_kind::NodeKind;
 use crate::requirement::Requirement;
 use alloc::string::String;
 
-/// Whether a usage shows in brackets as optional.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Presence {
     Required,
     Optional,
 }
 
-/// How much of the tree below a node its short usage shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UsageDepth {
-    /// The node alone.
     Node,
-    /// The node, then its redirect or its children.
     Children,
 }
 
 impl<A, R, H> Graph<A, R, H> {
-    /// The usage text of a node.
     pub fn write_usage_text(&self, node: NodeId, out: &mut String) {
         match self.node(node).map(|node| node.kind()) {
             Some(NodeKind::Literal(name)) => out.push_str(name),
@@ -34,7 +29,6 @@ impl<A, R, H> Graph<A, R, H> {
         }
     }
 
-    /// Writes the short usage of a node; `false` when the node has none.
     pub fn short_usage<S>(
         &self,
         id: NodeId,

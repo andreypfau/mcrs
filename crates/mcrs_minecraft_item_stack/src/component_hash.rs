@@ -18,7 +18,6 @@ use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 use crate::saved_sink::TAG_MARKER;
 
-/// The hash of the saved form of a component: the tree that the saved writer writes.
 pub(crate) fn component_hash<L: NameLookup>(
     value: &Builtin,
     names: &L,

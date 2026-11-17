@@ -73,12 +73,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import org.joml.Vector3fc;
 
-/**
- * Builds the entity model layers and keyframe clips of the client, and poses selected models,
- * then writes them as JSON. Nothing is drawn, so no graphics context is needed.
- *
- * <p>Arguments: the output directory, then one of {@code models}, {@code animations}, {@code poses}, {@code types}, {@code block_entities} or {@code sign_text}.
- */
 public final class EntityModelOracle {
     private static final int FORMAT = 1;
     private static final Gson LINE = new GsonBuilder().disableHtmlEscaping().serializeNulls().serializeSpecialFloatingPointValues().create();
@@ -182,8 +176,6 @@ public final class EntityModelOracle {
         System.out.println("wrote " + path + " (" + rows.size() + " " + listKey + ")");
     }
 
-    // ---- models -------------------------------------------------------------------------------
-
     private static List<JsonObject> models() throws ReflectiveOperationException {
         Map<ModelLayerLocation, LayerDefinition> roots = LayerDefinitions.createRoots();
         List<ModelLayerLocation> keys = new ArrayList<>(roots.keySet());
@@ -250,7 +242,6 @@ public final class EntityModelOracle {
         JsonArray faces = new JsonArray();
         for (ModelPart.Polygon polygon : definition.bake(width, height).polygons) {
             JsonObject face = new JsonObject();
-            // Artefact space turned 180 degrees about Z is the internal space of the entity pack.
             face.addProperty(
                 "internal_direction",
                 Direction.getApproximateNearest(-polygon.normal().x(), -polygon.normal().y(), polygon.normal().z()).getSerializedName()
@@ -272,8 +263,6 @@ public final class EntityModelOracle {
         cube.add("faces", faces);
         return cube;
     }
-
-    // ---- animations ---------------------------------------------------------------------------
 
     private static List<JsonObject> animations() throws Exception {
         List<JsonObject> rows = new ArrayList<>();
@@ -381,8 +370,6 @@ public final class EntityModelOracle {
         return camel.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase();
     }
 
-    // ---- types --------------------------------------------------------------------------------
-
     private static List<JsonObject> types() throws ReflectiveOperationException {
         Map<EntityType<?>, Class<?>> classes = typeClasses();
         List<JsonObject> rows = new ArrayList<>();
@@ -408,8 +395,6 @@ public final class EntityModelOracle {
         return rows;
     }
 
-    // The type argument of each registered type constant names the class whose static
-    // definitions assign the entity data indices.
     private static Map<EntityType<?>, Class<?>> typeClasses() throws ReflectiveOperationException {
         Map<EntityType<?>, Class<?>> classes = new java.util.HashMap<>();
         for (Field field : EntityTypes.class.getDeclaredFields()) {
@@ -447,8 +432,6 @@ public final class EntityModelOracle {
         }
         return data;
     }
-
-    // ---- poses --------------------------------------------------------------------------------
 
     private static final float[] WALK_POSITIONS = {0.0F, 0.5F, 1.7F, 10.3F};
     private static final float[] WALK_SPEEDS = {0.0F, 0.25F, 1.0F};
@@ -554,7 +537,6 @@ public final class EntityModelOracle {
         if (!state.isStarted()) {
             return JsonNull.INSTANCE;
         }
-        // The state keeps only its start; the time at age 0 gives that start back.
         return new JsonPrimitive(-state.getTimeInMillis(0.0F) / 50L);
     }
 
@@ -597,8 +579,6 @@ public final class EntityModelOracle {
             collect(parts, path + "/" + child.getKey(), child.getValue());
         }
     }
-
-    // ---- block entities ------------------------------------------------------------------------
 
     private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
 
@@ -672,8 +652,6 @@ public final class EntityModelOracle {
         out.add("matrix", rows);
         return out;
     }
-
-    // ---- helpers ------------------------------------------------------------------------------
 
     private static Object read(final Object owner, final String name) throws ReflectiveOperationException {
         Class<?> type = owner.getClass();

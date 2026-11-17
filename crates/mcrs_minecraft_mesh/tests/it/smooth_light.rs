@@ -53,8 +53,6 @@ impl PaletteEntry {
         }
     }
 
-    /// A case names its own state by the block and the properties it sets, and the palette
-    /// names every property.
     fn is_named_by(&self, name: &str) -> bool {
         let (block, properties) = split_state(name);
         let (own_block, own_properties) = split_state(&self.state);

@@ -1,7 +1,3 @@
-//! The GPU gate over the occurrences of the Bedrock vanilla packs (`docs/molang-corpus.md`): each
-//! text expression that classifies as pure lowers to WGSL, and naga validates all of them in one
-//! module. `MCRS_MOLANG_CORPUS` names the corpus file.
-
 use std::collections::BTreeMap;
 
 use mcrs_molang::{

@@ -1,4 +1,3 @@
-/// The equipment slots in which an attribute modifier of a stack applies.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SlotGroup {
     #[default]
@@ -16,7 +15,6 @@ pub enum SlotGroup {
 }
 
 impl SlotGroup {
-    /// Each variant, in the order of the wire ids.
     pub(crate) const ALL: [Self; 11] = [
         Self::Any,
         Self::Mainhand,

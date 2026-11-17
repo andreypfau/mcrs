@@ -1,7 +1,6 @@
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_inventory_transaction::Planned;
 
-/// A slot as the kernel read it before the first operation.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Seen<I, T> {
     pub(crate) slot: I,
@@ -11,7 +10,6 @@ pub(crate) struct Seen<I, T> {
 }
 
 impl<I, T> Seen<I, T> {
-    /// The capacity of this slot for `stack`.
     pub(crate) fn cap(&self, stack: Planned<T>) -> u8 {
         self.limit.min(stack.max)
     }

@@ -13,12 +13,6 @@ use crate::columns::{
     AIR, ColumnStore, Columns, Dimension, LightCheck, SectionLightChange, UnlitColumnLight,
 };
 
-/// Lights the block changes of `checks` again in the columns the store holds, from the light it
-/// holds, and writes back each section whose light moved.
-///
-/// The light engine keeps its own copy of the blocks, so the step builds one for the columns
-/// that a change can reach: a change moves light at most 15 blocks, which is never past the
-/// neighbour column. Each column comes whole, because its sky scan reads it from the top.
 pub(crate) fn relight(
     store: &mut ColumnStore,
     registry: &Arc<LightRegistry>,
@@ -27,8 +21,6 @@ pub(crate) fn relight(
     let Some(dimension) = store.dimension() else {
         return;
     };
-    // A column that waits to be lit from its blocks takes these changes with it, and its
-    // light is not the light of the change.
     let checks: Vec<LightCheck> = checks
         .iter()
         .copied()
@@ -75,17 +67,10 @@ pub(crate) fn relight(
     }
 }
 
-/// Columns per side of one tile of `light_arrived`: a job covers whole tiles and the ring around
-/// them, so a scattered batch never grows one job to the box that holds all of it.
 const TILE_BITS: u32 = 2;
 
-/// The most columns a job of `light_arrived` takes from a batch before it stops adding the tiles
-/// beside it, which keeps the memory of one engine world bounded. A job may pass it by the
-/// tiles it was adding.
 const JOB_COLUMNS: usize = 256;
 
-/// An engine world for the dimension, empty, and the section rows of its extent. The sky layer
-/// is only calculated when `sky` asks for it and the dimension has sky light.
 fn engine_world(
     registry: &Arc<LightRegistry>,
     dimension: &Dimension,
@@ -105,12 +90,6 @@ fn engine_world(
     (world, extent.min_section_y..=max_section_y)
 }
 
-/// Lights the columns that arrived without light, from their blocks, and lets the light cross
-/// into the columns the store holds around them. Unless the mode computes the sky layer too, that
-/// layer is neither computed nor written, so it stays as the embedder set it.
-///
-/// A column that no job has lit yet is dark and its own job is still to come, so the jobs before
-/// it neither read nor write it.
 pub(crate) fn light_arrived(
     store: &mut ColumnStore,
     registry: &Arc<LightRegistry>,
@@ -162,8 +141,6 @@ pub(crate) fn light_arrived(
         let no_changes = HashMap::new();
         load_held(&mut world, store, &ring, &section_ys, &no_changes);
 
-        // The ring is loaded already, so only the group's own sections owe a first answer
-        // and carry the work.
         let mut loads = Vec::new();
         for &column in &group {
             loads.extend(load_edits(store, column, &section_ys, &no_changes));
@@ -177,8 +154,6 @@ pub(crate) fn light_arrived(
             store.set_section_light(
                 section.pos,
                 SectionLightChange {
-                    // A world without sky still answers a first sky layer of zeros, which
-                    // would wipe the sky the embedder set.
                     sky: if sky && dimension.sky_light {
                         section.sky_light.as_ref()
                     } else {
@@ -191,8 +166,6 @@ pub(crate) fn light_arrived(
     }
 }
 
-/// Takes the next group of touching tiles, up to `JOB_COLUMNS` columns, so that one job lights
-/// them together.
 fn take_group(tiles: &mut BTreeMap<(i32, i32), Vec<ColumnPos>>) -> Option<HashSet<ColumnPos>> {
     let (seed, columns) = tiles.pop_first()?;
     let mut group: HashSet<ColumnPos> = columns.into_iter().collect();
@@ -214,7 +187,6 @@ fn take_group(tiles: &mut BTreeMap<(i32, i32), Vec<ColumnPos>>) -> Option<HashSe
     Some(group)
 }
 
-/// Loads the sections of `columns` into the engine with the light the store holds for them.
 fn load_held(
     world: &mut LightWorld,
     store: &ColumnStore,
@@ -260,7 +232,6 @@ fn load_edits(
         .collect()
 }
 
-/// The blocks of a section as they stood before the first change of `first_old` in it.
 fn blocks_before(
     store: &ColumnStore,
     at: SectionPos,

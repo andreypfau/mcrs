@@ -1,7 +1,3 @@
-//! The beard term against the reference's `Beardifier` over synthetic piece sets:
-//! the kernel entry by entry, then every point of each case's volume through both
-//! the point sampler and the volume fill.
-
 use bytes::{Buf, Bytes};
 use glam::IVec3;
 use mcrs_minecraft_core::BoundingBox;

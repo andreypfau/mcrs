@@ -1,5 +1,3 @@
-//! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
-//! ids the capture session had.
 use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -394,8 +392,6 @@ fn an_offer_never_sells_an_empty_stack() {
     assert!(format!("{error:#}").contains("Empty ItemStack not allowed"));
 }
 
-/// Vanilla hashes the patch into a hash map, so the entry order on the wire
-/// is not the insertion order; the decoded map is compared by `matches`.
 #[test]
 fn container_click_carries_hashed_slots() {
     let f = &fixture();

@@ -1,8 +1,6 @@
 use crate::loot_context::LootContext;
 use crate::named_entries::NamedEntries;
 
-/// What one test of a condition or one read of a provider borrows: the named entries that the
-/// bake resolved the keys against, the context and the world.
 #[derive(Debug)]
 pub struct LootInputs<'i, 'c, E, W> {
     pub named: &'i NamedEntries,

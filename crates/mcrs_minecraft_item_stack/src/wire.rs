@@ -26,11 +26,6 @@ enum Entries {
     LengthPrefixed,
 }
 
-/// Reads the wire stack. A count of 0 or less, or the item air, gives `None`, the empty stack.
-///
-/// The reader accepts a count up to 255 and does not check the ranges of the components. It
-/// gives an error for a component that this crate cannot read: without a length prefix, the
-/// reader cannot find the end of that component.
 pub fn read_wire<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
@@ -38,7 +33,6 @@ pub fn read_wire<L: NameLookup>(
     read_frame(input, names, Entries::Bare)
 }
 
-/// Reads the wire stack that is not empty. The empty stack is an error.
 pub fn read_wire_not_empty<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
@@ -46,12 +40,6 @@ pub fn read_wire_not_empty<L: NameLookup>(
     read_wire(input, names)?.ok_or(WireError::EmptyStack)
 }
 
-/// Reads the wire stack with length prefix. A count of 0 or less, or the item air, gives `None`,
-/// the empty stack.
-///
-/// A component that this crate does not decode becomes a [`PatchEntry::UndecodedWire`]. Each
-/// decoded part of the stack must have a saved form: the count is at most 99, each number is in
-/// the range of its saved form, and each numeric id has a name.
 pub fn read_wire_with_length<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
@@ -63,10 +51,6 @@ pub fn read_wire_with_length<L: NameLookup>(
     Ok(stack)
 }
 
-/// Appends the wire stack to `output`. `None` and a stack of the item air give the byte `00`.
-///
-/// The writer omits a custom component, which has no type id. Each decoded part of the stack must
-/// have a saved form, as for [`read_wire_with_length`]. On an error, `output` keeps its length.
 pub fn write_wire<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -75,7 +59,6 @@ pub fn write_wire<L: NameLookup>(
     write_frame(stack, names, Entries::Bare, output)
 }
 
-/// Appends the wire stack that is not empty to `output`. A stack of the item air is an error.
 pub fn write_wire_not_empty<L: NameLookup>(
     stack: &ItemStack,
     names: &L,
@@ -87,7 +70,6 @@ pub fn write_wire_not_empty<L: NameLookup>(
     write_wire(Some(stack), names, output)
 }
 
-/// Appends the wire stack with length prefix to `output`, as [`write_wire`] does.
 pub fn write_wire_with_length<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -215,8 +197,6 @@ fn put_new(
     Ok(())
 }
 
-/// `stack` unless it is `None` or a stack of the item air. An item without a name gives
-/// `unnamed`.
 pub(crate) fn present<'stack, L: NameLookup, E>(
     stack: Option<&'stack ItemStack>,
     names: &L,
@@ -330,8 +310,6 @@ fn write_entry_value<L: NameLookup>(
     }
 }
 
-// The length comes before the value, so the value is written first and the length is rotated in
-// front of it. That needs no second buffer.
 fn write_prefixed_value<L: NameLookup>(
     entry: &PatchEntry,
     names: &L,

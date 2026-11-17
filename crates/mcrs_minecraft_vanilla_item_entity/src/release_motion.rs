@@ -17,9 +17,6 @@ use crate::Thrower;
 use crate::publish_items::Release;
 use crate::publish_items::Released;
 
-/// Ends the motion of a stack that leaves the world, moves in it or despawns, and keeps the tile
-/// of its removal for the take of a pickup. A stack dropped again gets a new motion at its new
-/// position.
 pub(crate) fn release_motion(
     replaced: On<Discard<Dropped>>,
     stacks: Query<(&MotionId, &PublishedTile)>,
@@ -36,7 +33,6 @@ pub(crate) fn release_motion(
         .try_remove::<(MotionState, MotionKind, Appearance)>();
 }
 
-/// A stack that leaves the world stops being an item entity.
 pub(crate) fn forget_item_values(removed: On<Remove<Dropped>>, mut commands: Commands) {
     commands
         .entity(removed.entity)

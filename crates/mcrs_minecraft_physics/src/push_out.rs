@@ -16,10 +16,8 @@ use crate::block_scan::state_at;
 use crate::tick_player::dimensions_of;
 use crate::tolerance::COLLISION;
 
-/// The speed towards the free face of a blocked cell.
 const PUSH_SPEED: f64 = 0.1;
 
-/// The faces of a cell in the order of the test: west, east, north, south.
 const FACES: [Face; 4] = [Face::West, Face::East, Face::North, Face::South];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,8 +57,6 @@ impl Face {
     }
 }
 
-/// Pushes the player out of the blocks that cause suffocation: for each of four points near the
-/// corners of the box, a blocked cell sets the velocity towards its nearest free face.
 pub(crate) fn push_out_of_blocks<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -110,7 +106,6 @@ pub(crate) fn push_out_of_blocks<W: CollisionWorld>(
     }
 }
 
-/// The column of a cell between the bottom and the top of the box.
 struct Column<'a, W> {
     world: &'a W,
     table: &'a CollisionTable,
@@ -120,8 +115,6 @@ struct Column<'a, W> {
 }
 
 impl<W: CollisionWorld> Column<'_, W> {
-    /// True when a block that causes suffocation meets the column of the cell, shrunk by
-    /// `1.0E-7`.
     fn blocked(&self, cell: BlockPos) -> bool {
         let column = Aabb::new(
             DVec3::new(f64::from(cell.x), self.min_y, f64::from(cell.z)),

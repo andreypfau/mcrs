@@ -3,28 +3,24 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_numeric::wrap_degrees;
 use mcrs_minecraft_protocol_game::{PositionFlag, PositionFlags};
 
-/// The position and the rotation of a victim before or after a teleport.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
     pub position: DVec3,
     pub look: Look,
 }
 
-/// Which angles of a teleport are relative to the current rotation of the victim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RelativeRotation {
     pub yaw: bool,
     pub pitch: bool,
 }
 
-/// Whether a teleport moves the victim into another dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DimensionChange {
     Stays,
     Changes,
 }
 
-/// What `player_position` carries for one move, and the rotation the move leaves the victim in.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RelativeMove {
     pub position: DVec3,
@@ -33,10 +29,6 @@ pub struct RelativeMove {
     pub final_look: Look,
 }
 
-/// The move of a victim from `from` to `to`: each relative
-/// value is the destination minus the current value, the yaw and the pitch to apply are wrapped,
-/// and the final pitch is clamped. A victim that changes dimension gets the absolute position
-/// and keeps only the velocity flags of the relative axes.
 #[must_use]
 pub fn relative_move(
     from: Pose,

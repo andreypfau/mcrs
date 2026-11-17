@@ -9,8 +9,6 @@ use serde::de::DeserializeOwned;
 use crate::Template;
 use crate::dialog::DialogRef;
 
-/// Maps the wire form of a text, [`ItemHover`], to the typed form, `Template<Named>`, and back.
-/// The typed direction checks a hover as a data-pack load checks it.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ItemHoverMap;
 

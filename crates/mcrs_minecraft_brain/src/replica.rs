@@ -7,9 +7,6 @@ use crate::MobView;
 use crate::PlayerTable;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The snapshots that the decisions of the last ticks read. A tile keeps a version for each tick
-/// in which the host published it, so a decision of issue tick `T` processed late still reads the
-/// views of `T`; a tile that the host did not publish again keeps its older version.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Replica {
     tiles: BTreeMap<TileKey, VecDeque<TileVersion>>,
@@ -36,8 +33,6 @@ struct TickFacts {
 }
 
 impl Replica {
-    /// Publishes the views of the mobs of `tile` at the start of `tick`. The stage expects one
-    /// view for each mob that it keeps in the tile; the views are sorted here by order key.
     pub fn publish_tile(&mut self, tick: u64, tile: TileKey, mut views: Vec<MobView>) {
         views.sort_by_key(|view| view.key);
         let versions = self.tiles.entry(tile).or_default();
@@ -60,7 +55,6 @@ impl Replica {
         self.players.push_back(PlayersVersion { tick, table });
     }
 
-    /// Publishes the facts of the ticks before `tick` for the mobs of `tile`.
     pub fn publish_facts(
         &mut self,
         tick: u64,
@@ -82,7 +76,6 @@ impl Replica {
         }
     }
 
-    /// The views of `tile` at the start of `tick`: the newest version at `tick` or before.
     #[must_use]
     pub fn views(&self, tile: TileKey, tick: u64) -> &[MobView] {
         self.tiles
@@ -100,7 +93,6 @@ impl Replica {
             .map(|version| &version.table)
     }
 
-    /// The facts that the host published with the snapshot of `tick` for `tile`.
     #[must_use]
     pub fn facts(&self, tile: TileKey, tick: u64) -> &[Fact] {
         self.facts
@@ -110,8 +102,6 @@ impl Replica {
             .map_or(&[], Vec::as_slice)
     }
 
-    /// Drops what no read at `oldest` or later needs: each version with a newer version at
-    /// `oldest` or before, and the facts of the ticks before `oldest`.
     pub fn retire(&mut self, oldest: u64) {
         self.tiles.retain(|_, versions| {
             retire_versions(versions, oldest, |version| version.tick);

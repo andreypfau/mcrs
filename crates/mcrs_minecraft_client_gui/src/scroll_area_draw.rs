@@ -13,9 +13,6 @@ const BLACK: u32 = 0xFF00_0000;
 const BACKGROUND_TILE: i32 = 32;
 const ROW_INSET: i32 = 2;
 
-/// A selection list, a widget list or a scroll panel in the order of LIST-BG-003: the
-/// background, the rows and the member widgets inside the clip, the separators, then the
-/// scrollbar. A scroll panel has no background and no separators (SCRL-PANEL-001).
 pub(crate) fn draw_scroll_area(
     menu: &Menu,
     widget: &Widget,
@@ -79,8 +76,6 @@ pub(crate) fn draw_scroll_area(
     }
 }
 
-/// The black box and the white outline behind a section label that has the focus
-/// (LIST-OPT-002, step 5).
 pub(crate) fn draw_section_label_box(menu: &Menu, widget: &Widget, out: &mut Vec<GuiQuad>) {
     if menu.widgets.focused() != Some(widget.id()) {
         return;
@@ -102,8 +97,6 @@ pub(crate) fn draw_section_label_box(menu: &Menu, widget: &Widget, out: &mut Vec
     }
 }
 
-/// The outlines of the selected and the hovered row (LIST-SEL-001), then the text of each row
-/// in its inner box, for the rows that reach into the list (LIST-BG-003).
 fn draw_rows(
     menu: &Menu,
     widget: &Widget,

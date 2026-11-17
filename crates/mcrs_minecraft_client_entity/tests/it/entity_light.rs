@@ -13,7 +13,6 @@ use crate::{Client, add_entity};
 
 const PIG: i32 = 1;
 
-/// A store with one column at the origin whose section 0 has `lit` in every block.
 fn store_lit_at_origin(lit: EntityLight) -> ColumnStore {
     let pos = ColumnPos::new(0, 0);
     let mut store = ColumnStore::default();

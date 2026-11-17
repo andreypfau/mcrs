@@ -7,8 +7,6 @@ use crate::server_ticking::ServerTicking;
 use crate::tick::{ClientEntityTick, consume_step, run_world_ticks, tick_entities};
 use crate::ticking_area::TickingArea;
 
-/// Ticks each entity in `FixedUpdate` in [`ClientEntityTick`], while the world ticks. An entity
-/// ticks when its column is in the area `A`, or when the world has no resource `A`.
 pub struct EntityTickPlugin<A: TickingArea>(PhantomData<fn() -> A>);
 
 impl<A: TickingArea> Default for EntityTickPlugin<A> {

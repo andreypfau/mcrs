@@ -3,12 +3,9 @@ use mcrs_command::SuggestionList;
 use mcrs_minecraft_protocol_game::text::Text;
 use std::ops::Range;
 
-/// What a suggestion shows when the player points at it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Tooltip {
-    /// A translation key.
     Key(&'static str),
-    /// A text from the server.
     Text(Text),
 }
 
@@ -19,7 +16,6 @@ struct Item {
     tooltip: Option<Tooltip>,
 }
 
-/// Suggestions over one input, their texts in one buffer.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Entries {
     texts: String,
@@ -53,37 +49,30 @@ impl Entries {
         });
     }
 
-    /// The count of suggestions.
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
-    /// Whether there is no suggestion.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    /// The range of the input that each suggestion replaces, as byte offsets.
     pub fn range(&self) -> Span {
         self.range
     }
 
-    /// The text of suggestion `index`.
     pub fn text(&self, index: usize) -> Option<&str> {
         self.texts.get(self.items.get(index)?.text.clone())
     }
 
-    /// The tooltip of suggestion `index`.
     pub fn tooltip(&self, index: usize) -> Option<&Tooltip> {
         self.items.get(index)?.tooltip.as_ref()
     }
 
-    /// The texts of the suggestions, in list order.
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         (0..self.len()).filter_map(|index| self.text(index))
     }
 
-    /// The start, the text and the tooltip of each suggestion, in list order.
     pub(crate) fn items(&self) -> impl Iterator<Item = (usize, &str, Option<&Tooltip>)> {
         self.items.iter().map(|item| {
             (
@@ -106,8 +95,6 @@ impl Entries {
         }
     }
 
-    /// Puts each suggestion that starts with the last word first, keeping the order within
-    /// each group.
     pub(crate) fn order_by_last_word(&mut self, input: &str, caret: usize) {
         let before = input.get(..caret).unwrap_or_default();
         let word_start = before.rfind(is_separator).map_or(0, |index| index + 1);

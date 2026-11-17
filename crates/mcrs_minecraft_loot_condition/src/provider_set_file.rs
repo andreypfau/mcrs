@@ -1,8 +1,6 @@
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
 
-/// The `inputs` of an aggregate provider (REG-FLD-729): a `#` tag of named providers, a list,
-/// or one provider.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum ProviderSetFile<P> {

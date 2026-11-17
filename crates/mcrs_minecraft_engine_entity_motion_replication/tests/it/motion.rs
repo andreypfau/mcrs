@@ -42,8 +42,6 @@ use mcrs_minecraft_replication::SpawnLook;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
 
-/// A dimension from `y = -64` with the floor block under `y = 0` and air above it, its sections
-/// loaded from `x, z = -16` to `31`, and the motion plugins.
 fn app(floor: fn(&TestBlocks) -> BlockStateId) -> App {
     ComputeTaskPool::get_or_init(TaskPool::default);
     let blocks = TestBlocks::new();
@@ -112,7 +110,6 @@ fn spawn(world: &mut World, row: MotionRow, position: DVec3) -> Entity {
         .id()
 }
 
-/// Runs one tick and gives the kinds of its tile events.
 fn tick(app: &mut App) -> Vec<&'static str> {
     let world = app.world_mut();
     world.run_schedule(FixedUpdate);
@@ -312,7 +309,6 @@ fn the_spawn_of_a_falling_block_shows_its_start_and_the_first_step_follows_as_a_
     );
 }
 
-/// Runs one tick and gives the positions of its moves.
 fn moves(app: &mut App) -> Vec<DVec3> {
     app.world_mut().run_schedule(FixedUpdate);
     let deltas = app.world_mut().resource_mut::<TileEvents>().take();

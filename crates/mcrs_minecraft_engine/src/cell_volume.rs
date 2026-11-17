@@ -1,5 +1,3 @@
-//! The sections of a dimension world as the block simulation sees them.
-
 use bevy_ecs::prelude::{Query, With};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
@@ -12,15 +10,12 @@ use mcrs_minecraft_volume::{
 };
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-/// A loaded section of a column that the cell owns is writable. A loaded section of the halo is
-/// readable only: the kernels send a write, a tick, an event or an update into it to its owner.
 pub struct CellVolume<'v, 'a> {
     pub view: DimensionViewMut<'a>,
     pub owned: Option<&'v OwnedColumns>,
     pub ticking: &'v TickingSections<'v, 'v>,
 }
 
-/// The sections that run scheduled ticks and deliver block events.
 pub(crate) type TickingSections<'w, 's> = Query<'w, 's, (), With<BlockTicking>>;
 
 impl CellVolume<'_, '_> {

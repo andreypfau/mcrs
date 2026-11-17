@@ -25,7 +25,6 @@ pub(crate) struct Press {
     pub(crate) at_ms: u64,
 }
 
-/// The widget list or the scroll panel that holds a widget.
 pub(crate) struct Member<'a> {
     pub(crate) index: usize,
     pub(crate) widget: &'a Widget,
@@ -33,8 +32,6 @@ pub(crate) struct Member<'a> {
     pub(crate) row: usize,
 }
 
-/// The widgets of one screen in their order of addition, which is the order of the pointer and
-/// of the draw, with the focus, the drag and the input of the GUI.
 #[derive(Clone, Debug)]
 pub struct Widgets {
     pub(crate) widgets: Vec<Widget>,
@@ -47,7 +44,6 @@ pub struct Widgets {
 }
 
 impl Widgets {
-    /// A screen of the size `screen` with no widget, which takes `input` from the client.
     #[must_use]
     pub const fn new(screen: GuiExtent, input: GuiInput) -> Self {
         Self {
@@ -61,7 +57,6 @@ impl Widgets {
         }
     }
 
-    /// Adds `widget` after the others; fails when the screen already has its id.
     pub fn push(&mut self, widget: Widget) -> Result<(), WidgetIdTaken> {
         if self.index(widget.id()).is_some() {
             return Err(WidgetIdTaken(widget.id()));
@@ -70,8 +65,6 @@ impl Widgets {
         Ok(())
     }
 
-    /// Removes every widget and clears the focus and the drag, for a screen that builds its
-    /// widgets again (WID-SCR-003); the input stays.
     pub fn clear(&mut self) {
         self.widgets.clear();
         self.focused = None;
@@ -79,36 +72,28 @@ impl Widgets {
         self.change_mode = false;
     }
 
-    /// The widget with the id `id`.
     #[must_use]
     pub fn get(&self, id: WidgetId) -> Option<&Widget> {
         self.widgets.iter().find(|widget| widget.id() == id)
     }
 
-    /// The widget with the id `id`, to change its bounds, caption or states.
     pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut Widget> {
         self.widgets.iter_mut().find(|widget| widget.id() == id)
     }
 
-    /// The widgets in their order of addition, which is the order of the draw.
     pub fn iter(&self) -> impl Iterator<Item = &Widget> {
         self.widgets.iter()
     }
 
-    /// The size of the screen, W × H.
     #[must_use]
     pub const fn screen(&self) -> GuiExtent {
         self.screen
     }
 
-    /// Takes a new screen size for a re-arrange that keeps the widgets, their values and the
-    /// focus (WID-SCR-003); the screen then sets the new bounds of each widget.
     pub fn set_screen(&mut self, screen: GuiExtent) {
         self.screen = screen;
     }
 
-    /// Gives the widget `id` the bounds `rect`; a selection list then scrolls to its selected row,
-    /// and a scroll area clamps its scroll offset (LIST-GEO-001, SCRL-AREA-004).
     pub fn set_rect(&mut self, id: WidgetId, rect: GuiRect) {
         let keyboard = self.input.device().is_keyboard();
         let Some(widget) = self.get_mut(id) else {
@@ -123,8 +108,6 @@ impl Widgets {
         refit(widget);
     }
 
-    /// Replaces the rows of the selection list `id` with `rows` rows, with no selected row
-    /// (LIST-SEL-006).
     pub fn set_rows(&mut self, id: WidgetId, rows: usize) {
         let Some(widget) = self.get_mut(id) else {
             return;
@@ -136,8 +119,6 @@ impl Widgets {
         refit(widget);
     }
 
-    /// Adds a row at `index` to the selection list `id`; a row added above the first row keeps
-    /// the distance of the view from the bottom of the content (SCRL-AREA-004).
     pub fn insert_row(&mut self, id: WidgetId, index: usize) {
         let Some(widget) = self.get_mut(id) else {
             return;
@@ -149,8 +130,6 @@ impl Widgets {
         refit(widget);
     }
 
-    /// Removes the row `index` of the selection list `id`, and its selection when it is selected
-    /// (LIST-SEL-006, SCRL-AREA-004).
     pub fn remove_row(&mut self, id: WidgetId, index: usize) {
         let Some(widget) = self.get_mut(id) else {
             return;
@@ -162,8 +141,6 @@ impl Widgets {
         refit(widget);
     }
 
-    /// Sets the scroll offset of the scroll area `id` to `offset`, clamped to its limits
-    /// (SCRL-AREA-001).
     pub fn set_scroll_offset(&mut self, id: WidgetId, offset: f64) {
         let Some(widget) = self.get_mut(id) else {
             return;
@@ -173,14 +150,11 @@ impl Widgets {
         }
     }
 
-    /// The input of the GUI, for the next screen to take.
     #[must_use]
     pub const fn input(&self) -> GuiInput {
         self.input
     }
 
-    /// Stores the value of each deferred slider in the first frame at least 600 ms after its
-    /// last change; call it once in each frame (WID-SLD-007).
     pub fn apply_deferred(&mut self, now_ms: u64, events: &mut Vec<WidgetEvent>) {
         for widget in &mut self.widgets {
             let id = widget.id();

@@ -1,5 +1,3 @@
-//! The download of the skin image of a player entity from the texture server of the game.
-
 use std::io::Read as _;
 use std::time::Duration;
 
@@ -7,16 +5,12 @@ use bevy::prelude::*;
 use bevy::tasks::{IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_entity_render::{PlayerSkin, SkinImage};
 
-/// The largest skin file that the client reads.
 const MAX_BYTES: u64 = 1 << 20;
 
-/// The download of the skin image of a player entity.
 #[derive(Component)]
 pub(crate) struct SkinDownload(Task<Option<SkinImage>>);
 
 impl SkinDownload {
-    // chisle: one blocking request on a thread of the IO pool for each skin; an async HTTP
-    // client lifts it.
     pub(crate) fn start(url: String) -> Self {
         Self(IoTaskPool::get().spawn(async move {
             let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -38,8 +32,6 @@ impl SkinDownload {
     }
 }
 
-/// The HTTPS address that the client downloads a skin of `url` from, or `None` for an
-/// address off the texture server of the game, the only server of skins.
 pub(crate) fn trusted(url: &str) -> Option<String> {
     let rest = url
         .strip_prefix("https://")

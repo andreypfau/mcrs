@@ -8,10 +8,6 @@ use wgpu::ComputePassTimestampWrites;
 
 const HEAT_THREADS: u32 = 256;
 
-/// A measurement knob: arithmetic burnt ahead of the frame's own passes so a GPU that would
-/// otherwise idle most of a composited frame stays at speed while the passes are timed. It
-/// writes a zero into the draw args' first vertex, which is zero already, so that the driver
-/// orders it after the last world pass and before the cull rather than overlapping either.
 #[derive(Resource)]
 pub(super) struct Heat {
     pipeline: CachedComputePipelineId,

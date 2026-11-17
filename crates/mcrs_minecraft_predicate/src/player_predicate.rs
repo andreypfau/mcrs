@@ -13,7 +13,6 @@ use crate::custom_stat_keys::CustomStat;
 use crate::entity_predicate::EntityPredicate;
 use crate::stat_type_keys::StatType;
 
-/// A test of the values of a player.
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub(crate) struct PlayerPredicate<M: Refs = Resolved> {
@@ -34,7 +33,6 @@ pub(crate) struct PlayerPredicate<M: Refs = Resolved> {
 }
 
 impl PlayerPredicate {
-    /// `true` when each field holds its default, so that only the entity type is left to test.
     pub(crate) fn tests_only_the_type(&self) -> bool {
         self.level.is_any()
             && self.food.level.is_any()
@@ -64,7 +62,6 @@ pub(crate) struct FoodPredicate {
     saturation: MinMaxBounds<f64>,
 }
 
-/// The completion of an advancement, or of each listed criterion.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum AdvancementPredicate {
@@ -83,14 +80,12 @@ pub(crate) struct InputPredicate {
     sprint: Option<bool>,
 }
 
-/// Bounds of the value of one statistic.
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub(crate) struct StatPredicate<M: Refs = Resolved> {
     stat: Stat<M>,
     value: MinMaxBounds<i32>,
 }
 
-/// A statistic: its type and the entry of the registry of that type.
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub(crate) enum Stat<M: Refs = Resolved> {
     Mined(M::Id<Block>),

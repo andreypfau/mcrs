@@ -1,5 +1,3 @@
-//! The lowering of query references, `math.` calls and array indices.
-
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::vec::Vec;

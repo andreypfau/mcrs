@@ -46,8 +46,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// The entry `name` of the registry `item_modifier`, which the reference walk of the table
-    /// links checks as a step of the reference chain (LOOT-CTX-017).
     fn named(&mut self, name: &ResourceLocationBuf, path: &str) -> Modifier {
         let id = self
             .modifier_files
@@ -66,7 +64,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// The members of the tag `name` of the registry `item_modifier`, in member order.
     fn tagged(&mut self, TagName(name): &TagName, path: &str) -> Box<[Modifier]> {
         let tags = self.registries.tags::<LootItemFunction>();
         let members: Option<Vec<usize>> = tags.as_ref().and_then(|tags| {
@@ -182,8 +179,6 @@ impl Baker<'_, '_> {
         Modifier { condition, op }
     }
 
-    /// A modifier whose effect the evaluation does not have yet; the bake still checks its keys
-    /// and its nested tables and entries (LOOT-CTX-014, LOOT-CTX-016).
     fn pending(&mut self, kind: &ModifierKind, path: &str) -> ModifierOp {
         match kind {
             ModifierKind::SetContents { entries, .. } => {
@@ -247,8 +242,6 @@ impl Baker<'_, '_> {
         })
     }
 
-    /// An element of `set_attributes`; `None`, with a problem, for an attribute that the load
-    /// does not hold or that an attribute id cannot hold.
     fn set_attribute(&mut self, file: &AttributeFile, path: &str) -> Option<SetAttribute> {
         let amount = self.conditions.float_provider(&file.amount);
         let attribute = self
@@ -277,7 +270,6 @@ impl Baker<'_, '_> {
         })
     }
 
-    /// LOOT-MOD-052; a filter with a name that does not resolve changes nothing.
     fn filtered(
         &mut self,
         filter: &ItemPredicate<Named>,
@@ -299,7 +291,6 @@ impl Baker<'_, '_> {
         }
     }
 
-    /// The enchantments of `options` in set order (LOOT-MOD-018).
     fn enchantment_set(&mut self, options: &KeySetFile, path: &str) -> Box<[EnchantmentId]> {
         let path = format!("{path}.options");
         match options {

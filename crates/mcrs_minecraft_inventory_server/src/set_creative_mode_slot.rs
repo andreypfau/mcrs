@@ -27,8 +27,6 @@ use crate::wire_names::WireNames;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
-/// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
-/// decodes.
 pub(crate) fn set_creative_mode_slot(
     received: On<Received<ServerboundSetCreativeModeSlot>>,
     wire_names: WireNames,
@@ -42,7 +40,6 @@ pub(crate) fn set_creative_mode_slot(
     if packet.item.encode(&mut *bytes).is_err() {
         return;
     }
-    // STK-NET-009: a stack without a saved form is a decode error of the packet.
     let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &wire_names.names()) else {
         return;
     };
@@ -53,9 +50,6 @@ pub(crate) fn set_creative_mode_slot(
     });
 }
 
-/// Gives the player a creative set or a creative drop for a packet that passes the checks of
-/// INV-CRE-003 and the counter of the connection (IEN-SPN-007). A set of an entry, and a set
-/// that fails a check, is a claim of the client for its entry (INV-CRE-004, INV-CRE-006).
 pub(crate) fn apply_creative_packet(
     InRef(input): InRef<InventoryInput>,
     mut players: Query<(
@@ -107,7 +101,6 @@ pub(crate) fn apply_creative_packet(
     set_view(&mut sync, slot, stack);
 }
 
-/// Makes `stack` the client view of the entry `slot`, when the inventory menu has such an entry.
 fn set_view(sync: &mut MenuSync, slot: i16, stack: Option<&ItemStack>) {
     let view = usize::try_from(slot)
         .ok()

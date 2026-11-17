@@ -12,8 +12,6 @@ use mcrs_minecraft_entity_attribute::{
 
 use crate::attribute_sources::{AttributeSources, configure_attribute_sources};
 
-/// The sprint state of a player gives its `movement_speed` the modifier `minecraft:sprinting`
-/// (ATR-SRC-002). Needs the `PlayerAttributesPlugin` of the dimension world.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SprintAttributePlugin;
 

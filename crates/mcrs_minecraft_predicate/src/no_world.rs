@@ -18,7 +18,6 @@ use crate::entity_view::EntityView;
 use crate::item_subject::ItemSubject;
 use crate::location_view::LocationView;
 
-/// A host without a world and without entities: each value is absent.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoWorld;
 

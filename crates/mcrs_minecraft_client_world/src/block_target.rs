@@ -5,8 +5,6 @@ use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_voxel::BlockPos;
 
-/// The ranges of the player, as the attributes `minecraft:block_interaction_range` and
-/// `minecraft:entity_interaction_range` give them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Reach {
     pub block: f64,
@@ -14,7 +12,6 @@ pub struct Reach {
 }
 
 impl Reach {
-    /// The values of both range attributes, or `None` when the type of the entity lacks either one.
     #[must_use]
     pub fn from_instances(instances: &AttributeInstances) -> Option<Reach> {
         Some(Reach {
@@ -28,7 +25,6 @@ impl Reach {
     }
 }
 
-/// A block that the ray of the player hits.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BlockHit {
     pub pos: BlockPos,
@@ -36,9 +32,6 @@ pub struct BlockHit {
     pub point: DVec3,
 }
 
-/// The block target of a ray from `eye` along the unit vector `direction`, or `None` for a miss.
-/// `outline_at` gives the outline shape of the block at a position, in the coordinates of that
-/// position. The client tests no entities, so no entity target hides a block.
 #[must_use]
 pub fn block_target<'s>(
     eye: DVec3,
@@ -50,8 +43,6 @@ pub fn block_target<'s>(
     (hit.point.distance(eye) < reach.block).then_some(hit)
 }
 
-/// Visits the positions that the ray crosses, from the one that holds `eye`, and answers the
-/// first hit on an outline shape.
 fn cast<'s>(
     eye: DVec3,
     direction: DVec3,
@@ -102,7 +93,6 @@ fn axis_step(d: f64) -> i32 {
     }
 }
 
-/// The nearest hit of the ray on the boxes of one position, within `length`.
 fn clip(
     eye: DVec3,
     direction: DVec3,
@@ -129,8 +119,6 @@ fn clip(
     })
 }
 
-/// Where the ray goes into the box, and through which side. A ray that starts inside the box
-/// enters at the eye, through the side that points against the main axis of the ray.
 fn enter(eye: DVec3, direction: DVec3, min: DVec3, max: DVec3) -> Option<(f64, Direction)> {
     if eye.cmpge(min).all() && eye.cmple(max).all() {
         return Some((
@@ -206,8 +194,6 @@ mod tests {
         Reach::from_instances(instances).expect("a player has both ranges")
     }
 
-    /// The instances after the entries that a vanilla server sends a player in creative mode
-    /// (ATR-SRC-003).
     fn creative() -> AttributeInstances {
         let mut instances = player();
         for entry in [

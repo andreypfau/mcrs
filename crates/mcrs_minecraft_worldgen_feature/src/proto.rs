@@ -25,10 +25,6 @@ use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvid
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
-/// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: a `#tag`, one entry or a
-/// list of them, each a registry id or an inline placed feature. A tag keeps
-/// its name and is expanded when the features compile; a one-entry list
-/// writes as the bare entry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlacedFeatureSet {
     Tag(ResourceLocationBuf),
@@ -36,7 +32,6 @@ pub enum PlacedFeatureSet {
 }
 
 impl PlacedFeatureSet {
-    /// The entries written in the file; a tag lists none.
     pub fn listed(&self) -> &[Holder<PlacedFeature>] {
         match self {
             PlacedFeatureSet::Tag(_) => &[],
@@ -100,12 +95,9 @@ impl Serialize for PlacedFeatureSet {
     }
 }
 
-/// One decoration step of a biome: its placed features in order, every tag
-/// already expanded.
 pub type FeatureStepList = Vec<Holder<PlacedFeature>>;
 
 impl Feature {
-    /// The structure templates this feature places.
     pub fn templates(&self) -> impl Iterator<Item = &ResourceLocationBuf> {
         let (entries, fossils, overlays): (&[Weighted<TemplateEntry>], &[_], &[_]) = match self {
             Self::Template { templates, .. } => (templates, &[], &[]),
@@ -123,9 +115,6 @@ impl Feature {
             .chain(overlays)
     }
 
-    /// The placed features this one names, whether by id or written inline.
-    /// Exhaustive on purpose: a feature added without a branch here would load
-    /// with its selector targets missing and no error anywhere.
     pub fn visit_placed_features(&self, visit: &mut impl FnMut(&Holder<PlacedFeature>)) {
         match self {
             Self::CoralClaw { feature } | Self::CoralTree { feature } => visit(feature),
@@ -223,8 +212,6 @@ impl mcrs_minecraft_resource::RegistryValue for PlacedFeature {
 }
 
 impl PlacedFeature {
-    /// The horizontal range around its chunk's corner that the feature can
-    /// place into.
     pub fn xz_domain(&self) -> std::ops::RangeInclusive<i32> {
         self.placement
             .iter()
@@ -232,9 +219,6 @@ impl PlacedFeature {
     }
 }
 
-/// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
-/// writes its configuration into the same object as its `type`; there is no
-/// `config` wrapper.
 #[dispatch(registry = crate::feature_type_keys::FeatureType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -242,8 +226,6 @@ pub enum Feature {
     Bamboo {
         probability: UnitFloat,
     },
-    /// Beta's populate step. One legacy stream per chunk runs every object in
-    /// it, so the step is one feature rather than one per object.
     #[dispatch(id = "mcrs:beta_populate")]
     BetaPopulate,
     BlockBlob {
@@ -720,12 +702,6 @@ pub struct GeodeCrackSettings {
     pub crack_point_offset: IntOr<2>,
 }
 
-// ---------------------------------------------------------------------------
-// Structure processors, reached only through `fossil` and `template`
-// ---------------------------------------------------------------------------
-
-/// `StructureProcessorType.DIRECT_CODEC`: the list under a `processors` field,
-/// or the bare list.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct StructureProcessorList(pub Either<WrappedProcessors, Vec<StructureProcessor>>);
@@ -818,9 +794,6 @@ pub struct LinearPos {
     pub max_dist: i32,
 }
 
-/// `append_static` is deliberately absent: its `data` is a `CompoundTag`, and
-/// this crate has no NBT value type to hold one. A pack that uses it fails to
-/// load naming the type, which is the wanted behaviour until templates exist.
 #[dispatch(registry = crate::rule_block_entity_modifier_keys::RuleBlockEntityModifierType, unsupported(AppendStatic))]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -829,10 +802,6 @@ pub enum RuleBlockEntityModifier {
     Passthrough,
     AppendLoot { loot_table: ResourceLocationBuf },
 }
-
-// ---------------------------------------------------------------------------
-// Bounded scalars, defaults and validators
-// ---------------------------------------------------------------------------
 
 mcrs_minecraft_noise::bounded_float! {
     UnitDouble as f64 in [0.0, 1.0];

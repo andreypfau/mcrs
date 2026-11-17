@@ -1,7 +1,3 @@
-//! The attribute instances of the mob rows of a dimension world (`attributes.md`, section 3):
-//! the apply system of their edits, and the motion values that a changed instance writes into
-//! its row.
-
 mod apply_row_attribute_edits;
 mod attribute_changed;
 mod attribute_edit;

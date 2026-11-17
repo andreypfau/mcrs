@@ -36,21 +36,14 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerInput;
 
 use crate::names::Names;
 
-/// What a play packet means to the recording.
 pub(crate) enum Play {
-    /// `login`: the network id of the player.
     Login(i32),
-    /// `player_loaded`: the client has loaded the world.
     Loaded,
-    /// `ping` or `pong`: the id.
     Ping(i32),
-    /// `bundle_delimiter`.
     Bundle,
-    /// The events of the packet; none for a packet that the recording does not keep.
     Events(Vec<Event>),
 }
 
-/// The name of the packet `id` in a packet table; empty for an id past its end.
 pub(crate) fn name_of(names: &'static [&'static str], id: i32) -> &'static str {
     usize::try_from(id)
         .ok()
@@ -59,7 +52,6 @@ pub(crate) fn name_of(names: &'static [&'static str], id: i32) -> &'static str {
         .unwrap_or_default()
 }
 
-/// Decodes a clientbound play packet. `player` is the network id of the player, once known.
 pub(crate) fn decode_clientbound(
     names: &Names,
     player: Option<i32>,
@@ -155,7 +147,6 @@ pub(crate) fn decode_clientbound(
     Ok(Play::Events(vec![event]))
 }
 
-/// Decodes a serverbound play packet.
 pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Play> {
     let r = &mut body;
     let event = match name_of(game_serverbound::NAMES, id) {
@@ -208,7 +199,6 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
     Ok(Play::Events(vec![event]))
 }
 
-/// Reads the entity id at the start of a packet and tells whether it is the player's.
 fn is_player(r: &mut &[u8], player: Option<i32>) -> anyhow::Result<bool> {
     Ok(Some(VarInt::decode(r)?.0) == player)
 }

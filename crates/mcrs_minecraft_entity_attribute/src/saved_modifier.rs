@@ -9,15 +9,10 @@ use crate::modifier_kind::ModifierKind;
 use crate::modifier_operation::ModifierOperation;
 use crate::tolerant::{Lenient, Tolerant};
 
-/// A permanent modifier in the save (`persistence.md`, the attribute compound): each field is
-/// required, and a load leaves out a modifier with a missing or bad field (ATR-SAV-002).
 #[derive(Clone, Debug, Serialize)]
 pub struct SavedModifier {
-    /// The identifier of the modifier.
     pub id: ResourceLocationBuf,
-    /// The amount, as the instance holds it.
     pub amount: f64,
-    /// The operation, by its name of ATR-INS-003.
     pub operation: ModifierOperation,
 }
 
@@ -30,7 +25,6 @@ impl PartialEq for SavedModifier {
 }
 
 impl SavedModifier {
-    /// The saved form of `modifier`, or `None` when it is transient (ATR-SAV-001).
     #[must_use]
     pub(crate) fn from_modifier(modifier: &InstanceModifier) -> Option<Self> {
         (modifier.kind() == ModifierKind::Permanent).then(|| Self {
@@ -40,7 +34,6 @@ impl SavedModifier {
         })
     }
 
-    /// The permanent modifier that a load sets (ATR-SAV-002, step 2).
     #[must_use]
     pub(crate) fn into_modifier(self) -> InstanceModifier {
         InstanceModifier::new(

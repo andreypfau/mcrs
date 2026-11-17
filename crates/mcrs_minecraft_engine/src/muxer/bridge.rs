@@ -9,14 +9,9 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_ecs::world::World;
 
-/// Bridges the bus to the sockets and writes every connection, which also finds the writers
-/// that died: run in the tick's `FixedPostUpdate`. Between ticks, [`run_pending_flush`] writes
-/// only the connections that hold something.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OutboundFlush;
 
-/// The connections that hold what their writer has not taken yet: a packet that
-/// `bridge_outbound` queued, or bytes a full writer left behind.
 #[derive(Resource, Default)]
 pub struct PendingConnections {
     connections: Vec<Entity>,
@@ -27,9 +22,6 @@ pub fn run_outbound_flush(world: &mut World) {
     world.run_schedule(OutboundFlush);
 }
 
-/// Bridges the bus to the sockets and writes the [`PendingConnections`] alone, so a packet a
-/// dimension produced off the tick leaves at once, for the cost of what it sends. Does nothing
-/// without the plugin that adds the flush.
 pub fn run_pending_flush(world: &mut World) {
     if !world.contains_resource::<PendingConnections>() {
         return;
@@ -71,30 +63,18 @@ use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
 use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Verdict};
 use std::time::Duration;
 
-/// Gives each new connection its `OutboundQueue` and its layer 1 state, which the network crate
-/// cannot name.
 pub fn attach_outbound_queue(add: On<Add<ServerSideConnection>>, mut commands: Commands) {
     commands
         .entity(add.entity)
         .insert((OutboundQueue::default(), Probes::default()));
 }
 
-/// What [`bridge_outbound`] reuses from one message to the next.
 #[derive(Default)]
 pub struct OutboundScratch {
     recipients: Vec<Entity>,
     buffer: PacketBuffer,
 }
 
-/// Drains `Messages<OutboundPlayerPacket>`, resolves each `PacketTarget` against the sessions,
-/// and pushes each packet onto the `OutboundQueue` of every connection it addresses.
-///
-/// A packet for more than one connection is serialized here once, and every queue holds the
-/// same bytes. A packet for one connection is moved into its queue and serialized when the
-/// queue is handed over.
-///
-/// A target that resolves to an entity with no `OutboundQueue` increments
-/// `BridgeTelemetry::outbound_no_queue_total`.
 pub fn bridge_outbound(
     mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
@@ -136,12 +116,6 @@ pub fn bridge_outbound(
     }
 }
 
-/// The connections `msg` addresses. A recipient without a connection counts as
-/// `outbound_no_queue_total`.
-///
-/// Only a packet for one player is checked against the epoch of its session, since it may be
-/// in flight across a transfer. A broadcast is made for the players there now, so it is never
-/// stale, and it carries no epoch to check.
 fn resolve_recipients(
     msg: &OutboundPlayerPacket,
     anchors: &SessionAnchors,
@@ -189,7 +163,6 @@ fn resolve_recipients(
     }
 }
 
-/// Serializes `payload` once for the many connections that receive it.
 fn encode_once(
     buffer: &mut PacketBuffer,
     payload: PacketPayload,
@@ -213,7 +186,6 @@ fn encode_once(
     }))
 }
 
-/// Packets with their ids, as `encode_with_id` writes them.
 #[derive(Default)]
 struct PacketBuffer(BytesMut);
 
@@ -238,16 +210,12 @@ fn push_to_connection(
         telemetry.outbound_no_queue_total += 1;
         return;
     };
-    // A queue is emptied whenever its connection is handed over, so one that holds packets
-    // is already pending.
     if queue.total_len() == 0 {
         pending.connections.push(connection);
     }
     queue.push_queued(packet);
 }
 
-/// The connections that the flush writes to, with their probes when the server checks their
-/// moves.
 type Writers<'w, 's> = Query<
     'w,
     's,
@@ -260,35 +228,18 @@ type Writers<'w, 's> = Query<
     ),
 >;
 
-/// Which flush writes the queues: the one of the tick ends the server tick for layer 1.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Flush {
     EndOfTick,
     BetweenTicks,
 }
 
-/// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
-/// A writer that took nothing for this long while it holds [`STALLED_WRITER_BYTES`] has a dead
-/// socket. A client that reads slowly still takes a batch now and then, and the keep-alive
-/// timeout ends it if it falls far behind, as vanilla does.
 const STALLED_WRITER_TIME: Duration = Duration::from_secs(30);
 
-/// Past this, a connection goes even when its writer still takes batches, to bound the memory
-/// that one client holds on the server.
 const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
 
-/// Hands queued outbound packets to every active connection's writer, and kicks connections
-/// whose writer is dead or has stalled.
-///
-/// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
-/// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
-///
-/// Only the serialization of each packet for one connection runs here, in write order. A
-/// packet serialized once for many connections is framed and compressed here once for each
-/// compression threshold, and every connection sends that frame. Framing and compression of the
-/// rest, and the socket write, run on each connection's writer task.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
@@ -317,9 +268,6 @@ pub fn dispatch_encode(
     every.clear();
 }
 
-/// [`dispatch_encode`] for the [`PendingConnections`] alone. A connection with nothing queued
-/// and nothing left behind has nothing to hand over, and the tick's flush checks it for a dead
-/// writer.
 pub fn dispatch_pending(
     mut players: Writers,
     mut commands: Commands,
@@ -348,9 +296,6 @@ pub fn dispatch_pending(
     visiting.clear();
 }
 
-/// Hands the queued packets of each `listed` connection to its writer. A connection whose writer
-/// is left with bytes it has not taken goes to `left_behind`. `listed` keeps only the connections
-/// that were written.
 #[expect(
     clippy::too_many_arguments,
     reason = "the two flushes share every resource of the write"
@@ -365,8 +310,6 @@ fn dispatch_listed(
     wakes: &mut WriterWakes,
     flush: Flush,
 ) {
-    // A shared packet is framed once only when more than one connection sends it, so the count
-    // comes after the kicks.
     listed.retain(|&entity| {
         let Ok((entity, queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
@@ -416,8 +359,6 @@ fn dispatch_listed(
     frames.clear();
 }
 
-/// Counts the connections that receive each packet serialized once, so that only a packet of
-/// more than one connection costs a frame on this thread.
 fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     for queued in queue.iter() {
         if let QueuedPacket::Encoded(encoded) = queued {
@@ -426,8 +367,6 @@ fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     }
 }
 
-/// Kicks a connection whose writer is dead or has stalled. Answers whether the connection is
-/// still to be written.
 fn ready_to_write(
     entity: Entity,
     conn: &mut ServerSideConnection,
@@ -448,8 +387,6 @@ fn ready_to_write(
         return false;
     }
 
-    // A writer that is behind takes what it can; one that holds many bytes and took nothing for
-    // a long time is a dead socket, not a slow one.
     let has_room = conn.raw.flush_unsent_deferred(wakes);
     let unsent = conn.raw.unsent_bytes();
     let stalled = !has_room
@@ -468,16 +405,12 @@ fn ready_to_write(
     true
 }
 
-/// Layer 1 of a connection in the play state, as one flush writes it.
 struct LayerOne<'a> {
     guard: &'a mut MoveGuard,
     now: Duration,
     flush: Flush,
 }
 
-/// Serializes the queue in the order it was written, behind anything written to the connection
-/// directly. With `layer_one`, probes bracket the changes that the client predicts with, and
-/// the flush of the tick ends with a probe.
 fn write_queue(
     entity: Entity,
     queue: &mut OutboundQueue,
@@ -600,7 +533,6 @@ fn append_encoded(
     }
 }
 
-/// Writes a packet that is not serialized yet; a serialized one is an error.
 fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
     match data {
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
@@ -662,12 +594,6 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
     }
 }
 
-/// Routes serverbound packets written to the bus into the dim channel seam.
-///
-/// `bridge_inbound` handles packets read from sockets; this system handles the
-/// ones written by upstream callers, and raises their typed events on the host
-/// connection as `bridge_inbound` does. A session that holds more than
-/// [`MAX_HELD_SERVERBOUND`] packets is disconnected.
 pub fn bridge_inbound_to_channel(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
@@ -699,10 +625,6 @@ pub fn bridge_inbound_to_channel(
     }
 }
 
-/// Sends a packet to the dimension its session is attached to, or holds it
-/// until the session is attached, the next tick has room, and everything held
-/// before it has gone. Returns `false` when the session holds more than
-/// [`MAX_HELD_SERVERBOUND`] packets for its attached dimension.
 fn route_serverbound(
     placement: &SessionPlacement,
     pending: &mut PendingInbound,
@@ -726,7 +648,6 @@ fn route_serverbound(
     true
 }
 
-/// A dimension that has spawned a player attaches its session.
 pub fn bridge_player_attach(
     mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
     anchors: Res<SessionAnchors>,
@@ -745,8 +666,6 @@ pub fn bridge_player_attach(
     }
 }
 
-/// Hands an attached session's held packets to its dimension, oldest first, until the
-/// serverbound packets of the dimension's next tick are full; the rest wait for the next call.
 pub fn forward_pending_inbound(
     mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
     mut dim_inputs: ResMut<DimInputs>,
@@ -857,7 +776,6 @@ pub fn bridge_inbound(
                     }
                     let ends_state = dispatcher.ends_state(ConnectionState::Game, pkt.id);
 
-                    // A row without a structure has no observer in the dimension either.
                     if trigger.is_some()
                         && let Some(&HostAnchorRef(anchor)) = anchor_ref
                         && let Ok((&Session(session), placement, mut pending)) =
@@ -1025,6 +943,5 @@ mod tests {
             });
 
         run(&mut world, bridge_player_attach);
-        // No panic — idempotent on unknown session
     }
 }

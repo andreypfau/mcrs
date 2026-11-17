@@ -29,10 +29,6 @@ const STATIC_REGISTRIES: [&[(
     mcrs_minecraft_worldgen_surface::registry_keys::STATIC_REGISTRIES,
 ];
 
-/// Adds the registries of vanilla world generation to `additions`: the static registries of the
-/// worldgen crates, the data registries the generator reads, and the entries the game and the
-/// beta preset build by code. The biome declaration replaces the vanilla one, so a biome also
-/// checks the domain of the features it places.
 pub fn add_vanilla_worldgen(
     additions: &mut RegistryAdditions,
 ) -> Result<(), builtin::BuiltinError> {

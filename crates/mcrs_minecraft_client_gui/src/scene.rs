@@ -51,8 +51,6 @@ impl GuiSize {
         (framebuffer.x / 320).min(framebuffer.y / 240).max(1)
     }
 
-    /// The GUI size for the option value `scale`, where 0 is Auto and a value above the scale of
-    /// Auto gives that scale (MENU-SCALE-001).
     pub fn of(framebuffer: UVec2, scale: u32) -> Self {
         let auto = Self::auto_scale(framebuffer);
         let scale = if scale == 0 { auto } else { scale.min(auto) };
@@ -84,11 +82,9 @@ pub enum GuiQuad {
         rect: IRect,
         texels: Rect,
     },
-    /// One strike of a glyph with its pen at `pen`, in GUI units.
     Glyph {
         pen: Vec2,
         glyph: char,
-        /// The picture the font gave for `glyph`.
         image: GlyphImage,
         color: u32,
         weight: Weight,
@@ -97,26 +93,19 @@ pub enum GuiQuad {
         origin: IVec2,
         stack: Entity,
     },
-    /// Changes the colour of each pixel already drawn in `rect`: to (255 − R, 255 − G, 255) with
-    /// `invert`, else to (R, G, 255) (EDIT-SEL-001).
     Highlight {
         rect: IRect,
         invert: bool,
     },
-    /// Cuts the quads that follow, up to the matching `EndClip`, to `rect` and to each clip
-    /// around it.
     Clip {
         rect: IRect,
     },
-    /// Ends the innermost `Clip`.
     EndClip,
-    /// The figure of the local player, cut to `rect`.
     Figure {
         rect: IRect,
     },
 }
 
-/// What the screens emit each frame, in draw order.
 #[derive(Resource, Default)]
 pub struct GuiScene {
     pub size: GuiSize,
@@ -182,15 +171,12 @@ pub struct GuiAtlasData {
     pub(crate) sprites: [GuiSprite; GuiSpriteId::ALL.len()],
     pub(crate) textures: [IRect; GuiTextureId::ALL.len()],
     pub missing: GuiSprite,
-    /// Where the texture of each bitmap provider of the font lies, by the provider's index.
     pub page_origins: Vec<(usize, IVec2)>,
     pub missing_glyph: IRect,
-    /// The top left of the region the glyph cache draws Unifont glyphs into.
     pub glyph_origin: IVec2,
     pub chat_modified: IRect,
 }
 
-/// What a packed image is, so the font's textures need no name of their own.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Packed {
     Named(&'static str),
@@ -202,8 +188,6 @@ enum Packed {
 pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 
 impl GuiAtlasData {
-    /// Shelf-packs the GUI textures the screens blit, which are not square and so
-    /// bypass the sprite arrays; the glint stays separate because it repeats.
     #[expect(
         clippy::too_many_lines,
         reason = "one load packs every texture in the order each placement depends on the last"
@@ -237,7 +221,6 @@ impl GuiAtlasData {
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
             let (width, height) = page.size();
-            // chisle: same fixed atlas width as the GUI images; its glyphs then draw nothing.
             if width > ATLAS_WIDTH {
                 error!("font page {source}: {width} pixels wide, the atlas holds {ATLAS_WIDTH}");
                 continue;
@@ -340,8 +323,6 @@ impl GuiAtlasData {
         self.regions.get(name).copied().unwrap_or_default()
     }
 
-    /// The sprite `id` with its scaling, or the missing sprite when the pack lacks it or it
-    /// failed to load.
     #[must_use]
     pub fn sprite(&self, id: GuiSpriteId) -> GuiSprite {
         self.sprites
@@ -354,8 +335,6 @@ impl GuiAtlasData {
         self.texel_uv(pixel.as_rect())
     }
 
-    /// Where the picture of a glyph lies in the atlas. A Unifont glyph takes a cell of the glyph
-    /// region, which is `None` when the cache has none to give.
     fn glyph_texels(
         &self,
         source: ImageSource,
@@ -394,8 +373,6 @@ impl GuiAtlasData {
     }
 }
 
-/// Adds the textures and the sprites of the widgets to `images`, and gives the scaling of each
-/// sprite that loaded.
 fn load_widget_images(
     pack: &ResourceSet,
     images: &mut Vec<(Packed, Vec<u8>, u32, u32)>,
@@ -411,8 +388,6 @@ fn load_widget_images(
     })
 }
 
-/// Adds the image `minecraft:name` at `path` to `images` and gives its scaling. An image the pack
-/// lacks, or one with an error, is left out, so it draws the missing sprite.
 fn load_image(
     pack: &ResourceSet,
     name: &'static str,
@@ -423,8 +398,6 @@ fn load_image(
     let bytes = pack.get(path)?;
     let loaded = scaling.and_then(|scaling| {
         let image = decode_png(bytes, path).map_err(|error| error.to_string())?;
-        // chisle: the atlas has a fixed width, and the packer would wrap a wider image into the
-        // rows below it; a pack with such an image needs an atlas that grows in width.
         if image.1 > ATLAS_WIDTH {
             return Err(format!(
                 "{} pixels wide, the atlas holds {ATLAS_WIDTH}",
@@ -468,24 +441,15 @@ pub struct GuiDraw {
     pub kind: GuiDrawKind,
 }
 
-/// How the pass draws the vertices of a [`GuiDraw`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GuiDrawKind {
-    /// Atlas quads, blended over what is drawn.
     Flat,
-    /// The layers of one item, depth-tested in a band of their own.
     Item,
-    /// White quads that turn the red and the green of what is drawn into one minus their value.
     InvertRedGreen,
-    /// Quads that set the blue of what is drawn to full.
     FullBlue,
-    /// The figure view, cut to `rect` in GUI units and depth-tested in a band of its own. It
-    /// takes no vertices of the batch.
     Figure { rect: IRect },
 }
 
-/// The scene flattened to what the pass draws: triangle-list vertices in GUI units
-/// and the draws over them, one per item element.
 #[derive(Resource, Clone, Default, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct GuiBatch {
@@ -493,7 +457,6 @@ pub struct GuiBatch {
     pub draws: Vec<GuiDraw>,
     pub scale: u32,
     pub glint_offset: [f32; 2],
-    /// The Unifont glyph in each cell of the atlas's glyph region.
     pub glyphs: Vec<Option<char>>,
 }
 
@@ -542,7 +505,6 @@ fn push_quad(vertices: &mut Vec<GuiVertex>, quad: AtlasQuad, sprite: u32) {
     vertices.extend([a, b, c, a, c, d]);
 }
 
-/// The window pixels, at least 1 × 1.
 pub(crate) fn window_framebuffer(window: &Window) -> UVec2 {
     UVec2::new(
         window.physical_width().max(1),
@@ -592,7 +554,6 @@ fn draw_screens(
     }
 }
 
-/// Loads the GUI textures and the translations from `pack`, or says which of them it lacks.
 pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
     let language =
@@ -670,8 +631,6 @@ fn build_gui_batch(
                 let Ok(layers) = layers.get(stack) else {
                     continue;
                 };
-                // chisle: the layers of an item ignore the clip, so an item in a scrolled list
-                // shows across its edge; a clip of the item vertices lifts it.
                 push_item_layers(vertices, layers, origin);
                 let after = vertices.len() as u32;
                 if after != end {
@@ -767,8 +726,6 @@ fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, or
     }
 }
 
-/// The vertices of a quad drawn from the GUI atlas, cut to `clip`; an item quad draws its own
-/// layers instead.
 fn push_flat_quad(
     vertices: &mut Vec<GuiVertex>,
     atlas: &GuiAtlasData,

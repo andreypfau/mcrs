@@ -1,7 +1,3 @@
-//! The rules of a falling block without Bevy: which blocks fall, the start of a fall, the
-//! decision of each tick and the landing.
-// std: mcrs_minecraft_block
-
 mod after_move;
 mod concrete_pairs;
 mod concrete_pairs_error;

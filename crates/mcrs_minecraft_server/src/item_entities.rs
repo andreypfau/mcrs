@@ -20,9 +20,6 @@ use mcrs_minecraft_vanilla_item_entity::{Collect, ItemCollector, ItemEntityPlugi
 
 use crate::entity_motion::add_entity_motion;
 
-/// Stacks as entities and the item entities in every dimension world, over the item table of the
-/// host, moved by the motion pass. Each player collects item entities into its slots. It needs
-/// the tables and the tile events of [`VanillaEntityPhysicsPlugin`](crate::VanillaEntityPhysicsPlugin).
 pub struct VanillaItemEntityPlugin;
 
 impl Plugin for VanillaItemEntityPlugin {
@@ -58,10 +55,6 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
         );
 }
 
-/// Keeps the [`ItemCollector`] of each player current: its box at its position, and its mode
-/// from its game mode. A spectator collects nothing (IEN-PCK-001).
-// ponytail: a dead player still collects, and the box is the standing one; both when the
-// dimension world holds the death and the pose of a player.
 #[expect(
     clippy::type_complexity,
     reason = "one query reads each part of the player that a collector needs"

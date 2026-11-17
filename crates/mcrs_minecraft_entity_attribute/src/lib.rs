@@ -1,8 +1,5 @@
-//! The entity attributes, their modifier operations and the computation of an attribute value.
 #![no_std]
 
-// std: the codecs of mcrs_minecraft_wire write to `std::io::Write`, and the lookup of an
-// attribute by location is a std `HashMap`, which the load of a save needs too.
 #[cfg(any(feature = "std", feature = "wire"))]
 extern crate std;
 

@@ -19,7 +19,6 @@ use crate::world_shaders::{cull_defs, wgsl};
 
 const SECTION_SLOTS: u32 = 64;
 const CAVE_WORDS: usize = 2;
-/// Slots between two columns of a run, so a run reaches the second word of the bitset.
 const COLUMN_STRIDE: usize = 4;
 const CAMERA_SECTION: [i32; 3] = [5, 4, -3];
 
@@ -88,8 +87,6 @@ const RUNS: [Run; 3] = [
     },
 ];
 
-/// A point of CFOG-TEST-001 or an edge of the ramp: its offset from the camera, the environmental
-/// and the render-distance ramps, and its fog value.
 struct FogCase {
     offset: [f32; 3],
     environmental: [f32; 2],
@@ -130,7 +127,6 @@ fn fog_value_kernel(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 ";
 
-/// A face of CFOG-TEST-005: its two fog values, the cloud image at its pixel, and its colour.
 struct ImprovedCase {
     values: [f32; 2],
     cloud: [f32; 4],
@@ -181,8 +177,6 @@ fn improved_fog(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 ";
 
-/// A grey pixel of CFOG-TIME-002 under the cloud image: `m`, `cl`, `ca`, the depth of the cloud
-/// image and of the pixel, and the composited value.
 const CLOUD_OVER_CASES: [[f32; 6]; 2] = [
     [0.2, 0.5, 0.5, 0.4, 0.0, 0.6],
     [0.2, 0.5, 0.5, 0.4, 0.7, 0.2],
@@ -200,8 +194,6 @@ fn cloud_over_kernel(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 ";
 
-/// A fullscreen triangle with the output of Bevy's fullscreen vertex shader, and a fragment of white
-/// at half alpha.
 const HALF_WHITE: &str = "
 struct FullscreenVertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -223,10 +215,8 @@ fn half_white() -> @location(0) vec4<f32> {
 }
 ";
 
-/// The format of the world image, which the present pass encodes for an sRGB view target.
 const WORLD_IMAGE: TextureFormat = TextureFormat::Rgba8Unorm;
 const VIEW_TARGET: TextureFormat = TextureFormat::Rgba8UnormSrgb;
-/// The row pitch a texture copy into a buffer must align to.
 const COPY_ROW: u32 = 256;
 
 struct Gpu {
@@ -301,8 +291,6 @@ impl Gpu {
         })
     }
 
-    /// The bitset the kernel leaves for `run`, with every section reached by the cave walk and a
-    /// frustum that holds everything.
     fn shown(&self, pipeline: &ComputePipeline, run: &Run) -> u64 {
         let mut camera_data = CameraUniform::default();
         camera_data.frustum = [[0.0, 0.0, 0.0, 1.0]; 5];
@@ -479,8 +467,6 @@ impl Gpu {
         })
     }
 
-    /// The red byte of the view target after white at half alpha is blended over black in the
-    /// world image and the present pass encodes the world image for the target.
     fn presented_half_white(&self) -> u8 {
         let vertex = self.module(HALF_WHITE.to_owned());
         let present = self.module(wgsl("present", Vec::new()));
@@ -571,8 +557,6 @@ impl Gpu {
         red
     }
 
-    /// Runs `kernel` after `fog.wesl` in `invocations` workgroups over `inputs`, and reads back
-    /// `width` floats of each.
     fn fog_kernel(
         &self,
         kernel: &str,

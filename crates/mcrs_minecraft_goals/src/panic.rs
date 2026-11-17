@@ -11,14 +11,11 @@ use crate::PANIC_SEARCH;
 use crate::SearchRange;
 use crate::random_position;
 
-/// The panic goal (GOAL-PNC-002) runs while its path runs; it starts while the damage record is
-/// fresh, at most this many ticks after the hit.
 pub const PANIC_FRESH_TICKS: u64 = 40;
 
 const PANIC_SEARCH_RANGE: SearchRange = SearchRange::new(5, 4);
 const WATER_REACH: i32 = 5;
 
-/// The damage record of the view is fresh at `tick` and its type causes panic.
 #[must_use]
 pub fn panic_record_fresh(view: &MobView, tick: u64) -> bool {
     view.damage.is_some_and(|record| {
@@ -26,8 +23,6 @@ pub fn panic_record_fresh(view: &MobView, tick: u64) -> bool {
     })
 }
 
-/// The destination of a panic: the nearest water of `Q-WATER` for a mob on fire in a block with no
-/// collision shape, else the default search `D(5, 4)`.
 pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DVec3> {
     let view = turn.view;
     let block = BlockPos::from(view.position);
@@ -53,9 +48,6 @@ pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DV
     )
 }
 
-/// `Q-WATER` (GOAL-PNC-003): the water block with the smallest Manhattan distance within 5
-/// blocks horizontally and 1 vertically; on a tie the smaller `dx`, then the smaller `dy`, then a
-/// positive `dz` before a negative one.
 fn nearest_water<W: GoalWorld + ?Sized>(world: &W, centre: BlockPos) -> Option<BlockPos> {
     let mut best: Option<(WaterRank, BlockPos)> = None;
     for dx in -WATER_REACH..=WATER_REACH {

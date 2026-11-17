@@ -4,11 +4,9 @@ use crate::world_coordinate::WorldCoordinate;
 use mcrs_command::{Argument, Reader, SyntaxError};
 use mcrs_minecraft_command::Source;
 
-/// `minecraft:column_pos`: two block coordinates, x and z.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ColumnPosArgument;
 
-/// The value of a `column_pos`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColumnCoordinates {
     pub x: WorldCoordinate,
@@ -16,7 +14,6 @@ pub struct ColumnCoordinates {
 }
 
 impl ColumnCoordinates {
-    /// The block x and z against the position of `source`.
     #[must_use]
     pub fn block<L>(&self, source: &Source<'_, L>) -> [i32; 2] {
         [

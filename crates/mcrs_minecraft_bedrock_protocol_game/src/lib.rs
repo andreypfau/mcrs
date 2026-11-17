@@ -1,6 +1,3 @@
-//! Bedrock Edition game packets: StartGame, Text, MovePlayer, PlayerAuthInput, SetTime, UpdateBlock and the chunk column packet.
-// std: mcrs_minecraft_nbt
-
 extern crate alloc;
 
 mod block_action;

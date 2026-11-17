@@ -6,8 +6,6 @@ use crate::motion_tick::MotionTick;
 pub(crate) const FUSE_INDEX: u8 = 8;
 const DEFAULT_FUSE: i32 = 80;
 
-/// The ticks that are left before a primed TNT explodes. The client counts it down in each tick
-/// that the TNT steps; each fuse in the entity data from the server replaces the count.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Fuse(pub i32);
 

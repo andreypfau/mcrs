@@ -3,14 +3,12 @@ use std::collections::HashMap;
 use crate::declaration::Declaration;
 use crate::registries::Kind;
 
-/// The declaration that owns a file of a namespace, and the path of the file below its directory.
 pub(crate) struct Owner<'d, 'p> {
     pub(crate) tag: bool,
     pub(crate) declaration: &'d Declaration,
     pub(crate) below: &'p str,
 }
 
-/// Which files of a namespace a registry load reads, from the declarations of that load.
 #[derive(Clone)]
 pub struct ContentPaths<'d> {
     directories: HashMap<&'d str, &'d Declaration>,
@@ -26,7 +24,6 @@ impl<'d> ContentPaths<'d> {
         Self { directories }
     }
 
-    /// Whether a load reads the bytes of the file at `relative`, a path inside its namespace.
     #[must_use]
     pub fn needs(&self, relative: &str) -> bool {
         self.owner(relative)

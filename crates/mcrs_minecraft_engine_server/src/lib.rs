@@ -1,5 +1,4 @@
 #![recursion_limit = "2048"]
-// std: bevy_ecs
 
 pub mod configuration;
 mod data_pack;

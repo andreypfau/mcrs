@@ -2,8 +2,6 @@ use crate::MenuPacket;
 
 const INVENTORY_MENU: i32 = 0;
 
-/// The menus of one client that its next click and close refer to. Each menu has its own state id:
-/// the inventory menu, which is always there, and the container that the server opened last.
 #[derive(Default)]
 pub(crate) struct MenuView {
     inventory_state_id: i32,
@@ -16,14 +14,12 @@ struct OpenMenu {
 }
 
 impl MenuView {
-    /// The open container, or the inventory menu when no container is open.
     pub(crate) fn container(&self) -> i32 {
         self.open
             .as_ref()
             .map_or(INVENTORY_MENU, |menu| menu.container)
     }
 
-    /// The last state id of `container`, or 0 for a container that the client does not know.
     pub(crate) fn state_id(&self, container: i32) -> i32 {
         if container == INVENTORY_MENU {
             return self.inventory_state_id;

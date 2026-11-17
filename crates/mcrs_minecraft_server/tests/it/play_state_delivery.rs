@@ -1,7 +1,3 @@
-//! Production-topology test verifying that the in-dim emitter routes the
-//! play-login packet through the bus to the host-resident connection without
-//! querying ServerSideConnection.
-
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -25,10 +21,6 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::support;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 fn build_host_app() -> App {
     let mut app = App::new();
@@ -77,12 +69,6 @@ fn spawn_subapp(app: &mut App) -> Entity {
     handles[0]
 }
 
-// ---------------------------------------------------------------------------
-// play_login_targets_host_anchor
-// ---------------------------------------------------------------------------
-
-/// The PlayerLogin packet emitted by the in-dim system must target
-/// `PacketTarget::SinglePlayer(host_anchor)`, not the in-dim entity.
 #[test]
 fn play_login_targets_host_anchor() {
     let mut app = build_host_app();
@@ -123,8 +109,6 @@ fn play_login_targets_host_anchor() {
         assert!(sent, "the dimension takes input");
     }
 
-    // The dimension spawns the player and hands over its play-login in the output of the
-    // tick, which the host takes into Messages<OutboundPlayerPacket>.
     app.update();
     take_dim_outputs(app.world_mut());
 

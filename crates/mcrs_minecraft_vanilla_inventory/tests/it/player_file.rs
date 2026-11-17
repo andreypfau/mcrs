@@ -25,9 +25,6 @@ use crate::fixture::saved;
 use crate::fixture::slot_stack;
 use crate::fixture::stacks;
 
-/// INV-SAV-001, INV-SAV-002: a load puts each stack of the file in its slot with no filter and no
-/// slot limit, and an autosave writes the same file back, with the keys of `equipment` that hold
-/// no slot.
 #[test]
 fn inv_sav_001_002_a_file_loads_into_its_slots_and_an_autosave_writes_it_back() {
     let inventory = vec![
@@ -104,8 +101,6 @@ fn inv_sav_001_002_a_file_loads_into_its_slots_and_an_autosave_writes_it_back() 
     }
 }
 
-/// INV-SAV-001, INV-SAV-002: a stack with a component patch keeps its patch through a save and a
-/// load.
 #[test]
 fn inv_sav_001_002_a_stack_keeps_its_patch_through_the_file() {
     let mut saving = app();
@@ -129,7 +124,6 @@ fn inv_sav_001_002_a_stack_keeps_its_patch_through_the_file() {
     );
 }
 
-/// INV-SLT-002: a player with no file gets four empty holders and the selected slot 0.
 #[test]
 fn inv_slt_002_a_player_without_a_file_gets_four_empty_holders() {
     let mut app = app();
@@ -167,7 +161,6 @@ fn a_selected_slot_saved_as_a_byte_loads() {
     assert_eq!(world.get::<Selected>(player), Some(&Selected(4)));
 }
 
-/// A file with a stack that does not load is not applied, so the server never writes over it.
 #[test]
 fn a_file_with_a_stack_that_does_not_load_is_unreadable() {
     let inventory = vec![

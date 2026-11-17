@@ -14,9 +14,6 @@ use web_sys::{
     WritableStreamDefaultWriter,
 };
 
-/// Where the browser dials, and the SHA-256 of the certificate the server
-/// minted at startup: a self-signed endpoint is unreachable without it, and the
-/// server publishes no discovery endpoint, so it travels in the page URL.
 #[derive(Clone, Debug)]
 pub struct WebTransportTarget {
     pub url: String,
@@ -24,8 +21,6 @@ pub struct WebTransportTarget {
 }
 
 impl WebTransportTarget {
-    /// The host and port the handshake packet announces, which a proxy in front
-    /// of the server reads and a vanilla server ignores.
     pub fn host_and_port(&self) -> (String, u16) {
         match web_sys::Url::new(&self.url) {
             Ok(url) => {
@@ -37,7 +32,6 @@ impl WebTransportTarget {
     }
 }
 
-/// Reads `?server=https://host:port/path&cert=<64 hex digits>`.
 pub fn target_from_query(url: &str, certificate_hash: &str) -> anyhow::Result<WebTransportTarget> {
     Ok(WebTransportTarget {
         url: url.to_owned(),
@@ -74,7 +68,6 @@ pub async fn connect(target: &WebTransportTarget) -> anyhow::Result<BrowserStrea
             pending: None,
             leftover: Bytes::new(),
             done: false,
-            // The session object owns the streams; dropping it closes them.
             _transport: transport.clone(),
         },
         writer: StreamWriter {
@@ -192,8 +185,6 @@ impl StreamWriter {
 }
 
 impl AsyncWrite for StreamWriter {
-    /// One write is in flight at a time: the next one waits for the promise the
-    /// previous returned, which is where the stream's backpressure lands.
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

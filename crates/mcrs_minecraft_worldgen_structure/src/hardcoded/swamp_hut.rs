@@ -11,10 +11,6 @@ pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, St
     on_top_of_chunk_centre(ctx, HeightmapName::WorldSurfaceWg)
 }
 
-/// The reference raises the piece at placement to the mean
-/// `MOTION_BLOCKING_NO_LEAVES` height under its box, read from the live world
-/// of the one chunk the box lies in; the same cells answer from the density
-/// columns instead.
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
     let orientation = Orientation::random(&mut site.rng);
     let origin = IVec3::new(

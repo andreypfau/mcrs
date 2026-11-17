@@ -16,7 +16,6 @@ impl Plugin for ClientInfoPlugin {
     }
 }
 
-/// What the client last said about itself.
 #[derive(Clone, Debug, PartialEq, Component, serde::Serialize, serde::Deserialize)]
 pub struct ClientInfo {
     pub locale: String,

@@ -6,8 +6,6 @@ use mcrs_voxel::BlockStateId;
 const DIRECTIONS: [&str; 6] = ["down", "up", "north", "south", "west", "east"];
 const DIRECTION_PROPERTIES: [&str; 2] = ["facing", "vertical_direction"];
 
-/// Whether `state` of `block` passes each entry of `predicate`. It reads the property names, so
-/// it runs at the bake only.
 pub(crate) fn passes(
     predicate: &StatePropertiesPredicate,
     block: &BlockEntry,
@@ -52,8 +50,6 @@ fn named_rank(property: &BlockProperty, text: &str) -> Option<i64> {
     rank(property, value)
 }
 
-/// The place of `value` in the value order of `property`: numeric for an integer, `false` before
-/// `true`, the one direction order for `facing` and `vertical_direction`, else the listed order.
 fn rank(property: &BlockProperty, value: &PropertyValue) -> Option<i64> {
     match value {
         PropertyValue::Int(number) => Some(i64::from(*number)),

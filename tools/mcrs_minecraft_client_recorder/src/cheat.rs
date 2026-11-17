@@ -4,22 +4,13 @@ use anyhow::bail;
 use glam::DVec3;
 use mcrs_minecraft_protocol_game::MoveFlags;
 
-/// A movement cheat module that the proxy emulates on the serverbound packets of an honest
-/// client. The client itself moves as vanilla; only the server sees the cheat.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Module {
-    /// The reported height never goes down.
     Fly,
-    /// The reported horizontal movement of each packet is [`SPEED`] times the client's.
     Speed,
-    /// Each move packet reports the on-ground flag.
     NoFall,
-    /// Each reported position is half a block lower, into the floor.
     Phase,
-    /// A position on the ground with a horizontal collision is reported one block higher, on
-    /// top of the obstacle.
     Step,
-    /// Each [`TIMER_PERIOD`]-th client tick goes to the server two times.
     Timer,
 }
 
@@ -44,7 +35,6 @@ impl FromStr for Module {
 
 pub(crate) struct Cheat {
     module: Module,
-    /// The last position from the client and the last one passed on, since the last teleport.
     last: Option<(DVec3, DVec3)>,
     ticks: u32,
 }
@@ -58,13 +48,10 @@ impl Cheat {
         }
     }
 
-    /// The client accepted a teleport: the next position starts from the client's again.
     pub(crate) fn teleported(&mut self) {
         self.last = None;
     }
 
-    /// The body of the serverbound packet `name` as the module sends it; none when the module
-    /// leaves it as the client sent it.
     pub(crate) fn rewrite(&mut self, name: &str, original: &[u8]) -> Option<Vec<u8>> {
         let with_position = matches!(name, "move_player_pos" | "move_player_pos_rot");
         if !with_position && !matches!(name, "move_player_rot" | "move_player_status_only") {
@@ -103,7 +90,6 @@ impl Cheat {
         (body != original).then_some(body)
     }
 
-    /// Counts one client tick. Returns true when the proxy sends the tick to the server again.
     pub(crate) fn repeats_tick(&mut self) -> bool {
         self.ticks += 1;
         self.module == Module::Timer && self.ticks.is_multiple_of(TIMER_PERIOD)

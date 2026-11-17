@@ -1,4 +1,3 @@
-/// The key of a selector option.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Key {
     Name,

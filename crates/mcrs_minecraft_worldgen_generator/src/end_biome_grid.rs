@@ -6,9 +6,6 @@ use mcrs_minecraft_worldgen_density::router::{EROSION, NoiseRouter};
 use crate::multi_noise_biomes::BiomeGrid;
 use crate::structures::index::{EndBiomes, is_central_end_chunk};
 
-/// The quart grid of an end column, with the ring of [`crate::multi_noise_grid`]. A quart takes
-/// the biome of its chunk, picked by the erosion at the chunk's centre column, so the grid samples
-/// the centres of the three by three chunks around the column for every quart row in one pass.
 pub(crate) fn end_biome_grid(
     noise_router: &NoiseRouter,
     end: &EndBiomes<u8>,

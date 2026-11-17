@@ -3,7 +3,6 @@ use core::num::NonZeroU32;
 use crate::child::Child;
 use crate::grid_child::GridChild;
 
-/// Puts the children of a grid in rows of a fixed number of columns, in the order of addition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RowFill {
     columns: NonZeroU32,
@@ -11,7 +10,6 @@ pub struct RowFill {
 }
 
 impl RowFill {
-    /// A fill of rows of `columns` columns; 0 counts as 1.
     #[must_use]
     pub fn new(columns: u16) -> Self {
         Self {
@@ -20,8 +18,6 @@ impl RowFill {
         }
     }
 
-    /// The next child with the column span `column_span`, at the start of the next row when it
-    /// does not fit in the current row; a span of 0 counts as 1.
     pub fn add(&mut self, child: Child, column_span: u16) -> GridChild {
         let column_span = column_span.max(1);
         let span = u32::from(column_span);

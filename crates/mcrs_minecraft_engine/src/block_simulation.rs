@@ -1,15 +1,3 @@
-//! The block simulation of a dimension world: each tick it runs the step of the block kernels
-//! over the sections of the cell, with the rules of the blocks that the game supplies.
-//!
-//! The order of one tick is the order of vanilla. At the sync point, the ticks of the columns
-//! that landed join the queues, and the messages of the other cells and then the block writes of
-//! the tick apply. Then the scheduled block ticks run,
-//! then the scheduled fluid ticks, then the random ticks, then the broadcast of the marked
-//! blocks, then the block events. Neighbour and shape updates run inside the phase that causes
-//! them. The block events that a block took go to the clients near it after the broadcast, so the
-//! changes that the events cause go out in the broadcast of the next tick. The items of a
-//! destroyed block go out as [`ItemDropped`].
-
 use std::mem;
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
@@ -70,9 +58,6 @@ use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 
-/// Rules under which no block reacts: no block has a behaviour that a specification states yet.
-/// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick
-/// or an event reaches its block with no effect.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InertBlocks;
 
@@ -80,13 +65,9 @@ impl BlockBehaviour<WorldKinds> for InertBlocks {}
 
 impl BlockDrops for InertBlocks {}
 
-/// The rules of the blocks of a dimension world.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct BlockRules<B>(pub B);
 
-/// Which block rules the host builds into each dimension world: a function that adds a
-/// [`BlockSimulationPlugin`] to the world, which holds the registries of the host by then. Insert
-/// it into the host before the dimensions spawn; without it, the dimensions run [`InertBlocks`].
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DimensionBlockRules(pub fn(&mut SubApp));
 
@@ -98,8 +79,6 @@ impl Default for DimensionBlockRules {
     }
 }
 
-/// The block simulation of a dimension world under the rules `B`: each [`BlockSetRequest`] is a
-/// set of the kernel, with all its flags.
 pub struct BlockSimulationPlugin<B> {
     rules: B,
 }
@@ -142,36 +121,26 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     }
 }
 
-/// The ticks that a column held when it went cold.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakenTicks {
     pub ticks: ColumnTicks,
-    /// A saved tick activated, or the column holds a tick scheduled since it landed.
     pub changed: bool,
 }
 
-/// The ticks of a loaded column for a periodic save, and whether they changed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CopiedTicks {
     pub ticks: ColumnTicks,
-    /// A saved tick activated, or the column holds a tick scheduled since it landed.
     pub changed: bool,
 }
 
-/// The queues of the block kernels of a dimension world, and what crosses to the other cells.
 #[derive(Resource, Default)]
 pub struct BlockSimulation {
     shard: BlockShard<WorldKinds>,
     out: StepOutput<WorldKinds>,
-    /// The messages of the other cells for the next step, in the order of the cells.
     inbound: Vec<Message<WorldKinds>>,
     ledgers: Vec<ChainLedger>,
-    /// The sections with saved ticks that wait for their section to run ticks.
     held: FxHashSet<SectionPos>,
-    /// The columns in which a saved tick activated since they landed.
     activated: FxHashSet<ColumnPos>,
-    /// The random ticks of each block state under the rules, once the block table landed: the
-    /// table of the [`RandomTickIndex`].
     random_table: Option<RandomTickTable>,
     footprints: Footprints,
     random_seed: Option<StreamSeed>,
@@ -189,16 +158,11 @@ impl BlockSimulation {
         self.ledgers.append(ledgers);
     }
 
-    /// Holds the saved ticks of a column that landed. The k-th tick of a list of m ticks gets the
-    /// order k - m, so the ticks keep their saved order and run before the ticks of the tick that
-    /// are due at the same time. A later copy of a held or queued tick is dropped.
     fn hold(&mut self, ticks: &ColumnTicks) {
         hold_list(self.shard.block_ticks_mut(), &mut self.held, &ticks.block);
         hold_list(self.shard.fluid_ticks_mut(), &mut self.held, &ticks.fluid);
     }
 
-    /// Activates the saved ticks of each section that runs ticks now: a tick that was saved with
-    /// the delay `t` is due `t` ticks after now.
     fn activate<V: SimulatedSections>(&mut self, volume: &V, now: GameTick) {
         let Self {
             shard,
@@ -219,8 +183,6 @@ impl BlockSimulation {
         });
     }
 
-    /// The ticks of the sections `rows` of `column` as the data layer keeps them, without taking
-    /// them out of the queues. A periodic save uses it while the column stays loaded.
     pub fn copy_column(
         &self,
         column: ColumnPos,
@@ -248,9 +210,6 @@ impl BlockSimulation {
         }
     }
 
-    /// Takes the ticks of the sections `rows` of `column` out of the queues, as the data layer
-    /// keeps them: first the saved ticks that did not activate, in their saved order, then the
-    /// active ticks, in the order they run when due together, each with its delay from `now`.
     pub fn take_column(
         &mut self,
         column: ColumnPos,
@@ -359,7 +318,6 @@ impl<T: TickKind> Taken<T> {
     }
 }
 
-/// What the cells of a world hand each other besides the blocks.
 #[derive(SystemParam)]
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
@@ -375,14 +333,12 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     time: Res<'w, GameTime>,
 }
 
-/// What the random picks draw from.
 #[derive(SystemParam)]
 struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
 }
 
-/// Where the outcome of a step goes besides the blocks.
 #[derive(SystemParam)]
 struct StepOutlets<'w, 's> {
     marks: ResMut<'w, BroadcastMarks>,
@@ -391,8 +347,6 @@ struct StepOutlets<'w, 's> {
     dropped: DropOutlet<'w>,
 }
 
-/// Where the items of a block go: one [`ItemDropped`] each, unless the game rule `block_drops`
-/// is off (LOOT-OUT-003).
 #[derive(SystemParam)]
 struct DropOutlet<'w> {
     dropped: MessageWriter<'w, ItemDropped>,
@@ -437,7 +391,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         return;
     };
     let Some(definitions) = kernel.definitions.as_deref() else {
-        // The block table lands with the registries; until then a write is stored as it is.
         for request in requests.read() {
             voxel_update::apply_write(
                 &mut blocks,
@@ -646,13 +599,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
-/// The items of each survival break, read before the write of the break applies: the other part
-/// of a block of two parts first, as a change around it once the hit part is gone, then the hit
-/// part with the breaker, when the break harvests it.
-// chisle: these items go out before those of the blocks that the step destroys after the break,
-// and a destroyed block reads the world after the step; LOOT-OUT-004 and LOOT-CND-008 want the
-// reverse order and the world at the removal. Evaluating the destroyed blocks inside the step
-// lifts it.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each message, resource and query is its own parameter"
@@ -680,7 +626,6 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     let tick = time.0.cast_unsigned();
     let world_seed = seed.as_deref().map_or(0, |seed| seed.0);
     for harvest in harvests.read() {
-        // Two breaks of one block in a tick both read it before either write lands.
         let parts = [Some(harvest.at), harvest.other.map(|(at, _)| at)];
         if parts.iter().flatten().any(|at| broken_now.contains(at)) {
             continue;
@@ -708,7 +653,6 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
         if !harvest.harvests {
             continue;
         }
-        // chisle: the main hand is always empty; the player inventory lifts it.
         let broken = DroppingBlock {
             at: harvest.at,
             state: harvest.state,
@@ -724,9 +668,6 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     }
 }
 
-/// Lists the positions that tick randomly in each loaded section once the block table landed.
-/// From then on, block writes, the landing and unload of sections and the observers of
-/// [`RandomTickIndexPlugin`] keep the index.
 fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
     let (Some(definitions), Some(rules)) = (
         world.get_resource::<Blocks>(),
@@ -752,7 +693,6 @@ fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(wor
     simulation.footprints = footprints;
 }
 
-/// The threads of a task pool, or the calling thread without one.
 #[derive(Clone, Copy, Debug)]
 pub struct PoolSpread<'p>(pub Option<&'p TaskPool>);
 
@@ -764,7 +704,6 @@ impl Spread for PoolSpread<'_> {
         else {
             return Serial.spread(items, run);
         };
-        // Tiles differ in cost, so each thread gets several small chunks.
         let chunk = items.len().div_ceil(pool.thread_num() * 4);
         let mut items = items;
         items.par_chunk_map_mut(pool, chunk, |_, chunk| {
@@ -783,8 +722,6 @@ fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {
     }
 }
 
-/// Publishes each event of `delivered` in a column that the muxer subscribes to. The muxer sends
-/// it to the clients that hold the column and stand near the block.
 fn publish_block_events(
     delivered: &[BlockEvent<Id<Block>>],
     streams: &ColumnStreams,
@@ -797,7 +734,6 @@ fn publish_block_events(
         }
         changes.write(ColumnChange {
             column,
-            // The client takes only the low 8 bits of each argument.
             payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
                 pos: event.pos,
                 action: event.a as u8,

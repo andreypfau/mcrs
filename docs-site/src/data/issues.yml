@@ -1,4 +1,3 @@
-# State of every issue named on the site. Change it here, one line.
 16: { state: wip }
 37: { state: wip }
 57: { state: partial }

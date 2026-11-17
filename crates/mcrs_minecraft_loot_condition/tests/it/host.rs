@@ -22,7 +22,6 @@ use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationVi
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-/// The entities of [`Mobs`]; an arrow is not a living entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mob {
     Pig,
@@ -40,8 +39,6 @@ impl Mob {
     }
 }
 
-/// A world with the entities of [`Mob`]: each holds `weapon` in its main hand and has the
-/// `scores`; the environment gives the value of each `(position, value)` entry.
 #[derive(Default)]
 pub struct Mobs<'a> {
     pub weapon: Option<&'a ItemStack>,

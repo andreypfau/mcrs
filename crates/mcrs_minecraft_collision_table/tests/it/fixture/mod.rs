@@ -1,5 +1,3 @@
-//! The vanilla fixtures under `tests/fixtures/physics`: the states that a vanilla server printed
-//! after each tick of one experiment of the physics specification.
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
@@ -31,13 +29,10 @@ pub struct Fixture {
     pub rule: String,
     pub origin: [i32; 3],
     pub blocks: Vec<Blocks>,
-    /// The blocks that the recorder changed between two ticks.
     #[serde(default)]
     pub changes: Vec<Change>,
     pub entities: Vec<Recorded>,
     pub border: Option<Border>,
-    /// Set for an experiment that the recorder ran two times from the same world: true when the
-    /// two runs printed the same states.
     pub repeat_equal: Option<bool>,
 }
 
@@ -48,7 +43,6 @@ pub struct Blocks {
     pub block: String,
 }
 
-/// A fill before the step to `tick`.
 #[derive(Deserialize)]
 pub struct Change {
     pub tick: usize,
@@ -84,7 +78,6 @@ pub struct Sample {
     pub fall_distance: f64,
 }
 
-/// Parses the fixture files that `mcrs_minecraft_fixtures` lists.
 pub fn fixtures(files: &[FixtureFile]) -> Vec<Fixture> {
     files
         .iter()
@@ -92,12 +85,10 @@ pub fn fixtures(files: &[FixtureFile]) -> Vec<Fixture> {
         .collect()
 }
 
-/// The block boxes of `fixture` in world coordinates, in the order the recorder filled them.
 pub fn block_boxes(fixture: &Fixture) -> impl Iterator<Item = (BlockPos, BlockPos, BlockStateId)> {
     boxes(fixture, fixture.blocks.iter())
 }
 
-/// The block boxes that the recorder filled before the step to `tick`.
 pub fn changes_before(
     fixture: &Fixture,
     tick: usize,
@@ -209,7 +200,6 @@ pub fn start_state(
     state
 }
 
-/// The difference of `body` from the vanilla sample, or `None` within the tolerance.
 pub fn compare(body: &Body, expected: &Sample) -> Option<String> {
     let position = (body.position - DVec3::from_array(expected.pos))
         .abs()
@@ -237,10 +227,8 @@ pub fn compare(body: &Body, expected: &Sample) -> Option<String> {
     })
 }
 
-/// The first tick at which a simulated entity left the vanilla states, with the difference.
 pub type Failure = Option<(usize, String)>;
 
-/// The entities of `fixture` that a [`MotionRow`] simulates, with that row, in fixture order.
 pub fn simulated(fixture: &Fixture) -> impl Iterator<Item = (&Recorded, MotionRow)> {
     fixture
         .entities
@@ -248,9 +236,6 @@ pub fn simulated(fixture: &Fixture) -> impl Iterator<Item = (&Recorded, MotionRo
         .filter_map(|recorded| Some((recorded, row_of(&recorded.kind)?)))
 }
 
-/// Writes a line to `failures` for each simulated entity that fails in every run; the runs differ
-/// in the phase of the rest cycle of an item, which comes from its network id that the console
-/// does not print. Gives the number of entities it checked.
 pub fn report(fixture: &Fixture, runs: &[Vec<Failure>], failures: &mut String) -> usize {
     if fixture.repeat_equal == Some(false) {
         let _ = writeln!(failures, "{}: two vanilla runs differ", fixture.name);

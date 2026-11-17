@@ -25,7 +25,6 @@ fn positive_period<'de, D: Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Er
     }
 }
 
-/// A timeline: tracks of attributes and time markers, on one clock.
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
@@ -68,7 +67,6 @@ impl<M: Refs> Timeline<M> {
         Ok(())
     }
 
-    /// The timeline as a client receives it: only the tracks of syncable attributes.
     #[must_use]
     pub fn synced(mut self) -> Self {
         self.tracks.retain(|attribute, _| info(*attribute).syncable);
@@ -95,7 +93,6 @@ impl Serialize for Timeline<Named> {
 }
 
 impl Timeline {
-    /// The registry declaration, with the check that no clock has a time marker twice.
     pub fn declaration() -> DataDeclaration<Self> {
         Declaration::data::<Self>().validate(|registry, registries| {
             let clocks = registries.registry::<WorldClock>();
@@ -108,7 +105,6 @@ impl Timeline {
     }
 }
 
-/// The load fails when two timelines of one clock name the same time marker.
 fn check_time_markers(
     timelines: &Registry<Timeline>,
     clock_name: impl Fn(Id<WorldClock>) -> String,
@@ -133,8 +129,6 @@ fn check_time_markers(
     refused
 }
 
-/// A timeline as the network carries it: the tracks of attributes a client may not see are
-/// left out.
 #[derive(Debug, Clone, Resolve)]
 pub struct NetworkTimeline<M: Refs = Resolved>(Timeline<M>);
 

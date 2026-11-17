@@ -2,8 +2,6 @@ import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
 import mcrs_minecraft_render::shaders::include::depth::depth_at;
 import mcrs_minecraft_render::shaders::include::show_layout::{nearest, source};
 
-// Reverse-Z depth is the near plane over the distance, so each octave of distance is one step of
-// log2(depth), and 14 octaves span from the near plane past the farthest render distance.
 const DEPTH_OCTAVES: f32 = 14.0;
 
 fn shown_depth(pixel: vec2<u32>) -> f32 {

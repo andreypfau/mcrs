@@ -1,5 +1,3 @@
-// Runs hand-written expressions through the runner. Each case pins the molangjs result. A
-// case with `mol` states the value of the MOL rule where molangjs differs (README.md).
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 

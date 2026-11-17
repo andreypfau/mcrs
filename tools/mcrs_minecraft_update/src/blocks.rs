@@ -50,8 +50,6 @@ fn descriptions(directory: &Path) -> Result<Vec<Description>, String> {
         .collect()
 }
 
-// The report sorts the keys of a block's `properties`, so the declared order
-// is only recoverable through each state's own property map.
 fn state_index(description: &Description, state: &ReportState) -> Result<u32, String> {
     let properties = &description.properties.0;
     if state.properties.len() != properties.len() {

@@ -5,7 +5,6 @@ use mcrs_minecraft_inventory_player::Holder;
 
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
-/// The slots of the four holders of a player.
 pub(crate) struct HolderSlots<'slots> {
     inventory: &'slots Slots,
     cursor: Option<&'slots Slots>,
@@ -44,7 +43,6 @@ impl<'slots> HolderSlots<'slots> {
     }
 }
 
-/// The entity that holds the slots of `holder` for `player`.
 pub(crate) fn holder_entity(holders: &PlayerHolders, player: Entity, holder: Holder) -> Entity {
     match holder {
         Holder::Inventory => player,

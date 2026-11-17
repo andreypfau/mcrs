@@ -2,8 +2,6 @@ use core::str::FromStr;
 
 use crate::UnknownOperation;
 
-/// How the amount of a modifier changes the value of an attribute. The wire id is the
-/// discriminant; the name is the one of a save and of a data pack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde",
@@ -17,7 +15,6 @@ pub enum ModifierOperation {
 }
 
 impl ModifierOperation {
-    /// The name of the operation in a save and in a data pack.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -67,7 +64,6 @@ impl mcrs_minecraft_wire::Encode for ModifierOperation {
     }
 }
 
-/// An id that names no operation is an error.
 #[cfg(feature = "wire")]
 impl mcrs_minecraft_wire::Decode<'_> for ModifierOperation {
     fn decode(r: &mut &[u8]) -> mcrs_minecraft_wire::Result<Self> {

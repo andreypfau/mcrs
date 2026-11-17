@@ -73,7 +73,6 @@ const BIG_MOSSY: &[ResourceLocation<'static>] = family(36, 4);
 const BIG_CRACKED: &[ResourceLocation<'static>] = family(40, 4);
 const BIG_WARM: &[ResourceLocation<'static>] = family(44, 4);
 
-/// The ruins of one family, in the order the reference's arrays list them.
 const fn family(start: usize, len: usize) -> &'static [ResourceLocation<'static>] {
     TEMPLATES.split_at(start).1.split_at(len).0
 }
@@ -160,7 +159,6 @@ fn add_cluster(
     }
 }
 
-/// `Mth.nextInt(random, min, max)`, inclusive of both ends.
 fn next_int_between(rng: &mut LegacyRandom, min: i32, max: i32) -> i32 {
     if min >= max {
         min
@@ -267,10 +265,6 @@ fn piece(
     }))
 }
 
-/// `OceanRuinPiece.postProcess`'s height: the ocean floor at the template's
-/// corner, lowered to one above the footprint's deepest column when the
-/// footprint is mostly a drop of more than two, read here from the base
-/// columns rather than the live world.
 fn floor(
     ctx: &mut Context<'_>,
     position: IVec3,

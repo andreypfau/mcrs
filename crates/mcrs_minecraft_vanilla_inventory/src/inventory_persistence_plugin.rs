@@ -10,15 +10,6 @@ use crate::player_file::FILE_KEYS;
 use crate::player_file_codec::apply_player_file;
 use crate::player_file_codec::capture_player_file;
 
-/// The codecs of the four holders of each player: `Inventory`, `SelectedItemSlot` and `equipment`
-/// of the player file (INV-SAV-001, INV-SAV-002), and the cursor and the craft grid that a cell
-/// crossing carries. A leave and a dimension change first close the inventory menu (INV-CLS-001,
-/// INV-CLS-003).
-///
-/// It replaces [`PlayerItemFilePlugin`](mcrs_minecraft_engine_item::PlayerItemFilePlugin): an app
-/// adds one of the two, never both. Add it with
-/// [`PersistedAppExt::add_persistence_plugin`], beside [`VanillaInventoryPlugin`](crate::VanillaInventoryPlugin)
-/// in each dimension world.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InventoryPersistencePlugin;
 

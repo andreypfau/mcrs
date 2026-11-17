@@ -5,7 +5,6 @@ use serde::{Deserialize, Deserializer};
 
 use crate::float_provider::EnvironmentNumber;
 
-/// The read of `environment_attribute` (LOOT-NUM-016), with the default value of the attribute.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct EnvironmentRead<T> {
     pub(crate) attribute: EnvironmentAttribute,
@@ -13,7 +12,6 @@ pub(crate) struct EnvironmentRead<T> {
     pub(crate) default: T,
 }
 
-/// The `attribute` of an int `environment_attribute`: only the type `integer` (REG-FLD-733).
 pub(crate) fn int_environment<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<EnvironmentRead<i32>, D::Error> {
@@ -24,8 +22,6 @@ pub(crate) fn int_environment<'de, D: Deserializer<'de>>(
     }
 }
 
-/// The `attribute` of a float `environment_attribute`: the type `float`, `angle_degrees` or
-/// `integer` (REG-FLD-733).
 pub(crate) fn float_environment<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<EnvironmentRead<EnvironmentNumber>, D::Error> {

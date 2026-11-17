@@ -51,7 +51,6 @@ use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(0x0bad_cafe_0000_4000_8000_0000_0000_0001);
 
-/// The game's offline ids of `Steve` and `Guest`.
 const STEVE: Uuid = uuid!("5627dd98-e6be-3c21-b8a8-e92344183641");
 const GUEST: Uuid = uuid!("404198aa-cc64-3021-9fdf-8766c0d0096c");
 
@@ -161,14 +160,12 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
     app.world_mut().flush();
 }
 
-/// A dimension whose control messages the test reads, and that never ticks.
 fn dimension(app: &mut App) -> Entity {
     let dim = app.world_mut().spawn_empty().id();
     app.world_mut().resource_mut::<DimInputs>().insert(dim);
     dim
 }
 
-/// The despawn the host sent to `dim` last.
 fn last_despawn(app: &App, dim: Entity) -> Option<InboundPlayerDespawn> {
     app.world()
         .resource::<DimInputs>()
@@ -395,7 +392,6 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     );
     assert!(sessions_under(&mut app, STEVE).is_empty());
 
-    // What the host does with a dimension that releases the session in its output.
     dim_outputs::forget_departures(app.world_mut(), |departing| {
         departing.dim == dim && departing.session == despawn.session
     });
@@ -1120,8 +1116,6 @@ fn send_answer(app: &mut App, client: &Client, message_id: i32, payload: Option<
     );
 }
 
-/// A hello under the host's name, from a proxy on this machine: neither the name nor the
-/// address may decide anything once the proxy forwards the player.
 fn forwarded_hello(app: &mut App) -> (Client, i32) {
     let client = connect(app);
     app.world_mut()
@@ -1182,8 +1176,6 @@ fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_pr
     );
 }
 
-/// The version 4 answer of `FORWARDED_PAYLOAD` with the address `127.0.0.1`, signed with
-/// `SECRET`.
 const LOOPBACK_FORWARDED_PAYLOAD: [u8; 81] = [
     0xb0, 0x1c, 0x0e, 0x10, 0xd6, 0x5b, 0xf9, 0x14, 0x5d, 0x96, 0x4f, 0xc6, 0x94, 0x2a, 0x32, 0x85,
     0x55, 0xfc, 0xfa, 0x26, 0xdc, 0x3c, 0xf9, 0x71, 0x6a, 0xad, 0x46, 0x2f, 0x0c, 0x3c, 0x4f, 0xdd,
@@ -1193,7 +1185,6 @@ const LOOPBACK_FORWARDED_PAYLOAD: [u8; 81] = [
     0x00,
 ];
 
-/// The op list entry of the player that a proxy on this machine forwards with `payload`.
 fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
     let mut app = forwarding_server();
     app.insert_resource(profile);

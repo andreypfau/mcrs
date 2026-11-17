@@ -47,7 +47,6 @@ impl Pass {
         !self.translucent()
     }
 
-    /// The entry of a table laid out in pass order.
     pub(crate) fn of_mut<T>(self, table: &mut [T; Pass::COUNT]) -> &mut T {
         let [solid, cutout, translucent] = table;
         match self {
@@ -76,7 +75,6 @@ pub struct CubeFace {
     pub pass: u8,
     pub tint: Tint,
     pub uv: UvOrientation,
-    /// The light emission of the model element the face comes from, `0` to `15`.
     pub emission: u8,
 }
 
@@ -91,23 +89,17 @@ pub struct ModelQuad {
     pub pass: Pass,
     pub shade: FaceShade,
     pub tint: Tint,
-    /// The light emission of the model element the quad comes from, `0` to `15`.
     pub emission: u8,
 }
 
-/// Rows of a side on a sixteenth grid, its two tangent axes taken in axis order.
 pub type SideCells = [u16; 16];
 
-/// Vanilla's face occlusion shapes: per side, the cells of that side the block's occlusion shape
-/// reaches. `outer` rounds out, and is what a face of this block needs covered to be hidden;
-/// `inner` rounds in, and is what this block covers of the face across from it.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FaceShapes {
     pub outer: [SideCells; 6],
     pub inner: [SideCells; 6],
 }
 
-/// Whether the face this block shows towards `side` is hidden by the neighbour across it.
 pub fn face_hidden(own: &BlockInfo, neighbour: &BlockInfo, side: usize) -> bool {
     if neighbour.occludes {
         return true;
@@ -124,11 +116,7 @@ pub fn face_hidden(own: &BlockInfo, neighbour: &BlockInfo, side: usize) -> bool 
 #[derive(Clone, Default)]
 pub struct BlockInfo {
     pub cube: Option<[CubeFace; 6]>,
-    /// `None` where the occlusion shape is empty, which hides no face and needs none hidden.
     pub faces: Option<Box<FaceShapes>>,
-    /// How far the top of a box-shaped block sits below its cell's, in `MODEL_STEPS`, when its
-    /// `cube` is a lowered box rather than a full cube: its bottom and top are then drawn as cube
-    /// faces, the top dropped by this much, and its sides stay among its `quads`.
     pub drop: u8,
     pub quads: Vec<ModelQuad>,
     pub occludes: bool,
@@ -136,13 +124,10 @@ pub struct BlockInfo {
     pub sturdy: u8,
     pub fluid: Option<Fluid>,
     pub light: LightState,
-    /// The ambient occlusion flag of the block model, of its first part when it has more.
     pub ambient_occlusion: bool,
-    /// The geometry of the other variants, when a cell chooses among them by its position.
     pub variants: Option<Box<StateVariants>>,
 }
 
-/// What a cell is drawn as when the catalog has no row for its state.
 pub(crate) static AIR: BlockInfo = BlockInfo {
     cube: None,
     faces: None,

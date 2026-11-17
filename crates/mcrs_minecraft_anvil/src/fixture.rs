@@ -43,8 +43,6 @@ impl Rng {
     }
 }
 
-// Shares counted over `r.0.0.mca`; generating the region instead of shipping
-// one keeps the bench on the current `DataVersion`.
 fn block_palette_len(rng: &mut Rng) -> usize {
     match rng.below(1000) {
         0..=619 => 1,

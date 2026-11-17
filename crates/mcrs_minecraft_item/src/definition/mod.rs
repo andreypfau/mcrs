@@ -47,7 +47,6 @@ pub enum ItemTableError {
 }
 
 impl ItemDefinitions {
-    /// `items` names the item registry's entries in id order.
     pub fn from_entries(
         items: &[ResourceLocationBuf],
         entries: Vec<ItemEntry>,

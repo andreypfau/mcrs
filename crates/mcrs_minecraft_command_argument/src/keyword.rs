@@ -9,7 +9,6 @@ use mcrs_minecraft_game_mode::GameMode;
 pub struct GameModeArgument;
 
 impl GameModeArgument {
-    /// Suggests the game modes.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(GameMode::ALL.map(GameMode::name), text_matches);
     }
@@ -31,7 +30,6 @@ impl<S> Argument<S> for GameModeArgument {
     }
 }
 
-/// The value named `text` in `table`.
 pub fn by_name<T: Copy>(table: &[(&str, T)], text: &str) -> Option<T> {
     table
         .iter()
@@ -45,7 +43,6 @@ const ANCHORS: [(&str, LookAnchor); 2] = [("feet", LookAnchor::Feet), ("eyes", L
 pub struct EntityAnchorArgument;
 
 impl EntityAnchorArgument {
-    /// Suggests the anchors.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(ANCHORS.map(|(name, _)| name), text_matches);
     }
@@ -88,7 +85,6 @@ const HEIGHTMAPS: [(&str, HeightmapName); 4] = [
 pub struct HeightmapArgument;
 
 impl HeightmapArgument {
-    /// Suggests the heightmaps.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         builder.suggest_matching(HEIGHTMAPS.map(|(name, _)| name), text_matches);
     }

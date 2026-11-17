@@ -4,7 +4,6 @@ use crate::gui_rect::GuiRect;
 use crate::saturate;
 use crate::widget_id::WidgetId;
 
-/// The tooltip that a widget asks for in a frame (WID-TIP-001, WID-TIP-005).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TooltipRequest {
     pub widget: WidgetId,
@@ -13,18 +12,14 @@ pub struct TooltipRequest {
     pub anchor: TooltipAnchor,
 }
 
-/// What places the tooltip of a widget.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TooltipAnchor {
-    /// The mouse position over the hovered widget (WID-TIP-003).
     Mouse(GuiPoint),
-    /// The bounds of the focused widget (WID-TIP-004).
     Focus,
 }
 
 impl TooltipRequest {
-    /// The top left corner of a content box of the size `content`.
     #[must_use]
     pub fn origin(&self, content: GuiExtent) -> GuiPoint {
         let width = i64::from(content.width);

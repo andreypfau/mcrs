@@ -15,8 +15,6 @@ use mcrs_minecraft_text::RawText;
 use mcrs_minecraft_wire::utf16_len;
 use std::borrow::Cow;
 
-/// The text any player may ask suggestions for; a player who can edit command blocks may send
-/// up to the packet's own limit.
 const CHAT_SUGGESTION_UNITS: usize = 256;
 
 pub(crate) struct SuggestionScratch<E> {
@@ -33,7 +31,6 @@ impl<E> Default for SuggestionScratch<E> {
     }
 }
 
-/// Answers a queued suggestion request of a player of this world. The reply goes to the outbox.
 pub(crate) fn answer_suggestion<S: CommandSet>(
     queued: InRef<QueuedSuggestion>,
     context: CommandContext<S>,

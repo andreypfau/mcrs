@@ -38,7 +38,6 @@ rand.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
-# Without this a build of the server alone runs every schedule and `par_iter` on one thread.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }

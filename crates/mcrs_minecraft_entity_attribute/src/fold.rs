@@ -3,10 +3,6 @@ use crate::Modifier;
 use crate::ModifierOperation;
 use crate::home_slot::RING_SLOTS;
 
-/// The value of an attribute before its range: `base`, plus each `add_value` amount, plus the
-/// result times each `add_multiplied_base` amount, times one plus each `add_multiplied_total`
-/// amount. Each step takes its modifiers in the order of their home slots, not in the order of
-/// `modifiers`, and rounds after each operation.
 #[must_use]
 pub fn fold<I>(base: f64, modifiers: I) -> f64
 where
@@ -52,9 +48,6 @@ struct Slotted<T> {
     value: T,
 }
 
-/// Visits `entries` in the order of a ring of 32 slots: each entry takes the first free slot at
-/// or after its home slot, and the ring is read from slot 31 down to 0. A ring that is full is
-/// read before the next entry, so each group of 32 entries keeps its own order.
 fn in_order<T: Copy>(entries: impl Iterator<Item = Slotted<T>>, mut visit: impl FnMut(T)) {
     let mut ring: [Option<T>; RING_SLOTS as usize] = [None; RING_SLOTS as usize];
     let mut taken: u8 = 0;
@@ -120,8 +113,6 @@ mod tests {
         order
     }
 
-    /// The present sequence after the steps of a case: `id` adds a modifier of the case's
-    /// operation, `id|n` one of the operation `n`, and `-id` removes the modifier.
     fn sequence<'a>(steps: &'a [String], operation: ModifierOperation) -> Vec<Entry<'a>> {
         let mut sequence: Vec<Entry<'a>> = Vec::new();
         for step in steps {

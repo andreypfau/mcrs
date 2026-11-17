@@ -54,15 +54,10 @@ use mcrs_minecraft_volume::{
 
 use crate::registries::{SessionSet, entered_configuration};
 
-/// The network palette is the server's global one, so no remap stands between a
-/// stored state and the block catalog.
 pub const AIR: BlockStateId = BlockStateId::AIR;
 
-/// Sky nibble full, block nibble dark: what a block outside every resident
-/// column is lit by.
 const OPEN_SKY: u8 = 0x0f;
 
-/// The dimension's vertical reach in sections, from its `dimension_type`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Extent {
     pub min_section_y: i32,
@@ -73,11 +68,9 @@ pub struct Extent {
 pub struct Dimension {
     pub name: String,
     pub extent: Extent,
-    /// The dimension type has sky light, so the client lights the sky layer of a block change.
     pub sky_light: bool,
 }
 
-/// A dimension with no name and with sky light, for a store that only ever holds one.
 impl From<Extent> for Dimension {
     fn from(extent: Extent) -> Self {
         Dimension {
@@ -92,13 +85,10 @@ impl From<Extent> for Dimension {
 pub struct Section {
     pub blocks: Box<[BlockStateId; SectionPos::VOLUME]>,
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
-    /// Every state the blocks hold. A block change adds its state and removes none, so a state
-    /// can stay here after the last block of it is gone.
     pub states: Vec<BlockStateId>,
 }
 
 impl Section {
-    /// The biomes of a section the server sent empty are lost, so the first biome stands in.
     fn air() -> Section {
         Section {
             blocks: Box::new([AIR; SectionPos::VOLUME]),
@@ -112,39 +102,26 @@ impl Section {
 pub struct Column {
     min_section_y: i32,
     sections: Vec<Option<Section>>,
-    /// One row per section plus the padding row the light packet carries at
-    /// each end, so row `i` holds section `min_section_y + i - 1`.
     light: Vec<Option<Box<[u8; SectionPos::VOLUME]>>>,
     signs: Vec<SignEntity>,
 }
 
-/// The block entity of a sign or a hanging sign: where it is and the text of its two sides.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SignEntity {
     pub pos: BlockPos,
     pub texts: SignTexts,
 }
 
-/// A column the server sent or took back, in the order it happened. A column sent again
-/// departs and arrives in that order, and one dropped by a change of extent departs too.
-/// The store stays the truth: a reader that keeps state decides from what it finds there.
 #[derive(Message, Clone)]
 pub enum ColumnChange {
     Arrived(ColumnPos, Arc<Column>),
     Departed(ColumnPos, Arc<Column>),
-    /// The section rows a light update rewrote, by section y.
     Relit(ColumnPos, Vec<i32>),
-    /// A section the server sent empty now holds a block. It comes before the `Reblocked` of
-    /// that block.
     Filled(SectionPos),
-    /// The block at the position now holds the state.
     Reblocked(BlockPos, BlockStateId),
-    /// The sign entity at the position was set or dropped.
     Signed(BlockPos),
 }
 
-/// The columns the server has sent and not taken back, keyed by position, and the changes
-/// nobody has drained yet.
 #[derive(Resource, Default, Clone)]
 pub struct ColumnStore {
     dimension: Option<Dimension>,
@@ -152,29 +129,18 @@ pub struct ColumnStore {
     changes: Vec<ColumnChange>,
     light_checks: Vec<LightCheck>,
     unlit_light: UnlitColumnLight,
-    /// The resident columns that came in without the light `unlit_light` computes, for the
-    /// light step to take. Empty while the option is off.
     unlit_arrivals: HashSet<ColumnPos>,
 }
 
-/// What the client lights in a column that arrives without light data, from its blocks. For a
-/// program that embeds the client as a viewer and has no server to send light. The networked
-/// client leaves it off (CBK-LGT-013). Set it on `ColumnCachePlugin`.
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum UnlitColumnLight {
-    /// No local light for a new column: the light is the server's.
     #[default]
     Off,
-    /// Block light for a column with no block light. The sky layer stays as the program set it.
     Block,
-    /// Block light and sky light for a column with no light of either layer.
     BlockAndSky,
 }
 
 impl ColumnStore {
-    /// A column placed against one extent cannot be read against another, and a column of one
-    /// dimension is not a column of another, so entering any other dimension drops what is
-    /// resident.
     pub fn enter(&mut self, dimension: impl Into<Dimension>) {
         let dimension = dimension.into();
         if self.dimension.as_ref() != Some(&dimension) {
@@ -216,8 +182,6 @@ impl ColumnStore {
     }
 
     pub fn insert(&mut self, pos: ColumnPos, column: Column) {
-        // A column that replaces another is judged on its own light, and the one it replaces
-        // no longer waits.
         self.unlit_arrivals.remove(&pos);
         if column.arrives_unlit(self.unlit_light) {
             self.unlit_arrivals.insert(pos);
@@ -229,8 +193,6 @@ impl ColumnStore {
         self.changes.push(ColumnChange::Arrived(pos, column));
     }
 
-    /// A light update for a column nobody holds is not an error: the client may
-    /// have forgotten the column between the server's decision and the packet.
     pub fn relight(&mut self, pos: ColumnPos, update: &ColumnLight) {
         if let Some(column) = self.columns.get_mut(&pos) {
             let rows = Arc::make_mut(column).relight(update);
@@ -247,9 +209,6 @@ impl ColumnStore {
         }
     }
 
-    /// Writes one block of a resident column. Answers the state it replaced, or `None` when the
-    /// column is not resident, the position is outside the extent, or the block already holds
-    /// `state`.
     pub fn set_block(&mut self, at: BlockPos, state: BlockStateId) -> Option<BlockStateId> {
         let section_pos = SectionPos::from(at);
         let column_pos = ColumnPos::from(at);
@@ -285,17 +244,14 @@ impl ColumnStore {
         !self.unlit_arrivals.is_empty()
     }
 
-    /// Whether `pos` is a resident column that arrived without light and has not been taken.
     pub(crate) fn is_unlit_arrival(&self, pos: ColumnPos) -> bool {
         self.unlit_arrivals.contains(&pos)
     }
 
-    /// Moves the columns that arrived without light since the last call into `into`.
     pub(crate) fn take_unlit_arrivals(&mut self, into: &mut Vec<ColumnPos>) {
         into.extend(self.unlit_arrivals.drain());
     }
 
-    /// Moves those of `named` that arrived without light and have not been taken into `into`.
     pub(crate) fn take_unlit_among(
         &mut self,
         named: impl IntoIterator<Item = ColumnPos>,
@@ -308,8 +264,6 @@ impl ColumnStore {
         );
     }
 
-    /// A side `update` leaves out keeps its stored text. `set_block` does not drop the sign: the
-    /// caller uses [`ColumnStore::remove_sign`] when the new block is no sign.
     pub fn set_sign(&mut self, at: BlockPos, update: SignUpdate) -> bool {
         let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
             return false;
@@ -330,7 +284,6 @@ impl ColumnStore {
         true
     }
 
-    /// Drops the sign at `at`. Answers whether there was one.
     pub fn remove_sign(&mut self, at: BlockPos) -> bool {
         let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
             return false;
@@ -353,13 +306,10 @@ impl ColumnStore {
         !self.light_checks.is_empty()
     }
 
-    /// The block changes since the last call, for the light step to check.
     pub(crate) fn take_light_checks(&mut self) -> Vec<LightCheck> {
         std::mem::take(&mut self.light_checks)
     }
 
-    /// The light of a section of a resident column. A section the server sent no light for is
-    /// dark in both layers.
     pub(crate) fn section_light(&self, at: SectionPos) -> Option<SectionLight> {
         let column = self.columns.get(&ColumnPos::from(at))?;
         let row = column.light.get(column.light_row(at.y)?)?;
@@ -380,7 +330,6 @@ impl ColumnStore {
         })
     }
 
-    /// Replaces the layers of a section of a resident column that `light` holds.
     pub(crate) fn set_section_light(&mut self, at: SectionPos, light: SectionLightChange) {
         let pos = ColumnPos::from(at);
         let Some(column) = self.columns.get_mut(&pos) else {
@@ -405,13 +354,10 @@ impl ColumnStore {
         self.changes.push(ColumnChange::Relit(pos, vec![at.y]));
     }
 
-    /// Moves every change since the last drain to the end of `into`.
     pub fn drain_changes(&mut self, into: &mut Vec<ColumnChange>) {
         into.append(&mut self.changes);
     }
 
-    /// The column at `origin` and the eight around it, held alive for a task that reads
-    /// across their edges.
     pub fn around(&self, origin: ColumnPos) -> Neighbourhood {
         Neighbourhood {
             extent: self.extent(),
@@ -433,10 +379,6 @@ impl ColumnStore {
         self.columns.contains_key(&pos)
     }
 
-    /// The resident columns with the handle each one is held by. A light update
-    /// rewrites a handle nobody else holds in place, so a reader telling a column
-    /// it has already looked at from one it has not keeps a `Weak` to the handle:
-    /// that moves the rewrite onto a new one.
     pub fn resident(&self) -> impl Iterator<Item = (ColumnPos, &Arc<Column>)> + '_ {
         self.columns.iter().map(|(pos, column)| (*pos, column))
     }
@@ -488,13 +430,11 @@ impl Columns for Neighbourhood {
     }
 }
 
-/// The columns a reader holds, by section column, within the dimension's extent.
 pub trait Columns {
     fn extent(&self) -> Option<Extent>;
 
     fn column(&self, sx: i32, sz: i32) -> Option<&Column>;
 
-    /// The section's stored blocks; `None` for one the server sent empty or never sent.
     #[inline]
     fn stored_section(&self, at: SectionPos) -> Option<&Section> {
         self.column(at.x, at.z)?.section(at.y)
@@ -515,9 +455,6 @@ fn column_bounds(extent: Option<Extent>) -> BoundingBox {
     }
 }
 
-/// Every column the reader holds is loaded whole: a section the server sent empty is air,
-/// and only a missing column is unloaded. Light reaches one row past the extent at each
-/// end, and past that it is open sky.
 macro_rules! column_volume {
     ($store:ty) => {
         impl Volume for $store {
@@ -581,7 +518,6 @@ column_volume!(ColumnStore);
 column_volume!(Neighbourhood);
 
 impl Column {
-    /// A column nobody has lit: every block in it reads as dark.
     pub fn unlit(min_section_y: i32, sections: Vec<Option<Section>>) -> Column {
         let light = (0..sections.len() + 2).map(|_| None).collect();
         Column {
@@ -592,8 +528,6 @@ impl Column {
         }
     }
 
-    /// Whether the column holds none of the light that `mode` computes: no light row at all for
-    /// both layers, no lit block cell for block light alone.
     fn arrives_unlit(&self, mode: UnlitColumnLight) -> bool {
         match mode {
             UnlitColumnLight::Off => false,
@@ -606,16 +540,12 @@ impl Column {
         }
     }
 
-    /// The column with these sign entities, for an embedder that builds columns without packets.
-    /// The positions are block positions of the world, not of the column.
     #[must_use]
     pub fn with_signs(mut self, signs: Vec<SignEntity>) -> Column {
         self.signs = signs;
         self
     }
 
-    /// The signs of a chunk packet's block entities, as [`Column::with_signs`] holds them. An
-    /// entry that is no sign, or whose compound does not read, is skipped.
     #[must_use]
     pub fn with_chunk_signs(self, at: ColumnPos, entries: &[ChunkDataBlockEntity<'_>]) -> Column {
         let origin = IVec3::new(at.x, 0, at.z) * SectionPos::SIZE as i32;
@@ -641,7 +571,6 @@ impl Column {
         self.with_signs(signs)
     }
 
-    /// The sign entities of the column.
     pub fn signs(&self) -> &[SignEntity] {
         &self.signs
     }
@@ -660,8 +589,6 @@ impl Column {
                 if section.non_empty_block_count == 0 {
                     return Ok(None);
                 }
-                // A server whose block corpus differs from ours can name a state past our
-                // table; it reads as air rather than taking the frame down.
                 let state = |id: mcrs_minecraft_chunk::VoxelId| {
                     BlockStateId::checked(id.0, block_state_count).unwrap_or(AIR)
                 };
@@ -686,8 +613,6 @@ impl Column {
         Ok(column)
     }
 
-    /// Rows the update leaves unchanged keep the nibbles they have, per layer.
-    /// Returns the section y of every row it rewrote.
     fn relight(&mut self, update: &ColumnLight) -> Vec<i32> {
         let min_section_y = self.min_section_y;
         let mut touched = Vec::new();
@@ -713,7 +638,6 @@ impl Column {
         touched
     }
 
-    /// The index of the light row of section `sy`, within the rows or past them.
     fn light_row(&self, sy: i32) -> Option<usize> {
         usize::try_from(sy - self.min_section_y + 1).ok()
     }
@@ -724,7 +648,6 @@ impl Column {
         self.sections.get(index)?.as_ref()
     }
 
-    /// Every section slot the column spans, by section y.
     pub fn sections(&self) -> impl Iterator<Item = (i32, Option<&Section>)> {
         self.sections
             .iter()
@@ -829,15 +752,11 @@ fn dimension_of(registries: &Registries, current: &CurrentDimension) -> Option<D
     })
 }
 
-/// Keeps the columns the server sends. `unlit_light` is off by default, so the networked client
-/// takes its light from the server alone.
 #[derive(Default)]
 pub struct ColumnCachePlugin {
     pub unlit_light: UnlitColumnLight,
 }
 
-/// Columns reach the store after the frame's packets are read, and whatever builds on the
-/// store runs after them, so a column is taken up in the frame it arrived.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClientTerrainSet {
     Settle,
@@ -864,7 +783,6 @@ impl Plugin for ColumnCachePlugin {
         app.add_observer(on_forget);
         app.add_observer(on_batch_start);
         app.add_observer(on_batch_finished);
-        // A column is large; its observer decodes it off the main thread.
         app.world_mut()
             .get_resource_or_init::<DeferredRows>()
             .defer::<ClientboundLevelChunkWithLight<'static>>();
@@ -904,9 +822,6 @@ fn clear_columns(
     }
 }
 
-/// Column packets in the order they came, each one decoding on the compute pool. A column's
-/// forget can only be applied once the column itself has landed, so the queue is drained from
-/// the front and stops at the first decode still running.
 #[derive(Resource)]
 pub struct Arrivals {
     queue: VecDeque<Arrival>,
@@ -930,7 +845,6 @@ impl Default for Arrivals {
 
 enum Arrival {
     Enter(Dimension),
-    /// `None` for a frame that decodes but has no dimension or biome registry to land in.
     Column(Task<Result<Option<(ColumnPos, Column)>>>),
     Light(ColumnPos, ColumnLight),
     Blocks(Vec<BlockChange>),
@@ -941,7 +855,6 @@ enum Arrival {
     BatchEnd(u32),
 }
 
-/// A block change that the light step checks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LightCheck {
     pub(crate) pos: BlockPos,
@@ -949,36 +862,27 @@ pub(crate) struct LightCheck {
     pub(crate) new: BlockStateId,
 }
 
-/// The two light layers of one section.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct SectionLight {
     pub(crate) sky: LightStorage,
     pub(crate) block: LightStorage,
 }
 
-/// The layers of one section that a light calculation changed.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SectionLightChange<'a> {
     pub(crate) sky: Option<&'a LightStorage>,
     pub(crate) block: Option<&'a LightStorage>,
 }
 
-/// A block state the server sent for one position.
 struct BlockChange {
     pos: BlockPos,
     state: BlockStateId,
 }
 
-/// The rate answered to the server is measured over a batch: not from the packets landing, but
-/// from its columns finishing their decode, so a client that has fallen behind asks for less.
 const START_NANOS_PER_COLUMN: f64 = 2_000_000.0;
 const MAX_OLD_SAMPLES_WEIGHT: u32 = 49;
 const CLAMP_COEFFICIENT: f64 = 3.0;
 
-/// The share of a tick a client is willing to spend taking columns. Vanilla keeps 7 ms of the
-/// tick for chunks because it decodes them on the thread it renders from; ours decode on the
-/// compute pool, so the budget is most of the tick and the ceiling is what binds while the
-/// pipeline keeps up.
 const NANOS_PER_TICK_ON_COLUMNS: f64 = 35_000_000.0;
 
 impl Arrivals {
@@ -986,9 +890,6 @@ impl Arrivals {
         self.queue.len()
     }
 
-    /// Drops what the connection sent for the dimension it is leaving. The decodes still
-    /// running are cancelled with their tasks. The measured decode rate stays: it describes the
-    /// machine, not the session.
     fn clear(&mut self) {
         self.queue.clear();
         self.extent = None;
@@ -1013,8 +914,6 @@ impl Arrivals {
         }
     }
 
-    /// Folds a finished batch into the running average and answers with the columns a tick it
-    /// implies.
     fn rate_after_batch(&mut self, batch_size: u32) -> f32 {
         if let (Some(started), true) = (self.batch_started_at.take(), batch_size > 0) {
             let measured = started.elapsed().as_nanos() as f64 / batch_size as f64;
@@ -1050,8 +949,6 @@ fn on_respawn(
     }
 }
 
-/// The column decodes off the main thread, from the frame the event holds. The dispatcher
-/// defers the check of this row, so a frame that does not decode drops the connection here.
 fn on_level_chunk(
     event: On<Received<ClientboundLevelChunkWithLight<'static>>>,
     blocks: Res<Blocks>,
@@ -1109,7 +1006,6 @@ fn on_light_update(
     }
 }
 
-/// A block update waits in the queue behind the column it changes, which may still decode.
 fn on_block_update(
     event: On<Received<ClientboundBlockUpdate>>,
     blocks: Res<Blocks>,
@@ -1124,7 +1020,6 @@ fn on_block_update(
     }
 }
 
-/// A sign entity update waits in the queue behind the column it lands in, as a block update does.
 fn on_block_entity_data(
     event: On<Received<ClientboundBlockEntityData>>,
     mut arrivals: ResMut<Arrivals>,
@@ -1148,7 +1043,6 @@ fn on_block_entity_data(
     }
 }
 
-/// A block that stops being a sign takes its entity with it, as the server removes it.
 fn drop_replaced_sign(
     store: &mut ColumnStore,
     blocks: Option<&Blocks>,
@@ -1198,7 +1092,6 @@ fn on_block_changed_ack(
     }
 }
 
-/// A state past our table reads as air, as it does in a column.
 fn sent_state(number: u16, blocks: &Blocks) -> BlockStateId {
     BlockStateId::checked(number, blocks.state_count()).unwrap_or(AIR)
 }
@@ -1226,33 +1119,20 @@ fn on_batch_finished(
     }
 }
 
-/// The light of one `light_update`, held back until the local light of the frame is done.
 struct ServerLight {
     pos: ColumnPos,
     update: ColumnLight,
 }
 
-/// The local light of each block change comes before the server light of the same frame, so
-/// the server light wins over it. A column that arrives or leaves settles both first, so each
-/// lands on the column it was meant for.
-///
-/// The columns that arrived without light wait for the end of the frame, so that all of them
-/// are lit in one step. Only a column that the server light of the frame names is lit sooner,
-/// so that the server light still wins over the local one (CBK-LGT-014).
 struct LightStep<'a> {
     blocks: Option<&'a Blocks>,
     server: Vec<ServerLight>,
-    /// The columns taken for the step, kept between frames so a step allocates nothing.
     due: &'a mut Vec<ColumnPos>,
 }
 
-/// When a `LightStep::settle` runs, which decides what it lights of the columns that arrived
-/// without light.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Settling {
-    /// Before a column or a dimension change: only the columns the server light names.
     NamedByServer,
-    /// The end of the frame: every column that is still waiting.
     FrameEnd,
 }
 
@@ -1265,7 +1145,6 @@ impl LightStep<'_> {
                 client_light::relight(store, &block_light_registry(blocks), &checks);
             }
         }
-        // The columns are taken only when the light can run, or they would stay dark for good.
         let can_light = self.blocks.is_some() && store.dimension().is_some();
         let named = when == Settling::NamedByServer;
         if can_light && store.has_unlit_arrivals() && !(named && self.server.is_empty()) {
@@ -1287,8 +1166,6 @@ impl LightStep<'_> {
     }
 }
 
-/// Lands what has finished decoding, in packet order. The store is only borrowed mutably when
-/// something actually lands, so its change tick means a column moved.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and writer is its own parameter"
@@ -1637,8 +1514,6 @@ mod tests {
         assert!(decoded(&[held.clone(), held], 0).is_err());
     }
 
-    /// A column with sections -1 and 0 lit at one cell: sky 6 / block 1 below,
-    /// sky 7 / block 2 above.
     fn lit_store() -> (ColumnStore, ColumnPos) {
         let blob = [air_section(), air_section()]
             .iter()
@@ -1680,7 +1555,6 @@ mod tests {
         LocalPos::new(3, 5, 7).index()
     }
 
-    /// The world coordinates of `lit_cell` in section `sy` of the lit column.
     fn lit_at(sy: i32) -> (i32, i32, i32) {
         (19, sy * SectionPos::SIZE as i32 + 5, -25)
     }
@@ -1930,8 +1804,6 @@ mod tests {
             .expect("the corpus holds the block")
     }
 
-    /// A store of one column: stone up to `y = 15` with one cell of cave at `(5, 14, 5)`, and
-    /// open sky above, with the sky light that the server sends for that.
     fn cave_app() -> App {
         let mut app = App::new();
         app.init_resource::<ColumnStore>()
@@ -2049,7 +1921,6 @@ mod tests {
         app
     }
 
-    /// A column of air with no light, with a glowstone block at `lamp` when it is given.
     fn unlit_column(lamp: Option<BlockPos>) -> Column {
         let upper = lamp.map(|at| {
             let glow = corpus_state("minecraft:glowstone");
@@ -2061,14 +1932,12 @@ mod tests {
         Column::unlit(0, vec![None, upper])
     }
 
-    /// Puts an unlit column into the store, as an embedder does.
     fn arrive(app: &mut App, column: ColumnPos, lamp: Option<BlockPos>) {
         app.world_mut()
             .resource_mut::<ColumnStore>()
             .insert(column, unlit_column(lamp));
     }
 
-    /// A light update with the same chunk in every row of one layer and nothing in the other.
     fn layer_light(chunk: LightChunk, block: bool) -> ColumnLight {
         let rows = 4;
         let filled = || (0..rows).map(|_| RowLight::Filled(chunk)).collect();
@@ -2132,7 +2001,6 @@ mod tests {
         assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)).1, 14);
         assert_eq!(sky_and_block(&app, BlockPos::new(17, 20, 5)).1, 13);
 
-        // The lamp is held first and the dark column arrives beside it.
         let mut app = unlit_app(UnlitColumnLight::Block);
         arrive(&mut app, ColumnPos::new(0, 0), Some(edge));
         app.update();
@@ -2151,7 +2019,6 @@ mod tests {
         );
         app.update();
         app.world_mut().resource_mut::<Seen<0>>().0.clear();
-        // The light of the lamp falls to nothing before the column at x = -1.
         arrive(&mut app, ColumnPos::new(-1, 0), None);
         app.update();
         let seen = &app.world().resource::<Seen<0>>().0;
@@ -2167,7 +2034,6 @@ mod tests {
     fn cbk_lgt_017_columns_that_arrive_in_one_frame_are_lit_in_one_step() {
         let mut app = unlit_app(UnlitColumnLight::Block);
         let pool = AsyncComputeTaskPool::get_or_init(bevy::tasks::TaskPool::new);
-        // One tile of 4 x 4 columns, with a lamp at the border of two of them.
         for x in 0..4 {
             for z in 0..4 {
                 let pos = ColumnPos::new(x, z);
@@ -2184,7 +2050,6 @@ mod tests {
                     .push_back(Arrival::Column(task));
             }
         }
-        // Every decode has finished before the frame, so the frame lands all of them.
         while (app.world().resource::<Arrivals>().queue.iter())
             .any(|arrival| matches!(arrival, Arrival::Column(task) if !task.is_finished()))
         {
@@ -2193,12 +2058,10 @@ mod tests {
         app.update();
         assert!(app.world().resource::<Arrivals>().queue.is_empty());
         assert_each_section_relit_once(&app);
-        // Light of the lamp at x = 31 crosses into the column at x = 2 and meets the other.
         assert_eq!(sky_and_block(&app, BlockPos::new(32, 20, 21)).1, 14);
         assert_eq!(sky_and_block(&app, BlockPos::new(36, 20, 21)).1, 11);
     }
 
-    /// Panics when a section of a column was announced as relit more than once.
     fn assert_each_section_relit_once(app: &App) {
         let seen = &app.world().resource::<Seen<0>>().0;
         let mut rows: Vec<(ColumnPos, i32)> = seen
@@ -2241,8 +2104,6 @@ mod tests {
         let mut app = unlit_app(UnlitColumnLight::Block);
         arrive(&mut app, ColumnPos::new(0, 0), Some(lamp_a));
         arrive(&mut app, ColumnPos::new(1, 0), Some(lamp_b));
-        // The server light of the first column lights it before the later arrival, and the
-        // second column waits for the end of the frame.
         let rows = 4;
         let unchanged = || (0..rows).map(|_| RowLight::Unchanged).collect::<Vec<_>>();
         let mut arrivals = app.world_mut().resource_mut::<Arrivals>();
@@ -2331,7 +2192,6 @@ mod tests {
         store.insert(ColumnPos::new(0, 0), provided);
         store.remove(ColumnPos::new(5, 5));
         app.update();
-        // The light that came with the column stays, and nothing was calculated over it.
         assert_eq!(sky_and_block(&app, sky_cell), (15, 0));
         assert_eq!(sky_and_block(&app, LAMP + IVec3::Y), (0, 0));
         assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
@@ -2349,7 +2209,6 @@ mod tests {
         app.update();
         assert_eq!(sky_and_block(&app, above), (15, 10));
 
-        // A column that came with block light of its own keeps it.
         let mut column = unlit_column(Some(LAMP));
         column.relight(&layer_light(one_lit_cell(0, 7), true));
         app.world_mut()
@@ -2380,7 +2239,6 @@ mod tests {
         let seen = &app.world().resource::<Seen<0>>().0;
         assert!(seen.is_empty(), "the world kept changing: {seen:?}");
         assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
-        // The lamps of two columns far apart both lit their surroundings.
         assert_eq!(sky_and_block(&app, BlockPos::new(8, 21, 8)).1, 14);
         assert_eq!(sky_and_block(&app, BlockPos::new(8 + 16 * 7, 21, 8)).1, 14);
     }

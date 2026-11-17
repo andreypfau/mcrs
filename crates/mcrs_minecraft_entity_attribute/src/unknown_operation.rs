@@ -1,6 +1,5 @@
 use core::fmt;
 
-/// A wire id or a name that is not one of a [`ModifierOperation`](crate::ModifierOperation).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownOperation;
 

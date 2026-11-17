@@ -5,7 +5,6 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::Decode;
 
-/// The wire form of a stack and the stack that the client view records for it.
 pub(crate) struct SentStack {
     pub(crate) wire: ProtoStack<Wire>,
     pub(crate) stack: Option<ItemStack>,
@@ -26,10 +25,6 @@ impl SentStack {
         }
     }
 
-    /// A stack without a wire form goes as the empty stack, but the view records the stack, so
-    /// that it goes again only after the slot changes.
-    // chisle: the two stack models meet through the bytes of the wire; a direct conversion
-    // lifts it when the protocol holds `ItemStack`.
     pub(crate) fn of(
         stack: Option<ItemStack>,
         names: &RegistryNames<'_>,

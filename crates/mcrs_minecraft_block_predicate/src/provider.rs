@@ -17,15 +17,10 @@ use crate::predicate::BlockPredicate;
 use mcrs_minecraft_block::block_keys::Block;
 
 mcrs_minecraft_noise::bounded_float! {
-    /// `Codec.floatRange(0.0F, 1.0F)`.
     UnitFloat as f32 in [0.0, 1.0];
-    /// `Codec.floatRange(-1.0F, 1.0F)`.
     SignedUnitFloat as f32 in [-1.0, 1.0];
 }
 
-/// `ExtraCodecs.intervalCodec`: one point, a two-element array, or the named
-/// pair. Vanilla re-encodes all three as the shortest form that fits, so the
-/// three are kept apart to round-trip instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum IntRange {
@@ -74,8 +69,6 @@ fn variety_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<IntRange,
     Ok(range)
 }
 
-/// `RegistryCodecs.holder(registry, direct, allowInline = true)`: an id naming a
-/// registry entry, or the entry itself written out in place.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Holder<T> {
     Reference(ResourceLocationBuf),
@@ -125,8 +118,6 @@ impl<T: Serialize> Serialize for Holder<T> {
 pub type BlockStateProvider<M = Resolved> =
     Ref<M, DirectBlockStateProvider, DirectBlockStateProvider<M>>;
 
-/// `Codec.xor(BlockState.FULL_CODEC, TYPED_CODEC)`: a state object or a typed
-/// provider, never a bare id, which the holder around it reads as a reference.
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]

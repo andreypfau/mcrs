@@ -6,17 +6,12 @@ use mcrs_minecraft_protocol::{Result, VarInt};
 
 use crate::delta_base::{DeltaBase, Path, Pose, Waypoint};
 
-/// The longest path that a tier sends, in ticks: the interval of the slowest tier.
 const MAX_PATH_TICKS: u64 = 20;
 
-/// The most ticks between two steps of a path. With a step at least this often, the client
-/// keeps a slow subject in motion.
 const STEP_TICKS: u64 = 4;
 
-/// The recent poses of a subject and what each tier last sent of it.
 #[derive(Debug)]
 pub(crate) struct Motion {
-    /// The poses of the last [`MAX_PATH_TICKS`] ticks, and the one before them.
     history: VecDeque<Posed>,
     tiers: [TierState; Tier::ALL.len()],
 }
@@ -30,11 +25,8 @@ struct Posed {
 #[derive(Clone, Debug)]
 struct TierState {
     base: DeltaBase,
-    /// The tick of the last encode of the tier, where its next path starts.
     sent_tick: u64,
-    /// The next encode sends the absolute state.
     fresh: bool,
-    /// The spawn packet at this base, until the base moves.
     spawn: Option<Bytes>,
 }
 
@@ -77,8 +69,6 @@ impl Motion {
         }
     }
 
-    /// Appends the move of `id` at `tier` from its base to its latest pose at `tick`: one move
-    /// at tier 0, a path of steps at the slower tiers.
     pub(crate) fn encode(
         &mut self,
         id: VarInt,
@@ -115,7 +105,6 @@ impl Motion {
         Ok(())
     }
 
-    /// The spawn packet of the subject at its base at `tier`, made once until the base moves.
     pub(crate) fn spawn(
         &mut self,
         tier: Tier,
@@ -131,7 +120,6 @@ impl Motion {
         Ok(Some(state.spawn.insert(packet).clone()))
     }
 
-    /// The waypoints from the last encode of `tier` to `tick`, at most [`STEP_TICKS`] apart.
     fn path(&self, tier: Tier, tick: u64) -> Vec<Waypoint> {
         let sent = self
             .tiers
@@ -155,7 +143,6 @@ impl Motion {
         waypoints
     }
 
-    /// The pose of the subject at the end of `tick`.
     fn pose_at(&self, tick: u64) -> Option<&Pose> {
         self.history
             .iter()

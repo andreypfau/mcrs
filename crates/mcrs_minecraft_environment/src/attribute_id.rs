@@ -5,7 +5,6 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::mob_spawns::MobSpawnSettings;
 
-/// An attribute id together with the type an `override` of it takes.
 pub struct Attribute<T> {
     pub id: ResourceLocation<'static>,
     value: PhantomData<fn() -> T>,
@@ -19,9 +18,6 @@ impl<T> Clone for Attribute<T> {
 
 impl<T> Copy for Attribute<T> {}
 
-/// The value of an attribute that built-in descriptions write as their own
-/// serializable shape. It has no instance, so such an attribute is written
-/// through its argument.
 pub enum Opaque {}
 
 macro_rules! attributes {

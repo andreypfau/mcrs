@@ -1,6 +1,3 @@
-//! The goals of the farm animals, mostly of the pig in a pen, against the timings and the chances
-//! of `mob-goals.md`.
-
 use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::Cadence;
@@ -33,8 +30,6 @@ use mcrs_minecraft_goals::Pond;
 use mcrs_minecraft_goals::SheepBrain;
 use mcrs_minecraft_goals::run_tiles;
 
-/// The steady speed on grass of a pig with the speed modifier `m` (GOAL-CTL-002): E-G2 measures
-/// 0.2150 for the panic and 0.1377 for the stroll.
 fn walk_speed(modifier: f64) -> f64 {
     let speed = modifier * 0.25;
     speed * speed * 2.2026
@@ -112,7 +107,6 @@ fn a_hurt_pig_panics_at_its_next_evaluation_and_starts_paths_only_while_the_reco
     }
 }
 
-/// The ticks from the end of each stroll of each pig to the start of the next one.
 fn stroll_gaps(pigs: u32, ticks: u64) -> Vec<u64> {
     let mut pen = pen(pigs, 1024, IdleRule::AlwaysNear).unwrap();
     let mut ended = vec![None; pigs as usize];
@@ -221,9 +215,6 @@ fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
     }
 }
 
-/// GOAL-STR-002: a pig in water searches land with `L(15, 7)`. From the middle of a pond whose
-/// shore is 12 or more blocks away, the search on land `L(10, 7)` finds nothing, and `D(10, 7)`
-/// rejects water by its malus, so only the search in water starts a stroll.
 #[test]
 fn a_pig_in_the_middle_of_a_pond_strolls_to_land_beyond_ten_blocks() {
     let pond = Pond {
@@ -256,8 +247,6 @@ fn a_pig_in_the_middle_of_a_pond_strolls_to_land_beyond_ten_blocks() {
     );
 }
 
-/// GOAL-PNC-002, GOAL-PNC-003, E-G12: a burning pig with a fresh panic record runs to the nearest
-/// water block, the block position itself, not to a position of `D(5, 4)`.
 #[test]
 fn a_burning_pig_panics_into_the_nearest_water() {
     let mut pen = pen(1, 64, IdleRule::AlwaysFar).unwrap();
@@ -288,8 +277,6 @@ fn a_burning_pig_panics_into_the_nearest_water() {
     );
 }
 
-/// The speed modifier of the first panic path of a brain that a hit of the last tick wakes on a
-/// flat floor, over the first key whose search finds a destination.
 fn panic_modifier<B: MobBrain<FlatGround> + Default>() -> Option<f32> {
     let ground = FlatGround {
         side: 64,
@@ -328,7 +315,6 @@ fn panic_modifier<B: MobBrain<FlatGround> + Default>() -> Option<f32> {
     })
 }
 
-/// GOAL-ANI-001 to GOAL-ANI-004: the panic of each farm animal walks at the speed of its list.
 #[test]
 fn each_farm_animal_panics_at_the_speed_of_its_goal_list() {
     let cases = [

@@ -3,29 +3,22 @@ use crate::Dimensions;
 use crate::InsideEffect;
 use crate::StuckIgnore;
 
-/// The tick count at which an item or an experience orb despawns (IEN-AGE-001).
 const LIFETIME: u32 = 6000;
 
-/// The motion data of one entity type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MotionRow {
     pub category: Category,
     pub dimensions: Dimensions,
-    /// The gravity of a category that is not living; a living entity reads its attribute.
     pub gravity: f64,
     pub stuck_ignore: StuckIgnore,
     pub powder_snow_needs_inside: bool,
     pub powder_snow_solid: bool,
     pub block_bounce_factor: f32,
-    /// The default of the `step_height` attribute of a living type.
     pub step_height: f64,
-    /// The tick count at which the entity pass removes the row; `None` when the row ends only
-    /// by death or by its host.
     pub lifetime: Option<u32>,
 }
 
 impl MotionRow {
-    /// A living type with the defaults of its category.
     #[must_use]
     pub fn living(category: Category, dimensions: Dimensions) -> Self {
         Self {
@@ -41,7 +34,6 @@ impl MotionRow {
         }
     }
 
-    /// A type that is not living, with the defaults of the other categories.
     #[must_use]
     pub fn other(category: Category, dimensions: Dimensions, gravity: f64) -> Self {
         Self {
@@ -67,7 +59,6 @@ impl MotionRow {
 
     #[must_use]
     pub fn armor_stand() -> Self {
-        // The base value of `step_height` is type data; the armor stand has 0, not the default 0.6.
         Self {
             step_height: 0.0,
             ..Self::living(
@@ -77,7 +68,6 @@ impl MotionRow {
         }
     }
 
-    /// An item that the pass removes at the tick count 6000.
     #[must_use]
     pub fn item() -> Self {
         Self {
@@ -111,7 +101,6 @@ impl MotionRow {
         )
     }
 
-    /// An experience orb that the pass removes at the tick count 6000.
     #[must_use]
     pub fn experience_orb() -> Self {
         Self {

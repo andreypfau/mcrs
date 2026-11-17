@@ -29,10 +29,6 @@ impl LegacyRandom {
         self.seed = self.seed.wrapping_mul(MULTIPLIER).wrapping_add(INCREMENT) & MODULUS_MASK;
     }
 
-    /// `WorldgenRandom.setLargeFeatureSeed`.
-    ///
-    /// Beta's sibling adds odd-forced products where this one exclusive-ors plain
-    /// ones; the two are the same idea and not the same number.
     pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
         let mut rng = LegacyRandom::new(world_seed as u64);
         let x_scale = rng.next_java_long();
@@ -133,8 +129,6 @@ impl Random for LegacyRandom {
         LegacyRandom::new(self.next_java_long() as u64 ^ block_pos_seed(pos))
     }
 
-    /// The legacy factory hashes with `String.hashCode`, not MD5 — MD5 is the Xoroshiro path.
-    /// The fold is over bytes, which equals Java's UTF-16 fold for the ASCII names we pass.
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
         let hash = seed
             .as_ref()

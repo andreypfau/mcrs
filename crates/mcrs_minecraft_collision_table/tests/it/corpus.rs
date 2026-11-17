@@ -34,7 +34,6 @@ fn every_corpus_coordinate_is_on_the_half_pixel_grid() {
                 .into_iter()
                 .chain(bounds.max.to_array())
             {
-                // Each corpus value is a multiple of half a pixel, which f32 and f64 both hold.
                 assert_eq!(
                     (value * 32.0).fract(),
                     0.0,

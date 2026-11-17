@@ -13,8 +13,6 @@ use crate::mossy_carpet::place_mossy_carpet;
 use crate::tables::BlockTables;
 use crate::tree::provider::StateProvider;
 
-/// The two halves of a `DoublePlantBlock`, and the same pair waterlogged for a
-/// block that carries the property.
 #[derive(Clone, Debug)]
 pub struct DoublePlant {
     pub lower: VoxelId,
@@ -38,18 +36,13 @@ impl DoublePlant {
     }
 }
 
-/// One `simple_block` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledSimpleBlock {
     pub to_place: StateProvider,
     pub tables: Arc<BlockTables>,
-    /// Whether the block placed gets a tick one game tick after the column loads, so a
-    /// state that depends on the time settles then.
     pub schedule_tick: bool,
 }
 
-/// `SimpleBlockFeature.place`: one state from the provider, refused when it
-/// could not survive, and a second block for the upper half of a double plant.
 pub fn place_simple_block<W: WorldGenVolume>(
     cfg: &CompiledSimpleBlock,
     volume: &mut W,
@@ -137,8 +130,6 @@ mod tests {
 
     const AT: BlockPos = BlockPos::new(3, 70, -4);
 
-    /// Air and water give way; water and the wet halves hold a water source,
-    /// `FLOWING` holds flowing water.
     fn pond(mut volume: FakeVolume) -> FakeVolume {
         volume.world.replaceable = mask_of([AIR, WATER, FLOWING]);
         volume.world.water_fluid = mask_of([WATER, TALL_WET_LOWER, TALL_WET_UPPER, FLOWING]);
@@ -174,7 +165,6 @@ mod tests {
         }
     }
 
-    /// A plain state is one write and whatever the provider drew, nothing else.
     #[test]
     fn a_plain_state_is_one_write_and_the_providers_own_draws() {
         let cfg = config(StateProvider::Weighted(vec![(FLOWER, 1)]));
@@ -189,8 +179,6 @@ mod tests {
         assert_eq!(volume.writes, vec![((AT.x, AT.y, AT.z), FLOWER)]);
     }
 
-    /// `DoublePlantBlock.placeAt`: the lower half where the object landed and
-    /// the upper half above it, dry ground and no draws of its own.
     #[test]
     fn a_double_plant_takes_the_cell_above_it_too() {
         let cfg = config(StateProvider::Simple(TALL));
@@ -210,8 +198,6 @@ mod tests {
         );
     }
 
-    /// `copyWaterloggedFrom`: a plant whose own fluid is water matches the
-    /// water above it and takes the waterlogged form of both halves.
     #[test]
     fn a_double_plant_in_water_waterlogs_both_halves() {
         let cfg = config(StateProvider::Simple(TALL_WET_LOWER));
@@ -247,10 +233,6 @@ mod tests {
         );
     }
 
-    /// The block above must be air, or share the plant's fluid and be
-    /// replaceable: stone above refuses the whole placement, and so does water
-    /// above a dry plant, or flowing water above a plant holding a source, even
-    /// though water is replaceable.
     #[test]
     fn a_double_plant_is_refused_under_a_solid_block_or_a_foreign_fluid() {
         for (placed, above) in [(TALL, STONE), (TALL, WATER), (TALL_WET_LOWER, FLOWING)] {
@@ -263,8 +245,6 @@ mod tests {
         }
     }
 
-    /// A provider that hands back nothing places nothing, and the draw it spent
-    /// looking still counts.
     #[test]
     fn an_empty_provider_places_nothing_and_keeps_its_draw() {
         let cfg = config(StateProvider::Weighted(Vec::new()));

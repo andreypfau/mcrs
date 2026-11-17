@@ -1,5 +1,3 @@
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
 mod arenas;
@@ -83,8 +81,6 @@ pub use world_fog::WorldFog;
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
 
-/// The depth buffer runs reverse-Z, so the near plane is at one and a fragment passes when its
-/// depth is the greater. Every pipeline drawing into the view depth must agree on this.
 pub const DEPTH_COMPARE: CompareFunction = CompareFunction::GreaterEqual;
 const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float));
 
@@ -99,15 +95,10 @@ pub struct Budget {
     pub faces: usize,
     pub groups: usize,
     pub sections: usize,
-    /// Bytes copied to the GPU per frame at most.
     pub upload: usize,
-    /// The tint texture is a window of this many blocks a side that the world wraps into, so
-    /// it follows the camera for nothing; it only has to be wider than what is resident.
     pub tint_size: [u32; 2],
 }
 
-/// The layers one array gained since the last update, from `first` up to `layers`, as a full
-/// mip chain with level zero first. What was sent before stays where it is on the GPU.
 pub struct AtlasUpdate {
     pub size: u32,
     pub layers: u32,
@@ -126,8 +117,6 @@ pub struct Animation {
 
 pub const STILL: u32 = u32::MAX;
 
-/// What one bake added: layers per atlas, the sprite table from `table_from` on, and every
-/// animation as the registry now lists them.
 pub struct SpriteUpload {
     pub atlases: Vec<AtlasUpdate>,
     pub table_from: u32,
@@ -153,8 +142,6 @@ impl Default for DrawMask {
     }
 }
 
-/// Whether terrain is tested against the last frame's depth pyramid; off, every group the
-/// frustum and the cave graph keep is drawn and the second pass does not exist.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct Occlusion(pub bool);
@@ -165,8 +152,6 @@ impl Default for Occlusion {
     }
 }
 
-/// Whether the cull tests each quad of a surviving group on its own; off, a group that survives
-/// is drawn whole, which is how a hole the quad tests leave is told from any other.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct QuadCull(pub bool);
@@ -177,9 +162,6 @@ impl Default for QuadCull {
     }
 }
 
-/// The render distance `r` in columns: the sections of a column `dx`, `dz` columns from the
-/// camera's are drawn only while `max(0, |dx| - 1)² + max(0, |dz| - 1)² < r²`. The default draws
-/// each column up to 255 away.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct RenderDistance(pub u8);
@@ -190,7 +172,6 @@ impl Default for RenderDistance {
     }
 }
 
-/// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct Brightness(pub f32);
@@ -201,12 +182,10 @@ impl Default for Brightness {
     }
 }
 
-/// The tick texture animation shows instead of following real time.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct PinnedTick(pub i64);
 
-/// Group 3 of the lighting pass, from whoever tints block light.
 #[derive(Resource)]
 pub struct LightTint {
     pub layout: BindGroupLayoutDescriptor,
@@ -259,8 +238,6 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/present.wesl");
 }
 
-/// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
-/// stage run in no fixed order unless they order themselves.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorldPass {
     Upload,
@@ -268,12 +245,8 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
-    /// The entity passes: after the depth pyramid of the full frame, before the lighting.
     Entities,
     Lighting,
-    /// Drawn into the world image over the lit frame with the depth of the opaque world, before
-    /// the translucent layers. The present pass at the end of `Forward` copies the world image
-    /// over the view target, so a draw straight into the view target here is lost.
     Overlay,
     Forward,
 }
@@ -396,8 +369,6 @@ impl Plugin for TerrainPlugin {
                         .run_if(pipeline::frame_ready),
                 ),
             );
-        // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
-        // which the world pass then loads back; without it the world pass does the clear.
         if let Err(error) = render_app.remove_systems_in_set(
             Core3d,
             main_opaque_pass_3d,

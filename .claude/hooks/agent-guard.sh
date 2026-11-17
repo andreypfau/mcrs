@@ -1,6 +1,4 @@
 #!/bin/sh
-# PreToolUse hook for Agent: route each subagent call to a role with a fixed model.
-# Read-only roles run on Haiku even when the caller passes a model.
 py=python3
 python3 -c '' >/dev/null 2>&1 || py='py -3'
 exec $py -c '

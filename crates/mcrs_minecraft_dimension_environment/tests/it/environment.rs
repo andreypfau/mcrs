@@ -21,8 +21,6 @@ use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute
 const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
 
-/// Numbers every key by its place among the shipped world clocks, the only
-/// registry these values name an entry of, and every tag as the first.
 struct ShippedClocks(Vec<String>);
 
 impl ShippedClocks {
@@ -84,8 +82,6 @@ fn timeline(name: &str) -> Timeline {
     read("timeline", name)
 }
 
-/// The timelines a tag names, read from the shipped tag files and flattened
-/// through `#` references, in the order the tag file lists them.
 fn tagged_timelines(tag: &str) -> Vec<Timeline> {
     fn collect(tag: &str, out: &mut Vec<String>) {
         let path = vanilla_dir()
@@ -217,7 +213,6 @@ fn the_range_clamps_once_after_the_last_layer() {
     let raised = build("overworld.json", &[shift("add", 10.0)]);
     assert_eq!(float(&raised, A::GameplaySkyLightLevel, &[0]), 15.0);
 
-    // A clamp between the layers would leave 15 - 10.
     let raised_then_lowered = build(
         "overworld.json",
         &[shift("add", 10.0), shift("subtract", 10.0)],

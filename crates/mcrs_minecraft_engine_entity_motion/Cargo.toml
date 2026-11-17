@@ -11,7 +11,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: bevy_utils::Parallel holds the per-thread queues of the pass
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true

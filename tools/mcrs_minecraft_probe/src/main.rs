@@ -1,5 +1,3 @@
-//! Records the trace of one scenario against the vanilla dedicated server.
-
 mod operator;
 mod vanilla_server;
 
@@ -24,7 +22,6 @@ use vanilla_server::VanillaServer;
 
 const PLAYER_BANS: &str = "banned-players.json";
 const PLAYER_DATA: &str = "world/players/data";
-// Each recorded trace is made with this quiet window.
 const QUIET: Duration = Duration::from_secs(1);
 
 fn main() -> anyhow::Result<()> {
@@ -106,8 +103,6 @@ impl Host for VanillaHost {
     }
 }
 
-/// An empty directory beside the jar, so that each recording starts from a new world and new
-/// player lists.
 fn work_directory(jar: &Path) -> anyhow::Result<PathBuf> {
     let directory = jar
         .parent()

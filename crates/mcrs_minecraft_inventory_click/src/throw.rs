@@ -8,7 +8,6 @@ use crate::Slots;
 use crate::view::Ops;
 use crate::view::View;
 
-/// The player can always drop items on the server, so the throw reads no such condition.
 pub(crate) fn throw<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     click: Click,

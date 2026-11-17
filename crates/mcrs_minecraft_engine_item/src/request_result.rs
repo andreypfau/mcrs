@@ -5,11 +5,8 @@ use bevy_ecs::message::Message;
 use crate::Refusal;
 use crate::RequestId;
 
-/// The result of a [`Request`](crate::Request): applied in full, or refused with no change. It is
-/// written as a message and triggered as an event on `holder`.
 #[derive(Message, EntityEvent, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestResult {
-    /// The holder whose `request` command gave the request.
     #[event_target]
     pub holder: Entity,
     pub id: RequestId,

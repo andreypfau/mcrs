@@ -4,8 +4,6 @@ use serde::Deserialize;
 
 use crate::{PlayerModelType, Property};
 
-/// The skin that the `textures` property of a game profile names: the address of its image and
-/// the model of its arms.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SkinTextures {
     pub url: String,
@@ -36,8 +34,6 @@ struct SkinMetadata {
 }
 
 impl SkinTextures {
-    /// The skin of the first `textures` property of `properties`: its value is base64 of a JSON
-    /// object. `None` when no such property names a skin.
     #[must_use]
     pub fn of(properties: &[Property]) -> Option<Self> {
         let property = properties

@@ -4,12 +4,9 @@ use core::fmt;
 use crate::Denial;
 use crate::Rejected;
 
-/// Why a request changed nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
-    /// The planner rejected an operation.
     Rejected(Rejected),
-    /// An observer of [`RequestCheck`](crate::RequestCheck) denied the request.
     Denied(Denial),
 }
 

@@ -44,7 +44,6 @@ type SectionContent = (
     Option<&'static RawBlockEntities>,
 );
 
-/// The content of the loaded columns of a dimension, as the data layer keeps a column.
 #[derive(SystemParam)]
 pub(crate) struct ColumnSnapshots<'w, 's> {
     columns: Query<'w, 's, ColumnContent>,
@@ -53,7 +52,6 @@ pub(crate) struct ColumnSnapshots<'w, 's> {
     block_entities: Query<'w, 's, &'static BlockEntity>,
 }
 
-/// Whether a snapshot holds the light of the dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Light {
     Keep,
@@ -61,13 +59,10 @@ enum Light {
 }
 
 impl ColumnSnapshots<'_, '_> {
-    /// The sections, block entities, heightmaps and light of the column entity `column` now,
-    /// or `None` while a section has not landed.
     pub(crate) fn take(&self, column: Entity) -> Option<StoredColumn> {
         self.snapshot(column, Light::Keep)
     }
 
-    /// The section rows of the column entity `column`.
     pub(crate) fn rows(&self, column: Entity) -> Option<Range<i32>> {
         let (column_sections, ..) = self.columns.get(column).ok()?;
         let min_y = column_sections.min_section_y;
@@ -77,8 +72,6 @@ impl ColumnSnapshots<'_, '_> {
         Some(min_y..end)
     }
 
-    /// The snapshot of [`Self::take`] without the light, which the data layer computes again
-    /// from the blocks.
     pub(crate) fn take_unlit(&self, column: Entity) -> Option<StoredColumn> {
         self.snapshot(column, Light::Drop)
     }

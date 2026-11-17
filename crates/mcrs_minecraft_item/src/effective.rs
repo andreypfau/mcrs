@@ -39,8 +39,6 @@ pub fn has_component(entity: EntityRef, items: &Items, kind: DataComponentType) 
     (ops(kind).contains)(entity)
 }
 
-/// Vanilla's `hasNonDefault`: the stack's value for `kind` is not the
-/// prototype's, a tombstone included.
 pub fn has_non_default(entity: EntityRef, items: &Items, kind: DataComponentType) -> bool {
     let Some(entry) = entity
         .get::<ItemStack>()
@@ -69,7 +67,6 @@ pub fn is_damaged(entity: EntityRef) -> bool {
     is_damageable(entity) && damage_value(entity) > 0
 }
 
-/// The child stacks of a container, bundle or crossbow, in slot order.
 pub fn children<'a>(
     entity: EntityRef<'a>,
     lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,

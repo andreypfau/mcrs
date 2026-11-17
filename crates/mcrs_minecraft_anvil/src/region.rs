@@ -21,7 +21,6 @@ const HEADER_BYTES: usize = HEADER_SECTORS as usize * SECTOR_BYTES;
 const CHUNK_HEADER_BYTES: usize = 5;
 const EXTERNAL_STREAM_FLAG: u8 = 128;
 const ZLIB: u8 = 2;
-/// A record this many sectors or longer is stored in its own `c.<x>.<z>.mcc` file.
 const EXTERNAL_SECTORS: usize = 256;
 
 impl std::fmt::Debug for RegionFile {
@@ -37,7 +36,6 @@ impl std::fmt::Debug for RegionFile {
 pub struct RegionFile {
     path: PathBuf,
     pos: RegionPos,
-    /// The two header sectors; sector payloads stay on disk until a chunk asks for one.
     bytes: Vec<u8>,
     len: u64,
 }
@@ -77,7 +75,6 @@ impl RegionFile {
         })
     }
 
-    /// An empty region file that a new save starts from.
     pub fn create(pos: RegionPos, path: impl AsRef<Path>) -> Self {
         Self {
             path: path.as_ref().to_path_buf(),
@@ -95,18 +92,15 @@ impl RegionFile {
         self.pos
     }
 
-    /// The bytes this handle keeps in memory, which is only ever the two header sectors.
     #[cfg(test)]
     pub fn bytes_held(&self) -> usize {
         self.bytes.len()
     }
 
-    /// Whether a header entry points into the header or outside the file.
     pub fn has_damaged_slot(&self) -> bool {
         self.present().any(|pos| self.record(pos).is_err())
     }
 
-    /// The columns whose record lives in their own `.mcc` file.
     pub fn external_columns(&self) -> Vec<ColumnPos> {
         let Ok(mut file) = std::fs::File::open(&self.path) else {
             return Vec::new();
@@ -122,7 +116,6 @@ impl RegionFile {
             .collect()
     }
 
-    /// Absolute column coordinates of every slot whose header entry is non-zero.
     pub fn present(&self) -> impl Iterator<Item = ColumnPos> + '_ {
         (0..REGION_SIDE * REGION_SIDE)
             .filter(move |&slot| self.header_entry(slot as usize) != 0)
@@ -160,11 +153,6 @@ impl RegionFile {
         be_i32(&self.bytes, slot * 4).unwrap_or(0)
     }
 
-    /// Lays out a whole new file at `out`: every slot not in `replaced` keeps its
-    /// record byte for byte, and each replaced chunk is stored zlib-compressed.
-    /// Sectors stream from the source into a file beside `out`, which is renamed into place.
-    /// A slot whose header entry is invalid is left out, so the caller copies the region first.
-    /// A source that cannot be read fails the write.
     pub fn write(
         &mut self,
         replaced: &[(ColumnPos, Vec<u8>)],
@@ -334,8 +322,6 @@ impl RegionFile {
         Ok(stale)
     }
 
-    /// The record of a slot that stays as it is, and its `.mcc` payload when the new file is in
-    /// another directory.
     fn kept_record(
         &self,
         source: &mut std::fs::File,
@@ -366,7 +352,6 @@ impl RegionFile {
         be_i32(&self.bytes, SECTOR_BYTES + slot * 4).unwrap_or(0)
     }
 
-    /// The sectors a slot's header entry points at, checked against the file.
     fn record(&self, pos: ColumnPos) -> Result<Option<Record>, ErrorKind> {
         let ColumnPos { x, z } = pos;
         let chunk_region = RegionPos::from(pos);
@@ -412,7 +397,6 @@ impl RegionFile {
         Ok(read_sectors(&mut file, record)?)
     }
 
-    /// The decompressed NBT of the record at `pos`, or `None` when the slot is empty.
     pub fn read_nbt(&self, pos: ColumnPos) -> Result<Option<Vec<u8>>, ErrorKind> {
         let ColumnPos { x, z } = pos;
         let Some(record) = self.record(pos)? else {
@@ -492,8 +476,6 @@ fn zlib(nbt: &[u8]) -> std::io::Result<Vec<u8>> {
     encoder.finish()
 }
 
-/// The canonical path of `path`, or of its directory joined with its name while the file does
-/// not exist yet, so that a handle and a target compare equal before and after the first write.
 fn absolute(path: &Path) -> std::io::Result<PathBuf> {
     if let Ok(path) = path.canonicalize() {
         return Ok(path);

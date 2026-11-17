@@ -6,7 +6,6 @@ use crate::coordinates_error::CoordinatesError;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 use mcrs_minecraft_command::Source;
 
-/// `minecraft:vec3`, centred.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Vec3Argument;
 
@@ -26,8 +25,6 @@ impl Vec3Argument {
         })
     }
 
-    /// Suggests the coordinates, with `~ ~ ~` as the candidate of the server.
-    /// A partial read accepts the axes the input lacks, as the candidate fills them.
     pub fn suggest<'t, T>(&self, builder: &mut SuggestionBuilder<'t, '_, T>) {
         suggest_coordinates(builder, |reader| {
             self.read(reader, Completeness::Partial).is_ok()

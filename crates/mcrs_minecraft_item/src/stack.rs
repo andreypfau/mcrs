@@ -18,7 +18,6 @@ use mcrs_minecraft_wire::nested;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::io::Write;
 
-/// Before prototype normalisation: the patch is re-emitted as read.
 #[derive(Clone, Debug, PartialEq, Resolve, mcrs_minecraft_registries::FromWire)]
 pub struct ItemStackValue<M: Refs = Resolved> {
     pub item: M::Id<Item>,
@@ -94,7 +93,6 @@ impl<'de> Deserialize<'de> for ItemStackValue<Named> {
     }
 }
 
-/// A stack written as a map, or as the bare item id when it is one plain item.
 #[derive(Clone, Debug, PartialEq, Resolve, mcrs_minecraft_registries::FromWire)]
 pub struct Template<M: Refs = Resolved>(pub ItemStackValue<M>);
 
@@ -217,7 +215,6 @@ impl HashedPatchMap {
     }
 }
 
-/// A stack as a slot holds it: a count of zero or the air item is the empty stack.
 #[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::FromWire)]
 pub struct ProtoStack<M: Refs = Resolved> {
     pub id: M::Id<Item>,
@@ -239,7 +236,6 @@ impl<M: Refs> ProtoStack<M>
 where
     M::Id<Item>: ItemRef,
 {
-    /// No items, or the air item.
     pub fn is_empty(&self) -> bool {
         self.count <= 0 || self.id.is_air()
     }
@@ -286,8 +282,6 @@ impl ProtoStack {
     }
 }
 
-/// A stack in a slotted list: the player inventory, the ender chest and a
-/// chest's `Items`.
 #[derive(Clone, Debug, PartialEq, Resolve)]
 pub struct ItemStackWithSlot<M: Refs = Resolved> {
     pub slot: u8,
@@ -400,14 +394,10 @@ impl Decode<'_> for ProtoStack<Wire> {
     }
 }
 
-/// A stack whose component values carry a length prefix.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct DelimitedStack(pub ProtoStack<Wire>);
 
 impl DelimitedStack {
-    /// Vanilla validates by re-encoding through the persistent codec; here every
-    /// codec's checks sit on the read side, so the stack is read back from its
-    /// persistent form instead.
     pub fn check(self, lookup: &impl WireNames) -> anyhow::Result<ProtoStack> {
         let stack = ProtoStack::from_wire(self.0, lookup)?;
         if !stack.is_empty() {

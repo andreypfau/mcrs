@@ -58,7 +58,6 @@ fn every_file_deserialises_and_re_serialises_identically() {
     }
 }
 
-/// A float written by Java as a `float` re-emits with `f32` precision.
 fn same_shape(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     use serde_json::Value::*;
     match (a, b) {
@@ -87,7 +86,6 @@ struct ReportedEntry {
     protocol_id: usize,
 }
 
-/// The item names of the registries report, in protocol id order.
 fn reported_items() -> Vec<String> {
     let mut report: BTreeMap<String, ReportedRegistry> =
         serde_json::from_slice(include_bytes!(concat!(

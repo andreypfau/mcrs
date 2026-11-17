@@ -10,7 +10,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the side tables live in hash maps and BTreeMap
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
@@ -37,9 +36,7 @@ mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# Without it `par_iter` runs on one thread.
 bevy_ecs = { workspace = true, features = ["multi_threaded"] }
-# Without it a pool of the tests and the benchmark runs every task on one thread.
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
 criterion = { workspace = true }
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
@@ -50,7 +47,6 @@ serde.workspace = true
 serde_json.workspace = true
 
 [features]
-# A scene of walkers and items on a stone floor, for tests and benchmarks of the pass.
 testing = ["mcrs_minecraft_physics/testing"]
 
 [[bench]]

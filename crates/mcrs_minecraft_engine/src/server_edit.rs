@@ -1,7 +1,3 @@
-//! The changes to the state that the host owns for the whole server: the game rules, the
-//! weather and the sprint of the tick. A command of a dimension world asks for them, and the
-//! host applies them after the tick.
-
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
@@ -10,20 +6,14 @@ use mcrs_minecraft_game_rule::GameRule;
 
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 
-/// A change to the state that the host owns for the whole server.
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ServerEdit {
-    /// Sets a game rule.
     GameRule { rule: GameRule, value: i32 },
-    /// Clears the weather for `ticks` ticks.
     ClearWeather { ticks: u32 },
-    /// Starts a sprint of `ticks` ticks, in place of a sprint that runs.
     StartSprint { ticks: u64 },
-    /// Ends the sprint that runs, with its report.
     StopSprint,
 }
 
-/// The weather of the server, which every weather dimension shares.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Weather {
     pub clear_ticks: u32,
@@ -33,8 +23,6 @@ pub struct Weather {
     pub thundering: bool,
 }
 
-/// Applies a [`ServerEdit`] to the state that a world holds, the host's or the copy of a
-/// dimension world.
 pub fn apply_edit(world: &mut World, edit: ServerEdit) {
     match edit {
         ServerEdit::GameRule { rule, value } => {
@@ -63,7 +51,6 @@ pub fn apply_edit(world: &mut World, edit: ServerEdit) {
     }
 }
 
-/// The host side of the game rules, the weather and the sprint.
 pub struct ServerStateHostPlugin;
 
 impl Plugin for ServerStateHostPlugin {

@@ -154,7 +154,6 @@ struct Wire {
     network: &'static [u8],
 }
 
-/// Each payload follows the tag id and the name `k` of a one-field compound.
 #[test]
 fn each_encoding_has_its_own_bytes_on_the_wire() {
     let cases = [

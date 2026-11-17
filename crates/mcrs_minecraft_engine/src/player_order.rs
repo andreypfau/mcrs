@@ -1,6 +1,3 @@
-//! What a command asks of a player: applied at once when the world of the command holds the
-//! player, and sent to the world that holds it otherwise.
-
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, Messages};
@@ -20,33 +17,24 @@ use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::teleport::TeleportState;
 
-/// A change to one player that a command makes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlayerOrder {
-    /// The player moves, to another dimension when `to` names one.
     Teleport(TeleportOrder),
-    /// The player gets the game mode.
     SetGameMode(GameMode),
 }
 
-/// Where a teleport sends a player.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TeleportOrder {
-    /// The dimension the player is in after the move.
     pub to: ResourceKeyBuf<DimensionKey>,
-    /// The place and the packets of the arrival.
     pub arrival: Arrival,
 }
 
-/// An order for the player of `session`, for the world that holds it.
 #[derive(Message, Clone, Debug)]
 pub struct OrderedPlayer {
     pub session: PlayerSession,
     pub order: PlayerOrder,
 }
 
-/// The players that the orders of this tick send to another dimension. The world lets each go
-/// after the tick, as it lets go a player that a portal sends; until then the player stays here.
 #[derive(Resource, Default)]
 pub struct DepartureRequests(Vec<DepartureRequest>);
 
@@ -57,7 +45,6 @@ pub(crate) struct DepartureRequest {
 }
 
 impl DepartureRequests {
-    /// The dimension that `player` leaves for after this tick.
     pub fn destination(&self, player: Entity) -> Option<&ResourceKeyBuf<DimensionKey>> {
         self.0
             .iter()
@@ -79,7 +66,6 @@ impl DepartureRequests {
     }
 }
 
-/// Applies `order` to `player`, an entity of `world`.
 pub fn obey(
     world: &mut World,
     player: Entity,
@@ -91,9 +77,6 @@ pub fn obey(
     }
 }
 
-/// Moves `player` in this world at once, or asks this world to let it go to the dimension of
-/// `order` after the tick. The last order of a tick wins: a move here drops a departure that an
-/// earlier order asked for.
 pub fn teleport(
     world: &mut World,
     player: Entity,
@@ -143,7 +126,6 @@ pub fn teleport(
     Ok(())
 }
 
-/// Sets the game mode of `player`. Its world sends the packets of the change.
 pub fn set_game_mode(
     world: &mut World,
     player: Entity,
@@ -156,8 +138,6 @@ pub fn set_game_mode(
     Ok(())
 }
 
-/// Applies the orders that other worlds sent for the players of this world, in the order they
-/// came, after the players that arrive in this tick are in the world.
 pub(crate) fn obey_orders(world: &mut World) {
     let Some(mut written) = world.get_resource_mut::<Messages<OrderedPlayer>>() else {
         return;

@@ -1,6 +1,3 @@
-//! Block placing as the cell of the placer hands it to the muxer: the packets for the placer
-//! first, then the changes of the columns to their holders, then the acknowledgements.
-
 use bevy_app::{App, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
@@ -68,7 +65,6 @@ fn capture(
     captured.0.extend(acks.read().copied().map(Out::Ack));
 }
 
-/// The items `air` and `stone`, at their wire ids 0 and 1.
 fn table() -> ItemTable {
     let files: Vec<String> = ["air", "stone"]
         .iter()
@@ -147,8 +143,6 @@ fn placing_app() -> App {
     app
 }
 
-/// A creative placer with stone in its selected slot, standing two blocks north of stone at
-/// `ground`, in a column that the muxer subscribes to.
 fn placer_beside(
     ground: impl Fn(&DimensionTypeConfig) -> BlockPos,
 ) -> (PlayServer, Placer, BlockPos) {
@@ -205,8 +199,6 @@ fn placer_in(
     (server, placer, ground)
 }
 
-/// Moves the placer, and accepts the teleport that the move sends, so that no teleport is open
-/// (PLC-TEL-001).
 fn move_to(server: &mut PlayServer, placer: &Placer, to: DVec3) {
     server
         .world()
@@ -424,8 +416,6 @@ fn plc_inv_006_a_survival_placer_spends_its_last_block_once() {
     );
 }
 
-/// PLC-SUP-001, SUP-RUN-002, SUP-VEG-001: a poppy is refused on stone, which its tag does not
-/// hold, and placed on dirt.
 #[test]
 fn plc_sup_001_a_poppy_is_placed_only_where_it_can_stay() {
     let mut app = host_app::make_host_app();

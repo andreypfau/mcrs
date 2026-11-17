@@ -6,7 +6,6 @@ use crate::location_view::LocationView;
 
 const MAX_LIGHT: i32 = 15;
 
-/// A test of the raw brightness of a block position.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
 pub struct LightPredicate {
     #[serde(default)]
@@ -14,7 +13,6 @@ pub struct LightPredicate {
 }
 
 impl LightPredicate {
-    /// Fails at a position that is not loaded, also for `{}`.
     #[must_use]
     pub(crate) fn matches<W: LocationView>(&self, world: &W, pos: BlockPos) -> bool {
         world.is_loaded(pos)
@@ -22,8 +20,6 @@ impl LightPredicate {
     }
 }
 
-/// The larger of the block light and the sky light less the darkening `15 − a`, where `a` is
-/// the sky light level.
 fn raw_brightness<W: LocationView>(world: &W, pos: BlockPos) -> Option<i32> {
     let block = i32::from(world.block_light(pos)?);
     let sky = i32::from(world.sky_light(pos)?);

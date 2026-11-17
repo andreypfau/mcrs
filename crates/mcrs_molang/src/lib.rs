@@ -1,6 +1,3 @@
-//! Molang for every host of mcrs: a parser, a typed SSA form, passes that keep every result
-//! bit, a register bytecode, a scalar VM and a batch VM over the same bytecode.
-
 #![no_std]
 
 extern crate alloc;

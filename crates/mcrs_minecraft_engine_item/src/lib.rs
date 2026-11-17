@@ -1,6 +1,3 @@
-//! Item stacks as entities: the plugin, the spawn and write commands and the read tools.
-// std: mcrs_minecraft_item_stack
-
 extern crate alloc;
 
 mod capacity;

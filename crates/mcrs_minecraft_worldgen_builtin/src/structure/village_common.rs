@@ -1,7 +1,6 @@
 use super::*;
 use mcrs_minecraft_resource::rl;
 
-/// A marker that turns into `floor`, with the `animals` of one `kind` standing on it.
 fn animals(c: &mut Canvas, floor: &str, kind: Fields, animals: &[([f64; 3], [i32; 3], Fields)]) {
     c.socket_facing([0, 0, 0], "down_south", BOTTOM, EMPTY, floor);
     for (pos, block_pos, animal) in animals {

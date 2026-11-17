@@ -36,7 +36,6 @@ pub(crate) const SECRET: &str = "example-secret";
 pub(crate) const FORWARDED_ID: Uuid = uuid!("00112233-4455-6677-8899-aabbccddeeff");
 pub(crate) const FORWARDED_ADDRESS: &str = "203.0.113.7";
 
-/// The signature and the signed data of the version 4 vector of the forwarding specification.
 pub(crate) const FORWARDED_PAYLOAD: [u8; 83] = [
     0x0b, 0xe1, 0x3f, 0x34, 0x75, 0x9c, 0x06, 0x93, 0x4e, 0x5a, 0x85, 0x85, 0x15, 0x68, 0x73, 0x1b,
     0xf3, 0xaa, 0x52, 0x67, 0xc3, 0xf7, 0x51, 0x1e, 0x0b, 0x33, 0xd1, 0x6e, 0xa4, 0xb8, 0x14, 0x59,
@@ -122,7 +121,6 @@ fn fwd_use_003_a_proxy_logs_a_player_in_under_the_forwarded_profile_and_address(
     assert_eq!(remote_addr.ip().to_string(), FORWARDED_ADDRESS);
 }
 
-/// Logs in as a proxy does: a hello under the proxy's own name, then the signed answer.
 async fn fakeproxy(
     address: SocketAddr,
 ) -> (

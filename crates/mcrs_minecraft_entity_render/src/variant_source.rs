@@ -10,16 +10,13 @@ use mcrs_molang::string_hash;
 use crate::entity_assets::{EntityAssets, VariantInfo, VariantKey};
 use crate::frame_queries::VariantEntry;
 
-/// An entry of a synced variant registry, as the render controllers read it.
 pub(crate) trait VariantSource: RegistryValue + 'static {
     fn asset(&self) -> &ResourceLocationBuf;
 
-    /// The asset of a baby, when the entry gives babies their own.
     fn baby_asset(&self) -> Option<&ResourceLocationBuf> {
         None
     }
 
-    /// The model type in lower case, or `""` for a registry with one model.
     fn model(&self) -> &'static str {
         ""
     }
@@ -48,17 +45,13 @@ impl VariantSource for FrogVariantFile {
     }
 }
 
-/// The variant registry that the entity data of an entity type names an entry of.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VariantRegistry {
     pub(crate) kind: EntityType,
-    /// The entry of an entity whose entity data names none, when the registry has it.
     pub(crate) default: &'static str,
     pub(crate) add: fn(&Registries, &VariantRegistry, &mut EntityAssets, &mut BTreeSet<String>),
 }
 
-/// The entity types whose entity data names a variant. A mob with variants adds its row and a
-/// [`VariantSource`] of its registry entry.
 pub(crate) const VARIANT_REGISTRIES: [VariantRegistry; 2] = [
     VariantRegistry {
         kind: EntityType::Pig,
@@ -72,8 +65,6 @@ pub(crate) const VARIANT_REGISTRIES: [VariantRegistry; 2] = [
     },
 ];
 
-/// Adds the entries of the registry of `V` as the variants of `registry.kind`, and their
-/// texture identifiers to `identifiers`.
 fn add_variants<V: VariantSource>(
     registries: &Registries,
     registry: &VariantRegistry,

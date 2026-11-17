@@ -51,10 +51,6 @@ impl Validate for ClientItem {
     }
 }
 
-// `flatten` buffers through serde's self-describing `Content`, which is only
-// sound because these assets are JSON-only; `deny_unknown_fields` cannot join
-// it, so an unknown key on one of the flattened objects passes silently.
-// A hand-written map visitor per flattened variant would reject it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum UnbakedItemModel {
@@ -145,7 +141,6 @@ impl UnbakedItemModel {
         }
     }
 
-    /// Every node of the tree, this one first.
     pub fn walk(&self) -> Vec<&UnbakedItemModel> {
         let mut out = vec![self];
         let mut i = 0;
@@ -222,7 +217,6 @@ pub enum ConditionProperty {
     BundleHasSelectedItem,
 }
 
-/// `{ predicate: <type>, value: <predicate of that type> }`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComponentMatches {
     pub predicate: ComponentPredicate<Named>,
@@ -252,8 +246,6 @@ impl<'de> Deserialize<'de> for ComponentMatches {
     }
 }
 
-/// A map whose value's codec is chosen by a sibling key. The value is
-/// buffered when it arrives first.
 struct KeyedPair<P, F> {
     kind_key: &'static str,
     value_key: &'static str,
@@ -303,7 +295,6 @@ where
     }
 }
 
-/// `when` and `model`, `when` read through the seed the switch chose.
 #[derive(Debug, Clone)]
 pub struct Case<T> {
     pub when: Vec<T>,
@@ -367,7 +358,6 @@ impl<'de, S: DeserializeSeed<'de> + Clone> Visitor<'de> for CaseSeed<S> {
     }
 }
 
-/// A list of seeded elements, or one bare element.
 struct CompactSeed<S>(S);
 
 impl<'de, S: DeserializeSeed<'de> + Clone> DeserializeSeed<'de> for CompactSeed<S> {
@@ -539,8 +529,6 @@ impl Validate for SelectSwitch {
     }
 }
 
-/// `{ component: <kind>, cases: [...] }` where each `when` is read with the
-/// kind's own codec.
 #[derive(Debug, Clone)]
 pub struct ComponentSwitch {
     pub component: DataComponentType,
@@ -873,8 +861,6 @@ mod tests {
         files
     }
 
-    /// Equal up to number spelling: the assets are read as `f32`, so `0.58`
-    /// written back is compared as the float it became.
     fn structurally_equal(a: &Value, b: &Value) -> bool {
         match (a, b) {
             (Value::Number(a), Value::Number(b)) => {

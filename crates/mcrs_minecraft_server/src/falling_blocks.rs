@@ -8,8 +8,6 @@ use mcrs_minecraft_vanilla_falling_block::FallingBlockPlugin;
 
 use crate::entity_motion::add_entity_motion;
 
-// chisle: the pairs of the mcrs pack are built in, so a pack that adds or replaces pairs is not
-// read. A loader of the non-registry files of each pack, for plugins, lifts it.
 const MCRS_CONCRETE_PAIRS: &str =
     include_str!("../../../assets/mcrs/datapacks/mcrs/mcrs/falling_block/concrete_pairs.json");
 
@@ -27,9 +25,6 @@ static CONCRETE_PAIRS: LazyLock<Vec<PackConcretePairs>> =
         },
     );
 
-/// The falling block in every dimension world, moved by the motion pass. It needs the tables of
-/// [`VanillaEntityPhysicsPlugin`](crate::VanillaEntityPhysicsPlugin); its drops move with
-/// [`VanillaItemEntityPlugin`](crate::VanillaItemEntityPlugin).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VanillaFallingBlockPlugin;
 

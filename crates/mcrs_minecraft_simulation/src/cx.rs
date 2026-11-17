@@ -63,14 +63,10 @@ pub struct Cx<'a, K: Kinds, V, F, B> {
     pub(crate) task: Option<TileCx<'a, K>>,
 }
 
-/// What a tile task adds to the context: its volume holds only its region. Ticks and events
-/// that it schedules wait in the output for the end of its colour.
 pub(crate) struct TileCx<'a, K: Kinds> {
     pub(crate) region: Region,
-    /// The queues of the step, as the colours before this one left them.
     pub(crate) base: &'a BlockShard<K>,
     pub(crate) footprints: &'a Footprints,
-    /// The current pick read, wrote or ran a handler outside the region.
     pub(crate) overflowed: bool,
 }
 
@@ -103,8 +99,6 @@ where
         }
     }
 
-    /// Whether the handler of `state` may run at `at`: in a tile task, its footprint bound
-    /// lies in the region.
     pub(crate) fn fits(&mut self, at: BlockPos, state: BlockStateId) -> bool {
         let Some(task) = &mut self.task else {
             return true;
@@ -116,8 +110,6 @@ where
         false
     }
 
-    /// A tile task never reads past its region or sends a message: a chain stays whole in one
-    /// partition, so the pick runs again in the serial step.
     pub(crate) fn task_leaves(&mut self) -> bool {
         match &mut self.task {
             None => false,
@@ -300,7 +292,6 @@ where
         flags: BlockUpdateFlags,
         limit: u16,
     ) -> bool {
-        // An overflowed pick is undone, so it writes nothing more.
         if self.task.as_ref().is_some_and(|task| task.overflowed) {
             return false;
         }

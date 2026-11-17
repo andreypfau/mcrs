@@ -20,11 +20,8 @@ use crate::loot_table_file::LootTableFile;
 use crate::roll_error::RollError;
 use crate::table::{Evaluation, Table};
 
-/// The loot tables of one registry load, baked to ids and addressed by their id in the registry
-/// `loot_table`.
 #[derive(Debug, Clone)]
 pub struct LootTables {
-    /// The tables of the registry at the index of their id, then the inline tables.
     tables: Box<[Table]>,
     named: usize,
     entries: NamedEntries,
@@ -33,9 +30,6 @@ pub struct LootTables {
 }
 
 impl LootTables {
-    /// Bakes each named provider and each table of the registry `loot_table` of `registries`, maps
-    /// each loot id of `definitions` to the table that it names, and takes the components of each
-    /// item from `items` for the modifiers and the division (LOOT-OUT-001).
     #[must_use]
     pub fn bake(
         definitions: &BlockDefinitions,
@@ -81,27 +75,16 @@ impl LootTables {
         (loot, issues)
     }
 
-    /// The table that the block definitions name with `loot`; `None` for a block without a table
-    /// and for a table that the load does not hold.
     #[must_use]
     pub fn block_table(&self, loot: LootId) -> Option<Id<LootTable>> {
         self.by_block.get(usize::from(loot.0)).copied().flatten()
     }
 
-    /// The generator of the keyed stream of `seed` (LOOT-RND-001). It depends on the name of the
-    /// table, not on its id, so a data pack that adds a table does not change it.
     pub fn keyed_stream(&self, seed: KeyedSeed) -> Result<XoroshiroRandom, RollError> {
         let baked = self.table(seed.table)?;
         Ok(keyed_seed::stream(seed, baked.name_key))
     }
 
-    /// Adds the drop list of one evaluation of `table` to the end of `stacks`, with the draws
-    /// from `random` (LOOT-EVL-001, LOOT-RND-008). Each stack is divided at the maximum stack
-    /// size of its item; a stack with a count of 0 or less is `None`, the empty stack
-    /// (LOOT-OUT-001). A nested table rolls with the same context, generator and buffers, and
-    /// its stacks are divided only once they leave `table` (LOOT-EVL-010). A context that lacks
-    /// a parameter that its key set requires, or holds one that it does not allow, is refused
-    /// before any draw (LOOT-CTX-012). The type of the table has no part in this check.
     pub fn roll<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         table: Id<LootTable>,

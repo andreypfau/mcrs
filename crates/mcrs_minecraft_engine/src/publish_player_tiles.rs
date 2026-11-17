@@ -1,6 +1,3 @@
-//! The per-dim systems that keep the tile of each player and record its changes as tile events:
-//! a spawn, a move, a change of tile or of game mode, a message, a despawn.
-
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
@@ -25,12 +22,9 @@ use crate::network_id::player_network_id;
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
-/// Marks a player that logged in and that its neighbours have not heard of yet. A player that
-/// comes from another dimension does not carry it.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct AnnounceJoin;
 
-/// The id of the player of `session` in the tile deltas: its id on the wire.
 #[must_use]
 pub fn player_entity_id(session: PlayerSession) -> EntityId {
     EntityId(u64::from(player_network_id(session) as u32))
@@ -43,8 +37,6 @@ fn pose(transform: &Transform) -> Pose {
     }
 }
 
-/// Records the spawn of each new player, and the move, the change of tile and the change of
-/// game mode of each player that has a tile.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "aoi::publish_player_tiles", skip_all)
@@ -169,7 +161,6 @@ fn stored_attributes(attributes: &AttributeInstances) -> Vec<AttributeState> {
         .collect()
 }
 
-/// Records the despawn of a player that leaves the world, or stops being published.
 pub fn publish_player_despawn(
     remove: On<Remove<Replicated>>,
     players: Query<&Replicated, Without<CellCrossing>>,
@@ -180,7 +171,6 @@ pub fn publish_player_despawn(
     }
 }
 
-/// Records the message that the player of `replicated` left, for the viewers that hold it.
 pub fn publish_leave_message(
     events: &mut TileEvents,
     replicated: &Replicated,
@@ -195,7 +185,6 @@ pub fn publish_leave_message(
     }
 }
 
-/// The yellow system message `key` about `profile`, as a record.
 fn presence(profile: &GameProfile, key: &'static str) -> Option<Bytes> {
     let text: Text =
         Text::translate(key, vec![profile.username.clone().into_text()]).color(Color::YELLOW);

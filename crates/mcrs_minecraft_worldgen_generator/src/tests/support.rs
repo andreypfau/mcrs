@@ -6,18 +6,14 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_defi
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_voxel::BlockStateId;
 
-/// The corpus, loaded once per process. Worldgen resolves every block it
-/// places against it, so a stub would fail at the first lookup.
 pub fn corpus() -> &'static BlockDefinitions {
     &blocks().0
 }
 
-/// The corpus state a worldgen test voxel names.
 pub fn corpus_state_of(voxel: VoxelId) -> BlockStateId {
     BlockStateId::checked(voxel.0, corpus().state_count()).expect("a voxel the corpus holds")
 }
 
-/// The corpus as the generation systems take it, sharing the one load above.
 pub fn blocks() -> &'static Blocks {
     static CORPUS: OnceLock<Blocks> = OnceLock::new();
     CORPUS.get_or_init(|| {
@@ -85,8 +81,6 @@ pub fn build_beta_router() -> NoiseRouter {
     build_settings_router("beta", 12345)
 }
 
-/// The router of the noise settings `settings_name` with its material rules over the biome
-/// numbers of `registries`, every block state the rules name taken as its block's default.
 pub fn material_router(
     settings_name: &str,
     seed: u64,
@@ -124,9 +118,6 @@ pub fn material_router(
     .unwrap_or_else(|e| panic!("{settings_name}: {e}"))
 }
 
-/// A block state or biome name the registries do not resolve fails the whole
-/// compile, and the router the app then never inserts is what gates column
-/// generation, so a corpus rename would otherwise cost every chunk silently.
 #[test]
 fn every_shipped_noise_settings_compiles_its_material_rules() {
     use std::collections::BTreeMap;
@@ -196,7 +187,6 @@ pub fn biome_id(registries: &Registries, name: &str) -> Id<Biome> {
     Resolver::id(registries, &key).unwrap_or_else(|e| panic!("{e}"))
 }
 
-/// What the material rules take a `biome_is` set to: the biome numbers of `registries`.
 pub fn material_biomes(
     registries: &Registries,
 ) -> impl Fn(&KeySet<Biome>) -> Option<Vec<u16>> + '_ {
@@ -220,7 +210,6 @@ pub fn corpus_biomes() -> &'static Biomes {
     biomes_of(test_registries())
 }
 
-/// Every corpus biome's climate, indexed like [`corpus_biomes`].
 pub fn corpus_climate() -> &'static Arc<[BiomeClimate]> {
     static CLIMATE: OnceLock<Arc<[BiomeClimate]>> = OnceLock::new();
     CLIMATE.get_or_init(|| {
@@ -236,7 +225,6 @@ pub fn corpus_climate() -> &'static Arc<[BiomeClimate]> {
     })
 }
 
-/// The carver list a biome actually ships, as the loader reads it.
 pub fn carvers_of(
     biome: mcrs_minecraft_resource::ResourceLocation<'_>,
 ) -> Arc<[mcrs_minecraft_worldgen_carver::config::CarverConfig]> {
@@ -265,9 +253,6 @@ pub fn biome_tags() -> Tags<Biome> {
         .expect("the loaded registries hold the biome tags")
 }
 
-/// The loaded registries as a client holds them after a server sent its biomes with `leading`
-/// first, in that order, and every other biome after them in the loaded order. A leading name the
-/// loaded registries lack is a biome with the data of `minecraft:plains`.
 pub fn registries_over(leading: &[&str]) -> Registries {
     use std::collections::HashMap;
     use std::sync::Mutex;

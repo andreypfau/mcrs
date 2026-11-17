@@ -106,8 +106,6 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
             while gu + w < SECTION_SIZE && scratch.open(slot + w) == Some(key) {
                 w += 1;
             }
-            // A side cut down by a drop is cut at the top of its own cell, so only one row of
-            // them can share a quad.
             let dropped_side = face >= 2 && (key & !FLUID_KEY) >> PASS_KEY_BITS != 0;
             let mut h = 1;
             'grow: while !dropped_side && gv + h < SECTION_SIZE {

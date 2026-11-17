@@ -18,14 +18,10 @@ pub(crate) struct Offer {
 }
 
 pub(crate) struct Merged {
-    /// The items of the offered stack that no stack of the holder took.
     pub(crate) rest: u8,
     pub(crate) first: Option<Entity>,
 }
 
-/// Moves items of the offered stack into the mergeable stacks of the holder, in the order of their
-/// slots, up to the capacity of each, and writes [`SlotChanged`] for each. The offered stack keeps
-/// its count.
 pub(crate) fn merge_into(
     In(offer): In<Offer>,
     holders: Query<&Slots>,

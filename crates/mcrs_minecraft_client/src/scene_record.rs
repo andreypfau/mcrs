@@ -1,7 +1,3 @@
-//! The render mode of a scene capture (`docs/spec/client-frame-capture.md`, CFC-CMP-002): the
-//! client takes the entities of a frame from the record of the vanilla client, not from a
-//! server, so a comparison tests only the rendering.
-
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -21,7 +17,6 @@ use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use serde::Deserialize;
 
-/// The entities of every frame of the record of the vanilla client, by frame image name.
 #[derive(Resource, Debug)]
 pub struct SceneRecord {
     scene: String,
@@ -54,11 +49,9 @@ impl SceneRecord {
     }
 }
 
-/// Asks to replace the recorded entities with those of the named frame.
 #[derive(Message)]
 pub struct PlaceFrame(pub String);
 
-/// An entity that the client placed from a record.
 #[derive(Component)]
 pub struct RecordedEntity;
 
@@ -111,8 +104,6 @@ struct ClipState {
     elapsed_ticks: f32,
 }
 
-/// Replaces the recorded entities with the entities of the record frame `<scene>.<frame>.png`.
-/// The world must be frozen, so that the entities keep the state of the record.
 pub fn place_recorded_entities(
     mut requests: MessageReader<PlaceFrame>,
     record: Res<SceneRecord>,

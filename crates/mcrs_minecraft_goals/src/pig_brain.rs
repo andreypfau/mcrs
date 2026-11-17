@@ -22,9 +22,6 @@ use crate::STROLL_IDLE_LIMIT;
 use crate::StrollGoal;
 use crate::panic;
 
-/// The decision goals of the pig (GOAL-ANI-001), in the order of its list. The float is a reflex
-/// of the hot tick that holds `jump`; no goal here needs `jump`. The breed, the tempt and the
-/// follow goals come with the love state, the held items and the age.
 pub const PIG_GOALS: [GoalSpec; 4] = [
     GoalSpec::new(1, ControlFlags::MOVE),
     GoalSpec::new(6, ControlFlags::MOVE),
@@ -32,8 +29,6 @@ pub const PIG_GOALS: [GoalSpec; 4] = [
     GoalSpec::new(8, ControlFlags::MOVE.union(ControlFlags::LOOK)),
 ];
 
-/// The parameters of the goal list of one farm animal type; the four types share [`PIG_GOALS`]
-/// (GOAL-ANI-001 to GOAL-ANI-004).
 pub trait FarmAnimal: Clone + Copy + Debug + Default + PartialEq + Eq + Hash {
     const PANIC_SPEED: f32;
 }
@@ -77,7 +72,6 @@ const LOOK_AT_PLAYER: usize = 2;
 const LOOK_AROUND: usize = 3;
 
 const STROLL_SPEED: f32 = 1.0;
-/// The range of the look at a player (GOAL-LKP-001).
 const LOOK_RANGE: f64 = 6.0;
 
 static PIG_RULES: BrainRules = BrainRules {
@@ -86,7 +80,6 @@ static PIG_RULES: BrainRules = BrainRules {
     idle_reset_range: IDLE_RESET_RANGE,
 };
 
-/// The brain state of one farm animal of the type `A`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FarmAnimalBrain<A> {
     selector: Selector,
@@ -109,17 +102,6 @@ impl<A: FarmAnimal> FarmAnimalBrain<A> {
         &self.selector
     }
 
-    /// The next full evaluation that is not quiet (GOAL-WAKE-002), when no wake event of
-    /// GOAL-WAKE-005 reaches the brain before; the stage wakes the brain for each such event.
-    ///
-    /// - the next evaluation, when a goal started or stopped in this one, or when a goal that the
-    ///   next one examines is eligible with no wait, so that it draws one;
-    /// - the next evaluation while the pig is busy (GOAL-WAKE-004): the panic does not run and the
-    ///   damage record that causes panic is still fresh then, or the look at a player runs;
-    /// - the due evaluation of each wait, and the end of a look around (GOAL-WAKE-006);
-    /// - while the stroll waits, the first evaluation in which the idle time can reach 100 with no
-    ///   reset: that evaluation ends the wait (GOAL-WAKE-007), and an extra evaluation that changes
-    ///   nothing is still exact.
     fn next_wake<W: ?Sized>(&self, turn: &Turn<'_, W>, changed: Changed) -> u64 {
         let goals = &self.goals;
         let tick = turn.tick;
@@ -195,7 +177,6 @@ impl<A: FarmAnimal, W: GoalWorld + ?Sized> MobBrain<W> for FarmAnimalBrain<A> {
     }
 }
 
-/// Whether a goal started or stopped in a full evaluation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Changed {
     Yes,
@@ -207,7 +188,6 @@ struct PigTurn<'s, 't, 'a, A, W: ?Sized> {
     goals: &'s mut PigGoals,
     intents: &'s mut Intents,
     destination: Option<DVec3>,
-    /// The goals with a gate that were eligible in this evaluation, one bit for each goal.
     eligible: u8,
     changed: Changed,
     animal: PhantomData<A>,

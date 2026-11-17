@@ -6,8 +6,6 @@ use crate::MenuOrder;
 use crate::MenuRange;
 use crate::MenuSlot;
 
-/// The menu that each player has from the join until the leave. Its entries are slots of the
-/// player inventory, the craft grid and the craft result.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct InventoryMenu;
 
@@ -38,12 +36,9 @@ const TO_MAIN: [MenuRange; 1] = [ascending(9, 36)];
 const FROM_OFF_HAND: [MenuRange; 1] = [ascending(9, 45)];
 
 impl InventoryMenu {
-    /// The container id of the inventory menu on the wire.
     pub const CONTAINER_ID: u8 = 0;
-    /// The number of entries.
     pub const LEN: u16 = 46;
 
-    /// The slot that the entry `index` refers to, or `None` when the menu has no such entry.
     #[must_use]
     pub fn slot(index: u16) -> Option<MenuSlot> {
         let slot = match index {
@@ -58,7 +53,6 @@ impl InventoryMenu {
         Some(slot)
     }
 
-    /// The entry that refers to `slot`, or `None` when no entry refers to it.
     #[must_use]
     pub fn index(slot: MenuSlot) -> Option<u16> {
         match (slot.holder, slot.index) {
@@ -72,9 +66,6 @@ impl InventoryMenu {
         }
     }
 
-    /// The destinations of a quick move from the entry `source`, in order. `equip` is the
-    /// equippable slot of the stack of `source`, read without its `allowed_entities`, and `holds_empty` tells whether an entry holds
-    /// the empty stack. Returns `None` when the menu has no entry `source`.
     #[must_use]
     pub fn quick_move_destinations(
         source: u16,
@@ -108,13 +99,11 @@ impl InventoryMenu {
         Some(destinations)
     }
 
-    /// Whether pick up all can take from the entry `index`.
     #[must_use]
     pub fn permits_pick_up_all(index: u16) -> bool {
         index != CRAFT_RESULT && index < Self::LEN
     }
 
-    /// Whether a drag can place into the entry `index`.
     #[must_use]
     pub fn permits_drag(index: u16) -> bool {
         index < Self::LEN

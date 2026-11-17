@@ -13,17 +13,14 @@ use mcrs_minecraft_numeric::wrap_degrees;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use uuid::Uuid;
 
-/// The minimum and the maximum corner of the bounding box of an entity.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EntityBounds {
     pub min: DVec3,
     pub max: DVec3,
 }
 
-/// An entity as the search sees it.
 pub trait Candidate {
     fn uuid(&self) -> Uuid;
-    /// The plain text of its name; a player's name for a player.
     fn name(&self) -> &str;
     fn entity_type(&self) -> EntityType;
     fn position(&self) -> DVec3;
@@ -36,7 +33,6 @@ pub trait Candidate {
     fn has_tag(&self, tag: &str) -> bool;
     fn has_any_tag(&self) -> bool;
     fn team(&self) -> Option<&str>;
-    /// The position of its dimension in the dimension order.
     fn dimension(&self) -> usize;
 
     fn is_player(&self) -> bool {
@@ -45,7 +41,6 @@ pub trait Candidate {
 }
 
 impl<'a> Selector<'a> {
-    /// Each option that holds one of several values, in the order of the text.
     fn list_options(&self, mut each: impl FnMut(ListOption<'a>)) {
         let Some(at) = self.options else {
             return;
@@ -71,7 +66,6 @@ impl<'a> Selector<'a> {
         min.cmplt(high).all() && max.cmpgt(low).all()
     }
 
-    /// Reads the options once and keeps the entities of `found` that pass each one.
     fn retain_listed<C: Candidate, L: Lookup>(&self, found: &mut Vec<&C>, lookup: &L) {
         self.list_options(|option| {
             found.retain(|candidate| match option {
@@ -101,8 +95,6 @@ impl<'a> Selector<'a> {
                     };
                     has != negated
                 }
-                // No scoreboard and no advancements exist, so an objective or an
-                // advancement that the map names never does either.
                 ListOption::Scores { empty } | ListOption::Advancements { empty } => empty,
                 ListOption::Nbt { negated } => negated,
                 ListOption::Predicate { .. } => false,
@@ -171,9 +163,6 @@ impl<'a> Selector<'a> {
         missing
     }
 
-    /// The entities the selector finds. `candidates` come in the order of the player list; `random`
-    /// gives an index
-    /// below its argument.
     pub fn select<'c, C: Candidate, L: Lookup>(
         &self,
         source: &Source<'_, L>,

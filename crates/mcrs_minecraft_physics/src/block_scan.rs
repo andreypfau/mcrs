@@ -22,7 +22,6 @@ use crate::StateCollision;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 
-/// The entity values that select the shape of a block.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ShapeContext<'a> {
     pub(crate) entity: &'a QueryEntity,
@@ -30,10 +29,6 @@ pub(crate) struct ShapeContext<'a> {
     pub(crate) variant: QueryVariant,
 }
 
-/// Visits the block colliders of `query` in the scan order: `x` fastest, then `y`, then `z`,
-/// over the region one block larger than the query. A position on an outer face of the region
-/// counts only with a large shape, one on an outer edge only for a moving piston, and an outer
-/// corner never.
 pub(crate) fn scan<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -49,7 +44,6 @@ pub(crate) fn scan<W: CollisionWorld>(
         .max
         .to_array()
         .map(|high| floor_block(high + COLLISION).saturating_add(1));
-    // Without a large shape or a moving piston in the region, no block on its outer faces counts.
     let large = any_section(world, [x0, y0, z0], [x1, y1, z1], |masks| masks.large);
     let inset = i32::from(!large);
     let [low_x, low_y, low_z] = [x0, y0, z0].map(|low| low + inset);
@@ -82,8 +76,6 @@ pub(crate) fn scan<W: CollisionWorld>(
     ControlFlow::Continue(())
 }
 
-/// True when a loaded section between the blocks `low` and `high` has no masks or masks that
-/// pass `test`.
 pub(crate) fn any_section<W: CollisionWorld>(
     world: &W,
     low: [i32; 3],
@@ -102,7 +94,6 @@ pub(crate) fn any_section<W: CollisionWorld>(
     })
 }
 
-/// The blocks of one row of the scan inside one section.
 struct Run {
     y: i32,
     z: i32,
@@ -172,7 +163,6 @@ fn collider_at<S: CollisionSection>(
         .then_some((collider, state))
 }
 
-/// The shape of a state for the entity of the query.
 pub(crate) fn entity_shape(
     table: &CollisionTable,
     data: StateCollision,
@@ -212,11 +202,8 @@ pub(crate) fn entity_shape(
     }
 }
 
-/// The block that holds a coordinate: `value.floor() as i32` for every `f64`.
 #[must_use]
 pub fn floor_block(value: f64) -> i32 {
-    // Baseline x86_64 has no rounding instruction, so `f64::floor` is a libm call there; other
-    // targets floor and convert in one or two instructions.
     if cfg!(all(target_arch = "x86_64", not(target_feature = "sse4.1"))) {
         floor_by_truncation(value)
     } else {
@@ -229,7 +216,6 @@ fn floor_by_truncation(value: f64) -> i32 {
     truncated.saturating_sub(i32::from(f64::from(truncated) > value))
 }
 
-/// The block that holds a position.
 #[must_use]
 pub fn block_at(position: DVec3) -> BlockPos {
     BlockPos::new(
@@ -239,8 +225,6 @@ pub fn block_at(position: DVec3) -> BlockPos {
     )
 }
 
-/// The block state at a position; a block out of the world or in a chunk that is not loaded is
-/// air.
 pub(crate) fn state_at<W: CollisionWorld>(world: &W, at: BlockPos) -> BlockStateId {
     match world.section(SectionPos::from(at)) {
         SectionLookup::Loaded(section) => section.state(LocalPos::from(at)),
@@ -248,8 +232,6 @@ pub(crate) fn state_at<W: CollisionWorld>(world: &W, at: BlockPos) -> BlockState
     }
 }
 
-/// The last section of the scan. The scan visits the sections of one row in turn, and then the
-/// same sections again for the next row.
 struct SectionCache<S> {
     entries: [Option<(SectionPos, SectionLookup<S>)>; 2],
     next: usize,

@@ -8,12 +8,9 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.animal.pig.Pig;
 
-/// The type-specific render inputs of a frame record.
 final class Facts {
 	private Facts() {}
 
-	/// `frameAge` is the age in ticks plus the partial tick of the frame, the time the renderer
-	/// gives the animation states.
 	static void add(Entity entity, float frameAge, JsonObject out) {
 		if (entity instanceof Mob mob) {
 			out.addProperty("saddled", mob.isSaddled());

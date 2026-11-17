@@ -3,7 +3,6 @@ use serde::Deserialize;
 
 use crate::entity_view::EntityView;
 
-/// Booleans that each must equal a state of the entity.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
 pub(crate) struct EntityFlagsPredicate {
     is_on_ground: Option<bool>,
@@ -40,8 +39,6 @@ impl EntityFlagsPredicate {
         }
         match world.is_living(entity) {
             None => false,
-            // The two "no test" cells of the rule: a type that is not living passes each value
-            // of `is_baby` and `is_fall_flying`.
             Some(false) => self.is_flying.is_none_or(|expected| !expected),
             Some(true) => {
                 equals(self.is_baby, W::is_baby)

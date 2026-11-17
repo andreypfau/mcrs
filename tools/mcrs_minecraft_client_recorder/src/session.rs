@@ -16,39 +16,24 @@ use crate::proxy::Observed;
 use crate::scenario::Scenario;
 use crate::scenario::Step;
 
-/// The client ticks between the teleport before a step and the recorded teleport that starts
-/// it, so that the client has the chunks and stands still.
 const SETTLE_TICKS: u32 = 40;
 
 enum Phase {
-    /// No client has loaded the world yet.
     Waiting,
-    /// The instruction of the step is on the terminal; Enter sets the step up.
     Prompt(usize),
-    /// The step is set up; the recorded teleport follows after the client ticks left.
-    Settling {
-        step: usize,
-        ticks_left: u32,
-    },
-    /// The recorded teleport is sent; its application starts the recording.
+    Settling { step: usize, ticks_left: u32 },
     Starting(usize),
-    Recording {
-        step: usize,
-        segment: Segment,
-    },
+    Recording { step: usize, segment: Segment },
     Done,
 }
 
 struct Segment {
-    /// The time of each event and the event.
     events: Vec<(u64, Event)>,
-    /// Where the events that the client applies before its next tick go.
     gap: usize,
     ticks: u32,
     rewritten: bool,
 }
 
-/// The state of the player that the client applied last, written at the start of each step.
 #[derive(Default)]
 struct Snapshot {
     abilities: Option<Abilities>,
@@ -86,14 +71,11 @@ impl Snapshot {
     }
 }
 
-/// Drives the scenario of one experiment and writes one recording per step.
 pub(crate) struct Session {
     pub(crate) console: Console,
     scenario: Scenario,
     out: PathBuf,
-    /// Where the input agent of the client reads the script of the step; none when a human plays.
     input: Option<PathBuf>,
-    /// The proxy emulates a cheat module: a step that it did not change is not a recording of it.
     cheating: bool,
     phase: Phase,
     snapshot: Snapshot,
@@ -122,7 +104,6 @@ impl Session {
         matches!(self.phase, Phase::Done)
     }
 
-    /// True while a disconnect loses no recorded data.
     pub(crate) fn is_scripted(&self) -> bool {
         self.input.is_some()
     }
@@ -211,7 +192,6 @@ impl Session {
         Ok(())
     }
 
-    /// Sets the step up after Enter on the terminal.
     pub(crate) fn enter(&mut self) -> anyhow::Result<()> {
         let Phase::Prompt(step) = self.phase else {
             return Ok(());
@@ -220,7 +200,6 @@ impl Session {
         if let Some(input) = &self.input {
             fs::write(input, current.input_script())?;
         }
-        // `fill` fails as a whole when a chunk of it is not loaded, as with a short view distance.
         let [x0, _, z0] = self.scenario.arena.min;
         let [x1, _, z1] = self.scenario.arena.max;
         self.console

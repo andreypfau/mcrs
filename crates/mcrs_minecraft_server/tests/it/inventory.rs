@@ -1,6 +1,3 @@
-//! The inventory packets reach the inventory of a player through the packet path of the server,
-//! and the server keeps that inventory across a leave and a dimension change.
-
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -44,7 +41,6 @@ use mcrs_voxel::BlockPos;
 use crate::commands::load_stone_column;
 use crate::host_app::{self, Arrival, PlayServer, label_of};
 
-/// On the stone of [`load_stone_column`].
 const FEET: DVec3 = DVec3::new(8.5, 64.0, 8.5);
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
 const THE_END: (&str, &str) = ("minecraft:the_end", "minecraft:the_end");
@@ -111,8 +107,6 @@ fn file(inventory: &[Placed]) -> PlayerDat {
     dat
 }
 
-/// Joins the player `uuid` whose file is `dat` through the join of the host, and returns its
-/// host anchor after the ticks of the join.
 fn join(server: &mut PlayServer, uuid: Uuid, dat: &PlayerDat) -> Entity {
     let registry = server.app.world().resource::<PersistedRegistry>();
     let file = PersistedSnapshot::from_dat(dat, registry, Path::new("player.dat")).unwrap();
@@ -193,7 +187,6 @@ fn cursor(world: &World, player: Entity) -> Vec<Placed> {
     stacks(world, holders.cursor)
 }
 
-/// The item and the count of each stack that lies in `world`.
 fn dropped(world: &mut World) -> Vec<Placed> {
     let mut dropped: Vec<Placed> = world
         .query_filtered::<(&Kind, &Count), With<Dropped>>()
@@ -213,9 +206,6 @@ struct Case {
     dropped: &'static [Placed],
 }
 
-/// One case for each serverbound inventory packet: a click (ITX-JAV-008 split), a close
-/// (INV-CLS-001), the drop key (INV-SEL-004) and the hand swap (INV-SEL-005). The rules themselves
-/// are tested in the inventory plugin; a case here fails when the server does not route its packet.
 #[test]
 fn each_inventory_packet_reaches_the_inventory_through_the_server() {
     use Item::Stone;
@@ -269,8 +259,6 @@ fn each_inventory_packet_reaches_the_inventory_through_the_server() {
     }
 }
 
-/// INV-SEL-002 and INV-INS-001: the selection that arrives in a tick holds for the pickup of that
-/// tick, so the picked stack joins the alike stack of the new selected slot.
 #[test]
 fn inv_sel_002_a_pickup_in_the_tick_of_a_selection_fills_the_new_selected_slot() {
     let mut server = start(&[OVERWORLD]);
@@ -307,8 +295,6 @@ fn inv_sel_002_a_pickup_in_the_tick_of_a_selection_fills_the_new_selected_slot()
     assert_eq!(world.get::<Selected>(player), Some(&Selected(4)));
 }
 
-/// INV-SAV-001 and INV-SAV-003: the leave writes the slots and the selected slot that the packets
-/// gave, and a join with that file holds them again.
 #[test]
 fn inv_sav_003_a_rejoin_holds_the_inventory_of_the_leave() {
     let mut server = start(&[OVERWORLD]);
@@ -359,9 +345,6 @@ fn inv_sav_003_a_rejoin_holds_the_inventory_of_the_leave() {
     assert_eq!(world.get::<Selected>(player), Some(&Selected(4)));
 }
 
-/// INV-CLS-003 at a dimension change: the cursor stack finds no room in the full inventory, so it
-/// lies in the dimension left as an item entity, and the player arrives with an empty cursor. The
-/// creative packet refills the slot that the click emptied, and the inventory crosses with it.
 #[test]
 fn inv_cls_003_a_dimension_change_throws_the_cursor_that_finds_no_room() {
     let mut server = start(&[OVERWORLD, THE_END]);

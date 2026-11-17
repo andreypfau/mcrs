@@ -10,7 +10,6 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::fixture::{Around, LOOT, block_table, blocks, context, names, state, stream, tool};
 
-/// A break of `state` at the origin, with the world `around` it.
 struct Break<'a> {
     state: BlockStateId,
     tool: Option<ItemStack>,
@@ -30,8 +29,6 @@ impl Break<'_> {
         }
     }
 
-    /// The stacks of the drop list of the evaluation at `tick` that are not empty, as item names
-    /// and counts (LOOT-OUT-002).
     fn drops(&self, tick: u64) -> Vec<(String, u8)> {
         let Some(loot_id) = blocks().state(self.state).loot else {
             return Vec::new();
@@ -57,7 +54,6 @@ impl Break<'_> {
         names(stacks.into_iter().filter(Option::is_some))
     }
 
-    /// How many of `n` evaluations gave each drop list.
     fn spread(&self, n: u64) -> BTreeMap<Vec<(String, u8)>, u64> {
         let mut spread = BTreeMap::new();
         for tick in 0..n {
@@ -85,21 +81,16 @@ fn assert_share(
     );
 }
 
-/// LOOT-SRC-001: every block table of the vanilla data pack names only items, blocks,
-/// enchantments and predicates that the load holds.
 #[test]
 fn loot_src_001_every_vanilla_block_table_bakes() {
     assert_eq!(LOOT.1, []);
 }
 
-/// LOOT-SRC-003: a block table without pools drops nothing.
 #[test]
 fn loot_src_003_a_table_without_pools_drops_nothing() {
     assert_eq!(Break::of(state("minecraft:spawner", &[])).drops(0), []);
 }
 
-/// LOOT-EVL-005, LOOT-CND-001, LOOT-SRC-005: stone drops itself to Silk Touch and cobblestone
-/// to an empty hand.
 #[test]
 fn loot_evl_005_stone_drops_stone_to_silk_touch_and_cobblestone_otherwise() {
     let stone = state("minecraft:stone", &[]);
@@ -115,8 +106,6 @@ fn loot_evl_005_stone_drops_stone_to_silk_touch_and_cobblestone_otherwise() {
     );
 }
 
-/// LOOT-MOD-004: `ore_drops` with Fortune III gives the factor 1 with the chance 2/5 and each
-/// of 2 to 4 with the chance 1/5. Result L1.
 #[test]
 fn loot_mod_004_coal_ore_with_fortune_3_drops_1_to_4_coal() {
     let tool = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);
@@ -132,7 +121,6 @@ fn loot_mod_004_coal_ore_with_fortune_3_drops_1_to_4_coal() {
     }
 }
 
-/// LOOT-CND-004: gravel drops flint with the chance 0.1 to an empty hand.
 #[test]
 fn loot_cnd_004_gravel_drops_flint_one_time_in_ten() {
     let spread = Break::of(state("minecraft:gravel", &[])).spread(4000);
@@ -140,8 +128,6 @@ fn loot_cnd_004_gravel_drops_flint_one_time_in_ten() {
     assert_share(&spread, &one("minecraft:flint", 1), 4000, 0.1);
 }
 
-/// LOOT-MOD-001, LOOT-MOD-003, LOOT-MOD-008: glowstone drops 2 to 4 dust; a count below 1 of
-/// a brown mushroom block drops no item. Result L3.
 #[test]
 fn loot_mod_003_counts_are_limited_and_a_count_of_0_drops_nothing() {
     let glowstone = Break::of(state("minecraft:glowstone", &[])).spread(900);
@@ -161,8 +147,6 @@ fn loot_mod_003_counts_are_limited_and_a_count_of_0_drops_nothing() {
     );
 }
 
-/// LOOT-SRC-005, LOOT-MOD-004: ripe wheat drops one wheat and 1 + B(3, 0.5714) seeds to an
-/// empty hand; young wheat drops one seed. Result L3.
 #[test]
 fn loot_src_005_ripe_wheat_drops_wheat_and_1_to_4_seeds() {
     let spread = Break::of(state("minecraft:wheat", &[("age", "7")])).spread(4000);
@@ -181,7 +165,6 @@ fn loot_src_005_ripe_wheat_drops_wheat_and_1_to_4_seeds() {
     );
 }
 
-/// LOOT-CND-006, LOOT-SRC-006: a door drops from its lower part only.
 #[test]
 fn loot_cnd_006_a_door_drops_from_its_lower_part() {
     let lower = state("minecraft:oak_door", &[("half", "lower")]);
@@ -190,7 +173,6 @@ fn loot_cnd_006_a_door_drops_from_its_lower_part() {
     assert_eq!(Break::of(upper).drops(0), []);
 }
 
-/// LOOT-CND-008, LOOT-SRC-006: tall grass drops from a part whose other part still stands.
 #[test]
 fn loot_cnd_008_tall_grass_drops_while_its_other_part_stands() {
     let shears = tool("minecraft:shears", &[]);
@@ -210,7 +192,6 @@ fn loot_cnd_008_tall_grass_drops_while_its_other_part_stands() {
     assert_eq!(alone.drops(0), []);
 }
 
-/// LOOT-CND-009: snow drops only for a context with an entity. Result L5.
 #[test]
 fn loot_cnd_009_snow_drops_only_to_an_entity() {
     let snow = state("minecraft:snow", &[("layers", "3")]);
@@ -222,8 +203,6 @@ fn loot_cnd_009_snow_drops_only_to_an_entity() {
     assert_eq!(removed.drops(0), []);
 }
 
-/// LOOT-CND-007: an amethyst cluster drops four shards to an item of its tag and two to an
-/// empty hand.
 #[test]
 fn loot_cnd_007_match_tool_tests_the_item_of_the_tool() {
     let cluster = state("minecraft:amethyst_cluster", &[]);
@@ -241,8 +220,6 @@ fn loot_cnd_007_match_tool_tests_the_item_of_the_tool() {
     );
 }
 
-/// LOOT-CND-003, LOOT-MOD-002: an explosion of radius 1 keeps each item; a large one keeps
-/// almost none.
 #[test]
 fn loot_cnd_003_an_explosion_keeps_items_with_the_chance_1_over_its_radius() {
     let stone = state("minecraft:stone", &[]);
@@ -258,7 +235,6 @@ fn loot_cnd_003_an_explosion_keeps_items_with_the_chance_1_over_its_radius() {
     assert_eq!(large.spread(100).keys().collect::<Vec<_>>(), [&Vec::new()]);
 }
 
-/// LOOT-RND-001: the drops are a function of the key of the evaluation.
 #[test]
 fn loot_rnd_001_the_same_key_gives_the_same_drops() {
     let gravel = Break::of(state("minecraft:gravel", &[]));
@@ -267,8 +243,6 @@ fn loot_rnd_001_the_same_key_gives_the_same_drops() {
     assert_eq!(first, again);
 }
 
-/// REG-FLD-701: the terms of `any_of` and `all_of` may be a `#` tag of predicates, which acts as
-/// the list of its members; an unknown tag never passes.
 #[test]
 fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
     let cases = [

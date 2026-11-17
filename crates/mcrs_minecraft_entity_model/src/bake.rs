@@ -11,11 +11,8 @@ use crate::geometry_error::GeometryError;
 use crate::space;
 use crate::uv_rect::{self, UvRect};
 
-/// The most bones of one geometry.
 pub const MAX_BONES: usize = 128;
-/// The most bones of a chain from a root bone to a bone.
 pub const MAX_DEPTH: usize = 16;
-/// The most cubes of one geometry.
 pub const MAX_CUBES: usize = 2048;
 
 const DEFAULT_TEXTURE_SIZE: f32 = 16.0;
@@ -23,8 +20,6 @@ const MODEL_UNITS_PER_BLOCK: f32 = 16.0;
 const COMPUTED_BOUNDS_GROWTH: f32 = 1.5;
 
 impl Geometry {
-    /// Bakes the geometry. A content error that does not reject the geometry goes to
-    /// `diagnostics`. The legacy parent must be resolved first ([`crate::resolve_parents`]).
     pub fn bake(&self, diagnostics: &mut Vec<Diagnostic>) -> Result<BakedGeometry, GeometryError> {
         check_limits(self)?;
         let parents = file_parents(self, diagnostics)?;
@@ -136,7 +131,6 @@ fn check_limits(geometry: &Geometry) -> Result<(), GeometryError> {
     Ok(())
 }
 
-/// The file index of the parent of each bone.
 fn file_parents(
     geometry: &Geometry,
     diagnostics: &mut Vec<Diagnostic>,
@@ -191,8 +185,6 @@ fn check_chains(geometry: &Geometry, parents: &[Option<usize>]) -> Result<(), Ge
     Ok(())
 }
 
-/// The file indices in an order where each parent comes before its children. Of the bones
-/// whose parent is placed, the one first in the file comes next.
 fn parent_first_order(parents: &[Option<usize>]) -> Vec<usize> {
     let mut placed = vec![false; parents.len()];
     let mut order = Vec::with_capacity(parents.len());

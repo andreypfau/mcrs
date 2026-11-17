@@ -20,8 +20,6 @@ use crate::PlayerHolders;
 use crate::insert_stack::max_stack_size;
 use crate::request_ids::CREATIVE_REQUEST;
 
-/// Sets `slot` to `stack` by a request of a player in creative mode, when the count of the stack
-/// is not above its maximum stack size (INV-CRE-003, INV-CRE-004).
 pub(crate) fn apply_creative_set(
     In((player, slot, stack)): In<(Entity, SlotRef, Option<ItemStack>)>,
     players: Query<Option<&PlayerGameMode>, With<PlayerHolders>>,
@@ -51,8 +49,6 @@ pub(crate) fn fits(stack: Option<&ItemStack>, table: &ItemTable) -> bool {
     stack.is_none_or(|stack| stack.count.get() <= max_stack_size(stack, table))
 }
 
-/// Despawns `stack` when the last request result is a rejection of the creative set of `player`,
-/// since a rejected set gives the stack no slot.
 fn despawn_if_rejected(world: &mut World, player: Entity, stack: Entity) {
     let rejected = (world.get_resource::<Messages<RequestResult>>())
         .and_then(|results| results.iter_current_update_messages().last())

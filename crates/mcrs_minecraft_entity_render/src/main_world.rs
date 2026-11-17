@@ -22,34 +22,26 @@ use crate::records::{
 };
 use crate::slot_upload::SlotArena;
 
-/// The slot of a client entity that the entity passes draw, and its definition.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntitySlot {
     pub slot: u32,
     pub definition: u16,
 }
 
-/// The animation state of an entity whose definition reads values that the CPU computes.
 #[derive(Component, Clone, Debug)]
 pub struct CpuAnimation(pub EntityAnimation);
 
-/// Clips that a recorded frame started, with the ticks since their start: each plays with the
-/// weight 1 and that time, in place of what the play list gives. A frame that a client draws from
-/// the inputs of a record uses it (`docs/spec/client-frame-capture.md`, CFC-CMP-002).
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct RecordedClips(pub Vec<RecordedClip>);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecordedClip {
-    /// The short name of the `animate` entry.
     pub entry: String,
     pub elapsed_ticks: f32,
 }
 
-/// The client tick and the partial tick of the entities in this frame.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
 pub struct EntityClock {
-    /// The world ticks that the client ran.
     pub tick: u32,
     pub partial_tick: f32,
 }
@@ -57,12 +49,9 @@ pub struct EntityClock {
 #[derive(Resource, Default)]
 pub(crate) struct EntityVm(ScalarVm);
 
-/// The step that the cull radius grows by for the movement between two ticks, in blocks.
 const MOVEMENT_MARGIN: f32 = 0.25;
-/// The hurt start of an entity that was never hurt: far before any age.
 const NEVER_HURT: f32 = -1.0e9;
 
-/// Whether the server runs ticks: a frozen world runs only the steps that it asks for.
 pub(crate) fn server_ticks(ticking: Option<Res<ServerTicking>>) -> bool {
     ticking.is_none_or(|ticking| ticking.runs())
 }
@@ -81,7 +70,6 @@ pub(crate) fn frame_clock(
     clock.partial_tick = partial.clamp(0.0, 1.0);
 }
 
-/// Gives each client entity of a type with a client entity definition a slot.
 pub(crate) fn assign_slots(
     mut commands: Commands,
     assets: Option<Res<EntityAssets>>,
@@ -123,7 +111,6 @@ pub(crate) fn release_slot(
     }
 }
 
-/// The yaws in degrees and the walk of an entity in a tick record.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Facing {
     body_yaw: f32,
@@ -133,7 +120,6 @@ struct Facing {
 }
 
 impl Facing {
-    /// A dying entity keeps its yaws and stops its walk.
     fn of(motion: &Motion, living: Option<&Living>, dying: bool) -> Self {
         match living {
             Some(living) if !dying => Self {
@@ -156,8 +142,6 @@ impl Facing {
     }
 }
 
-/// Writes the tick record, the cull record and the tick values of the state of each entity
-/// that changed in a tick.
 pub(crate) fn write_ticks(
     clock: Res<EntityClock>,
     assets: Option<Res<EntityAssets>>,
@@ -266,7 +250,6 @@ pub(crate) fn write_ticks(
     }
 }
 
-/// The equipment asset identifier of the stack in `slot`.
 fn equipment_asset(
     equipment: Option<&Equipment>,
     slot: EquipmentSlot,
@@ -284,8 +267,6 @@ fn equipment_asset(
     }
 }
 
-/// The value of a query of a render controller, from the tick state of an entity and its
-/// variant entry.
 fn render_query(
     query: &RenderQuery,
     assets: &EntityAssets,
@@ -338,8 +319,6 @@ type LayerInputs = (
     Option<&'static SkinSlot>,
 );
 
-/// Evaluates the render controllers of each entity whose tick state changed and writes the
-/// layers of its state record.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -443,7 +422,6 @@ pub(crate) fn write_layers(
         for entity in &changed {
             write(entity);
         }
-        // A removal sets no change filter, so an entity that lost its model or its skin writes here.
         for entity in removed_models.read().chain(removed_slots.read()) {
             if let Ok(entity) = all.get(entity) {
                 write(entity);
@@ -452,8 +430,6 @@ pub(crate) fn write_layers(
     }
 }
 
-/// Runs the scripts and the play list of each entity whose definition reads CPU values, and
-/// writes its input record when a value changed.
 pub(crate) fn write_inputs(
     assets: Option<Res<EntityAssets>>,
     clock: Res<EntityClock>,

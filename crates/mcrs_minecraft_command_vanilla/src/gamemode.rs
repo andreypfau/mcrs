@@ -12,13 +12,9 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// The command effect that sets the game mode of the player of the session `player`, in any
-/// dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SetGameMode {
-    /// The session of the player.
     pub player: PlayerSession,
-    /// The game mode the player gets.
     pub mode: GameMode,
 }
 
@@ -52,8 +48,6 @@ fn mode_text(mode: GameMode) -> Text {
     Text::translate(mode.translation_key(), vec![])
 }
 
-/// Each target that does not have the mode gets it, in
-/// any dimension, and its messages follow.
 pub(crate) fn run(
     In(call): In<Call<(), GameModeCommand>>,
     context: VanillaContext,

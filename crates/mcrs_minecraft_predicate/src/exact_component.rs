@@ -9,17 +9,13 @@ use crate::component_holder::ComponentHolder;
 use crate::predicate_issue::PredicateIssue;
 use mcrs_minecraft_item::ItemComponentValue;
 
-/// One entry of `components` as a component of the value-form stack.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ExactComponent {
     Equals(Builtin),
-    // chisle: a component type that the value-form stack does not model fails the test; lifted
-    // when the stack crate models that type.
     Unmodeled,
 }
 
 impl ExactComponent {
-    /// The saved form is the one form that both component models read and write.
     pub(crate) fn bake<L: NameLookup>(
         value: &ItemComponentValue,
         registries: &Registries,

@@ -8,11 +8,8 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// The most sections on `y` that one tile looks up in advance.
 const HEIGHT: i32 = 8;
 
-/// The sections around one tile, looked up once for the task of the tile; a section out of the
-/// window comes from the base world. The rows of a tile read the same few sections many times.
 pub(crate) struct TileWorld<'a, W: CollisionWorld + 'a> {
     base: &'a W,
     min: SectionPos,
@@ -20,14 +17,12 @@ pub(crate) struct TileWorld<'a, W: CollisionWorld + 'a> {
     sections: Vec<SectionLookup<W::Section<'a>>>,
 }
 
-/// A section of a [`TileWorld`].
 pub enum TileSection<'s, S> {
     Window(&'s S),
     Base(S),
 }
 
 impl<'a, W: CollisionWorld> TileWorld<'a, W> {
-    /// The sections from `min` over `size` sections on each axis, at most [`HEIGHT`] on `y`.
     pub fn new(base: &'a W, min: SectionPos, size: [i32; 3]) -> Self {
         let [width, height, depth] = size;
         let size = [width, height.clamp(0, HEIGHT), depth];

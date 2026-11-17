@@ -3,25 +3,16 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use mcrs_minecraft_protocol::{CompressionThreshold, PacketEncoder};
 
-/// The packets that more than one connection receives in one flush, each serialized once by
-/// `encode_with_id`, with one frame for each compression threshold in use.
-///
-/// A packet is known by the address and the length of its bytes. The entry holds the bytes, so
-/// no other packet can take that address before [`SharedFrames::clear`].
 #[derive(Default)]
 pub struct SharedFrames {
     packets: HashMap<PacketKey, SharedPacket>,
     encoder: PacketEncoder,
 }
 
-/// How [`crate::RawConnection::append_shared`] queued a packet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SharedAppend {
-    /// The writer frames the packet: no other connection receives it in this flush.
     Unframed,
-    /// The frame for this threshold was made here, which compresses the packet once at most.
     FrameMade,
-    /// The frame made for another connection at this threshold went as it is.
     FrameReused,
 }
 
@@ -57,7 +48,6 @@ pub(crate) struct FoundFrame {
 }
 
 impl SharedFrames {
-    /// Counts one more connection that receives `packet` before the next [`Self::clear`].
     pub fn add_recipient(&mut self, packet: &Bytes) {
         let entry = self
             .packets
@@ -70,13 +60,10 @@ impl SharedFrames {
         entry.recipients = entry.recipients.saturating_add(1);
     }
 
-    /// Forgets every packet and its frames.
     pub fn clear(&mut self) {
         self.packets.clear();
     }
 
-    /// The frame of `packet` at `compression`, made on the first call for that threshold.
-    /// `None` when fewer than two connections receive the packet: its writer frames it then.
     pub(crate) fn frame(
         &mut self,
         packet: &Bytes,

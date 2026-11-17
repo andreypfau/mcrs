@@ -1,7 +1,5 @@
 use mcrs_minecraft_worldgen_feature::tree::FeatureSize;
 
-/// The half-width the trunk needs at `y_offset` blocks above the origin of a
-/// tree `tree_height` blocks tall.
 pub fn size_at_height(size: &FeatureSize, tree_height: i32, y_offset: i32) -> i32 {
     match size {
         FeatureSize::TwoLayers {
@@ -35,8 +33,6 @@ pub fn size_at_height(size: &FeatureSize, tree_height: i32, y_offset: i32) -> i3
     }
 }
 
-/// How short a tree may be clipped to and still be placed. `None` forbids
-/// clipping altogether.
 pub fn min_clipped_height(size: &FeatureSize) -> Option<i32> {
     match size {
         FeatureSize::TwoLayers {

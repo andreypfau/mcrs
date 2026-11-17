@@ -11,7 +11,6 @@ use crate::support::{
     Damage, DamageType, Packs, damage, declarations_with, names, report_errors, rl, tag, value,
 };
 
-/// A damage type sent as itself, except one that is too large to send.
 struct Refusing(Damage);
 
 impl Resolve for Refusing {

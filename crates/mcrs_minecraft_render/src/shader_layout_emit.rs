@@ -21,19 +21,10 @@ use crate::shared_types::{
     SpriteEntry, TextFrame,
 };
 
-const HEADER: &str = "// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`\n\
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.\n\n";
-
 fn generate_draw_arg_row(out: &mut String) {
     out.push_str("use mcrs_minecraft_mesh::DrawKind;\n");
     out.push_str("use wgpu::util::DrawIndirectArgs;\n\n");
-    out.push_str(
-        "/// Arguments written by GPU culling and consumed by indirect draw/dispatch calls.\n",
-    );
     out.push_str("pub type DrawArgs = DrawIndirectArgs;\n\n");
-    out.push_str(
-        "/// Row inside the GPU draw-argument buffer, each spanning [`DrawKind::COUNT`] slots.\n",
-    );
     out.push_str("#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]\n");
     out.push_str("#[repr(u32)]\n");
     out.push_str("pub enum DrawArgRow {\n");
@@ -54,7 +45,7 @@ fn generate_draw_arg_row(out: &mut String) {
 }
 
 fn generate_shared_types() -> String {
-    let mut out = String::from(HEADER);
+    let mut out = String::new();
     generate_draw_arg_row(&mut out);
     PARAMS_STRUCT.emit_rust(&mut out);
     CAMERA_STRUCT.emit_rust(&mut out);
@@ -424,7 +415,6 @@ fn emit_terrain_draw_module(out: &mut String) {
 }
 
 fn emit_shared_bindings_header(out: &mut String) {
-    out.push_str(HEADER);
     out.push_str("use std::num::NonZeroU64;\n\n");
     out.push_str("use bevy::render::render_resource::binding_types::{\n");
     out.push_str("    sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d, texture_2d_array,\n");
@@ -587,7 +577,7 @@ fn emit_wgsl_bindings(out: &mut String, group: u32, bindings: &[BindingDef]) {
 }
 
 fn wgsl_module_with_bindings(imports: &[&str], group: u32, bindings: &[BindingDef]) -> String {
-    let mut out = String::from(HEADER);
+    let mut out = String::new();
     for import in imports {
         let _ = writeln!(out, "import {import};");
     }
@@ -599,7 +589,7 @@ fn wgsl_module_with_bindings(imports: &[&str], group: u32, bindings: &[BindingDe
 }
 
 fn generate_cull_wesl() -> String {
-    let mut out = String::from(HEADER);
+    let mut out = String::new();
     out.push_str("import mcrs_minecraft_render::shaders::include::fields::Group;\n");
     out.push_str(
         "import mcrs_minecraft_render::shaders::include::section_layout::SectionDesc;\n\n",
@@ -619,22 +609,22 @@ fn generate_cull_wesl() -> String {
 }
 
 fn generate_wesl_files() -> Vec<(&'static str, String)> {
-    let mut frame = String::from(HEADER);
+    let mut frame = String::new();
     PARAMS_STRUCT.emit_wgsl(&mut frame);
     CAMERA_STRUCT.emit_wgsl(&mut frame);
     emit_wgsl_bindings(&mut frame, 0, TERRAIN_VIEW_BINDINGS);
 
-    let mut section_layout = String::from(HEADER);
+    let mut section_layout = String::new();
     SECTION_DESC_STRUCT.emit_wgsl(&mut section_layout);
 
-    let mut sprites_layout = String::from(HEADER);
+    let mut sprites_layout = String::new();
     SPRITE_ENTRY_STRUCT.emit_wgsl(&mut sprites_layout);
     ANIMATION_FRAME_STRUCT.emit_wgsl(&mut sprites_layout);
     let _ = writeln!(sprites_layout, "const STILL: u32 = 0xFFFFFFFFu;");
 
     let terrain_layout = wgsl_module_with_bindings(&[], 1, TERRAIN_DRAW_BINDINGS);
     let cull_layout = generate_cull_wesl();
-    let mut reconstruct = String::from(HEADER);
+    let mut reconstruct = String::new();
     RECONSTRUCTION_STRUCT.emit_wgsl(&mut reconstruct);
 
     let reconstruct_import = "mcrs_minecraft_render::shaders::include::reconstruct::Reconstruction";
@@ -643,7 +633,7 @@ fn generate_wesl_files() -> Vec<(&'static str, String)> {
         wgsl_module_with_bindings(&[reconstruct_import], 1, GBUFFER_BINDINGS);
     let transparency_layout = wgsl_module_with_bindings(&[], 2, TRANSPARENCY_BINDINGS);
 
-    let mut sky = String::from(HEADER);
+    let mut sky = String::new();
     SKY_STRUCT.emit_wgsl(&mut sky);
 
     let mut sky_layout = wgsl_module_with_bindings(
@@ -657,7 +647,7 @@ fn generate_wesl_files() -> Vec<(&'static str, String)> {
     sky_layout.push('\n');
     emit_wgsl_bindings(&mut sky_layout, 1, SKY_TEXTURES_BINDINGS);
 
-    let mut world_text_layout = String::from(HEADER);
+    let mut world_text_layout = String::new();
     TEXT_FRAME_STRUCT.emit_wgsl(&mut world_text_layout);
     emit_wgsl_bindings(&mut world_text_layout, 0, WORLD_TEXT_VIEW_BINDINGS);
     world_text_layout.push('\n');

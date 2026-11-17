@@ -127,7 +127,6 @@ impl Layout {
         if castle { &self.castle } else { &self.bridge }
     }
 
-    /// Each type's `addChildren`.
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use FortressKind::*;
         use Side::*;
@@ -175,9 +174,6 @@ impl Layout {
         }
     }
 
-    /// `generateChildForward`, `generateChildLeft` and `generateChildRight`:
-    /// `a` is the forward child's x offset or the side child's y offset, `b`
-    /// the forward child's y offset or the side child's z offset.
     fn child(
         &mut self,
         parent: usize,
@@ -226,8 +222,6 @@ impl Layout {
         self.generate_and_add(rng, foot, direction, depth, castle);
     }
 
-    /// `generateAndAddPiece`: past the reach an end filler is built and
-    /// dropped, spending its seed draw.
     fn generate_and_add(
         &mut self,
         rng: &mut LegacyRandom,
@@ -246,8 +240,6 @@ impl Layout {
         }
     }
 
-    /// `generatePiece`: five weighted draws, each walking the table from the
-    /// drawn entry on until one builds, then the end filler.
     fn generate_piece(
         &mut self,
         rng: &mut LegacyRandom,
@@ -305,8 +297,6 @@ impl Layout {
         )
     }
 
-    /// Each type's `createPiece`: the box, its floor above 10, no collision,
-    /// then the constructor's own draw.
     fn create(
         &self,
         rng: &mut LegacyRandom,

@@ -6,10 +6,8 @@ use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use mcrs_minecraft_client_jar::Files;
 
-/// The asset source holding the resource pack of the vanilla client jar.
 pub const SOURCE: &str = "vanilla";
 
-/// Registers `root` as the `vanilla` source. Must run before `AssetPlugin` builds.
 pub fn register_source(app: &mut App, root: Dir) {
     app.register_asset_source(
         AssetSourceId::from(SOURCE),
@@ -23,13 +21,6 @@ pub fn fill(root: &Dir, files: Files) {
     }
 }
 
-/// The resource half of the installed client jar with the font files of the asset index laid
-/// over it, read once per process.
-///
-/// # Panics
-///
-/// When the client jar can not be installed or read, or the font objects of the asset index can
-/// not be fetched.
 #[cfg(any(test, feature = "test-support"))]
 #[expect(
     clippy::unwrap_used,
@@ -43,8 +34,6 @@ pub fn resource_files() -> &'static Files {
             mcrs_minecraft_client_jar::resolve(&progress, crate::resource_set::is_resource, drop)
                 .unwrap()
                 .0;
-        // The asset index layer lies above the jar: its file of a path replaces the jar's. A corpus
-        // without it would fail the tests that need Unifont in confusing ways, so fail here.
         let layer =
             mcrs_minecraft_client_jar::font_assets(mcrs_minecraft_client_jar::OBJECTS).unwrap();
         files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));

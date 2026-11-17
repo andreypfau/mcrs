@@ -5,59 +5,43 @@ use crate::subscription::{LAYERS, LayerState, Subscription, layer_ranks};
 use crate::tier::Tier;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The farthest distance of each tier but the last, in the units of the game.
 const REACH: [f64; 3] = [32.0, 64.0, 128.0];
 
-/// A tile leaves a tier only this far behind the distance of the tier.
 const REACH_HYSTERESIS: f64 = 8.0;
 
-/// The maximum number of subjects in the visible set of a viewer, K. The cap admits a tile while
-/// the sum is K or less, and removes it when the sum is more than 1.25 × K.
 const CAP: usize = 200;
 
-/// The bytes of a tick that a viewer receives on average before the planner lowers its tiers:
-/// 32 KiB a second.
 pub(crate) const BUDGET: u64 = 32 * 1024 / 20;
 
-/// Over the budget, the planner lowers one layer each this many ticks.
 const LOWER_EVERY_TICKS: u32 = 10;
 
-/// Below 70% of the budget, the planner raises one layer each this many ticks.
 const RAISE_EVERY_TICKS: u32 = 40;
 
-/// A point on X and Z, in the units of the game.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Point {
     pub(crate) x: f64,
     pub(crate) z: f64,
 }
 
-/// A tile in the view of a viewer and the number of its subjects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct TileHeader {
     pub(crate) tile: TileKey,
     pub(crate) count: usize,
 }
 
-/// The bytes that a viewer received lately.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Measured {
-    /// The moving average of the bytes of a tick.
     pub(crate) average: u64,
-    /// The ticks in a row with the average above the budget.
     pub(crate) over: u32,
-    /// The ticks in a row with the average below 70% of the budget.
     pub(crate) calm: u32,
 }
 
-/// The new subscription of a viewer to a tile, or `None` when it receives nothing of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SubscriptionChange {
     pub(crate) tile: TileKey,
     pub(crate) subscription: Option<Subscription>,
 }
 
-/// A tile in the order of the plan.
 #[derive(Clone, Copy, Debug)]
 struct Placed {
     tile: TileKey,
@@ -65,16 +49,6 @@ struct Placed {
     count: usize,
 }
 
-/// The subscriptions for the next tick of a viewer at `position` that holds `subscriptions`:
-/// which layers of the tiles in `headers` it receives and at which tier. It reads no clock and no
-/// state but its inputs.
-///
-/// The tiles go in the order of distance. The cap admits layers in that order while the sum of
-/// their subjects is K or less, and keeps a layer that it admitted until the sum is more than
-/// 1.25 × K. After the first layer that the cap leaves out, the tiles get layer 0 only, at the
-/// farthest tier. When the subjects in view are more than K, a layer gets the tier of its order
-/// if that is farther than the tier of its distance. Over the budget, the planner lowers the last
-/// layer by one tier. Below 70% of the budget, it raises the lowered layer that waited longest.
 #[must_use]
 pub(crate) fn plan(
     tile_width: NonZeroU32,
@@ -123,7 +97,6 @@ pub(crate) fn plan(
     changes
 }
 
-/// The subscription that the plan gives a tile.
 #[derive(Clone, Copy, Debug)]
 struct Planned {
     tile: TileKey,
@@ -132,7 +105,6 @@ struct Planned {
 }
 
 impl Planned {
-    /// The admitted layers that hold subjects, with their index.
     fn filled_layers(&mut self) -> impl DoubleEndedIterator<Item = &mut LayerState> {
         let count = self.count;
         self.subscription
@@ -144,7 +116,6 @@ impl Planned {
     }
 }
 
-/// The layers that the cap admits, with the tier of each, in the order of `order`.
 fn admit(subscriptions: &BTreeMap<TileKey, Subscription>, order: &[Placed]) -> Vec<Planned> {
     let release = CAP.saturating_add(CAP / 4);
     let crowded = order.iter().map(|placed| placed.count).sum::<usize>() > CAP;
@@ -200,14 +171,11 @@ fn admit(subscriptions: &BTreeMap<TileKey, Subscription>, order: &[Placed]) -> V
     next
 }
 
-/// Lowers or raises one layer of `next` by one tier when the bytes call for it, and lets each
-/// lowered layer gather priority.
 fn adjust_to_budget(next: &mut [Planned], measured: Measured) {
     for planned in next.iter_mut() {
         let reach = planned.subscription.reach;
         for layer in &mut planned.subscription.layers {
             if layer.lowered > 0 {
-                // A near layer comes back first, but a far one still gains and never starves.
                 let weight = Tier::FARTHEST.index() + 1 - reach.index();
                 layer.waited = layer.waited.saturating_add(weight as u32);
             }
@@ -252,14 +220,10 @@ fn raises(measured: Measured) -> bool {
     calm && measured.calm > 0 && measured.calm.is_multiple_of(RAISE_EVERY_TICKS)
 }
 
-/// Whether a plan reads `measured`. A plan that does not, from the position and the tiles of a
-/// plan that changed nothing, changes nothing again.
 pub(crate) fn reads_budget(measured: Measured) -> bool {
     lowers(measured) || raises(measured)
 }
 
-/// The tier of a tile at `distance` that had the tier `old`. A tile enters a nearer tier at its
-/// distance, and leaves a tier only past its distance and the hysteresis.
 fn reach(old: Option<Tier>, distance: f64) -> Tier {
     let by_distance = Tier::ALL
         .into_iter()
@@ -279,8 +243,6 @@ fn reach(old: Option<Tier>, distance: f64) -> Tier {
     }
 }
 
-/// The tier of a layer that comes after `before` subjects of a crowd: its order, as the ranks of
-/// a layer.
 fn order_tier(before: usize) -> Tier {
     Tier::ALL
         .into_iter()
@@ -288,7 +250,6 @@ fn order_tier(before: usize) -> Tier {
         .unwrap_or(Tier::FARTHEST)
 }
 
-/// The distance on X and Z from `point` to the nearest point of `tile`.
 fn distance(point: Point, tile: TileKey, width: f64) -> f64 {
     let axis = |value: f64, index: i32| {
         let start = f64::from(index) * width;
@@ -304,7 +265,6 @@ mod tests {
 
     const WIDTH: f64 = 32.0;
 
-    /// Over the budget, and so far below it that the budget calls the bytes calm.
     const OVER: u64 = BUDGET * 3 / 2;
     const CALM: u64 = 10;
 
@@ -312,12 +272,10 @@ mod tests {
         TileKey::new(x, 0, 0)
     }
 
-    /// A viewer at `x` on the X axis, in the middle of the tiles on Z.
     fn at(x: f64) -> Point {
         Point { x, z: WIDTH / 2.0 }
     }
 
-    /// Applies the changes of one plan to `subscriptions`.
     fn step(
         position: Point,
         subscriptions: &mut BTreeMap<TileKey, Subscription>,
@@ -499,7 +457,6 @@ mod tests {
             over: 1,
             calm: 0,
         };
-        // The far layer goes down first; long after, the near one.
         step(position, &mut subscriptions, &headers, over);
         for _ in 0..200 {
             step(position, &mut subscriptions, &headers, Measured::default());

@@ -47,8 +47,6 @@ pub fn default_selected(mode: &LocalGameMode) -> GameMode {
         })
 }
 
-/// The selection the switcher opens on, or `None` when the player has not
-/// joined or lacks the game-master permission `/gamemode` asks for.
 pub fn open_on(
     mode: Option<&LocalGameMode>,
     permission: Option<&PermissionLevel>,
@@ -66,7 +64,6 @@ pub fn mode_to_send(
     (selected != mode.current && *permission? >= PermissionLevel::GAMEMASTERS).then_some(selected)
 }
 
-/// A debug key's report: the yellow bold prefix, then the translation of `key`.
 fn debug_feedback(key: &'static str) -> Text {
     Text::text("")
         .add_child(

@@ -4,42 +4,22 @@ use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarI32, V
 
 use crate::item_stack::{NetworkItemStack, decode_network_item, encode_network_item};
 
-/// One change of a slot in an [`ItemUseTransaction`](crate::ItemUseTransaction).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InventoryAction<'a> {
-    /// The source, with the fields that its type carries.
     pub source: InventorySource,
-    /// The slot that changes.
     pub slot: VarU32,
-    /// The item before the change; `None` is the empty item.
     pub old_item: Option<NetworkItemStack<'a>>,
-    /// The item after the change; `None` is the empty item.
     pub new_item: Option<NetworkItemStack<'a>>,
 }
 
-/// The source type of an [`InventoryAction`]; another type is a decode error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum InventorySource {
-    /// Type 0: a container.
-    Container {
-        /// The container id.
-        container_id: VarI32,
-    },
-    /// Type 1: global.
+    Container { container_id: VarI32 },
     Global,
-    /// Type 2: a world interaction.
-    WorldInteraction {
-        /// The flags of the interaction.
-        flags: VarU32,
-    },
-    /// Type 3: the creative inventory.
+    WorldInteraction { flags: VarU32 },
     Creative,
-    /// Type 99999: an untracked interaction.
-    UntrackedInteraction {
-        /// The container id.
-        container_id: VarI32,
-    },
+    UntrackedInteraction { container_id: VarI32 },
 }
 
 impl BedrockEncode for InventoryAction<'_> {

@@ -3,11 +3,6 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_voxel::BlockPos;
 
-/// `VinesFeature.place`: the first face of `Direction.values()` order, minus
-/// down, whose neighbour can hold a vine. It draws nothing at all.
-///
-/// `vine` is one state per face over `Direction::all()`; the down slot is never
-/// read, since a vine has no bottom face.
 pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: BlockPos) -> bool {
     if !volume.is_air(at) {
         return false;
@@ -16,8 +11,6 @@ pub fn place_vines<W: WorldGenVolume>(vine: &[VoxelId; 6], volume: &mut W, at: B
         if direction == Direction::Down {
             continue;
         }
-        // `MultifaceBlock.canAttachTo` as the full-collision-cube flag, so a
-        // vine refuses a stair or a slab the reference would hang from.
         let neighbour = at + direction.normal();
         if volume.holds(&volume.world().sturdy_up, neighbour) {
             volume.set(at, state);
@@ -38,7 +31,6 @@ mod tests {
     const STONE: VoxelId = VoxelId(1);
     const AT: BlockPos = BlockPos::new(0, 70, 0);
 
-    /// Stone is what a vine can hang from.
     fn cave(mut volume: FakeVolume) -> FakeVolume {
         volume.world.sturdy_up = single_state(STONE);
         volume
@@ -55,8 +47,6 @@ mod tests {
         ]
     }
 
-    /// North is the first horizontal of `Direction.values()`, ahead of south,
-    /// west and east.
     #[test]
     fn the_walls_are_tried_north_south_west_east() {
         let cfg = config();

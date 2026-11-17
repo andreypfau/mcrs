@@ -2,7 +2,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use serde::Deserialize;
 use serde::Serialize;
 
-/// The keys of the player file that hold the stacks of a player and its selected slot.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub(crate) struct PlayerFile {
     #[serde(rename = "Inventory", default)]

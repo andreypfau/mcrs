@@ -15,8 +15,6 @@ use crate::TestBlocks;
 use crate::TestWorld;
 use crate::View;
 
-/// The test blocks, their tables, an empty world and the buffers of a tick, for tests and
-/// benchmarks.
 pub struct TestFixture {
     pub blocks: TestBlocks,
     pub tables: Tables,
@@ -44,7 +42,6 @@ impl TestFixture {
         View::new(&self.world, &NoBodies, &self.tables)
     }
 
-    /// A query entity at `position` with no fall, shift or powder snow rule.
     #[must_use]
     pub fn query_entity(position: DVec3) -> QueryEntity {
         QueryEntity {
@@ -57,8 +54,6 @@ impl TestFixture {
         }
     }
 
-    /// The grid row of a pushable mob of width 0.6 and height 1.95 at `(x, 0, z)`, with the
-    /// sequence `index` in its key.
     #[must_use]
     pub fn mob(index: u32, x: f64, z: f64) -> GridRow {
         let id = EntityId(u64::from(index) + 1);
@@ -83,7 +78,6 @@ impl Default for TestFixture {
     }
 }
 
-/// A SplitMix64 stream, for random tests.
 pub struct TestRng(pub u64);
 
 impl TestRng {

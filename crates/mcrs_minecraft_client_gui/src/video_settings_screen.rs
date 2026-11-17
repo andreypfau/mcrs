@@ -26,8 +26,6 @@ pub(crate) const FULLSCREEN: WidgetId = WidgetId(11);
 pub(crate) const RENDER_DISTANCE: WidgetId = WidgetId(12);
 pub(crate) const IMPROVED_TRANSPARENCY: WidgetId = WidgetId(13);
 
-/// The "Video Settings" screen on a screen of the size `screen` with the values of `options`,
-/// where `max_gui_scale` is the scale of Auto (MENU-VID-002).
 pub(crate) fn video_settings_screen(
     screen: GuiExtent,
     language: &ClientLanguage,
@@ -92,8 +90,6 @@ pub(crate) fn video_settings_screen(
     )])?;
     let quality =
         list.section_label(QUALITY, language.get("options.video.quality.header"), font)?;
-    // chisle: Simulation Distance is missing at the index 1 of this row; it comes with the
-    // simulation distance option.
     let [render_distance] = list.option_row([Widget::new(
         RENDER_DISTANCE,
         GuiRect::default(),
@@ -134,7 +130,6 @@ pub(crate) fn video_settings_screen(
     ])
 }
 
-/// The tooltip of Improved Transparency (MENU-VAL-012, step 2).
 pub(crate) fn improved_transparency_tooltip(language: &ClientLanguage) -> WidgetTooltip {
     WidgetTooltip {
         widget: IMPROVED_TRANSPARENCY,
@@ -145,9 +140,6 @@ pub(crate) fn improved_transparency_tooltip(language: &ClientLanguage) -> Widget
     }
 }
 
-/// Stores the value of `widget` after its change. A cycle button steps from the stored value,
-/// with `max_gui_scale` and `modifiers` of the moment of the activation (MENU-VAL-003 to
-/// MENU-VAL-007, MENU-VAL-009 to MENU-VAL-012, MENU-SCALE-002).
 pub(crate) fn write_option(
     options: &mut ClientOptions,
     widget: &Widget,
@@ -166,7 +158,6 @@ pub(crate) fn write_option(
             }
         }
         (RENDER_DISTANCE, WidgetKind::Slider(slider)) => {
-            // The value that `None` reads as is no change (MENU-DEV-011).
             if let Some(columns) = slider
                 .value()
                 .and_then(|columns| u8::try_from(columns).ok())
@@ -191,8 +182,6 @@ pub(crate) fn write_option(
     }
 }
 
-/// The value that an activation of the GUI Scale button selects after the stored value `stored`
-/// (MENU-SCALE-002).
 fn activated_gui_scale(stored: u32, max: u32, modifiers: KeyModifiers) -> u32 {
     if modifiers.shift {
         stored
@@ -207,8 +196,6 @@ fn activated_gui_scale(stored: u32, max: u32, modifiers: KeyModifiers) -> u32 {
     }
 }
 
-/// The value that a wheel event of the vertical value `y` with Ctrl down selects after the stored
-/// value `stored`, or none when the value stays (MENU-SCALE-003).
 pub(crate) fn wheel_gui_scale(stored: u32, max: u32, y: f32) -> Option<u32> {
     let old = if stored == 0 {
         max.checked_add(1)?
@@ -252,7 +239,6 @@ fn brightness_caption(language: &ClientLanguage, brightness: f32) -> String {
     option_caption(language, "options.generic_value", "options.gamma", &value)
 }
 
-/// The caption of a Boolean option named `name_key`: its name and ON or OFF (WID-CYC-001).
 fn boolean_caption(language: &ClientLanguage, name_key: &str, value: bool) -> String {
     let value = if value { "options.on" } else { "options.off" };
     option_caption(
@@ -263,7 +249,6 @@ fn boolean_caption(language: &ClientLanguage, name_key: &str, value: bool) -> St
     )
 }
 
-/// The caption of Max Framerate at `max_framerate` frames per second (MENU-VAL-009, step 4).
 fn max_framerate_caption(language: &ClientLanguage, max_framerate: u16) -> String {
     let value: String = if max_framerate == *MAX_FRAMERATE_RANGE.end() {
         language.get("options.framerateLimit.max").to_owned()
@@ -283,7 +268,6 @@ fn max_framerate_caption(language: &ClientLanguage, max_framerate: u16) -> Strin
     )
 }
 
-/// The caption of Render Distance at `columns` (MENU-VAL-007, step 4).
 fn render_distance_caption(language: &ClientLanguage, columns: i32) -> String {
     let chunks = [vec![Span::new(columns.to_string(), 0)]];
     let value: String = language
@@ -299,8 +283,6 @@ fn render_distance_caption(language: &ClientLanguage, columns: i32) -> String {
     )
 }
 
-/// The caption of Clouds: OFF, or Fancy, the boxes 4 blocks high that the sky draws
-/// (MENU-VAL-005, step 4).
 fn clouds_caption(language: &ClientLanguage, clouds: bool) -> String {
     let value = if clouds {
         "options.clouds.fancy"

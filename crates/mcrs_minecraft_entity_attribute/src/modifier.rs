@@ -2,7 +2,6 @@ use crate::AttributeModifier;
 use crate::HomeSlot;
 use crate::ModifierOperation;
 
-/// What the value computation reads of one modifier.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Modifier {
     pub operation: ModifierOperation,

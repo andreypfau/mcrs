@@ -6,8 +6,6 @@ use std::slice;
 use super::{cautious_capacity, check_len, decode_len, encode_len};
 use crate::{Bounded, Decode, Encode, ErrorKind, RawBytes, Result};
 
-/// Like tuples, fixed-length arrays are encoded and decoded without a VarInt
-/// length prefix.
 impl<T: Encode, const N: usize> Encode for [T; N] {
     fn encode(&self, w: impl Write) -> Result<()> {
         T::encode_slice(self, w)
@@ -16,8 +14,7 @@ impl<T: Encode, const N: usize> Encode for [T; N] {
 
 impl<'a, T: Decode<'a>, const N: usize> Decode<'a> for [T; N] {
     fn decode(r: &mut &'a [u8]) -> Result<Self> {
-        // TODO: rewrite using std::array::try_from_fn when stabilized?
-
+        // SAFETY: an array of `MaybeUninit` needs no initialization.
         let mut data: [MaybeUninit<T>; N] = unsafe { MaybeUninit::uninit().assume_init() };
 
         for (i, elem) in data.iter_mut().enumerate() {
@@ -26,8 +23,8 @@ impl<'a, T: Decode<'a>, const N: usize> Decode<'a> for [T; N] {
                     elem.write(val);
                 }
                 Err(e) => {
-                    // Call destructors for values decoded so far.
                     for elem in &mut data[..i] {
+                        // SAFETY: the loop wrote each element before index `i`.
                         unsafe { elem.assume_init_drop() };
                     }
                     return Err(e);
@@ -35,12 +32,12 @@ impl<'a, T: Decode<'a>, const N: usize> Decode<'a> for [T; N] {
             }
         }
 
-        // All values in `data` are initialized.
+        // SAFETY: the loop wrote all `N` elements, and `[MaybeUninit<T>; N]` has the layout of
+        // `[T; N]`.
         unsafe { Ok(mem::transmute_copy(&data)) }
     }
 }
 
-/// References to fixed-length arrays are not length prefixed.
 impl<'a, const N: usize> Decode<'a> for &'a [u8; N] {
     fn decode(r: &mut &'a [u8]) -> Result<Self> {
         let (arr, remaining) = r.split_first_chunk::<N>().ok_or(ErrorKind::UnexpectedEnd)?;

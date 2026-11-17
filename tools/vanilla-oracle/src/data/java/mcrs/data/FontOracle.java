@@ -61,27 +61,16 @@ import net.minecraft.server.packs.VanillaPackResources;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.server.packs.resources.ResourceManager;
 
-/**
- * Dumps the glyphs of the fonts of the client: which provider draws a code point, its advance, its
- * bitmap and the offsets of its shadow and its bold strike, and the widths of sample strings.
- *
- * <p>The client jar holds an empty placeholder of the definition of the Unifont provider. The
- * real definition and the hex archives are objects of the asset index, which this oracle fetches
- * and checks against their SHA-1 into a cache directory. Nothing in the output depends on the cache.
- */
 @SuppressWarnings({"unchecked", "rawtypes"})
 public final class FontOracle {
     private static final String[] HEX_ARCHIVES = {"unifont", "unifont_jp", "unifont_pua"};
-    /** The winners are listed for the basic plane only: the other planes hold only the holes of the Unifont. */
     private static final int LAST_WINNER = 0xFFFF;
     private static final Gson COMPACT = new GsonBuilder().disableHtmlEscaping().create();
 
     private FontOracle() {}
 
-    /** The geometry of a stitched glyph, as the atlas of the font would keep it. */
     private record Stitched(int pixelWidth, int pixelHeight, float oversample, float left, float right, float top, float bottom) {}
 
-    /** Takes the place of the glyph atlas: keeps the geometry of each glyph and draws nothing. */
     private static final class RecordingStitcher extends GlyphStitcher {
         final Map<BakedGlyph, Stitched> stitched = new IdentityHashMap<>();
 
@@ -111,7 +100,6 @@ public final class FontOracle {
         public void close() {}
     }
 
-    /** One font set with its recording stitcher. */
     private record Loaded(FontSet set, RecordingStitcher stitcher, List<GlyphProvider> providers) {}
 
     public static void main(final String[] args) throws Exception {
@@ -140,8 +128,6 @@ public final class FontOracle {
             Files.writeString(out.resolve("font.json"), text.append('\n').toString(), StandardCharsets.UTF_8);
         }
     }
-
-    // ----- assets -----
 
     private static String fetchAssets(final Path cache, final Path release) throws Exception {
         JsonObject pin = JsonParser.parseString(Files.readString(release)).getAsJsonObject();
@@ -190,7 +176,6 @@ public final class FontOracle {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(bytes));
     }
 
-    /** The resources the client has: the layer of its jar, then the layer of the asset index above it. */
     private static MultiPackResourceManager resourceManager(final Path assets, final String index) throws Exception {
         Method create = Class.forName("net.minecraft.client.resources.ClientPackSource")
             .getDeclaredMethod("createVanillaPackSource", Path.class);
@@ -201,9 +186,6 @@ public final class FontOracle {
         return new MultiPackResourceManager(PackType.CLIENT_RESOURCES, (List<PackResources>)layers.get(vanilla));
     }
 
-    // ----- loading -----
-
-    /** Runs the font loading of the client on the resources, without the window and its textures. */
     private static Map<Identifier, List<GlyphProvider.Conditional>> prepare(final ResourceManager manager) throws Exception {
         Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
         unsafeField.setAccessible(true);
@@ -225,8 +207,6 @@ public final class FontOracle {
         active.setAccessible(true);
         return new Loaded(set, stitcher, (List<GlyphProvider>)active.get(set));
     }
-
-    // ----- the dump -----
 
     private static JsonObject config(
         final Map<String, IntSet> archives,
@@ -268,7 +248,6 @@ public final class FontOracle {
         return COMPACT.toJsonTree(value);
     }
 
-    /** The code points each Unifont archive supports, loaded once. */
     private static Map<String, IntSet> archives(final ResourceManager manager) throws Exception {
         Map<String, IntSet> result = new LinkedHashMap<>();
         for (String archive : HEX_ARCHIVES) {
@@ -336,7 +315,6 @@ public final class FontOracle {
         return entry;
     }
 
-    /** For each provider, the range of the code points it supports and the extremes of its advances. */
     private static JsonArray ranges(final Loaded loaded) {
         JsonArray result = new JsonArray();
         for (int i = 0; i < loaded.providers.size(); i++) {
@@ -370,7 +348,6 @@ public final class FontOracle {
         return result;
     }
 
-    /** The provider that draws each code point of the basic plane, as runs: `first-last:provider` in hexadecimal. */
     private static JsonArray winners(final Loaded loaded) {
         List<String> runs = new ArrayList<>();
         int start = 0;
@@ -395,7 +372,6 @@ public final class FontOracle {
         return loaded.providers.size();
     }
 
-    /** The advance of every glyph of every bitmap provider, in the order of the code points. */
     private static JsonObject bitmapAdvances(final Loaded loaded) {
         JsonObject result = new JsonObject();
         for (int i = 0; i < loaded.providers.size(); i++) {
@@ -424,7 +400,6 @@ public final class FontOracle {
         return result;
     }
 
-    /** For each width of a Unifont glyph in pixels, how many glyphs have it and the first of them. */
     private static JsonArray unihexWidths(final Loaded loaded) {
         JsonArray result = new JsonArray();
         for (int i = 0; i < loaded.providers.size(); i++) {
@@ -499,7 +474,6 @@ public final class FontOracle {
         return result;
     }
 
-    /** A text of consecutive runs: `text` is the measured text, `runs` the code points and the style of each run. */
     private static JsonObject mixed(final Font font, final Style bold, final String[] texts, final boolean[] bolds) {
         FormattedText[] parts = new FormattedText[texts.length];
         JsonArray runs = new JsonArray();
@@ -527,7 +501,6 @@ public final class FontOracle {
         return entry;
     }
 
-    /** The code points of a text as hexadecimal numbers, so that a lone surrogate survives the file. */
     private static String codes(final String text) {
         StringBuilder out = new StringBuilder();
         text.codePoints().forEach(cp -> out.append(out.length() == 0 ? "" : " ").append(String.format("%04X", cp)));
@@ -557,8 +530,6 @@ public final class FontOracle {
         }
         return result;
     }
-
-    // ----- probes -----
 
     private static List<Integer> probes(final boolean full) {
         List<Integer> list = new ArrayList<>();
@@ -593,9 +564,6 @@ public final class FontOracle {
         }
     }
 
-    // ----- text -----
-
-    /** Writes a tree with an element of an array of objects on each line. */
     private static void write(final StringBuilder out, final JsonElement node, final int depth, final int step) {
         String indent = " ".repeat(depth * step);
         if (node.isJsonObject() && depth < 4) {

@@ -27,35 +27,17 @@ use tokio::sync::watch;
 use tracing::{info, warn};
 
 pub struct NetworkPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`].
     pub address: SocketAddr,
-    /// A listener beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
     pub max_players: u32,
     pub motd: String,
     pub favicon: Option<String>,
-    /// A handshake with the transfer intent continues as a login only when this is set;
-    /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
-    /// Turned on, the status response keeps the online and maximum counts but carries no sample
-    /// of player names.
     pub hide_online_players: bool,
-    /// Turned off, a status connection closes after the handshake without a packet; a login is
-    /// not affected.
     pub enable_status: bool,
-    /// The kernel send buffer of each connection, in bytes. Autotuning would let every slow
-    /// reader pin up to 4 MiB of kernel memory, and a few hundred of them exhaust the network
-    /// memory of the host. macOS then fails sends with `ENOBUFS` after it may have queued part of
-    /// the bytes, so no writer can resume its stream. A fixed buffer keeps a slow reader's
-    /// backlog in its own outbound queue. 512 KiB still carries 5 MB/s at a round trip of 100 ms.
     pub send_buffer_bytes: usize,
-    /// The length of the queue of connections the kernel completes before the accept loop takes
-    /// them. A burst of clients beyond this length gets connection resets.
     pub accept_backlog: u32,
-    /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
-    /// Turned off behind a proxy, where every player arrives from the proxy's address.
     pub per_ip_accept_limit: bool,
     pub proxy_upstreams: Vec<IpAddr>,
 }
@@ -65,7 +47,6 @@ const SERVER_ICON: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/server-icon.png"
 ));
 
-/// The mc.rs icon as a `data:` URL for the `favicon` key of the status response.
 #[must_use]
 pub fn default_favicon() -> String {
     use base64::Engine;
@@ -92,17 +73,9 @@ impl Default for NetworkPlugin {
     }
 }
 
-/// The address the listener is actually bound to, inserted while the plugin
-/// builds, so a caller that asked for port 0 can read the port before the app
-/// ever ticks.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct BoundAddress(pub SocketAddr);
 
-/// The UDP address the WebTransport endpoint is bound to, plus the SHA-256 of
-/// the DER certificate it minted at startup. A browser can only reach a
-/// self-signed endpoint by passing that hash in `serverCertificateHashes`, and
-/// only accepts one whose certificate is valid for at most 14 days, so the
-/// certificate is ephemeral and its hash has to travel out of band.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct WebTransportEndpoint {
     pub address: SocketAddr,
@@ -121,8 +94,6 @@ pub struct StatusPublisher {
 }
 
 impl StatusPublisher {
-    /// Replaces the online players; the next status exchange sees them. A system that calls this
-    /// must run before [`NetworkSet::RefreshStatus`] to show the change in the same frame.
     pub fn publish(&mut self, players: StatusPlayers) {
         self.players = players;
     }
@@ -158,7 +129,6 @@ fn bind_listener(address: SocketAddr, backlog: u32) -> std::io::Result<std::net:
         Type::STREAM,
         Some(Protocol::TCP),
     )?;
-    // std sets this on Unix; a restart must not wait for old connections in TIME_WAIT.
     #[cfg(unix)]
     socket.set_reuse_address(true)?;
     socket.bind(&address.into())?;
@@ -173,8 +143,6 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
 
-    // Binding through std keeps this usable from a caller that is itself
-    // already inside a tokio runtime, where `block_on` would panic.
     let std_listener = bind_listener(address, plugin.accept_backlog)?;
     let bound = std_listener.local_addr()?;
     let listener = {
@@ -258,13 +226,10 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     let spawn_new_raw_connections = move |world: &mut World| {
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
-                Ok(session) => {
-                    // The outbound queue lives in mcrs_minecraft_server, which attaches it.
-                    world.spawn((
-                        ServerSideConnection { raw: session },
-                        ConnectionState::Login,
-                    ))
-                }
+                Ok(session) => world.spawn((
+                    ServerSideConnection { raw: session },
+                    ConnectionState::Login,
+                )),
                 Err(_) => break,
             };
         }
@@ -276,8 +241,6 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         FixedPreUpdate,
         spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
     );
-    // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
-    // is registered by BridgePlugin in mcrs_minecraft_server.
     app.add_plugins(event::EventLoopPlugin);
 
     Ok(())
@@ -340,8 +303,6 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) proxy_upstreams: Box<[IpAddr]>,
 }
 
-/// The writers of the server wake on its runtime; without the network plugin, on the thread of
-/// the flush.
 impl FromWorld for WriterWakes {
     fn from_world(world: &mut World) -> Self {
         match world.get_resource::<SharedNetworkState>() {
@@ -362,9 +323,6 @@ impl ServerSideConnection {
         self.raw.remote_addr
     }
 
-    /// Sends the disconnect packet of the protocol the client decodes in `state`, behind
-    /// what is already written; the caller then removes the connection. While the client
-    /// reads a layer the server does not yet write, the connection closes with no packet.
     pub fn disconnect(&mut self, state: ConnectionState, reason: Text) -> anyhow::Result<()> {
         if self.raw.awaits_login_acknowledgement() {
             return Ok(());
@@ -384,14 +342,12 @@ impl ServerSideConnection {
                 self.raw
                     .append(&game::clientbound::ClientboundDisconnect { reason })?;
             }
-            // Neither protocol has a disconnect packet; the connection only closes.
             ConnectionState::Handshaking | ConnectionState::Status => return Ok(()),
         }
         self.raw.send_written();
         Ok(())
     }
 
-    /// Logs a frame the game's decoder rejects and disconnects its client as the game does.
     pub fn reject(&mut self, state: ConnectionState, malformed: &Malformed) {
         if let Some(line) = &malformed.log {
             warn!("{line}");

@@ -119,7 +119,6 @@ macro_rules! decode_each_id {
 
 mcrs_minecraft_protocol::for_each_packet_table!(decode_each_id);
 
-/// The game state's tables as the game crate types them, the others as this crate does.
 fn table_named(name: &str) -> &'static Table {
     match name {
         "game_clientbound" => &game_clientbound::TABLE,

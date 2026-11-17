@@ -5,8 +5,6 @@ use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_voxel::{BlockPos, ColumnPos};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A pending tick of a saved chunk. A source and a flowing state of one
-/// fluid share the fluid's id, so a flowing id names no fluid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SavedTick<K> {
     pub kind: K,
@@ -32,8 +30,6 @@ struct RawTick<I> {
     p: i32,
 }
 
-/// The `block_ticks` or `fluid_ticks` list of a record. An entry that does not load fails the
-/// record.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TickList<'a, K: Clone> {
     pub(crate) ticks: Cow<'a, [SavedTick<K>]>,
@@ -51,7 +47,6 @@ impl<K: Clone> Default for TickList<'_, K> {
 }
 
 impl<K: Clone> TickList<'_, K> {
-    /// A tick outside the column belongs to no cell of it.
     pub(crate) fn within(self, column: ColumnPos) -> Vec<SavedTick<K>> {
         let mut ticks = self.ticks.into_owned();
         ticks.retain(|tick| ColumnPos::from(tick.pos) == column);

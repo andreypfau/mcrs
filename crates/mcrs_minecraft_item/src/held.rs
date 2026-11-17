@@ -36,7 +36,6 @@ impl Held {
         let Some(&held) = world.get::<Held>(ctx.entity) else {
             return;
         };
-        // The holder is already gone while its subtree cascades out of a despawn.
         let Some(mut table) = world.get_mut::<SlotTable>(held.holder) else {
             return;
         };
@@ -61,8 +60,6 @@ impl Holds {
     }
 }
 
-/// The slots of a holder, mirrored from `Held` by its hooks; `slots` ends at
-/// the last occupied one.
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
 #[component(on_insert = SlotTable::mirror_holds)]
 pub struct SlotTable {

@@ -13,7 +13,6 @@ const FOCUSED_ROW_OUTLINE: u32 = 0xFFFF_FFFF;
 const ROW_OUTLINE: u32 = 0xFF80_8080;
 
 impl Widgets {
-    /// Where `widget` draws in this frame (SCRL-AREA-003, SCRL-PANEL-001, LIST-BG-003).
     #[must_use]
     pub fn placement(&self, widget: &Widget) -> WidgetPlacement {
         let Some(member) = self.member(widget) else {
@@ -36,8 +35,6 @@ impl Widgets {
         }
     }
 
-    /// Whether `widget` is under the mouse in this frame, inside the clip of its scroll area
-    /// (WID-STATE-002, LIST-WID-001).
     #[must_use]
     pub fn is_hovered(&self, widget: &Widget) -> bool {
         let mouse = self.input.mouse();
@@ -53,7 +50,6 @@ impl Widgets {
             }
     }
 
-    /// Whether `widget` draws its highlighted sprite in this frame (WID-STATE-002).
     #[must_use]
     pub fn is_highlighted(&self, widget: &Widget) -> bool {
         match self.input.device() {
@@ -65,7 +61,6 @@ impl Widgets {
         }
     }
 
-    /// The row of a list under the mouse in this frame (LIST-HOVER-001).
     #[must_use]
     pub(crate) fn hovered_row(&self, widget: &Widget) -> Option<usize> {
         let mouse = self.input.mouse();
@@ -77,8 +72,6 @@ impl Widgets {
         }
     }
 
-    /// The colour of the outline around the black field of row `row` of a selection list in this
-    /// frame, when the row draws one (LIST-SEL-001).
     #[must_use]
     pub fn row_outline(&self, widget: &Widget, row: usize) -> Option<u32> {
         let WidgetKind::SelectionList(list) = &widget.kind else {
@@ -98,7 +91,6 @@ impl Widgets {
         }
     }
 
-    /// The tab of a tab bar under the mouse in this frame (TAB-BAR-001).
     #[must_use]
     pub(crate) fn hovered_tab(&self, widget: &Widget) -> Option<usize> {
         let WidgetKind::TabBar(bar) = &widget.kind else {
@@ -110,8 +102,6 @@ impl Widgets {
         bar.tab_at(widget.rect, f64::from(self.input.mouse().x))
     }
 
-    /// The sprite of tab `tab` of a tab bar in this frame; a focused bar highlights its current
-    /// tab (TAB-MENU-002, TAB-FOCUS-001).
     #[must_use]
     pub fn tab_sprite(&self, widget: &Widget, tab: usize) -> Option<TabSprite> {
         let WidgetKind::TabBar(bar) = &widget.kind else {
@@ -132,8 +122,6 @@ impl Widgets {
         })
     }
 
-    /// The sprites of `widget` in this frame; a text widget draws none (WID-BTN-002,
-    /// WID-ICON-002, WID-CHK-002).
     #[must_use]
     pub fn sprite(&self, widget: &Widget) -> Option<WidgetSprite> {
         let active = widget.active;
@@ -177,8 +165,6 @@ impl Widgets {
         }
     }
 
-    /// The shape of the mouse pointer in this frame; the last hovered widget or scrollbar in the
-    /// order of the draw sets it (WID-STATE-004, SCRL-BAR-001, EDIT-PTR-004).
     #[must_use]
     pub fn pointer_shape(&self) -> PointerShape {
         if matches!(self.drag, Drag::Scrollbar { .. }) {
@@ -216,9 +202,6 @@ impl Widgets {
         shape
     }
 
-    /// The tooltip request of the widgets in the frame at `now_ms`; call it once in each frame,
-    /// because it keeps the time at which each widget starts to want its tooltip (WID-TIP-001,
-    /// WID-TIP-005, LIST-WID-001).
     pub fn tooltip(&mut self, now_ms: u64) -> Option<TooltipRequest> {
         let keyboard = self.input.device().is_keyboard();
         let mouse = self.input.mouse();

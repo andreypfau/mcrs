@@ -50,7 +50,6 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
     let on_stone = site(air, stone);
     let item = LandingOutcome::Item(Remains::Item);
     let cases: &[(BlockStateId, LandingSite, LandingOutcome, &[LandingEvent])] = &[
-        // FBK-LND-001: moving_piston comes first, then the break flag.
         (suspicious, site(piston, stone), LandingOutcome::Wait, &[]),
         (
             suspicious,
@@ -58,7 +57,6 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
             LandingOutcome::Break,
             &[LandingEvent::BlockBreak][..],
         ),
-        // FBK-LND-002.
         (sand, on_stone, place(sand, None), &[]),
         (sand, site(air, air), item, &[]),
         (
@@ -88,7 +86,6 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
             item,
             &[],
         ),
-        // FBK-LND-004: a water source waterlogs, water at or beside the cell makes concrete.
         (dry_slab, site(water, stone), place(wet_slab, None), &[]),
         (dry_slab, site(flowing, stone), place(dry_slab, None), &[]),
         (
@@ -114,7 +111,6 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
         ),
         (powder, site(air, water), item, &[]),
         (powder, on_stone, place(powder, None), &[]),
-        // FBK-LND-007.
         (
             anvil,
             on_stone,

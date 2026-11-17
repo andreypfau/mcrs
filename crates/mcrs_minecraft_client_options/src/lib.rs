@@ -1,4 +1,3 @@
-//! The options a user sets on the client, as one plain value.
 #![no_std]
 
 mod client_options;

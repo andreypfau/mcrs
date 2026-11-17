@@ -6,7 +6,6 @@ use crate::ControlInput;
 use crate::Wanted;
 use crate::angles;
 
-/// The move control (PATH-MOV-001, PATH-MOV-002) and the jump control (PATH-MOV-003).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MoveControl {
     operation: Operation,
@@ -22,30 +21,24 @@ enum Operation {
     },
 }
 
-/// The result of one step of the move control.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MoveStep {
     pub forward: f32,
-    /// The new mob speed; `None` keeps the speed of the row.
     pub speed: Option<f32>,
-    /// The new yaw, when the step turned the mob.
     pub yaw: Option<f32>,
     pub jump: bool,
 }
 
-/// `2.5000003E-7F`, widened: below this squared distance the mob is at its wanted position.
 const AT_WANTED: f64 = 2.500_000_3e-7_f32 as f64;
 const LARGEST_TURN: f32 = 90.0;
 
 impl MoveControl {
-    /// The follower gives a wanted position: the operation becomes `move_to` unless it is `jump`.
     pub fn set_wanted(&mut self, wanted: Wanted) {
         if !matches!(self.operation, Operation::Jump { .. }) {
             self.operation = Operation::MoveTo(wanted);
         }
     }
 
-    /// The step of the operation in this tick.
     pub fn step(&mut self, input: &ControlInput) -> MoveStep {
         let rest = MoveStep {
             forward: 0.0,
@@ -112,7 +105,6 @@ impl MoveControl {
     }
 }
 
-/// `f32(k × v)` of the speed modifier `k` and the attribute `movement_speed` `v`.
 #[must_use]
 pub fn mob_speed(speed_modifier: f32, movement_speed: f64) -> f32 {
     (f64::from(speed_modifier) * movement_speed) as f32

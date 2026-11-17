@@ -3,7 +3,6 @@ use mcrs_molang::{
     UseContext, ValueType,
 };
 
-/// A query of the context of use `entity` that the animation host supplies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum EntityQuery {
@@ -21,16 +20,13 @@ pub enum EntityQuery {
     TargetXRotation,
     TargetYRotation,
     BodyYRotation,
-    /// The head index of the argument; `None` for an argument that is not a small whole number.
     HeadXRotation(Option<u8>),
     HeadYRotation(Option<u8>),
     IsBaby,
     IsAlive,
     HurtTime,
     DeathTicks,
-    /// The position of the variant entry in the synced registry.
     Variant,
-    /// The resource location of the variant entry, as a string.
     VariantIdentifier,
     VariantAsset,
     VariantModel,
@@ -154,7 +150,6 @@ const ROWS: [Row; 38] = [
 ];
 
 impl EntityQuery {
-    /// The name after `query.`.
     #[must_use]
     pub fn name(self) -> &'static str {
         let base = match self {
@@ -167,7 +162,6 @@ impl EntityQuery {
             .map_or("", |row| row.name)
     }
 
-    /// A registry of the context of use `entity` with each entity query declared.
     #[must_use]
     pub fn registry() -> QueryRegistry {
         let mut registry = QueryRegistry::new(UseContext::Entity);
@@ -188,7 +182,6 @@ impl EntityQuery {
         registry
     }
 
-    /// The query of a declaration name with the literal arguments of one query slot.
     #[must_use]
     pub fn from_declaration(name: &str, arguments: &[LiteralKey]) -> Option<Self> {
         let query = ROWS.iter().find(|row| row.name == name)?.query;
@@ -206,7 +199,6 @@ impl EntityQuery {
         })
     }
 
-    /// Whether the animation host supplies the value itself, not the query source.
     #[must_use]
     pub const fn is_animation_supplied(self) -> bool {
         matches!(

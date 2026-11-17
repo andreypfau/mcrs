@@ -7,8 +7,6 @@ use rustc_hash::FxHashMap;
 
 use crate::Change;
 
-/// The changes sent to one player, numbered from 0 in the order of the writes, that a candidate
-/// or a recorded tick can still lack.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct KeptChanges {
     first: u64,
@@ -16,7 +14,6 @@ pub(crate) struct KeptChanges {
 }
 
 impl KeptChanges {
-    /// The number of the next change.
     pub(crate) fn end(&self) -> u64 {
         self.first.saturating_add(self.changes.len() as u64)
     }
@@ -27,15 +24,12 @@ impl KeptChanges {
         number
     }
 
-    /// Applies the changes from number `from` up to `to`, in order.
     pub(crate) fn apply(&self, state: &mut PlayerState, from: u64, to: u64) {
         for change in self.range(from, to) {
             change.apply(state);
         }
     }
 
-    /// Fills `undone` with the old state of each block that a change from number `from` on sets;
-    /// with two changes of one block, the older one wins.
     pub(crate) fn undo_from(&self, from: u64, undone: &mut FxHashMap<BlockPos, BlockStateId>) {
         undone.clear();
         for change in self.range(from, self.end()).rev() {
@@ -45,7 +39,6 @@ impl KeptChanges {
         }
     }
 
-    /// Drops the changes before number `keep`: no candidate and no record lacks them.
     pub(crate) fn trim(&mut self, keep: u64) {
         while self.first < keep && self.changes.pop_front().is_some() {
             self.first = self.first.saturating_add(1);

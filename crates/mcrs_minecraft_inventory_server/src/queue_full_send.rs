@@ -8,8 +8,6 @@ use crate::creative_drops::CreativeDrops;
 use crate::full_sends::FullSends;
 use mcrs_minecraft_vanilla_inventory::PlayerItemsRestored;
 
-/// Gives a restored player the state of its connection when it has none, and makes the next sync
-/// send it its full inventory state (INV-SEL-003, INV-SYN-005).
 pub(crate) fn queue_full_send(
     restored: On<PlayerItemsRestored>,
     mut sends: ResMut<FullSends>,

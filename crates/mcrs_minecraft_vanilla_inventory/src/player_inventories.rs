@@ -9,7 +9,6 @@ use mcrs_minecraft_inventory_file::PlayerItems;
 use crate::PlayerHolders;
 use crate::from_holders::from_holders;
 
-/// Reads the holders of each player and their stacks.
 #[derive(SystemParam)]
 pub struct PlayerInventories<'w, 's> {
     players: Query<
@@ -26,8 +25,6 @@ pub struct PlayerInventories<'w, 's> {
 }
 
 impl PlayerInventories<'_, '_> {
-    /// The stacks of the player inventory, the cursor and the craft grid of `player` as values,
-    /// with its selected slot, or `None` when `player` has no [`PlayerHolders`].
     pub fn capture(&mut self, player: Entity) -> Option<PlayerItems> {
         let (inventory, selected, holders) = self.players.get(player).ok()?;
         Some(from_holders(

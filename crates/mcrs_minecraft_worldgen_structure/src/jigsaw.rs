@@ -18,8 +18,6 @@ use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, 
 
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
 
-/// Inclusive integer arithmetic is exact for the reference's quarter-deflated
-/// voxel test.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FreeSpace {
     bounds: BoundingBox,

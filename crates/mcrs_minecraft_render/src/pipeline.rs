@@ -82,7 +82,6 @@ pub(crate) fn descriptor(
     }
 }
 
-/// The first quad, the quad count and the section of a group record, one record an instance.
 const GROUP_INSTANCE: [VertexAttribute; 1] = [VertexAttribute {
     format: VertexFormat::Uint32x3,
     offset: 0,
@@ -158,8 +157,6 @@ pub(crate) fn terrain_descriptor(
     descriptor
 }
 
-// Model quads sit flush against the greedy faces behind them, so without a nudge the two
-// fight for the same depth. The cull allows for the nudge when it tests a model quad.
 pub(super) const MODEL_DEPTH_BIAS: DepthBiasState = DepthBiasState {
     constant: 2,
     slope_scale: 1.0,
@@ -174,8 +171,6 @@ fn model_depth_bias(kind: DrawKind) -> DepthBiasState {
     }
 }
 
-/// Queued once, on the first frame the terrain and a 3D view exist, and never dropped: the
-/// pipeline cache neither deduplicates nor evicts, so queuing again would leak a set.
 #[derive(Resource, Default)]
 pub(crate) struct DeferredPipelines {
     pub lighting: Option<CachedRenderPipelineId>,
@@ -186,7 +181,6 @@ pub(crate) struct DeferredPipelines {
     pub transparency: Option<TransparencyPipelines>,
 }
 
-/// Queued once, on the first frame with Improved Transparency on, after the deferred pipelines.
 pub(crate) struct TransparencyPipelines {
     pub lighting: CachedRenderPipelineId,
     translucent: [CachedRenderPipelineId; QuadFormat::COUNT],
@@ -211,8 +205,6 @@ impl TransparencyPipelines {
 }
 
 impl DeferredPipelines {
-    // chisle: on the minimal path the tinted lighting of the option samples 18 textures and
-    // WebGL2 allows 16, so the option stays off; fewer sampled textures in its layout lift it.
     pub fn transparency_supported(&self, terrain: &Terrain, tint: Option<&LightTint>) -> bool {
         terrain.path() != RenderPath::Minimal || !self.tinted || tint.is_none()
     }

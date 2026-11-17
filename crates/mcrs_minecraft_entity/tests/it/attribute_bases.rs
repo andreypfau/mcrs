@@ -8,7 +8,6 @@ struct Fixture {
     default_attributes: Vec<Vec<Cell>>,
 }
 
-/// A row is the id of a type, then one `[attribute, base bits]` pair for each attribute of its set.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Cell {

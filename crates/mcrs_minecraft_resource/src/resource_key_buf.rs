@@ -6,7 +6,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{ResourceKey, ResourceLocation, ResourceLocationBuf};
 
-/// An owned resource key: a [`ResourceLocationBuf`] typed by the registry `T`.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct ResourceKeyBuf<T> {
     location: ResourceLocationBuf,
@@ -32,13 +31,11 @@ impl<T> ResourceKeyBuf<T> {
         &self.location
     }
 
-    /// The borrowed form.
     #[inline]
     pub fn as_key(&self) -> ResourceKey<'_, T> {
         ResourceKey::new(self.location.as_location())
     }
 
-    /// The canonical `namespace:path` text.
     #[inline]
     pub fn as_str(&self) -> &str {
         self.location.as_str()

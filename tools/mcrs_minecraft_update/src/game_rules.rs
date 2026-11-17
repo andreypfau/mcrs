@@ -30,8 +30,6 @@ enum Definition {
     },
 }
 
-/// `GameRule::definition` as one exhaustive match, so a rule the dump lacks
-/// fails the build of the game rule crate.
 pub fn definition_impl(json: &str) -> Result<String, String> {
     let definitions: BTreeMap<String, Definition> =
         serde_json::from_str(json).map_err(|error| format!("{DEFINITIONS}: {error}"))?;

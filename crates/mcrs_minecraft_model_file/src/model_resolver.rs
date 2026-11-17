@@ -32,32 +32,25 @@ const MISSING_MODEL_FILE: &str = r##"{
 const GENERATED_MODEL_FILE: &str =
     r##"{ "textures": { "particle": "#layer0" }, "gui_light": "front" }"##;
 
-/// A model with its chain merged: the fields it inherits and its resolved texture slots.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MergedModel {
-    /// The model of the chain that supplies the elements.
     pub geometry_from: Option<String>,
     pub elements: Vec<Element>,
-    /// The elements are the extruded layers of `minecraft:builtin/generated`.
     pub generated: bool,
     pub ambient_occlusion: bool,
     pub gui_light: GuiLight,
     pub textures: BTreeMap<String, TextureValue>,
-    /// The slots of the chain that resolve to no texture.
     pub unresolved: BTreeSet<String>,
     pub display: [Option<DisplayTransform>; 9],
 }
 
 impl MergedModel {
-    /// The texture of a face whose `texture` string is `reference`, with or without its `#`.
     #[must_use]
     pub fn texture(&self, reference: &str) -> Option<&TextureValue> {
         self.textures
             .get(reference.strip_prefix('#').unwrap_or(reference))
     }
 
-    /// The sprite a face with this `texture` string draws: the missing texture when its slot
-    /// has none.
     #[must_use]
     pub fn sprite(&self, reference: &str) -> TextureValue {
         self.texture(reference).cloned().unwrap_or(TextureValue {
@@ -77,7 +70,6 @@ impl MergedModel {
     }
 }
 
-/// Reads model files from the files of a pack and merges their chains, each model once.
 pub struct ModelResolver<'a> {
     pack: &'a PackFiles,
     files: HashMap<String, Option<ModelFile>>,
@@ -108,7 +100,6 @@ impl<'a> ModelResolver<'a> {
         self.pack
     }
 
-    /// The content errors found so far, each naming its file.
     #[must_use]
     pub fn errors(&self) -> &[ContentError] {
         &self.errors
@@ -118,8 +109,6 @@ impl<'a> ModelResolver<'a> {
         std::mem::take(&mut self.errors)
     }
 
-    /// The model `id` with its chain merged. A model that is absent, defective or in a cycle
-    /// gives the missing model.
     pub fn resolve(&mut self, id: &str) -> &MergedModel {
         let id = full_id(id);
         if !self.merged.contains_key(&id) {
@@ -161,7 +150,6 @@ impl<'a> ModelResolver<'a> {
         present
     }
 
-    /// The identifiers of the chain of `id`, or `None` when `id` itself is absent or in a cycle.
     fn chain(&mut self, id: &str) -> Option<Vec<String>> {
         if !self.load(id) {
             return None;

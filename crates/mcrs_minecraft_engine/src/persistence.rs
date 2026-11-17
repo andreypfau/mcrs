@@ -59,8 +59,6 @@ const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const UUID_KEYS: &[&str] = &["UUID"];
 
-/// Registers the components of a player that the engine owns, under the root keys of the player
-/// file. A plugin that adds a component to the player registers it next to these.
 pub struct PlayerPersistencePlugin;
 
 impl Plugin for PlayerPersistencePlugin {
@@ -101,8 +99,6 @@ impl Plugin for PlayerPersistencePlugin {
                 SAVED_ATTRIBUTES_KEYS,
                 PersistScope::Persisted,
             )
-            // A handover applies the codecs in this order, so the carried form, which keeps the
-            // transient modifiers, replaces what the saved form applied.
             .register_persisted_as::<AttributeInstances, CarriedAttributes>(
                 CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
@@ -111,8 +107,6 @@ impl Plugin for PlayerPersistencePlugin {
     }
 }
 
-/// `Pos` and `Rotation` of the player file. Each is absent from a file that the game wrote
-/// without it.
 #[derive(Serialize, Deserialize)]
 struct Pose {
     #[serde(rename = "Pos", default, skip_serializing_if = "Option::is_none")]
@@ -178,7 +172,6 @@ fn apply_pose(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), Per
     Ok(())
 }
 
-/// The file holds the UUID of the profile. A load checks the value and keeps the profile.
 fn capture_uuid(
     world: &mut World,
     player: Entity,
@@ -204,7 +197,6 @@ fn apply_uuid(_: &mut World, _: Entity, tag: &NbtTag) -> Result<(), PersistedErr
         })
 }
 
-/// Serde adapter for a [`Transform`] field: it has the shape of the player file.
 pub(crate) mod transform_serde {
     use super::*;
 
@@ -224,7 +216,6 @@ pub(crate) mod transform_serde {
     }
 }
 
-/// `playerGameType` of the player file: the number of the game mode.
 #[derive(Serialize, Deserialize)]
 struct GameType(i32);
 
@@ -277,7 +268,6 @@ impl PersistedForm<AttributeInstances> for SavedAttributes {
     }
 }
 
-/// The `abilities` compound of the player file. The game reads a missing key with the default.
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Abilities {
@@ -307,9 +297,6 @@ impl Default for Abilities {
     }
 }
 
-/// The abilities that the file gave a player, and the game mode that the player had then. The
-/// server derives the abilities of a game mode. The values that no rule of the server changes
-/// stay as read: the speeds, and `mayfly` while the game mode is the one of the read.
 #[derive(Component, Clone, Copy)]
 struct ReadAbilities {
     abilities: Abilities,
@@ -378,12 +365,8 @@ fn capture_dimension(
         .map(|key| NbtTag::String(key.to_string())))
 }
 
-/// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;
 
-/// The one autosave clock. The host advances it at the start of every tick, and every saver
-/// reads it: the host files, the data layer of each dimension and the players of each
-/// dimension, which get the signal through their input.
 #[derive(Resource, Default, Debug)]
 pub struct AutosaveCadence {
     ticks: u32,
@@ -391,7 +374,6 @@ pub struct AutosaveCadence {
 }
 
 impl AutosaveCadence {
-    /// Whether this tick is an autosave tick. The first tick of a run is not.
     #[must_use]
     pub fn is_due(&self) -> bool {
         self.due
@@ -411,7 +393,6 @@ pub(crate) fn autosave_due(cadence: Res<AutosaveCadence>) -> bool {
     cadence.is_due()
 }
 
-/// Runs the [`AutosaveCadence`]. A plugin that saves on the cadence adds it when it is missing.
 pub struct AutosavePlugin;
 
 impl Plugin for AutosavePlugin {
@@ -421,7 +402,6 @@ impl Plugin for AutosavePlugin {
     }
 }
 
-/// Player files waiting for the I/O pool, and the write that pool is running.
 #[derive(Resource, Default)]
 pub struct PlayerSaveQueue {
     writer: BackgroundWriter<PlayerBatch>,
@@ -541,20 +521,15 @@ impl PlayerSaveQueue {
         self.writer.is_idle() && self.released.is_empty()
     }
 
-    /// Whether a write failed since the last call.
     pub(crate) fn take_failed(&mut self) -> bool {
         std::mem::take(&mut self.failed)
     }
 }
 
-/// The file on disk could not be parsed; saving would replace it with the
-/// empty player the session joined with.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UnreadablePlayerDat;
 
 impl PersistedSnapshot {
-    /// A joining snapshot assembled in one call. The live host builds one with
-    /// the `insert_*` methods instead; tests use this to name a player.
     #[doc(hidden)]
     pub fn joining_player(
         uuid: Uuid,
@@ -583,8 +558,6 @@ impl PersistedSnapshot {
         snapshot
     }
 
-    /// The keys of `dat`, which `path` names. A key that no component of `registry` writes to a
-    /// player file fails the load.
     pub fn from_dat(
         dat: &PlayerDat,
         registry: &PersistedRegistry,
@@ -652,7 +625,6 @@ impl PersistedSnapshot {
             .and_then(|form| form.into_value().ok())
     }
 
-    /// The `Pos` of the file, `None` when it has none, and an error when it is malformed.
     pub fn pos(&self) -> Result<Option<bevy_math::DVec3>, PersistedError> {
         Ok(self
             .get_as::<Pose>(POSE_KEYS)?
@@ -660,8 +632,6 @@ impl PersistedSnapshot {
             .map(bevy_math::DVec3::from_array))
     }
 
-    /// The yaw and pitch of the file, `None` when it has none, and an error when they are
-    /// malformed.
     pub fn rotation(&self) -> Result<Option<[f32; 2]>, PersistedError> {
         Ok(self
             .get_as::<Pose>(POSE_KEYS)?
@@ -685,8 +655,6 @@ impl PersistedSnapshot {
         self.get_logged(OP_LEVEL_KEYS).unwrap_or_default()
     }
 
-    /// Sends the player a teleport to `destination` at `departed_at` and returns its id. The
-    /// player arrives with the new state.
     pub(crate) fn send_teleport(&mut self, destination: Transform, departed_at: GameTime) -> i32 {
         let mut state = self
             .get_logged::<TeleportState>(TELEPORT_KEYS)
@@ -696,7 +664,6 @@ impl PersistedSnapshot {
         id
     }
 
-    /// Removes the keys that the arrival of a handover sets itself.
     pub(crate) fn forget_placement(&mut self) {
         for key in POSE_KEYS.iter().chain(DIMENSION_KEYS) {
             self.remove(key);
@@ -734,7 +701,6 @@ pub fn load_player(world: &mut World, player: Entity) {
     }
 }
 
-/// Applies the snapshot that the host parsed from the player file at the join.
 pub fn apply_join_snapshot(world: &mut World, player: Entity, snapshot: &PersistedSnapshot) {
     if snapshot.is_unreadable() {
         world.entity_mut(player).insert(UnreadablePlayerDat);
@@ -774,8 +740,6 @@ pub fn save_player(
     Ok(PlayerDat::new(VERSION.world_version, root))
 }
 
-/// The file of `player`, or `None` when the player has no file to write. A leave captures the
-/// player even without a file, because its capture closes what the player holds open.
 fn player_file(
     world: &mut World,
     player: Entity,
@@ -796,7 +760,6 @@ fn player_file(
     }
 }
 
-/// The save folder and the uuid of the file of `player`, or `None` when it has no file to write.
 fn file_target(world: &World, player: Entity) -> Option<(PathBuf, Uuid)> {
     let save = world.get_resource::<WorldSave>()?.0.clone();
     let uuid = world.get::<GameProfile>(player)?.id;
@@ -806,9 +769,6 @@ fn file_target(world: &World, player: Entity) -> Option<(PathBuf, Uuid)> {
     Some((save, uuid))
 }
 
-/// Snapshots `player` and queues its file for the I/O pool. The session in `release` is
-/// reported as [`OutboundPlayerReleased`] once the file is on disk, or at once when no file is
-/// written.
 pub fn queue_player_save(
     world: &mut World,
     player: Entity,
@@ -836,14 +796,11 @@ fn report_released(world: &mut World) {
     }
 }
 
-/// Writes a player and waits for the file. A tick queues the write with [`queue_player_save`]
-/// instead; this is for tests and tools.
 pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
     queue_player_save(world, player, None, cause);
     flush_player_saves(world);
 }
 
-/// Snapshots every player on the tick and hands the files to the I/O pool.
 pub fn autosave_players(world: &mut World) {
     let players: Vec<Entity> = world
         .query_filtered::<Entity, With<Player>>()
@@ -862,8 +819,6 @@ pub(crate) fn player_saves_pending(queue: Res<PlayerSaveQueue>) -> bool {
     !queue.is_idle()
 }
 
-/// Collects the finished writes, starts the next batch and reports the players whose file is
-/// on disk. A save-all request waits for every write, so the shutdown loses none.
 pub fn finish_player_saves(
     mut queue: ResMut<PlayerSaveQueue>,
     request: Option<Res<SaveRequest>>,
@@ -879,7 +834,6 @@ pub fn finish_player_saves(
     }
 }
 
-/// Waits for every queued write. For tests and tools.
 pub fn flush_player_saves(world: &mut World) {
     if let Some(mut queue) = world.get_resource_mut::<PlayerSaveQueue>() {
         queue.flush();

@@ -1,8 +1,5 @@
 use serde::{Deserialize, Deserializer, de};
 
-/// The discriminator a variant writes under `source` / `object`: a marker
-/// that rejects any other name, so the derived first-match implements
-/// `StrictEither` for the untagged enums below.
 macro_rules! discriminators {
     ($($name:ident = $id:literal),* $(,)?) => {$(
         pub(crate) fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<(), D::Error> {

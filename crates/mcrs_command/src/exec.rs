@@ -6,8 +6,6 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
 
-/// What one stage of a chain runs: the modifier of the redirect it follows, or the command of
-/// its last node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Stage<H> {
     pub modifier: Option<H>,
@@ -15,7 +13,6 @@ pub struct Stage<H> {
     pub command: Option<H>,
 }
 
-/// The contexts of one parse and their stages, owned so that the run can outlive the parse.
 #[derive(Clone, Debug)]
 pub struct Chain<H> {
     entries: Vec<Entry>,
@@ -32,7 +29,6 @@ impl<H> Default for Chain<H> {
 }
 
 impl<H: Copy> Chain<H> {
-    /// Replaces the chain with the contexts of `parse` and the handlers of their nodes.
     pub fn copy_from<A, R, E: Copy>(
         &mut self,
         graph: &Graph<A, R, H>,
@@ -54,12 +50,10 @@ impl<H: Copy> Chain<H> {
 }
 
 impl<H> Chain<H> {
-    /// Each modifier stage, then the run stage.
     pub fn stages(&self) -> &[Stage<H>] {
         &self.stages
     }
 
-    /// The span of `node` in the stage `stage`.
     pub fn span(&self, stage: usize, node: NodeId) -> Option<Span> {
         contexts(&self.entries)
             .nth(stage)?
@@ -69,12 +63,9 @@ impl<H> Chain<H> {
     }
 }
 
-/// The limits of one run of a chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
-    /// A source list never holds this many sources.
     pub forks: usize,
-    /// The cost of the stages and the runs; a value below 1 counts as 1.
     pub sequence: usize,
 }
 
@@ -87,12 +78,9 @@ impl Default for Limits {
     }
 }
 
-/// What the output of the original source receives when a stage that is not forked fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure<E> {
-    /// A modifier or a command returned this error.
     Command(E),
-    /// A source list reached this many sources.
     ForkLimit(usize),
 }
 
@@ -107,25 +95,18 @@ impl<E: fmt::Display> fmt::Display for Failure<E> {
 
 impl<E: fmt::Debug + fmt::Display> core::error::Error for Failure<E> {}
 
-/// How a run of a chain ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum End {
-    /// Every source of the last list ran, or a list became empty.
     Completed,
-    /// A stage that is not forked failed, or the chain has no command to run.
     Failed,
-    /// A source list reached [`Limits::forks`].
     ForkLimit,
-    /// The run stopped before a run of the run stage; the output receives no message.
     SequenceLimit,
 }
 
-/// What the host does for each stage of a chain. `stage` is the index of the context.
 pub trait Executor<S, H> {
     type Error;
 
-    /// Adds the sources that the modifier gives for `source` to `out`.
     fn modify(
         &mut self,
         stage: usize,
@@ -134,14 +115,11 @@ pub trait Executor<S, H> {
         out: &mut Vec<S>,
     ) -> Result<(), Self::Error>;
 
-    /// Runs the command for one source and returns its result.
     fn run(&mut self, stage: usize, command: &H, source: &S) -> Result<i32, Self::Error>;
 
-    /// Sends a failure to the output of the original source.
     fn report(&mut self, failure: Failure<Self::Error>);
 }
 
-/// The source lists of a run, owned by the caller and reused between runs.
 #[derive(Debug)]
 pub struct SourceLists<S> {
     current: Vec<S>,
@@ -157,8 +135,6 @@ impl<S> Default for SourceLists<S> {
     }
 }
 
-/// Where a run of a chain starts: at stage `stage` with `sources`, after the stages before it
-/// cost `cost`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Resume<S> {
     pub stage: usize,
@@ -166,8 +142,6 @@ pub struct Resume<S> {
     pub cost: usize,
 }
 
-/// Runs each modifier stage over the whole source list, then the run stage for each source of
-/// the last list.
 pub fn execute<S, H, X: Executor<S, H>>(
     stages: &[Stage<H>],
     source: S,
@@ -180,8 +154,6 @@ pub fn execute<S, H, X: Executor<S, H>>(
     run_from(stages, 0, 0, limits, executor, lists)
 }
 
-/// Runs the chain on from the stage of `resume`, as [`execute`] runs it from the first stage. A
-/// run that moved part of its sources elsewhere goes on there with this.
 pub fn resume<S, H, X: Executor<S, H>>(
     stages: &[Stage<H>],
     resume: Resume<S>,

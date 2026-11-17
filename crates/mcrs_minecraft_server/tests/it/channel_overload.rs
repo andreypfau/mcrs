@@ -27,7 +27,6 @@ fn take_input(world: &mut World, dim: Entity) {
     world.resource_mut::<DimInputs>().insert(dim);
 }
 
-/// What the next tick of `dim` takes in, which the tick then empties.
 fn tick_takes(world: &mut World, dim: Entity) -> Vec<i32> {
     let mut inputs = world.resource_mut::<DimInputs>();
     let ids = inputs
@@ -99,8 +98,6 @@ fn run_forward(world: &mut World) {
         .expect("the forward runs");
 }
 
-/// The input of a tick is shared by every player of the dimension, so finding it full says
-/// nothing about the player whose packet came last.
 #[test]
 fn a_full_serverbound_input_holds_the_packet_until_the_dimension_ticks() {
     let mut world = build_world();

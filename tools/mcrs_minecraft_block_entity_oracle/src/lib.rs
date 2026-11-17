@@ -1,5 +1,3 @@
-//! The oracle artefacts and the shape table of the static block entities. A developer tool and
-//! a test read them, so they may panic on a malformed input.
 #![expect(
     clippy::panic,
     clippy::unwrap_used,

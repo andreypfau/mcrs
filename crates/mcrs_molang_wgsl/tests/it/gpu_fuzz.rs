@@ -1,11 +1,3 @@
-//! Generated pure programs on a real adapter: each GPU result must have the bits of the CPU
-//! twin, and must agree with the scalar VM within the pose tolerance of
-//! `docs/spec/entity-animation.md`, EANIM-GPU-003, after the clamp to `[-1e6, 1e6]`. A value at
-//! a discontinuity is counted, not compared, and a subnormal value agrees with zero.
-//!
-//! `cargo nextest run --profile gpu --release -p mcrs_molang_wgsl --no-capture`;
-//! `MCRS_GPU_FUZZ_PROGRAMS` sets the number of programs (default 10,000).
-
 #[path = "../../../mcrs_molang/tests/generator/mod.rs"]
 #[expect(
     dead_code,
@@ -33,10 +25,7 @@ use generator::{Profile, program, registry};
 const LANES: usize = 64;
 const STRIDE: usize = 8;
 const BATCH: usize = 128;
-/// The scale limit of EANIM-GPU-003, the smallest of its limits.
 const TOLERANCE: f32 = 1e-4;
-/// `2^-20`: above about 800, one rounding step of an `f32` is larger than [`TOLERANCE`]; there
-/// the comparison allows eight steps.
 const RELATIVE_TOLERANCE: f32 = 1.0 / 1_048_576.0;
 
 struct Case {
@@ -48,7 +37,6 @@ struct Case {
     inputs: Vec<[f32; STRIDE]>,
 }
 
-/// A small deterministic generator of lane inputs.
 struct Random(u64);
 
 impl Random {
@@ -170,17 +158,10 @@ fn close(a: f32, b: f32) -> bool {
     (a - b).abs() <= TOLERANCE.max(RELATIVE_TOLERANCE * a.abs().max(b.abs()))
 }
 
-/// The same bits, or a subnormal value on one side and a zero on the other: a GPU can flush a
-/// subnormal value to zero, and the CPU does not.
 fn same_or_flushed(a: f32, b: f32) -> bool {
     a.to_bits() == b.to_bits() || (a.is_subnormal() && b == 0.0) || (b.is_subnormal() && a == 0.0)
 }
 
-/// Whether a relative change of `2^-20` in one input moves the scalar result or the GPU result
-/// past the tolerance. The input then sits at a discontinuity of one of them, for example a
-/// comparison of a sine with `0`: a difference in the last bits of an inexact function moves
-/// the discontinuity, and the two results can differ by any amount. The GPU side matters too:
-/// `math.sin(-180)` is exactly 0 on one side only.
 fn at_discontinuity(case: &Case, lane: &[f32; STRIDE], reference: f32, gpu: f32) -> bool {
     let reference = pose_clamp(reference);
     let count = case.program.inputs().len();
@@ -342,7 +323,6 @@ fn exact_ternary(function: TernaryFn, a: f64, b: f64, c: f64) -> f64 {
     }
 }
 
-/// Whether the specification leaves the last bits of the result open.
 fn inexact(instr: PureInstr) -> bool {
     match instr {
         PureInstr::Unary { function, .. } => matches!(
@@ -367,8 +347,6 @@ fn inexact(instr: PureInstr) -> bool {
     }
 }
 
-/// The program in `f64` with exact functions. Each result of an inexact function is multiplied
-/// by `nudge`.
 fn exact(program: &PureProgram, inputs: &[f32], nudge: f64) -> f64 {
     let mut registers = vec![0.0f64; program.registers()];
     let code = program.instructions();
@@ -444,10 +422,6 @@ fn exact(program: &PureProgram, inputs: &[f32], nudge: f64) -> f64 {
     0.0
 }
 
-/// Whether a relative change of `2^-21` in the result of an inexact function moves the exact
-/// result past the tolerance. The specification leaves the last bits of these functions open, so
-/// such a lane has no single right result: `math.trunc` of an arc cosine that one side rounds to
-/// `89.99999` and the other to `90` is an example. No change of an input shows it.
 fn inexact_discontinuity(case: &Case, inputs: &[f32; STRIDE]) -> bool {
     let inputs = &inputs[..case.program.inputs().len()];
     let clamp = |value: f64| {

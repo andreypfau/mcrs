@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 
 use crate::SlotView;
 
-/// The view of each entry of one menu, in the order of the menu index, and of the cursor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientView {
     entries: Vec<SlotView>,
@@ -11,7 +10,6 @@ pub struct ClientView {
 }
 
 impl ClientView {
-    /// A view of `len` entries and the cursor, each not known.
     #[must_use]
     pub fn new(len: usize) -> Self {
         Self {
@@ -30,7 +28,6 @@ impl ClientView {
         self.entries.is_empty()
     }
 
-    /// The view of the entry at `index`, or `None` when the menu has no such entry.
     #[must_use]
     pub fn entry(&self, index: usize) -> Option<&SlotView> {
         self.entries.get(index)

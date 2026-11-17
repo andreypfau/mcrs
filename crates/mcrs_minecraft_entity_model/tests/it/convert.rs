@@ -1,21 +1,14 @@
-//! The conversion of a layer entry of the model artefact to a geometry of the current shape.
-
 use std::collections::BTreeMap;
 
 use serde::Serialize;
 
 use crate::artefact::{Cube, LayerRecord, Part};
 
-/// The file `y` of the artefact origin.
 pub const ORIGIN_HEIGHT: f64 = 24.0;
 
-/// Which layer entries the conversion accepts.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Rules {
-    /// The conversion of a mob layer entry: box UV only.
     Mob,
-    /// The mob conversion, a uniform part scale, and the per-face UV for a scaled cube, a cube
-    /// with fewer than six visible faces or with a size that is not whole.
     BlockEntity,
 }
 
@@ -83,7 +76,6 @@ fn model_units(value: f64) -> f64 {
     (value * 1e6).round() / 1e6 + 0.0
 }
 
-/// Converts `entry`, or names the condition that the conversion refuses.
 pub fn convert(entry: &LayerRecord, identifier: &str, rules: Rules) -> Result<Geometry, String> {
     let root = &entry.root;
     if root.pivot != [0.0; 3] || root.rotation != [0.0; 3] || !root.cubes.is_empty() {
@@ -108,8 +100,6 @@ pub fn convert(entry: &LayerRecord, identifier: &str, rules: Rules) -> Result<Ge
     })
 }
 
-/// The absolute pivot of a part and the product of its scale and the scales of the parts
-/// above it.
 #[derive(Clone, Copy)]
 pub struct Frame {
     pub pivot: [f64; 3],
@@ -117,7 +107,6 @@ pub struct Frame {
 }
 
 impl Frame {
-    /// The frame of `part`, a child of the part of this frame.
     pub fn child(self, part: &Part) -> Self {
         Self {
             pivot: std::array::from_fn(|axis| self.pivot[axis] + self.scale * part.pivot[axis]),
@@ -125,7 +114,6 @@ impl Frame {
         }
     }
 
-    /// The absolute point of `point` in the frame of the part.
     pub fn place(self, point: [f64; 3]) -> [f64; 3] {
         std::array::from_fn(|axis| self.pivot[axis] + self.scale * point[axis])
     }
@@ -208,8 +196,6 @@ fn convert_cube(cube: &Cube, frame: Frame, rules: Rules) -> Result<GeometryCube,
     })
 }
 
-/// The box UV rectangle `[u1, v1, u2, v2]` of a face named in internal space, laid out from the
-/// exact size.
 pub fn box_rect(face: &str, [u, v]: [f64; 2], [w, h, d]: [f64; 3], mirror: bool) -> [f64; 4] {
     let laid_out = match (mirror, face) {
         (true, "east") => "west",
@@ -259,7 +245,6 @@ pub fn to_json<T: Serialize>(value: &T) -> String {
     text
 }
 
-/// Puts each array that holds only numbers on one line.
 fn collapse_number_arrays(pretty: &str) -> String {
     let mut out = String::with_capacity(pretty.len());
     let mut rest = pretty;

@@ -40,14 +40,12 @@ impl Nbt {
         })
     }
 
-    /// Reads an NBT tag that doesn't contain the name of the root `Compound`.
     pub fn read_unnamed<R: Read + Seek>(
         reader: &mut NbtReadHelper<R, BigEndian>,
     ) -> Result<Nbt, Error> {
         Self::read_unnamed_with::<R, BigEndian>(reader)
     }
 
-    /// Reads an NBT tag with specified encoding that doesn't contain the name of the root `Compound`.
     pub fn read_unnamed_with<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<Nbt, Error> {
@@ -77,12 +75,10 @@ impl Nbt {
         Ok(bytes.into())
     }
 
-    /// Writes an NBT tag without a root `Compound` name.
     pub fn write_unnamed(&self) -> Result<Bytes, Error> {
         self.write_unnamed_with::<BigEndian>()
     }
 
-    /// Writes an NBT tag with specified encoding without a root `Compound` name.
     pub fn write_unnamed_with<E: NbtEncoding>(&self) -> Result<Bytes, Error> {
         let mut bytes = Vec::new();
         let mut writer = WriteAdaptor::<_, E>::with_encoding(&mut bytes);

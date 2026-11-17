@@ -4,7 +4,6 @@ use serde::Deserialize;
 use crate::font_definition::{CodePoint, Filter};
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
 
-/// Rows of a Unifont glyph, and the columns the glyph cache holds for one.
 pub const CELL: usize = 16;
 pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
 
@@ -18,7 +17,6 @@ pub(crate) struct UnihexSpec {
 }
 
 impl UnihexSpec {
-    /// FONT-PROV-008: each override range runs upwards.
     pub(crate) fn check(&self) -> Result<(), String> {
         match self
             .size_overrides
@@ -51,8 +49,6 @@ struct Entry {
     right: i32,
 }
 
-/// The glyphs of the `.hex` entries of a Unifont archive, as bits. Only the glyphs a text asks for
-/// become pixels, and only when they are drawn.
 #[derive(Debug)]
 pub(crate) struct Unihex {
     entries: Vec<Entry>,
@@ -70,7 +66,6 @@ impl Unihex {
             read_lines(text, &mut entries, &mut rows)
                 .map_err(|error| format!("{name}: {error}"))?;
         }
-        // The later line of a code point wins; a stable sort keeps lines in file order.
         entries.sort_by_key(|entry| entry.code_point);
         let mut unique: Vec<Entry> = Vec::with_capacity(entries.len());
         for entry in entries {
@@ -132,10 +127,6 @@ impl Unihex {
         })
     }
 
-    /// Draws the glyph into `out`, [`CELL`] × [`CELL`] white pixels with alpha where the glyph is
-    /// set, from its first column. Returns whether the glyph exists.
-    // chisle: a glyph wider than 16 columns is cut at 16; only a blank one has 17 in the vanilla
-    // data. A wider cell lifts it.
     pub(crate) fn rasterise(&self, ch: char, out: &mut [u8; CELL_BYTES]) -> bool {
         let Some(entry) = self.entry(ch) else {
             return false;
@@ -169,7 +160,6 @@ impl Unihex {
             .fold(0, |bits, byte| (bits << 8) | u32::from(*byte))
     }
 
-    /// The code point and the width in pixels of every glyph, in code point order.
     #[cfg(test)]
     pub(crate) fn widths(&self) -> impl Iterator<Item = (u32, i32)> + '_ {
         self.entries
@@ -239,8 +229,6 @@ fn nibble(digit: u8) -> u8 {
     }
 }
 
-/// The leftmost and the rightmost column with a set pixel in any of the 16 rows; a blank glyph
-/// reaches one column past its data.
 fn bounds(rows: &[u8], columns: u32) -> (i32, i32) {
     let bytes = (columns / 8) as usize;
     let any = rows

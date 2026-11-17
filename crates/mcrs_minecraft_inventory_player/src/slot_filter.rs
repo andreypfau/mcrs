@@ -4,18 +4,13 @@ use crate::ArmourSlot;
 use crate::EquipSlot;
 use crate::Offer;
 
-/// The take and place filters of a slot of a player. They apply to a request, never to the
-/// `set` operation or to a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SlotFilter {
-    /// A slot that permits each take and each place.
     Any,
     Armour(ArmourSlot),
     CraftResult,
 }
 
-/// Whether the stack of a slot has an enchantment with the effect
-/// `minecraft:prevent_armor_change`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ArmourLock {
     #[default]
@@ -23,7 +18,6 @@ pub enum ArmourLock {
     Locked,
 }
 
-/// The game mode of the player, as far as a filter reads it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlayerMode {
     Creative,
@@ -32,7 +26,6 @@ pub enum PlayerMode {
 }
 
 impl SlotFilter {
-    /// The place filter for `offer`.
     #[must_use]
     pub fn place(self, offer: Offer) -> Filter {
         let permits = match self {
@@ -47,7 +40,6 @@ impl SlotFilter {
         }
     }
 
-    /// The take filter for a stack with the lock `lock`, taken by a player in `mode`.
     #[must_use]
     pub fn take(self, lock: ArmourLock, mode: PlayerMode) -> Filter {
         match (self, lock, mode) {

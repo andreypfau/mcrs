@@ -15,12 +15,6 @@ const MAX_ENTRIES: usize = 256;
 const ABSENT: u8 = 0x00;
 const PRESENT: u8 = 0x01;
 
-/// Reads the hashed stack of a click. The byte `00` gives `None`, the empty stack.
-///
-/// The reader accepts each count and each item id that fits a numeric id; only the comparison
-/// with a stack gives them a meaning. A list of more than 256 entries, or a type id that names no
-/// component type, is an error. A value type two times keeps the last hash, and a removal type two
-/// times is one removal.
 pub fn read_hashed<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
@@ -67,8 +61,6 @@ pub fn read_hashed<L: NameLookup>(
     }))
 }
 
-/// Appends the hashed stack to `output`. `None` gives the byte `00`. On an error, `output` keeps
-/// its length.
 pub fn write_hashed(stack: Option<&HashedStack>, output: &mut Vec<u8>) -> Result<(), WireError> {
     let Some(stack) = stack else {
         output.push(ABSENT);

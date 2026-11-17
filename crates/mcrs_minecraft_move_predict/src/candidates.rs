@@ -29,31 +29,25 @@ use crate::kept_changes::KeptChanges;
 use crate::push_bound::PushBound;
 use crate::rollback::Rollback;
 
-/// A silent tick of the client is within this distance of the reference position.
 const SILENT_DISTANCE: f64 = 2.0e-4;
 
-/// A block that stops the movement only touches the moved box, so the box grows by this much.
 const CONTACT: f64 = 1.0e-7;
 
-/// One possible state of the client after a client tick, and the number of changes it applied.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Candidate {
     pub(crate) state: PlayerState,
     pub(crate) applied: u64,
 }
 
-/// One client tick with what its prediction starts from.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Record {
     pub(crate) start: Vec<Candidate>,
     pub(crate) tick: ClientTick,
     pub(crate) reference: DVec3,
     pub(crate) rollback: Option<Rollback>,
-    /// Every candidate of the tick ran.
     pub(crate) explored: bool,
 }
 
-/// The read-only inputs of a prediction.
 pub(crate) struct Context<'a, W, B> {
     pub(crate) view: View<'a, W, B>,
     pub(crate) pushers: &'a [Pusher],
@@ -61,7 +55,6 @@ pub(crate) struct Context<'a, W, B> {
     pub(crate) limits: &'a Limits,
 }
 
-/// The buffers of a prediction, reused between ticks.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Work {
     trials: Vec<Trial>,
@@ -70,23 +63,19 @@ pub(crate) struct Work {
     pub(crate) actions: Vec<BlockAction>,
     colliders: Vec<SourcedCollider>,
     pub(crate) scratch: Scratch,
-    /// The kept candidates of the last tick that ran.
     pub(crate) matched: Vec<Candidate>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Search {
-    /// Stop at the first candidate that matches the position and the flags.
     First,
     All,
 }
 
-/// Why a tick stopped before its candidates ran: the tick is coarse, or it sets the player back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Stop {
     Steps,
     Unbounded,
-    /// The movement touches an edited block whose state the server cannot compute.
     Unsettled,
 }
 
@@ -96,7 +85,6 @@ pub(crate) struct Scored {
     pub(crate) offset: f64,
 }
 
-/// One candidate to run: a start candidate and one value of each input with two values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Trial {
     start: usize,
@@ -105,13 +93,9 @@ struct Trial {
     flight: Option<bool>,
     item_use: Option<bool>,
     position: Option<DVec3>,
-    /// The number of inputs that differ from their primary value.
     differs: u64,
 }
 
-/// Runs the candidates of the tick of `record` in the try order and marks whether each ran. The
-/// kept candidates go to `work.matched`, with the reported position. Gives the first candidate
-/// with the smallest offset.
 pub(crate) fn run_tick<W: CollisionWorld, B: BodyView>(
     context: &Context<'_, W, B>,
     record: &mut Record,
@@ -185,8 +169,6 @@ struct Score {
     matches: bool,
 }
 
-/// Runs one candidate; with a position, again with the push in the bound that comes nearest to
-/// the report.
 fn run_trial<W: CollisionWorld, B: BodyView>(
     context: &Context<'_, W, B>,
     record: &Record,
@@ -255,8 +237,6 @@ fn run_trial<W: CollisionWorld, B: BodyView>(
     })
 }
 
-/// The blocks of the world view of the client after `applied` changes, as an overlay on the
-/// world of the server.
 pub(crate) fn world_view(
     kept: &KeptChanges,
     rollback: Option<&Rollback>,
@@ -269,7 +249,6 @@ pub(crate) fn world_view(
     }
 }
 
-/// The push bound of the pushers near the candidate; zero for a player that no entity pushes.
 fn push_bound<W, B>(
     context: &Context<'_, W, B>,
     tick: &ClientTick,
@@ -296,8 +275,6 @@ fn push_bound<W, B>(
         .ok_or(Stop::Unbounded)
 }
 
-/// The candidates of the tick in the try order: per start candidate, the primary one first, then
-/// those that differ in more and more inputs.
 fn plan(record: &Record, trials: &mut Vec<Trial>) {
     trials.clear();
     let tick = &record.tick;
@@ -332,9 +309,6 @@ fn plan(record: &Record, trials: &mut Vec<Trial>) {
     }
 }
 
-/// Appends a run from the recorded position of an edit for each run that applies the
-/// `block_changed_ack` first, when the kept state of the edited block meets its start box. The
-/// run keeps its velocity and its inputs.
 fn add_moves_back<W: CollisionWorld, B: BodyView>(
     context: &Context<'_, W, B>,
     record: &Record,
@@ -398,15 +372,12 @@ fn add_moves_back<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// Which value of an input that changes in the tick is the primary one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Primary {
     New,
-    /// The new value for a change to on, the old one for a change to off.
     NewWhenOn,
 }
 
-/// The values of one input, the primary one first. `None` keeps the value of the start state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Options {
     change: Option<bool>,
@@ -426,7 +397,6 @@ impl Options {
         if self.change.is_some() { 2 } else { 1 }
     }
 
-    /// The value at `index` and 1 when it is not the primary value.
     fn get(&self, index: usize) -> (Option<bool>, u64) {
         let second = index > 0;
         let value = if second == self.change_first {

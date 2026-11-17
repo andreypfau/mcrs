@@ -49,9 +49,6 @@ struct StateRow {
     concrete: Option<BlockStateId>,
 }
 
-/// What the rules of a falling block read of each block state, indexed by state id: built once
-/// at load from the block definitions, the tags and the concrete pairs, about 10 bytes per
-/// state. A state outside the table is not free, does not fall and holds no water.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FallingBlockTable {
     rows: Box<[StateRow]>,
@@ -128,27 +125,21 @@ impl FallingBlockTable {
         }
     }
 
-    /// True when a gravity block above `state` falls (FBK-TRG-004).
     #[must_use]
     pub fn is_free(&self, state: BlockStateId) -> bool {
         self.flags(state).contains(StateFlags::FREE)
     }
 
-    /// True when a scheduled tick of `state` with `below` under it starts a fall (FBK-TRG-004).
     #[must_use]
     pub fn falls(&self, state: BlockStateId, below: BlockStateId) -> bool {
         self.flags(state).contains(StateFlags::GRAVITY) && self.is_free(below)
     }
 
-    /// True when the fluid of `state` is in the fluid tag `minecraft:water` (FBK-TCK-003,
-    /// FBK-LND-004).
     #[must_use]
     pub fn holds_water(&self, state: BlockStateId) -> bool {
         self.flags(state).contains(StateFlags::HOLDS_WATER)
     }
 
-    /// True when the block of `state` is a key of the concrete pairs: its falling block looks for
-    /// water (FBK-TCK-003).
     #[must_use]
     pub fn is_concrete_powder(&self, state: BlockStateId) -> bool {
         self.row(state).is_some_and(|row| row.concrete.is_some())
@@ -158,22 +149,18 @@ impl FallingBlockTable {
         self.row(state).map(|row| row.flags).unwrap_or_default()
     }
 
-    /// `state` with `waterlogged` false, or `state` when it has no such property.
     pub(crate) fn dry(&self, state: BlockStateId) -> BlockStateId {
         self.row(state).map_or(state, |row| row.dry)
     }
 
-    /// `state` with `waterlogged` true, or `state` when it has no such property.
     pub(crate) fn wet(&self, state: BlockStateId) -> BlockStateId {
         self.row(state).map_or(state, |row| row.wet)
     }
 
-    /// The default state of the concrete of the block of `state`.
     pub(crate) fn concrete(&self, state: BlockStateId) -> Option<BlockStateId> {
         self.row(state).and_then(|row| row.concrete)
     }
 
-    /// The block of the fluid of `state`: `water` when it holds water, else `air` (FBK-SPN-001).
     pub(crate) fn leftover(&self, state: BlockStateId) -> BlockStateId {
         if self.holds_water(state) {
             self.water

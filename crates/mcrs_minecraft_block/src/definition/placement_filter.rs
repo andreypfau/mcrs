@@ -8,8 +8,6 @@ use mcrs_minecraft_core::direction::{Direction, DirectionSet};
 use mcrs_minecraft_registries::TagEntry;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-/// `minecraft:placement_filter`: the support predicate of a state, in the short form of Bedrock
-/// or in the predicate form, with the directions from which a shape update tests it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlacementFilter {
     pub rule: PlacementRule,
@@ -18,9 +16,6 @@ pub struct PlacementFilter {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlacementRule {
-    /// The block stands when, for some condition, the neighbour on one of its `allowed_faces` is
-    /// in `block_filter`. A face names the side of the neighbour the block is placed against, so
-    /// `up` is the block below.
     Conditions(Vec<PlacementCondition>),
     Predicate(SupportPredicate),
 }
@@ -31,8 +26,6 @@ pub struct PlacementCondition {
     pub block_filter: Vec<TagEntry>,
 }
 
-/// A block predicate of the data pack, restricted to the types and the offsets a shape update
-/// can decide.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum SupportPredicate {
@@ -51,8 +44,6 @@ pub enum SupportPredicate {
         offset: Offset,
         tag: ResourceLocationBuf,
     },
-    // chisle: `state` of a fluid is refused at load; no support predicate reads one yet, and the
-    // fluid properties of the data pack mapped onto the corpus fluid state lift it.
     #[serde(rename = "minecraft:matching_fluids", alias = "matching_fluids")]
     MatchingFluids {
         #[serde(default)]
@@ -90,7 +81,6 @@ pub enum SupportPredicate {
     True,
 }
 
-/// The position a leaf reads: P itself, or the neighbour one step towards a direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Offset(pub Option<Direction>);
 
@@ -129,8 +119,6 @@ pub enum FaceShape {
     Collision,
 }
 
-/// The `state` field of a data pack predicate: each named property has one value, or a value
-/// within a range.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(transparent)]
 pub struct StateMatch(pub BTreeMap<String, ValueMatch>);
@@ -147,7 +135,6 @@ pub enum ValueMatch {
     },
 }
 
-/// `minecraft:support`: the boxes whose faces the face tests read.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Support {

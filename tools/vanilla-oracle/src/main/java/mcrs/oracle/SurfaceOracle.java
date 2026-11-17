@@ -48,11 +48,6 @@ import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.minecraft.world.level.block.Block;
 
-/**
- * Dumps the block states vanilla writes into a chunk by the fill and the
- * material rules, before any carver runs, so the Rust surface stage can be
- * compared against them position by position.
- */
 public final class SurfaceOracle {
     private static final byte[] MAGIC = "MCSURFC0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;
@@ -204,11 +199,6 @@ public final class SurfaceOracle {
         };
     }
 
-    /**
-     * `PalettedContainerFactory.create` wants a whole `RegistryAccess`, which
-     * only a level owns; the pieces it takes from it are an id map over the
-     * biomes and the plains holder.
-     */
     static PalettedContainerFactory containerFactory(final HolderLookup.RegistryLookup<Biome> biomes) {
         List<Holder<Biome>> all = new ArrayList<>(biomes.listElements().map(h -> (Holder<Biome>)h).toList());
         Map<Holder<Biome>, Integer> ids = new IdentityHashMap<>();

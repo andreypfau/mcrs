@@ -9,16 +9,11 @@ use crate::RegisterError;
 use crate::item_components::ItemComponents;
 use crate::slot_gates::SlotGates;
 
-/// Registers custom item component types and slot gates.
 pub trait ItemAppExt {
-    /// Registers a custom item component type. Register each before the first system that reads
-    /// stacks is built: such a system does not run after a later registration.
     fn register_item_component<T: CustomComponent + Component>(
         &mut self,
     ) -> Result<&mut Self, RegisterError>;
 
-    /// Adds a gate function for [`Gate::Ask`](crate::Gate::Ask). More than 65,535 gates give
-    /// [`RegisterError::GateTableFull`].
     fn register_slot_gate(&mut self, gate: GateFn) -> Result<GateId, RegisterError>;
 }
 

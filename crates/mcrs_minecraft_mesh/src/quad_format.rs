@@ -1,4 +1,3 @@
-/// Geometry encoding used to draw a terrain quad bucket.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 #[repr(u8)]
 pub enum QuadFormat {

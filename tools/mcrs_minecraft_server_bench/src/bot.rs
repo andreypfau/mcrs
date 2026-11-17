@@ -31,7 +31,6 @@ pub enum Behaviour {
 }
 
 impl Behaviour {
-    /// `Mixed` gives 60 % of the bots `Walk`, 20 % `Explore` and 20 % `Idle`.
     pub fn of_bot(self, index: usize) -> Behaviour {
         match (self, index % 5) {
             (Behaviour::Mixed, 3) => Behaviour::Explore,
@@ -65,8 +64,6 @@ pub struct Plan {
     pub measure_until: Instant,
 }
 
-/// What one bot saw. `held_before` and `received_during` are column sets, so the run can count
-/// the columns that no bot received before the measured window.
 #[derive(Default)]
 pub struct BotReport {
     pub columns_during: u64,
@@ -156,7 +153,6 @@ pub async fn run(plan: Plan) -> anyhow::Result<BotReport> {
     }
 }
 
-/// Where a bot that reached its target goes next, at the height of its climb.
 fn next_target(
     behaviour: Behaviour,
     at: DVec3,
@@ -189,7 +185,6 @@ fn step_toward(from: DVec3, to: DVec3, most: f64) -> DVec3 {
     }
 }
 
-/// xorshift64, so each bot walks the same points on both servers.
 struct Random(u64);
 
 impl Random {

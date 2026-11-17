@@ -1,5 +1,3 @@
-//! The server holds the item stacks of a vanilla player file and writes them back.
-
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::game_profile::GameProfile;

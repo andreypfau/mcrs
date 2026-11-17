@@ -14,15 +14,9 @@ use mcrs_minecraft_lang::Language;
 use crate::answer_log::AnswerLog;
 use crate::console_lines::spawn_console_thread;
 
-/// The most console lines that one tick hands on. A burst of lines runs over several ticks, in
-/// order, so that no tick runs them all.
 const MAX_LINES_PER_TICK: usize = 2_000;
 
-/// Runs each line of the standard input as a command of the server source, in the overworld.
-/// The embedder runs [`log_console_answers`](crate::log_console_answers) after the host took the
-/// output of each tick. Without its threads the server runs with no console.
 pub struct ConsolePlugin {
-    /// The language of the answers in the log; an empty one writes translation keys.
     pub language: Language,
 }
 
@@ -49,7 +43,6 @@ impl Plugin for ConsolePlugin {
     }
 }
 
-/// The console lines that wait for a running overworld, and the log of the answers.
 #[derive(Resource)]
 pub(crate) struct Console {
     receive: flume::Receiver<String>,
@@ -57,8 +50,6 @@ pub(crate) struct Console {
     pub(crate) log: AnswerLog,
 }
 
-/// Hands the oldest console lines, at most [`MAX_LINES_PER_TICK`], to the overworld, which runs
-/// them in its next tick. The lines wait while no overworld runs.
 fn send_console_lines(
     mut console: ResMut<Console>,
     running: Option<Res<RunningDimensions>>,

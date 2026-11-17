@@ -27,7 +27,6 @@ pub(crate) trait PieceWeight: Copy {
     fn max_place_count(&self) -> i32;
 }
 
-/// One piece table entry and how often it has been placed.
 #[derive(Clone, Copy)]
 pub(crate) struct TableEntry<W> {
     pub weight: W,
@@ -41,8 +40,6 @@ impl<W: PieceWeight> TableEntry<W> {
     }
 }
 
-/// A piece table: the entries in table order, each tagged with its index in
-/// the reference's full list, of which only the still offered ones remain.
 pub(crate) struct WeightTable<W> {
     pub available: Vec<(usize, TableEntry<W>)>,
 }
@@ -61,8 +58,6 @@ impl<W: PieceWeight> WeightTable<W> {
         }
     }
 
-    /// `updatePieceWeight`: the offered weight, or `None` when no entry with
-    /// a cap is under it.
     pub fn total_weight(&self) -> Option<i32> {
         let mut any = false;
         let mut total = 0;
@@ -87,8 +82,6 @@ impl<W: PieceWeight> WeightTable<W> {
     }
 }
 
-/// `couldValidBiomeExistInTerrainColumn`: one block below the accessor's
-/// floor, unlike the jigsaw column test.
 pub(crate) fn terrain_column_admits(ctx: &mut Context<'_>, x: i32, z: i32) -> bool {
     let max_y = ctx.accessor_min_y + ctx.accessor_height - 1;
     ctx.world
@@ -159,7 +152,6 @@ pub(crate) fn lowest_y_in_5_by_5(ctx: &mut Context<'_>, x: i32, z: i32, rotation
     lowest_y(ctx, x, z, offset_x, offset_z)
 }
 
-/// `SinglePieceStructure.findGenerationPoint`.
 pub(crate) fn single_piece_site(
     ctx: &mut Context<'_>,
     width: i32,
@@ -179,9 +171,6 @@ pub(crate) fn single_piece_site(
     ))
 }
 
-/// The end city's and the mansion's site: the biome column at block 7 of the
-/// chunk, a rotation, and the lowest corner of the 5×5 box that rotation
-/// points into, refused below 60.
 pub(crate) fn lowest_corner_site(
     ctx: &mut Context<'_>,
     rng: &mut LegacyRandom,

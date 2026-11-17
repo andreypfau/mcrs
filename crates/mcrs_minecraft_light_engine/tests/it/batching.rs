@@ -31,7 +31,6 @@ fn the_most_urgent_column_is_handed_out_first() {
     queue.push_with_priority(column(3, 3), influence_at(48, 8, 48), 20);
 
     assert_eq!(queue.len(), 3);
-    // One influence per column, so a budget of one takes them one at a time.
     let first = drain_one(&mut queue, 1, &[]);
     assert_eq!(first.len(), 1);
     assert_eq!(
@@ -69,8 +68,6 @@ fn a_column_can_be_pulled_forward_after_it_was_queued() {
     queue.push_with_priority(column(9, 9), influence_at(144, 8, 144), 100);
     queue.push_with_priority(column(1, 1), influence_at(16, 8, 16), 10);
 
-    // The player walked towards the far column, as vanilla re-sorts chunk tasks
-    // when a ticket level changes.
     queue.set_priority(column(9, 9), 1);
     assert_eq!(
         drain_one(&mut queue, 1, &[])[0].core.min,
@@ -79,15 +76,12 @@ fn a_column_can_be_pulled_forward_after_it_was_queued() {
     );
 }
 
-/// A score is the distance to a player, so a flight across the world restates every score at
-/// once. Moving them one at a time would leave the queue sorted by a position nobody occupies.
 #[test]
 fn every_waiting_column_is_rescored_when_the_player_moves() {
     let mut queue = LightQueue::default();
     queue.push_with_priority(column(9, 9), influence_at(144, 8, 144), 100);
     queue.push_with_priority(column(1, 1), influence_at(16, 8, 16), 10);
 
-    // The player is now next to the column that was queued as the far one.
     queue.reprioritize(|col| ((col.x - 9).pow(2) + (col.z - 9).pow(2)) as u16);
 
     assert_eq!(
@@ -113,8 +107,6 @@ fn a_column_bigger_than_the_budget_still_makes_progress() {
     assert!(queue.is_empty());
 }
 
-/// The queue measures a batch the way `prepare_batch` will allocate it, so the
-/// two have to agree on what a box costs.
 #[test]
 fn the_queue_and_the_field_agree_on_what_an_area_costs() {
     for area in [
@@ -137,8 +129,6 @@ fn the_queue_and_the_field_agree_on_what_an_area_costs() {
     }
 }
 
-/// The budget is a field volume, so a column far from the ones already taken is
-/// what crosses it — that is what keeps a batch spatially coherent.
 #[test]
 fn a_column_that_would_blow_up_the_field_waits_for_the_next_batch() {
     let mut queue = LightQueue::default();
@@ -146,8 +136,6 @@ fn a_column_that_would_blow_up_the_field_waits_for_the_next_batch() {
     queue.push_with_priority(column(1, 0), influence_at(24, 8, 8), 1);
     queue.push_with_priority(column(60, 0), influence_at(968, 8, 8), 2);
 
-    // Wide enough for two neighbouring columns, nowhere near wide enough to
-    // reach the far one.
     let batch = drain_one(&mut queue, 6 * 3 * 3 * 4096, &[]);
     assert_eq!(batch.len(), 2, "the two neighbours went together");
     assert_eq!(queue.len(), 1, "the far column waits");
@@ -157,8 +145,6 @@ fn a_column_that_would_blow_up_the_field_waits_for_the_next_batch() {
     );
 }
 
-/// A batch that overlapped work already in flight would publish whole sections
-/// of its own field over the other job's answer, or have its own overwritten.
 #[test]
 fn a_column_under_work_in_flight_is_left_for_the_next_tick() {
     let mut queue = LightQueue::default();
@@ -179,9 +165,6 @@ fn a_column_under_work_in_flight_is_left_for_the_next_tick() {
     assert_eq!(queue.len(), 1);
 }
 
-/// The whole of the concurrency argument: two jobs whose fields are disjoint
-/// change no cell the other reads, so the order they publish in cannot matter —
-/// not even when the older job was prepared before the newer job's edit existed.
 #[test]
 fn disjoint_jobs_publish_in_any_order() {
     let near = BlockPos::new(8, 8, 8);
@@ -203,8 +186,6 @@ fn disjoint_jobs_publish_in_any_order() {
         .prepare_batch(drain_one(&mut queue, 1, &[]))
         .expect("there was work");
 
-    // The second edit lands while the first job is already in flight, so the
-    // older job's block snapshot does not contain it.
     for (col, influence) in concurrent.world.apply_edits([Edit::SetBlock {
         pos: far,
         block: state(TORCH),
@@ -244,8 +225,6 @@ fn disjoint_jobs_publish_in_any_order() {
     }
 }
 
-/// The point of the whole exercise: work spread over several passes has to end
-/// up where one big pass would have.
 fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
     let width = columns * 16;
     let (far, mid) = (width - 8, width / 2);
@@ -273,7 +252,6 @@ fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
             queue.push(col, influence);
         }
     }
-    // One influence at a time: the smallest batch there is.
     let mut passes = 0;
     while !queue.is_empty() {
         let batch = drain_one(&mut queue, 1, &[]);
@@ -283,8 +261,6 @@ fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
         passes += 1;
         assert!(passes < 100, "the queue never drained");
     }
-    // Fewer passes than edits: several of them share a chunk column, and
-    // columns are handed out whole.
     assert!(
         passes > 1,
         "the work really was split across passes, got {passes}"
@@ -315,7 +291,6 @@ fn batching_two_columns_wide_reaches_the_same_answer_as_one_pass() {
     batching_reaches_the_same_answer_as_one_pass(2);
 }
 
-/// Holding lighting work back must not hold the block change back with it.
 #[test]
 fn an_edit_takes_effect_before_its_lighting_does() {
     let mut world = TestWorld::new(2, 2, 2);
@@ -360,8 +335,6 @@ fn loading_a_stack_of_sections_produces_work_for_each() {
         .collect();
 
     let work = world.apply_edits(loads);
-    // One per section, and one more for the run of column that became a sky
-    // source when the stack arrived.
     assert_eq!(work.len(), 5);
     assert!(
         work.iter().all(|(col, _)| *col == column(0, 0)),
@@ -402,8 +375,6 @@ fn loading_and_editing_a_column_in_one_batch_stays_inside_the_world() {
     assert_eq!(world.light_at(pos, LightLayer::Block).get(), 14);
 }
 
-/// Batches filled in one pass are handed out together, so they have to stay
-/// disjoint against each other and not only against the work already running.
 #[test]
 fn batches_filled_in_one_pass_do_not_overlap() {
     let mut queue = LightQueue::default();

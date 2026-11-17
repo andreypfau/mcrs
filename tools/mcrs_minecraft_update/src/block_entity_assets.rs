@@ -1,6 +1,3 @@
-//! Writes the geometry files and the data files of the static block entities from the oracle
-//! artefacts and the shape tables.
-
 #![expect(
     clippy::panic,
     clippy::unwrap_used,
@@ -111,9 +108,6 @@ fn model_units(value: f64) -> f64 {
     round(value, 1e-6)
 }
 
-/// The box UV rectangle `[u1, v1, u2, v2]` of one face named in internal space. The
-/// reference lays out the box from the exact size, which differs from the floored layout of
-/// the geometry format when a size has a fraction.
 fn box_rect(face: &str, [u, v]: [f64; 2], size: [f64; 3], mirror: bool) -> [f64; 4] {
     let [w, h, d] = size;
     let face = match (mirror, face) {
@@ -149,7 +143,6 @@ fn face_name(name: &str) -> &'static str {
     }
 }
 
-/// The per-face form of the box UV of the faces of `cube` that the artefact lists.
 fn per_face_uv(cube: &Cube) -> BTreeMap<&'static str, FaceUv> {
     cube.faces
         .iter()
@@ -336,7 +329,6 @@ fn to_json<T: Serialize>(value: &T) -> String {
     text
 }
 
-/// Puts each array that holds only numbers and arrays of numbers on one line.
 fn collapse_number_arrays(pretty: &str) -> String {
     let bytes = pretty.as_bytes();
     let mut out = String::with_capacity(pretty.len());
@@ -373,7 +365,6 @@ fn collapse_number_arrays(pretty: &str) -> String {
     out
 }
 
-/// Each generated file, keyed by its path below `assets/`.
 fn generate() -> BTreeMap<PathBuf, String> {
     let artefacts = Artefacts::parse(
         &fixture("entity_models").text(),
@@ -405,8 +396,6 @@ fn checked_in(assets: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(found)
 }
 
-/// The files below `assets/` that differ from what the generator writes: stale, missing and
-/// stray ones.
 fn differences(
     assets: &Path,
     generated: &BTreeMap<PathBuf, String>,
@@ -427,7 +416,6 @@ fn differences(
     Ok(found)
 }
 
-/// Fails when the checked-in files differ from what the generator writes.
 pub fn check(root: &Path) -> Result<(), String> {
     let found = differences(&root.join("assets"), &generate())?;
     if found.is_empty() {
@@ -440,7 +428,6 @@ pub fn check(root: &Path) -> Result<(), String> {
     }
 }
 
-/// Writes the files below `assets/` again and removes the files that no shape writes.
 pub fn write(root: &Path) -> Result<(), String> {
     let assets = root.join("assets");
     let generated = generate();

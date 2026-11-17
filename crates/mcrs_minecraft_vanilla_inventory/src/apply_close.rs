@@ -22,10 +22,6 @@ use crate::close_place::close_place;
 use crate::from_holders::from_holders;
 use crate::request_ids::CLOSE_REQUEST;
 
-/// Closes the open menu of the player: the moves of INV-CLS-001 become one request, and the
-/// comparison sends what they change (INV-CLS-002). The open menu is always the inventory menu.
-// chisle: a close with more than 128 moves rejects and leaves the cursor and the craft grid as
-// they are; a request without a bound on its operations lifts it.
 pub(crate) fn apply_close(
     In(player): In<Entity>,
     world: &World,

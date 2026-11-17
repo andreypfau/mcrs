@@ -1,7 +1,3 @@
-//! Generated programs from the grammar, checked against independent evaluations: the batch VM
-//! against the scalar VM, the optimised program against the direct lowering, and the scalar VM
-//! against molangjs.
-
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
@@ -19,7 +15,6 @@ use proptest::test_runner::{Config, TestCaseError, TestRunner};
 use serde::{Deserialize, Serialize};
 
 const LANES: usize = 64;
-/// A small deterministic generator for the inputs of the lanes.
 struct Inputs(u64);
 
 impl Inputs {
@@ -69,7 +64,6 @@ impl Inputs {
     }
 }
 
-/// The inputs of one lane.
 #[derive(Clone, Debug)]
 struct Lane {
     variables: Vec<(&'static str, Option<f32>)>,
@@ -168,7 +162,6 @@ fn scalar(expression: &Expression, compiled: &Compiled, lane: &Lane) -> (Value, 
     (value, variables)
 }
 
-/// `active` marks the lanes that run; the other lanes must keep their variables.
 fn check_batch_and_passes(text: &str, seed: u64, active: u64) -> Result<(), TestCaseError> {
     let compiled = compile_both(text)?;
     let mut inputs = Inputs(seed);
@@ -336,7 +329,6 @@ impl Node {
     }
 }
 
-/// One input line of `tools/molang-diff/runner.mjs`.
 #[derive(Serialize)]
 struct Case<'a> {
     expr: &'a str,
@@ -344,7 +336,6 @@ struct Case<'a> {
     queries: BTreeMap<String, f32>,
 }
 
-/// One output line of the runner.
 #[derive(Debug, Deserialize)]
 struct Answer {
     value: Option<JsNumber>,
@@ -381,7 +372,6 @@ impl Drop for Node {
     }
 }
 
-/// molangjs gives `0` for a NaN and a `-0` result of the whole expression.
 fn normalise(value: f32) -> f64 {
     if value.is_nan() || value == 0.0 {
         0.0

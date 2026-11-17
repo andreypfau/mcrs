@@ -1,7 +1,5 @@
 use crate::task_end::TaskId;
 
-/// The tasks of a stage that are under way, each with what the stage keeps about it and the
-/// handle of the task. Retiring a task drops its handle, which for a pool task cancels it.
 #[derive(Debug)]
 pub struct InFlight<P, H> {
     tasks: Vec<Running<P, H>>,
@@ -29,7 +27,6 @@ impl<P, H> InFlight<P, H> {
         });
     }
 
-    /// Takes the task `id` off the tasks under way, and gives what the stage kept about it.
     pub fn retire(&mut self, id: TaskId) -> Option<P> {
         let at = self.tasks.iter().position(|task| task.id == id)?;
         Some(self.tasks.swap_remove(at).payload)

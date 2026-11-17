@@ -16,23 +16,13 @@ use mcrs_minecraft_volume::{
 };
 use mcrs_voxel::LocalPos;
 
-/// One loaded section: its blocks, the entity that owns them, and the last
-/// published light for both layers.
 #[derive(Clone, Debug)]
 pub struct Section {
     pub entity: u64,
     pub blocks: Arc<SectionBlocks>,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
-    /// Whether `entity` has been handed light yet. A dark section's answer is
-    /// the same as the nothing it starts with, so without this an epoch could
-    /// skip publishing it and the entity would never gain the components a
-    /// column is not sent without.
     pub lit: bool,
-    /// Whether any block here emits. Read off the palette once, when the section
-    /// arrives, because the answer cannot change while the blocks do not: ground
-    /// straight out of the generator holds no torch and no redstone, and a field
-    /// of such sections has no block layer to compute at all.
     pub emits: bool,
 }
 
@@ -40,8 +30,6 @@ impl Section {
     pub fn new(registry: &LightRegistry, entity: u64, blocks: Arc<SectionBlocks>) -> Self {
         let emits = match &blocks.0 {
             PalettedContainer::Homogeneous(block) => !registry.emission((*block).into()).is_zero(),
-            // The palette keeps entries a `set` has emptied, so this errs towards
-            // saying yes, which only ever costs the work it would have skipped.
             PalettedContainer::Heterogeneous(data) => data
                 .palette
                 .iter()
@@ -65,13 +53,6 @@ impl Section {
     }
 }
 
-/// Lowest block Y that is still a sky source, for each of the 256 block columns
-/// of one section column.
-///
-/// This is the whole of the sky source rule: `E_sky(p) == 15` exactly when
-/// `p.y >= floor(p.column())`. It is cached rather than recomputed because
-/// deciding which cells an edit can affect needs the value from *before* the
-/// edit, and by the time the calculation runs the blocks have already changed.
 #[derive(Clone, Debug)]
 pub struct SkyFloor {
     lowest_source_y: Box<[i32; SectionPos::AREA]>,
@@ -90,14 +71,12 @@ impl SkyFloor {
     }
 
     pub fn get(&self, column: BlockColumn) -> i32 {
-        // The masked index always fits the table, so the fallback is never taken.
         self.lowest_source_y
             .get(Self::index(column))
             .copied()
             .unwrap_or(LightWorld::NO_SKY_SOURCES)
     }
 
-    /// Whether every cell from `y` up this column is a sky source.
     pub fn is_source(&self, x: i32, y: i32, z: i32) -> bool {
         y >= self.get(BlockColumn { x, z })
     }
@@ -109,10 +88,6 @@ impl SkyFloor {
     }
 }
 
-/// A change the lighting subsystem must react to.
-///
-/// Loading and unloading are edits like any other: a section that just appeared
-/// has to enter the same path, or it is simply never lit.
 #[derive(Clone, Debug)]
 pub enum Edit {
     SetBlock {
@@ -121,16 +96,12 @@ pub enum Edit {
     },
     LoadSection {
         pos: SectionPos,
-        /// Who owns the blocks. Published light is written back to it, so the
-        /// engine never has to infer a lifecycle it does not define.
         entity: u64,
         blocks: Arc<SectionBlocks>,
     },
     UnloadSection {
         pos: SectionPos,
     },
-    /// Hands the sky scan a bound for one column. Carries no blocks, so it
-    /// queues no lighting work; any later edit to the column supersedes it.
     SetColumnSurface {
         column: ColumnPos,
         surface: Arc<ColumnSurface>,
@@ -138,7 +109,6 @@ pub enum Edit {
 }
 
 impl Edit {
-    /// The section column whose queued work this edit joins.
     pub fn column(&self) -> ColumnPos {
         match self {
             Edit::SetBlock { pos, .. } => ColumnPos::from(*pos),
@@ -148,13 +118,6 @@ impl Edit {
     }
 }
 
-/// One past the topmost non-air Y of each of the 256 block columns, as the
-/// world that owns the blocks reports it — the same heightmap that world
-/// already keeps, so handing it over costs no repacking.
-///
-/// Purely a bound on the sky scan, never a source of truth. It is dropped the
-/// moment this world's own copy of the column changes, so a scan is never
-/// steered by a claim about blocks it has not been handed yet.
 pub type ColumnSurface = ColumnHeights;
 
 #[derive(Clone, Copy)]
@@ -174,7 +137,6 @@ pub struct LightWorld {
 }
 
 impl LightWorld {
-    /// Sentinel floor for a column with no data: no cell in it is a source.
     pub const NO_SKY_SOURCES: i32 = i32::MAX;
 
     pub fn new(registry: Arc<LightRegistry>, bounds: LightBounds) -> Self {
@@ -189,8 +151,6 @@ impl LightWorld {
         }
     }
 
-    /// For a dimension whose ceiling is not the sky: no cell anywhere is a sky
-    /// source, so the sky layer stays at zero however the world is shaped.
     pub fn without_sky(mut self) -> Self {
         self.sky = false;
         self
@@ -242,8 +202,6 @@ impl LightWorld {
         self.surfaces.insert(column, surface);
     }
 
-    /// Dropped on every change to the column's blocks: a bound computed against
-    /// one set of blocks says nothing about another.
     pub(crate) fn forget_column_surface(&mut self, column: ColumnPos) {
         self.surfaces.remove(&column);
     }
@@ -252,12 +210,6 @@ impl LightWorld {
         self.surfaces.get(&column).map(Arc::as_ref)
     }
 
-    /// The block at a position.
-    ///
-    /// Above and below the world there are no blocks, so light passes freely —
-    /// that is where sky light comes from. Inside the world but not loaded,
-    /// light stops, so that an edit near the loading frontier does not flood
-    /// the dark beyond it.
     pub fn block_at(&self, pos: BlockPos) -> VoxelId {
         if self.bounds.is_outside(pos.y) {
             return self.registry.outside();
@@ -268,18 +220,10 @@ impl LightWorld {
         }
     }
 
-    /// Whether a missing section sits outside the world rather than merely
-    /// being unloaded.
     pub(crate) fn is_outside_world(&self, pos: SectionPos) -> bool {
         self.bounds.is_outside(pos.y * SECTION_WIDTH)
     }
 
-    /// Light as seen from outside the engine.
-    ///
-    /// Where no data exists the reader sees 0 for block light and 15 for sky
-    /// light. The calculation itself uses a different convention — unloaded
-    /// space contributes nothing to either layer — which is why this method is
-    /// not used to build seeds.
     pub fn light_at(&self, pos: BlockPos, layer: LightLayer) -> LightLevel {
         match self.sections.get(&SectionPos::from(pos)) {
             Some(section) => {
@@ -297,13 +241,6 @@ impl LightWorld {
         }
     }
 
-    /// Lowest block Y in this column that is still a sky source, or
-    /// [`Self::NO_SKY_SOURCES`] where the world knows nothing about the column.
-    ///
-    /// An unloaded column contributes nothing rather than counting as open sky.
-    /// Treating it as open would light the padding sections beside a sealed
-    /// world, and that light would then leak inward: entering a block costs
-    /// something, but leaving one is free.
     pub fn sky_floor(&self, column: BlockColumn) -> i32 {
         match self.sky_floors.get(&column.section_column()) {
             Some(floor) => floor.get(column),
@@ -311,17 +248,10 @@ impl LightWorld {
         }
     }
 
-    /// The published floors of one section column, shared rather than copied:
-    /// a job reads them from a worker thread while the world keeps scanning.
     pub(crate) fn sky_floors_of(&self, section_column: ColumnPos) -> Option<Arc<SkyFloor>> {
         self.sky_floors.get(&section_column).cloned()
     }
 
-    /// Recomputes the sky source floor for one column by scanning it top down,
-    /// and returns the previous floor and the new one.
-    ///
-    /// Scanning stops at the first occluded seam, so an edit that does not touch
-    /// the boundary costs a few reads rather than a full column.
     pub(crate) fn rescan_sky_floor(&mut self, column: BlockColumn) -> (i32, i32) {
         if !self.sky {
             return (Self::NO_SKY_SOURCES, Self::NO_SKY_SOURCES);
@@ -345,13 +275,6 @@ impl LightWorld {
         (previous, floor)
     }
 
-    /// Rescans all 256 sky source floors of one section column and reports the
-    /// run of cells whose source flag moved, if any.
-    ///
-    /// A section arriving can move the floor of a column whose lower sections
-    /// were lit ticks ago, and those cells are further than one section from
-    /// the section that moved it, so the loading influence alone does not reach
-    /// them.
     pub(crate) fn rescan_column(&mut self, section_column: ColumnPos) -> Option<BoundingBox> {
         if !self.sky {
             return None;
@@ -393,9 +316,6 @@ impl LightWorld {
         })
     }
 
-    /// The vertical stack a sky scan reads, top down and resolved only as far
-    /// as the scan gets, so an edit that stops at the first seam never touches
-    /// the sections below it.
     fn sky_column_top_down(
         &self,
         section_column: ColumnPos,
@@ -420,11 +340,6 @@ impl LightWorld {
         })
     }
 
-    /// Walked section by section: one lookup per sixteen blocks rather than one
-    /// per block, which is the difference between this being free and this
-    /// dominating a bulk load. A section of one block answers in two seam tests
-    /// however tall the empty air above the terrain is — the block entering from
-    /// above against the first block, then that block against itself.
     fn scan_sky_floor<'a>(
         &self,
         entering: VoxelId,
@@ -433,7 +348,6 @@ impl LightWorld {
         local_z: u8,
         surface: Option<&ColumnSurface>,
     ) -> i32 {
-        // Above every block, so a column with no bound skips nothing.
         let surface = surface.map_or(i32::MAX, |surface| {
             surface.get(local_x as usize, local_z as usize)
         });
@@ -453,9 +367,6 @@ impl LightWorld {
                     Ok(block) => above = block,
                     Err(floor) => return floor,
                 },
-                // Every block this column holds here is air, so the section
-                // seals no seam a uniform one would not: the entry seam and one
-                // air-over-air test settle all sixteen levels.
                 SkyColumnSection::Blocks(blocks) if section_y * SECTION_WIDTH >= surface => {
                     let air = blocks
                         .get(LocalPos::new(local_x, SectionPos::MASK as u8, local_z))
@@ -479,12 +390,6 @@ impl LightWorld {
         self.bounds.min_light_y()
     }
 
-    /// How much of a column stack every one of its 256 block columns answers
-    /// the same way, and the block the scan then enters on.
-    ///
-    /// A uniform section that seals no seam is transparent to all 256 columns
-    /// alike, so the empty sky above the terrain is walked once per stack
-    /// instead of once per column.
     fn skip_uniform_sky<'s, 'a>(
         &self,
         mut stack: &'s [(i32, SkyColumnSection<'a>)],
@@ -506,7 +411,6 @@ impl LightWorld {
         self.sky_floors.remove(&section_column);
     }
 
-    /// True when the section column still holds at least one loaded section.
     pub(crate) fn column_is_loaded(&self, section_column: ColumnPos) -> bool {
         self.loaded_per_column.contains_key(&section_column)
     }
@@ -523,9 +427,6 @@ impl LightWorld {
     }
 }
 
-/// The light engine's own copy of the blocks it lights, as a volume: every section it
-/// holds is readable, and one it does not hold is unloaded inside the world and outside
-/// above and below it.
 impl Volume for LightWorld {
     fn bounds(&self) -> BoundingBox {
         BoundingBox {
@@ -575,7 +476,6 @@ impl BlockVolume for LightWorld {
 }
 
 impl LightWorld {
-    /// The blocks of `area` as they stand, for a job that runs off the tick loop.
     pub fn snapshot(&self, area: SectionBox) -> Snapshot {
         Snapshot::take(area, self.column_layout(), |at| self.shared(at).cloned())
     }

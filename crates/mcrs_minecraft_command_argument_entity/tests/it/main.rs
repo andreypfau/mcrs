@@ -9,7 +9,6 @@ use mcrs_minecraft_command::{CommandLevel, NoLookup, Source};
 pub const OP: Source<'static, NoLookup> = Source::new(CommandLevel::Gamemasters, &NoLookup);
 pub const GUEST: Source<'static, NoLookup> = Source::new(CommandLevel::All, &NoLookup);
 
-/// The value or error of `argument` on `input`, and where the cursor stopped.
 pub fn read<'a, T: Argument<Source<'static, NoLookup>>>(
     argument: &T,
     input: &'a str,

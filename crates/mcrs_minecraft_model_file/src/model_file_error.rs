@@ -1,35 +1,21 @@
 use std::error::Error;
 use std::fmt;
 
-/// Why a model file is not a model: a content error, after which the model is absent.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ModelFileError {
-    /// The file is not JSON of the model shape.
     Syntax { message: String },
-    /// The `gui_light` value is neither `front` nor `side`.
     GuiLight { value: String },
-    /// A transform array has other than three numbers.
     TransformArity { count: usize },
-    /// A corner of an element lies outside -16 to 32.
     CornerRange { corner: [f64; 3] },
-    /// An element with no face draws nothing: the model is rejected.
     NoFace,
-    /// A face key is no direction name.
     FaceKey { key: String },
-    /// A `shade_direction_override` is no direction name.
     ShadeDirection { name: String },
-    /// A `light_emission` lies outside 0 to 15.
     LightEmission { level: i64 },
-    /// A face `uv` has other than four numbers.
     UvArity { count: usize },
-    /// A face rotation is no multiple of 90 degrees.
     FaceRotation { degrees: i64 },
-    /// An axis rotation names only one of `axis` and `angle`.
     RotationIncomplete,
-    /// A rotation axis is none of x, y and z.
     RotationAxis { axis: String },
-    /// A rotation has neither `axis` and `angle` nor an Euler angle.
     RotationEmpty,
 }
 

@@ -237,8 +237,6 @@ const TABLES: &[(&str, &str)] = &[
     ),
 ];
 
-/// The length of the chain `d:chain/0` to `d:chain/{CHAIN - 1}`: each table nests the next, and
-/// the last makes one stick.
 pub const CHAIN: usize = 66;
 
 fn chain_table(link: usize) -> String {
@@ -251,8 +249,6 @@ fn chain_table(link: usize) -> String {
     format!(r#"{{"pools": [{{"rolls": 1, "entries": [{entry}]}}]}}"#)
 }
 
-/// The tables `c:{chain}/0` to `c:{chain}/{tables - 1}`, each of which nests the next, where the
-/// last has `rolls` and makes one stick.
 fn table_chain(chain: &str, tables: usize, rolls: &str) -> Vec<(String, String)> {
     (0..tables)
         .map(|link| {
@@ -275,8 +271,6 @@ fn table_chain(chain: &str, tables: usize, rolls: &str) -> Vec<(String, String)>
         .collect()
 }
 
-/// 32 tables whose last rolls the named provider `c:p{chain}/0`; each of the `providers` named
-/// providers takes the absolute value of the next, and the last gives 1.
 fn provider_chain(chain: &str, providers: usize) -> Vec<(String, String)> {
     let mut files = table_chain(chain, 32, &format!(r#""c:p{chain}/0""#));
     for link in 0..providers {
@@ -300,8 +294,6 @@ struct ChainRow {
 
 const CONSTANT: &str = r#"{"type": "minecraft:constant", "value": 1}"#;
 
-/// Each row is a table chain whose last table rolls `rolls`; the named providers and the
-/// predicate that the rows name are in [`CHAIN_FILES`].
 const CHAIN_ROWS: &[ChainRow] = &[
     ChainRow {
         chain: "inline",
@@ -344,7 +336,6 @@ const CHAIN_ROWS: &[ChainRow] = &[
     },
 ];
 
-/// `c:via` tests the predicate `c:pred`, whose chance is the named provider `c:half`.
 const CHAIN_FILES: &[(&str, &str)] = &[
     ("data/c/context_int_provider/one.json", "1"),
     (
@@ -409,8 +400,6 @@ pub fn added_table(name: &str) -> Id<mcrs_minecraft_loot::loot::LootTable> {
         .expect("an added table")
 }
 
-/// LOOT-CTX-013: a part that reads a parameter outside the type of its table is an issue at its
-/// path.
 #[test]
 fn loot_ctx_013_a_part_that_reads_outside_the_table_type_is_an_issue() {
     let issues: Vec<_> = ADDED
@@ -429,9 +418,6 @@ fn loot_ctx_013_a_part_that_reads_outside_the_table_type_is_an_issue() {
     );
 }
 
-/// LOOT-CTX-017: a table chain continues into named providers, named predicates and the inline
-/// providers in the scope of a provider; the chain of 64 members bakes, and the chain of 65
-/// members is an issue at the place of the provider.
 #[test]
 fn loot_ctx_017_a_table_chain_continues_into_its_providers() {
     let mut issues: Vec<_> = ADDED
@@ -454,9 +440,6 @@ fn loot_ctx_017_a_table_chain_continues_into_its_providers() {
     assert_eq!(issues, expected);
 }
 
-/// LOOT-CTX-012: a context without a parameter that its key set requires, a context with a
-/// parameter that its key set does not allow, and an id that names no table, roll nothing; a
-/// context with each required parameter rolls.
 #[test]
 fn loot_ctx_012_a_context_without_a_required_parameter_is_refused() {
     let stone = state("minecraft:stone", &[]);
@@ -535,10 +518,6 @@ pub fn roll_with_stream(name: &str) -> (Vec<(String, u8)>, XoroshiroRandom) {
     (names(stacks), random)
 }
 
-/// LOOT-EVL-011, LOOT-EVL-012: each stack goes through the modifier of its composite entry and
-/// then the table modifier, with their draws, before the next stack. LOOT-EVL-002: a pool takes
-/// the draw of `bonus_rolls` also with the luck 0. Each binomial with `p` 1 and each float uniform
-/// takes one float draw per trial.
 #[test]
 fn loot_evl_011_modifiers_and_bonus_rolls_take_their_draws_per_stack() {
     let stick = |count| ("minecraft:stick".to_owned(), count);
@@ -554,15 +533,11 @@ fn loot_evl_011_modifiers_and_bonus_rolls_take_their_draws_per_stack() {
     }
 }
 
-/// LOOT-CTX-012: a table without `type`, of the type `generic`, rolls from a context of the key
-/// set `block`.
 #[test]
 fn loot_ctx_012_a_table_without_type_rolls_from_a_block_context() {
     assert_eq!(roll_added("t:untyped"), [("minecraft:stick".to_owned(), 1)]);
 }
 
-/// LOOT-EVL-001, LOOT-OUT-001: a table of another type rolls by its id from a block context, and
-/// the division makes stacks of the maximum stack size 16 and the rest.
 #[test]
 fn loot_evl_001_a_table_of_another_type_rolls_by_its_id() {
     let stick = ("minecraft:stick".to_owned(), 3);
@@ -581,8 +556,6 @@ fn loot_evl_001_a_table_of_another_type_rolls_by_its_id() {
     );
 }
 
-/// LOOT-OUT-001: a count of 0 and a negative count become the empty stack, which stays in the
-/// drop list; a count of 300 becomes stacks of 64 and the rest.
 #[test]
 fn loot_out_001_the_division_keeps_empty_stacks_and_splits_large_counts() {
     let stick = |count| ("minecraft:stick".to_owned(), count);
@@ -601,8 +574,6 @@ fn loot_out_001_the_division_keeps_empty_stacks_and_splits_large_counts() {
     );
 }
 
-/// LOOT-RND-001: the keyed stream of a table depends on its name, not on its id: a load with one
-/// more table before it gives the same draws.
 #[test]
 fn loot_rnd_001_a_table_added_before_keeps_the_keyed_stream() {
     let stone = state("minecraft:stone", &[]);
@@ -619,8 +590,6 @@ fn loot_rnd_001_a_table_added_before_keeps_the_keyed_stream() {
     assert_eq!(draws(&LOOT.0, base), draws(&ADDED.1, added));
 }
 
-/// A roll of a block table whose stacks have no patch allocates nothing once the buffers have
-/// grown, also when a `filtered` tests a stack of the context with a changed count.
 #[test]
 fn a_roll_of_a_block_table_allocates_nothing_after_warm_up() {
     let fortune = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);

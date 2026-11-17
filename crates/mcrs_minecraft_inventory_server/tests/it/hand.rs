@@ -37,8 +37,6 @@ fn act(world: &mut World, player: Entity, action: PlayerAction) {
     world.run_schedule(FixedUpdate);
 }
 
-/// INV-SEL-004, IEN-SPN-001: the drop keys take one item or the whole stack out of the selected
-/// slot as an item entity, and the client gets the stack that the server holds.
 #[test]
 fn inv_sel_004_a_drop_key_throws_from_the_selected_slot() {
     struct Case {
@@ -74,7 +72,6 @@ fn inv_sel_004_a_drop_key_throws_from_the_selected_slot() {
     }
 }
 
-/// INV-SEL-005: the hand swap exchanges the selected slot and the off-hand slot.
 #[test]
 fn inv_sel_005_the_hand_swap_exchanges_the_hands() {
     let mut app = app();
@@ -90,8 +87,6 @@ fn inv_sel_005_the_hand_swap_exchanges_the_hands() {
     );
 }
 
-/// INV-SEL-006: a hand swap with a rejection changes no slot, and the client gets both stacks
-/// that the server holds.
 #[test]
 fn inv_sel_006_a_rejected_hand_swap_resends_both_hands() {
     let mut app = app();

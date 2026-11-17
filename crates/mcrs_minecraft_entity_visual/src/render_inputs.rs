@@ -10,12 +10,9 @@ use crate::motion::{Age, Motion};
 use crate::synced_data::{SyncedData, VariantId};
 use crate::walk::WalkFrame;
 
-/// The ticks in one second of the entity clock.
 pub const TICKS_PER_SECOND: f32 = 20.0;
-/// A change of the position above this, on one axis, makes an entity move.
 pub const MOVING_DISTANCE: f64 = 1e-5;
 
-/// The components that the values of a frame read.
 pub type RenderInputsQuery = (
     &'static ClientEntity,
     &'static Motion,
@@ -25,7 +22,6 @@ pub type RenderInputsQuery = (
     Option<&'static Equipment>,
 );
 
-/// The state of one client entity that a renderer and the queries of its expressions read.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderInputs<'a> {
     pub entity: &'a ClientEntity,
@@ -67,36 +63,26 @@ impl<'a>
     }
 }
 
-/// The values of one entity in one frame. Each query of a frame reads these values, so two
-/// reads in one frame agree.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FrameValues {
     pub partial_tick: f32,
     pub position: DVec3,
     pub eye_position: DVec3,
-    /// The entity clock `age + partial tick`, in ticks.
     pub clock: f32,
     pub body_yaw: f32,
     pub head_yaw: f32,
-    /// The head yaw relative to the body yaw, negated for an upside-down entity.
     pub relative_head_yaw: f32,
-    /// Negated for an upside-down entity.
     pub pitch: f32,
     pub walk: WalkFrame,
     pub death_ticks: f32,
     pub hurt_time: u32,
-    /// Blocks per second in the latest tick.
     pub ground_speed: f64,
     pub vertical_speed: f64,
     pub moving: bool,
     pub on_ground: bool,
-    /// The in-water flag of the latest tick.
     pub in_water: bool,
-    /// The custom name turns the entity upside down.
     pub upside_down: bool,
-    /// The entity rides another one. Always `false` until the client keeps passengers.
     pub riding: bool,
-    /// Another entity rides this one. Always `false` until the client keeps passengers.
     pub has_rider: bool,
     pub alive: bool,
     pub baby: bool,
@@ -108,19 +94,15 @@ pub struct FrameValues {
     pub sprinting: bool,
     pub swimming: bool,
     pub invisible: bool,
-    /// `None` for a type with no variant, or an entity that keeps the default variant.
     pub variant: Option<VariantId>,
 }
 
 impl FrameValues {
-    /// `query.life_time`, in seconds.
     #[must_use]
     pub fn life_time(&self) -> f32 {
         self.clock / TICKS_PER_SECOND
     }
 
-    /// `query.delta_time`, in seconds: the change of the entity clock since `previous`, the
-    /// values of the previous frame of the same entity.
     #[must_use]
     pub fn delta_time(&self, previous: Option<&FrameValues>) -> f32 {
         previous.map_or(0.0, |previous| {
@@ -129,7 +111,6 @@ impl FrameValues {
     }
 }
 
-/// The height of the eye of `entity` above its position, with its baby scale and its scale.
 #[must_use]
 pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
     let Some(type_data) = entity.type_data() else {
@@ -144,7 +125,6 @@ pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
 }
 
 impl RenderInputs<'_> {
-    /// The values at `partial_tick`, in `[0, 1]`.
     #[must_use]
     pub fn frame(&self, partial_tick: f32) -> FrameValues {
         let type_data = self.entity.type_data();

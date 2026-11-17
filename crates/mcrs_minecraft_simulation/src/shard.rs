@@ -34,7 +34,6 @@ impl<K: Kinds> BlockShard<K> {
         Self::default()
     }
 
-    /// For the owner of the sections: to hold saved ticks, activate them and take a section out.
     pub fn block_ticks(&self) -> &TickQueue<K::Block> {
         &self.block_ticks
     }
@@ -116,8 +115,6 @@ pub struct StepAt {
 }
 
 pub struct Env<'a, F, B, P> {
-    /// Unique among the partitions whose messages can meet in one inbound batch, and not
-    /// reused within a game tick: chains are keyed by it together with their first stamp.
     pub partition: ShardId,
     pub facts: &'a F,
     pub behaviour: &'a B,

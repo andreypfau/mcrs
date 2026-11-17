@@ -17,8 +17,6 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as
 use std::time::Duration;
 use tracing::{debug, warn};
 
-/// The reference's `KEEPALIVE_LIMIT`: how long after the last challenge the next one is due,
-/// and how long a challenge may go unanswered.
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
 pub struct KeepAlivePlugin;
@@ -35,14 +33,12 @@ impl Plugin for KeepAlivePlugin {
     }
 }
 
-/// Times are the real-time clock's elapsed time: a keep-alive measures the wire, not the tick.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeepAlive {
     Idle { since: Duration },
     Awaiting { challenge: i64, sent: Duration },
 }
 
-/// Each phase starts its own keep-alive, as the reference's packet listener for each phase does.
 pub fn new_connection(
     query: Query<(Entity, &ConnectionState), Changed<ConnectionState>>,
     time: Res<Time<Real>>,
@@ -131,8 +127,6 @@ fn on_game_response(
     }
 }
 
-/// A response read in a later frame than it arrived still counts from its arrival, so the
-/// latency does not grow by the wait for the frame.
 fn arrival(arrival: Option<Instant>, time: &Time<Real>) -> Duration {
     arrival.map_or(time.elapsed(), |at| {
         at.saturating_duration_since(time.startup())

@@ -42,8 +42,6 @@ fn advance(
     }
 }
 
-/// One tick of each dig and of each delayed break. It runs after the requests of the tick, so
-/// the tick of a start action is the first tick of its dig.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each query, writer and resource is its own parameter"
@@ -69,8 +67,6 @@ pub(crate) fn advance_digs(
         return;
     };
     diggers.0.retain(|&player| {
-        // chisle: a dig does not cross a cell or a dimension change: the observers keep its crack
-        // and a later finish action is refused; carrying the session with the player lifts it.
         let Ok((&Owner(session), mode, dimension, transform, &on_ground, mut digging)) =
             players.get_mut(player)
         else {
@@ -80,7 +76,6 @@ pub(crate) fn advance_digs(
             .get(dimension.0)
             .filter(|_| mode.0 == GameMode::Survival);
         let eye = eye_position(transform.translation);
-        // `Err` is a block that this tick cannot read: its dig waits, it does not end.
         let diggable = |pos: BlockPos| -> Result<Option<(BlockStateId, f32)>, Unavailable> {
             let Some(view) = view.as_ref() else {
                 return Ok(None);
@@ -96,8 +91,6 @@ pub(crate) fn advance_digs(
                 .contains(BlockStateFlags::IS_AIR);
             Ok((!air).then(|| (state, dig_rate(&definitions, view, state, eye, on_ground))))
         };
-        // chisle: every holder of the column gets the stages and the hit events; a radius in the
-        // delivery of a column change lifts it to the limits of 32 and 64 blocks.
         if let Some(mut dig) = digging.dig.take() {
             let pos = dig.crack.pos;
             match diggable(pos) {

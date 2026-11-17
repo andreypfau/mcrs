@@ -3,9 +3,6 @@ use mcrs_minecraft_entity_animation::{AnimateTarget, EntityAnimation, Rig};
 use crate::pose_program::InputLayout;
 use crate::records::{CLIP_PLAYING, ClipSlot, InputRecord};
 
-/// The input record of one entity from its animation state after
-/// [`EntityAnimation::update`] at the entity clock `clock`: the weight of each entry that the
-/// CPU computes, and the start of each clip on the entity clock.
 #[must_use]
 pub fn input_record(
     layout: &InputLayout,

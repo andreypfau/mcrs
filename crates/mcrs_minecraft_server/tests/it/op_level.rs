@@ -176,8 +176,6 @@ fn op_and_deop_change_the_level_of_an_online_player_at_once_and_fail_without_a_c
     );
 }
 
-/// The server of `start_with_commands`, whose operators come from an ops file in a fresh
-/// directory and include `automatic` as the operator of a loopback join.
 fn start_with_ops_file(automatic: Uuid) -> (PlayServer, std::path::PathBuf) {
     let mut server = start_with_commands();
     let dir = std::env::temp_dir().join(format!("mcrs-loopback-ops-{}", Uuid::new_v4()));

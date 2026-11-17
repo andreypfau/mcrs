@@ -28,7 +28,6 @@ fn build_app(dim: Entity) -> App {
     app
 }
 
-/// Spawns a player at `place` and its connection; returns the connection.
 fn connect(app: &mut App, place: Place) -> Entity {
     let session = app
         .world_mut()

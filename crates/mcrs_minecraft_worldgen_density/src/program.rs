@@ -38,9 +38,6 @@ impl UnaryOp {
             UnaryOp::Abs => v.abs(),
             UnaryOp::Square => v * v,
             UnaryOp::Cube => v * v * v,
-            // `(float)Math.sqrt`: the detour through double is not observable,
-            // because sqrt is correctly rounded and double carries more than
-            // twice float's significand, so the two roundings collapse into one.
             UnaryOp::Sqrt => v.sqrt(),
             UnaryOp::Reciprocal => 1.0 / v,
             UnaryOp::Negate => -v,
@@ -93,7 +90,6 @@ impl RoundKind {
     pub fn apply(self, v: f32) -> f32 {
         match self {
             RoundKind::Floor => v.floor(),
-            // Java rounds halves up, not away from zero: round(-2.5) is -2.
             RoundKind::Round => (v + 0.5).floor(),
             RoundKind::Ceil => v.ceil(),
             RoundKind::Truncate => {
@@ -109,24 +105,13 @@ impl RoundKind {
 
 pub type NodeId = u32;
 
-/// Adding `+0.0` would turn a `-0.0` product into `+0.0`, which the bare
-/// constant multiply the affine kinds fold from does not do.
 #[inline]
 pub(crate) fn drops_offset(offset: f32) -> bool {
     offset == 0.0 && offset.is_sign_positive()
 }
 
-/// One operation in the flat graph. Inputs are indices into the same array, so a
-/// node reachable from two parents exists once and is evaluated once.
-///
-/// The specializations are vanilla's, with two additions the previous engine had
-/// and vanilla lacks: `Affine` folds a constant multiply and a constant add into
-/// one node, and `PiecewiseAffine` folds a leaky rectifier into it. Both compute
-/// with two roundings, never a fused multiply-add — Java has no implicit FMA and
-/// fusing moves the last bit.
 #[derive(Clone, Debug)]
 pub enum Node {
-    // --- leaves ---
     Constant(f32),
     Gradient(GradientParams),
     Noise {
@@ -139,7 +124,6 @@ pub enum Node {
     EndOuterIslands(Arc<EndIslandParams>),
     OldBlendedNoise(Arc<BlendedNoise>),
 
-    // --- one input ---
     Affine {
         input: NodeId,
         scale: f32,
@@ -160,11 +144,6 @@ pub enum Node {
         min: f32,
         max: f32,
     },
-    /// A binary operation with one operand folded in as a constant. `swapped`
-    /// puts the constant on the left, which is the only order `min`, `max`,
-    /// subtraction from a constant, division of a constant and a constant base
-    /// raised to a node distinguish; `x + c` and `x * c` fold into `Affine`
-    /// instead.
     ConstBinary {
         op: BinaryOp,
         input: NodeId,
@@ -177,7 +156,6 @@ pub enum Node {
         kind: RoundKind,
     },
 
-    // --- two inputs ---
     Binary {
         op: BinaryOp,
         a: NodeId,
@@ -189,7 +167,6 @@ pub enum Node {
         kind: RoundKind,
     },
 
-    // --- three or more ---
     Lerp {
         alpha: NodeId,
         first: NodeId,
@@ -225,24 +202,17 @@ pub enum Node {
         coords: Arc<[NodeId]>,
     },
 
-    // --- one input, read away from the position being filled ---
-    /// Trilinear interpolation of `input` over a cell lattice. `cell` indexes the
-    /// lattice buffer the fill materializes for it.
     Interpolated {
         input: NodeId,
         cell_xz: i32,
         cell_y: i32,
         cell: usize,
     },
-    /// `input` with `axis` pinned to `coordinate`, which is a block coordinate
-    /// and not an index into the volume being filled.
     Slice {
         input: NodeId,
         axis: Axis,
         coordinate: i32,
     },
-    /// The highest cell boundary at or below `upper_bound` where `density` is
-    /// positive. `upper_bound` is read at y = 0, never at the filled position.
     FindTopSurface {
         density: NodeId,
         upper_bound: NodeId,
@@ -252,8 +222,6 @@ pub enum Node {
 }
 
 impl Node {
-    /// Every node this one reads, in evaluation order. Drives topological
-    /// sorting, dead-node elimination and the guard cones.
     pub fn visit_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
             Node::Constant(_)
@@ -325,8 +293,6 @@ impl Node {
         }
     }
 
-    /// [`Node::visit_inputs`] with the ids handed over for rewriting, which is
-    /// what renumbering the arena after a compaction needs.
     pub(crate) fn visit_inputs_mut(&mut self, f: &mut impl FnMut(&mut NodeId)) {
         fn rewrite_all(slice: &mut Arc<[NodeId]>, f: &mut impl FnMut(&mut NodeId)) {
             let mut owned = slice.to_vec();
@@ -402,10 +368,6 @@ impl Node {
         }
     }
 
-    /// The inputs this node reads at the position being filled. The two kinds
-    /// that sample elsewhere hide those inputs here, so a plan built from this
-    /// walk never evaluates a subtree at the wrong position — and never at all
-    /// unless something else in the plan reads it in place.
     pub(crate) fn visit_local_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
             Node::Interpolated { .. } | Node::Slice { .. } => {}
@@ -415,13 +377,6 @@ impl Node {
     }
 }
 
-/// A compiled density graph: nodes in topological order, each tagged with the
-/// axes it varies over.
-///
-/// A node's stratum, from the strata of its inputs. The union of the inputs'
-/// axes, with the exceptions vanilla's `domainAxes` names: a zero sampling scale
-/// sheds an axis, the transposed shift and the end islands are flat, and the
-/// vertical surface search always answers per column.
 pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     let at = |id: NodeId| axes.get(id as usize).copied().unwrap_or(NO_AXES);
     match node {
@@ -436,9 +391,6 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
             upper_bound,
             ..
         } => (at(*density) | at(*upper_bound)) & !AXIS_Y,
-        // The lattice is addressed by the column being filled, which the
-        // per-fill phase has none of, so this never lands there however little
-        // its input varies.
         Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
         Node::Slice { input, axis, .. } => at(*input) & !axis_bit(*axis),
         other => {
@@ -451,49 +403,25 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
 
 static ZERO: Node = Node::Constant(0.0);
 
-/// A compiled density graph: nodes in topological order, each tagged with the
-/// axes it varies over.
-///
-/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
-/// over the whole volume, and each node's buffer holds only the axes it varies
-/// over: a node that ignores Y holds one value per column, and one that ignores
-/// X and Z holds one value for the fill. Both fall out of `axes`, with no
-/// rewrite pass and no slice node.
 pub struct Program {
     nodes: Box<[Node]>,
     axes: Box<[Axes]>,
-    /// One per node that can be filled on its own: the roots, plus the inputs the
-    /// two re-entrant kinds sample away from the filled position.
     plans: Box<[Plan]>,
     plan_of: Box<[u32]>,
     roots: Box<[NodeId]>,
     cell_count: usize,
 }
 
-/// What one fill of a given node evaluates, restricted to the nodes that node
-/// can reach in place. Filling a root no longer walks the whole array: an
-/// unrelated `Interpolated` elsewhere in the graph would otherwise materialize
-/// its lattice, whose own fill would materialize the first one's, and so on.
 struct Plan {
-    /// Every node reached, ordered so that each guarded input's exclusive cone is
-    /// one contiguous run and every node still follows its inputs.
     order: Box<[NodeId]>,
     steps: Box<[Step]>,
-    /// The `Interpolated` nodes reached, whose lattices are materialized before
-    /// the order runs.
     lattice: Box<[NodeId]>,
-    /// Which buffer each position in `order` writes, numbered within the run of
-    /// buffers that share its node's axes.
     slot: Box<[u32]>,
-    /// Buffers needed per axes combination, so a fill holds the width of the
-    /// graph rather than one stratum per node.
     slot_count: [u32; 8],
 }
 
 #[derive(Default)]
 pub struct Workspace {
-    /// One stratum per live slot. Slots are recycled, so a node's offset may sit
-    /// either side of an offset it reads.
     values: Vec<f32>,
     offset: Vec<u32>,
     lattices: Vec<Lattice>,
@@ -504,9 +432,6 @@ pub struct Workspace {
     count: EvalCount,
 }
 
-/// Node evaluations, summed over every fill and every nested fill since the last
-/// [`Workspace::take_count`]. Only the tests that prove a cone was skipped read
-/// it, so it does not exist in a shipped build.
 #[cfg(any(test, feature = "eval-count"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EvalCount {
@@ -514,22 +439,15 @@ pub struct EvalCount {
     pub skipped: u64,
 }
 
-/// One `Interpolated` node's input, sampled over the cell lattice enclosing the
-/// volume being filled.
 #[derive(Default)]
 struct Lattice {
     volume: Option<SampleGrid>,
-    /// The fill's own volume already was the cell lattice, so `values` holds the
-    /// input at exactly the positions asked for and is read straight back.
     direct: bool,
-    /// Supplied from outside over a region wider than one fill, so a fill whose
-    /// cells it already covers reads it instead of sampling the input again.
     pinned: bool,
     values: Vec<f32>,
 }
 
 impl Lattice {
-    /// Whether a pinned lattice already holds every corner `wanted` would sample.
     fn covers(&self, wanted: &SampleGrid) -> bool {
         let Some(held) = self.volume.filter(|_| self.pinned) else {
             return false;
@@ -625,14 +543,10 @@ impl Program {
         self.nodes.get(id as usize).unwrap_or(&ZERO)
     }
 
-    /// Writes `volume.len()` values for `root` into `out`, laid out Y-fastest to
-    /// match [`SampleGrid::index_unchecked`].
     pub fn fill(&self, ws: &mut Workspace, volume: &SampleGrid, root: usize, out: &mut [f32]) {
         self.fill_node(ws, volume, self.root_node(root), out);
     }
 
-    /// [`Program::fill`] targeting any node that has a plan: a root, or the input
-    /// a re-entrant kind samples away from the position being filled.
     pub fn fill_node(
         &self,
         ws: &mut Workspace,
@@ -721,8 +635,6 @@ impl Program {
         self.plans.get(index as usize)
     }
 
-    /// Samples each reached `Interpolated` node's input over the cell lattice
-    /// enclosing `volume`, once for the whole fill rather than once per column.
     fn fill_lattices(&self, ws: &mut Workspace, volume: &SampleGrid, plan: &Plan) {
         if plan.lattice.is_empty() {
             return;
@@ -762,9 +674,6 @@ impl Program {
         ws.nested = Some(nested);
     }
 
-    /// `input` over `volume` with `axis` pinned to `coordinate`. The pinned axis
-    /// is one this node's stratum drops, so the nested fill's buffer is already
-    /// laid out exactly as this node's own stratum and lands in it by copy.
     fn fill_slice(
         &self,
         ws: &mut Workspace,
@@ -834,9 +743,6 @@ impl Program {
         }
     }
 
-    /// `FindTopSurfaceFunction.Sampler.findSurfaceFrom`, probing one batch of
-    /// cell boundaries per nested fill so the descent still stops at the first
-    /// positive density.
     #[expect(
         clippy::too_many_arguments,
         reason = "the workspace, both grids, the column index, the density and upper bound nodes, and the lower bound and cell height of one surface descent"
@@ -910,7 +816,6 @@ impl Program {
         found as f32
     }
 
-    /// Whether any position in the volume reads the guarded run.
     fn guard_holds(&self, test: GuardTest, ws: &Workspace, volume: &SampleGrid) -> bool {
         let all = |id| ws.read(self, id, volume);
         match test {
@@ -1250,10 +1155,6 @@ impl Program {
     }
 }
 
-/// A slot other than the one being written. Recycling puts a node's inputs on
-/// either side of its output, so the buffer splits in three and the read picks
-/// the side its offset falls on. An offset inside the output would mean a node
-/// aliasing its own input, and reads as an empty slot.
 #[inline]
 fn other_slot<'a>(
     below: &'a [f32],
@@ -1271,10 +1172,6 @@ fn other_slot<'a>(
     }
 }
 
-/// Whether `volume` already samples the cell lattice, in which case vanilla
-/// hands the input straight through. The chunk generator leans on it: it fills
-/// the lattice itself and would otherwise interpolate values back onto the
-/// corners they came from.
 fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     (step.x == cell_xz || size.x == 1)
@@ -1285,12 +1182,6 @@ fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
         && numeric::floor_mod(min.z, cell_xz) == 0
 }
 
-/// `volume` as the input of a slice is asked for it: the input's own stratum,
-/// with the pinned axis collapsed to the single block `coordinate`.
-///
-/// Every other axis the input drops is pinned exactly as [`stratum`] pins it,
-/// and the input's axes are a superset of the slice's, so the result indexes
-/// element for element like the slice's own stratum.
 fn slice_volume(volume: &SampleGrid, input_axes: Axes, axis: Axis, coordinate: i32) -> SampleGrid {
     let ext = stratum(input_axes, volume);
     let (mut size, mut min) = (ext.size(), ext.min_block());
@@ -1302,9 +1193,6 @@ fn slice_volume(volume: &SampleGrid, input_axes: Axes, axis: Axis, coordinate: i
     SampleGrid::new(size, min, ext.step_block())
 }
 
-/// The cell corners enclosing every position `volume` asks for, with one extra
-/// sample per axis so the far corner of the last cell exists. A node that does
-/// not vary along Y is only ever asked for its first row.
 fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) -> SampleGrid {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     let last_y = if axes & AXIS_Y != 0 {
@@ -1326,8 +1214,6 @@ fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) ->
     SampleGrid::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
-/// The value ramp along Y inside one interpolated cell, walked a row at a time
-/// as vanilla walks it, so the chain of roundings is the same.
 struct YRamp {
     value: f32,
     step: f32,
@@ -1344,8 +1230,6 @@ impl YRamp {
         }
     }
 
-    /// `local` never moves backwards, so winding forward visits every row of the
-    /// cell exactly once even when the volume's stride drops some of them.
     #[inline(always)]
     fn at(&mut self, local: i32) -> f32 {
         while self.row < local {
@@ -1356,7 +1240,6 @@ impl YRamp {
     }
 }
 
-/// One column's contiguous run of rows inside a cell, starting at row `first`.
 #[inline(always)]
 fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
     let mut ramp = YRamp::new(bottom, step, first);
@@ -1365,15 +1248,6 @@ fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
     }
 }
 
-/// `InterpolatedFunction.Sampler.fillCell` for one column: Z innermost, then X,
-/// then Y accumulated one block at a time from the cell's first row. The Y
-/// accumulation runs over every block row the cell covers, including rows a
-/// strided volume drops, because vanilla reaches a strided volume by filling the
-/// dense one and subsampling it.
-///
-/// The outer loop walks cells rather than samples: a cell spans the block range
-/// `[cell_base, cell_base + cell_y)`, so comparing against that bound advances
-/// the run without a division per position.
 #[expect(
     clippy::too_many_arguments,
     reason = "the output, the block origin, the two grids, the lattice values and the two cell sizes of one trilinear interpolation"
@@ -1429,14 +1303,6 @@ fn interpolate(
     }
 }
 
-/// The same walk as [`interpolate`] with the cell hoisted out of the column
-/// loop, for the unstrided volume the chunk generator asks for: a cell's eight
-/// corners and its four Z lerps are loaded once instead of once per column, and
-/// the Y run each column contributes is a contiguous write.
-///
-/// Ranges are clipped to `ext` on every axis rather than assumed to be whole
-/// cells, and the rows go through [`YRamp`] like the strided walk's do, so both
-/// carry whichever of the two profiles' roundings is built.
 fn interpolate_cells(
     out: &mut [f32],
     ext: &SampleGrid,
@@ -1539,8 +1405,6 @@ impl Plan {
                 });
             }
         }
-        // The fill reads the target after the schedule ends, so its slot outlives
-        // every other and is never handed back.
         if let Some(last) = last_use.get_mut(target as usize) {
             *last = usize::MAX;
         }
@@ -1551,8 +1415,6 @@ impl Plan {
         let mut slot_count = [0u32; 8];
         let mut slot = Vec::with_capacity(order.len());
         for (p, &id) in order.iter().enumerate() {
-            // Taking the output slot before releasing the inputs is what keeps a
-            // node from writing over a buffer it still reads.
             let a = axes_of(id);
             let taken = match (free.get_mut(a), slot_count.get_mut(a)) {
                 (Some(free), Some(count)) => free.pop().unwrap_or_else(|| {
@@ -1596,7 +1458,6 @@ impl Workspace {
         Self::default()
     }
 
-    /// The evaluations counted since the last call, cleared.
     #[cfg(any(test, feature = "eval-count"))]
     pub fn take_count(&mut self) -> EvalCount {
         std::mem::take(&mut self.count)
@@ -1609,9 +1470,6 @@ impl Workspace {
         self.count.skipped += inner.skipped;
     }
 
-    /// Sizes the plan's slots for this volume and points every node in the plan
-    /// at the one it writes. Nodes outside the plan keep whatever offset a
-    /// previous fill left them; nothing reads them.
     fn prepare(&mut self, program: &Program, plan: &Plan, volume: &SampleGrid) {
         if self.offset.len() < program.len() {
             self.offset.resize(program.len(), 0);
@@ -1632,9 +1490,6 @@ impl Workspace {
                 *offset = base + slot * extent(axes, volume) as u32;
             }
         }
-        // Every node writes its whole stratum before anything reads it, so the
-        // buffer is grown rather than cleared: re-zeroing it costs more than the
-        // fill it precedes.
         if self.values.len() < len {
             self.values.resize(len, 0.0);
         }
@@ -1644,9 +1499,6 @@ impl Workspace {
         }
     }
 
-    /// Hands one `Interpolated` node's lattice in ready-made, so every fill whose
-    /// cells it covers interpolates from it instead of sampling the input again.
-    /// A fill reaching past it samples as usual.
     pub(crate) fn pin_lattice(&mut self, cell: usize, volume: &SampleGrid, values: &[f32]) {
         if self.lattices.len() <= cell {
             self.lattices.resize_with(cell + 1, Lattice::default);
@@ -1765,8 +1617,6 @@ mod tests {
         );
     }
 
-    /// Operands chosen so the fused and the unfused form disagree, which is
-    /// what makes either direction of this observable at all.
     fn affine_at_a_rounding_boundary() -> (f32, f32, f32, f32) {
         let x = 1.000_000_1_f32;
         let (scale, offset) = (3.000_000_5_f32, -3.000_001_5_f32);
@@ -1802,8 +1652,6 @@ mod tests {
         assert_eq!(evaluated, x.mul_add(scale, offset));
     }
 
-    /// A ramp built both ways over operands that make the two forms disagree,
-    /// which is what makes either direction of this observable at all.
     fn ramp_at_a_rounding_boundary() -> ([f32; 8], [f32; 8], f32, f32) {
         let (bottom, step) = (1.0_f32, 0.1_f32);
         let mut rows = [0.0f32; 8];
@@ -1847,8 +1695,6 @@ mod tests {
         assert_eq!(&out[2..4], &[50.0, 51.0], "z = 1 adds 50");
     }
 
-    /// `x` on the lattice, `x * x` off it, so a value that came through the
-    /// interpolation is telling apart from one that came from the input.
     fn squared_gradient_interpolated(cell_xz: i32) -> Program {
         let nodes = vec![
             gradient(Axis::X, 0.0, 8.0, 0.0, 8.0),
@@ -1885,10 +1731,6 @@ mod tests {
         );
     }
 
-    /// A slice keeps the axes its input has minus the pinned one, so the value
-    /// has to reach every column the pinned axis used to separate — the nested
-    /// fill's buffer lands in the node's own stratum by copy, and a layout that
-    /// disagreed would show up as a transposed column here.
     #[test]
     fn a_slice_broadcasts_the_pinned_axis_over_every_column() {
         let nodes = vec![
@@ -1912,7 +1754,6 @@ mod tests {
         );
         let v = SampleGrid::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
         let out = run(&p, &v, 0);
-        // x is pinned to 3, so every column reads 30 plus its own z.
         assert_eq!(out, vec![30.0, 30.0, 31.0, 31.0, 32.0, 32.0, 33.0, 33.0]);
     }
 
@@ -1983,8 +1824,6 @@ mod tests {
         (out, ws.take_count())
     }
 
-    /// The `when_in` subtree is reachable only through that one arm, so a fill
-    /// whose selector never lands in the range must not evaluate it.
     #[test]
     fn a_range_choice_arm_no_position_selects_is_skipped() {
         let nodes = vec![
@@ -2019,8 +1858,6 @@ mod tests {
         );
     }
 
-    /// A one-threshold `interval_select`, which no shipped noise settings
-    /// produces: the corpus only has selects with several thresholds.
     #[test]
     fn a_two_armed_select_skips_the_arm_no_position_takes() {
         let nodes = vec![
@@ -2045,8 +1882,6 @@ mod tests {
         assert_eq!((count.evaluated, count.skipped), (4, 1));
     }
 
-    /// A guard nested inside a skipped cone is skipped with it, which the
-    /// contiguous cone gives for free.
     #[test]
     fn a_guard_inside_a_skipped_range_never_runs() {
         let nodes = vec![
@@ -2115,8 +1950,6 @@ mod tests {
         program_with_ranges(nodes, axes, ranges, vec![3])
     }
 
-    /// The right operand of a `min` cannot change the result once the left run
-    /// sits at or below every value the right can take.
     #[test]
     fn a_min_whose_left_run_never_reaches_the_right_skips_it() {
         let v = SampleGrid::dense(IVec3::new(2, 1, 1), IVec3::ZERO);
@@ -2132,8 +1965,6 @@ mod tests {
         assert_eq!((plain.evaluated, plain.skipped), (4, 0));
     }
 
-    /// A zero times a right operand known to be negative is a negative zero, and
-    /// the fill compares bit for bit.
     #[test]
     fn a_multiply_by_zero_keeps_the_sign_the_skipped_operand_would_have_given() {
         let nodes = vec![

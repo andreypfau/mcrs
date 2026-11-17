@@ -1,6 +1,3 @@
-// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
-// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
-
 import mcrs_minecraft_render::shaders::include::reconstruct::Reconstruction;
 
 @group(2) @binding(0) var albedo_ao: texture_2d<f32>;

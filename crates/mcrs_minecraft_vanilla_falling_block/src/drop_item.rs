@@ -15,8 +15,6 @@ use mcrs_voxel::BlockStateId;
 
 use crate::falling_block_rules::FallingBlockRules;
 
-/// The drop of a falling block `key` at `position`: one item of the block of `carried`, in the
-/// default form and with the pickup delay 10 (FBK-LND-006). A block with no item drops nothing.
 pub(crate) fn drop_item(
     commands: &mut Commands,
     rules: &FallingBlockRules,

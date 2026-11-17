@@ -4,7 +4,6 @@ use crate::font::Span;
 use mcrs_minecraft_lang::{EN_US, Language, Piece};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
-/// The language of the client: the English translations of the resource pack.
 #[derive(Resource, Debug, Default)]
 pub struct ClientLanguage(Language);
 
@@ -15,18 +14,14 @@ impl ClientLanguage {
             .map_err(|error| format!("{EN_US}: {error}"))
     }
 
-    /// Whether the language has a translation for `key`.
     pub fn contains(&self, key: &str) -> bool {
         self.0.contains(key)
     }
 
-    /// An untranslated key reads as itself, as it does in vanilla.
     pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
         self.0.get(key)
     }
 
-    /// Fills `%s` and `%n$s` with the arguments' spans; the literal text between
-    /// them takes `color`.
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
         let mut spans = Vec::new();
         let mut literal = String::new();

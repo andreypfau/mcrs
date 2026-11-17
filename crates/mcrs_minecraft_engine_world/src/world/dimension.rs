@@ -36,8 +36,6 @@ impl Plugin for DimensionPlugin {
         );
         app.add_plugins(SectionPlugin);
         app.add_plugins(crate::world::storage::column::ColumnPlugin);
-        // Dimension entities are spawned by the game layer; this plugin only
-        // maintains them once they exist.
         app.add_systems(
             FixedPostUpdate,
             (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
@@ -113,7 +111,6 @@ impl ContainsEntity for OldInDimension {
     }
 }
 
-/// The vertical extent of a dimension, supplied by the game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
 pub struct DimensionTypeConfig {
     pub min_y: i32,
@@ -130,7 +127,6 @@ impl DimensionTypeConfig {
         }
     }
 
-    /// Returns the maximum Y coordinate (min_y + height - 1)
     pub fn max_y(&self) -> i32 {
         self.min_y + self.height as i32 - 1
     }
@@ -161,7 +157,6 @@ fn update_index(
     }
 }
 
-/// A player that leaves before `update_index` ran is still in the set of its old dimension.
 fn forget_removed_player(
     remove: On<Remove<InDimension>>,
     players: Query<(&InDimension, Option<&OldInDimension>), With<Player>>,

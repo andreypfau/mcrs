@@ -58,8 +58,6 @@ pub static TABLE: LazyLock<FallingBlockTable> = LazyLock::new(|| {
     )
 });
 
-/// The state of `block` with the property values `properties`, as `name=value` pairs; panics
-/// when the block or a value is unknown.
 pub fn state(block: &str, properties: &[(&str, &str)]) -> BlockStateId {
     let entry = DEFINITIONS.block(block).expect(block);
     properties

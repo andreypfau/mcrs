@@ -13,8 +13,6 @@ use mcrs_minecraft_item::stack::ItemRef;
 
 validated!(Ingredient<Named>);
 
-/// The items a slot accepts: one item, a list or a tag, never empty and never
-/// air.
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", transparent)]
@@ -30,7 +28,6 @@ fn check_items<T: ItemRef>(entries: &[T]) -> Result<(), String> {
     Ok(())
 }
 
-/// The items a set lists, or `None` for a tag.
 pub trait ListedItems {
     type Entry: ItemRef;
 

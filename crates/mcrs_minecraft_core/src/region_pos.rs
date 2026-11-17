@@ -1,6 +1,5 @@
 use mcrs_voxel::ColumnPos;
 
-/// A region file: 32 by 32 columns.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct RegionPos {
     pub x: i32,
@@ -16,12 +15,10 @@ impl RegionPos {
         Self { x, z }
     }
 
-    /// The x of `column` within its region.
     pub const fn local_x(column: ColumnPos) -> i32 {
         column.x & Self::MASK as i32
     }
 
-    /// The z of `column` within its region.
     pub const fn local_z(column: ColumnPos) -> i32 {
         column.z & Self::MASK as i32
     }

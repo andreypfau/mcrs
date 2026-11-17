@@ -7,17 +7,13 @@ use mcrs_minecraft_command::Source;
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_voxel::BlockStateId;
 
-/// `minecraft:block_state`: a block with an optional property list and data compound, and no
-/// tag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockStateArgument;
 
-/// The value of a `block_state`: the block and the property list as the line wrote them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockStateInput<'a>(BlockPredicate<'a>);
 
 impl BlockStateInput<'_> {
-    /// The default state of the block with each property of the list set.
     #[must_use]
     pub fn state(&self, blocks: &BlockDefinitions) -> Option<BlockStateId> {
         let ResourceOrTag::Entry(block) = self.0.subject else {
@@ -34,7 +30,6 @@ impl BlockStateInput<'_> {
 }
 
 impl BlockStateArgument {
-    /// Suggests the block, its properties and its data.
     pub fn suggest<'t, L: BlockLookup, T: Copy>(
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,

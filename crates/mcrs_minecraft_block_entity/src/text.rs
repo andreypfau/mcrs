@@ -1,8 +1,6 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Serialize};
 
-/// A chat component: a bare string when it is nothing but literal text, the
-/// full compound otherwise.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Text {

@@ -2,7 +2,6 @@ use mcrs_minecraft_enchantment::level_based_value::{DispatchedLevelBasedValue, L
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-/// A level-based value whose `clamped` parts have `max > min` (REG-FLD-387).
 pub(crate) fn checked_level_based<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<LevelBasedValue, D::Error> {

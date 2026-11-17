@@ -3,17 +3,8 @@ use core::fmt::Write;
 
 use mcrs_molang::{BinaryFn, EaseDirection, EaseShape, PureInstr, PureProgram, TernaryFn, UnaryFn};
 
-/// The WGSL functions that every generated channel function calls. A shader module holds it
-/// once, before the channel functions.
 pub const LIBRARY: &str = include_str!("library.wgsl");
 
-/// Writes `program` as one WGSL function `name`. `name` must be a WGSL identifier that does not
-/// start with `molang_`.
-///
-/// The function takes `opaque_zero: u32`, then one `f32` for each entry of
-/// [`PureProgram::inputs`], and returns the channel value limited to `[-1e6, 1e6]`, with `0.0`
-/// for a NaN. The caller must pass a zero that the shader compiler cannot see, for example a
-/// field of a uniform buffer: it keeps fast math from changing the result bits.
 pub fn write_function(out: &mut String, program: &PureProgram, name: &str) {
     debug_assert!(
         !name.is_empty()
@@ -22,7 +13,6 @@ pub fn write_function(out: &mut String, program: &PureProgram, name: &str) {
             && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
         "the function name must be a WGSL identifier that does not start with `molang_`"
     );
-    // Writing to a `String` cannot fail.
     let _ = write_body(out, program, name);
 }
 
@@ -54,7 +44,6 @@ fn write_body(out: &mut String, program: &PureProgram, name: &str) -> core::fmt:
     Ok(())
 }
 
-/// The WGSL function `name` for `program`; see [`write_function`].
 #[must_use]
 pub fn lower(program: &PureProgram, name: &str) -> String {
     let mut out = String::new();

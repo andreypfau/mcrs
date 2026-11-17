@@ -1,6 +1,5 @@
 use crate::CollisionTable;
 
-/// The tables that the kernel reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tables {
     pub collision: CollisionTable,

@@ -18,10 +18,6 @@ use crate::named_issue::NamedIssue;
 use crate::named_source::Dependency;
 use crate::provider_baker::CHAIN_LIMIT;
 
-/// The entries of the registries `predicate`, `context_int_provider` and
-/// `context_float_provider` of one load, each baked one time and addressed by the index of its
-/// registry id, with the tables that a shared predicate borrows. A key in a baked condition or
-/// provider refers to its entry here.
 #[derive(Debug, Clone)]
 pub struct NamedEntries {
     pub(crate) ints: Box<[Named<IntNode>]>,
@@ -37,15 +33,12 @@ pub(crate) struct Named<N> {
     pub(crate) reach: Reach,
 }
 
-/// What a named entry adds where a key names it: the parameters that it reads, and the most
-/// members that a reference chain has below it.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct Reach {
     pub(crate) reads: ContextParams,
     pub(crate) below: usize,
 }
 
-/// One entry in the check across the entries, with what its own bake found.
 struct Link<'r> {
     name: &'r ResourceLocationBuf,
     kind: EntryKind,
@@ -53,8 +46,6 @@ struct Link<'r> {
     dependencies: Vec<Dependency>,
 }
 
-/// The first index of each kind in the graph of the entries: the int entries, then the float
-/// entries, then the predicates.
 #[derive(Clone, Copy)]
 struct Offsets {
     floats: usize,
@@ -92,11 +83,6 @@ struct Frame {
 }
 
 impl NamedEntries {
-    /// Bakes each entry of the three registries of `registries` one time and checks each entry
-    /// as the start of a reference chain (LOOT-CTX-016), also an entry that no table names. An
-    /// entry that refers back to itself (LOOT-CTX-014), or whose chain gets more than 64 members
-    /// (LOOT-CTX-017), is an issue: such a predicate fails, and such a provider gives an
-    /// evaluation error. `items` resolves the item names of the item predicates.
     #[must_use]
     pub fn bake(
         definitions: &BlockDefinitions,
@@ -205,8 +191,6 @@ fn link<'r>(
     }
 }
 
-/// A faulty entry fails or gives an evaluation error, reads nothing, and keeps the members below
-/// it, so that a chain through it still counts them.
 fn named<N>(nodes: Vec<N>, outcomes: &[Outcome], fault: fn() -> N) -> Box<[Named<N>]> {
     nodes
         .into_iter()
@@ -221,9 +205,6 @@ fn named<N>(nodes: Vec<N>, outcomes: &[Outcome], fault: fn() -> N) -> Box<[Named
         .collect()
 }
 
-/// The outcome of each entry in the order of `offsets`. An entry that refers back to itself or
-/// that starts a chain of more than 64 members is faulty. A walk in depth with an explicit stack,
-/// so that a long chain of keys cannot exhaust the stack of the thread.
 fn check(links: &[Link<'_>], offsets: Offsets, issues: &mut Vec<NamedIssue>) -> Vec<Outcome> {
     let mut marks = vec![Mark::New; links.len()];
     let mut cut = vec![false; links.len()];
@@ -282,8 +263,6 @@ fn check(links: &[Link<'_>], offsets: Offsets, issues: &mut Vec<NamedIssue>) -> 
     outcomes
 }
 
-/// Each member of a cycle starts a chain that refers back to itself (LOOT-CTX-014). `members` is
-/// in the order of the cycle.
 fn cut_cycle(
     links: &[Link<'_>],
     members: &[usize],
@@ -314,7 +293,6 @@ fn cut_cycle(
     }
 }
 
-/// The reach of `link` from the outcomes of the entries that it names.
 fn extent(link: &Link<'_>, outcomes: &[Outcome], offsets: Offsets) -> Reach {
     let mut reach = link.reach;
     for dependency in &link.dependencies {
@@ -329,7 +307,6 @@ fn extent(link: &Link<'_>, outcomes: &[Outcome], offsets: Offsets) -> Reach {
     reach
 }
 
-/// A fault, with an issue, when `link` starts a chain of more than 64 members.
 fn limit(link: &Link<'_>, reach: Reach, issues: &mut Vec<NamedIssue>) -> Outcome {
     if reach.below >= CHAIN_LIMIT {
         issues.push(NamedIssue {

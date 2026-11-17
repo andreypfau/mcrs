@@ -119,11 +119,7 @@ struct ProbeCase {
     error: Option<String>,
 }
 
-/// Where the reader knowingly differs from vanilla: registry membership and
-/// selector, NBT-path and coordinate syntax are not checked at parse; a
-/// number stands for a boolean in JSON as it does in NBT.
 const PROBE_DIVERGENCES: &[&str] = &[
-    // `object: player` waits for the profile component.
     "object_player",
     "object_player_nohat",
     "object_player_bare_name",
@@ -204,9 +200,6 @@ fn vanilla_stream_codec_bytes_decode_and_re_encode() {
         let mut ours = Vec::new();
         text.encode(&mut ours).unwrap();
         assert_eq!(nbt_tree(&ours), nbt_tree(&bytes), "{name}: re-encode");
-        // The json is the Java object's form, where an Integer or Boolean
-        // argument is not the byte it becomes on the wire; only its shape is
-        // checked.
         let from_json: Text = serde_json::from_value(case.json.clone()).unwrap();
         assert_eq!(
             serde_json::to_value(&from_json).unwrap(),
@@ -295,7 +288,6 @@ fn vanilla_nbt_bytes_decode_to_the_same_json_and_re_encode_to_the_same_tags() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Values the reference jar produced for these inputs.
 #[test]
 #[expect(
     clippy::too_many_lines,

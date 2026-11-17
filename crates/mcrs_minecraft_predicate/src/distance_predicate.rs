@@ -2,7 +2,6 @@ use glam::DVec3;
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use serde::Deserialize;
 
-/// A test of the offset between two positions. It reads no value of the world.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub struct DistancePredicate {
     #[serde(default)]
@@ -18,8 +17,6 @@ pub struct DistancePredicate {
 }
 
 impl DistancePredicate {
-    /// The differences are rounded to 32-bit floats, and the sums of squares are 32-bit floats.
-    /// The order of `a` and `b` has no effect.
     #[must_use]
     pub fn matches(&self, a: DVec3, b: DVec3) -> bool {
         let x = (a.x - b.x) as f32;
@@ -35,7 +32,6 @@ impl DistancePredicate {
     }
 }
 
-/// Each bound is squared, so a negative bound acts as its absolute value.
 pub(crate) fn matches_squared(bounds: &MinMaxBounds<f64>, squared: f64) -> bool {
     bounds.min.is_none_or(|min| min * min <= squared)
         && bounds.max.is_none_or(|max| squared <= max * max)

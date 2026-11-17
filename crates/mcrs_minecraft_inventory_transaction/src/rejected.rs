@@ -3,10 +3,8 @@ use core::fmt;
 
 use crate::Reason;
 
-/// The result of a request that does not apply: the first operation with a false condition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rejected {
-    /// The index of the operation in the request, from 0.
     pub op: usize,
     pub reason: Reason,
 }

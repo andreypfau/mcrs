@@ -3,7 +3,6 @@ use crate::arithmetic;
 use crate::gui_extent::GuiExtent;
 use crate::gui_point::GuiPoint;
 
-/// A rectangle in GUI units: `x` and `y` are inside it, `x + width` and `y + height` are not.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct GuiRect {
     pub x: i32,
@@ -13,7 +12,6 @@ pub struct GuiRect {
 }
 
 impl GuiRect {
-    /// The rectangle at (`x`, `y`) of the given width and height.
     #[must_use]
     pub const fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
         Self {
@@ -24,7 +22,6 @@ impl GuiRect {
         }
     }
 
-    /// The rectangle of `size` aligned in this one, with both offsets truncated toward zero.
     #[must_use]
     pub fn align(self, size: GuiExtent, alignment: Alignment) -> Self {
         let free_width = self.width.saturating_sub(size.width);

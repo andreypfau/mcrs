@@ -1,11 +1,3 @@
-//! The camera must never enter a column the client does not hold. A column
-//! under the player is one the loader promised to have ready, and flying past
-//! the front means the view is being served slower than it is being moved.
-//!
-//! It arms itself: nothing is loaded at launch and nothing is loaded for a
-//! moment after a dimension change, so the check starts only once the column
-//! under the player has actually arrived.
-
 use bevy::prelude::*;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
@@ -44,8 +36,6 @@ fn check(
     let (Some(store), Some(camera)) = (store, camera) else {
         return;
     };
-    // A dimension change empties the store, and the player stands in nothing
-    // until the first column of the new world lands.
     if store.is_empty() {
         guard.armed = false;
         return;

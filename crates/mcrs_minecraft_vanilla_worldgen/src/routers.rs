@@ -17,26 +17,15 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
-/// Every dimension's compiled router, keyed by the id the world preset gave it.
-///
-/// A router is immutable once compiled, so the host builds each one and hands
-/// the dimension's sub-app an `Arc` of it. Compiling inside the sub-app instead
-/// would make every dimension re-read the worldgen corpus off disk.
 #[derive(Resource, Default, Clone)]
 pub struct DimensionRouters(pub BTreeMap<ResourceLocationBuf, DimensionRouter>);
 
-/// A router and the material rules compiled into its graph.
 #[derive(Clone)]
 pub struct DimensionRouter {
     pub router: Arc<NoiseRouter>,
     pub material: Arc<MaterialProgram>,
 }
 
-/// Compiles one router per noise dimension of the baked list.
-///
-/// Runs at `OnEnter(AppState::Playing)`, before the spawn requests are
-/// enqueued, from the loaded registry set, so no sub-app exists yet to miss a
-/// router.
 pub(crate) fn build_dimension_routers(
     mut commands: Commands,
     dimensions: Res<DimensionGenerators>,

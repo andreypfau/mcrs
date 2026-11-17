@@ -12,9 +12,6 @@ use crate::Slots;
 use crate::slot_changed::write_slot_changed;
 use crate::spawn_stack::spawn_stack;
 
-/// Gives `holder` one slot for each value and a stack in each slot whose value is `Some`. The
-/// stacks of the slots that it had before despawn. Writes [`SlotChanged`] for each slot that held
-/// a stack and gets none; the hook of [`InSlot`] writes it for each slot that gets a stack.
 pub(crate) fn load_inventory(world: &mut World, holder: Entity, values: Vec<Option<ItemStack>>) {
     let Ok(mut entity) = world.get_entity_mut(holder) else {
         return;

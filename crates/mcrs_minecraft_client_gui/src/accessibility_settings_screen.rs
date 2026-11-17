@@ -14,8 +14,6 @@ use crate::option_sub_screen::{OptionList, option_sub_screen};
 pub(crate) const FOV_EFFECTS: WidgetId = WidgetId(3);
 pub(crate) const CONTROLS: WidgetId = WidgetId(4);
 
-/// The "Accessibility Settings" screen on a screen of the size `screen` with the values of
-/// `options`; "Done" keeps its vanilla size (MENU-ACC-002).
 pub(crate) fn accessibility_settings_screen(
     screen: GuiExtent,
     language: &ClientLanguage,
@@ -48,7 +46,6 @@ pub(crate) fn accessibility_settings_screen(
     Some([title, list.into_widget(), controls, fov_effects, done])
 }
 
-/// The tooltip of FOV Effects (MENU-VAL-002, step 5).
 pub(crate) fn fov_effects_tooltip(language: &ClientLanguage) -> WidgetTooltip {
     WidgetTooltip {
         widget: FOV_EFFECTS,
@@ -59,8 +56,6 @@ pub(crate) fn fov_effects_tooltip(language: &ClientLanguage) -> WidgetTooltip {
     }
 }
 
-/// Stores the value of FOV Effects after its change: the square of the slider position
-/// (MENU-VAL-002, step 1).
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV_EFFECTS
         && let WidgetKind::Slider(slider) = &widget.kind

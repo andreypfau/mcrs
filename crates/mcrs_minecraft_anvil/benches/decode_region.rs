@@ -5,7 +5,6 @@ use mcrs_minecraft_anvil::fixture;
 use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_chunk::VoxelId;
 
-/// A stand-in registry, so the resolve pass does real work.
 struct Names;
 
 impl Names {

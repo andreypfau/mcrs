@@ -244,8 +244,6 @@ impl DueIndex {
         }
         self.forget(entry);
         if let Some(due) = due {
-            // Every head change leaves one stale entry behind; the compaction in
-            // `tidy_index` bounds them at max(sections, 64).
             self.heap.push(Reverse((due, section_order(section))));
         }
         entry.indexed = due;

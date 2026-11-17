@@ -1,4 +1,3 @@
-/// The distance in tiles on each axis inside which a viewer subscribes to a tile.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TileRadius {
     pub x: u16,

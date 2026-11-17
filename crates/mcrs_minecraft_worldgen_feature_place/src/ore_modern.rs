@@ -27,8 +27,6 @@ pub struct OreScratch {
     column_max_y: Vec<i32>,
 }
 
-/// The three draws of the segment are spent before the heightmap probe, so a
-/// vein that finds no column reaching `y_start` still advances the source.
 pub fn place_modern_ore<W: WorldGenVolume>(
     cfg: &CompiledOre,
     volume: &mut W,

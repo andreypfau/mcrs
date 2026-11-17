@@ -1,6 +1,3 @@
-//! The modern path of the `Run` stage: one ore feature, resolved at freeze and
-//! placed against a region of stone.
-
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use std::sync::Arc;
 
@@ -48,7 +45,6 @@ const PLACEMENT: &str = r#"[
 
 const BIOME: &str = "minecraft:plains";
 
-/// One step holding one ore feature, which the one biome carries.
 fn tables() -> FeatureTables {
     tables_of(ORE, PLACEMENT)
 }
@@ -143,8 +139,6 @@ fn a_modern_run_places_the_ore_the_window_biome_carries() {
     }
 }
 
-/// A region whose palettes name no biome of the source decorates with
-/// nothing, because the intersection with `possibleBiomes` is empty.
 #[test]
 fn a_biome_the_source_cannot_answer_with_carries_no_features() {
     let registry = biome_registry(&[BIOME]);
@@ -160,9 +154,6 @@ fn a_biome_the_source_cannot_answer_with_carries_no_features() {
     assert!(!program.present(&[0])[0].is_clear());
 }
 
-/// A selector naming a placed feature nothing declares is a data error, and the
-/// build says which feature and which name. A shape this build has no code for
-/// is not: the feature keeps its slot and places nothing.
 #[test]
 fn a_missing_name_fails_the_build_and_an_unsupported_shape_only_skips() {
     let registry = biome_registry(&[BIOME]);
@@ -197,10 +188,6 @@ fn a_missing_name_fails_the_build_and_an_unsupported_shape_only_skips() {
     );
 }
 
-/// A nested placed feature draws from its parent's source, so the chain of one
-/// whose leaf this build cannot place still has to spend its draws. Giving that
-/// entry a chain must move the selector's later objects; before it ran, the two
-/// programs below wrote the same blocks.
 #[test]
 fn a_nested_feature_without_a_generator_still_spends_its_chain() {
     fn selector(nested_chain: &str) -> String {
@@ -243,18 +230,12 @@ fn a_nested_feature_without_a_generator_still_spends_its_chain() {
     );
 }
 
-/// The reference's `biome` filter asks `BiomeGenerationSettings.hasFeature`,
-/// which is a set over the biome's whole list. A placed feature two biomes name
-/// at different steps therefore passes the filter at either of them.
 #[test]
 fn a_biome_carries_a_feature_it_names_at_any_step() {
     const OTHER: &str = "minecraft:desert";
 
     let registry = biome_registry(&[BIOME, OTHER]);
 
-    // One placed feature, one `Arc`, listed by the first biome at step 0 and by
-    // the second at step 1 — the shape the sort produces for a feature two
-    // biomes place at different steps.
     let shared = test_entry(
         serde_json::from_str::<Feature>(ORE).expect("the ore feature parses"),
         serde_json::from_str::<Vec<PlacementModifier>>(PLACEMENT).expect("the placement parses"),
@@ -290,9 +271,6 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
     );
 }
 
-/// `matching_fluids` on `minecraft:empty` is true of everything holding no
-/// fluid, the way the reference's fluid-less states carry `Fluids.EMPTY`. No
-/// block definition interns that fluid, so matching by name alone inverted it.
 #[test]
 fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};

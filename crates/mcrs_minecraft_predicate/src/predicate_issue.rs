@@ -1,36 +1,21 @@
 use core::fmt;
 
-/// A fault that the bake of a predicate finds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PredicateIssue {
-    /// The registry set has no tags of blocks.
     UnloadedBlockTags,
-    /// The registry set has no tags of fluids.
     UnloadedFluidTags,
-    /// The registry set has no tags of biomes.
     UnloadedBiomeTags,
-    /// The registry set has no tags of structures.
     UnloadedStructureTags,
-    /// The registry set has no dimension registry.
     UnloadedDimensions,
-    /// The registry set has no tags of items.
     UnloadedItemTags,
-    /// The registry set has no tags of enchantments.
     UnloadedEnchantmentTags,
-    /// The registry set has no tags of attributes.
     UnloadedAttributeTags,
-    /// An entry of `components` holds an id that the registry set does not name.
     UnnamedEntry,
-    /// The stack codec rejects the saved form of an entry of `components`.
     UnreadableComponent,
-    /// The registry set has no tags of entity types.
     UnloadedEntityTypeTags,
-    /// The registry set has no entity type registry.
     UnloadedEntityTypes,
-    /// The registry set has no tags of damage types.
     UnloadedDamageTypeTags,
-    /// One path of nested entity predicates holds more entity predicates than the bake accepts.
     NestingTooDeep,
 }
 

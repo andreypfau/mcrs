@@ -12,7 +12,6 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChat;
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text, is_allowed_chat_character};
 use tracing::{info, warn};
 
-/// Broadcasts the chat messages of the players as system messages.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ChatPlugin;
 

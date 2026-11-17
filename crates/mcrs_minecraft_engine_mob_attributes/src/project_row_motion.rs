@@ -9,8 +9,6 @@ use crate::attribute_target::AttributeTarget;
 use crate::motion_field::motion_field;
 use crate::row_attributes::RowAttributes;
 
-/// Writes the value of each changed motion instance of a mob row into the motion attributes of
-/// its row. A row that left the world is skipped.
 pub(crate) fn project_row_motion<M: Send + Sync + 'static>(
     mut changed: MessageReader<AttributeChanged>,
     attributes: Res<RowAttributes>,
@@ -41,8 +39,6 @@ pub(crate) fn project_row_motion<M: Send + Sync + 'static>(
         let slot = field(&mut living.attributes);
         if *slot != value {
             *slot = value;
-            // A resting row skips its tick only while its inputs stay the same; a new gravity,
-            // scale or step height can move it.
             state.rest = Rest::Awake;
         }
     }

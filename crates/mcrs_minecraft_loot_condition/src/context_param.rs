@@ -1,6 +1,5 @@
 use core::fmt;
 
-/// One parameter that a loot context can hold (LOOT-CTX-010).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum ContextParam {
@@ -42,7 +41,6 @@ impl ContextParam {
         ContextParam::Container,
     ];
 
-    /// The name of the parameter in LOOT-CTX-010.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

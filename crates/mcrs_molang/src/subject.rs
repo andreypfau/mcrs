@@ -4,8 +4,6 @@ use alloc::vec::Vec;
 use crate::layout::{Bank, VariableLayout, VariableSlot};
 use crate::query::QuerySlot;
 
-/// The `variable.` store of one subject. A slot with no assignment is missing and reads as
-/// `0.0`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Variables {
     pub(crate) numbers: Vec<f32>,
@@ -15,7 +13,6 @@ pub struct Variables {
 }
 
 impl Variables {
-    /// An empty store for `layout`, with each variable missing.
     #[must_use]
     pub fn new(layout: &VariableLayout) -> Self {
         Self {
@@ -26,7 +23,6 @@ impl Variables {
         }
     }
 
-    /// The raw value of the slot, or `None` when it is missing. A number is its `f32` bits.
     #[must_use]
     pub fn get(&self, slot: VariableSlot) -> Option<u64> {
         let index = usize::from(slot.index);
@@ -52,7 +48,6 @@ impl Variables {
         }
     }
 
-    /// Stores a raw value, or makes the slot missing with `None`.
     pub fn set(&mut self, slot: VariableSlot, raw: Option<u64>) {
         let index = usize::from(slot.index);
         match slot.bank {
@@ -76,8 +71,6 @@ impl Variables {
     }
 }
 
-/// The query and context values of one subject for one run, by slot. A number is its `f32`
-/// bits. A slot with no value is missing.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QueryValues {
     pub(crate) raw: Vec<u64>,
@@ -85,7 +78,6 @@ pub struct QueryValues {
 }
 
 impl QueryValues {
-    /// `count` missing slots.
     #[must_use]
     pub fn new(count: usize) -> Self {
         Self {
@@ -94,7 +86,6 @@ impl QueryValues {
         }
     }
 
-    /// Gives the slot a raw value, or makes it missing with `None`.
     pub fn set(&mut self, slot: QuerySlot, raw: Option<u64>) {
         let index = usize::from(slot.0);
         if index >= self.raw.len() {
@@ -107,12 +98,10 @@ impl QueryValues {
         }
     }
 
-    /// Gives the slot a number.
     pub fn set_number(&mut self, slot: QuerySlot, value: f32) {
         self.set(slot, Some(u64::from(value.to_bits())));
     }
 
-    /// The raw value of the slot, or `None` when it is missing.
     #[must_use]
     pub fn get(&self, slot: QuerySlot) -> Option<u64> {
         let index = usize::from(slot.0);
@@ -121,11 +110,9 @@ impl QueryValues {
     }
 }
 
-/// The inputs and the variable store of one run.
 #[derive(Debug)]
 pub struct Subject<'a> {
     pub variables: &'a mut Variables,
     pub queries: &'a QueryValues,
-    /// The value of `this`; `0.0` when the consumer supplies none.
     pub this: f32,
 }

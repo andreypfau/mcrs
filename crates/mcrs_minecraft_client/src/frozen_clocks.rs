@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use mcrs_minecraft_entity_visual::ServerTicking;
 use mcrs_minecraft_environment::WorldClockSystems;
 
-/// Stops the world clocks while the server freezes its ticks, as `/tick freeze` stops the day.
 pub struct FrozenClocksPlugin;
 
 impl Plugin for FrozenClocksPlugin {

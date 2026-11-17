@@ -14,7 +14,6 @@ pub const AIR_DRAG: f64 = 0.98;
 pub const THROWN_PICKUP_DELAY: i16 = 40;
 pub const BLOCK_DROP_PICKUP_DELAY: i16 = 10;
 
-/// The dropped item is the stack entity itself; it is never `Held`.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[component(on_insert = DroppedItem::assert_unheld)]
 pub struct DroppedItem {

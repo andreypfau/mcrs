@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Checks every site/i18n/*.json against the keys index.html uses. Run: node scripts/check-site-i18n.mjs
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
 const site = new URL('../site/', import.meta.url);
@@ -42,7 +41,6 @@ for (const [, attr] of html.matchAll(/\sdata-i18n-([a-z-]+)="[^"]+"/g)) {
   if (!attrs.includes(attr)) problems.push(`site/index.html: data-i18n-${attr} is not in ATTRS in site/i18n.js`);
 }
 
-// t('literal') and t(`template.${x}`) in site.js; each ${...} stands for any text.
 const escapeRegExp = (text) => text.replace(/[.*+?^$()[\]{}|\\]/g, '\\$&');
 const uses = [...read('site.js').matchAll(/\bt\(\s*(?:'([^']+)'|`([^`]+)`)/g)].map(([, literal, template]) => {
   const source = literal ?? template;
@@ -52,7 +50,6 @@ for (const { source, pattern } of uses) {
   if (!Object.keys(english).some((key) => pattern.test(key))) problems.push(`site/site.js: t(${source}) matches no key in #i18n-en`);
 }
 
-// What site.js fills its templates with. Stages and layers come from the markup; a new shard state or lane needs a line here.
 const stages = [...html.matchAll(/data-go="(\d+)"/g)].map((m) => m[1]);
 const built = [
   ...stages.flatMap((n) => [`stage.${n}.name`, `stage.${n}.desc`]),
@@ -72,7 +69,7 @@ for (const key of Object.keys(english)) {
 
 const forms = (value) => (typeof value === 'string' ? [value] : Object.values(value));
 const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join();
-const TOKEN = /<(\d+)(?:\/>|>(.*?)<\/\1>)/gs; // the same tokens build() in site/i18n.js renders
+const TOKEN = /<(\d+)(?:\/>|>(.*?)<\/\1>)/gs;
 const children = new Map(markup.map((m) => [m.key, m.children]));
 
 const codes = [...i18nJs.match(/LANGUAGES\s*=\s*\[([\s\S]*?)\];/)[1].matchAll(/code:\s*'([^']+)'/g)].map((m) => m[1]);

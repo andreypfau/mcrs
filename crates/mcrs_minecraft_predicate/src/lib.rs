@@ -1,8 +1,3 @@
-//! The keys of the predicate registries, the views of the world and of the entities that a
-//! predicate reads, and the entity, location, block, fluid, light, distance, item, damage source
-//! and damage predicates.
-// std: mcrs_minecraft_item
-
 #[rustfmt::skip]
 pub mod custom_stat_keys;
 #[rustfmt::skip]

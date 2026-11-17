@@ -7,8 +7,6 @@ use mcrs_voxel::BlockPos;
 
 use crate::tree::provider::StateProvider;
 
-/// One `projected_random_patchy_square` feature with every name it carries
-/// already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledProjectedPatchySquare {
     pub block: StateProvider,
@@ -17,11 +15,6 @@ pub struct CompiledProjectedPatchySquare {
     pub max_projection_height: i32,
 }
 
-/// `ProjectedRandomPatchySquare.place`: a square of cells, each kept by a draw
-/// that the corners lose more often, then dropped onto whatever it lands on.
-///
-/// Every cell of the square spends its draw whether or not it is kept, so a
-/// rejected corner still moves everything after it.
 pub fn place_projected_random_patchy_square<W>(
     config: &CompiledProjectedPatchySquare,
     volume: &mut W,
@@ -81,8 +74,6 @@ mod tests {
         }
     }
 
-    /// A square of side `2 * size + 1` spends exactly one draw per cell, in
-    /// x-major then z order, whatever it keeps.
     #[test]
     fn every_cell_of_the_square_costs_one_draw() {
         let config = config(3, 0);
@@ -106,8 +97,6 @@ mod tests {
         );
     }
 
-    /// The centre is never rejected — its probability is zero — and a cell it
-    /// cannot project through writes where it stands.
     #[test]
     fn a_square_of_one_cell_writes_the_origin() {
         let config = config(0, 3);
@@ -123,8 +112,6 @@ mod tests {
         assert_eq!(volume.writes, vec![((AT.x, AT.y, AT.z), BASALT)]);
     }
 
-    /// A cell over air falls until it runs out of allowance, and lands on the
-    /// first block it cannot project through even when allowance remains.
     #[test]
     fn a_cell_falls_through_air_up_to_its_allowance() {
         for (allowance, expected) in [(1, AT.y - 1), (3, AT.y - 3), (9, AT.y - 5)] {

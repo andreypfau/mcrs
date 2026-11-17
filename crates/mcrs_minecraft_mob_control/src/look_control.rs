@@ -5,15 +5,12 @@ use mcrs_minecraft_numeric as numeric;
 use crate::ControlInput;
 use crate::angles;
 
-/// The head turn speed and the pitch limit of a mob type, for the look targets that name none.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LookDefaults {
     pub turn_speed: f32,
     pub pitch_limit: f32,
 }
 
-/// The look control (GOAL-CTL-004) with the look target, and the goal tick of the look around,
-/// which sets a look target at the eye height in its direction in each tick (GOAL-LKR-002).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LookControl {
     target: Option<LookAt>,
@@ -34,7 +31,6 @@ struct Direction {
     sin: f32,
 }
 
-/// The head of a mob after the look control.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Head {
     pub head_yaw: f32,
@@ -67,8 +63,6 @@ impl LookControl {
         }
     }
 
-    /// The look control of one tick, after the move control. `body_yaw` is the body yaw of the
-    /// row; `path_running` limits the head to `head_yaw_limit` from the body.
     pub fn step(
         &mut self,
         input: &ControlInput,

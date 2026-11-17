@@ -77,7 +77,6 @@ fn split(holder: Entity, from: u16, to: u16, items: u8) -> Request {
     Request::new(ID).split(at(holder, from), at(holder, to), items)
 }
 
-/// A holder with three slots: ten items in slot 0 and in slot 1, slot 2 empty.
 #[test]
 fn the_policy_of_a_holder_gives_the_limits_and_the_filters_of_its_slots() {
     let cases = [

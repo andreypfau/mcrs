@@ -15,8 +15,6 @@ pub(crate) enum ArrowDirection {
     Right,
 }
 
-/// The order of Tab: by group, then by the widget of the screen, then by the row of a widget
-/// list and the widget in it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct TabKey {
     pub(crate) group: i32,
@@ -68,7 +66,6 @@ impl From<GuiRect> for Bounds {
     }
 }
 
-/// The stop that a Tab navigation from `current` focuses, with the wrap of WID-FOC-004 step 5.
 pub(crate) fn tab_target(
     stops: impl Iterator<Item = (TabKey, usize)> + Clone,
     current: Option<TabKey>,
@@ -86,8 +83,6 @@ pub(crate) fn tab_target(
     target.map(|(_, index)| index)
 }
 
-/// The candidate that an arrow navigation from the bounds `from` focuses, with the fallback of
-/// WID-FOC-006.
 pub(crate) fn arrow_target(
     candidates: impl Iterator<Item = (usize, GuiRect)> + Clone,
     from: Option<GuiRect>,

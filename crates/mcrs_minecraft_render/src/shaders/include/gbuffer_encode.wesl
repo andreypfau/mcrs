@@ -4,7 +4,6 @@ struct GBuffer {
     @location(2) light: vec4<f32>,
 };
 
-// `sign` maps 0 to 0, which would fold an axis normal onto the wrong half of the octahedron.
 fn sign_not_zero(v: vec2<f32>) -> vec2<f32> {
     return select(vec2<f32>(-1.0), vec2<f32>(1.0), v >= vec2<f32>(0.0));
 }

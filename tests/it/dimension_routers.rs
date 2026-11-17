@@ -13,15 +13,10 @@ use mcrs_minecraft_vanilla_worldgen::DimensionRouters;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use std::time::Duration;
 
-/// The preset is loaded once, in the host, and every dimension's router is
-/// compiled from it there. A dimension that reached its sub-app without one
-/// generates nothing and says so only in a log line, so assert the handoff.
 #[test]
 fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugins::embedded());
-    // The block corpus is loaded in `Plugin::finish`, which `App::run` would
-    // have called for us.
     app.finish();
     app.cleanup();
 
@@ -49,8 +44,6 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
             routers.0.keys().collect::<Vec<_>>()
         );
     }
-    // Each dimension's noise settings name their own terrain block, so a build
-    // that resolved them globally would hand every dimension the same pair.
     let block_of = |name: &str| {
         let id = ResourceLocationBuf::read(name).unwrap();
         let router = &routers.0[&id];
@@ -99,9 +92,6 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         sub_apps.len()
     );
 
-    // The biome source decides the biome a column reports, and with it the
-    // surface rules and the carvers. A single host-wide source would hand the
-    // nether the overworld's biomes while it samples the nether's router.
     let mut checked = 0;
     for sub_app in &mut sub_apps {
         let world = sub_app.world_mut();

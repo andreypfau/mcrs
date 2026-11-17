@@ -9,8 +9,6 @@ use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
 
-/// Whether the server at `address` answers a status request, which every server does once its
-/// tick loop runs. A server of another protocol version answers too.
 pub async fn answers(address: SocketAddr) -> bool {
     let request = async {
         let mut io = PacketIo::connect(address).await?;

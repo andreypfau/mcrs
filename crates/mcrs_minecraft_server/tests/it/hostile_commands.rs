@@ -1,5 +1,3 @@
-//! Lines that a handler must refuse with an answer, while the server keeps ticking.
-
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
@@ -25,7 +23,6 @@ fn start() -> PlayServer {
     PlayServer::start(app, &[(OPERATOR, 4)], 0)
 }
 
-/// The translation key of the last answer to `line`, and whether the answer is red.
 fn answer(server: &mut PlayServer, operator: Entity, line: &str) -> (String, bool) {
     let packets = server.send(
         operator,

@@ -1,10 +1,3 @@
-//! The data layer. It keeps the last version of each chunk of cold space by key, in an
-//! in-memory cache over a [`DiskStore`] that the game supplies. The parts around it reach it
-//! only through a [`SharedStore`], by key and version, which lets several parts reach one
-//! data layer.
-
-// std: mcrs_engine_link
-
 mod chunk_version;
 mod disk_store;
 mod memory_disk;

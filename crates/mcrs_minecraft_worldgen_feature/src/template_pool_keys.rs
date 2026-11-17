@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ABANDONED_CAMP_CAMP_BAMBOO_JUNGLE: ResourceKey<'static, crate::pool::TemplatePool> =

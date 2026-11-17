@@ -31,8 +31,6 @@ const MAGIC: &[u8; 8] = b"MCLOOTR0";
 
 const UNEVALUATED_TYPES: [&str; 1] = ["minecraft:enchant_with_levels"];
 
-/// The value-form stack has no typed component for the enchantments of a book, so a case whose
-/// stacks have it compares them without their component patch.
 const STORED_ENCHANTMENTS: &str = "minecraft:stored_enchantments";
 
 const REPLAYED: usize = 81;
@@ -599,8 +597,6 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
     }
 }
 
-/// LOOT-RND-002, LOOT-RND-004, LOOT-RND-006: each case of the captured file that the library
-/// evaluates gives the stacks, the samples and the generator state of the game.
 #[test]
 fn the_captured_loot_cases_replay_in_exact_mode() {
     let mut pending_by_reason: BTreeMap<String, usize> = BTreeMap::new();

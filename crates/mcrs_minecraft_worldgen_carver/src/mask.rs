@@ -1,7 +1,5 @@
 use fixedbitset::FixedBitSet;
 
-/// The positions one carver pass freed, one bit per block, with the vertical in
-/// the low bits so a tunnel or a shaft becomes a long run of set bits.
 #[derive(PartialEq, Eq)]
 pub struct CarvingMask {
     min_y: i32,
@@ -44,8 +42,6 @@ impl CarvingMask {
         Some(((y - self.min_y) + (z + x * Self::WIDTH) * self.height) as usize)
     }
 
-    /// Positions outside the covered area are dropped, which is what clipping
-    /// the ellipsoid bounds to the area used to do.
     #[inline]
     pub fn carve(&mut self, x: i32, y: i32, z: i32) {
         if let Some(index) = self.index(x, y, z) {
@@ -58,9 +54,6 @@ impl CarvingMask {
         self.index(x, y, z).is_some_and(|index| self.bits[index])
     }
 
-    /// Hand each column's carved runs to `visit` as `(x, z, bottom_y, top_y)`,
-    /// inclusive. A run that spans several columns is split at the boundary, so
-    /// a consumer that tracks state down a column never carries it across one.
     pub fn visit(&self, mut visit: impl FnMut(i32, i32, i32, i32)) {
         let mut run: Option<(usize, usize)> = None;
         for index in self.bits.ones() {
@@ -101,8 +94,6 @@ mod tests {
         out
     }
 
-    /// Columns are contiguous in the index, so a run that fills one column's top
-    /// and the next column's bottom must still arrive as two per-column visits.
     #[test]
     fn runs_split_at_gaps_and_column_boundaries() {
         type Run = (i32, i32, i32, i32);

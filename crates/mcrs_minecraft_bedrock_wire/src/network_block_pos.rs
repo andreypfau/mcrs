@@ -4,15 +4,10 @@ use crate::error::Error;
 use crate::traits::{BedrockDecode, BedrockEncode};
 use crate::var_int::{VarI32, VarU32};
 
-/// A `blockpos`: a varint32 x, a varuint32 y and a varint32 z. A negative y travels as the
-/// varuint32 of its two's complement form.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NetworkBlockPos {
-    /// The x coordinate.
     pub x: i32,
-    /// The y coordinate.
     pub y: i32,
-    /// The z coordinate.
     pub z: i32,
 }
 

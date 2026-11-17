@@ -20,7 +20,6 @@ use mcrs_minecraft_item_table::ItemTable;
 
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 
-/// The effective components that a predicate reads: none for the empty stack.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ComponentHolder<'a> {
     Empty,
@@ -57,8 +56,6 @@ impl<'a> ComponentHolder<'a> {
             DataComponentType::RepairCost => self.effective::<RepairCost>().is_some(),
             DataComponentType::Food => self.effective::<Food>().is_some(),
             DataComponentType::Tool => self.effective::<Tool>().is_some(),
-            // chisle: the value-form stack has no other component type, so a test for one fails;
-            // lifted when the stack crate models that type.
             _ => false,
         }
     }
@@ -80,8 +77,6 @@ impl<'a> ComponentHolder<'a> {
             Builtin::RepairCost(value) => self.effective() == Some(value),
             Builtin::Food(value) => self.effective() == Some(value),
             Builtin::Tool(value) => self.effective() == Some(value),
-            // chisle: a component type that the stack crate adds later fails this test; lifted
-            // by an arm for that type.
             _ => false,
         }
     }

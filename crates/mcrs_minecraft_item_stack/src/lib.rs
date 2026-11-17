@@ -1,6 +1,3 @@
-//! Item stack values: the kind, the count, the component patch and the item component types.
-// std: mcrs_minecraft_text
-
 extern crate alloc;
 
 mod array_serializer;

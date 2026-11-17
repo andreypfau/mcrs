@@ -1,13 +1,9 @@
 use crate::ValueRange;
 
-/// The data of one attribute (`attributes.md`, ATR-DEF-001).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AttributeDefinition {
-    /// The attribute default: the base of the type when the type gives no other.
     pub default: f64,
-    /// The range of the value; the base value has none.
     pub range: ValueRange,
-    /// The server sends the attribute to clients.
     pub syncable: bool,
 }
 

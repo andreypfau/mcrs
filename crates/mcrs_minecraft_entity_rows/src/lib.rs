@@ -1,9 +1,3 @@
-//! The rows of the server entities of a dimension world, by tile, with a dense column for the hot
-//! state of the mobs that moves with its row. Each tick the pass steps every row with the physics
-//! kernel, in parallel over tiles, against the blocks of the last tick and the body grid from the
-//! start of the tick. Items and experience orbs are rows only. The store has no Bevy; the `bevy`
-//! feature makes it a resource and the compute pool its executor.
-
 mod body_grid;
 mod changes;
 mod crossing;

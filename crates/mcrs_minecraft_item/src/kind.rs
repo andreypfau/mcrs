@@ -12,11 +12,6 @@ use crate::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
-/// Every data component: its `DataComponentType` variant, its value type and
-/// its flags. Exactly one of `persistent` / `transient`; `unit` for a value
-/// with no fields; `ignore_swap_animation`; `nested` when the value embeds a
-/// component patch or map; `nbt_wire` when the wire form is one network NBT tag;
-/// `refs` when the value type takes the reference mode `M: Refs`.
 #[macro_export]
 macro_rules! for_each_data_component {
     ($callback:ident) => {
@@ -161,7 +156,6 @@ mod flag {
     pub(super) const refs: u8 = 64;
 }
 
-/// Expands to the first group when the flag list holds `refs`, else to the second.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! if_refs {
@@ -330,7 +324,6 @@ macro_rules! data_components {
 
 for_each_data_component!(data_components);
 
-/// A component value type in each reference mode: itself when it names no registry entry.
 pub trait Moded {
     type In<M: Refs>: Clone + PartialEq + fmt::Debug + Send + Sync + 'static;
 }
@@ -364,7 +357,6 @@ impl DataComponentType {
     }
 }
 
-/// Expands to the first group when the flag list holds `nbt_wire`, else to the second.
 macro_rules! if_nbt_wire {
     ([] $then:tt {$($else:tt)*}) => { $($else)* };
     ([nbt_wire $(, $rest:ident)*] {$($then:tt)*} $else:tt) => { $($then)* };
@@ -387,7 +379,6 @@ macro_rules! value_wire {
             }
         }
 
-        /// The value of `kind`, whose wire layout the kind alone selects.
         pub fn decode_component_value(
             kind: DataComponentType,
             r: &mut &[u8],

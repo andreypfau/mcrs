@@ -25,10 +25,8 @@ use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_player::LocalPlayerTick;
 use crate::player::{Player, look_direction};
 
-/// The ticks between two start actions of a creative hold, less the tick of the start.
 const BREAK_DELAY: u8 = 5;
 const MISS_COOLDOWN: u32 = 10;
-/// Keeps the attack input dead after a screen closes until the player releases it.
 const SCREEN_MISS_COOLDOWN: u32 = 10_000;
 
 const OPERATOR_BLOCKS: [Block; 7] = [
@@ -41,8 +39,6 @@ const OPERATOR_BLOCKS: [Block; 7] = [
     Block::TestInstanceBlock,
 ];
 
-/// Breaks the block that the player aims at when the attack input is pressed or held in
-/// creative mode.
 pub struct BlockBreakingPlugin;
 
 impl Plugin for BlockBreakingPlugin {
@@ -56,7 +52,6 @@ impl Plugin for BlockBreakingPlugin {
     }
 }
 
-/// A packet that one tick of the attack input sends, in the order of the tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outgoing {
     Start {
@@ -67,18 +62,14 @@ pub enum Outgoing {
     Punch,
 }
 
-/// The world that the attack input acts on.
 pub trait BreakWorld {
     fn is_air(&self, pos: BlockPos) -> bool;
 
-    /// Makes a prediction with a new sequence, tries the local break at `pos` in it, and answers
-    /// the sequence.
     fn predict_break(&mut self, pos: BlockPos) -> i32;
 
     fn send(&mut self, packet: Outgoing);
 }
 
-/// The counters that the attack input keeps from tick to tick.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Attack {
     break_delay: u8,
@@ -86,8 +77,6 @@ pub struct Attack {
 }
 
 impl Attack {
-    /// One tick of the attack input against the target of the tick. Only creative mode breaks
-    /// blocks; the other modes swing at a press and send nothing else.
     pub fn tick<W: BreakWorld>(
         &mut self,
         input: AttackInput,
@@ -113,7 +102,6 @@ impl Attack {
         self.miss_cooldown = self.miss_cooldown.saturating_sub(1);
     }
 
-    /// Answers whether the press broke the target at once.
     fn press<W: BreakWorld>(
         &mut self,
         target: Option<BlockHit>,
@@ -162,7 +150,6 @@ impl Attack {
     }
 }
 
-/// The state that a local break leaves: the water of a block that holds water, else air.
 fn broken_state(blocks: &BlockDefinitions, old: BlockStateId) -> BlockStateId {
     match blocks.state(old).fluid {
         Some(fluid) if fluid.fluid == Fluid::Water.id() => {
@@ -198,7 +185,6 @@ impl BreakWorld for ClientWorld<'_> {
         let Ok(old) = self.store.block(pos) else {
             return sequence;
         };
-        // The creative flag is on whenever this runs, so only the level gates operator blocks.
         let refused =
             is_operator_block(self.blocks, old) && self.permission < PermissionLevel::GAMEMASTERS;
         if old == AIR || refused {
@@ -295,8 +281,6 @@ mod tests {
     const STONE: BlockPos = BlockPos::new(0, 0, 0);
     const OTHER: BlockPos = BlockPos::new(1, 0, 0);
 
-    /// Blocks that break when a prediction tries them, unless they stay, as a waterlogged
-    /// block stays a fluid block.
     #[derive(Default)]
     struct Fake {
         solid: HashSet<BlockPos>,
@@ -368,8 +352,6 @@ mod tests {
         }
     }
 
-    /// The ticks with a start action while the player holds the input on a row of blocks, so
-    /// that a block is in the target at each tick.
     fn start_ticks(stays: bool) -> Vec<usize> {
         let mut world = Fake::with(&[STONE], stays);
         let mut attack = Attack::default();

@@ -20,7 +20,6 @@ use crate::ticks::{BlockTicks, FluidTicks, SavedBlockTick, SavedFluidTick};
 
 pub const LIGHT_BYTES: usize = 2048;
 
-/// One nibble per cell, indexed the same way block states are.
 pub type Light = mcrs_minecraft_chunk::SectionNibbles;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +40,6 @@ pub struct Chunk {
     pub inhabited_time: i64,
     pub last_update: i64,
     pub heightmaps: Heightmaps,
-    /// Block entity compounds stay as written; only `id`, `x`, `y` and `z` are checked.
     pub block_entities: Vec<NbtCompound>,
     pub retrogen: Option<RetroGen>,
     pub post_processing: Vec<Vec<i16>>,
@@ -66,9 +64,6 @@ impl ChunkDecodeReport {
 }
 
 impl Chunk {
-    /// Answers the state the cell held. A changed cell leaves the saved light and
-    /// heightmaps describing the old blocks, so both are dropped for the loader to
-    /// recompute.
     pub fn set_block(&mut self, pos: BlockPos, state: VoxelId) -> Result<VoxelId, ErrorKind> {
         let (x, y, z) = pos.into();
         if ColumnPos::from(pos) != self.pos {
@@ -152,7 +147,6 @@ pub(crate) struct RawChunk<'a> {
     pub(crate) x_pos: i32,
     #[serde(rename = "zPos", default)]
     pub(crate) z_pos: i32,
-    /// Each section carries its own `Y`, so the load never uses this.
     #[serde(rename = "yPos", default)]
     pub(crate) y_pos: i32,
     #[serde(default)]
@@ -161,7 +155,6 @@ pub(crate) struct RawChunk<'a> {
     pub(crate) last_update: i64,
     #[serde(rename = "InhabitedTime", default)]
     pub(crate) inhabited_time: i64,
-    /// The game writes the flag only when set.
     #[serde(
         rename = "isLightOn",
         default,
@@ -202,8 +195,6 @@ struct RawChunkVersion {
     data_version: Option<i32>,
 }
 
-/// A chunk written by an older version fails on a field this layout never had,
-/// which says nothing useful. Re-read just the version so the error names it.
 fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
     let raw: RawChunkVersion = mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)).ok()?;
     match raw.data_version {
@@ -226,7 +217,6 @@ pub fn parse(
     parse_column(nbt, blocks, biomes)?.ok_or(ErrorKind::MissingStatus)
 }
 
-/// The chunk of a record, or `None` when the record has no `status`.
 pub(crate) fn parse_column(
     nbt: &[u8],
     blocks: &impl PaletteLookup<VoxelId>,
@@ -322,8 +312,6 @@ fn parse_section(
     })
 }
 
-/// Cells are indices into the palette list, in `Strategy.getIndex` order, at the
-/// width the list's length selects. The list may name entries no cell uses.
 fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
     raw: RawPalettedContainer,
     lookup: &impl PaletteLookup<V>,
@@ -404,7 +392,6 @@ fn unpack<K: SectionKind, V: Hash + Eq + Copy + Default, const DIM: usize>(
     Ok(PalettedContainer::from_cube(cube))
 }
 
-/// Resolved while the name is still borrowed out of the palette's text.
 fn resolve<V>(
     palette: &BlockStateList,
     lookup: &impl PaletteLookup<V>,
@@ -430,9 +417,6 @@ impl Serialize for PackedData {
     }
 }
 
-/// A long array is taken whole; read as a sequence it costs a visitor round
-/// trip per element. Any other array or list of numbers is one word per
-/// element, and a value that is neither reads as absent.
 fn packed_data<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<PackedData>, D::Error> {
     struct Storage;
 
@@ -475,9 +459,6 @@ impl Serialize for RawLight {
     }
 }
 
-/// The byte array is taken whole: read as a sequence it costs a visitor round
-/// trip per byte, and every section carries two of them. Light held in
-/// anything but a byte array reads as absent.
 fn light_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<RawLight>, D::Error> {
     struct Bytes;
 

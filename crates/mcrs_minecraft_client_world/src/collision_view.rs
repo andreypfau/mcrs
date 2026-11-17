@@ -13,9 +13,6 @@ use mcrs_voxel::SectionPos;
 use crate::columns::Columns;
 use crate::columns::Extent;
 
-/// The received columns as the movement kernel reads them. A section out of the vertical extent
-/// of the dimension is outside, a section of a column the client does not hold is unloaded, and
-/// a section the server sent with only air is air.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ClientBlocks<'a, C> {
     columns: &'a C,
@@ -29,7 +26,6 @@ impl<'a, C: Columns> ClientBlocks<'a, C> {
     }
 }
 
-/// A loaded section of [`ClientBlocks`], with its masks from the states of its palette list.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ClientSection<'a> {
     blocks: DenseSection<'a>,
@@ -55,8 +51,6 @@ impl<C: Columns> CollisionWorld for ClientBlocks<'_, C> {
         let section = match column.section(at.y) {
             Some(stored) => ClientSection {
                 blocks: DenseSection(&stored.blocks),
-                // chisle: one table lookup per palette entry at each section lookup; masks stored
-                // beside the palette list of the section lift this.
                 masks: SectionMasks::from_palette(
                     &self.tables.collision,
                     stored.states.iter().copied(),

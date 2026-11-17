@@ -1,6 +1,3 @@
-//! The host side of entity replication: it hands the tile deltas of each dimension to the
-//! muxer, and subscribes each player to the tiles around its own.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use bevy_ecs::entity::Entity;
@@ -21,13 +18,10 @@ use crate::muxer::session::SessionConnection;
 use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
 use crate::view_radius::VIEW_RADIUS;
 
-/// The subscription of each player to the entity muxer of its world.
 #[derive(Default)]
 pub(crate) struct EntityReplication {
     worlds: BTreeSet<WorldId>,
-    /// The player that each viewer subscribes with.
     viewers: BTreeMap<ViewerId, WorldPlayer>,
-    /// The viewer of each player, by the world it is in.
     players: BTreeMap<WorldPlayer, ViewerId>,
     inputs: Vec<MuxerInput<EntityCodec>>,
     #[cfg(feature = "world-access")]
@@ -41,8 +35,6 @@ struct WorldPlayer {
 }
 
 impl EntityReplication {
-    /// Hands the tile deltas of one tick of `world` to the muxer, then subscribes each player
-    /// that spawned or changed tile to the tiles around it, and forgets each player that left.
     fn publish(
         &mut self,
         link: &mut Link<MuxerStage>,
@@ -122,8 +114,6 @@ impl EntityReplication {
         }
     }
 
-    /// Unsubscribes the player of `session` from the world it watches. The bytes the muxer owes
-    /// it there still come out, and none after them.
     fn leave(&mut self, link: &mut Link<MuxerStage>, session: PlayerSession) {
         let viewer = ViewerId(session.0);
         if let Some(watch) = self.viewers.remove(&viewer) {
@@ -134,7 +124,6 @@ impl EntityReplication {
         }
     }
 
-    /// Hands `latency` of the player of `session` to the muxer of the world it watches.
     pub(crate) fn send_latency(
         &self,
         link: &mut Link<MuxerStage>,
@@ -145,7 +134,6 @@ impl EntityReplication {
         self.send_input(link, viewer, PlayerInput::Latency { viewer, latency });
     }
 
-    /// Hands the `backlog` of the connection of `session` to the muxer of the world it watches.
     pub(crate) fn send_backlog(
         &self,
         link: &mut Link<MuxerStage>,
@@ -165,7 +153,6 @@ impl EntityReplication {
         }
     }
 
-    /// Stops the muxer of the dimension `label`.
     pub(crate) fn close(&mut self, link: &mut Link<MuxerStage>, label: Entity) {
         let world = world_of(label);
         if !self.worlds.remove(&world) {
@@ -177,7 +164,6 @@ impl EntityReplication {
     }
 }
 
-/// The world of the dimension `label` in the muxer.
 fn world_of(label: Entity) -> WorldId {
     WorldId(label.to_bits())
 }
@@ -199,8 +185,6 @@ fn subscribe(
     }
 }
 
-/// Hands the tile deltas of the dimension `label` to the muxer. A player that comes into the
-/// world gets the latency the host knows for it.
 pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<ReplicationData>) {
     #[cfg(feature = "world-access")]
     if let Some(mut log) = world.get_resource_mut::<TileDeltaLog>() {
@@ -229,8 +213,6 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<ReplicationD
     }
 }
 
-/// Unsubscribes the player of `session` from the world it watches. The bytes the muxer owes it
-/// there still come out, and none after them.
 pub fn leave(world: &mut World, session: PlayerSession) {
     if let Some(mut muxer) = world.get_resource_mut::<MuxerLink>() {
         let MuxerLink { link, entities, .. } = &mut *muxer;

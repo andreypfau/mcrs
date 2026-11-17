@@ -8,7 +8,6 @@ use crate::Operations;
 use crate::Slots;
 use crate::seen::Seen;
 
-/// The menu and the slots of one click, with the notation of the specification.
 pub(crate) struct View<'a, M, S> {
     pub(crate) menu: &'a M,
     pub(crate) slots: &'a S,
@@ -38,7 +37,6 @@ impl<M: Menu<Slot = S::Slot>, S: Slots> View<'_, M, S> {
         self.load(self.slots.cursor())
     }
 
-    /// `same(X, Y)` for the stacks of two slots that are not empty.
     pub(crate) fn same(&self, left: Planned<S::Stack>, right: Planned<S::Stack>) -> bool {
         left.kind == right.kind && self.slots.equal(left.stack, right.stack)
     }

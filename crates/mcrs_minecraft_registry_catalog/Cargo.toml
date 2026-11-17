@@ -1,4 +1,3 @@
-# Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 [package]
 name = "mcrs_minecraft_registry_catalog"
 description = "The entries of every static registry"

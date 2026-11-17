@@ -1,11 +1,9 @@
 use crate::attribute_keys::Attribute;
 
-/// A set of attributes, one bit for each attribute.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct AttributeMask(u64);
 
 impl AttributeMask {
-    /// The attributes of every living entity type (ATR-BASE-001).
     pub(crate) const COMMON: Self = Self::EMPTY
         .with(Attribute::AirDragModifier)
         .with(Attribute::Armor)
@@ -34,7 +32,6 @@ impl AttributeMask {
         .with(Attribute::WaterMovementEfficiency)
         .with(Attribute::WaypointTransmitRange);
 
-    /// The set with no attribute.
     pub const EMPTY: Self = Self(0);
 
     const fn bit(attribute: Attribute) -> u64 {
@@ -44,19 +41,16 @@ impl AttributeMask {
         }
     }
 
-    /// The set with `attribute` added.
     #[must_use]
     pub(crate) const fn with(self, attribute: Attribute) -> Self {
         Self(self.0 | Self::bit(attribute))
     }
 
-    /// Whether `attribute` is in the set.
     #[must_use]
     pub const fn contains(self, attribute: Attribute) -> bool {
         self.0 & Self::bit(attribute) != 0
     }
 
-    /// The attributes of the set, in the order of their numeric ids.
     pub fn iter(self) -> impl Iterator<Item = Attribute> {
         Attribute::ALL
             .iter()

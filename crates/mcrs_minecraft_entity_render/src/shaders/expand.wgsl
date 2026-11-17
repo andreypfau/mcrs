@@ -1,7 +1,3 @@
-// The expand pass of one client entity definition: one lane for each visible mob and each
-// cuboid of its active layers. A lane writes the face records of the faces that its cuboid
-// shows, in the order in which the rasterizer must draw them.
-
 const DEFINITION: u32 = #{DEFINITION}u;
 const LANES: u32 = #{LANES}u;
 
@@ -10,7 +6,6 @@ var<workgroup> group_faces_base: array<u32, 8>;
 var<workgroup> group_cutout_faces: array<atomic<u32>, 8>;
 var<workgroup> group_cutout_base: array<u32, 8>;
 
-/// A cuboid of the active layers of a slot.
 struct Found {
     found: bool,
     layer: u32,
@@ -175,8 +170,6 @@ fn expand(
         }
     }
     target_array = min(target_array, ARRAYS - 1u);
-    // A face with a cutout texel draws with the discard; the others draw with no discard, so a
-    // tile-based GPU removes their hidden fragments.
     var opaque_count = 0u;
     for (var face = 0u; face < emit_count; face = face + 1u) {
         opaque_count = opaque_count + select(1u, 0u, ((cut >> emitted[face]) & 1u) != 0u);

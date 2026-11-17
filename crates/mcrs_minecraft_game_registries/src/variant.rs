@@ -41,7 +41,6 @@ macro_rules! spawning_variant {
             }
         }
 
-        /// A client never learns the spawn conditions of a variant.
         impl From<$value> for $file {
             fn from(value: $value) -> Self {
                 Self {
@@ -112,7 +111,6 @@ pub trait SpawnConditions: Send + Sync + 'static {
     fn spawn_conditions(&self) -> &[SpawnSelector];
 }
 
-/// A variant registry's spawn conditions by variant name.
 pub fn spawn_selectors<F: SpawnConditions + RegistryValue + 'static>(
     registries: &Registries,
 ) -> Result<BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>, String> {

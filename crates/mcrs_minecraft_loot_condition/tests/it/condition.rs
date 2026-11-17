@@ -26,7 +26,6 @@ use mcrs_voxel::BlockStateId;
 use crate::host::{Mob, Mobs};
 use crate::number_provider::{VANILLA, inputs};
 
-/// The condition of `json`, baked against the vanilla entries without a problem.
 pub fn condition(json: &str) -> Condition {
     let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries(), &VANILLA);
     let file: ConditionFile = serde_json::from_str(json).expect(json);
@@ -64,7 +63,6 @@ fn default_state(block: &str) -> BlockStateId {
         .default_state_id
 }
 
-/// LOOT-CTX-013: a condition reads only the parameters that the type of its table allows.
 #[test]
 fn loot_ctx_013_a_condition_reads_only_allowed_parameters() {
     let cases = [
@@ -111,8 +109,6 @@ fn loot_ctx_013_a_condition_reads_only_allowed_parameters() {
     }
 }
 
-/// LOOT-CND-004, LOOT-CND-007, LOOT-CND-009: the result and the draws of a condition in a context
-/// without `this_entity` and without `tool`.
 #[test]
 fn loot_cnd_a_condition_without_its_parameter() {
     let fresh = || XoroshiroRandom::new(42);
@@ -160,9 +156,6 @@ fn loot_cnd_a_condition_without_its_parameter() {
     }
 }
 
-/// REG-FLD-006, REG-ENTRY-003: an unknown condition type fails the decode, a condition and its
-/// block, item and location predicates ignore a field that they do not name, and an entity
-/// predicate fails on an unknown top-level key.
 #[test]
 fn reg_fld_006_the_decode_of_a_condition_is_strict_on_types() {
     let cases = [
@@ -203,9 +196,6 @@ fn reg_fld_006_the_decode_of_a_condition_is_strict_on_types() {
     }
 }
 
-/// REG-FLD-008, REG-FLD-254, REG-FLD-719: the `value` of `environment_attribute_check` decodes in
-/// the JSON form of the attribute type. REG-FLD-720: an object with `type` in a range is a provider,
-/// and an unknown provider type fails the decode.
 #[test]
 fn reg_fld_719_720_a_value_and_a_range_decode_by_their_form() {
     let attribute = |name: &str, value: &str| {
@@ -235,8 +225,6 @@ fn reg_fld_719_720_a_value_and_a_range_decode_by_their_form() {
     }
 }
 
-/// LOOT-CND-006: `match_block` fails without `block_state`, and matches the block entity data
-/// when its predicate has `nbt`.
 #[test]
 fn loot_cnd_006_match_block_reads_the_block_entity() {
     let match_chest = condition(
@@ -266,8 +254,6 @@ fn loot_cnd_006_match_block_reads_the_block_entity() {
     }
 }
 
-/// LOOT-CND-007: `match_tool` matches the components of the tool, and fails for an empty hand
-/// that its item predicate does not match.
 #[test]
 fn loot_cnd_007_match_tool_matches_components() {
     let worn_pickaxe = condition(
@@ -291,8 +277,6 @@ fn loot_cnd_007_match_tool_matches_components() {
     }
 }
 
-/// LOOT-CND-009, LOOT-CND-020: `entity_properties` tests the entity of its `entity` parameter;
-/// the entity predicate `{}` matches each present entity and no absent one.
 #[test]
 fn loot_cnd_009_entity_properties_tests_its_target() {
     let any_this = r#"{"type": "minecraft:entity_properties", "entity": "this", "predicate": {}}"#;
@@ -327,7 +311,6 @@ fn mob_context<'a>() -> LootContext<'a, Mob> {
     LootContext::try_new(ContextKeySet::Empty).expect("a source key set")
 }
 
-/// The result of `condition` in `context` and `host`, with the generator after the test.
 fn mob_test(
     condition: &Condition,
     context: &LootContext<'_, Mob>,
@@ -343,10 +326,8 @@ fn mob_test(
     (passed, random)
 }
 
-/// An int provider with the value 0 that takes one `F`.
 const INT_DRAW: &str = r#"{"type": "minecraft:binomial", "n": 1, "p": 0.0}"#;
 
-/// A float provider that takes one `F`.
 const FLOAT_DRAW: &str = r#"{"type": "minecraft:uniform", "min": 0.0, "max": 1.0}"#;
 
 fn fresh() -> XoroshiroRandom {
@@ -377,9 +358,6 @@ fn enchanted_sword(enchantment: &str, level: u8) -> ItemStack {
     .set(Enchantments::new([enchantment]).expect("one enchantment"))
 }
 
-/// LOOT-CND-010, LOOT-CND-022, LOOT-NUM-021: the chance is the level-based value at the level of
-/// the enchantment in the slots of the enchantment on a living attacker, and `unenchanted_chance`
-/// otherwise; one `F` each time.
 #[test]
 fn loot_cnd_010_the_chance_follows_the_level_on_the_attacker() {
     let bonus = |enchantment: &str| {
@@ -421,8 +399,6 @@ fn loot_cnd_010_the_chance_follows_the_level_on_the_attacker() {
     }
 }
 
-/// LOOT-CND-011, LOOT-CND-018: a condition on one parameter fails when the parameter is absent,
-/// and takes no draw.
 #[test]
 fn loot_cnd_011_018_a_condition_on_one_parameter() {
     let killed = r#"{"type": "minecraft:killed_by_player"}"#;
@@ -450,8 +426,6 @@ fn loot_cnd_011_018_a_condition_on_one_parameter() {
     }
 }
 
-/// LOOT-CND-012, LOOT-CND-021: `entity_scores` tests each score in order and stops at the first
-/// entry that fails, without the draws of the entries after it.
 #[test]
 fn loot_cnd_012_entity_scores_stop_at_the_first_failure() {
     let scores = |entity: &str, scores: &str| {
@@ -536,8 +510,6 @@ fn loot_cnd_012_entity_scores_stop_at_the_first_failure() {
     }
 }
 
-/// LOOT-CND-013: `damage_source_properties` fails without `damage_source` or `origin`, passes
-/// without a predicate, and gives the entities of the source to the predicate.
 #[test]
 fn loot_cnd_013_damage_source_properties_tests_the_source() {
     let check =
@@ -578,8 +550,6 @@ fn damage_type(name: &str) -> Id<DamageType> {
         .expect("a vanilla damage type")
 }
 
-/// LOOT-CND-014: the world rains above the rain level 0.2 and thunders above the product 0.9;
-/// a host without weather neither rains nor thunders.
 #[test]
 fn loot_cnd_014_weather_check_compares_each_present_field() {
     let check = |fields: &str| format!(r#"{{"type": "minecraft:weather_check"{fields}}}"#);
@@ -611,8 +581,6 @@ fn loot_cnd_014_weather_check_compares_each_present_field() {
     }
 }
 
-/// LOOT-CND-015: `time_check` tests the low 32 bits of the total ticks, after the remainder by
-/// `period` with the sign of the ticks; a clock that the host does not have is at 0.
 #[test]
 fn loot_cnd_015_time_check_tests_the_ticks_of_the_clock() {
     let check = |period: &str, value: &str| {
@@ -647,8 +615,6 @@ fn loot_cnd_015_time_check_tests_the_ticks_of_the_clock() {
     }
 }
 
-/// LOOT-CND-016, LOOT-CND-017, LOOT-CND-021: a value check reads `value`, then `min`, then `max`;
-/// it does not read `max` below `min`, and reads nothing for a range without bounds.
 #[test]
 fn loot_cnd_016_017_a_value_check_reads_in_order() {
     let int = |value: &str, test: &str| {
@@ -683,9 +649,6 @@ fn loot_cnd_016_017_a_value_check_reads_in_order() {
     }
 }
 
-/// LOOT-CND-019: a positional attribute reads the value at `origin`, another attribute reads the
-/// dimension value, and a value that the host does not have is the default value; f32 values are
-/// equal by their bits.
 #[test]
 fn loot_cnd_019_environment_attribute_check_reads_by_position() {
     let check = |attribute: &str, value: &str| {

@@ -3,8 +3,6 @@ use crate::coordinates::Coordinates;
 use crate::coordinates_error::CoordinatesError;
 use mcrs_command::{Argument, Reader, SuggestionBuilder, SyntaxError};
 
-/// `minecraft:block_pos`. The value is the coordinates; the block position
-/// is [`crate::block_floor()`] of their point.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockPosArgument;
 
@@ -16,7 +14,6 @@ impl BlockPosArgument {
         read_coordinates(reader, completeness, |reader, _| read_block(reader))
     }
 
-    /// Suggests the block coordinates.
     pub fn suggest<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>) {
         suggest_coordinates(builder, |reader| {
             Self::read(reader, Completeness::Partial).is_ok()

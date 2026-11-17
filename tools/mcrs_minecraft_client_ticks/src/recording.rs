@@ -7,45 +7,30 @@ use crate::ParseError;
 use crate::fields::Fields;
 use crate::fields::parse_value;
 
-/// One recorded step of an experiment: the world it starts in and the packets of its client
-/// ticks.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Recording {
     pub header: Header,
-    /// The events in the order the client applied or sent them. The first events give the state
-    /// of the player before the step: abilities, attributes and effects, then the teleport.
     pub events: Vec<Event>,
-    /// The time of each event at the server side of the proxy, in microseconds, one for each
-    /// event: for a clientbound event the time the proxy received it from the server, for a
-    /// serverbound event the time the proxy passed it to the server.
     pub times: Vec<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Header {
-    /// The game version of the server and the client.
     pub version: String,
-    /// The experiment of `docs/spec/entity-physics.md`, section 15, for example `E9`.
     pub experiment: String,
     pub step: String,
-    /// The text the human read before the step.
     pub instruction: String,
-    /// The blocks that the step placed, in order, into an empty world.
     pub fills: Vec<Fill>,
 }
 
-/// The cuboid from `min` to `max`, both included, filled with one block state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fill {
     pub min: [i32; 3],
     pub max: [i32; 3],
-    /// The state as `name[property=value,...]`.
     pub state: String,
 }
 
 impl Recording {
-    /// The client ticks: each slice ends with the [`Event::TickEnd`] of its tick. Events after
-    /// the last tick end are not in a tick.
     pub fn ticks(&self) -> impl Iterator<Item = &[Event]> {
         self.events
             .split_inclusive(|event| *event == Event::TickEnd)
@@ -53,7 +38,6 @@ impl Recording {
     }
 }
 
-/// The arguments of a `fill`: the corners and the state.
 impl fmt::Display for Fill {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let [x0, y0, z0] = self.min;
@@ -84,7 +68,6 @@ impl fmt::Display for Recording {
 impl FromStr for Recording {
     type Err = ParseError;
 
-    /// Reads the header lines in the order that [`fmt::Display`] writes them.
     fn from_str(text: &str) -> Result<Self, ParseError> {
         let lines: Vec<&str> = text.lines().collect();
         let field = |index: usize, keyword: &str| {

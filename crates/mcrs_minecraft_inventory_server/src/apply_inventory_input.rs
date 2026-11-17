@@ -12,8 +12,6 @@ use crate::click_drag::ClickDrag;
 use crate::set_creative_mode_slot::apply_creative_packet;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
-/// Applies each [`InventoryInput`] in the order of arrival, as one queued command each. A command
-/// commits its request before the next command reads the slots (ITX-JAV-003, ITX-MOD-005).
 pub(crate) fn apply_inventory_input(
     mut inputs: MessageReader<InventoryInput>,
     mut commands: Commands,
@@ -62,7 +60,6 @@ fn apply_input(world: &mut World, id: usize) {
     });
 }
 
-/// Ends the drag in progress of the player, since a close ends it.
 fn end_drag(world: &mut World, player: Entity) {
     if let Some(mut drag) = world.get_mut::<ClickDrag>(player) {
         drag.set_if_neq(ClickDrag::default());

@@ -1,6 +1,3 @@
-//! Overworld column pipeline, one stage at a time.
-//!
-//! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed] [column_offset]
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -179,7 +176,6 @@ fn main() {
         (s, sections.len() as u64, dominant)
     };
 
-    // Warm up: caches, thread-locals, lazy tables.
     for x in 0..2 {
         run(&mut column, &mut scratch, &mut ws, offset + x, offset - 1);
     }

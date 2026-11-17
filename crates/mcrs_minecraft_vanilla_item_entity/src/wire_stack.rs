@@ -7,7 +7,6 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::Decode;
 
-/// The wire form of the stack `stack`, which the spawn and the stack data of an item entity carry.
 pub(crate) fn wire_stack_of(
     stacks: &mut Stacks,
     table: &ItemTable,
@@ -18,8 +17,6 @@ pub(crate) fn wire_stack_of(
         .and_then(|value| wire_stack(&value, table))
 }
 
-// chisle: the two stack models meet through the bytes of the wire; a direct conversion when
-// the protocol holds `ItemStack`.
 fn wire_stack(stack: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
     let mut bytes = Vec::new();
     if let Err(error) = write_wire(Some(stack), table, &mut bytes) {

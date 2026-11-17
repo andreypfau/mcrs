@@ -49,29 +49,24 @@ pub struct Sprites {
     pub(crate) lightmap: Texture,
     pub(crate) lightmap_view: TextureView,
     pub(crate) lightmap_sampler: Sampler,
-    /// An [`AnimationFrame`] per animation, as words.
     pub frames: Words,
-    /// A [`SpriteEntry`] per sprite, as words.
     pub table: Words,
     animations: Vec<Animation>,
     written: Vec<AnimationFrame>,
 }
 
 impl Sprites {
-    /// The lightmap of this frame: the colour for each pair of block light and sky light.
     #[must_use]
     pub fn lightmap_view(&self) -> &TextureView {
         &self.lightmap_view
     }
 
-    /// The sampler of [`Self::lightmap_view`].
     #[must_use]
     pub fn lightmap_sampler(&self) -> &Sampler {
         &self.lightmap_sampler
     }
 
     pub(crate) fn new(path: RenderPath, budget: &Budget, device: &RenderDevice) -> Self {
-        // Sized once for every sprite an id can name, so neither table ever moves.
         let table = |label, row: usize| Words::new(path, label, (MAX_SPRITES * row) as u64, device);
         let (tints, tint_sampler) = create_tints(budget, device);
         let (lightmap, lightmap_sampler) = create_lightmap(device);
@@ -91,17 +86,12 @@ impl Sprites {
         }
     }
 
-    /// Takes the layers and sprites the bake added and the animation table as it now stands.
-    /// Returns the bytes staged and whether a texture was replaced, which is when the bind
-    /// groups follow.
     pub(crate) fn update(
         &mut self,
         upload: &SpriteUpload,
         device: &RenderDevice,
         staged: &mut Staged,
     ) -> (usize, bool) {
-        // Uploads come in a burst at load and rarely after, so the buffer is not kept between
-        // them: holding the largest one ever made would pin tens of megabytes for good.
         let mut staging = atlas_staging(FIRST_STAGING_BYTES, device);
         let mut writer = AtlasWriter {
             device,
@@ -141,8 +131,6 @@ impl Sprites {
 
 const FIRST_STAGING_BYTES: u64 = 1 << 20;
 
-/// Steps every animation on the CPU once a frame, so a fragment reads its two layers and a
-/// blend instead of dividing and taking modulos of the clock.
 pub(super) fn write_animation_frames(
     terrain: Option<ResMut<Terrain>>,
     time: Res<Time>,

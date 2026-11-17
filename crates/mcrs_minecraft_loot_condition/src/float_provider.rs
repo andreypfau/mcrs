@@ -15,16 +15,13 @@ use crate::loot_world::LootWorld;
 use crate::provider_evaluation::Evaluation;
 use crate::weighted_entry::WeightedEntry;
 
-/// A baked context float provider. Its evaluation takes the draws of LOOT-NUM-002 in order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FloatProvider(pub(crate) FloatNode);
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum FloatNode {
-    /// A part that the bake could not resolve; its evaluation is an error.
     Fault,
     Constant(f32),
-    /// The entry of the registry `context_float_provider` at the index, with what it reads.
     Named {
         index: usize,
         reads: ContextParams,
@@ -32,7 +29,6 @@ pub(crate) enum FloatNode {
     Unary(FloatUnary, Box<FloatNode>),
     FromInt(Box<IntNode>),
     Binary(FloatBinary, Box<FloatNode>, Box<FloatNode>),
-    /// `mod`, which evaluates `right` first (LOOT-NUM-007).
     Mod(Box<FloatNode>, Box<FloatNode>),
     Pow(Box<FloatNode>, Box<FloatNode>),
     Uniform(Box<FloatNode>, Box<FloatNode>),
@@ -59,7 +55,6 @@ pub(crate) enum FloatNode {
     EnchantmentLevel(LevelBasedValue),
 }
 
-/// The value type of an attribute that a float `environment_attribute` reads, with its default.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum EnvironmentNumber {
     Int(i32),
@@ -96,14 +91,11 @@ pub(crate) enum FloatAggregate {
 }
 
 impl FloatProvider {
-    /// The provider `constant` (LOOT-NUM-003).
     #[must_use]
     pub const fn constant(value: f32) -> Self {
         Self(FloatNode::Constant(value))
     }
 
-    /// The float read (LOOT-NUM-001): an evaluation error, a NaN and an infinity give 0.
-    /// `scratch` holds the buffers of the conditions that the provider tests.
     pub fn read<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         inputs: LootInputs<'_, '_, E, W>,
@@ -116,7 +108,6 @@ impl FloatProvider {
             .unwrap_or(0.0)
     }
 
-    /// The parameters that the provider reads.
     #[must_use]
     pub fn reads(&self) -> ContextParams {
         self.0.reads()

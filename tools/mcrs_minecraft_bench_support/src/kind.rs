@@ -24,13 +24,10 @@ impl FromStr for Kind {
     }
 }
 
-/// Where a server reports its own tick times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TickMetric {
-    /// `tick query` on the console: the mean and percentiles of the last 100 ticks.
     TickQuery,
-    /// One `mcrs_tick` trace line a tick.
     McrsTrace,
 }
 

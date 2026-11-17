@@ -6,8 +6,6 @@ use mcrs_minecraft_inventory_player::Slot;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_player::insert;
 
-/// Inserts `count` alike items of maximum 64 into slots that hold the counts of `alike`; each
-/// slot of `others` holds a stack that is not alike.
 fn run(
     count: u8,
     stacking: Stacking,

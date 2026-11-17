@@ -1,6 +1,3 @@
-//! Parity of the own player with the client ticks of a vanilla client, recorded by
-//! `tools/mcrs_minecraft_client_recorder` into `tests/fixtures/player`.
-
 use std::fs;
 use std::path::Path;
 
@@ -67,7 +64,6 @@ fn held_keys(keys: &mcrs_minecraft_client_ticks::Keys) -> mcrs_minecraft_physics
     }
 }
 
-/// Runs the kernel over the client ticks and compares each move packet bit for bit.
 fn replay(name: &str, recording: &Recording) -> Result<(), String> {
     let blocks = TestBlocks::new();
     let tables = Tables::new(blocks.table.clone());

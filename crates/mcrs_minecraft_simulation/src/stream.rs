@@ -25,7 +25,6 @@ pub enum StreamKey {
     Visit {
         anchor: SectionPos,
     },
-    /// The precipitation picks of the columns of one tile.
     Precipitation {
         tile: ColumnPos,
     },
@@ -40,8 +39,6 @@ impl StreamSeed {
         Self(dimension_random.next_java_long() as u64)
     }
 
-    /// The streams of [`StreamKey::Section`] in step `now`, with the mixes that all of them share
-    /// done once.
     #[must_use]
     pub fn sections(&self, now: GameTick) -> SectionStreams {
         SectionStreams(mix(mix(self.0, now.0 as u64), SECTION_TAG))
@@ -72,12 +69,10 @@ impl StreamSeed {
 
 const SECTION_TAG: u64 = 4;
 
-/// The streams of the sections in one step: [`StreamSeed::sections`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SectionStreams(u64);
 
 impl SectionStreams {
-    /// The stream of [`StreamKey::Section`] for `section`.
     #[inline]
     #[must_use]
     pub fn stream(&self, section: SectionPos) -> LegacyRandom {

@@ -19,7 +19,6 @@ use mcrs_minecraft_registries::Registries;
 
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
-/// A biome's colour for each biome tint, as `0xRRGGBB`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BiomeTint {
     grass: Grass,
@@ -31,7 +30,6 @@ pub struct BiomeTint {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum Grass {
     Color(u32),
-    /// Swamp grass takes one of two colours by a noise over the ground.
     Swamp,
 }
 
@@ -174,7 +172,6 @@ pub fn tint_column(
     out
 }
 
-/// The biome atop the highest section the server sent with blocks in it.
 fn surface_biome(
     store: &(impl Columns + BiomeVolume),
     column: ColumnPos,

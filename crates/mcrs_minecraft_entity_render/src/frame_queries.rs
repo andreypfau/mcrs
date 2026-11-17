@@ -3,29 +3,19 @@ use mcrs_minecraft_entity_animation::{EntityQuery, QuerySource};
 use mcrs_minecraft_entity_visual::{FrameValues, TICKS_PER_SECOND};
 use mcrs_molang::{Value, string_hash};
 
-/// The variant of an entity, resolved by the host from its entity data, the default variant of
-/// its type and the synced registry. An id that the registry does not hold has the hash of `''`
-/// in each string.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VariantEntry {
-    /// The numeric variant id: the position of the entry in the synced registry.
     pub id: f32,
-    /// The [`string_hash`] of the resource location of the entry.
     pub identifier: u64,
-    /// The [`string_hash`] of the asset identifier, the baby one for a baby.
     pub asset: u64,
-    /// The [`string_hash`] of the model type in lower case.
     pub model: u64,
 }
 
-/// The queries of one client entity in one frame, read from [`FrameValues`].
 #[derive(Clone, Copy, Debug)]
 pub struct FrameQueries<'a> {
     pub frame: &'a FrameValues,
-    /// `None` for a type with no variant.
     pub variant: Option<VariantEntry>,
     pub time_of_day: f32,
-    /// An in-water flag of the host that adds to [`FrameValues::in_water`].
     pub in_water: bool,
 }
 
@@ -107,7 +97,6 @@ const POSES: [(Pose, &str); 18] = [
     (Pose::Inhaling, "inhaling"),
 ];
 
-/// The value of `query.pose` for a pose of the entity data.
 #[must_use]
 pub fn pose_name(pose: Pose) -> &'static str {
     POSES
@@ -116,7 +105,6 @@ pub fn pose_name(pose: Pose) -> &'static str {
         .map_or("standing", |(_, name)| name)
 }
 
-/// The pose that `query.pose` names, or `None` for a name that no pose has.
 #[must_use]
 pub fn pose_from_name(name: &str) -> Option<Pose> {
     POSES

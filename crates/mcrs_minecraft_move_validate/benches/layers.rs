@@ -1,5 +1,3 @@
-//! The cost of the layers per packet, on one core with a warm cache.
-
 use std::hint::black_box;
 
 use criterion::Criterion;
@@ -14,7 +12,6 @@ fn id(name: &str) -> i32 {
     row_of(NAMES, name).unwrap_or(-1)
 }
 
-/// The packets of one client tick of a walking player.
 fn tick_packets() -> [(i32, Vec<u8>); 3] {
     let position: Vec<u8> = [0.5f64, 64.0, -0.5]
         .iter()
@@ -40,8 +37,6 @@ fn layer_0(c: &mut Criterion) {
     });
 }
 
-/// One server tick with one predicted change and one client tick that answers its probes:
-/// three writes and five serverbound packets.
 fn layer_1(c: &mut Criterion) {
     let checked = |id: i32, body: &[u8]| match check_serverbound(id, body) {
         Verdict::Pass(checked) => Some(checked),

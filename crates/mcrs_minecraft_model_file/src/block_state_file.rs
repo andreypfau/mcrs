@@ -10,7 +10,6 @@ use crate::resource_id::full_id;
 
 pub const MISSING_MODEL: &str = "minecraft:builtin/missing";
 
-/// One model of a part, with the turn of the model and its weight in the part.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Variant {
     pub model: String,
@@ -35,18 +34,13 @@ impl Variant {
     }
 }
 
-/// The parts a state draws. A part is a weighted list of variants.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Selection<'a> {
-    /// The one part of the `variants` key that matches the state.
     Variants(&'a [Variant]),
-    /// The `apply` parts of the `multipart` entries whose condition holds, in file order.
     Multipart(Vec<&'a [Variant]>),
-    /// The state draws the missing model.
     Missing,
 }
 
-/// A blockstate file, checked against the properties of its block.
 #[derive(Clone, Debug, Default)]
 pub struct BlockStateFile {
     variants: Vec<KeyedPart>,
@@ -56,7 +50,6 @@ pub struct BlockStateFile {
 
 #[derive(Clone, Debug)]
 struct KeyedPart {
-    /// `None` for a key with a content error, which matches no state.
     terms: Option<Vec<Term>>,
     part: Vec<Variant>,
 }
@@ -83,7 +76,6 @@ enum Condition {
 #[derive(Clone, Debug)]
 struct PropertyTest {
     property: usize,
-    /// Per value index of the property, whether an alternative accepts it.
     accepted: Vec<bool>,
 }
 
@@ -104,8 +96,6 @@ impl Condition {
 }
 
 impl BlockStateFile {
-    /// Reads a blockstate file. An error is a content error of the whole file: each state of
-    /// the block then draws the missing model.
     pub fn parse(bytes: &[u8], properties: &PropertyTable) -> Result<Self, BlockStateFileError> {
         let raw: RawFile =
             serde_json::from_slice(bytes).map_err(|error| BlockStateFileError::Syntax {
@@ -153,13 +143,11 @@ impl BlockStateFile {
         Ok(file)
     }
 
-    /// The content errors of single variant keys, which leave the rest of the file valid.
     #[must_use]
     pub fn errors(&self) -> &[BlockStateFileError] {
         &self.errors
     }
 
-    /// The parts of the state with these value indices, one per property of the block.
     #[must_use]
     pub fn select(&self, state: &[usize]) -> Selection<'_> {
         let matched = self.variants.iter().find(|keyed| {
@@ -384,7 +372,6 @@ impl RawVariant {
     }
 }
 
-/// The members of a JSON object in the order of the file.
 struct Ordered<T>(Vec<(String, T)>);
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Ordered<T> {

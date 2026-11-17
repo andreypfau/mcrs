@@ -1,7 +1,3 @@
-//! The motion pass of `EntityMotionPlugin` against the rows pass, on the items of `TestScene`:
-//! the same seed, the same blocks, the same kernel and the same task pool. Neither side holds a
-//! mob, so the rows side has no push work.
-
 use std::ops::ControlFlow;
 use std::time::Duration;
 use std::time::Instant;
@@ -54,7 +50,6 @@ const HALF: i32 = 16;
 const ITEMS: u32 = 100_000;
 const MILLION_HALF: i32 = 50;
 const MILLION: u32 = 1_000_000;
-/// Enough ticks for every item of the scene to land and rest.
 const WARM_UP_TICKS: u32 = 400;
 const SPAWNS: u32 = 10_000;
 
@@ -66,11 +61,9 @@ fn pool() -> &'static TaskPool {
     })
 }
 
-/// The items that a launch puts back at their start, in flight.
 #[derive(Clone, Copy)]
 enum Launch {
     All,
-    /// One item in four, spread over the four phases of the rest cycle.
     Quarter,
 }
 
@@ -86,11 +79,9 @@ impl Launch {
 trait PassSide {
     fn step(&mut self);
     fn resting(&mut self) -> usize;
-    /// Gives the items of `launch` the body of their start: above the floor, rising.
     fn launch(&mut self, launch: Launch);
 }
 
-/// The bodies of the items at the start of the scene, by their key.
 fn start_bodies(rows: &RowStore<()>) -> Vec<Body> {
     let mut bodies: Vec<Body> =
         vec![Body::default(); rows.tiles().map(|(_, tile)| tile.ids().len()).sum()];
@@ -119,7 +110,6 @@ fn relaunch(state: &mut EntityState, starts: &[Body]) {
     state.rest = Rest::Awake;
 }
 
-/// The rows pass of `TestScene::step`: the merge point, the freeze, the pass and the tile moves.
 struct RowsSide {
     scene: TestScene<()>,
     writes: EntityWrites,
@@ -129,7 +119,6 @@ struct RowsSide {
 }
 
 impl RowsSide {
-    /// The items of the scene with no lifetime, so that no item leaves while criterion samples.
     fn new(half: i32, items: u32) -> Self {
         let mut scene = TestScene::new(half, 0, items, SEED);
         let mut rows = RowStore::default();
@@ -174,7 +163,6 @@ impl PassSide for RowsSide {
         for &at in &self.placed {
             let included =
                 (self.scene.rows.state_of(at)).is_some_and(|state| launch.includes(state.key));
-            // `state_mut` marks the tile for a new grid, so it is taken only for a launched item.
             if included && let Some(state) = self.scene.rows.state_mut(at) {
                 relaunch(state, &self.starts);
             }
@@ -182,7 +170,6 @@ impl PassSide for RowsSide {
     }
 }
 
-/// `EntityMotionPlugin` alone in an `App`, on the sections of the scene and its items.
 struct ComponentsSide {
     app: App,
     starts: Vec<Body>,
@@ -281,8 +268,6 @@ fn rest_case(group: &mut BenchmarkGroup<'_, WallTime>, name: &str, mut side: imp
     group.bench_function(name, |bencher| bencher.iter(|| side.step()));
 }
 
-/// Each measured tick is the first tick after a launch of every item, so each sample does the
-/// same work: every item awake and in flight, none on the floor.
 fn in_flight(criterion: &mut Criterion) {
     let threads = pool().thread_num();
     let mut group = criterion.benchmark_group(format!("100k items in flight, {threads} threads"));
@@ -307,8 +292,6 @@ fn flight_case(group: &mut BenchmarkGroup<'_, WallTime>, name: &str, mut side: i
     });
 }
 
-/// Each measured tick at 1M items is the first after a launch of a quarter of them; the others
-/// rest. The scene is built only when a filter selects the case.
 fn million(criterion: &mut Criterion) {
     let threads = pool().thread_num();
     let mut group = criterion.benchmark_group(format!("1M items, 25% awake, {threads} threads"));

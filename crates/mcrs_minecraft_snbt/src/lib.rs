@@ -1,7 +1,3 @@
-//! The read and the write of stringified NBT as the game reads and writes it.
-
-// std: mcrs_minecraft_nbt, whose reader and writer go through std::io.
-
 extern crate alloc;
 
 mod build;

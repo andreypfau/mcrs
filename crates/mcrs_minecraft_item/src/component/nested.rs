@@ -92,8 +92,6 @@ impl<'de> Deserialize<'de> for ChargedProjectiles<Named> {
     }
 }
 
-/// Sides are boxed so a rare four-template value does not size every
-/// `ItemComponentValue`.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Default, Serialize, Deserialize,
@@ -118,8 +116,6 @@ impl<M: Refs> PotDecorations<M> {
 
 pub const MAX_CONTAINER_SLOTS: usize = 256;
 
-/// Dense by slot index; the persistent form lists only the occupied slots, so
-/// trailing empty slots do not survive a save.
 #[derive(
     Clone,
     Debug,
@@ -161,8 +157,6 @@ struct SlotEntry {
     item: Template<Named>,
 }
 
-/// The NBT writer needs the length first, so the occupied slots are counted
-/// before they are written.
 impl Serialize for Container<Named> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let occupied: Vec<SlotEntryRef> = self

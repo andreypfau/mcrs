@@ -7,8 +7,6 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::{Text, TextSerde, TextTypes};
 
-/// A translation argument: a primitive travels as itself, anything else is a
-/// component, and a component that is a plain string is read as the string.
 #[derive(Clone, PartialEq, Debug)]
 pub enum TranslateArg<I: TextTypes> {
     Bool(bool),

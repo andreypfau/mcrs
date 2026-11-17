@@ -64,7 +64,6 @@ fn single_reason_cases() -> Vec<Case> {
             NoSuchSlot,
         ),
         first(
-            // INV-CRE-001
             "set of a missing slot",
             stone_and_empty(),
             set(9, stone(1), 1),

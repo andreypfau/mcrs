@@ -6,8 +6,6 @@ use serde::{Serialize, Serializer};
 
 use crate::{ResourceKeyBuf, ResourceLocation};
 
-/// A borrowed location typed by the registry `T` it names an entry of. It is `Copy`, and the
-/// generated constants are `ResourceKey<'static, T>`; [`ResourceKeyBuf`] is the owned form.
 pub struct ResourceKey<'a, T> {
     location: ResourceLocation<'a>,
     _marker: PhantomData<fn() -> T>,
@@ -44,7 +42,6 @@ impl<'a, T> ResourceKey<'a, T> {
         self.location.path()
     }
 
-    /// The owned form, with one allocation.
     pub fn to_buf(self) -> ResourceKeyBuf<T> {
         ResourceKeyBuf::from_location(self.location.to_buf())
     }

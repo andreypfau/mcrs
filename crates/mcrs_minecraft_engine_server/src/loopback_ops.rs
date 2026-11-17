@@ -5,9 +5,6 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_network::ServerSideConnection;
 use std::net::IpAddr;
 
-/// On `Local`, a player whose client address is a loopback address joins as an operator at the
-/// top level; the ops file does not hold such an operator. On `Public`, as in vanilla, only the
-/// op list makes an operator, since a proxy or a tunnel on this machine joins from loopback too.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ServerProfile {
     Local,
@@ -15,7 +12,6 @@ pub enum ServerProfile {
     Public,
 }
 
-/// Whether `address` is in 127.0.0.0/8 or is `::1`, also as an IPv4-mapped IPv6 address.
 fn is_loopback(address: IpAddr) -> bool {
     address.to_canonical().is_loopback()
 }
@@ -71,7 +67,6 @@ mod tests {
         app
     }
 
-    /// The op list entry of `username` after its hello from `address`.
     fn hello_from(app: &mut App, address: &str, username: &str) -> Option<OpListEntry> {
         let (mut raw, _outgoing, _inbound) = RawConnection::new_for_test_full(16);
         raw.remote_addr = address.parse().unwrap();

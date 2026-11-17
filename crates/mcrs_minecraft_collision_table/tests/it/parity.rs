@@ -1,7 +1,3 @@
-//! Vanilla parity of the tick of server-simulated entities: each fixture under
-//! `tests/fixtures/physics` holds the states that a vanilla server printed after each tick of one
-//! experiment of the physics specification. `tools/physics-fixtures/record.sh` records them.
-
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
@@ -33,7 +29,6 @@ use fixture::Recorded;
 use fixture::compare;
 use fixture::start_state;
 
-/// A recorded entity that the kernel steps.
 struct Simulated<'a> {
     recorded: &'a Recorded,
     row: MotionRow,
@@ -41,8 +36,6 @@ struct Simulated<'a> {
     failure: Failure,
 }
 
-/// Steps every simulated entity of a fixture together, with the push between the living ones
-/// from the state at the start of each tick; records the first tick that differs for each.
 fn replay(
     fixture: &Fixture,
     tables: &Tables,

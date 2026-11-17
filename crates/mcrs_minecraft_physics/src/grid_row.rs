@@ -7,20 +7,14 @@ use crate::GridFlags;
 use crate::PushTargets;
 use crate::TeamSlot;
 
-/// The values of a body in the grid that the push of another entity reads, from the start of
-/// the tick.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridRow {
     pub position: DVec3,
-    /// The position at the start of the last tick of the entity (PHY-CMP-027); `position` when
-    /// that tick did not move it, or when something else placed it since.
     pub previous: DVec3,
-    /// `f32(width / 2)`.
     pub half_width: f32,
     pub height: f32,
     pub key: EntityKey,
     pub id: EntityId,
-    /// The root of the vehicle tree of the entity; its own id when it rides nothing.
     pub root_vehicle: EntityId,
     pub team: TeamSlot,
     pub flags: GridFlags,

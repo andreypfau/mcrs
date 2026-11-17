@@ -1,6 +1,3 @@
-//! The upkeep of the [`BirthClock`]: it rises at the start of every server tick, and the save
-//! keeps it.
-
 use bevy_app::{App, FixedFirst, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
@@ -15,8 +12,6 @@ use crate::world_state::{WorldStateWrite, WorldStateWriter};
 
 pub struct BirthClockPlugin;
 
-/// Whether the birth clock may write itself back. An unreadable file that is not missing stays
-/// as it is, so a later run can recover it instead of reading the defaults this run wrote.
 #[derive(Resource, Debug)]
 struct BirthClockWritable(bool);
 
@@ -46,7 +41,6 @@ impl Plugin for BirthClockPlugin {
     }
 }
 
-/// Continues from the saved clock; a save without one starts at its game time.
 fn load_birth_clock(
     save: Option<Res<WorldSave>>,
     mut clock: ResMut<BirthClock>,
@@ -73,8 +67,6 @@ pub(crate) fn advance_birth_clock(mut clock: ResMut<BirthClock>) {
     clock.0 = clock.0.saturating_add(1);
 }
 
-/// Saves the value that the clock reaches at the next save, not the current one: after a crash,
-/// the clock then continues above every key that a saved entity can hold.
 fn save_birth_clock(
     save: Option<Res<WorldSave>>,
     clock: Res<BirthClock>,
@@ -97,8 +89,6 @@ mod tests {
 
     use super::*;
 
-    /// Starts a server on `save`, runs `ticks` ticks and stops it without a last save, as a
-    /// crash does. Gives the clock at the start and at the end.
     fn run(save: &Path, ticks: u32) -> [u64; 2] {
         let mut app = App::new();
         app.add_plugins(BirthClockPlugin);

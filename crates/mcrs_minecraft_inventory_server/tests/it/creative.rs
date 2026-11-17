@@ -21,8 +21,6 @@ use crate::fixture::patched_stone;
 use crate::fixture::slot_stack;
 use crate::fixture::stacks;
 
-/// Sends `set_creative_mode_slot` for `slot` with `count` items of `kind`, or the empty stack for
-/// the count 0, without running the tick.
 fn send(world: &mut World, player: Entity, slot: i16, kind: Kind, count: u8) {
     let mut body = slot.to_be_bytes().to_vec();
     let id = u8::try_from(kind.0).expect("a test item id fits one VarInt byte");
@@ -38,9 +36,6 @@ fn send(world: &mut World, player: Entity, slot: i16, kind: Kind, count: u8) {
     world.flush();
 }
 
-/// INV-CRE-003, INV-CRE-004, INV-CRE-006, IEN-SPN-007: a packet that passes the checks sets the
-/// entry past every filter and slot limit, or throws its stack, and sends nothing. A packet that
-/// fails a check changes no slot, and the client gets the stack of its entry that the server holds.
 #[test]
 fn inv_cre_004_the_creative_packet_sets_an_entry_after_its_checks() {
     struct Case {
@@ -141,7 +136,6 @@ fn inv_cre_004_the_creative_packet_sets_an_entry_after_its_checks() {
     }
 }
 
-/// INV-CRE-004: a set keeps the component patch of the stack of the packet.
 #[test]
 fn inv_cre_004_the_creative_packet_sets_a_stack_with_its_patch() {
     let mut app = app();
@@ -171,7 +165,6 @@ fn inv_cre_004_the_creative_packet_sets_a_stack_with_its_patch() {
     );
 }
 
-/// IEN-SPN-007: a burst throws 74 creative drops; the counter then falls by one each tick.
 #[test]
 fn ien_spn_007_the_creative_drop_counter_limits_a_burst() {
     let mut app = app();

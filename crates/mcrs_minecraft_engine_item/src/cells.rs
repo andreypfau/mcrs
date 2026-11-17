@@ -7,7 +7,6 @@ use crate::Removed;
 use crate::column::Column;
 use crate::effective;
 
-/// The table row of one stack and one bit for each row of the item components that it stores.
 #[derive(Clone, Copy)]
 pub(crate) struct Cells<'w> {
     table: &'w Table,
@@ -17,9 +16,9 @@ pub(crate) struct Cells<'w> {
 }
 
 impl<'w> Cells<'w> {
-    /// # Safety
-    /// `row` is the row of a live entity in `table` for `'w`, and the caller may read the column
-    /// of each row of the item components and of [`Removed`] for `'w`.
+    // SAFETY: the caller guarantees that `row` is the row of a live entity in `table` for `'w`,
+    // and that it may read the column of each row of the item components and of `Removed` for
+    // `'w`.
     pub(crate) unsafe fn new(
         table: &'w Table,
         row: TableRow,
@@ -40,12 +39,10 @@ impl<'w> Cells<'w> {
         self.removed
     }
 
-    /// The rows whose effective value can differ from the neutral value.
     pub(crate) fn present(&self) -> u128 {
         self.mask | self.removed.map_or(0, |removed| u128::from(removed.bits()))
     }
 
-    /// The stored value of `T`. The column is that of an item component row or of [`Removed`].
     pub(crate) fn get<T: Component>(&self, column: Column<T>) -> Option<&'w T> {
         let data = self.table.get_column(column.id())?;
         // SAFETY: by the contract of `new`, `row` is a live row of `table` that the holder may

@@ -103,7 +103,6 @@ impl JungleTempleBlocks {
     }
 }
 
-/// `JungleTemplePiece.MossStoneSelector` over a box: one float per cell.
 fn moss_box<W: WorldGenVolume, R: Random>(
     b: &JungleTempleBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -120,8 +119,6 @@ fn moss_box<W: WorldGenVolume, R: Random>(
     });
 }
 
-/// `JungleTemplePiece.postProcess` for one column, `bounds` already raised
-/// to its ground.
 #[expect(
     clippy::too_many_lines,
     reason = "paints the temple's walls, chambers, stairs, chests and traps as one run of canvas calls in the reference's order, so the moss draws follow its sequence"

@@ -15,16 +15,13 @@ use mcrs_voxel::BlockPos;
 use crate::{Oriented, block_mask, state};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// The chest as `StructurePiece.createChest` reorients it, world-facing.
 #[derive(Clone, Debug)]
 pub struct ChestStates {
-    /// Indexed like `Direction::HORIZONTAL`, north first.
     pub facing: [VoxelId; 4],
     pub states: StateMask,
 }
 
 impl ChestStates {
-    /// `None` for a vertical facing, which no chest takes.
     pub fn facing(&self, facing: Direction) -> Option<VoxelId> {
         let [north, east, south, west] = self.facing;
         match facing {
@@ -50,7 +47,6 @@ impl ChestStates {
     }
 }
 
-/// `StructurePiece.isReplaceableByStructures`: what `fillColumnDown` digs through.
 pub fn replaceable_by_structures(
     blocks: &dyn BlockResolver,
     world: &WorldStates,
@@ -66,16 +62,12 @@ pub fn replaceable_by_structures(
     Ok(mask.into())
 }
 
-/// One grid piece's view of the column it is placing into: `StructurePiece`'s
-/// drawing helpers over piece-local coordinates, every write clipped to the
-/// column's writable box.
 pub struct PieceCanvas<'a, W: WorldGenVolume> {
     pub volume: &'a mut W,
     pub spawns: &'a mut Vec<GeneratedEntity>,
     pub bounds: BoundingBox,
     pub orientation: Option<Orientation>,
     pub clip: BoundingBox,
-    /// States `place` never overwrites.
     pub keep: Option<&'a StateMask>,
 }
 
@@ -88,7 +80,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         state.get(self.orientation.unwrap_or(Orientation::North))
     }
 
-    /// `placeBlock`.
     pub fn place(&mut self, state: &Oriented, x: i32, y: i32, z: i32) {
         let pos = self.world_pos(x, y, z);
         if self.clip.is_inside(pos) && !self.keep.is_some_and(|keep| self.volume.holds(keep, pos)) {
@@ -96,7 +87,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `getBlock`: air outside the clip.
     pub fn get(&self, x: i32, y: i32, z: i32) -> VoxelId {
         let pos = self.world_pos(x, y, z);
         if self.clip.is_inside(pos) {
@@ -111,7 +101,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         self.volume.world().air_states.contains(state.0 as usize)
     }
 
-    /// `generateBox`: `edge` on the six faces, `fill` inside.
     pub fn generate_box(
         &mut self,
         min: [i32; 3],
@@ -130,13 +119,10 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         );
     }
 
-    /// `generateBox` with one state throughout, air included.
     pub fn solid(&mut self, state: &Oriented, min: [i32; 3], max: [i32; 3]) {
         self.generate_box(min, max, state, state, false);
     }
 
-    /// `generateBox` with a `BlockSelector`: `select` is asked once per cell,
-    /// told whether the cell lies on the six faces, before the clip is tested.
     pub fn generate_selected_box<'s>(
         &mut self,
         min: [i32; 3],
@@ -159,7 +145,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `generateMaybeBox`: one float per cell, drawn before any test.
     #[expect(
         clippy::too_many_arguments,
         reason = "the random source, the probability, the box's two corners, the edge and fill blocks, and the air-skip and inside-only flags of the reference's probabilistic box fill"
@@ -193,7 +178,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `maybeGenerateBlock`.
     pub fn maybe_generate_block<R: Random>(
         &mut self,
         rng: &mut R,
@@ -208,7 +192,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `generateUpperHalfSphere`.
     pub fn upper_half_sphere(
         &mut self,
         min: [i32; 3],
@@ -240,9 +223,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `fillColumnDown`: from `start_y` down through everything in
-    /// `replaceable`, stopping one above the dimension floor; the state is
-    /// written as given, unoriented, as the reference's `setBlock` does.
     pub fn fill_column_down(
         &mut self,
         replaceable: &StateMask,
@@ -262,8 +242,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    /// `isInterior`: the cell above lies inside the clip and under the
-    /// ocean-floor height.
     pub fn is_interior(&self, x: i32, y: i32, z: i32) -> bool {
         let pos = self.world_pos(x, y + 1, z);
         self.clip.is_inside(pos)
@@ -273,7 +251,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
                     .height(HeightmapName::OceanFloorWg, pos.x, pos.z)
     }
 
-    /// `createChest`: whether one was placed, which is when its loot seed is drawn.
     pub fn create_chest<R: Random>(
         &mut self,
         rng: &mut R,
@@ -297,7 +274,6 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         true
     }
 
-    /// `createDispenser`, with the dispenser already facing as the caller asked.
     #[expect(
         clippy::too_many_arguments,
         reason = "the random source, the dispenser's blocks, its position and its loot table, which the reference passes as separate values"

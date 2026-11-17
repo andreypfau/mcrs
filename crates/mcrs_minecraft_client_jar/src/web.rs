@@ -21,11 +21,8 @@ const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
 const OBJECT_ATTEMPTS: u32 = 4;
-/// The longest wait for the font objects; after it the text keeps to the jar's glyphs.
 const FONT_DEADLINE_MS: i32 = 120_000;
 
-/// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
-/// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
 pub async fn fetch(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
@@ -47,10 +44,6 @@ pub async fn fetch(
     files
 }
 
-/// The asset index layer's font files from `objects`, a server laid out as [`crate::OBJECTS`],
-/// laid over the jar's by path. The browser's HTTP cache keeps them: an object's address is its
-/// digest, so a hit is never stale. The objects are fetched side by side, each retried with a
-/// growing wait unless the browser refuses the request.
 pub async fn font_assets(objects: &str) -> Result<Files, String> {
     let promises = Array::new();
     for object in FONT_OBJECTS {
@@ -70,12 +63,8 @@ pub async fn font_assets(objects: &str) -> Result<Files, String> {
         .collect())
 }
 
-/// Why an attempt at an object brought nothing.
 enum Miss {
-    /// The fetch itself failed: the network is down, or the server sends no CORS header, which a
-    /// page cannot tell apart. Asking again only keeps the text from the jar's glyphs longer.
     Refused(String),
-    /// A stall, an HTTP error or a cut body, which a later attempt can mend.
     Failed(String),
 }
 
@@ -99,7 +88,6 @@ async fn fetch_object(object: &AssetObject<'_>, url: &str) -> Result<Vec<u8>, St
 
 async fn object_body(url: &str) -> Result<Vec<u8>, Miss> {
     let window = web_sys::window().ok_or_else(|| Miss::Refused("no window".to_owned()))?;
-    // Browser fetch has no timeout of its own, so each wait is raced against a timer.
     let fetched = Promise::race(&Array::of2(&window.fetch_with_str(url), &timeout(STALL_MS)));
     let response = JsFuture::from(fetched)
         .await
@@ -118,7 +106,6 @@ async fn object_body(url: &str) -> Result<Vec<u8>, Miss> {
     Ok(Uint8Array::new(&buffer).to_vec())
 }
 
-/// The promise's value, or an error when it neither settles nor fails within `ms`.
 async fn within(promise: Promise, ms: i32) -> Result<JsValue, String> {
     let settled = JsFuture::from(Promise::race(&Array::of2(&promise, &timeout(ms))))
         .await
@@ -206,8 +193,6 @@ impl WebSource {
 
     async fn fetch(&self, range: &Range<u64>, reached: &mut u64) -> Result<(), String> {
         let key = format!("{}?bytes={}-{}", RELEASE.jar.url, range.start, range.end);
-        // A chunk asked for twice in one session was dropped as corrupt, so its cached copy
-        // is not trusted again.
         let first = self.served.borrow_mut().insert(key.clone());
         if first
             && let Some(cache) = &self.cache
@@ -232,8 +217,6 @@ impl WebSource {
             .await
             .map_err(describe)?
             .unchecked_into();
-        // The CDN answers the If-Range Chrome sends for a partly cached jar with the whole jar;
-        // one worker keeps all of it while the others wait instead of fetching it again.
         let (mut position, end) = match response.status() {
             206 => (range.start, range.end),
             200 if self.whole.get() => {
@@ -363,7 +346,6 @@ async fn work(source: Rc<WebSource>, id: usize) {
     }
 }
 
-// Outside a secure context `caches` is absent, and touching it as if it were there would trap.
 async fn open_cache() -> Option<Cache> {
     let window = web_sys::window()?;
     let caches = Reflect::get(&window, &"caches".into())

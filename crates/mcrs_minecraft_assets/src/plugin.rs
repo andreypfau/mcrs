@@ -25,9 +25,6 @@ impl Plugin for MinecraftCorePlugin {
             app.add_plugins(StatesPlugin);
         }
         app.init_state::<AppState>();
-        // The transition schedule costs its sixteen systems every frame whether or not a
-        // transition is pending. The check runs in a schedule of its own because an exclusive
-        // system inside `PreUpdate` would have no order against the engine's systems there.
         let transition = StateTransition.intern();
         let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
         order.labels.retain(|label| *label != transition);

@@ -39,7 +39,6 @@ use mcrs_minecraft_resource::Id;
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-/// The options of the client that change how the terrain mesh is lit.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LightOptions {
     pub smooth_light: SmoothLight,
@@ -125,24 +124,15 @@ impl Plugin for StreamPlugin {
 type MeshingSection = ([i32; 3], u32, Task<(SectionMesh, Scratch)>);
 type FarthestResidents = ([i32; 3], BinaryHeap<(u32, [i32; 3])>);
 
-/// The sections the server's columns hold, from queued to drawn, and the arena they are
-/// drawn out of.
 #[derive(Resource)]
 pub struct Loader {
     changes: Vec<ColumnChange>,
     columns: usize,
     sections_total: usize,
     sections: Sections,
-    /// Sections whose light or blocks a delta rewrote, present or not.
     stale: HashSet<[i32; 3]>,
-    /// Geometry of the meshes placed since the last flush. The flush queues it behind the kills
-    /// of the meshes whose room it reuses.
     geometry: Vec<Placement>,
-    /// Meshes replaced since the last flush. The GPU draws them until the records of their
-    /// replacements land, so their records die, and their room and slot come back, only behind
-    /// those records.
     replaced: Vec<Resident>,
-    /// Group blocks of rebuilt buckets, which the GPU draws until the new draw list lands.
     retired_blocks: Vec<Block>,
     meshing: Vec<MeshingSection>,
     scratches: Vec<Scratch>,
@@ -155,8 +145,6 @@ pub struct Loader {
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
-    /// Residents farthest first, as of the camera section it was built in. Entries go stale as
-    /// sections leave and are skipped when they surface.
     farthest: Option<FarthestResidents>,
     quads: Arena,
     models: Arena,
@@ -166,7 +154,6 @@ pub struct Loader {
     pub(crate) trace: Vec<TraceEvent>,
 }
 
-/// The block states the catalog has baked and still owes, and the bake running on the pool.
 #[derive(Resource)]
 pub struct BlockCatalog {
     pack: PackLoad,
@@ -201,12 +188,9 @@ struct Resident {
     faces: Block,
     slot: u32,
     connectivity: Connectivity,
-    /// Where this section's records sit in each bucket's list: first index and count.
     groups: [(u32, u32); DrawKind::COUNT],
 }
 
-/// A section's drawn mesh and what the pipeline does for it, apart: a relit section stays
-/// drawn while it is queued and meshed again.
 #[derive(Default)]
 struct Section {
     resident: Option<Resident>,
@@ -218,17 +202,12 @@ enum Work {
     #[default]
     Idle,
     Queued,
-    /// On the compute pool. An orphaned mesh was read out of a column that left or was sent
-    /// again meanwhile, so the world it holds is one nobody holds any more.
     Meshing {
         orphaned: bool,
     },
-    /// Meshed with no room in the arena, until an eviction or the camera moving makes some.
     Deferred,
 }
 
-/// One draw bucket's group records as the GPU holds them, dead ones kept as records with no quads
-/// until the bucket is rebuilt, so a change only ever writes the records it touched.
 struct DrawBucket {
     groups: Vec<Group>,
     block: Block,
@@ -236,8 +215,6 @@ struct DrawBucket {
     dead: usize,
     touched: Vec<(u32, u32)>,
     rebuild: bool,
-    /// The arena had no room for a new block beside the one the GPU draws, so the bucket
-    /// draws what its block holds; set to warn once.
     starved: bool,
 }
 
@@ -339,13 +316,10 @@ impl Loader {
         distance_from(self.camera, section)
     }
 
-    /// A section reads one block past its own faces, so it borders the eight
-    /// columns around its own and cannot be meshed until they have arrived.
     fn surrounded(&self, pos: ColumnPos, store: &ColumnStore) -> bool {
         (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
     }
 
-    /// Holds blocks, is not on the pool, and borders only columns that have arrived.
     fn meshable(&self, at: [i32; 3], store: &ColumnStore) -> bool {
         !self.sections.is_meshing(at)
             && store
@@ -380,8 +354,6 @@ impl Loader {
         self.sections.enqueue(at, camera);
     }
 
-    /// A section turns meshable when the last of the nine columns it reads arrives, which is
-    /// as often a neighbour of its own column as the column itself.
     fn enqueue_around(&mut self, pos: ColumnPos, extent: Extent, store: &ColumnStore) {
         for dz in -1..=1 {
             for dx in -1..=1 {
@@ -399,8 +371,6 @@ impl Loader {
         }
     }
 
-    /// The faces and the shade of a block reach into the sections that touch it, across a
-    /// face, an edge or a corner.
     fn mark_stale_around(&mut self, at: BlockPos) {
         let section = SectionPos::from(at);
         let local = LocalPos::from(at);
@@ -423,11 +393,6 @@ impl Loader {
         }
     }
 
-    /// A section whose light or blocks a delta rewrote has to be meshed again, and so do the
-    /// six around it: a face samples the light of the cell it faces, which for a
-    /// face on the section boundary lies in the neighbour. One still being meshed
-    /// waits for the next frame, since the task holds the light it started with. The mesh
-    /// a section has stays drawn until the new one replaces it.
     fn remesh_stale(&mut self, store: &ColumnStore, cave: &mut CaveCull) {
         for at in std::mem::take(&mut self.stale) {
             if self.sections.is_meshing(at) {
@@ -440,9 +405,6 @@ impl Loader {
         }
     }
 
-    /// Takes a landed mesh's section off the pool. A mesh read out of a column the server has
-    /// since taken back is thrown away rather than drawn, and its section queued again if the
-    /// column came back while the task ran.
     fn discard_orphan(&mut self, at: [i32; 3], slot: u32, store: &ColumnStore) -> bool {
         if self.sections.finish_meshing(at) != Some(true) {
             return false;
@@ -459,7 +421,6 @@ impl Loader {
         self.sections.requeue_deferred(camera);
     }
 
-    /// The nearest queued sections. Nothing more than distance decides the order yet.
     fn take_wanted(&mut self, want: usize, store: &ColumnStore) -> Vec<[i32; 3]> {
         if want == 0 || self.sections.queued() == 0 {
             return Vec::new();
@@ -528,8 +489,6 @@ impl Loader {
         }
     }
 
-    /// Kills the records of a mesh that leaves the screen and gives its room and slot back at
-    /// once: the next flush queues the kill ahead of any geometry written into the room.
     fn release(&mut self, section: [i32; 3], held: Resident, cave: &mut CaveCull) {
         if held.slot != NO_SLOT {
             self.doom(&held);
@@ -544,8 +503,6 @@ impl Loader {
         self.evicted += 1;
     }
 
-    /// Counts a mesh's records dead before they are zeroed, so a bucket they fill with dead
-    /// records is rebuilt.
     fn doom(&mut self, held: &Resident) {
         for (bucket, &(_, count)) in self.buckets.iter_mut().zip(&held.groups) {
             bucket.dead += count as usize;
@@ -571,9 +528,6 @@ impl Loader {
         }
     }
 
-    /// Takes what the server sent and took back since the last frame: a departed column's
-    /// sections leave the queue and the arena with it, and an arrived column is walked for the
-    /// block states the catalog still owes and queued for its tints.
     #[expect(
         clippy::excessive_nesting,
         reason = "marks every section around an arrived column for relighting across the three axes, so the diagonal neighbours stay beside the arrival that makes them stale"
@@ -611,9 +565,6 @@ impl Loader {
                         .push(TraceEvent::mark(pos, ColumnStage::Received));
                     self.columns += 1;
                     tints.to_tint.push(pos);
-                    // The column the change carries, not the one the store holds now: a column
-                    // the server took back before this drain is already gone from the store,
-                    // and its departure counts the sections this arrival has to have counted.
                     for (_, section) in column.sections() {
                         let Some(section) = section else { continue };
                         self.sections_total += 1;
@@ -632,10 +583,6 @@ impl Loader {
                     self.mark_stale_around(at);
                 }
                 ColumnChange::Relit(pos, rows) => {
-                    // A vertex takes its shade from the four cells around it, so
-                    // a section's mesh depends on the sections diagonally past
-                    // its edges as much as on the ones across its faces. Leaving
-                    // the diagonals stale draws a dark line along the seam.
                     for sy in rows {
                         for dy in -1..=1 {
                             for dz in -1..=1 {
@@ -672,8 +619,6 @@ impl Loader {
         }
     }
 
-    /// Places a mesh in the arena, in place of the one its section held, or hands it back
-    /// when there is no room.
     fn place(
         &mut self,
         mesh: SectionMesh,
@@ -783,8 +728,6 @@ impl Loader {
         Ok(())
     }
 
-    /// The touched records of every draw bucket as runs to write into its block. What lies past
-    /// a bucket's block waits for the rebuild that reaches it.
     fn touched_runs(&mut self) -> Vec<(u64, Vec<Group>)> {
         let mut runs = Vec::new();
         for bucket in &mut self.buckets {
@@ -823,19 +766,6 @@ impl Loader {
             .collect()
     }
 
-    /// Queues what changed since the last flush so that the GPU never draws a hole where a
-    /// mesh was replaced, nor a record over quads another mesh wrote. The uploads land one
-    /// after another, each cut anywhere by the per-frame budget:
-    ///
-    /// 1. The touched records, killing released meshes before their room is written again.
-    ///    New records lie past the draw list the GPU holds, so they draw nothing yet.
-    /// 2. The geometry of the meshes placed.
-    /// 3. Rebuilt buckets in fresh blocks, and the draw list, which the GPU swaps in only once
-    ///    the whole upload has landed.
-    /// 4. The kills of replaced meshes, which the GPU draws until the swap.
-    ///
-    /// Replaced room and slots and the blocks rebuilt buckets left come back once all of it
-    /// is queued.
     fn flush_to(&mut self, uploads: &Uploads) {
         if !self.dirty {
             return;
@@ -879,9 +809,6 @@ impl Loader {
         }
     }
 
-    /// Places a landed mesh, making room by evicting the farthest resident, or for a relit
-    /// section in a full arena by giving up the mesh it replaces, or leaves the section waiting
-    /// for room.
     fn land(&mut self, mesh: SectionMesh, slot: u32, cave: &mut CaveCull) {
         let at = mesh.section;
         let here = self.distance(at);
@@ -896,8 +823,6 @@ impl Loader {
             };
             pending = *back;
             if let Some(victim) = self.victim(here) {
-                // The victim is the farthest resident, so meshing it again could only end
-                // deferred; it waits for the camera to move instead.
                 self.evict(victim, cave);
                 self.sections.defer(victim);
             } else if let Some(own) = self.sections.take_resident(at) {
@@ -910,9 +835,6 @@ impl Loader {
         }
     }
 
-    /// Gives a fresh block to every draw bucket that outgrew the one it has or filled it with dead
-    /// records. The GPU draws the old block until the new draw list lands, so the new block is
-    /// taken beside it, and a bucket the arena has no such room for draws what its block holds.
     fn rebuild_blocks(&mut self) {
         for index in 0..DrawKind::COUNT {
             let bucket = &mut self.buckets[index];
@@ -936,7 +858,6 @@ impl Loader {
             bucket.starved = false;
             self.retired_blocks
                 .push(std::mem::replace(&mut bucket.block, block));
-            // A replaced mesh leaves a rebuilt bucket with the old block rather than by a kill.
             for held in &mut self.replaced {
                 let (first, count) = std::mem::take(&mut held.groups[index]);
                 kill(bucket, first, count);
@@ -945,9 +866,6 @@ impl Loader {
         }
     }
 
-    /// Packs a bucket's live records into the block it holds, keeping their order, or for a
-    /// blended bucket putting the farthest section first, and telling each resident section
-    /// where its records went.
     fn pack_bucket(&mut self, index: usize) {
         let camera = IVec3::from_array(self.camera_section());
         let Self {
@@ -963,7 +881,6 @@ impl Loader {
             .filter(|group| group.quad_count != 0)
             .collect();
         if blended(index) {
-            // Ties go by position so the order never depends on which section landed first.
             packed.sort_by_key(|group| {
                 let at = IVec3::from_array(owners[group.section as usize]);
                 let distance = (at - camera).as_i64vec3().length_squared();
@@ -1004,12 +921,10 @@ impl DrawBucket {
         }
     }
 
-    /// The records the bucket still draws, the dead ones it has not been rebuilt out of aside.
     fn live(&self) -> usize {
         self.groups.len() - self.dead
     }
 
-    /// Adds the records from `first` to `end` as a run at their place in the block.
     fn write(&self, first: u32, end: u32, runs: &mut Vec<(u64, Vec<Group>)>) {
         let Some(records) = self.groups.get(first as usize..end as usize) else {
             return;
@@ -1019,8 +934,6 @@ impl DrawBucket {
     }
 }
 
-/// Stops drawing the records from `first` on. Only the count is zeroed, so a record the
-/// budget cuts in two reads either its own quads or none.
 fn kill(bucket: &mut DrawBucket, first: u32, count: u32) {
     if let Some(groups) = bucket
         .groups
@@ -1032,8 +945,6 @@ fn kill(bucket: &mut DrawBucket, first: u32, count: u32) {
     }
 }
 
-/// The GUI textures and translations come from the pack the catalog bakes from, once it has
-/// loaded.
 pub fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
     if let Some(pack) = catalog.pack()
         && let Err(reason) = mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, &mut commands)
@@ -1066,8 +977,6 @@ impl BlockCatalog {
         }
     }
 
-    /// The catalog has to reach every state a resident column names before a
-    /// section holding one can be meshed against it.
     fn caught_up(&self) -> bool {
         self.to_bake.is_empty() && self.baking.is_none() && !self.blocks.is_empty()
     }
@@ -1097,7 +1006,6 @@ impl BlockCatalog {
         }
     }
 
-    /// The pack is read once, off the asset system, before anything can bake against it.
     fn poll_pack(&mut self, assets: &AssetServer) -> Option<Arc<ResourceSet>> {
         match &mut self.pack {
             PackLoad::Pending => {
@@ -1225,7 +1133,6 @@ impl ColumnTints {
         }
     }
 
-    /// Where a column's tint square sits in the tint texture, which the world wraps into.
     fn corner(&self, pos: ColumnPos) -> [u32; 2] {
         let wrapped = |axis: i32, size: u32| (axis * SECTION_SIZE as i32).rem_euclid(size as i32);
         [
@@ -1235,17 +1142,13 @@ impl ColumnTints {
     }
 }
 
-/// Touched runs of records this close together are written as one copy.
 const RUN_GAP: u32 = 64;
-/// The smallest block a draw bucket is rebuilt into, in records.
 const MIN_BLOCK: usize = 256;
 
 fn blended(index: usize) -> bool {
     DrawKind::from_index(index).is_some_and(DrawKind::translucent)
 }
 
-/// Every section the loader knows of by what it is doing, with the queue's buckets and the
-/// counts the status reads kept beside the states by the only code that changes them.
 #[derive(Default)]
 struct Sections {
     states: HashMap<[i32; 3], Section>,
@@ -1257,7 +1160,6 @@ struct Sections {
 struct Tally {
     queued: usize,
     residents: usize,
-    /// Every eviction requeues these, so they are not found by walking every state.
     deferred: HashSet<[i32; 3]>,
 }
 
@@ -1320,7 +1222,6 @@ impl Sections {
             .filter_map(|(at, section)| Some((*at, section.resident.as_ref()?)))
     }
 
-    /// Only a section that is not queued or on the pool can be queued.
     fn enqueue(&mut self, at: [i32; 3], camera: [i32; 3]) {
         if !matches!(self.work(at), Work::Idle | Work::Deferred) {
             return;
@@ -1336,7 +1237,6 @@ impl Sections {
         }
     }
 
-    /// The queued section nearest the camera, taken out of the queue.
     fn pop_nearest(&mut self, camera: [i32; 3]) -> Option<[i32; 3]> {
         if self.tally.queued == 0 {
             return None;
@@ -1359,7 +1259,6 @@ impl Sections {
         self.set_work(at, Work::Meshing { orphaned: false });
     }
 
-    /// Ends a section's meshing, telling whether the mesh was orphaned on the way.
     fn finish_meshing(&mut self, at: [i32; 3]) -> Option<bool> {
         let Work::Meshing { orphaned } = self.work(at) else {
             return None;
@@ -1368,7 +1267,6 @@ impl Sections {
         Some(orphaned)
     }
 
-    /// Makes `held` the section's drawn mesh, handing back the one it replaces.
     fn settle(&mut self, at: [i32; 3], held: Resident) -> Option<Resident> {
         let replaced = self.states.entry(at).or_default().resident.replace(held);
         if replaced.is_none() {
@@ -1377,7 +1275,6 @@ impl Sections {
         replaced
     }
 
-    /// A section that is queued or on the pool goes on with that instead.
     fn defer(&mut self, at: [i32; 3]) {
         if self.work(at) == Work::Idle {
             self.set_work(at, Work::Deferred);
@@ -1391,8 +1288,6 @@ impl Sections {
         Some(held)
     }
 
-    /// The section's column left: it stops waiting, and a mesh still being read out of it is
-    /// orphaned. A resident mesh is the caller's to evict.
     fn depart(&mut self, at: [i32; 3]) {
         match self.work(at) {
             Work::Meshing { .. } => self.set_work(at, Work::Meshing { orphaned: true }),
@@ -1408,23 +1303,15 @@ impl Sections {
     }
 }
 
-/// Sections waiting to be meshed, bucketed by how many sections they lie from a reference
-/// position along their farthest axis, so the nearest come out first without ever sorting the
-/// whole queue. The reference follows the camera in steps of `QUEUE_STEP` sections, and each
-/// step rebuckets everything, so the order is never staler than that. Whether an entry is
-/// still queued is the section's state, not the bucket's.
 #[derive(Default)]
 struct MeshQueue {
     buckets: Vec<Vec<[i32; 3]>>,
     reference: [i32; 3],
-    /// Entries across the buckets, those since taken out of the queue included.
     entries: usize,
     scratch: Vec<[i32; 3]>,
 }
 
-/// Buckets past this distance share the last one.
 const QUEUE_BUCKETS: usize = 256;
-/// How far the camera moves from the reference before the queue is rebucketed.
 const QUEUE_STEP: usize = 8;
 
 impl MeshQueue {
@@ -1466,8 +1353,6 @@ impl MeshQueue {
         None
     }
 
-    /// Buckets every live entry afresh around the camera, dropping the entries whose sections
-    /// have since left the queue.
     fn rebucket(&mut self, camera: [i32; 3], is_queued: impl Fn([i32; 3]) -> bool) {
         self.scratch.clear();
         for bucket in &mut self.buckets {
@@ -1486,9 +1371,6 @@ fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
 }
 
-/// Measured from the middle of the camera's section rather than the camera itself, so the order
-/// does not depend on where inside that section the camera was when a key was taken. Distances
-/// are never negative, so their bit patterns order the same way they do.
 fn heap_key(camera_section: [i32; 3], section: [i32; 3]) -> u32 {
     let middle = (Vec3::from_array(camera_section.map(|n| n as f32)) + 0.5) * SECTION_SIZE as f32;
     distance_from(middle, section).to_bits()
@@ -1565,8 +1447,6 @@ fn bake_catalog(
     }
 }
 
-/// The tint table follows the session's biomes: it is rebuilt whole when the set is replaced,
-/// and built from the first set once the pack is in, since the colormaps are read from it.
 fn derive_biome_tints(
     registries: Res<CurrentRegistries>,
     catalog: Res<BlockCatalog>,
@@ -1595,7 +1475,6 @@ fn derive_biome_tints(
     }
 }
 
-/// The tint table holds the numbers of the set it was derived from, so a new set drops it.
 fn clear_biome_tints(mut commands: Commands) {
     commands.remove_resource::<BiomeTints>();
 }
@@ -1636,7 +1515,6 @@ fn tint_columns(
     }
 }
 
-/// A section's mesh off the pool, with the slot it was meshed for and the scratch it borrowed.
 type Landed = ([i32; 3], u32, (SectionMesh, Scratch));
 
 fn place_meshes(
@@ -1672,8 +1550,6 @@ pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     loader.flush_to(&uploads);
 }
 
-/// The directional shade table follows the `cardinal_light` of the dimension type the player
-/// is in.
 fn apply_dimension_shade(
     current: Single<&CurrentDimension, Changed<CurrentDimension>>,
     registries: Res<CurrentRegistries>,
@@ -1688,8 +1564,6 @@ fn apply_dimension_shade(
     shade.set_if_neq(TerrainShade(table));
 }
 
-/// A change of the light options or of the shade table meshes every drawn section again; the
-/// old mesh stays drawn until the new one replaces it.
 fn remesh_on_light_options(
     options: Res<LightOptions>,
     shade: Res<TerrainShade>,
@@ -1960,7 +1834,6 @@ mod tests {
         );
     }
 
-    /// Flushes the loader, handing back what it queued.
     fn flushed(loader: &mut Loader) -> Vec<Placement> {
         let uploads = Uploads::default();
         loader.flush_to(&uploads);
@@ -1972,11 +1845,8 @@ mod tests {
             .collect()
     }
 
-    /// The terrain buffers as the GPU holds them, landed a word at a time because the upload
-    /// budget may cut an upload anywhere. A placement's draw list swaps in once it has landed.
     #[derive(Default)]
     struct Gpu {
-        /// The section whose mesh last wrote each quad.
         quads: HashMap<u64, [i32; 3]>,
         slots: HashMap<u32, [i32; 3]>,
         groups: HashMap<u64, Group>,
@@ -1984,8 +1854,6 @@ mod tests {
     }
 
     impl Gpu {
-        /// Flushes the loader and lands what it queued. After every word it checks that no
-        /// drawn record reads quads the mesh of another section wrote, then calls `check`.
         fn flush(&mut self, loader: &mut Loader, mut check: impl FnMut(&Self)) {
             for placement in flushed(loader) {
                 if let Some(desc) = placement.sections.1.first() {
@@ -2039,7 +1907,6 @@ mod tests {
             check(self);
         }
 
-        /// The records the solid greedy draw bucket draws.
         fn drawn(&self) -> Vec<Group> {
             let Some(greedy) = self.draws.first() else {
                 return Vec::new();
@@ -2106,7 +1973,6 @@ mod tests {
         );
     }
 
-    /// A mesh whose records land in the three greedy buckets, so many at a time.
     fn greedy_groups(section: [i32; 3], slot: u32, counts: [u32; 3]) -> SectionMesh {
         let mut draws = [SectionDraw::default(); DrawKind::COUNT];
         for (index, count) in counts.iter().enumerate() {
@@ -2148,8 +2014,6 @@ mod tests {
         });
         let mut cave = CaveCull::new(1 << 10, true);
 
-        // Each bucket takes its new block beside the one the GPU draws, from an arena sized to
-        // hold two of each, and gives the old one back behind the draw list that leaves it.
         let counts = [1u32, 3, 2];
         let placed = 342u32;
         let mut draws = Vec::new();
@@ -2281,8 +2145,6 @@ mod tests {
         );
     }
 
-    /// Stone in the nine columns around the origin, so the section there is meshable, and a
-    /// loader whose quad arena holds `meshes` meshes of three quads.
     fn relit_fixture(meshes: usize) -> (Loader, ColumnStore) {
         use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
 
@@ -2314,7 +2176,6 @@ mod tests {
         (loader, store)
     }
 
-    /// Lands a mesh of three quads for `at` the way the pool hands it over, returning its slot.
     fn land_mesh(loader: &mut Loader, at: [i32; 3], cave: &mut CaveCull) -> u32 {
         let slot = loader.take_slot().expect("a free slot");
         loader.sections.dequeue(at);
@@ -2335,9 +2196,6 @@ mod tests {
         }
         gpu.flush(&mut loader, |_| {});
 
-        // The first relight finds the arena full and evicts the far section, whose room the
-        // new mesh takes; the second finds the room the first gave back, and leaves the bucket
-        // dead enough to be rebuilt.
         for _ in 0..2 {
             loader.stale.insert(relit);
             loader.remesh_stale(&store, &mut cave);
@@ -2450,7 +2308,6 @@ mod tests {
             "with the column gone there is nothing to mesh again"
         );
 
-        // The same again, only the server sends the column back before the mesh lands.
         loader.sections.start_meshing(centre);
         store.insert(ColumnPos::new(0, 0), stone());
         store.remove(ColumnPos::new(0, 0));
@@ -2570,8 +2427,6 @@ mod tests {
             });
             let mut cave = CaveCull::new(1 << 13, true);
 
-            // Past 2048 records the bucket wants the whole arena, which it cannot take while
-            // the GPU still draws the block it has.
             let mut last = Vec::new();
             for index in 0..3000u32 {
                 loader
@@ -2605,8 +2460,6 @@ mod tests {
 mod mesh_queue_tests {
     use super::*;
 
-    /// A section requeued after its first entry was left behind sits in the
-    /// buckets twice, so the rebucket has to count what it actually holds.
     #[test]
     fn a_requeued_section_does_not_underflow_the_entry_count() {
         let mut sections = Sections::default();

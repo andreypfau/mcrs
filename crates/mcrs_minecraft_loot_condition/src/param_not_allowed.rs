@@ -4,8 +4,6 @@ use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 
 use crate::context_param::ContextParam;
 
-/// A part of a table reads a parameter that the type of the table does not allow
-/// (LOOT-CTX-013). The load fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParamNotAllowed {
     pub param: ContextParam,

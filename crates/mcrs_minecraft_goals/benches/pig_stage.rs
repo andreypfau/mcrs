@@ -1,11 +1,3 @@
-//! One stage tick of 50,000 pigs on 32 × 32 tiles, at 1, 8 and 16 threads: only the parallel map
-//! of the tile tasks is timed, not the snapshot that the pen publishes nor its hot step. Each pig
-//! acts as if a player stood near it, so it strolls (the most awake case of a pig); 64 players
-//! stand in the pen, and a pig takes a hit about once in 4000 ticks. Before the timed runs, the
-//! bench prints the full evaluations and the decisions of a tick, in the sleeping and the polling
-//! stage, and in the sleeping stage with the idle time of the reference, where the pigs far from
-//! the 64 players stop to stroll.
-
 use std::time::Duration;
 use std::time::Instant;
 
@@ -48,7 +40,6 @@ fn pen(wake: WakeMode, idle: IdleRule) -> PigPen {
     pen
 }
 
-/// Steps the pen once and returns the time of the parallel map of its tile tasks.
 fn timed_step(pen: &mut PigPen, pool: &ThreadPool, threads: usize) -> Duration {
     let mut elapsed = Duration::ZERO;
     pen.step(

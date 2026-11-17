@@ -29,7 +29,6 @@ pub struct Terrain {
     pub(super) binds: Bindings,
     pub(super) shaders: Shaders,
     pub(super) list: DrawList,
-    /// The GPU cull, which only the full path has.
     pub(super) cull: Option<Cull>,
 }
 
@@ -54,14 +53,10 @@ impl Terrain {
         &self.binds.draw
     }
 
-    /// The depth pyramid that the second terrain pass builds from the depth of the full frame,
-    /// on the path that culls against one.
     pub fn depth_pyramid(&self) -> Option<&TextureView> {
         self.cull.as_ref().map(|cull| &cull.hiz.view)
     }
 
-    /// The levels of the depth pyramid that a cull can read in this frame; 0 when the
-    /// second terrain pass did not build it.
     pub fn depth_pyramid_levels(
         &self,
         occlusion: &Occlusion,
@@ -73,7 +68,6 @@ impl Terrain {
         }
     }
 
-    /// The levels the terrain's own cull tests against, which are the last frame's.
     pub(super) fn hiz_levels(&self, occlusion: &Occlusion) -> u32 {
         match &self.cull {
             Some(cull) if occlusion.0 => cull.hiz.levels(),
@@ -81,12 +75,10 @@ impl Terrain {
         }
     }
 
-    /// The indirect arguments of the terrain draws, on the path that draws indirectly.
     pub fn draw_args(&self) -> Option<&Buffer> {
         self.cull.as_ref().map(Cull::args)
     }
 
-    /// Whether this frame has a second cull, and so a second set of draws after the first.
     pub fn second_pass(&self, occlusion: &Occlusion, pipeline_cache: &PipelineCache) -> bool {
         occlusion.0
             && self
@@ -95,7 +87,6 @@ impl Terrain {
                 .is_some_and(|cull| cull.second_pass(&self.list, pipeline_cache))
     }
 
-    /// Hands the cull the sections the cave walk reaches. The minimal path draws every section.
     pub fn write_cave_visibility(&self, queue: &RenderQueue, bits: &[u32]) {
         if let Some(cull) = &self.cull {
             queue.write_buffer(cull.cave(), 0, bytemuck::cast_slice(bits));
@@ -112,9 +103,6 @@ impl Terrain {
         );
     }
 
-    /// Sizes the visible list to the draws as they stand and restates the
-    /// per-draw parameters, so a world that has grown is drawn whole rather
-    /// than up to a share of a fixed list.
     pub(crate) fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
         if let Err(kind) = self.list.rebuild() {
             error!(
@@ -184,8 +172,6 @@ pub(super) fn init_terrain(
     });
 }
 
-/// The lightmap follows the three light colours and the brightness alone, which move at tick rate
-/// and often not at all, so a frame whose inputs match the last one uploads nothing.
 pub(super) fn write_lightmap(
     terrain: Option<Res<Terrain>>,
     sky: Option<Res<ExtractedSky>>,

@@ -6,9 +6,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 
 use crate::attribute_state::AttributeState;
 
-/// The syncable attribute instances of a mob or a player that its spawn gave or that changed
-/// after it, with the latest state of each, and the ones that its next update owes its viewers
-/// (ATR-NET-003).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SubjectAttributes {
     bases: Option<AttributeBases>,
@@ -17,7 +14,6 @@ pub(crate) struct SubjectAttributes {
 }
 
 impl SubjectAttributes {
-    /// The instances of `stored`, one for each attribute, that no update owes.
     pub(crate) fn with_stored(bases: Option<AttributeBases>, stored: Vec<AttributeState>) -> Self {
         Self {
             bases,
@@ -26,7 +22,6 @@ impl SubjectAttributes {
         }
     }
 
-    /// Holds `state` and owes it to the next update.
     pub(crate) fn record(&mut self, state: &AttributeState) {
         match self
             .held
@@ -41,8 +36,6 @@ impl SubjectAttributes {
         }
     }
 
-    /// Appends the `update_attributes` of the instances that changed after the last update, when
-    /// one did.
     pub(crate) fn write_unsent(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
         if self.unsent.is_empty() {
             return Ok(());
@@ -54,14 +47,10 @@ impl SubjectAttributes {
         self.unsent.clear();
     }
 
-    /// Appends the `update_attributes` of the spawn bundle (TRK-DATA-004): each held instance
-    /// that is not that of a new entity of the type, when one is.
     pub(crate) fn write_spawn(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
         self.write(id, |held| held.instance.is_some(), bytes)
     }
 
-    /// Appends the `update_attributes` of every instance that changed after the spawn, for a
-    /// client that missed updates.
     pub(crate) fn write_all(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
         self.write(id, |_| true, bytes)
     }

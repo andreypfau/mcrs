@@ -3,9 +3,6 @@ use mcrs_minecraft_text::{Color, Text, TextTypes};
 
 use crate::RunStyle;
 
-/// The text of `text` with its styles as `§` formatting codes of the Java edition, with each
-/// translation filled in from `language`. A colour that has no code becomes the nearest one
-/// that has. Click and hover events, fonts and shadow colours have no code and are dropped.
 #[must_use]
 pub fn legacy_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String {
     let mut out = String::new();
@@ -36,7 +33,6 @@ fn write_change(out: &mut String, from: RunStyle, to: RunStyle) {
     if lost {
         out.push_str("§r");
     }
-    // A colour code clears the flags before it, as a reset does.
     let cleared = lost || from.color != to.color;
     if cleared && let Some(color) = to.color {
         let named = match color {

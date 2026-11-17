@@ -9,8 +9,6 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 
-/// The material rules take their biome ids from the registry, because it is
-/// what `MultiNoiseBiomeTable` fills the column's biome grid with.
 pub fn build_router(
     registries: &Registries,
     settings: &NoiseGeneratorSettings,
@@ -21,9 +19,6 @@ pub fn build_router(
     build_dimension_router(registries, settings, seed, &block)
 }
 
-/// The fill adds the beard to `final_density` once the graph is evaluated,
-/// which is the graph's own value only while the beardifier is the outermost
-/// addend, so any other shape would silently lose the term.
 pub fn refuse_misplaced_beardifier(
     registries: &Registries,
     dimension: &ResourceLocationBuf,

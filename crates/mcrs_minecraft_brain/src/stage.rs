@@ -20,9 +20,6 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The brains of the mobs of one world, by tile. A tick of the stage is a parallel map over its
-/// tiles ([`Stage::work`] and [`TileWork::run`]) and a gather ([`Stage::collect`]); the result does
-/// not depend on the thread count or on the split of the tiles into tasks.
 #[derive(Clone, Debug)]
 pub struct Stage<B> {
     config: StageConfig,
@@ -36,7 +33,6 @@ struct Location {
     key: EntityKey,
 }
 
-/// The read-only inputs of the tile tasks of one stage tick.
 #[derive(Debug)]
 pub struct TickContext<'a, W: ?Sized> {
     pub tick: u64,
@@ -45,7 +41,6 @@ pub struct TickContext<'a, W: ?Sized> {
     pub world: &'a W,
 }
 
-/// The work of one tile in one stage tick.
 #[derive(Debug)]
 pub struct TileWork<'a, B> {
     tile: TileKey,
@@ -67,8 +62,6 @@ impl<B> Stage<B> {
         &self.config
     }
 
-    /// Adds the brain of a mob that entered `tile`; its first full evaluation is the first of
-    /// `cadence`. A mob that the stage keeps already loses its old brain.
     pub fn spawn(
         &mut self,
         tile: TileKey,
@@ -86,7 +79,6 @@ impl<B> Stage<B> {
         self.locations.insert(mob, Location { tile, key });
     }
 
-    /// Removes the brain of a mob that left the world.
     pub fn despawn(&mut self, mob: EntityId) -> Option<B> {
         let location = self.locations.remove(&mob)?;
         let tiles = self.tiles.get_mut(&location.tile)?;
@@ -97,7 +89,6 @@ impl<B> Stage<B> {
         removed.map(|removed| removed.brain)
     }
 
-    /// Moves the brain of a mob that the hot tick moved into another tile.
     pub fn relocate(&mut self, mob: EntityId, to: TileKey) {
         let Some(location) = self.locations.get_mut(&mob) else {
             return;
@@ -125,8 +116,6 @@ impl<B> Stage<B> {
         }
     }
 
-    /// Moves each brain of `moves` as [`Self::relocate`] does, with one pass over each tile that a
-    /// brain leaves or enters.
     pub fn relocate_all(&mut self, moves: impl IntoIterator<Item = (EntityId, TileKey)>) {
         let mut leaving: BTreeMap<TileKey, Vec<EntityKey>> = BTreeMap::new();
         let mut targets: BTreeMap<EntityKey, TileKey> = BTreeMap::new();
@@ -162,7 +151,6 @@ impl<B> Stage<B> {
         }
     }
 
-    /// The tile of `mob`.
     #[must_use]
     pub fn tile_of(&self, mob: EntityId) -> Option<TileKey> {
         self.locations.get(&mob).map(|location| location.tile)
@@ -182,13 +170,11 @@ impl<B> Stage<B> {
         self.tiles.iter().map(|(&tile, brains)| (tile, brains))
     }
 
-    /// The count of full evaluations that the stage ran.
     #[must_use]
     pub fn evaluations(&self) -> u64 {
         self.tiles.values().map(TileBrains::evaluations).sum()
     }
 
-    /// The tile tasks of one tick, in tile order. Each task borrows only its own tile.
     pub fn work(&mut self) -> Vec<TileWork<'_, B>> {
         self.tiles
             .iter_mut()
@@ -196,7 +182,6 @@ impl<B> Stage<B> {
             .collect()
     }
 
-    /// Gathers the decisions that the tile tasks of `tick` made.
     pub fn collect(&mut self, tick: u64) -> IssuedDecisions {
         let mut issued = IssuedDecisions {
             tick,
@@ -217,8 +202,6 @@ impl<B> TileWork<'_, B> {
         self.tile
     }
 
-    /// The full evaluations of the tick in this tile: each mob that a fact or its own wake tick
-    /// names, in the order of the order keys.
     pub fn run<W: ?Sized>(&mut self, cx: &TickContext<'_, W>)
     where
         B: MobBrain<W>,

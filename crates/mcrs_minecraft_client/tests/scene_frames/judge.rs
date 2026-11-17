@@ -8,10 +8,8 @@ use crate::run::Paths;
 
 const BACKGROUND: &str = ".background";
 
-/// How far the mask of an entity grows past the pixels that differ.
 const MASK_GROWTH: i64 = 2;
 
-/// A person 0.7 m from a monitor 0.7 m wide with 3840 pixels across.
 const VIEWING_DISTANCE: f32 = 0.7;
 const MONITOR_WIDTH: f32 = 0.7;
 const MONITOR_PIXELS: f32 = 3840.0;
@@ -22,7 +20,6 @@ pub struct Thresholds {
     pub out_of_mask: f32,
 }
 
-/// The proposed limits of the mean FLIP error of each scene.
 pub fn thresholds(scene: &str) -> Thresholds {
     let in_mask = match scene {
         "pig_idle" | "pig_lineup" => 0.05,
@@ -35,13 +32,11 @@ pub fn thresholds(scene: &str) -> Thresholds {
     }
 }
 
-/// The mean FLIP errors of one mcrs frame against the vanilla frame of the same name.
 #[derive(Debug)]
 pub struct Score {
     pub scene: String,
     pub frame: String,
     pub mask_pixels: usize,
-    /// `None` when the mask is empty, as it is for every background frame.
     pub in_mask: Option<f32>,
     pub out_of_mask: Option<f32>,
 }
@@ -51,13 +46,10 @@ impl Score {
         self.frame.ends_with(BACKGROUND)
     }
 
-    /// The verdict of the work on entities (CFC-CMP-001, items 5 and 6): the mean in the mask
-    /// decides; the mean out of the mask and a background frame are information only.
     pub fn passes(&self, limits: Thresholds) -> bool {
         self.in_mask.is_none_or(|mean| mean <= limits.in_mask)
     }
 
-    /// Whether the mean out of the mask is within its limit, which is information only.
     pub fn out_of_mask_within(&self, limits: Thresholds) -> bool {
         self.out_of_mask
             .is_none_or(|mean| mean <= limits.out_of_mask)
@@ -74,8 +66,6 @@ struct Record {
     image: String,
 }
 
-/// Scores each frame of the vanilla record of `scene` and writes its FLIP error image to
-/// `<report>/<scene>.<frame>.flip.png`.
 pub fn judge(scene: &str, paths: &Paths) -> Vec<Score> {
     let text = paths
         .vanilla_frames
@@ -161,8 +151,6 @@ impl Mean {
     }
 }
 
-/// The pixels where the frame and its background frame differ in a channel, grown by
-/// `MASK_GROWTH` pixels in each direction, in row order.
 fn entity_mask(frame: &RgbImage, background: &RgbImage) -> Vec<bool> {
     let (width, height) = frame.dimensions();
     let (width, height) = (i64::from(width), i64::from(height));
@@ -199,7 +187,6 @@ fn read_rgb(path: &Path) -> RgbImage {
         .into_rgb8()
 }
 
-/// One line for each score, with the limits and the verdict.
 pub fn report(scores: &[Score]) -> String {
     let mut text = String::from("scene\tframe\tmask_px\tin_mask\tout_of_mask\tlimits\tverdict\n");
     for score in scores {
@@ -234,8 +221,6 @@ fn shown(mean: Option<f32>) -> String {
     mean.map_or_else(|| "-".to_owned(), |mean| format!("{mean:.4}"))
 }
 
-/// Writes the report of `scores` to `<report>/<name>.txt`, prints it, and fails when the mean in
-/// the mask of a frame with entities is over its limit.
 pub fn conclude(name: &str, scores: &[Score], paths: &Paths) {
     let text = report(scores);
     let path = paths.report().join(format!("{name}.txt"));

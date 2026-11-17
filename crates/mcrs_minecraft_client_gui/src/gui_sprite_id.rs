@@ -1,4 +1,3 @@
-/// A GUI sprite of the widgets, resolved to its place in the GUI atlas at load.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GuiSpriteId {
     TooltipBackground,
@@ -27,7 +26,6 @@ pub enum GuiSpriteId {
 }
 
 impl GuiSpriteId {
-    /// Every sprite, in the order of declaration.
     pub(crate) const ALL: [Self; 23] = [
         Self::TooltipBackground,
         Self::TooltipFrame,
@@ -54,7 +52,6 @@ impl GuiSpriteId {
         Self::TabSelectedHighlighted,
     ];
 
-    /// The path `p` of the sprite `minecraft:p`.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {

@@ -1,8 +1,6 @@
 use crate::EntityKey;
 use crate::entity_key::mix;
 
-/// A random stream that is a function of the UUID of an entity and a tick: one value for each entity and
-/// tick, independent of the order of the entities and of other uses of a random source.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyedStream {
     seed: u64,
@@ -19,7 +17,6 @@ impl KeyedStream {
         Self { seed }
     }
 
-    /// A value from 0 to `bound - 1`; 0 for a bound of 0.
     #[inline]
     #[must_use]
     pub fn below(&self, bound: u32) -> u32 {
@@ -29,8 +26,6 @@ impl KeyedStream {
         ((mix(self.seed) >> 32) % u64::from(bound)) as u32
     }
 
-    /// The uniform value number `draw` of the stream, in `[0, 1)`: 53 random bits, so each value
-    /// is exact in f64 and no draw rounds up to 1.
     #[inline]
     #[must_use]
     pub fn unit(&self, draw: u64) -> f64 {

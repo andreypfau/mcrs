@@ -13,12 +13,9 @@ use crate::synced_data::SyncedData;
 use crate::ticking_area::TickingArea;
 use crate::walk::{self, BABY_WALK_SCALE};
 
-/// One tick of every client entity that ticks.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClientEntityTick;
 
-/// Whether an entity at `position` is in the ticking area: `area` holds its column. With no
-/// area every entity ticks.
 #[must_use]
 pub fn in_ticking_area<A: TickingArea>(area: Option<&A>, position: DVec3) -> bool {
     let column = ColumnPos::new(
@@ -28,8 +25,6 @@ pub fn in_ticking_area<A: TickingArea>(area: Option<&A>, position: DVec3) -> boo
     area.is_none_or(|area| area.holds(column))
 }
 
-/// Runs one tick of one entity, in the order of the tick of a living entity. A simulated entity
-/// gets only its previous placement and its age here; the systems of its type move it.
 pub fn tick_entity(
     entity: &ClientEntity,
     motion: &mut Motion,

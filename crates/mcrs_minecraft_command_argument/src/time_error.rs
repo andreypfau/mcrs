@@ -2,13 +2,10 @@ use core::fmt;
 use mcrs_minecraft_command::ErrorText;
 use mcrs_minecraft_text::Text;
 
-/// The errors of a tick count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TimeError {
-    /// The unit after the number is none of `d`, `s` and `t`.
     TimeInvalidUnit,
-    /// The tick count is below the minimum of the argument.
     TickCountTooLow { min: i32, ticks: i32 },
 }
 

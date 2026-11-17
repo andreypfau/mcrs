@@ -1,8 +1,3 @@
-//! The figure view draws a player into a target of its host with the fixed light of the figure.
-//!
-//! ```sh
-//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
-//! ```
 use crate::support;
 use glam::{Mat4, Vec3};
 use mcrs_minecraft_entity_render::{
@@ -15,7 +10,6 @@ const SIDE: u32 = 64;
 const SKIN: [u8; 4] = [200, 120, 60, 255];
 const CLEAR: [u8; 4] = [0, 0, 0, 0];
 
-/// The face factor of a face that points to the viewer, with the light directions of the figure.
 const FRONT_FACTOR: f32 = 0.8201;
 
 #[test]
@@ -41,21 +35,14 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
     entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
     gpu.queue.submit([encoder.finish()]);
 
-    // Figure space x and y map to the screen, z points to the viewer: x in [-1, 1] and y in
-    // [0, 2] fill the target, and the depth grows toward the viewer.
     let figure = FigureFrame {
         clip_from_figure: Mat4::from_cols_array(&[
-            1.0, 0.0, 0.0, 0.0, //
-            0.0, 1.0, 0.0, 0.0, //
-            0.0, 0.0, 0.1, 0.0, //
-            0.0, -1.0, 0.5, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, -1.0, 0.5, 1.0,
         ]),
         lights: [Vec3::new(0.2, 1.0, 1.0), Vec3::new(-0.2, 1.0, 0.0)],
     };
     let lightmap = white_lightmap(&gpu);
     let sampler = gpu.device.create_sampler(&Default::default());
-    // A target that encodes on write stores the same bytes as a plain one: the figure decodes
-    // its colour before the write.
     for color in [
         wgpu::TextureFormat::Rgba8Unorm,
         wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -73,7 +60,6 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
 
         let target = texture(&gpu, targets.color, wgpu::TextureUsages::COPY_SRC);
         let depth = texture(&gpu, targets.depth, wgpu::TextureUsages::empty());
-        // The head fills the rows above 16; the scissor leaves it out.
         let scissor_top = 20;
         draw_figure(&mut encoder, &entity_gpu, &target, &depth, scissor_top);
         let texels = read_texture(&gpu, encoder, &target);
@@ -82,8 +68,6 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
             texels.get(at..at + 4).unwrap().try_into().unwrap()
         };
 
-        // The front of the body at the middle of the target, below the scissor top. Its face
-        // points to the viewer; the target rounds each channel, so it may differ by one step.
         let expected = SKIN.map(|channel| (f32::from(channel) * FRONT_FACTOR).round() as i16);
         let drawn = texel(SIDE / 2, 28);
         for (channel, (&got, want)) in drawn.iter().zip(expected).take(3).enumerate() {
@@ -110,8 +94,6 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
     }
 }
 
-/// Draws the figure view into `target` and `depth`, cleared, with the scissor below the row
-/// `scissor_top`.
 fn draw_figure(
     encoder: &mut wgpu::CommandEncoder,
     entity_gpu: &EntityGpu,
@@ -146,8 +128,6 @@ fn draw_figure(
     entity_gpu.encode_figure_draw(&mut pass);
 }
 
-/// An arena with one player with the model `default` and the skin of the library, at the
-/// origin of figure space, in the figure view only, at the light levels 15 and 15.
 fn player_arena(pack: &EntityPack, library: &EntityLibrary) -> SlotArena {
     let (definition, player) = pack.entity("minecraft:player").unwrap();
     let at = player
@@ -196,7 +176,6 @@ fn player_arena(pack: &EntityPack, library: &EntityLibrary) -> SlotArena {
     arena
 }
 
-/// A lightmap of white texels, so the light of the figure keeps its colour.
 fn white_lightmap(gpu: &support::Gpu) -> wgpu::TextureView {
     let lightmap = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("white lightmap"),
@@ -225,7 +204,6 @@ fn white_lightmap(gpu: &support::Gpu) -> wgpu::TextureView {
     lightmap.create_view(&Default::default())
 }
 
-/// The texels of `target` after the commands of `encoder`.
 fn read_texture(
     gpu: &support::Gpu,
     mut encoder: wgpu::CommandEncoder,

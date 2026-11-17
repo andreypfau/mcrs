@@ -119,12 +119,9 @@ pub(super) fn build_occlusion(
     );
 }
 
-/// Vertices of one instance on the minimal path: room for every quad a group may hold.
 const GROUP_VERTICES: u32 = GROUP_QUADS as u32 * VERTICES_PER_QUAD;
 const GROUP_BYTES: u64 = size_of::<Group>() as u64;
 
-/// `row` picks the first pass's draw args or the second's; the minimal path draws every group of
-/// a draw directly. A [`DrawKind`] `pipeline_of` has no pipeline for is skipped.
 pub fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
@@ -152,8 +149,6 @@ pub fn draw_layer_group<'pass>(
         match (&terrain.cull, terrain.arenas.groups.words.buffer()) {
             (Some(cull), _) => pass.draw_indirect(cull.args(), row.offset_bytes(draw.kind)),
             (None, Some(groups)) => {
-                // The draw's block of the group arena is its instances, from instance zero: a
-                // first instance is not something every backend adds to the instance index.
                 let first = u64::from(draw.first_group) * GROUP_BYTES;
                 let end = first + u64::from(draw.group_count) * GROUP_BYTES;
                 pass.set_vertex_buffer(0, groups.slice(first..end));
@@ -183,8 +178,6 @@ pub(crate) struct DeferredParams<'w> {
     sky: SkyDraws<'w>,
 }
 
-/// A frame drawn with Improved Transparency: the option is on, its targets and pipelines exist,
-/// the clouds can be drawn into the cloud image, and the view shows final shading.
 struct Transparency<'a> {
     targets: &'a TransparencyTargets,
     pipelines: &'a TransparencyPipelines,
@@ -200,7 +193,6 @@ impl DeferredParams<'_> {
         .then_some(Transparency { targets, pipelines })
     }
 
-    /// A view whose program is still compiling shows final shading.
     fn display(&self) -> Display {
         let display = self.views.display(*self.selected);
         match display.lighting {
@@ -294,11 +286,6 @@ type SkyView = (
     &'static ExtractedCamera,
 );
 
-/// The sky is drawn into the world image first, in a pass of its own: its pipelines draw finite
-/// geometry with no depth test, so it cannot go behind the lit terrain later. The world image is
-/// cleared to the camera's clear colour, as the view target would be. With Improved Transparency
-/// the sky goes into the sky image instead, cleared to the fog colour, and the clouds into the
-/// cloud image.
 pub(crate) fn draw_gbuffer(
     view: ViewQuery<SkyView>,
     params: DeferredParams,
@@ -388,14 +375,11 @@ pub(crate) fn draw_gbuffer_second(
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer second", frame, depth, false);
     params.draw_opaque(&mut pass, terrain, DrawArgRow::SecondPassDraws);
     drop(pass);
-    // The next frame's first pass tests against this: built from the whole frame's depth,
-    // what this pass revived is not hidden again there only to be revived once more.
     if let Some(cull) = &terrain.cull {
         cull.hiz.build(&params.cache, None, ctx.command_encoder());
     }
 }
 
-/// The fragment leaves every pixel at depth 0 alone, which is the sky.
 pub(crate) fn draw_lighting(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
@@ -477,8 +461,6 @@ pub(crate) fn draws_forward(params: DeferredParams) -> bool {
     params.display().forward
 }
 
-/// Drawn over the lit frame the way the classic path draws it, with the lighting pass's shading.
-/// With Improved Transparency the lighting pass has composited the cloud image already.
 pub(crate) fn draw_forward_deferred(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
@@ -499,7 +481,6 @@ pub(crate) fn draw_forward_deferred(
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("forward"),
         color_attachments: &color_attachments,
-        // The last reader of this frame's depth: the GUI pass clears it next.
         depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Discard)),
         timestamp_writes: None,
         occlusion_query_set: None,

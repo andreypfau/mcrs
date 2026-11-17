@@ -4,14 +4,10 @@ use crate::reader::{Reader, StringSpan, StringValue};
 use crate::suggest::{SuggestionBuilder, starts_with_ignore_case};
 use core::convert::Infallible;
 
-/// An argument type: how it reads a value from the command line.
 pub trait Argument<S> {
-    /// The value read, which may borrow the command line.
     type Value<'a>;
-    /// The errors of this type beside those of the library.
     type Error;
 
-    /// Reads a value at the reader's cursor and leaves the cursor after it.
     fn parse<'a>(
         &self,
         reader: &mut Reader<'a>,
@@ -19,18 +15,12 @@ pub trait Argument<S> {
     ) -> Result<Self::Value<'a>, SyntaxError<Self::Error>>;
 }
 
-/// The argument types of one tree, composed by the application into one enum.
 pub trait ArgumentSet<S> {
-    /// The errors of every argument type of the set.
     type Error: Copy;
-    /// The tooltip a suggestion of the set carries.
     type Tooltip: PartialEq;
 
-    /// Reads a value and keeps only whether it was valid.
     fn check(&self, reader: &mut Reader<'_>, source: &S) -> Result<(), SyntaxError<Self::Error>>;
 
-    /// Suggests at the builder's start; `context` holds the nodes parsed before it, in the
-    /// context the suggesting node belongs to.
     fn suggest<'t>(
         &'t self,
         source: &'t S,
@@ -39,12 +29,10 @@ pub trait ArgumentSet<S> {
     );
 }
 
-/// `true` or `false`, quoted or not.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BoolArgument;
 
 impl BoolArgument {
-    /// Suggests `true` and `false` where they match the remaining input.
     pub fn suggest<'t, T>(builder: &mut SuggestionBuilder<'t, '_, T>) {
         builder.suggest_matching(["true", "false"], starts_with_ignore_case);
     }
@@ -59,7 +47,6 @@ impl<S> Argument<S> for BoolArgument {
     }
 }
 
-/// A number type an argument reads, with the errors of its bounds.
 pub trait Number: Copy + PartialOrd {
     const MIN: Self;
     const MAX: Self;
@@ -139,7 +126,6 @@ impl Number for f64 {
     }
 }
 
-/// A number between `min` and `max`, both inclusive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NumberArgument<T> {
     pub min: T,
@@ -157,7 +143,6 @@ impl<T: Number> NumberArgument<T> {
         max: T::MAX,
     };
 
-    /// The minimum and the maximum, each where it differs from [`Self::ANY`].
     pub fn limits(&self) -> (Option<T>, Option<T>) {
         (
             (self.min != T::MIN).then_some(self.min),
@@ -185,14 +170,10 @@ impl<S, T: Number> Argument<S> for NumberArgument<T> {
     }
 }
 
-/// A string argument, by how much of the command line it takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StringArgument {
-    /// One unquoted word.
     Word,
-    /// One unquoted word or one quoted string.
     Phrase,
-    /// The rest of the command line.
     Greedy,
 }
 

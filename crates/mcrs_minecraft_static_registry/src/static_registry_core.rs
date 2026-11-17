@@ -1,5 +1,3 @@
-/// A static registry as an enum of its entries, numbered by protocol id, with only the items
-/// that need no `std`.
 #[macro_export]
 macro_rules! static_registry_core {
     ($vis:vis enum $name:ident; $($variant:ident = $location:literal,)+) => {
