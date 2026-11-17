@@ -34,8 +34,9 @@ pub fn resource_files() -> &'static Files {
             mcrs_minecraft_client_jar::resolve(&progress, crate::resource_set::is_resource, drop)
                 .unwrap()
                 .0;
-        let layer =
-            mcrs_minecraft_client_jar::index_assets(mcrs_minecraft_client_jar::OBJECTS).unwrap();
+        let layer = mcrs_minecraft_client_jar::index_assets(mcrs_minecraft_client_jar::OBJECTS);
+        assert!(layer.failures.is_empty(), "{:?}", layer.failures);
+        let layer = layer.files;
         files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));
         files.extend(layer);
         files

@@ -7,7 +7,7 @@ use bevy::asset::io::memory::Dir;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
+use mcrs_minecraft_client_jar::{self as client_jar, Files, IndexLayer, Progress};
 
 use mcrs_minecraft_client_gui::font::{Font, Span, draw_centered_text};
 use mcrs_minecraft_client_gui::font_definition::FontOptions;
@@ -107,7 +107,7 @@ fn spawn(
             };
             fill(&root, files);
             match await_layer(&font_layer, FONT_LAYER_DEADLINE) {
-                Ok(layer) => fill(&root, layer),
+                Ok(layer) => fill_layer(&root, layer),
                 Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
             }
             unpacked.store(true, Ordering::Release);
@@ -123,12 +123,12 @@ const FONT_LAYER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(
 
 #[cfg(not(target_family = "wasm"))]
 fn await_layer(
-    layer: &std::sync::mpsc::Receiver<Result<Files, String>>,
+    layer: &std::sync::mpsc::Receiver<IndexLayer>,
     deadline: std::time::Duration,
-) -> Result<Files, String> {
+) -> Result<IndexLayer, String> {
     use std::sync::mpsc::RecvTimeoutError;
     match layer.recv_timeout(deadline) {
-        Ok(result) => result,
+        Ok(layer) => Ok(layer),
         Err(RecvTimeoutError::Timeout) => Err(format!("the font fetch took over {deadline:?}")),
         Err(RecvTimeoutError::Disconnected) => Err("the font fetch panicked".to_owned()),
     }
@@ -151,12 +151,16 @@ fn spawn_web(
         )
         .await;
         fill(&root, files);
-        match layer {
-            Ok(layer) => fill(&root, layer),
-            Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
-        }
+        fill_layer(&root, layer);
         unpacked.store(true, Ordering::Release);
     });
+}
+
+fn fill_layer(root: &Dir, layer: IndexLayer) {
+    for failure in &layer.failures {
+        warn!("{} keeps to the jar: {}", failure.path, failure.reason);
+    }
+    fill(root, layer.files);
 }
 
 pub struct VanillaAssetsPlugin;

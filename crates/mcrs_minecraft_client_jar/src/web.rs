@@ -11,7 +11,7 @@ use web_sys::{
 };
 
 use crate::schedule::{self, Queue, Source};
-use crate::{AssetObject, Files, INDEX_OBJECTS, Progress, RELEASE};
+use crate::{AssetObject, Files, INDEX_OBJECTS, IndexLayer, Progress, RELEASE};
 
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
@@ -44,7 +44,7 @@ pub async fn fetch(
     files
 }
 
-pub async fn index_assets(objects: &str) -> Result<Files, String> {
+pub async fn index_assets(objects: &str) -> IndexLayer {
     let promises = Array::new();
     for object in INDEX_OBJECTS {
         let url = object.url(objects);
@@ -55,12 +55,25 @@ pub async fn index_assets(objects: &str) -> Result<Files, String> {
                 .map_err(JsValue::from)
         }));
     }
-    let bodies = within(Promise::all(&promises), FONT_DEADLINE_MS).await?;
-    Ok(INDEX_OBJECTS
-        .iter()
-        .zip(Array::from(&bodies).iter())
-        .map(|(object, body)| (object.path.to_owned(), Uint8Array::new(&body).to_vec()))
-        .collect())
+    let settled = within(Promise::all_settled(&promises), FONT_DEADLINE_MS)
+        .await
+        .map(|settled| Array::from(&settled));
+    IndexLayer::gather(INDEX_OBJECTS.iter().enumerate().map(|(index, object)| {
+        let body = match &settled {
+            Ok(settled) => settled_body(&settled.get(index as u32)),
+            Err(error) => Err(error.clone()),
+        };
+        (object, body)
+    }))
+}
+
+fn settled_body(outcome: &JsValue) -> Result<Vec<u8>, String> {
+    let field = |name: &str| Reflect::get(outcome, &name.into()).map_err(describe);
+    if field("status")?.as_string().as_deref() == Some("fulfilled") {
+        Ok(Uint8Array::new(&field("value")?).to_vec())
+    } else {
+        Err(describe(field("reason")?))
+    }
 }
 
 enum Miss {

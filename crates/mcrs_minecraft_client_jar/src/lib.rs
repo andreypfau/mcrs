@@ -19,6 +19,7 @@ mod asset_object;
 #[cfg(not(target_family = "wasm"))]
 mod data;
 mod fonts;
+mod index_layer;
 #[cfg(not(target_family = "wasm"))]
 mod native;
 mod schedule;
@@ -29,6 +30,7 @@ pub use asset_object::{AssetObject, INDEX_OBJECTS, OBJECTS};
 #[cfg(not(target_family = "wasm"))]
 pub use data::{ClientJar, VanillaDataError, vanilla_data};
 pub use fonts::{FontHint, font_files};
+pub use index_layer::{IndexLayer, ObjectFailure};
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
 #[cfg(target_family = "wasm")]
