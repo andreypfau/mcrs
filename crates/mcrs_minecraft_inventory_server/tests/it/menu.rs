@@ -281,3 +281,40 @@ fn itx_jav_014_a_drag_open_in_the_previous_menu_does_not_reach_the_new_menu() {
     assert_eq!(stacks(world, chest), [(13, STONE, 8)]);
     assert_eq!(stacks(world, holders(world, player).cursor), []);
 }
+
+#[test]
+fn itx_jav_014_a_drag_open_under_a_closed_menu_does_not_reach_the_menu_below() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let chest = world.spawn(Slots::new(27)).id();
+    click(
+        world,
+        player,
+        Packet::pick_up(1, HOTBAR_0).claiming(vec![(HOTBAR_0, None)], claim(STONE, 5)),
+    );
+    click(
+        world,
+        player,
+        Packet::drag_start(1).claiming(vec![], claim(STONE, 5)),
+    );
+    world.run_schedule(FixedUpdate);
+    open_chest(world, player, chest, MenuButtons::default());
+    world.commands().entity(player).close_menu();
+    world.flush();
+    world.run_schedule(FixedUpdate);
+    let _ = sent(world);
+
+    click(
+        world,
+        player,
+        Packet::pick_up(1, HOTBAR_0).claiming(vec![(HOTBAR_0, None)], claim(STONE, 5)),
+    );
+    world.run_schedule(FixedUpdate);
+
+    assert_eq!(stacks(world, player), []);
+    assert_eq!(
+        stacks(world, holders(world, player).cursor),
+        [(0, STONE, 5)]
+    );
+}

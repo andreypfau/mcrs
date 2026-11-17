@@ -1,0 +1,26 @@
+[package]
+name = "mcrs_minecraft_engine_inventory_click"
+description = "The driver of the Java click kernel over menu entities: the plan of a click against the open menu of a viewer and the drag of each menu"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_engine_inventory_menu.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_inventory_click.workspace = true
+mcrs_minecraft_inventory_menu = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_inventory_transaction.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+
+[dev-dependencies]
+mcrs_minecraft_item_table.workspace = true

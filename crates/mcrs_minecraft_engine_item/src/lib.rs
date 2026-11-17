@@ -53,6 +53,7 @@ mod stacks;
 mod store;
 mod undecoded;
 
+pub use capacity::stack_capacity;
 pub use component_state::ComponentState;
 pub use denial::Denial;
 pub use dropped::Dropped;

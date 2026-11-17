@@ -5124,6 +5124,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_inventory_click"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_container_click",
+ "mcrs_minecraft_engine_inventory_menu",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_inventory_click",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_inventory_transaction",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_inventory_menu"
 version = "0.5.8"
 dependencies = [
@@ -5744,6 +5761,7 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_inventory_click",
  "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_registries",

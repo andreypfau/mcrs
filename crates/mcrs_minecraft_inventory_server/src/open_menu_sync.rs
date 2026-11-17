@@ -1,4 +1,3 @@
-use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
@@ -20,7 +19,6 @@ use mcrs_minecraft_protocol_game::text::RawText;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::MenuSync;
-use crate::click_drag::ClickDrag;
 use crate::cursor_slot::cursor_slot;
 use crate::last_container_id::LastContainerId;
 use crate::menu_content::menu_content;
@@ -38,7 +36,6 @@ pub(crate) fn open_menu_sync(
     opened: On<MenuOpened>,
     viewers: Query<(&Menus, Option<&Owner>, Option<&PlayerHolders>)>,
     mut counters: Query<&mut LastContainerId>,
-    mut drags: Query<&mut ClickDrag>,
     menus: Query<(&MenuLayout, &MenuParts, Option<&MenuTitle>)>,
     holders: Query<&Slots>,
     mut stacks: Stacks,
@@ -64,9 +61,6 @@ pub(crate) fn open_menu_sync(
     let Ok(mut last) = counters.get_mut(viewer) else {
         return;
     };
-    if let Ok(mut drag) = drags.get_mut(viewer) {
-        drag.set_if_neq(ClickDrag::default());
-    }
     let container_id = last.advance();
     let mut sync = MenuSync::new(container_id, layout.len());
     if let Some(&Owner(session)) = owner

@@ -1,4 +1,3 @@
-use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Query;
@@ -15,7 +14,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::MenuSync;
-use crate::click_drag::ClickDrag;
 use crate::close_origin::CloseOrigin;
 use crate::menu_slots::MenuSlots;
 
@@ -23,7 +21,6 @@ pub(crate) fn close_menu_sync(
     closed: On<MenuClosed>,
     viewers: Query<(&Menus, Option<&Owner>)>,
     mut menus: Query<(&MenuLayout, &MenuParts, &mut MenuSync)>,
-    mut drags: Query<&mut ClickDrag>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let MenuClosed { viewer, menu } = *closed;
@@ -64,9 +61,6 @@ pub(crate) fn close_menu_sync(
         }
     }
     *first_sync.view.cursor_mut() = SlotView::Stack(None);
-    if let Ok(mut drag) = drags.get_mut(viewer) {
-        drag.set_if_neq(ClickDrag::default());
-    }
     if closing_sync.close_origin == CloseOrigin::Server
         && let Some(&Owner(session)) = owner
     {

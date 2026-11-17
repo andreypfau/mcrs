@@ -16,6 +16,7 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_inventory_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_registries.workspace = true

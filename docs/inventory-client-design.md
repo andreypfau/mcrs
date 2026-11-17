@@ -64,6 +64,7 @@ specification.
 | `Selected` on the client | authoritative truth | the client edge |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
 | `MenuClick` | temporal fact: one click of a viewer | a bot, a GUI or a screen |
+| `MenuDrag` | authoritative truth: the drag in progress on one menu | `MenuClicks`; `MenuClickPlugin` inserts it when the menu opens and resets it when a menu of the viewer closes |
 | predicted slot content | the content of the holder after the commit; no second copy | the client edge |
 | state id of a remote menu | authoritative truth of the client edge | the client edge only |
 | hovered slot, tooltip | derived state; computed in each frame | the screens crate |
@@ -85,7 +86,7 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 | `inventory_file` | 3, data | the inventory of a player file |
 | `engine_item` | 4 | stacks as entities, slots, the commit of a request |
 | `engine_inventory_menu` | 4 | the menu as an entity |
-| `engine_inventory_click` | 4 | the driver of the click kernel: `MenuClicks`, `MenuClicker`, `MenuDrag`, `MenuClickPlugin` |
+| `engine_inventory_click` | 4 | the driver of the click kernel: `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` |
 | `player_holders` | 5 | `PlayerHolders`, the vanilla slot policy, `PlayerHoldersPlugin` |
 | `vanilla_inventory` | 5 | the gameplay and the persistence of the server |
 | `inventory_server` | 5, edge | the server side of the Java exchange |
@@ -99,6 +100,8 @@ Dependency rules:
 - `vanilla_inventory` depends on `engine` and `vanilla_item_entity`. A client does not take it.
 - `engine_inventory_menu` does not depend on `inventory_click`. Only `engine_inventory_click` links
   the click kernel.
+- `MenuClicks` reads the whole world, because a slot gate reads the world. A system that takes
+  `MenuClicks` takes no other parameter that writes, except `Commands`.
 - `inventory_client` depends on no rendering crate. A bot is the client with rendering off.
 - No crate below the edge knows the edition.
 
@@ -155,7 +158,7 @@ pub struct PlayerItemFilePlugin;
 |-|-|-|
 | `Click`, `ClickKind`, `Clicked` | `container_click` | One gesture on one menu entry, as data. |
 | `Click::from_input` | `inventory_click` | Makes a click from a gesture of a pointer or a key. |
-| `MenuClicks`, `MenuClicker`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
+| `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
 | `MenuClick { viewer, click }` | `inventory_client` | The one way to click on the client. |
 | `RemoteMenu` | `inventory_client` | A menu that the server opened, with its state id. |
 | `InventoryClientPlugin` | `inventory_client` | Applies the inbound packets to the holders and predicts each `MenuClick`. |
@@ -237,7 +240,7 @@ Each step is one pull request.
 | Step | Issue | Content |
 |-|-|-|
 | A | #982 | The holders and the slot policy are usable by a client. This document. |
-| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuDrag` and `MenuClickPlugin`. |
+| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
 | C | #129 | The new crate `inventory_client`: the inbound packets on `engine_item` holders, `RemoteMenu`, `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
 | D | #130 | The open and the close of the menus of the server, generic layouts, container screens, drag paint, double click, item tooltips. Specification: `spec/client-container-screen.md`. |
 | E | #131 | The creative screen. Specification: `spec/client-creative-inventory.md`. |
