@@ -371,14 +371,17 @@ fn evaluate_sky(
 
 fn extract_sky(
     mut commands: Commands,
-    environment: Extract<Option<Res<SkyEnvironment>>>,
-    textures: Extract<Option<Res<SkyTextures>>>,
+    sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
     clouds: Extract<Res<Clouds>>,
+    extracted: Option<Res<ExtractedSky>>,
 ) {
-    let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
+    let (Some(environment), Some(textures)) = (sources.0.as_ref(), sources.1.as_ref()) else {
+        if extracted.is_some() {
+            commands.remove_resource::<ExtractedSky>();
+        }
         return;
     };
     let mut effects = environment.key().effects;

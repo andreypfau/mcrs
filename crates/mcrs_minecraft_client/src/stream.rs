@@ -1501,8 +1501,10 @@ fn derive_biome_tints(
     }
 }
 
-fn clear_biome_tints(mut commands: Commands) {
+fn clear_biome_tints(mut commands: Commands, mut tints: ResMut<ColumnTints>) {
     commands.remove_resource::<BiomeTints>();
+    tints.to_tint.clear();
+    tints.tinting.clear();
 }
 
 fn tint_columns(
@@ -1696,11 +1698,16 @@ mod tests {
         let mut app = App::new();
         app.add_message::<mcrs_minecraft_network::client::ConnectionEnded>()
             .add_systems(Update, clear_biome_tints.run_if(session_boundary));
-        app.insert_resource(BiomeTints::default());
+        app.insert_resource(BiomeTints::default())
+            .insert_resource(ColumnTints::new([512; 2]));
         let connection = app.world_mut().spawn(ConnectionState::Game).id();
         app.update();
         assert!(app.world().get_resource::<BiomeTints>().is_some());
 
+        app.world_mut()
+            .resource_mut::<ColumnTints>()
+            .to_tint
+            .push(ColumnPos::new(0, 0));
         app.world_mut()
             .entity_mut(connection)
             .insert(ConnectionState::Configuration);
@@ -1708,6 +1715,10 @@ mod tests {
         assert!(
             app.world().get_resource::<BiomeTints>().is_none(),
             "a new registry set renumbers the biomes the table is indexed by"
+        );
+        assert!(
+            app.world().resource::<ColumnTints>().to_tint.is_empty(),
+            "a column queued in the previous world is not tinted with the next palette"
         );
     }
 
