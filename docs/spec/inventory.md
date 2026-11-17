@@ -106,6 +106,23 @@ when each of these conditions is true:
 - the `slot` of that component is the name of the armour slot;
 - that component has no `allowed_entities`, or `allowed_entities` contains `minecraft:player`.
 
+The component is the effective component of the stack (`item-stack.md`, STK-PAT-002). Its shape is
+in `item-stack.md`, STK-SHP-028. The names of the armour slots are `feet` for `P[36]`, `legs` for
+`P[37]`, `chest` for `P[38]` and `head` for `P[39]`. A stack without the component does not go into
+an armour slot.
+
+`allowed_entities` is an entity type set (`item-stack.md`, STK-SHP-030). It contains
+`minecraft:player` as `item-stack.md`, STK-SHP-031, states:
+
+- A list contains `minecraft:player` when an element of the list is `minecraft:player`.
+- A tag contains `minecraft:player` when `minecraft:player` is a resolved member of that tag of the
+  registry `minecraft:entity_type` (`registry.md`, REG-TAG-005). The filter uses the members at
+  the time of the request. Thus a data pack can change the result.
+- The empty list does not contain `minecraft:player`.
+
+For example, `minecraft:carved_pumpkin` has the slot `head` and no `allowed_entities`, so it can go
+into `P[39]`. `minecraft:shield` has the slot `offhand`, so it does not go into an armour slot.
+
 **INV-SLT-004** (`source_suggested`, semantic). The take filter of an armour slot refuses when
 these two conditions are true:
 
@@ -113,6 +130,24 @@ these two conditions are true:
 - the player is not in creative mode.
 
 In each other case the take filter permits.
+
+The stack has an enchantment with the effect when each of these conditions is true:
+
+1. The effective `minecraft:enchantments` component of the stack (`item-stack.md`, STK-PAT-002 and
+   STK-SHP-015) has an entry for an enchantment.
+2. The `effects` map of that enchantment has the key `minecraft:prevent_armor_change`. The
+   enchantment is the entry of the registry `minecraft:enchantment` that the server loaded
+   (`registry-fields.md`, REG-FLD-122 and REG-FLD-351).
+
+These statements also apply:
+
+- The level of the entry has no effect.
+- The value of the effect is `{}`, and it has no condition. The field `slots` of the enchantment
+  has no effect.
+- The component `minecraft:stored_enchantments` has no effect. Thus an enchanted book in an armour
+  slot does not lock the slot.
+- In the vanilla data pack, only `minecraft:binding_curse` has this effect. A data pack can add the
+  effect to another enchantment, or remove it.
 
 **INV-SLT-005** (`design`, semantic). The off-hand slot has no take filter and no place filter.
 It accepts each stack in each edition, and no configuration changes this. Reason: decision of the

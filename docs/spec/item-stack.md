@@ -6,7 +6,7 @@ This document states the item stack as data: its parts, its component patch, its
 format that carries it. It states the meaning of four component types, and it lists each component
 type of this game version.
 
-Sections 8.1 and 8.2 state the shape of 18 component types. For
+Sections 8.1 to 8.3 state the shape of 19 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -56,6 +56,10 @@ section 8.
   (STK-SHP-023).
 - **Dynamic profile**: a partial profile with no property and with exactly one of a player name and
   a UUID (STK-SHP-027).
+- **Sound event**: a reference to an entry of the registry `minecraft:sound_event`, or an inline
+  sound event (STK-SHP-029).
+- **Entity type set**: a tag or a list of entries of the registry `minecraft:entity_type`
+  (STK-SHP-030).
 
 ### 0.2 Provenance
 
@@ -74,8 +78,8 @@ section 8.
 - `assets/mcrs/reports/packets.json`: the packet id report of the game.
 - `assets/mcrs/item_definition/`: one file for each item, which the game writes through
   `tools/vanilla-oracle`. STK-PRO-002 states the keys.
-- The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records` and `inventory_packets` of
-  `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
+- The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records`, `item_registry_refs` and
+  `inventory_packets` of `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
 
 ### 0.4 ID prefixes
 
@@ -95,7 +99,7 @@ section 8.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
-| `STK-SHP` | the shapes of the component types of section 8.1 |
+| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.3 |
 
 ### 0.5 Notation
 
@@ -924,7 +928,7 @@ Each identifier in the table has the namespace `minecraft`.
 | 29 | `weapon` | yes | own | no | Damage to the item for each attack, and the time it disables a block. |
 | 30 | `attack_range` | yes | own | no | The reach and the hitbox margin of an attack. |
 | 31 | `enchantable` | yes | own | no | The enchantment value of the item. |
-| 32 | `equippable` | yes | own | no | The slot, sound and model of the item as equipment. |
+| 32 | `equippable` | yes | own | no | The slot, sound and model of the item as equipment (STK-SHP-028). |
 | 33 | `repairable` | yes | own | no | The items that repair this item in an anvil. |
 | 34 | `glider` | yes | own | no | The item lets its wearer glide. |
 | 35 | `tooltip_style` | yes | own | no | The identifier of the tooltip style. |
@@ -1025,7 +1029,8 @@ This section states the shape of 15 component types. The counts of prototypes co
 files of `assets/mcrs/item_definition/`.
 
 **STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
-STK-SHP-020, and each rule of section 8.2, states one component type in a table. The columns are:
+STK-SHP-020, and each rule of sections 8.2 and 8.3, states one component type in a table. The
+columns are:
 
 - "Field": the key of the field in the saved form. `(value)` means that the component is one
   value and not a map.
@@ -1117,8 +1122,8 @@ decode error for an NBT that is larger than a quota of 2097152 bytes. The exact 
 size is not specified. Two texts are equal when their content, their style and their children are
 equal (STK-PAT-007).
 
-**STK-SHP-005** (`design`, unspecified). A server must not send a component of section 8.1 or 8.2 with
-a value out of the range of its saved form. Reason: the client cannot save or hash that component.
+**STK-SHP-005** (`design`, unspecified). A server must not send a component of section 8.1, 8.2 or
+8.3 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
 For an id that is not in a list of names, the reference reader of the wire form gives the name
 with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
 writes such an id.
@@ -1538,6 +1543,160 @@ result of a lookup by the name or the UUID. Another document states when the gam
 The vanilla client shows the tooltip line with the translation key `component.profile.dynamic`, in
 gray, for a dynamic profile.
 
+### 8.3 Shape of the equipment type
+
+This section states the shape of one more component type. STK-SHP-001 to STK-SHP-005 apply to each
+rule of this section. The fixture `item_registry_refs` has 5 cases of `minecraft:equippable`. Each
+case has the JSON, the NBT, the wire form and the hash that the game wrote.
+
+**STK-SHP-028** (`source_suggested_black_box_confirmed`, wire). `minecraft:equippable`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `slot` | name of the list "equipment slot" | `mainhand` 0, `feet` 1, `legs` 2, `chest` 3, `head` 4, `offhand` 5, `body` 6, `saddle` 7 | necessary | VarInt: the id |
+| `equip_sound` | a sound event (STK-SHP-029) | STK-SHP-029 | no value | one boolean byte, then the sound event when the byte is `01` |
+| `asset_id` | identifier | each identifier | no value | one boolean byte, then String (32767) when the byte is `01` |
+| `camera_overlay` | identifier | each identifier | no value | one boolean byte, then String (32767) when the byte is `01` |
+| `allowed_entities` | an entity type set (STK-SHP-030) | STK-SHP-030 | no value | one boolean byte, then the entity type set when the byte is `01` |
+| `dispensable` | boolean | `false`, `true` | `true` | one byte |
+| `swappable` | boolean | `false`, `true` | `true` | one byte |
+| `damage_on_hurt` | boolean | `false`, `true` | `true` | one byte |
+| `equip_on_interact` | boolean | `false`, `true` | `false` | one byte |
+| `can_be_sheared` | boolean | `false`, `true` | `false` | one byte |
+| `shearing_sound` | a sound event (STK-SHP-029) | STK-SHP-029 | no value | one boolean byte, then the sound event when the byte is `01` |
+
+The list "equipment slot" is not the list "slot group" of STK-SHP-003. Its ids are also not the
+slot ids of the packet `set_equipment` (`client-entities.md`, CENTS-EQUIP-001). For example,
+`offhand` has the id 5 in this component and the id 1 in that packet.
+
+A field with "no value" has no default. When `equip_sound` or `shearing_sound` has no value, the
+item has no sound for that action. The absence does not select a sound of the game. Each
+prototype has both sounds in its file, and an implementation must read them from the file.
+
+`asset_id` names an equipment asset of a resource pack. `camera_overlay` names a texture of a
+resource pack. No registry holds them, and no reader checks that they exist.
+
+The fields have the purposes below. Other documents state the behaviour.
+
+- `slot`: the equipment slot that the item goes into.
+- `equip_sound`: the sound when an entity equips the item.
+- `asset_id`: the model of the item on the wearer (`client-entities.md`, CENTS-EQUIP-001).
+- `camera_overlay`: the texture over the view of a player who wears the item.
+- `allowed_entities`: the entity types that can equip the item (STK-SHP-031).
+- `dispensable`: a dispenser can put the item on an entity.
+- `swappable`: a use of the item swaps it with the stack of its equipment slot.
+- `damage_on_hurt`: the item takes damage when the wearer gets hurt.
+- `equip_on_interact`: a player can put the item on another entity with an interaction.
+- `can_be_sheared`: shears can remove the item from the entity.
+- `shearing_sound`: the sound when shears remove the item.
+
+For example, the component `{"slot":"head"}` has the wire form `04 00 00 00 00 01 01 01 00 00 00`.
+Its saved form has only the key `slot`, because each other field has its default or no value.
+
+The hash takes the saved form that the writer writes (STK-HSH-004). The writer omits each field
+with no value. It omits each boolean field whose value is equal to its default. Each boolean is a
+boolean node. A sound event is a string node or a map node (STK-SHP-029). An entity type set is a
+string node or a list node (STK-SHP-030).
+
+Limits: none on the number of entity types. Each wire string holds at most 32767 UTF-16 code
+units. A longer string is a decode error. Equality: each field is equal. Two fields with no value
+are equal. A field with no value is not equal to a field with a value. STK-SHP-029 states the
+equality of two sound events, and STK-SHP-030 states the equality of two entity type sets.
+
+Prototypes: 84 prototypes have this component. The other 1602 prototypes do not have it. The
+`slot` is `body` for 44 prototypes, `head` for 16, `chest` for 8, `feet` for 7, `legs` for 7,
+`saddle` for 1 and `offhand` for 1. The item with the slot `offhand` is `minecraft:shield`. Each of
+the 84 prototypes has `equip_sound` and `shearing_sound` as a reference to an entry. 75 have
+`asset_id`, 45 have `allowed_entities` and 1 has `camera_overlay`. No prototype has
+`dispensable`. 9 have `swappable` with `false`, 12 have `damage_on_hurt` with `false`, 22 have
+`equip_on_interact` with `true` and 45 have `can_be_sheared` with `true`.
+
+**STK-SHP-029** (`source_suggested_black_box_confirmed`, wire). A sound event is a reference to an
+entry of the registry `minecraft:sound_event`, or an inline sound event. An inline sound event has
+these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `sound_id` | identifier | each identifier | necessary | String (32767) |
+| `range` | float | each float | no value | one boolean byte, then 4 bytes when the byte is `01` |
+
+The two kinds of a sound event have these forms:
+
+| Sound event | Saved form | Wire form |
+|-------------|------------|-----------|
+| a reference | the identifier of the entry, as a string | VarInt: the numeric id of the entry plus 1 |
+| an inline sound event | a map with the fields above | VarInt 0, then the fields above |
+
+`minecraft:sound_event` is a static registry. `assets/mcrs/reports/registries.json` gives the
+numeric ids. `sound_id` names a sound of a resource pack. No reader checks that the sound exists.
+
+The readers apply these statements:
+
+- The reader of the saved form reads a string as a reference. A string that names no entry is an
+  error. The reader does not read such a string as an inline sound event. A string that is not an
+  identifier is an error.
+- The reader of the saved form reads a map as an inline sound event.
+- The reader of the saved form reads a `range` that is not a valid float as no value. This is an
+  exception to STK-SHP-001. This statement has the provenance `source_suggested`.
+- The reader of the wire form reads the VarInt 0 as an inline sound event. It reads each other
+  number `n` as the entry with the numeric id `n - 1`. A number that names no entry is a decode
+  error.
+
+The writer writes a reference as the identifier of the entry, and an inline sound event as the
+map. It omits `range` when `range` has no value.
+
+For example, the reference `minecraft:item.armor.equip_iron` has the numeric id 52 and the wire
+form `35`. The inline sound event `{"sound_id":"mcrs:snip","range":3.5}` has the wire form
+`00 09 6D6372733A736E6970 01 40600000`.
+
+Equality: two references are equal when they name the same entry. Two inline sound events are
+equal when their `sound_id` values are equal and their `range` values are equal or absent in both.
+`range` is equal as STK-EQ-005 states. A reference is not equal to an inline sound event, also when
+the identifier of the entry is equal to `sound_id`.
+
+**STK-SHP-030** (`source_suggested_black_box_confirmed`, wire). An entity type set is a tag or a
+list of entries of the registry `minecraft:entity_type`. It has the form of the block set of
+STK-SHP-020:
+
+| Entity type set | Saved form | Wire form |
+|-----------------|------------|-----------|
+| a tag | the string `#<identifier of the tag>` | VarInt 0, then the identifier of the tag as String (32767) |
+| a list of `n` entity types | a list of identifiers; one string when `n` is 1 | VarInt `n + 1`, then `n` numeric ids as VarInt |
+
+`minecraft:entity_type` is a static registry. The tag is a tag of that registry. The reader of the
+saved form accepts a list of one identifier and one string for one entity type. The writer writes
+one string for one entity type, and a list for each other number. Thus the empty list is `[]`. A
+tag that does not exist is an error in each format. An identifier or a numeric id that names no
+entity type is an error in each format. A list keeps the order of its elements, and an element can
+occur two times.
+
+For example, the list of `minecraft:zombie` (id 156) and `minecraft:pig` (id 103) has the wire
+form `03 9C01 67`. The tag `minecraft:skeletons` has the wire form `00 13`, then the 19 bytes of
+the string `minecraft:skeletons`.
+
+No vanilla writer writes a first VarInt below 0. The reference reader reads such a VarInt as the
+empty list. A reader of this project can give a decode error instead. The statement on the
+reference reader has the provenance `source_suggested`.
+
+Limits: none on the number of entity types. Equality: two tags are equal when they are the same
+tag. Two lists are equal when they have the same entity types in the same order. A tag is not
+equal to a list, also when the tag has the same members.
+
+**STK-SHP-031** (`source_suggested`, semantic). An entity type set contains an entity type when one
+of these conditions is true:
+
+- The set is a list, and an element of the list is that entity type.
+- The set is a tag, and the entity type is a member of that tag. The members are the resolved
+  members of the tag (`registry.md`, REG-TAG-005) at the time of the test.
+
+The empty list contains no entity type. A stack keeps its tag after a reload, and the test then
+uses the new members of the tag (`registry.md`, REG-RELOAD-003). Thus a data pack can change the
+result of the test. The vanilla client makes the same test with the tags of the last
+`update_tags` packet.
+
+When a component of `minecraft:equippable` has no `allowed_entities`, each entity type can equip
+the item. The empty list is different: no entity type can equip the item.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -1630,8 +1789,8 @@ gray, for a dynamic profile.
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types? Sections 8.1 and 8.2 state 18 types, with `map_id`,
-  `map_decorations` and `profile`.
+  document owns each group of types? Sections 8.1 to 8.3 state 19 types, with `map_id`,
+  `map_decorations`, `profile` and `equippable`.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
