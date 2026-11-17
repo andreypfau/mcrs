@@ -1,0 +1,18 @@
+# Use a trident with riptide in rain. Experiment E2, step 7, of docs/spec/player-pose.md:
+# POSE-SRV-005.
+experiment pose_e2_7
+arena -16 96 -16 48 110 16
+
+step riptide
+instruction After Go, hold the right mouse button for 1 second, then release it.
+input 61 use
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule fall_damage false
+run weather rain
+run clear @a
+run item replace entity @a weapon.mainhand with minecraft:trident[enchantments={"minecraft:riptide":3}]
+start 0.5 100 0.5 -90 -30
+ticks 160

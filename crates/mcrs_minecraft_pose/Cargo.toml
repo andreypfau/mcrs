@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_pose"
+description = "The pose of an entity with its wire codec, and the dimensions of a player in each pose"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_wire = { workspace = true, optional = true }
+
+[features]
+default = []
+wire = ["dep:mcrs_minecraft_wire"]
+
+[dev-dependencies]
+mcrs_minecraft_pose = { path = ".", features = ["wire"] }
+mcrs_minecraft_wire.workspace = true

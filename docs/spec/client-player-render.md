@@ -53,8 +53,8 @@ the label `source_suggested`.
 
 In scope: a player that the server adds with the entity type `minecraft:player`, and a player
 that a host adds. Out of scope: the name tag, the cape, the elytra, items in hands, armour, the
-swing of an arm, sleep, swimming, flight with elytra, the bend and the skin parts that a player
-hides. The bones of the cape, of the elytra and of the items are in scope (CPR-MODEL-002). The
+swing of an arm, the bend and the skin parts that a player hides. `player-pose.md` states sleep,
+swimming, crawl, flight with elytra and the spin attack of a player. The bones of the cape, of the elytra and of the items are in scope (CPR-MODEL-002). The
 client draws nothing on them.
 
 The figure of the local player in the inventory screen is in scope (section 5). The list above
@@ -291,7 +291,7 @@ Confidence: medium.
 | head | `(0, −6.2, 0)` | 0 |
 | body | `(0, −5.2, 0)` | 28.6479 |
 | right arm, left arm | `(0, −5.2, 0)` | 22.9183 |
-| right leg, left leg | `(0, −2.2, 4)` | 0 |
+| right leg, left leg | `(0, −2, 4)` | 0 |
 
 - **Postconditions:** the body leans forward and the legs stay below it.
 

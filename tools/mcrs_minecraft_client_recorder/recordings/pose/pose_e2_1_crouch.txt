@@ -1,0 +1,147 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e2_1
+step crouch
+instruction After Go, hold Shift for 1 second, then release it.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+3501082 < abilities none 0.05
+3501082 < attribute minecraft:block_interaction_range 4.5
+3501082 < attribute minecraft:entity_interaction_range 3
+3501082 < attribute minecraft:movement_speed 0.10000000149011612
+3501082 < data self 9 float:20
+3501082 < data self 16 byte:0x7f
+3501082 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+3593404 > move - - none
+3596238 > tick
+3598701 > move 0.5,100,0.5 - on_ground
+3598704 > tick
+3703375 > tick
+3703378 > tick
+3801806 > tick
+3803090 > tick
+3893192 > tick
+3894343 > tick
+3998267 > tick
+3998268 > tick
+4100171 > tick
+4101406 > tick
+4198712 > tick
+4199920 > tick
+4299113 > tick
+4300300 > tick
+4400946 > tick
+4402681 > tick
+4501073 > tick
+4504689 > tick
+4600277 > tick
+4600279 > move 0.5,100,0.5 - on_ground
+4600279 > tick
+4713728 > tick
+4713730 > tick
+4803125 > tick
+4804279 > tick
+4902873 > tick
+4904024 > tick
+5008859 > tick
+5017399 > tick
+5018676 > tick
+5110508 > tick
+5111707 > tick
+5211292 > tick
+5212913 > tick
+5313861 > tick
+5315265 > tick
+5410678 > tick
+5411887 > tick
+5511392 > tick
+5512910 > tick
+5609322 > move 0.5,100,0.5 - on_ground
+5610483 > tick
+5610484 > tick
+5714646 > tick
+5715871 > tick
+5815171 > tick
+5816326 > tick
+5917456 > tick
+5917457 > tick
+6021775 > tick
+6023031 > tick
+6124559 > tick
+6125846 > tick
+6221800 > tick
+6222972 > tick
+6324508 > tick
+6327087 > tick
+6423440 > tick
+6424657 > tick
+6526603 > tick
+6530305 > tick
+6628242 > input shift
+6629495 > move 0.5,100,0.5 - on_ground
+6629496 > tick
+6630690 > tick
+6648069 < data self 0 byte:0x02
+6699747 < data self 6 pose:crouching
+6726507 > tick
+6726508 > tick
+6825730 > tick
+6826876 > tick
+6926433 > tick
+6927597 > tick
+7029798 > tick
+7029800 > tick
+7137888 > tick
+7141841 > tick
+7237896 > tick
+7239359 > tick
+7333002 > tick
+7334150 > tick
+7438177 > tick
+7439640 > tick
+7537470 > tick
+7541347 > tick
+7639558 > input none
+7640967 > move 0.5,100,0.5 - on_ground
+7640969 > tick
+7643364 > tick
+7650633 < data self 0 byte:0x00
+7696126 < data self 6 pose:standing
+7738841 > tick
+7742752 > tick
+7838216 > tick
+7839372 > tick
+7940463 > tick
+7941620 > tick
+8043320 > tick
+8044472 > tick
+8148404 > tick
+8148405 > tick
+8253098 > tick
+8254378 > tick
+8354329 > tick
+8355535 > tick
+8454257 > tick
+8455775 > tick
+8556674 > tick
+8559831 > tick
+8657162 > move 0.5,100,0.5 - on_ground
+8658512 > tick
+8659685 > tick
+8659686 > tick
+8756597 > tick
+8757741 > tick
+8858626 > tick
+8858627 > tick
+8958448 > tick
+8959601 > tick
+9060592 > tick
+9061738 > tick
+9171577 > tick
+9173204 > tick
+9264223 > tick
+9265424 > tick
+9376950 > tick
+9378829 > tick
+9471284 > tick
+9473172 > tick

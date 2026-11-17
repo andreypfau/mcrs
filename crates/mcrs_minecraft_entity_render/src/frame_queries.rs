@@ -1,6 +1,6 @@
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity_animation::{EntityQuery, QuerySource};
 use mcrs_minecraft_entity_visual::{FrameValues, TICKS_PER_SECOND};
+use mcrs_minecraft_pose::Pose;
 use mcrs_molang::{Value, string_hash};
 
 #[derive(Clone, Copy, Debug, PartialEq)]

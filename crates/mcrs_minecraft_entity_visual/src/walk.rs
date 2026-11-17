@@ -1,6 +1,6 @@
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_pose::Pose;
 
 pub const WALK_SMOOTHING: f32 = 0.4;
 pub const HURT_WALK_SPEED: f32 = 1.5;

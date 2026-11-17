@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use anyhow::Context;
 use mcrs_minecraft_client_ticks::Abilities;
 use mcrs_minecraft_client_ticks::Attribute;
+use mcrs_minecraft_client_ticks::DataEntity;
 use mcrs_minecraft_client_ticks::Effect;
+use mcrs_minecraft_client_ticks::EntityData;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Header;
 use mcrs_minecraft_client_ticks::Recording;
@@ -39,6 +41,7 @@ struct Snapshot {
     abilities: Option<Abilities>,
     attributes: BTreeMap<String, Attribute>,
     effects: BTreeMap<String, Effect>,
+    data: BTreeMap<u8, EntityData>,
 }
 
 impl Snapshot {
@@ -55,6 +58,9 @@ impl Snapshot {
             Event::RemoveEffect(name) => {
                 self.effects.remove(name);
             }
+            Event::EntityData(data) if data.entity == DataEntity::Own => {
+                self.data.insert(data.index, data.clone());
+            }
             _ => {}
         }
     }
@@ -63,10 +69,12 @@ impl Snapshot {
         let abilities = self.abilities.map(Event::Abilities);
         let attributes = self.attributes.values().cloned().map(Event::Attribute);
         let effects = self.effects.values().cloned().map(Event::Effect);
+        let data = self.data.values().cloned().map(Event::EntityData);
         abilities
             .into_iter()
             .chain(attributes)
             .chain(effects)
+            .chain(data)
             .collect()
     }
 }
@@ -79,6 +87,7 @@ pub(crate) struct Session {
     cheating: bool,
     phase: Phase,
     snapshot: Snapshot,
+    rewritten_at_join: bool,
 }
 
 impl Session {
@@ -97,6 +106,7 @@ impl Session {
             cheating,
             phase: Phase::Waiting,
             snapshot: Snapshot::default(),
+            rewritten_at_join: false,
         }
     }
 
@@ -135,7 +145,7 @@ impl Session {
                             events,
                             gap,
                             ticks: 0,
-                            rewritten: false,
+                            rewritten: self.rewritten_at_join,
                         },
                     };
                 } else if let Phase::Recording { segment, .. } = &mut self.phase {
@@ -145,11 +155,11 @@ impl Session {
                 self.snapshot.apply(&event);
             }
             Observed::Sent(time, event) => self.sent(time, event)?,
-            Observed::Rewritten => {
-                if let Phase::Recording { segment, .. } = &mut self.phase {
-                    segment.rewritten = true;
-                }
-            }
+            Observed::Rewritten => match &mut self.phase {
+                Phase::Recording { segment, .. } => segment.rewritten = true,
+                Phase::Waiting => self.rewritten_at_join = true,
+                _ => {}
+            },
         }
         Ok(())
     }

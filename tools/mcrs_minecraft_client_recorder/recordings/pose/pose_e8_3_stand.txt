@@ -1,0 +1,121 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e8_3
+step stand
+instruction Stand still and release all keys.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+4630813 < abilities none 0.05
+4630813 < attribute minecraft:block_interaction_range 4.5
+4630813 < attribute minecraft:entity_interaction_range 3
+4630813 < attribute minecraft:movement_speed 0.10000000149011612
+4630813 < data self 9 float:20
+4630813 < data self 16 byte:0x7f
+4630813 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+4724941 > move - - none
+4726107 > tick
+4726108 > move - - on_ground
+4726109 > tick
+4825524 > tick
+4826661 > move 0.5,100,0.5 - on_ground
+4826663 > tick
+4929638 > tick
+4931858 > tick
+5029524 > tick
+5030675 > tick
+5133766 > tick
+5134956 > tick
+5239448 > tick
+5240682 > tick
+5344526 > tick
+5344526 > tick
+5436783 > tick
+5436785 > tick
+5537877 > tick
+5537879 > tick
+5640232 > tick
+5640233 > tick
+5741650 > tick
+5741651 > tick
+5847095 > tick
+5847097 > move 0.5,100,0.5 - on_ground
+5847099 > tick
+5945416 > tick
+5946577 > tick
+6047686 > tick
+6048835 > tick
+6152334 > tick
+6152335 > tick
+6253832 > tick
+6255154 > tick
+6353906 > tick
+6355083 > tick
+6355084 > tick
+6457974 > tick
+6457975 > tick
+6557872 > tick
+6559024 > tick
+6658574 > tick
+6659747 > tick
+6757681 > tick
+6757682 > tick
+6889206 > move 0.5,100,0.5 - on_ground
+6889208 > tick
+6889208 > tick
+6970163 > tick
+6970165 > tick
+7065708 > tick
+7067439 > tick
+7162930 > tick
+7164105 > tick
+7266838 > tick
+7268048 > tick
+7368421 > tick
+7369752 > tick
+7475392 > tick
+7475393 > tick
+7580122 > tick
+7580123 > tick
+7680544 > tick
+7681712 > tick
+7783533 > tick
+7783534 > tick
+7881848 > move 0.5,100,0.5 - on_ground
+7883020 > tick
+7883021 > tick
+7982576 > tick
+7982578 > tick
+8084306 > tick
+8085477 > tick
+8188322 > tick
+8188323 > tick
+8288860 > tick
+8290105 > tick
+8390578 > tick
+8391746 > tick
+8491515 > tick
+8492666 > tick
+8611445 > tick
+8611445 > tick
+8720004 > tick
+8720005 > tick
+8721884 > tick
+8808086 > tick
+8809275 > move 0.5,100,0.5 - on_ground
+8809277 > tick
+8913082 > tick
+8914251 > tick
+9014981 > tick
+9014982 > tick
+9114956 > tick
+9116096 > tick
+9216182 > tick
+9216183 > tick
+9318219 > tick
+9318220 > tick
+9425579 > tick
+9425580 > tick
+9528132 > tick
+9529378 > tick
+9625530 > tick
+9625531 > tick

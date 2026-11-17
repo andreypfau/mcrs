@@ -1,0 +1,18 @@
+# Fall with no elytra and press Space in the air; the proxy module start_fall_flying sends the
+# request of elytra flight. Experiment E8, step 1, of docs/spec/player-pose.md: POSE-SRV-013.
+# Run with CHEAT=start_fall_flying.
+experiment pose_e8_1
+arena -16 96 -16 48 110 16
+
+step no_elytra
+instruction After Go, tap Space once in the air.
+go 10
+input 15 jump
+input 17 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule fall_damage false
+run clear @a
+start 0.5 130 0.5 -90 40
+ticks 100

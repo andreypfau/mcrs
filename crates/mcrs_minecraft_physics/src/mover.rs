@@ -2,9 +2,9 @@ use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityKey;
 
 use crate::Body;
-use crate::Dimensions;
 use crate::QueryEntity;
 use crate::Side;
+use mcrs_minecraft_pose::Dimensions;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Physics {

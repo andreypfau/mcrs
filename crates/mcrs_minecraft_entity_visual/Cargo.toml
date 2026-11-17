@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 glam = { workspace = true, features = ["std"] }

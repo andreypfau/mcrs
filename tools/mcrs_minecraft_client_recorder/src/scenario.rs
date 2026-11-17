@@ -150,8 +150,16 @@ impl Step {
 }
 
 fn check_input(text: &str) -> anyhow::Result<()> {
-    const KEYS: [&str; 8] = [
-        "forward", "backward", "left", "right", "jump", "shift", "sprint", "use",
+    const KEYS: [&str; 9] = [
+        "forward",
+        "backward",
+        "left",
+        "right",
+        "jump",
+        "shift",
+        "sprint",
+        "use",
+        "leave_bed",
     ];
     let words: Vec<&str> = text.split_whitespace().collect();
     let [tick, keys, rotation @ ..] = &words[..] else {

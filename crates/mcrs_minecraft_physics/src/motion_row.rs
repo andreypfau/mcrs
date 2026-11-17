@@ -1,7 +1,7 @@
 use crate::Category;
-use crate::Dimensions;
 use crate::InsideEffect;
 use crate::StuckIgnore;
+use mcrs_minecraft_pose::Dimensions;
 
 const LIFETIME: u32 = 6000;
 

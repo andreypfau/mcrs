@@ -49,8 +49,10 @@ After the last step the tool stops the server. Make sure that each file
 experiment again.
 
 The second argument of `record.sh` is the output directory `<out>`. Without it, the recordings
-of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, and the others go
-to `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
+of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, the recordings of
+the scenarios `pose_*` (the experiments of `docs/spec/player-pose.md`, section 9) go to
+`recordings/pose` in this directory, and the others go to
+`crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
 ## Record without a human
 
@@ -138,7 +140,7 @@ Do not commit a cheat client. Commit only the recordings.
 
 The recordings in `cheats/` are proxy-emulated: no cheat client made them. A real cheat client of
 this version does not exist. With `CHEAT=<module>`, an honest vanilla client plays, and the proxy
-changes the serverbound movement as the module does. The client does not see the change. The
+changes the serverbound packets as the module does. The client does not see the change. The
 server then has `allow-flight=true`, so that it does not kick a player that floats. A step in
 which the proxy changed no packet gives no recording.
 
@@ -150,6 +152,20 @@ which the proxy changed no packet gives no recording.
 | `phase` | Each reported position is 0.5 blocks lower, in the floor. |
 | `step` | A position on the ground with a horizontal collision is reported 1 block higher. |
 | `timer` | After each fourth client tick, the proxy sends the last move packet and `client_tick_end` again. |
+| `start_fall_flying` | When `player_input` turns the jump flag on, the proxy sends `player_command` with the action `start_fall_flying` after it. |
+| `no_shift_input` | `player_input` never has the shift flag. |
+| `shift_before_loaded` | Before each `player_loaded`, the proxy sends `player_input` with the shift flag. |
+
+The last three modules are for experiment E8 of `docs/spec/player-pose.md`, section 9. Each
+module has its scenario: `pose_e8_1` for `start_fall_flying`, `pose_e8_2` for `no_shift_input`
+and `pose_e8_3` for `shift_before_loaded`. A recording shows each packet that the server
+receives, the packets of the proxy included. A packet that the proxy changes before the client
+has loaded the world changes each step.
+
+```sh
+MINECRAFT_EULA=true AUTOPLAY=true CHEAT=start_fall_flying \
+    tools/mcrs_minecraft_client_recorder/record.sh pose_e8_1
+```
 
 C1 has no wall, so `step` changes nothing in it. E13 has a wall:
 
@@ -198,15 +214,38 @@ line is a tick in which the client sent no move packet.
 | `< remove_effect <name>` | `remove_mob_effect` |
 | `< block <x> <y> <z> <state>` | `block_update`, or one entry of `section_blocks_update` |
 | `< forget <x> <z>` | `forget_level_chunk` |
+| `< data <entity> <index> <value>` | one entry of `set_entity_data` |
 | `> input <keys>` | `player_input` |
 | `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
+| `> command <action>` | `player_command` with another action |
+| `> interact <true or false>` | `interact`; true when its secondary action flag is on |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |
 
 A list of flags or keys has commas between its names, or is `none`. Each floating-point value is
 the shortest decimal text that gives the same value again. The events before the first teleport
-give the abilities, the attributes and the effects of the player at the start of the step.
+give the abilities, the attributes, the effects and the last entity data entries of the player at
+the start of the step.
+
+The `<entity>` of a `data` event is `self` for the player of the recording, or else the network
+id of the entity. The `<value>` is one word, `<serializer>:<text>`:
+
+| Serializer | Value |
+|------------|-------|
+| 0, byte | `byte:0x82`, two hexadecimal digits |
+| 1, VarInt | `int:20` |
+| 3, float | `float:20` |
+| 8, boolean | `bool:true` |
+| 10 and 11, block position and optional block position | `block_pos:2,100,0`, or `block_pos:-` when empty |
+| 20, pose | `pose:crouching`, the pose name of `docs/spec/player-pose.md`, POSE-NET-001 |
+| each other serializer | `serializer:<id>`; the value is not kept |
+
+A particle, a list of particles or a profile ends the entries of its packet: the tool does not
+decode their length, so the entries after them are not kept.
+
+The `<action>` of a `command` event is `stop_sleeping`, `start_riding_jump`, `stop_riding_jump`,
+`open_inventory` or `start_fall_flying`.
 
 ## The scenario format
 
@@ -229,7 +268,9 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `at <tick> <command>` | a console command at a client tick of the step |
 
 The arena must have at most 32768 blocks, the limit of `fill`. The keys of `input` are `none`
-or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint` and `use`.
+or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint`, `use` and
+`leave_bed`. `leave_bed` is not a key: at the tick of its line, the input agent presses Escape on
+the bed screen, which sends what the leave button sends.
 The input agent takes the client tick after it sees the title `Go` as the tick after `go`.
 With a delay, the title comes later, and so do the inputs.
 
