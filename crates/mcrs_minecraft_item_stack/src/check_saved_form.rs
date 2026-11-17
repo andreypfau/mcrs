@@ -1,10 +1,12 @@
 use core::ops::RangeInclusive;
 
+use mcrs_minecraft_nbt::to_nbt_tag;
 use mcrs_minecraft_text::Text;
 
 use crate::ItemStack;
 use crate::NameLookup;
 use crate::PatchEntry;
+use crate::Profile;
 use crate::WireError;
 use crate::saved_form::Fault;
 use crate::saved_form::saved_form;
@@ -43,6 +45,10 @@ impl SavedSink for Check {
 
     fn text(&mut self, _: &Text) -> Option<()> {
         Some(())
+    }
+
+    fn profile(&mut self, profile: &Profile) -> Option<()> {
+        to_nbt_tag(profile).ok().map(drop)
     }
 
     fn fields(&self, _: impl IntoIterator<Item = Field<()>>) {}

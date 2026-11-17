@@ -9,6 +9,7 @@ use std::io::Cursor;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -43,6 +44,7 @@ use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::PatchEntry;
+use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
 use crate::SavedError;
@@ -277,6 +279,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::MapId => Builtin::MapId(MapId(reader.number(tag)?.to_int())),
         BuiltinKey::MapDecorations => Builtin::MapDecorations(reader.map_decorations(tag)?),
+        BuiltinKey::Profile => Builtin::Profile(reader.profile(tag)?),
         BuiltinKey::Unbreakable => {
             reader.map(tag)?;
             Builtin::Unbreakable(Unbreakable)
@@ -496,6 +499,11 @@ impl<L: NameLookup> Reader<'_, L> {
             });
         }
         MapDecorations::new(decorations).ok_or(self.bad())
+    }
+
+    fn profile(&self, tag: &NbtTag) -> Result<Profile, SavedError> {
+        let profile: Profile = from_tag(tag.clone()).map_err(|_| self.bad())?;
+        Ok(profile)
     }
 
     fn block_set(&self, tag: &NbtTag) -> Result<BlockSet, SavedError> {

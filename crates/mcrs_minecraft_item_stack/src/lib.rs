@@ -113,6 +113,7 @@ pub use map_decorations::MapDecorations;
 pub use map_id::MapId;
 pub use max_damage::MaxDamage;
 pub use max_stack_size::MaxStackSize;
+pub use mcrs_minecraft_profile::Profile;
 pub use modifier_display::ModifierDisplay;
 pub use name_lookup::NameLookup;
 pub use name_table::NameTable;

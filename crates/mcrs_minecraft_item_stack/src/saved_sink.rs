@@ -1,6 +1,7 @@
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
+use crate::Profile;
 use crate::saved_form::Fault;
 
 pub(crate) const TAG_MARKER: &str = "#";
@@ -50,6 +51,8 @@ pub(crate) trait SavedSink {
     fn leaf(&self, leaf: Leaf<'_>) -> Self::Node;
 
     fn text(&mut self, text: &Text) -> Option<Self::Node>;
+
+    fn profile(&mut self, profile: &Profile) -> Option<Self::Node>;
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<Self::Node>>) -> Self::Node;
 

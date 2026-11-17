@@ -11,6 +11,7 @@ use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::Neutral;
+use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
 use crate::Tool;
@@ -35,6 +36,8 @@ impl EntityForm for Unbreakable {}
 impl EntityForm for Food {}
 
 impl EntityForm for MapId {}
+
+impl EntityForm for Profile {}
 
 impl EntityForm for CustomName {}
 

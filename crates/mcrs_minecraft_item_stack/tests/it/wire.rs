@@ -487,7 +487,7 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 8] = [
+const DECODED_PLAIN: [&str; 9] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -496,6 +496,7 @@ const DECODED_PLAIN: [&str; 8] = [
     "rarity",
     "map_id",
     "map_decorations",
+    "profile",
 ];
 
 const NBT_FORM_PLAIN: [&str; 1] = ["map_decorations"];
@@ -570,7 +571,112 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (24, 41));
+    assert_eq!((decoded, kept), (32, 48));
+}
+
+#[derive(Deserialize)]
+struct DecodeGolden {
+    decodes: Vec<PlainDecode>,
+    decode_errors: Vec<PlainDecodeError>,
+}
+
+#[derive(Deserialize)]
+struct PlainDecode {
+    kind: String,
+    wire: String,
+    json: String,
+}
+
+#[derive(Deserialize)]
+struct PlainDecodeError {
+    kind: String,
+    wire: String,
+}
+
+const OWN_FORM_DECODES: [(&str, BuiltinKey); 1] = [("profile", BuiltinKey::Profile)];
+
+fn own_form(kind: &str) -> Option<BuiltinKey> {
+    OWN_FORM_DECODES
+        .iter()
+        .find(|(name, _)| *name == kind)
+        .map(|(_, component)| *component)
+}
+
+fn with_one_component(kind: &str, component: &str) -> Vec<u8> {
+    let type_id = COMPONENT_TYPES
+        .iter()
+        .position(|path| *path == kind)
+        .expect("the kind has a type id");
+    let type_id = u8::try_from(type_id).expect("the type ids are below 128");
+    [unhex("01 01 01 00"), vec![type_id], unhex(component)].concat()
+}
+
+#[test]
+fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_back() {
+    let golden: DecodeGolden =
+        serde_json::from_str(&fixture("item_plain").text()).expect("the golden is JSON");
+
+    let mut decoded = 0;
+    for case in &golden.decodes {
+        if own_form(&case.kind).is_none() {
+            continue;
+        }
+        let bare = with_one_component(&case.kind, &case.wire);
+        let read = read_all(&bare, read_wire)
+            .expect("the game decoded it")
+            .expect("a stone");
+        assert_eq!(hex(&wire(Some(&read))), hex(&bare), "{}", case.wire);
+        let from_json = read_saved(
+            &saved(&format!(
+                r#"{{id:"minecraft:stone",components:{{"minecraft:{}":{}}}}}"#,
+                case.kind, case.json
+            )),
+            &Names,
+        )
+        .expect("the game wrote a valid saved form");
+        let written = write_saved(&read, &Names).expect("the component has a saved form");
+        assert_eq!(read_saved(&written, &Names), Ok(from_json), "{}", case.wire);
+        decoded += 1;
+    }
+    assert_eq!(decoded, 1);
+
+    let mut rejected = 0;
+    for case in &golden.decode_errors {
+        let Some(component) = own_form(&case.kind) else {
+            continue;
+        };
+        let bare = with_one_component(&case.kind, &case.wire);
+        assert_eq!(
+            read_all(&bare, read_wire),
+            Err(WireError::BadValue(component)),
+            "{}",
+            case.wire
+        );
+        rejected += 1;
+    }
+    assert_eq!(rejected, 1);
+}
+
+#[test]
+fn a_partial_profile_with_a_name_and_a_uuid_differs_from_the_full_profile_it_saves_as() {
+    let partial = read_all(
+        &with_one_component(
+            "profile",
+            "00 01 05 5374657665 01 00000001 00000002 00000003 00000004 00 00 00 00 00",
+        ),
+        read_wire,
+    )
+    .expect("the stack is valid")
+    .expect("a stone");
+    let full = read_saved(
+        &saved(r#"{id:"minecraft:stone",components:{"minecraft:profile":{id:[I;1,2,3,4],name:"Steve"}}}"#),
+        &Names,
+    )
+    .expect("the profile is valid");
+
+    assert_ne!(partial, full);
+    let written = write_saved(&partial, &Names).expect("the profile has a saved form");
+    assert_eq!(read_saved(&written, &Names), Ok(full));
 }
 
 #[derive(Clone, Copy)]

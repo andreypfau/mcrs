@@ -13,6 +13,7 @@ use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MapId;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
+use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Tool;
@@ -60,6 +61,7 @@ impl<'a> ComponentHolder<'a> {
             DataComponentType::Tool => self.effective::<Tool>().is_some(),
             DataComponentType::MapId => self.effective::<MapId>().is_some(),
             DataComponentType::MapDecorations => self.effective::<MapDecorations>().is_some(),
+            DataComponentType::Profile => self.effective::<Profile>().is_some(),
             _ => false,
         }
     }
@@ -83,6 +85,7 @@ impl<'a> ComponentHolder<'a> {
             Builtin::Tool(value) => self.effective() == Some(value),
             Builtin::MapId(value) => self.effective() == Some(value),
             Builtin::MapDecorations(value) => self.effective() == Some(value),
+            Builtin::Profile(value) => self.effective() == Some(value),
             _ => false,
         }
     }

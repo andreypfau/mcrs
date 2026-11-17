@@ -99,6 +99,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
         Builtin::RepairCost(RepairCost(cost)) => walk.int(sink, *cost, NOT_NEGATIVE),
         Builtin::MapId(MapId(id)) => Ok(sink.leaf(Leaf::Int(*id))),
         Builtin::MapDecorations(decorations) => walk.map_decorations(sink, decorations),
+        Builtin::Profile(profile) => sink.profile(profile).ok_or(Fault::BadValue(walk.component)),
         Builtin::Unbreakable(Unbreakable) => Ok(sink.fields([])),
         Builtin::ItemModel(model) => Ok(sink.leaf(Leaf::Name(model.get()))),
         Builtin::Rarity(rarity) => Ok(sink.leaf(Leaf::String(rarity.name()))),

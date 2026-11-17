@@ -106,7 +106,7 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 8] = [
+const PLAIN_KINDS: [&str; 9] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -115,6 +115,7 @@ const PLAIN_KINDS: [&str; 8] = [
     "repair_cost",
     "map_id",
     "map_decorations",
+    "profile",
 ];
 
 fn plain_cases() -> Vec<Recorded> {
@@ -251,13 +252,14 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "tool",
         "map_id",
         "map_decorations",
+        "profile",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),
             "the goldens lost each case of {kind}"
         );
     }
-    assert!(compared.len() >= 42, "the goldens lost cases: {compared:?}");
+    assert!(compared.len() >= 50, "the goldens lost cases: {compared:?}");
 }
 
 #[test]

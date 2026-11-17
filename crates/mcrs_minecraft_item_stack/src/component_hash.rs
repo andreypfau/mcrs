@@ -5,6 +5,7 @@ use crate::Builtin;
 use crate::HashError;
 use crate::HashScratch;
 use crate::NameLookup;
+use crate::Profile;
 use crate::field_map::FieldMap;
 use crate::node_hash::ListHash;
 use crate::node_hash::MapEntry;
@@ -54,6 +55,10 @@ impl SavedSink for HashSink<'_> {
 
     fn text(&mut self, text: &Text) -> Option<NodeHash> {
         hash_of(text, &mut self.scratch.entries).ok()
+    }
+
+    fn profile(&mut self, profile: &Profile) -> Option<NodeHash> {
+        hash_of(profile, &mut self.scratch.entries).ok()
     }
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<NodeHash>>) -> NodeHash {

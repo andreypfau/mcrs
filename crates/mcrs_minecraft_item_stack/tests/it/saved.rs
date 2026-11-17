@@ -462,6 +462,38 @@ fn a_map_decoration_needs_a_map_with_each_field_and_a_known_type() {
 }
 
 #[test]
+fn a_profile_ignores_the_order_of_its_property_groups_but_not_the_case_of_its_name() {
+    let profile = |profile: &str| {
+        read_saved(
+            &with_components(&format!(r#""minecraft:profile":{profile}"#)),
+            &Names,
+        )
+        .expect("the test profile is valid")
+    };
+    let first_x = profile(r#"{properties:[{name:"x",value:"1"},{name:"y",value:"2"}]}"#);
+    let first_y = profile(r#"{properties:[{name:"y",value:"2"},{name:"x",value:"1"}]}"#);
+    assert_eq!(first_x, first_y);
+    let one_two = profile(r#"{properties:[{name:"x",value:"1"},{name:"x",value:"2"}]}"#);
+    let two_one = profile(r#"{properties:[{name:"x",value:"2"},{name:"x",value:"1"}]}"#);
+    assert_ne!(one_two, two_one);
+    let upper = profile(r#""Steve""#);
+    let lower = profile(r#""steve""#);
+    assert_ne!(upper, lower);
+}
+
+#[test]
+fn the_map_form_of_the_properties_holds_at_most_16_properties_in_total() {
+    let values = vec![r#""v""#; 17].join(",");
+    let nbt = with_components(&format!(
+        r#""minecraft:profile":{{properties:{{p:[{values}]}}}}"#
+    ));
+    assert_eq!(
+        read_saved(&nbt, &Names),
+        Err(SavedError::BadValue(BuiltinKey::Profile))
+    );
+}
+
+#[test]
 fn the_writer_names_the_rule_that_a_stack_breaks() {
     let unnamed_enchantment = Enchantments::new([EnchantmentLevel {
         enchantment: EnchantmentId(9),
@@ -578,7 +610,7 @@ struct PlainError {
     input: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 8] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 9] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
@@ -587,6 +619,7 @@ const PLAIN_KINDS: [(&str, BuiltinKey); 8] = [
     ("repair_cost", BuiltinKey::RepairCost),
     ("map_id", BuiltinKey::MapId),
     ("map_decorations", BuiltinKey::MapDecorations),
+    ("profile", BuiltinKey::Profile),
 ];
 
 fn plain_kind(kind: &str) -> Option<BuiltinKey> {
@@ -614,10 +647,7 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         if plain_kind(&value.kind).is_none() {
             continue;
         }
-        let hex = value
-            .nbt
-            .as_ref()
-            .expect("each of the eight types is saved");
+        let hex = value.nbt.as_ref().expect("each of the nine types is saved");
         let bytes = unhex(hex);
         let nbt = with_component(&value.kind, tag_of(&bytes));
         let read = read_saved(&nbt, &Names).expect("the game wrote a valid component");
@@ -640,7 +670,7 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         }
         checked += 1;
     }
-    assert!(checked >= 24, "the golden lost cases: {checked}");
+    assert!(checked >= 32, "the golden lost cases: {checked}");
 
     let mut rejected = 0;
     for error in &golden.errors {
@@ -649,9 +679,10 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         };
         let input = parse_tag(&error.input).expect("the rejected input is valid SNBT");
         let expected = match component {
-            BuiltinKey::Unbreakable | BuiltinKey::Rarity | BuiltinKey::MapDecorations => {
-                SavedError::BadValue(component)
-            }
+            BuiltinKey::Unbreakable
+            | BuiltinKey::Rarity
+            | BuiltinKey::MapDecorations
+            | BuiltinKey::Profile => SavedError::BadValue(component),
             _ => SavedError::OutOfRange(component),
         };
         let nbt = with_component(&error.kind, input);
@@ -664,5 +695,5 @@ fn the_components_that_the_game_saved_decode_and_write_the_same_bytes() {
         );
         rejected += 1;
     }
-    assert!(rejected >= 11, "the golden lost error cases: {rejected}");
+    assert!(rejected >= 18, "the golden lost error cases: {rejected}");
 }

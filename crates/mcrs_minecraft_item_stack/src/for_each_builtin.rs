@@ -20,6 +20,7 @@ macro_rules! for_each_builtin {
             Tool => "tool",
             MapId => "map_id",
             MapDecorations => "map_decorations",
+            Profile => "profile",
         }
     };
 }

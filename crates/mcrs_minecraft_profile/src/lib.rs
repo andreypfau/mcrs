@@ -13,6 +13,7 @@ pub use xuid::Xuid;
 
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeMap};
@@ -21,7 +22,7 @@ use uuid::Uuid;
 
 use mcrs_minecraft_core::codec::{BoundedString, IntArray};
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct Property<S = String> {
     pub name: S,
     pub value: S,
@@ -65,7 +66,7 @@ pub enum PlayerModelType {
     Wide,
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct SkinPatch {
     pub texture: Option<ResourceLocationBuf>,
     pub cape: Option<ResourceLocationBuf>,
@@ -73,14 +74,32 @@ pub struct SkinPatch {
     pub model: Option<PlayerModelType>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct GameProfileValue {
     pub id: Uuid,
     pub name: PlayerName,
     pub properties: Vec<Property>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl PartialEq for GameProfileValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.name == other.name
+            && same_groups(&self.properties, &other.properties)
+    }
+}
+
+impl Eq for GameProfileValue {}
+
+impl Hash for GameProfileValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.name.hash(state);
+        self.properties.len().hash(state);
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum ProfileIdentity {
     Full(GameProfileValue),
     Partial {
@@ -90,7 +109,58 @@ pub enum ProfileIdentity {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl PartialEq for ProfileIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Full(left), Self::Full(right)) => left == right,
+            (
+                Self::Partial {
+                    name,
+                    id,
+                    properties,
+                },
+                Self::Partial {
+                    name: other_name,
+                    id: other_id,
+                    properties: other_properties,
+                },
+            ) => name == other_name && id == other_id && same_groups(properties, other_properties),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ProfileIdentity {}
+
+impl Hash for ProfileIdentity {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Full(profile) => profile.hash(state),
+            Self::Partial {
+                name,
+                id,
+                properties,
+            } => {
+                name.hash(state);
+                id.hash(state);
+                properties.len().hash(state);
+            }
+        }
+    }
+}
+
+fn same_groups(left: &[Property], right: &[Property]) -> bool {
+    let same_name = |first: &Property, second: &Property| first.name == second.name;
+    left.len() == right.len()
+        && left.chunk_by(same_name).all(|group| {
+            right
+                .chunk_by(same_name)
+                .find(|other| other.first().map(|p| &p.name) == group.first().map(|p| &p.name))
+                .is_some_and(|other| other == group)
+        })
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Profile {
     pub profile: ProfileIdentity,
@@ -112,6 +182,18 @@ impl Profile {
 
 impl Serialize for Profile {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let (name, properties) = match &self.profile {
+            ProfileIdentity::Full(profile) => (Some(&profile.name), &profile.properties),
+            ProfileIdentity::Partial {
+                name, properties, ..
+            } => (name.as_ref(), properties),
+        };
+        if let Some(name) = name {
+            player_name(&name.0).map_err(S::Error::custom)?;
+        }
+        for property in properties {
+            check_property(property).map_err(S::Error::custom)?;
+        }
         let mut map = s.serialize_map(None)?;
         let properties = match &self.profile {
             ProfileIdentity::Full(profile) => {
@@ -296,6 +378,12 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
                     check_property(&property).map_err(A::Error::custom)?;
                     properties.push(property);
                 }
+            }
+            if properties.len() > MAX_PROPERTIES {
+                return Err(A::Error::custom(format_args!(
+                    "List is too long: {}, expected range [0-{MAX_PROPERTIES}]",
+                    properties.len()
+                )));
             }
             Ok(properties)
         }

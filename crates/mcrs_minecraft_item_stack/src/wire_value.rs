@@ -34,6 +34,7 @@ use crate::MaxStackSize;
 use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
+use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
 use crate::SlotGroup;
@@ -91,6 +92,9 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.var_int(input)?)),
         BuiltinKey::MapId => Builtin::MapId(MapId(reader.var_int(input)?)),
         BuiltinKey::MapDecorations => reader.saved_form_as_nbt(input)?,
+        BuiltinKey::Profile => Builtin::Profile(
+            Profile::decode(input).map_err(|error| WireError::of_value(&error, component))?,
+        ),
         BuiltinKey::Unbreakable => Builtin::Unbreakable(Unbreakable),
         BuiltinKey::ItemModel => {
             Builtin::ItemModel(ItemModel::new(reader.identifier(input)?.to_buf()))
@@ -340,6 +344,9 @@ pub(crate) fn write_value<L: NameLookup>(
         }
         Builtin::Tool(tool) => writer.tool(tool, output)?,
         Builtin::MapDecorations(_) => writer.saved_form_as_nbt(value, output)?,
+        Builtin::Profile(profile) => profile
+            .encode(&mut *output)
+            .map_err(|_| WireError::BadValue(writer.component))?,
         Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
             write_text(text, writer.component, output)?;
         }

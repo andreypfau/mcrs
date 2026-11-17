@@ -4,7 +4,7 @@ use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-pub(crate) const COMPONENT_TYPES: [&str; 50] = [
+pub(crate) const COMPONENT_TYPES: [&str; 73] = [
     "custom_data",
     "max_stack_size",
     "max_damage",
@@ -55,6 +55,29 @@ pub(crate) const COMPONENT_TYPES: [&str; 50] = [
     "dyed_color",
     "map_id",
     "map_decorations",
+    "map_post_processing",
+    "charged_projectiles",
+    "bundle_contents",
+    "potion_contents",
+    "potion_duration_scale",
+    "suspicious_stew_effects",
+    "writable_book_content",
+    "written_book_content",
+    "trim",
+    "debug_stick_state",
+    "entity_data",
+    "bucket_entity_data",
+    "block_entity_data",
+    "instrument",
+    "provides_trim_material",
+    "ominous_bottle_amplifier",
+    "jukebox_playable",
+    "provides_banner_patterns",
+    "recipes",
+    "lodestone_tracker",
+    "firework_explosion",
+    "fireworks",
+    "profile",
 ];
 
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {

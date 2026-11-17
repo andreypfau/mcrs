@@ -5811,6 +5811,7 @@ dependencies = [
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_profile",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_snbt",
  "mcrs_minecraft_text",
