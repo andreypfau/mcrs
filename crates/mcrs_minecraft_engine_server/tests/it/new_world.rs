@@ -213,6 +213,15 @@ fn a_damaged_level(dir: &Path) {
     std::fs::write(dir.join("level.dat"), b"damaged").unwrap();
 }
 
+fn a_backup_of_another_data_version(dir: &Path) {
+    written_by_a_creator(dir);
+    let mut data = NbtCompound::new();
+    data.put_int("DataVersion", 1);
+    data.put_int("KeyOfAnotherVersion", 1);
+    level_with_data(dir, data);
+    std::fs::rename(dir.join("level.dat"), dir.join("level.dat_old")).unwrap();
+}
+
 fn a_damaged_backup(dir: &Path) {
     std::fs::write(dir.join("level.dat_old"), b"damaged").unwrap();
 }
@@ -241,11 +250,16 @@ fn files(dir: &Path) -> Vec<(std::path::PathBuf, Vec<u8>)> {
 
 #[test]
 fn a_world_that_does_not_read_does_not_start_and_keeps_its_files() {
-    let cases: [(&str, fn(&Path), fn(&WorldOpenError) -> bool); 5] = [
+    let cases: [(&str, fn(&Path), fn(&WorldOpenError) -> bool); 6] = [
         (
             "another DataVersion",
             another_data_version,
             |error| matches!(error, WorldOpenError::DataVersion { found: Some(1), expected, .. } if *expected == VERSION.world_version),
+        ),
+        (
+            "a level.dat_old of another DataVersion",
+            a_backup_of_another_data_version,
+            |error| matches!(error, WorldOpenError::DataVersion { found: Some(1), .. }),
         ),
         ("no DataVersion", no_data_version, |error| {
             matches!(error, WorldOpenError::DataVersion { found: None, .. })

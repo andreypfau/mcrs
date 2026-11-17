@@ -161,10 +161,12 @@ fn open_world(
     new_world: &NewWorld,
     host: Option<Uuid>,
 ) -> Result<OpenedWorld, WorldOpenError> {
-    let level = match restore_level_dat_backup(dir).and_then(|()| read_level_data_version(dir)) {
-        Ok(Some(found)) if found == VERSION.world_version => Some(read_level_dat(dir)?),
+    let level = match read_level_data_version(dir) {
+        Ok(Some(found)) if found == VERSION.world_version => {
+            restore_level_dat_backup(dir)?;
+            Some(read_level_dat(dir)?)
+        }
         Ok(found) => return Err(version_error(dir, found)),
-        Err(SaveError::DataVersion { found, .. }) => return Err(version_error(dir, Some(found))),
         Err(SaveError::Missing { .. }) => None,
         Err(error) => return Err(error.into()),
     };

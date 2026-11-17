@@ -355,15 +355,22 @@ pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
 }
 
 pub fn restore_level_dat_backup(world: &Path) -> Result<(), SaveError> {
-    let path = world.join("level.dat");
-    let backup = world.join("level.dat_old");
-    let level_missing =
-        matches!(fs::metadata(&path), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
-    if !level_missing || !fs::metadata(&backup).is_ok_and(|metadata| metadata.is_file()) {
+    let Some(backup) = only_backup(world) else {
         return Ok(());
-    }
+    };
     parse_level_dat(&read_bytes(&backup)?, &backup)?;
+    let path = world.join("level.dat");
     fs::rename(&backup, &path).map_err(|source| SaveError::Io { path, source })
+}
+
+fn only_backup(world: &Path) -> Option<PathBuf> {
+    let level_missing = matches!(
+        fs::metadata(world.join("level.dat")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    );
+    let backup = world.join("level.dat_old");
+    (level_missing && fs::metadata(&backup).is_ok_and(|metadata| metadata.is_file()))
+        .then_some(backup)
 }
 
 pub fn read_level_data_version(world: &Path) -> Result<Option<i32>, SaveError> {
@@ -377,7 +384,7 @@ pub fn read_level_data_version(world: &Path) -> Result<Option<i32>, SaveError> {
         #[serde(rename = "DataVersion")]
         data_version: Option<i32>,
     }
-    let path = world.join("level.dat");
+    let path = only_backup(world).unwrap_or_else(|| world.join("level.dat"));
     let file: File = decode(&read_bytes(&path)?, &path)?;
     Ok(file.data.data_version)
 }
