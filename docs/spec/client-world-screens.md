@@ -716,11 +716,17 @@ file. `source_suggested_black_box_confirmed` for steps 2 and 3 by
   - A delete of a large world does not stop the frames of the client.
   - A delete of a world that another process holds removes no file. The entry shows again as a
     locked world.
-  - At no time do two processes hold a lock on the same world folder.
-- **Edge cases:** another process opens the world folder between substeps 2 and 4 of step 2
-  and makes a new `session.lock`. Then the last removal fails after its attempts, and the
-  folder stays on the disk with the files of that process. No toast shows. A folder with no
-  `level.dat` is not in the list (WORLD-DIR-001), so the entry does not show again.
+  - A delete never removes a `session.lock` that another process holds, and never removes a file
+    that another process made after substep 2.
+- **Edge cases:**
+  - Another process opens the world folder between substeps 2 and 4 of step 2 and makes a new
+    `session.lock`. Then the last removal fails after its attempts, and the folder stays on the
+    disk with the files of that process. No toast shows. A folder with no `level.dat` is not in
+    the list (WORLD-DIR-001), so the entry does not show again.
+  - Limit: a process that opened the old `session.lock` before substep 2 and tries its lock after
+    substep 3 holds a lock on a removed file, and a third process can then make and lock a new
+    `session.lock` in the same folder. Each client tries the lock at once after it opens the
+    file, so the window is a few system calls.
 
 Provenance: `design` for steps 2 to 4 and the edge case: the client never waits on the disk in a
 frame, mcrs has no toast, and the order of step 2 removes no lock file that another process
