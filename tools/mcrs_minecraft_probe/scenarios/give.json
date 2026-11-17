@@ -1,0 +1,710 @@
+{
+  "observe": {
+    "sound": true,
+    "commands": [
+      "give"
+    ]
+  },
+  "steps": [
+    {
+      "id": "join-GiveProbeA",
+      "join": "GiveProbeA"
+    },
+    {
+      "id": "join-GiveProbeB",
+      "join": "GiveProbeB"
+    },
+    {
+      "id": "prepare",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "scoreboard objectives add give_result dummy",
+          "scoreboard objectives add give_success dummy",
+          "scoreboard objectives add picked_stone minecraft.picked_up:minecraft.stone",
+          "fill -3 99 -3 3 99 3 stone",
+          "execute in minecraft:overworld run tp GiveProbeA 0 100 0",
+          "execute in minecraft:overworld run tp GiveProbeB 2 100 0",
+          "gamemode survival @a",
+          "advancement revoke @a everything",
+          "clear @a",
+          "kill @e[type=item]"
+        ]
+      }
+    },
+    {
+      "id": "promote",
+      "console": {
+        "lines": [
+          "op GiveProbeA"
+        ]
+      }
+    },
+    {
+      "id": "client.single-default",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone"
+      }
+    },
+    {
+      "id": "client.multiple-targets",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @a stone 3"
+      }
+    },
+    {
+      "id": "client.over-limit-tool",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s diamond_pickaxe 101"
+      }
+    },
+    {
+      "id": "client.zero",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone 0"
+      }
+    },
+    {
+      "id": "client.over-limit-patched",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[max_stack_size=4] 401"
+      }
+    },
+    {
+      "id": "client.air",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s minecraft:air"
+      }
+    },
+    {
+      "id": "client.malformed-component",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[damage=-1]"
+      }
+    },
+    {
+      "id": "client.no-permission",
+      "command": {
+        "client": "GiveProbeB",
+        "line": "give @s stone"
+      }
+    },
+    {
+      "id": "client.rarity-uncommon",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[rarity=\"uncommon\"]"
+      }
+    },
+    {
+      "id": "client.rarity-rare",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[rarity=\"rare\"]"
+      }
+    },
+    {
+      "id": "client.rarity-epic",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[rarity=\"epic\"]"
+      }
+    },
+    {
+      "id": "client.custom-name",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[custom_name=\"MyStone\"]"
+      }
+    },
+    {
+      "id": "client.custom-name-styled",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[rarity=\"rare\",custom_name={text:\"Styled\",italic:false,color:\"gold\"}]"
+      }
+    },
+    {
+      "id": "client.item-name",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[item_name=\"BaseName\"]"
+      }
+    },
+    {
+      "id": "client.lore-mixed",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s diamond_sword[damage=5,lore=[\"line1\",{text:\"b\",italic:false}]] 2"
+      }
+    },
+    {
+      "id": "client.tooltip-hidden",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[tooltip_display={hide_tooltip:true}]"
+      }
+    },
+    {
+      "id": "client.removed-component",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[!max_stack_size] 2"
+      }
+    },
+    {
+      "id": "client.empty-brackets",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s stone[]"
+      }
+    },
+    {
+      "id": "client.modified-air",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s minecraft:air[custom_name=\"TestAir\"]"
+      }
+    },
+    {
+      "id": "client.air-over-limit",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s minecraft:air[custom_name=\"TestAir\"] 101"
+      }
+    },
+    {
+      "id": "client.toomanyitems-epic",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s diamond_pickaxe[rarity=\"epic\"] 101"
+      }
+    },
+    {
+      "id": "client.non-player-selector",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @e stone"
+      }
+    },
+    {
+      "id": "client.unknown-item",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s unknown_id[x=1] 0"
+      }
+    },
+    {
+      "id": "client.malformed-strict",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give @s diamond_sword[max_stack_size=16]"
+      }
+    },
+    {
+      "id": "client.offline-before-limit",
+      "command": {
+        "client": "GiveProbeA",
+        "line": "give NoSuchPlayer stone[max_stack_size=4] 401"
+      }
+    },
+    {
+      "id": "default",
+      "console": {
+        "lines": [
+          "clear @a",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone",
+          "data get entity GiveProbeA Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "multiple",
+      "console": {
+        "lines": [
+          "clear @a",
+          "execute store result score #result give_result store success score #success give_success run give @a stone 3",
+          "data get entity GiveProbeA Inventory",
+          "data get entity GiveProbeB Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "split",
+      "console": {
+        "lines": [
+          "clear @a",
+          "give GiveProbeA stone[max_stack_size=4] 5",
+          "data get entity GiveProbeA Inventory"
+        ]
+      }
+    },
+    {
+      "id": "limit",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "execute store result score #result give_result store success score #success give_success run give @a stone[max_stack_size=4] 401",
+          "data get entity GiveProbeA Inventory",
+          "data get entity GiveProbeB Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success",
+          "execute if entity @e[type=item] run say GIVE_FAILED_ITEM_EXISTS"
+        ]
+      }
+    },
+    {
+      "id": "per_target_limit",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "execute store result score #result give_result store success score #success give_success run give @a stone[max_stack_size=1] 60",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "limit_inclusive",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone[max_stack_size=4] 400",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "removed_max_stack_size",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "give GiveProbeA stone[!max_stack_size] 2",
+          "data get entity GiveProbeA Inventory"
+        ]
+      }
+    },
+    {
+      "id": "air",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA air 100",
+          "execute if entity @e[type=item] run say GIVE_AIR_ITEM_EXISTS",
+          "data get entity GiveProbeA Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success",
+          "give GiveProbeA air 101"
+        ]
+      }
+    },
+    {
+      "id": "invalid_component",
+      "console": {
+        "lines": [
+          "clear @a",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA diamond_sword[max_stack_size=16] 1601",
+          "data get entity GiveProbeA Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "partial_survival",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "item replace entity GiveProbeA hotbar.0 with stone 63",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone 10",
+          "data get entity GiveProbeA Inventory[{Slot:0b}]",
+          "data get entity @e[type=item,limit=1,sort=nearest] Item",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "full_survival",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone 10",
+          "data get entity @e[type=item,limit=1,sort=nearest] Item",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "cross_dimension",
+      "console": {
+        "lines": [
+          "clear @a",
+          "execute in minecraft:the_nether run tp GiveProbeB 0 120 0",
+          "data get entity GiveProbeB Dimension",
+          "execute store result score #result give_result store success score #success give_success run give @a stone 3",
+          "data get entity GiveProbeA Inventory",
+          "data get entity GiveProbeB Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success",
+          "execute in minecraft:overworld run tp GiveProbeB 2 100 0"
+        ]
+      }
+    },
+    {
+      "id": "parse_error_store",
+      "console": {
+        "lines": [
+          "scoreboard players set #result give_result 123",
+          "scoreboard players set #success give_success 123",
+          "execute store result score #result give_result store success score #success give_success run give @a stone 0",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "error_precedence",
+      "console": {
+        "lines": [
+          "give NoSuchPlayer no_such_item 0",
+          "give NoSuchPlayer stone 0",
+          "give NoSuchPlayer diamond_sword[max_stack_size=16] 1601"
+        ]
+      }
+    },
+    {
+      "id": "argument_errors",
+      "console": {
+        "lines": [
+          "give @a stone 0",
+          "give @e stone",
+          "give @a nonexisting 1",
+          "give NoSuchPlayer stone"
+        ]
+      }
+    },
+    {
+      "id": "empty_brackets",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "give GiveProbeA stone[]",
+          "give GiveProbeA air[]",
+          "data get entity GiveProbeA Inventory"
+        ]
+      }
+    },
+    {
+      "id": "modified_air",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "give GiveProbeA air[custom_name=\"TestAir\"]",
+          "give GiveProbeA air[max_stack_size=4] 5",
+          "data get entity GiveProbeA Inventory",
+          "execute if entity @e[type=item] run say GIVE_MOD_AIR_ITEM_EXISTS",
+          "give GiveProbeA air[custom_name=\"TestAir\"] 101",
+          "give GiveProbeA air[max_stack_size=4] 401"
+        ]
+      }
+    },
+    {
+      "id": "greedy_split_partial",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "item replace entity GiveProbeA hotbar.0 with stone 63",
+          "give GiveProbeA stone 100",
+          "data get entity GiveProbeA Inventory[{Slot:0b}]",
+          "execute as @e[type=item] run data get entity @s Item"
+        ]
+      }
+    },
+    {
+      "id": "greedy_split_one_slot",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "item replace entity GiveProbeA hotbar.0 with air",
+          "give GiveProbeA stone 100",
+          "data get entity GiveProbeA Inventory[{Slot:0b}]",
+          "execute as @e[type=item] run data get entity @s Item"
+        ]
+      }
+    },
+    {
+      "id": "mixed_multi_target",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "gamemode survival GiveProbeB",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "execute store result score #result give_result store success score #success give_success run give @a stone 5",
+          "data get entity GiveProbeB Inventory",
+          "execute as @e[type=item] run data get entity @s Item",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #success give_success"
+        ]
+      }
+    },
+    {
+      "id": "spectator_target",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode spectator GiveProbeB",
+          "give GiveProbeB stone 3",
+          "data get entity GiveProbeB Inventory",
+          "item fill entity GiveProbeB inventory.* with dirt 64",
+          "item fill entity GiveProbeB hotbar.* with dirt 64",
+          "give GiveProbeB stone 4",
+          "execute as @e[type=item] run data get entity @s Item",
+          "gamemode survival GiveProbeB"
+        ]
+      }
+    },
+    {
+      "id": "sound_fraction_positive.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "tp GiveProbeA 1.23 100.0 -2.73"
+        ]
+      }
+    },
+    {
+      "id": "sound_fraction_positive",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "sound_fraction_negative.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "tp GiveProbeA -1.23 100.0 2.73"
+        ]
+      }
+    },
+    {
+      "id": "sound_fraction_negative",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "sound_in_range.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "gamemode survival GiveProbeB",
+          "tp GiveProbeA 1.25 101.5 -2.75",
+          "tp GiveProbeB 15.25 101.5 -2.75"
+        ]
+      }
+    },
+    {
+      "id": "sound_in_range",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "sound_at_boundary.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "tp GiveProbeA 0.0 100.0 0.0",
+          "tp GiveProbeB 16.0 100.0 0.0"
+        ]
+      }
+    },
+    {
+      "id": "sound_at_boundary",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "sound_boundary_fraction",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "tp GiveProbeA 0.06 100.0 0.0",
+          "tp GiveProbeB 16.05 100.0 0.0",
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "sound_other_dimension.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "tp GiveProbeA 0 100 0",
+          "execute in minecraft:the_nether run tp GiveProbeB 0 100 0"
+        ]
+      }
+    },
+    {
+      "id": "sound_other_dimension",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 1"
+        ]
+      }
+    },
+    {
+      "id": "console_precedence.setup",
+      "console": {
+        "lines": [
+          "execute in minecraft:overworld run tp GiveProbeB 2 100 0"
+        ]
+      }
+    },
+    {
+      "id": "console_precedence",
+      "console": {
+        "lines": [
+          "give @s stone",
+          "give @s diamond_sword[max_stack_size=16]",
+          "give NoSuchPlayer stone[max_stack_size=4] 401",
+          "give GiveProbeA stone[!max_stack_size] 101",
+          "give GiveProbeA stone[max_stack_size=100]"
+        ]
+      }
+    },
+    {
+      "id": "stats_and_advancement.setup",
+      "console": {
+        "lines": [
+          "advancement revoke GiveProbeA only minecraft:story/mine_stone"
+        ]
+      }
+    },
+    {
+      "id": "stats_and_advancement",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamemode survival GiveProbeA",
+          "scoreboard players set GiveProbeA picked_stone 0",
+          "scoreboard players get GiveProbeA picked_stone",
+          "give GiveProbeA stone 5",
+          "scoreboard players get GiveProbeA picked_stone",
+          "give GiveProbeA cobblestone 1"
+        ]
+      }
+    },
+    {
+      "id": "dead_target.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamerule immediate_respawn false",
+          "gamemode survival GiveProbeB",
+          "kill GiveProbeB"
+        ]
+      }
+    },
+    {
+      "id": "dead_target",
+      "console": {
+        "lines": [
+          "execute store result score #result give_result store success score #success give_success run give @a stone 2",
+          "execute store result score #r2 give_result store success score #s2 give_success run give GiveProbeB stone 2",
+          "data get entity GiveProbeB Inventory",
+          "scoreboard players get #result give_result",
+          "scoreboard players get #r2 give_result",
+          "scoreboard players get #s2 give_success"
+        ]
+      }
+    },
+    {
+      "id": "dead_target_full.setup",
+      "console": {
+        "lines": [
+          "clear @a",
+          "kill @e[type=item]",
+          "gamerule keep_inventory true",
+          "gamerule immediate_respawn false",
+          "gamemode survival GiveProbeA",
+          "item fill entity GiveProbeA inventory.* with dirt 64",
+          "item fill entity GiveProbeA hotbar.* with dirt 64",
+          "kill GiveProbeA"
+        ]
+      }
+    },
+    {
+      "id": "dead_target_full",
+      "console": {
+        "lines": [
+          "give GiveProbeA stone 10",
+          "execute as @e[type=item] run data get entity @s Item",
+          "data get entity GiveProbeA Inventory"
+        ]
+      }
+    }
+  ]
+}

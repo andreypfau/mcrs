@@ -1,8 +1,8 @@
 use crate::client;
 use crate::client::{Event, Login, Order, Signal};
 use crate::{
-    Action, ConnectionState, Disconnect, Host, MenuEvent, Observe, Observed, Scenario, StepTrace,
-    Trace, TraceVersion,
+    Action, ChatMessage, CommandTree, ConnectionState, Disconnect, Host, MenuEvent, Observe,
+    Observed, Scenario, SoundPlayed, StepTrace, Trace, TraceVersion,
 };
 use anyhow::Context;
 use mcrs_minecraft_core::VERSION;
@@ -25,6 +25,8 @@ struct Clients {
     quiet: Duration,
     observe: Observe,
     menu: Vec<MenuEvent>,
+    sounds: Vec<SoundPlayed>,
+    trees: Vec<CommandTree>,
     orders: BTreeMap<String, UnboundedSender<Order>>,
     events_in: UnboundedSender<Event>,
     events: UnboundedReceiver<Event>,
@@ -32,7 +34,7 @@ struct Clients {
 
 /// Runs the steps of `scenario` with clients that connect to `address`, and returns what they
 /// observed. A step is complete when no client reported a chat message, a menu packet, a
-/// disconnect or a close for `quiet`. `host` reads the files of the target and restarts it.
+/// disconnect or a close for `quiet`. `host` reads the files of the target, runs its console and restarts it.
 ///
 /// Does not apply `scenario.target`: the caller does that before the call.
 pub async fn run<H: Host>(
@@ -44,8 +46,10 @@ pub async fn run<H: Host>(
     let (events_in, events) = mpsc::unbounded_channel();
     let mut clients = Clients {
         quiet,
-        observe: scenario.observe,
+        observe: scenario.observe.clone(),
         menu: Vec::new(),
+        sounds: Vec::new(),
+        trees: Vec::new(),
         orders: BTreeMap::new(),
         events_in,
         events,
@@ -83,11 +87,15 @@ pub async fn run<H: Host>(
             None => None,
         };
         let menu = mem::take(&mut clients.menu);
+        let sounds = mem::take(&mut clients.sounds);
+        let trees = mem::take(&mut clients.trees);
         steps.push(StepTrace {
             id: step.id.clone(),
             observed,
             player_bans,
             inventory: scenario.observe.inventory.then_some(menu),
+            sounds: scenario.observe.sound.then_some(sounds),
+            command_trees: (!scenario.observe.commands.is_empty()).then_some(trees),
             player_file,
         });
     }
@@ -111,6 +119,7 @@ impl Clients {
             Action::Join(name) => self.join(address, name).await,
             Action::Leave(name) => self.leave(name).await,
             Action::Command { client, line } => self.command(client, line).await,
+            Action::Console { lines } => self.console(lines, host).await,
             Action::Click(click) => self.send(&click.client, Order::Click(click.clone())).await,
             Action::Close { client, container } => {
                 self.send(client, Order::Close(*container)).await
@@ -157,7 +166,7 @@ impl Clients {
         tokio::spawn(client::session(
             *io,
             name.to_owned(),
-            self.observe,
+            self.observe.clone(),
             orders,
             self.events_in.clone(),
         ));
@@ -171,7 +180,9 @@ impl Clients {
                 continue;
             }
             let reason = match event.signal {
-                Signal::Chat(_) | Signal::Menu(_) => continue,
+                Signal::Chat(_) | Signal::Menu(_) | Signal::Sound(_) | Signal::Commands(_) => {
+                    continue;
+                }
                 Signal::Disconnected(reason) => Some(reason),
                 Signal::Closed | Signal::Failed(_) => None,
             };
@@ -207,7 +218,12 @@ impl Clients {
                     client: event.client,
                     reason,
                 }),
-                Signal::Chat(_) | Signal::Menu(_) | Signal::Closed | Signal::Failed(_) => {}
+                Signal::Chat(_)
+                | Signal::Menu(_)
+                | Signal::Sound(_)
+                | Signal::Commands(_)
+                | Signal::Closed
+                | Signal::Failed(_) => {}
             }
         }
         disconnects.sort_by(|left, right| left.client.cmp(&right.client));
@@ -215,6 +231,24 @@ impl Clients {
             replies,
             disconnects,
         })
+    }
+
+    async fn console<H: Host>(
+        &mut self,
+        lines: &[String],
+        host: &mut H,
+    ) -> anyhow::Result<Observed> {
+        let output = host.console(lines)?;
+        let mut chat = Vec::new();
+        for event in self.settle(self.quiet).await {
+            if let Signal::Chat(text) = event.signal {
+                chat.push(ChatMessage {
+                    client: event.client,
+                    text,
+                });
+            }
+        }
+        Ok(Observed::Console { output, chat })
     }
 
     async fn send(&mut self, sender: &str, order: Order) -> anyhow::Result<Observed> {
@@ -232,7 +266,12 @@ impl Clients {
                 Signal::Failed(error) if event.client == sender => {
                     anyhow::bail!("the connection of {sender} closed after an error: {error}")
                 }
-                Signal::Chat(_) | Signal::Menu(_) | Signal::Closed | Signal::Failed(_) => {}
+                Signal::Chat(_)
+                | Signal::Menu(_)
+                | Signal::Sound(_)
+                | Signal::Commands(_)
+                | Signal::Closed
+                | Signal::Failed(_) => {}
             }
         }
         disconnects.sort_by(|left, right| left.client.cmp(&right.client));
@@ -271,6 +310,8 @@ impl Clients {
                     client: event.client,
                     packet,
                 }),
+                Signal::Sound(packet) => self.sounds.push(packet),
+                Signal::Commands(tree) => self.trees.push(tree),
                 Signal::Chat(_) => seen.push(event),
                 Signal::Disconnected(_) | Signal::Closed | Signal::Failed(_) => {
                     self.orders.remove(&event.client);

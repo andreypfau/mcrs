@@ -39,6 +39,10 @@ impl Host for EmbeddedHost {
         anyhow::bail!("the embedded server host does not read player files")
     }
 
+    fn console(&mut self, _lines: &[String]) -> anyhow::Result<Vec<String>> {
+        anyhow::bail!("the embedded server host has no console")
+    }
+
     fn restart_server(&mut self) -> anyhow::Result<()> {
         anyhow::bail!("the embedded server host does not restart the server")
     }

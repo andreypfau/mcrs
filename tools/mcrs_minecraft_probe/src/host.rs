@@ -9,6 +9,10 @@ pub trait Host {
     /// The saved player file of the player with this name, as it is on disk now.
     fn read_player_file(&mut self, player: &str) -> anyhow::Result<NbtCompound>;
 
+    /// Runs the commands on the console of the server, in order, and returns the replies that
+    /// the server printed for them, as plain text without a log prefix.
+    fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>>;
+
     /// Stops the server so that it saves, and starts it again on the same world and address.
     /// The driver closes every client before the call.
     fn restart_server(&mut self) -> anyhow::Result<()>;
