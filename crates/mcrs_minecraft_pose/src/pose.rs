@@ -10,14 +10,24 @@ pub enum Pose {
     Swimming,
     SpinAttack,
     Crouching,
+    LongJumping,
     Dying,
+    Croaking,
+    UsingTongue,
+    Sitting,
+    Roaring,
+    Sniffing,
+    Emerging,
+    Digging,
+    Sliding,
+    Shooting,
+    Inhaling,
 }
 
 impl Pose {
     #[must_use]
     pub fn player_dimensions(self) -> Dimensions {
         match self {
-            Pose::Standing => Dimensions::scalable(0.6, 1.8).with_eye_height(1.62),
             Pose::Crouching => Dimensions::scalable(0.6, 1.5).with_eye_height(1.27),
             Pose::Swimming | Pose::FallFlying | Pose::SpinAttack => {
                 Dimensions::scalable(0.6, 0.6).with_eye_height(0.4)
@@ -34,6 +44,18 @@ impl Pose {
                 eye_height: 1.62,
                 scaling: Scaling::Fixed,
             },
+            Pose::Standing
+            | Pose::LongJumping
+            | Pose::Croaking
+            | Pose::UsingTongue
+            | Pose::Sitting
+            | Pose::Roaring
+            | Pose::Sniffing
+            | Pose::Emerging
+            | Pose::Digging
+            | Pose::Sliding
+            | Pose::Shooting
+            | Pose::Inhaling => Dimensions::scalable(0.6, 1.8).with_eye_height(1.62),
         }
     }
 }

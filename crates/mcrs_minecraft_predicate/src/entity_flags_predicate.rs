@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity::Pose;
+use mcrs_minecraft_pose::Pose;
 use serde::Deserialize;
 
 use crate::entity_view::EntityView;

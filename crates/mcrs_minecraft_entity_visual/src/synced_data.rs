@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_resource::Id;
 
 const ON_FIRE: u8 = 1 << 0;

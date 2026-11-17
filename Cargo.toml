@@ -104,6 +104,7 @@ mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", d
 mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_minecraft_entity_key = { path = "crates/mcrs_minecraft_entity_key" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
+mcrs_minecraft_pose = { path = "crates/mcrs_minecraft_pose" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
 mcrs_minecraft_engine_entity_motion = { path = "crates/mcrs_minecraft_engine_entity_motion" }

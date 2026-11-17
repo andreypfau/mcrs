@@ -5,7 +5,6 @@ use std::sync::LazyLock;
 use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
@@ -26,6 +25,7 @@ use mcrs_minecraft_loot_condition::{
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};

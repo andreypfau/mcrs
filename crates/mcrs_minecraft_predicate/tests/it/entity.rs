@@ -1,9 +1,9 @@
 use glam::DVec3;
-use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{
     ActiveEffect, BakedEntityPredicate, EntityPredicate, EntityView, LocationView, NoWorld,
     PredicateIssue, PredicateScratch,

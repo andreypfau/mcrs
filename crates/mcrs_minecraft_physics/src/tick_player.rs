@@ -1,12 +1,12 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_numeric as numeric;
+use mcrs_minecraft_pose::Dimensions;
+use mcrs_minecraft_pose::Pose;
 
-use crate::Aabb;
 use crate::BlockAction;
 use crate::BodyView;
 use crate::CollisionWorld;
-use crate::Dimensions;
 use crate::Keys;
 use crate::MotionAttributes;
 use crate::MoveInput;
@@ -16,7 +16,7 @@ use crate::Orientation;
 use crate::Physics;
 use crate::PlayerFacts;
 use crate::PlayerState;
-use crate::Pose;
+use crate::PoseInputs;
 use crate::Scratch;
 use crate::Side;
 use crate::StuckIgnore;
@@ -24,11 +24,11 @@ use crate::View;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::push_out;
-use crate::query;
+use crate::select_pose;
+use crate::select_pose::pose_box_collides;
 use crate::tick_entity::applied_dy;
 use crate::tick_entity::jump;
 use crate::tolerance::CLIP;
-use crate::tolerance::COLLISION;
 use crate::travel;
 use crate::travel::TravelInput;
 
@@ -125,7 +125,20 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     body.position.x = body.position.x.clamp(-WORLD_EDGE, WORLD_EDGE);
     body.position.z = body.position.z.clamp(-WORLD_EDGE, WORLD_EDGE);
     out.body = body;
-    out.pose = select_pose(view, out, &keys, &facts, flight_end, scratch);
+    let pose_inputs = PoseInputs {
+        current: out.pose,
+        entity: out.query_entity(),
+        scale: out.attributes.scale as f32,
+        sleeping: facts.sleeping,
+        swimming: out.swimming,
+        fall_flying: facts.fall_flying,
+        spin_attack: facts.spin_attack,
+        shift: keys.shift,
+        flight: flight_end,
+        spectator: facts.spectator,
+        passenger: facts.passenger,
+    };
+    out.pose = select_pose(view, &pose_inputs, scratch);
     out.shift0 = keys.shift;
     out.jump0 = keys.jump;
     out.forward0 = move_input.forward;
@@ -385,35 +398,6 @@ fn flight_state(
     flight
 }
 
-fn select_pose<W: CollisionWorld, B: BodyView>(
-    view: View<'_, W, B>,
-    state: &PlayerState,
-    keys: &Keys,
-    facts: &PlayerFacts,
-    flight: bool,
-    scratch: &mut Scratch,
-) -> Pose {
-    let desired = if facts.sleeping {
-        Pose::Sleeping
-    } else if state.swimming {
-        Pose::Swimming
-    } else if keys.shift && !flight {
-        Pose::Crouching
-    } else {
-        Pose::Standing
-    };
-    if collides_in(view, state, Pose::Swimming, scratch) {
-        return state.pose;
-    }
-    if facts.spectator || facts.passenger || !collides_in(view, state, desired, scratch) {
-        return desired;
-    }
-    if !collides_in(view, state, Pose::Crouching, scratch) {
-        return Pose::Crouching;
-    }
-    Pose::Swimming
-}
-
 fn collides_in<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     state: &PlayerState,
@@ -421,7 +405,5 @@ fn collides_in<W: CollisionWorld, B: BodyView>(
     scratch: &mut Scratch,
 ) -> bool {
     let dimensions = dimensions_of(pose, &state.attributes);
-    let bounds =
-        Aabb::of_body(state.body.position, dimensions.width, dimensions.height).deflate(COLLISION);
-    query::intersects(view, &state.query_entity(), bounds, &mut scratch.entities)
+    pose_box_collides(view, &state.query_entity(), dimensions, scratch)
 }
