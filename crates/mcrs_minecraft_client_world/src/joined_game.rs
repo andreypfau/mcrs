@@ -20,6 +20,8 @@ use crate::player::{Player, player_at};
 use crate::session::InSession;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::SyncedData;
+use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_player_holders::restore_holders;
 
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
@@ -43,6 +45,7 @@ impl CurrentDimension {
 }
 
 pub(crate) fn add_observers(app: &mut App) {
+    app.world_mut().register_system_cached(restore_holders);
     app.add_observer(on_login)
         .add_observer(on_respawn)
         .add_observer(on_set_entity_data);
@@ -102,6 +105,8 @@ fn on_login(
                 if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
                     player.insert(AttributeInstances::new(bases));
                 }
+                let player = player.id();
+                commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
             }
         }
         Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),

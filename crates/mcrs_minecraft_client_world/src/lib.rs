@@ -20,6 +20,7 @@ pub mod game_mode;
 pub mod game_packets;
 pub mod hotbar_sync;
 pub mod inventory_packets;
+mod item_table_cache;
 pub mod joined_game;
 pub mod local_motion;
 pub mod local_player;

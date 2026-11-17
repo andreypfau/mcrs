@@ -36,17 +36,47 @@ impl<'a> RegistryNames<'a> {
     }
 }
 
+pub(crate) struct NamedRegistry {
+    pub(crate) table: NameTable,
+    pub(crate) key: &'static str,
+}
+
+pub(crate) const NAMED_REGISTRIES: [NamedRegistry; 7] = [
+    NamedRegistry {
+        table: NameTable::Attribute,
+        key: "minecraft:attribute",
+    },
+    NamedRegistry {
+        table: NameTable::Block,
+        key: "minecraft:block",
+    },
+    NamedRegistry {
+        table: NameTable::ComponentType,
+        key: "minecraft:data_component_type",
+    },
+    NamedRegistry {
+        table: NameTable::Enchantment,
+        key: "minecraft:enchantment",
+    },
+    NamedRegistry {
+        table: NameTable::MapDecorationType,
+        key: "minecraft:map_decoration_type",
+    },
+    NamedRegistry {
+        table: NameTable::SoundEvent,
+        key: "minecraft:sound_event",
+    },
+    NamedRegistry {
+        table: NameTable::EntityType,
+        key: "minecraft:entity_type",
+    },
+];
+
 fn registry_key(table: NameTable) -> Option<&'static str> {
-    match table {
-        NameTable::Attribute => Some("minecraft:attribute"),
-        NameTable::Block => Some("minecraft:block"),
-        NameTable::ComponentType => Some("minecraft:data_component_type"),
-        NameTable::Enchantment => Some("minecraft:enchantment"),
-        NameTable::MapDecorationType => Some("minecraft:map_decoration_type"),
-        NameTable::SoundEvent => Some("minecraft:sound_event"),
-        NameTable::EntityType => Some("minecraft:entity_type"),
-        _ => None,
-    }
+    NAMED_REGISTRIES
+        .iter()
+        .find(|named| named.table == table)
+        .map(|named| named.key)
 }
 
 fn tag_id<R>(tags: &Tags<R>, name: ResourceLocation<'_>) -> Option<u16> {
