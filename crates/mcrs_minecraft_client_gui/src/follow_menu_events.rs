@@ -16,7 +16,7 @@ use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
 use crate::menu_screens_plugin::{next_screen, world_presence};
 use crate::pause_screen;
-use crate::select_world_screen::{self, selected_world};
+use crate::select_world_screen::{self, selected_row, selected_world, world_at};
 use crate::title_draw::TitleScreenState;
 use crate::title_screen;
 use crate::world_list_error_screen;
@@ -37,8 +37,8 @@ pub(crate) struct TitleActions<'w, 's> {
 }
 
 impl TitleActions<'_, '_> {
-    fn play_selected(&mut self, widgets: &Widgets, screen: &mut Screen) {
-        if let Some(world) = selected_world(widgets, &self.worlds)
+    fn play(&mut self, widgets: &Widgets, row: Option<usize>, screen: &mut Screen) {
+        if let Some(world) = row.and_then(|row| world_at(widgets, &self.worlds, row))
             && !world.is_disabled()
         {
             self.plays.write(PlayWorld {
@@ -84,7 +84,7 @@ pub(crate) fn follow_menu_events(
                     title.state.end_fade();
                 }
                 (Screen::SelectWorld, select_world_screen::PLAY) => {
-                    title.play_selected(&menu.widgets, &mut screen);
+                    title.play(&menu.widgets, selected_row(&menu.widgets), &mut screen);
                 }
                 (Screen::SelectWorld, select_world_screen::DELETE) => {
                     title.delete_target.0 = selected_world(&menu.widgets, &title.worlds)
@@ -109,9 +109,11 @@ pub(crate) fn follow_menu_events(
                 Screen::SelectWorld,
                 MenuEvent::Widget(WidgetEvent::RowActivated {
                     widget: select_world_screen::LIST,
-                    ..
+                    row,
                 }),
-            ) => title.play_selected(&menu.widgets, &mut screen),
+            ) => {
+                title.play(&menu.widgets, Some(row), &mut screen);
+            }
             (Screen::DeleteWorldConfirmation, MenuEvent::CloseRequested) => {
                 title.reads.write(ReadWorldList);
             }
@@ -135,7 +137,8 @@ pub(crate) fn follow_menu_events(
 #[cfg(test)]
 mod tests {
     mod jar {
-        use bevy::input::keyboard::Key;
+        use bevy::input::ButtonState;
+        use bevy::input::keyboard::{Key, KeyboardInput};
         use bevy::window::CursorGrabMode;
         use mcrs_minecraft_client_widget::WidgetKind;
         use mcrs_minecraft_client_world::screen::AccessibilityParent;
@@ -296,9 +299,26 @@ mod tests {
                 press(app, KeyCode::Enter, Key::Enter, None);
                 (screen(app), drained::<PlayWorld>(app))
             };
+            let play_then_move_down = |app: &mut App| {
+                for (key_code, logical_key) in [
+                    (KeyCode::Enter, Key::Enter),
+                    (KeyCode::ArrowDown, Key::ArrowDown),
+                ] {
+                    app.world_mut().write_message(KeyboardInput {
+                        key_code,
+                        logical_key,
+                        state: ButtonState::Pressed,
+                        text: None,
+                        repeat: false,
+                        window: Entity::PLACEHOLDER,
+                    });
+                }
+                app.update();
+                (screen(app), drained::<PlayWorld>(app))
+            };
             let reading = Screen::Message(ScreenMessage::ReadingWorldData);
             assert_eq!(
-                [play(&mut app), play(&mut app)],
+                [play_then_move_down(&mut app), play(&mut app)],
                 [
                     (reading, vec![PlayWorld { folder_id: alpha() }]),
                     (reading, Vec::new())

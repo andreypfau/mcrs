@@ -162,10 +162,21 @@ pub(crate) fn selected_world<'a>(
     widgets: &Widgets,
     list: &'a WorldList,
 ) -> Option<&'a WorldSummary> {
-    let row = match widgets.get(LIST).map(|widget| &widget.kind) {
-        Some(WidgetKind::SelectionList(rows)) => rows.selected()?,
-        _ => return None,
-    };
+    world_at(widgets, list, selected_row(widgets)?)
+}
+
+pub(crate) fn selected_row(widgets: &Widgets) -> Option<usize> {
+    match widgets.get(LIST).map(|widget| &widget.kind) {
+        Some(WidgetKind::SelectionList(rows)) => rows.selected(),
+        _ => None,
+    }
+}
+
+pub(crate) fn world_at<'a>(
+    widgets: &Widgets,
+    list: &'a WorldList,
+    row: usize,
+) -> Option<&'a WorldSummary> {
     shown_worlds(list, search_query(widgets))
         .nth(row)
         .map(|(_, world)| world)
