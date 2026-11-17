@@ -33,6 +33,9 @@ use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
 use crate::Kind;
+use crate::MapDecoration;
+use crate::MapDecorationTypeId;
+use crate::MapDecorations;
 use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
@@ -273,6 +276,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::MapId => Builtin::MapId(MapId(reader.number(tag)?.to_int())),
+        BuiltinKey::MapDecorations => Builtin::MapDecorations(reader.map_decorations(tag)?),
         BuiltinKey::Unbreakable => {
             reader.map(tag)?;
             Builtin::Unbreakable(Unbreakable)
@@ -475,6 +479,25 @@ impl<L: NameLookup> Reader<'_, L> {
             rule.correct_for_drops = Some(self.boolean(correct_for_drops)?);
         }
         Ok(rule)
+    }
+
+    fn map_decorations(&self, tag: &NbtTag) -> Result<MapDecorations, SavedError> {
+        let map = self.map(tag)?;
+        let mut decorations: Vec<MapDecoration> = Vec::with_capacity(map.child_tags.len());
+        for (key, decoration) in &map.child_tags {
+            // TODO(#881): the specification does not say whether a key that a decoration does not
+            // list is an error. This reader ignores it, as for the other component types.
+            let decoration = self.map(decoration)?;
+            let kind = self.identifier(self.necessary(decoration, "type")?)?;
+            decorations.push(MapDecoration {
+                key: key.as_str().into(),
+                kind: MapDecorationTypeId(self.entry(NameTable::MapDecorationType, kind)?),
+                x: self.number(self.necessary(decoration, "x")?)?.to_double(),
+                z: self.number(self.necessary(decoration, "z")?)?.to_double(),
+                rotation: self.float(self.necessary(decoration, "rotation")?)?,
+            });
+        }
+        MapDecorations::new(decorations).ok_or(self.bad())
     }
 
     fn block_set(&self, tag: &NbtTag) -> Result<BlockSet, SavedError> {

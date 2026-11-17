@@ -24,6 +24,9 @@ use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Lore;
+use mcrs_minecraft_item_stack::MapDecoration;
+use mcrs_minecraft_item_stack::MapDecorationTypeId;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
@@ -89,6 +92,7 @@ impl Names {
             NameTable::Block => indexed(&["stone", "dirt"]),
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
             NameTable::ComponentType => indexed(&COMPONENT_TYPES),
+            NameTable::MapDecorationType => indexed(&["player", "red_x"]),
             _ => Vec::new(),
         }
     }
@@ -238,7 +242,38 @@ fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str
             "02 00 1a 6d696e6563726166743a6d696e6561626c652f7069636b617865 01 41000000 01 01
              03 00 01 00 00 40200000 00 00",
         ),
+        (
+            "map_decorations",
+            stone().set(MapDecorations::new([]).expect("no key repeats")),
+            "31",
+            "0a 00",
+        ),
     ]
+}
+
+// TODO(#881): compare each form with the bytes and the hash that the game writes, once the
+// specification states the number kinds of a decoration and experiment E26 records a decoration.
+#[test]
+fn a_map_decoration_reads_back_from_each_form() {
+    let decoration = MapDecoration {
+        key: "+".into(),
+        kind: MapDecorationTypeId(1),
+        x: 1.5,
+        z: -2.5,
+        rotation: 180.0,
+    };
+    let stack = stack(STONE, 1).set(MapDecorations::new([decoration]).expect("one key"));
+
+    assert_eq!(
+        read_all(&wire(Some(&stack)), read_wire),
+        Ok(Some(stack.clone()))
+    );
+    assert_eq!(
+        read_all(&wire_with_length(Some(&stack)), read_wire_with_length),
+        Ok(Some(stack.clone()))
+    );
+    let saved = write_saved(&stack, &Names).expect("the decoration has a saved form");
+    assert_eq!(read_saved(&saved, &Names), Ok(stack));
 }
 
 #[test]

@@ -13,6 +13,7 @@ use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::Lore;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::NameLookup;
@@ -185,7 +186,7 @@ fn the_prototypes_have_the_counts_of_the_specification() {
             .get::<AttributeModifiers>()
             .map_or(0, |modifiers| modifiers.modifiers.len())
     };
-    let cases: [(&str, usize, usize); 18] = [
+    let cases: [(&str, usize, usize); 19] = [
         (
             "STK-SHP-006 max stack size",
             count(|prototype| prototype.get::<MaxStackSize>().is_some()),
@@ -251,6 +252,15 @@ fn the_prototypes_have_the_counts_of_the_specification() {
             "STK-SHP-020 tool",
             count(|prototype| prototype.get::<Tool>().is_some()),
             38,
+        ),
+        (
+            "STK-PRO-002 the maps have no added decoration",
+            count(|prototype| {
+                prototype
+                    .get::<MapDecorations>()
+                    .is_some_and(|decorations| decorations.decorations().is_empty())
+            }),
+            17,
         ),
     ];
     for (rule, actual, expected) in cases {

@@ -2,7 +2,7 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 
-pub(crate) const COMPONENT_TYPES: [&str; 49] = [
+pub(crate) const COMPONENT_TYPES: [&str; 50] = [
     "custom_data",
     "max_stack_size",
     "max_damage",
@@ -52,6 +52,7 @@ pub(crate) const COMPONENT_TYPES: [&str; 49] = [
     "dye",
     "dyed_color",
     "map_id",
+    "map_decorations",
 ];
 
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {

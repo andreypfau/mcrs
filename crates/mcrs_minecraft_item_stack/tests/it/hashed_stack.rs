@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::CustomName;
@@ -8,6 +10,7 @@ use mcrs_minecraft_item_stack::HashedComponent;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::RepairCost;
@@ -251,6 +254,21 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         );
     }
     assert!(compared.len() >= 39, "the goldens lost cases: {compared:?}");
+}
+
+#[test]
+fn the_map_decorations_of_a_map_prototype_hash_as_the_empty_map() {
+    let recorded: BTreeMap<String, i32> = serde_json::from_str(&fixture("hash_ops").text())
+        .expect("the fixture is a map of case names to hashes");
+    let stack = stack(STONE, 1).set(MapDecorations::new([]).expect("no key repeats"));
+    let hashed = hashed(Some(&stack)).expect("the stack is not empty");
+    assert_eq!(
+        hashed.values,
+        [HashedComponent {
+            component: component_type("map_decorations"),
+            hash: recorded["empty_map"],
+        }]
+    );
 }
 
 #[test]

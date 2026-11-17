@@ -38,6 +38,7 @@ fn registry_key(table: NameTable) -> Option<&'static str> {
         NameTable::Block => Some("minecraft:block"),
         NameTable::ComponentType => Some("minecraft:data_component_type"),
         NameTable::Enchantment => Some("minecraft:enchantment"),
+        NameTable::MapDecorationType => Some("minecraft:map_decoration_type"),
         _ => None,
     }
 }

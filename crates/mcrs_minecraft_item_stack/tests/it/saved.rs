@@ -80,6 +80,7 @@ impl Names {
             NameTable::ComponentType => {
                 &["max_stack_size", "damage", "bundle_contents", "custom_data"]
             }
+            NameTable::MapDecorationType => &["player", "red_x"],
             _ => &[],
         }
     }
@@ -458,6 +459,27 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
     for (components, expected) in patches {
         let nbt = with_components(components);
         assert_eq!(read_saved(&nbt, &Names), Err(expected), "{components}");
+    }
+}
+
+#[test]
+fn a_map_decoration_needs_a_map_with_each_field_and_a_known_type() {
+    let bad_value = SavedError::BadValue(BuiltinKey::MapDecorations);
+    let cases: [(&str, SavedError); 4] = [
+        (r#"[]"#, bad_value),
+        (r#"{"+":1b}"#, bad_value),
+        (r#"{"+":{type:"red_x",x:1,z:2}}"#, bad_value),
+        (
+            r#"{"+":{type:"no_such_type",x:1,z:2,rotation:0}}"#,
+            SavedError::UnknownEntry {
+                component: BuiltinKey::MapDecorations,
+                table: NameTable::MapDecorationType,
+            },
+        ),
+    ];
+    for (decorations, expected) in cases {
+        let nbt = with_components(&format!(r#""minecraft:map_decorations":{decorations}"#));
+        assert_eq!(read_saved(&nbt, &Names), Err(expected), "{decorations}");
     }
 }
 

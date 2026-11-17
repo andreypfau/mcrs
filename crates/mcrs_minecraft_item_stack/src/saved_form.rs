@@ -15,6 +15,7 @@ use crate::Food;
 use crate::HashError;
 use crate::ItemName;
 use crate::Lore;
+use crate::MapDecorations;
 use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
@@ -28,11 +29,13 @@ use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
 use crate::Unbreakable;
+use crate::WireError;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::lore::MAX_LINES;
 use crate::saved_sink::Field;
+use crate::saved_sink::KeyedEntry;
 use crate::saved_sink::Leaf;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
@@ -70,6 +73,14 @@ impl Fault {
             Self::UnnamedId { component, table } => HashError::UnknownEntry { component, table },
         }
     }
+
+    pub(crate) fn into_wire(self) -> WireError {
+        match self {
+            Self::BadValue(component) => WireError::BadValue(component),
+            Self::OutOfRange(component) => WireError::OutOfRange(component),
+            Self::UnnamedId { component, table } => WireError::UnknownEntry { component, table },
+        }
+    }
 }
 
 pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
@@ -87,6 +98,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
         Builtin::Damage(Damage(damage)) => walk.int(sink, *damage, NOT_NEGATIVE),
         Builtin::RepairCost(RepairCost(cost)) => walk.int(sink, *cost, NOT_NEGATIVE),
         Builtin::MapId(MapId(id)) => Ok(sink.leaf(Leaf::Int(*id))),
+        Builtin::MapDecorations(decorations) => walk.map_decorations(sink, decorations),
         Builtin::Unbreakable(Unbreakable) => Ok(sink.fields([])),
         Builtin::ItemModel(model) => Ok(sink.leaf(Leaf::Name(model.get()))),
         Builtin::Rarity(rarity) => Ok(sink.leaf(Leaf::String(rarity.name()))),
@@ -263,6 +275,26 @@ impl<L: NameLookup> Walk<'_, L> {
             Field::optional("speed", speed),
             Field::optional("correct_for_drops", correct_for_drops),
         ]))
+    }
+
+    fn map_decorations<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        decorations: &MapDecorations,
+    ) -> Result<S::Node, Fault> {
+        sink.keyed_map(decorations.decorations(), |sink, decoration| {
+            let kind = self.entry(sink, NameTable::MapDecorationType, decoration.kind.0)?;
+            let value = sink.fields([
+                Field::new("type", kind),
+                Field::new("x", sink.leaf(Leaf::Double(decoration.x))),
+                Field::new("z", sink.leaf(Leaf::Double(decoration.z))),
+                Field::new("rotation", sink.leaf(Leaf::Float(decoration.rotation))),
+            ]);
+            Ok(KeyedEntry {
+                key: &decoration.key,
+                value,
+            })
+        })
     }
 
     fn block_set<S: SavedSink>(&self, sink: &mut S, blocks: &BlockSet) -> Result<S::Node, Fault> {

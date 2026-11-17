@@ -19,6 +19,9 @@ macro_rules! for_each_builtin {
             Food => "food",
             Tool => "tool",
             MapId => "map_id",
+            MapDecorations => "map_decorations",
+            // TODO(#881): `profile` (type id 72) goes here once the specification states its
+            // saved form, its limits and its own wire form.
         }
     };
 }

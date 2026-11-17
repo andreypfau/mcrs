@@ -9,6 +9,7 @@ use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Lore;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MapId;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
@@ -58,6 +59,7 @@ impl<'a> ComponentHolder<'a> {
             DataComponentType::Food => self.effective::<Food>().is_some(),
             DataComponentType::Tool => self.effective::<Tool>().is_some(),
             DataComponentType::MapId => self.effective::<MapId>().is_some(),
+            DataComponentType::MapDecorations => self.effective::<MapDecorations>().is_some(),
             _ => false,
         }
     }
@@ -80,6 +82,7 @@ impl<'a> ComponentHolder<'a> {
             Builtin::Food(value) => self.effective() == Some(value),
             Builtin::Tool(value) => self.effective() == Some(value),
             Builtin::MapId(value) => self.effective() == Some(value),
+            Builtin::MapDecorations(value) => self.effective() == Some(value),
             _ => false,
         }
     }
