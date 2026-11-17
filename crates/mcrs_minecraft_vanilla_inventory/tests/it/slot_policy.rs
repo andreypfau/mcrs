@@ -5,6 +5,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
 use mcrs_minecraft_engine_item::Denial;
 use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::RequestCheck;

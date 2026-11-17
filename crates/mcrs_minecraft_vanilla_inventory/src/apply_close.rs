@@ -19,11 +19,12 @@ use crate::close_inventory_menu::CloseMove;
 use crate::close_inventory_menu::Destination;
 use crate::close_inventory_menu::close_inventory_menu;
 use crate::close_place::close_place;
+use crate::close_scope::CloseScope;
 use crate::from_holders::from_holders;
 use crate::request_ids::CLOSE_REQUEST;
 
 pub(crate) fn apply_close(
-    In(player): In<Entity>,
+    In((player, scope)): In<(Entity, CloseScope)>,
     world: &World,
     players: Query<(&Slots, &Selected, &PlayerHolders)>,
     holder_slots: Query<&Slots>,
@@ -34,13 +35,16 @@ pub(crate) fn apply_close(
     let Ok((inventory, selected, holders)) = players.get(player) else {
         return;
     };
-    let values = from_holders(
+    let mut values = from_holders(
         inventory,
         selected.0,
         Some(holders),
         &holder_slots,
         &mut stacks,
     );
+    if scope == CloseScope::OtherMenu {
+        values.craft_grid = Default::default();
+    }
     if !has_carried(&values) {
         return;
     }

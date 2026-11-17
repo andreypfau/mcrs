@@ -5,10 +5,14 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
+use mcrs_minecraft_engine_inventory_menu::MenuButtons;
+use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::Holder;
 
 use crate::PlayerHolders;
@@ -65,6 +69,7 @@ pub(crate) fn hold_new_player(
 ) {
     let player = add.entity;
     if let Ok(None) = players.get(player) {
+        holders_of(&mut commands, player, None);
         commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
     }
 }
@@ -88,5 +93,10 @@ fn holders_of(
     };
     let policy = player_policy(Holder::Inventory);
     commands.entity(player).insert((holders, policy));
+    if let Some(parts) = MenuParts::new([player, holders.craft_grid, holders.craft_result]) {
+        commands
+            .entity(player)
+            .open_menu(MenuLayout::INVENTORY, parts, MenuButtons::default());
+    }
     holders
 }
