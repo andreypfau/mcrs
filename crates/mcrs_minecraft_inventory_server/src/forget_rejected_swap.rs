@@ -1,5 +1,6 @@
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Query;
+use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::RequestResult;
@@ -12,13 +13,21 @@ use mcrs_minecraft_inventory_player::OFF_HAND;
 use crate::MenuSync;
 use crate::menu_slots::MenuSlots;
 use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
+use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 pub(crate) fn forget_rejected_swap(
     result: On<RequestResult>,
     players: Query<(&Selected, &Menus)>,
     mut menus: Query<(&MenuLayout, &MenuParts, &mut MenuSync)>,
+    requests: Option<Res<VanillaInventoryRequests>>,
 ) {
-    if result.id != HAND_SWAP_REQUEST || result.outcome.is_ok() {
+    let Some(requests) = requests else {
+        return;
+    };
+    if result.id.source != requests.source
+        || result.id.serial != HAND_SWAP_REQUEST
+        || result.outcome.is_ok()
+    {
         return;
     }
     let player = result.holder;

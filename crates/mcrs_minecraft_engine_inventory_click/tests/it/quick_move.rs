@@ -10,6 +10,7 @@ use mcrs_minecraft_engine_inventory_menu::MenuButtons;
 use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::MenuPlugin;
+use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::RequestId;
@@ -48,6 +49,7 @@ fn moved_to(kind: Kind, from: u16, occupied: &[u16]) -> Vec<u16> {
         ],
     ]);
     app.add_plugins((ItemPlugin::new(table), MenuPlugin, MenuClickPlugin));
+    let source = app.allocate_request_source().unwrap();
     let world = app.world_mut();
     let viewer = world
         .spawn(Slots::new(usize::from(Holder::Inventory.slot_count())))
@@ -76,7 +78,7 @@ fn moved_to(kind: Kind, from: u16, occupied: &[u16]) -> Vec<u16> {
             holder: cursor,
             index: 0,
         },
-        request: RequestId(1),
+        request: RequestId { source, serial: 1 },
     };
     let click = Click {
         kind: ClickKind::QuickMove,

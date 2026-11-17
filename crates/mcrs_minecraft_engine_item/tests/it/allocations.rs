@@ -8,7 +8,6 @@ use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::SlotAccess;
 use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
@@ -25,6 +24,7 @@ use crate::fixture::SWORD;
 use crate::fixture::TABLE;
 use crate::fixture::app;
 use crate::fixture::count;
+use crate::fixture::request_id;
 
 const WARM_UP: u8 = 3;
 const MEASURED: u8 = 32;
@@ -93,7 +93,7 @@ fn allocations_of_hopper_moves(policy: Option<SlotPolicy>) -> usize {
     };
     let hop = |app: &mut App| {
         let world = app.world_mut();
-        let request = Request::new(RequestId(1)).split(from, to, 1);
+        let request = Request::new(request_id(world)).split(from, to, 1);
         world.commands().entity(source).request(request);
         world.flush();
         app.update();

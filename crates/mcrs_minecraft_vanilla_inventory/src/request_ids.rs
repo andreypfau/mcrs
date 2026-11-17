@@ -1,7 +1,5 @@
-use mcrs_minecraft_engine_item::RequestId;
-
-pub const CLICK_REQUEST: RequestId = RequestId(0);
-pub const HAND_DROP_REQUEST: RequestId = RequestId(1);
-pub const HAND_SWAP_REQUEST: RequestId = RequestId(2);
-pub const CLOSE_REQUEST: RequestId = RequestId(3);
-pub const CREATIVE_REQUEST: RequestId = RequestId(4);
+pub const CLICK_REQUEST: u32 = 0;
+pub const HAND_DROP_REQUEST: u32 = 1;
+pub const HAND_SWAP_REQUEST: u32 = 2;
+pub const CLOSE_REQUEST: u32 = 3;
+pub const CREATIVE_REQUEST: u32 = 4;

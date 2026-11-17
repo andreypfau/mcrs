@@ -9,8 +9,11 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_item::Denial;
 use mcrs_minecraft_engine_item::Gate;
+use mcrs_minecraft_engine_item::ItemAppExt;
+use mcrs_minecraft_engine_item::Refusal;
 use mcrs_minecraft_engine_item::RequestCheck;
-use mcrs_minecraft_engine_item::RequestId;
+use mcrs_minecraft_engine_item::RequestResult;
+use mcrs_minecraft_engine_item::RequestSource;
 use mcrs_minecraft_engine_item::SlotAccess;
 use mcrs_minecraft_engine_item::SlotPolicy;
 
@@ -29,32 +32,34 @@ const LOCKED: SlotAccess = SlotAccess {
 const FROZEN_CODE: u16 = 1;
 
 /// Locks the slot 8 of the player inventory from [`EnterGame`] to [`LeaveGame`], and denies each
-/// request of a [`Frozen`] player with `denial_source` and the code 1.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ArenaRulesPlugin {
-    /// The source of the denials of the plugin.
-    pub denial_source: RequestId,
-}
-
-impl Default for ArenaRulesPlugin {
-    fn default() -> Self {
-        Self {
-            denial_source: RequestId(16),
-        }
-    }
-}
+/// request of a [`Frozen`] player with the source in [`ArenaRules`] and the code 1. Each denial of
+/// that source adds one to [`Frozen::denied`] of the player.
+///
+/// The plugin allocates its request source in `build`. When the world has no free source, the
+/// plugin adds nothing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ArenaRulesPlugin;
 
 impl Plugin for ArenaRulesPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DenialSource(self.denial_source))
+        let Ok(source) = app.allocate_request_source() else {
+            return;
+        };
+        app.insert_resource(ArenaRules { source })
             .add_observer(lock_slot)
             .add_observer(unlock_slot)
-            .add_observer(veto_frozen);
+            .add_observer(veto_frozen)
+            .add_observer(count_denials);
     }
 }
 
-#[derive(Resource)]
-struct DenialSource(RequestId);
+/// The request source that [`ArenaRulesPlugin`] got from the world. A reader of a
+/// [`RequestResult`] compares the source of a denial with it to find the denials of the plugin.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArenaRules {
+    /// The source of the denials of the plugin.
+    pub source: RequestSource,
+}
 
 #[derive(Component)]
 struct UnlockedAccess(SlotAccess);
@@ -88,12 +93,28 @@ fn unlock_slot(
 fn veto_frozen(
     mut check: On<RequestCheck>,
     frozen: Query<(), With<Frozen>>,
-    source: Res<DenialSource>,
+    rules: Res<ArenaRules>,
 ) {
     if frozen.contains(check.actor) {
         check.deny(Denial {
-            source: source.0,
+            source: rules.source,
             code: FROZEN_CODE,
         });
+    }
+}
+
+fn count_denials(
+    result: On<RequestResult>,
+    rules: Res<ArenaRules>,
+    mut frozen: Query<&mut Frozen>,
+) {
+    let Err(Refusal::Denied(denial)) = result.outcome else {
+        return;
+    };
+    if denial.source != rules.source {
+        return;
+    }
+    if let Ok(mut frozen) = frozen.get_mut(result.holder) {
+        frozen.denied = frozen.denied.saturating_add(1);
     }
 }

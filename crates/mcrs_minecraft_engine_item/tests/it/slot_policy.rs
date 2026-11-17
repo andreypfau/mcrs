@@ -11,6 +11,7 @@ use mcrs_minecraft_engine_item::Refusal;
 use mcrs_minecraft_engine_item::RegisterError;
 use mcrs_minecraft_engine_item::Rejected;
 use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::SlotAccess;
 use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
@@ -21,7 +22,7 @@ use mcrs_minecraft_item_stack::ItemStack;
 use crate::fixture::PLAIN;
 use crate::fixture::app;
 use crate::fixture::count;
-use crate::request::ID;
+use crate::fixture::request_id;
 use crate::request::place;
 use crate::request::request;
 use crate::request::snapshot;
@@ -69,12 +70,12 @@ fn short_with_set_past_its_end() -> SlotPolicy {
 struct Case {
     name: &'static str,
     policy: fn() -> SlotPolicy,
-    request: fn(Entity) -> Request,
+    request: fn(RequestId, Entity) -> Request,
     outcome: Result<(), Reason>,
 }
 
-fn split(holder: Entity, from: u16, to: u16, items: u8) -> Request {
-    Request::new(ID).split(at(holder, from), at(holder, to), items)
+fn split(id: RequestId, holder: Entity, from: u16, to: u16, items: u8) -> Request {
+    Request::new(id).split(at(holder, from), at(holder, to), items)
 }
 
 #[test]
@@ -83,55 +84,56 @@ fn the_policy_of_a_holder_gives_the_limits_and_the_filters_of_its_slots() {
         Case {
             name: "a locked slot refuses a take",
             policy: SlotPolicy::locked,
-            request: |holder| split(holder, 0, 2, 1),
+            request: |id, holder| split(id, holder, 0, 2, 1),
             outcome: Err(Reason::TakeDenied),
         },
         Case {
             name: "a locked slot refuses a place",
             policy: || policy(&[OPEN, OPEN, SEALED]),
-            request: |holder| split(holder, 0, 2, 1),
+            request: |id, holder| split(id, holder, 0, 2, 1),
             outcome: Err(Reason::PlaceDenied),
         },
         Case {
             name: "set changes one entry of a uniform policy",
             policy: || uniform_with(2, with_place(Gate::Refuses)),
-            request: |holder| Request::new(ID).merge(at(holder, 0), at(holder, 2)),
+            request: |id, holder| Request::new(id).merge(at(holder, 0), at(holder, 2)),
             outcome: Err(Reason::PlaceDenied),
         },
         Case {
             name: "the limit of the slot bounds a split",
             policy: || uniform_with(2, with_limit(4)),
-            request: |holder| split(holder, 0, 2, 5),
+            request: |id, holder| split(id, holder, 0, 2, 5),
             outcome: Err(Reason::NoRoom),
         },
         Case {
             name: "a limit of 0 clamps to 1",
             policy: || uniform_with(2, with_limit(0)),
-            request: |holder| split(holder, 0, 2, 1),
+            request: |id, holder| split(id, holder, 0, 2, 1),
             outcome: Ok(()),
         },
         Case {
             name: "the slots past the end of a short policy permit",
             policy: short_with_set_past_its_end,
-            request: |holder| split(holder, 1, 2, 1),
+            request: |id, holder| split(id, holder, 1, 2, 1),
             outcome: Ok(()),
         },
         Case {
             name: "set passes a locked slot",
             policy: SlotPolicy::locked,
-            request: |holder| Request::new(ID).set(at(holder, 0), None, 0),
+            request: |id, holder| Request::new(id).set(at(holder, 0), None, 0),
             outcome: Ok(()),
         },
     ];
     for case in cases {
         let mut app = app();
         let world = app.world_mut();
+        let id = request_id(world);
         let holder = world.spawn((Slots::new(3), (case.policy)())).id();
         place(world, ItemStack::new(PLAIN, count(10)), holder, 0);
         place(world, ItemStack::new(PLAIN, count(10)), holder, 1);
         let before = snapshot(world);
 
-        let results = request(world, holder, (case.request)(holder));
+        let results = request(world, holder, (case.request)(id, holder));
 
         let outcome: Vec<Result<(), Reason>> = results
             .iter()
@@ -177,6 +179,7 @@ fn an_ask_gate_gets_the_slot_the_actor_and_the_stack_and_its_answer_decides() {
         let mut app = app();
         let gate = Gate::Ask(app.register_slot_gate(permit_listed).unwrap());
         let world = app.world_mut();
+        let id = request_id(world);
         let actor = world.spawn(Slots::new(1)).id();
         let take = SlotAccess { take: gate, ..OPEN };
         let source = world.spawn((Slots::new(1), policy(&[take]))).id();
@@ -200,7 +203,7 @@ fn an_ask_gate_gets_the_slot_the_actor_and_the_stack_and_its_answer_decides() {
         };
         world.insert_resource(Permitted(permitted));
 
-        let move_one = Request::new(ID).split(at(source, 0), at(target, 0), 1);
+        let move_one = Request::new(id).split(at(source, 0), at(target, 0), 1);
         let results = request(world, actor, move_one);
 
         let outcome = results[0].outcome.map_err(|refusal| match refusal {
@@ -218,12 +221,13 @@ fn a_gate_id_that_the_world_does_not_have_refuses() {
         .unwrap();
     let mut app = app();
     let world = app.world_mut();
+    let id = request_id(world);
     let source = world.spawn(Slots::new(1)).id();
     let target_policy = policy(&[with_place(Gate::Ask(foreign))]);
     let target = world.spawn((Slots::new(1), target_policy)).id();
     place(world, ItemStack::new(PLAIN, count(3)), source, 0);
 
-    let move_one = Request::new(ID).split(at(source, 0), at(target, 0), 1);
+    let move_one = Request::new(id).split(at(source, 0), at(target, 0), 1);
     let results = request(world, source, move_one);
 
     let rejected = Rejected {

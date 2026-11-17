@@ -4,6 +4,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::EntityCommands;
 use bevy_ecs::system::Query;
+use bevy_ecs::system::Res;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::player_dimensions;
 use mcrs_minecraft_engine_item::RequestDrop;
@@ -15,6 +16,7 @@ use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 use mcrs_minecraft_vanilla_item_entity::Thrower;
 
+use crate::VanillaInventoryRequests;
 use crate::hand_launch::hand_launch;
 use crate::request_ids::CLICK_REQUEST;
 use crate::request_ids::CLOSE_REQUEST;
@@ -22,6 +24,7 @@ use crate::request_ids::HAND_DROP_REQUEST;
 
 pub(crate) fn launch_drops(
     mut drops: MessageReader<RequestDrop>,
+    requests: Option<Res<VanillaInventoryRequests>>,
     parents: Query<&ChildOf>,
     players: Query<
         (
@@ -34,8 +37,14 @@ pub(crate) fn launch_drops(
     >,
     mut commands: Commands,
 ) {
+    let Some(requests) = requests else {
+        return;
+    };
     for drop in drops.read() {
-        let cause = match drop.id {
+        if drop.id.source != requests.source {
+            continue;
+        }
+        let cause = match drop.id.serial {
             CLOSE_REQUEST => Cause::MenuRest,
             CLICK_REQUEST | HAND_DROP_REQUEST => Cause::Throw,
             _ => continue,

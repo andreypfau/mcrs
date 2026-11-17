@@ -9,6 +9,7 @@ mod leave_game;
 mod open_shop;
 mod shop_plugin;
 
+pub use arena_rules_plugin::ArenaRules;
 pub use arena_rules_plugin::ArenaRulesPlugin;
 pub use enter_game::EnterGame;
 pub use frozen::Frozen;

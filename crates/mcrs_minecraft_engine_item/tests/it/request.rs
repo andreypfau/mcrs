@@ -25,10 +25,9 @@ use crate::fixture::LORED;
 use crate::fixture::PLAIN;
 use crate::fixture::app;
 use crate::fixture::count;
+use crate::fixture::request_id;
 use crate::fixture::spawn;
 use crate::fixture::value;
-
-pub const ID: RequestId = RequestId(7);
 
 fn rare(items: u8) -> ItemStack {
     ItemStack::new(PLAIN, count(items)).set(Rarity::Rare)
@@ -95,6 +94,7 @@ pub fn snapshot(world: &mut World) -> Snapshot {
 struct Layout {
     player: Entity,
     bare: Entity,
+    id: RequestId,
 }
 
 impl Layout {
@@ -128,7 +128,7 @@ fn rejected_cases() -> [Case; 10] {
         Case {
             name: "more than 128 operations",
             request: |at| {
-                (0..129).fold(Request::new(ID), |request, _| {
+                (0..129).fold(Request::new(at.id), |request, _| {
                     request.swap(at.slot(0), at.slot(3))
                 })
             },
@@ -138,9 +138,11 @@ fn rejected_cases() -> [Case; 10] {
         Case {
             name: "an index past the end, after a valid operation",
             request: |at| {
-                Request::new(ID)
-                    .split(at.slot(0), at.slot(3), 1)
-                    .split(at.slot(0), at.slot(4), 1)
+                Request::new(at.id).split(at.slot(0), at.slot(3), 1).split(
+                    at.slot(0),
+                    at.slot(4),
+                    1,
+                )
             },
             requester: Requester::Player,
             rejected: rejected(1, Reason::NoSuchSlot),
@@ -148,7 +150,7 @@ fn rejected_cases() -> [Case; 10] {
         Case {
             name: "a holder without slots",
             request: |at| {
-                Request::new(ID).merge(
+                Request::new(at.id).merge(
                     SlotRef {
                         holder: at.bare,
                         index: 0,
@@ -161,32 +163,32 @@ fn rejected_cases() -> [Case; 10] {
         },
         Case {
             name: "the same slot",
-            request: |at| Request::new(ID).merge(at.slot(0), at.slot(0)),
+            request: |at| Request::new(at.id).merge(at.slot(0), at.slot(0)),
             requester: Requester::Player,
             rejected: rejected(0, Reason::SameSlot),
         },
         Case {
             name: "a split of zero",
-            request: |at| Request::new(ID).split(at.slot(0), at.slot(3), 0),
+            request: |at| Request::new(at.id).split(at.slot(0), at.slot(3), 0),
             requester: Requester::Player,
             rejected: rejected(0, Reason::BadCount),
         },
         Case {
             name: "an empty source",
-            request: |at| Request::new(ID).merge(at.slot(3), at.slot(0)),
+            request: |at| Request::new(at.id).merge(at.slot(3), at.slot(0)),
             requester: Requester::Player,
             rejected: rejected(0, Reason::EmptySource),
         },
         Case {
             name: "more items than the source holds",
-            request: |at| Request::new(ID).split(at.slot(0), at.slot(3), 11),
+            request: |at| Request::new(at.id).split(at.slot(0), at.slot(3), 11),
             requester: Requester::Player,
             rejected: rejected(0, Reason::NotEnough),
         },
         Case {
             name: "a different stack in the target, after a valid operation",
             request: |at| {
-                Request::new(ID)
+                Request::new(at.id)
                     .split(at.slot(0), at.slot(3), 2)
                     .merge(at.slot(3), at.slot(2))
             },
@@ -195,14 +197,14 @@ fn rejected_cases() -> [Case; 10] {
         },
         Case {
             name: "a count past the maximum stack size",
-            request: |at| Request::new(ID).split(at.slot(0), at.slot(1), 5),
+            request: |at| Request::new(at.id).split(at.slot(0), at.slot(1), 5),
             requester: Requester::Player,
             rejected: rejected(0, Reason::NoRoom),
         },
         Case {
             name: "a drop, before an invalid operation",
             request: |at| {
-                Request::new(ID)
+                Request::new(at.id)
                     .drop(at.slot(0), 4)
                     .merge(at.slot(3), at.slot(0))
             },
@@ -217,12 +219,13 @@ fn a_rejected_request_changes_nothing_and_reports_its_reason() {
     for case in rejected_cases() {
         let mut app = app();
         let world = app.world_mut();
+        let id = request_id(world);
         let player = world.spawn(Slots::new(4)).id();
         let bare = world.spawn_empty().id();
         place(world, rare(10), player, 0);
         place(world, rare(60), player, 1);
         place(world, ItemStack::new(LORED, count(5)), player, 2);
-        let layout = Layout { player, bare };
+        let layout = Layout { player, bare, id };
         let holder = match case.requester {
             Requester::Player => player,
             Requester::Bare => bare,
@@ -234,7 +237,7 @@ fn a_rejected_request_changes_nothing_and_reports_its_reason() {
         assert_eq!(snapshot(world), before, "{}", case.name);
         let expected = RequestResult {
             holder,
-            id: ID,
+            id,
             outcome: Err(Refusal::Rejected(case.rejected)),
         };
         assert_eq!(results, [expected], "{}", case.name);
@@ -256,6 +259,7 @@ fn an_applied_request_moves_merges_splits_and_swaps_and_keeps_the_entities() {
         |result: On<RequestResult>, mut observed: ResMut<Observed>| observed.0.push(*result),
     );
     let world = app.world_mut();
+    let id = request_id(world);
     let player = world.spawn(Slots::new(5)).id();
     let cursor = world.spawn(Slots::new(1)).id();
     let source = place(world, rare(10), player, 0);
@@ -275,7 +279,7 @@ fn an_applied_request_moves_merges_splits_and_swaps_and_keeps_the_entities() {
     let results = request(
         world,
         player,
-        Request::new(ID)
+        Request::new(id)
             .split(at(0), at(3), 4)
             .merge(at(0), at(1))
             .swap(at(2), cursor_slot)
@@ -284,7 +288,7 @@ fn an_applied_request_moves_merges_splits_and_swaps_and_keeps_the_entities() {
 
     let expected = RequestResult {
         holder: player,
-        id: ID,
+        id,
         outcome: Ok(()),
     };
     assert_eq!(results, [expected]);
@@ -325,6 +329,7 @@ fn an_applied_request_moves_merges_splits_and_swaps_and_keeps_the_entities() {
 fn a_request_on_a_despawned_holder_does_nothing() {
     let mut app = app();
     let world = app.world_mut();
+    let id = request_id(world);
     let player = world.spawn(Slots::new(1)).id();
     world.despawn(player);
     let at = SlotRef {
@@ -332,7 +337,7 @@ fn a_request_on_a_despawned_holder_does_nothing() {
         index: 0,
     };
 
-    let results = request(world, player, Request::new(ID).merge(at, at));
+    let results = request(world, player, Request::new(id).merge(at, at));
 
     assert_eq!(results, []);
 }
@@ -341,6 +346,7 @@ fn a_request_on_a_despawned_holder_does_nothing() {
 fn set_places_or_copies_a_stack_and_ends_the_stacks_it_replaces() {
     let mut app = app();
     let world = app.world_mut();
+    let id = request_id(world);
     let player = world.spawn(Slots::new(4)).id();
     let replaced = place(world, rare(10), player, 0);
     let held = place(world, ItemStack::new(LORED, count(5)), player, 2);
@@ -354,7 +360,7 @@ fn set_places_or_copies_a_stack_and_ends_the_stacks_it_replaces() {
     let results = request(
         world,
         player,
-        Request::new(ID)
+        Request::new(id)
             .set(at(0), Some(unplaced), 12)
             .set(at(1), Some(held), 64)
             .set(at(3), None, 0),
@@ -364,7 +370,7 @@ fn set_places_or_copies_a_stack_and_ends_the_stacks_it_replaces() {
         results,
         [RequestResult {
             holder: player,
-            id: ID,
+            id,
             outcome: Ok(()),
         }]
     );
@@ -409,6 +415,7 @@ fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
     for case in cases {
         let mut app = app();
         let world = app.world_mut();
+        let id = request_id(world);
         let player = world.spawn(Slots::new(1)).id();
         let source = place(world, rare(10), player, 0);
         let at = SlotRef {
@@ -416,7 +423,7 @@ fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
             index: 0,
         };
 
-        let results = request(world, player, Request::new(ID).drop(at, case.count));
+        let results = request(world, player, Request::new(id).drop(at, case.count));
 
         assert_eq!(results.len(), 1, "{}", case.count);
         assert_eq!(results[0].outcome, Ok(()), "{}", case.count);
@@ -427,7 +434,7 @@ fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
         let [drop] = drops[..] else {
             panic!("drops of {}: {drops:?}", case.count);
         };
-        assert_eq!((drop.holder, drop.id), (player, ID), "{}", case.count);
+        assert_eq!((drop.holder, drop.id), (player, id), "{}", case.count);
         let entity = if drop.stack == source {
             DroppedEntity::Source
         } else {
@@ -450,6 +457,7 @@ fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
 fn a_set_then_a_full_drop_of_an_unplaced_stack_drops_that_stack() {
     let mut app = app();
     let world = app.world_mut();
+    let id = request_id(world);
     let player = world.spawn(Slots::new(1)).id();
     let unplaced = spawn(world, rare(40));
     let at = SlotRef {
@@ -460,7 +468,7 @@ fn a_set_then_a_full_drop_of_an_unplaced_stack_drops_that_stack() {
     let results = request(
         world,
         player,
-        Request::new(ID).set(at, Some(unplaced), 12).drop(at, 12),
+        Request::new(id).set(at, Some(unplaced), 12).drop(at, 12),
     );
 
     assert_eq!(results.len(), 1);

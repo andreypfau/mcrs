@@ -3,11 +3,13 @@ use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
+use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_player_holders::PlayerHoldersPlugin;
 
 use crate::InventorySet;
+use crate::VanillaInventoryRequests;
 use crate::close_menu_moves::close_menu_moves;
 use crate::launch_drops::launch_drops;
 
@@ -19,6 +21,14 @@ impl Plugin for VanillaInventoryPlugin {
         if !app.is_plugin_added::<PlayerHoldersPlugin>() {
             app.add_plugins(PlayerHoldersPlugin);
         }
+        let source = match app.allocate_request_source() {
+            Ok(source) => source,
+            Err(error) => {
+                tracing::error!(%error, "the vanilla inventory makes no request");
+                return;
+            }
+        };
+        app.insert_resource(VanillaInventoryRequests { source });
         app.configure_sets(
             FixedUpdate,
             (

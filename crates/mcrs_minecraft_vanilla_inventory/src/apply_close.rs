@@ -6,6 +6,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
@@ -13,6 +14,7 @@ use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+use crate::VanillaInventoryRequests;
 use crate::carried_codec::has_carried;
 use crate::close_inventory_menu::Carried;
 use crate::close_inventory_menu::CloseMove;
@@ -32,6 +34,9 @@ pub(crate) fn apply_close(
     table: Res<ItemTable>,
     mut commands: Commands,
 ) {
+    let Some(requests) = world.get_resource::<VanillaInventoryRequests>() else {
+        return;
+    };
     let Ok((inventory, selected, holders)) = players.get(player) else {
         return;
     };
@@ -48,7 +53,10 @@ pub(crate) fn apply_close(
     if !has_carried(&values) {
         return;
     }
-    let mut request = Request::close(CLOSE_REQUEST);
+    let mut request = Request::close(RequestId {
+        source: requests.source,
+        serial: CLOSE_REQUEST,
+    });
     let place = |from, index| close_place(world, player, *holders, from, index);
     for CloseMove { from, to, count } in close_inventory_menu(&values, &table, place) {
         let from = match from {

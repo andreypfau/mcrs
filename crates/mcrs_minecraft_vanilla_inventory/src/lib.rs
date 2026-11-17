@@ -27,6 +27,7 @@ mod player_item_file_plugin;
 mod request_ids;
 mod saved_stack;
 mod vanilla_inventory_plugin;
+mod vanilla_inventory_requests;
 mod worn_equipment;
 
 pub use ender_items::EnderItems;
@@ -42,4 +43,5 @@ pub use request_ids::CREATIVE_REQUEST;
 pub use request_ids::HAND_DROP_REQUEST;
 pub use request_ids::HAND_SWAP_REQUEST;
 pub use vanilla_inventory_plugin::VanillaInventoryPlugin;
+pub use vanilla_inventory_requests::VanillaInventoryRequests;
 pub use worn_equipment::WornEquipment;

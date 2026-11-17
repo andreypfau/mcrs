@@ -6,6 +6,7 @@
 
 mod capture;
 mod commands;
+mod drops;
 mod fixture;
 mod player_file;
 #[cfg(not(miri))]
