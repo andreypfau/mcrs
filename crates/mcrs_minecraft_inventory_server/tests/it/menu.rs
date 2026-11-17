@@ -1,0 +1,151 @@
+use bevy_app::FixedUpdate;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
+use bevy_ecs::world::World;
+use mcrs_minecraft_engine_inventory_menu::EntryPressed;
+use mcrs_minecraft_engine_inventory_menu::MenuButtons;
+use mcrs_minecraft_engine_inventory_menu::MenuCommandsExt;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_inventory_menu::MenuEntry;
+use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_inventory_menu::MenuOrder;
+use mcrs_minecraft_inventory_menu::MenuRange;
+use mcrs_minecraft_inventory_menu::Route;
+use mcrs_minecraft_inventory_menu::RouteWhen;
+use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+
+use crate::click::Packet;
+use crate::click::claim;
+use crate::click::click;
+use crate::click::joined;
+use crate::click::sent;
+use crate::close::close;
+use crate::fixture::DIRT;
+use crate::fixture::STONE;
+use crate::fixture::app;
+use crate::fixture::holders;
+use crate::fixture::put;
+use crate::fixture::stacks;
+
+const CHEST: u8 = 0;
+const PLAYER: u8 = 1;
+
+fn chest_layout() -> MenuLayout {
+    let chest = (0..27).map(|index| MenuEntry { part: CHEST, index });
+    let main = (9..36).chain(0..9).map(|index| MenuEntry {
+        part: PLAYER,
+        index,
+    });
+    let route = |from: (u16, u16), to: (u16, u16)| Route {
+        from: MenuRange::new(from.0, from.1, MenuOrder::Ascending),
+        when: RouteWhen::Always,
+        to: MenuRange::new(to.0, to.1, MenuOrder::Ascending),
+    };
+    MenuLayout::new(
+        MenuType::Generic9x3,
+        chest.chain(main).collect(),
+        vec![route((0, 27), (27, 63)), route((27, 63), (0, 27))],
+    )
+    .expect("a valid chest layout")
+}
+
+fn open_chest(world: &mut World, player: Entity, chest: Entity, buttons: MenuButtons) {
+    let parts = MenuParts::new([chest, player]).expect("two parts");
+    world
+        .commands()
+        .entity(player)
+        .open_menu(chest_layout(), parts, buttons);
+    world.flush();
+}
+
+#[test]
+fn a_click_on_a_button_entry_presses_it_and_moves_nothing() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let chest = world.spawn(Slots::new(27)).id();
+    put(world, chest, 13, STONE, 3);
+    open_chest(world, player, chest, MenuButtons::default().with(13));
+    assert_eq!(sent(world), ["open 1", "content state 1"]);
+    let menu = world
+        .get::<Menus>(player)
+        .and_then(Menus::open)
+        .expect("the chest is open");
+
+    click(
+        world,
+        player,
+        Packet::pick_up(1, 13)
+            .in_container(1)
+            .claiming(vec![(13, None)], claim(STONE, 3)),
+    );
+    world.run_schedule(FixedUpdate);
+    click(
+        world,
+        player,
+        Packet::pick_up_all(2, 13)
+            .in_container(1)
+            .claiming(vec![(13, None)], claim(STONE, 3)),
+    );
+    world.run_schedule(FixedUpdate);
+
+    let pressed: Vec<EntryPressed> = world
+        .resource_mut::<Messages<EntryPressed>>()
+        .drain()
+        .collect();
+    assert_eq!(
+        pressed,
+        [EntryPressed {
+            viewer: player,
+            menu,
+            entry: 13,
+            button: 0,
+        }]
+    );
+    assert_eq!(stacks(world, chest), [(13, STONE, 3)]);
+    assert_eq!(stacks(world, player), [(0, STONE, 5)]);
+    assert_eq!(stacks(world, holders(world, player).cursor), []);
+    assert_eq!(
+        sent(world),
+        [
+            "slot 13 1x3 state 2",
+            "cursor empty",
+            "slot 13 1x3 state 3",
+            "cursor empty"
+        ]
+    );
+}
+
+#[test]
+fn inv_syn_007_a_close_hands_the_shared_client_views_to_the_inventory_menu() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let cursor = holders(world, player).cursor;
+    put(world, cursor, 0, STONE, 2);
+    world.run_schedule(FixedUpdate);
+    assert_eq!(sent(world), ["cursor 1x2"]);
+    let chest = world.spawn(Slots::new(27)).id();
+    open_chest(world, player, chest, MenuButtons::default());
+    assert_eq!(sent(world), ["open 1", "content state 1"]);
+    put(world, player, 1, DIRT, 4);
+    world.run_schedule(FixedUpdate);
+    assert_eq!(sent(world), ["slot 55 2x4 state 2"]);
+
+    close(world, player);
+
+    assert_eq!(stacks(world, player), [(0, STONE, 7), (1, DIRT, 4)]);
+    assert_eq!(
+        sent(world),
+        ["slot 36 1x7 state 2"],
+        "P[1] matches the view of the chest, the emptied cursor matches the empty view"
+    );
+
+    open_chest(world, player, chest, MenuButtons::default());
+    assert_eq!(sent(world), ["open 2", "content state 1"]);
+    world.commands().entity(player).close_menu();
+    world.flush();
+    assert_eq!(sent(world), ["close 2"]);
+}

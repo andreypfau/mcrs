@@ -5740,6 +5740,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",

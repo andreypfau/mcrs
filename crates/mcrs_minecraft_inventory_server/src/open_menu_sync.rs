@@ -1,0 +1,87 @@
+use bevy_ecs::message::MessageWriter;
+use bevy_ecs::observer::On;
+use bevy_ecs::system::Commands;
+use bevy_ecs::system::Local;
+use bevy_ecs::system::Query;
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::bus::to;
+use mcrs_minecraft_engine_inventory_menu::MenuOpened;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundOpenScreen;
+use mcrs_minecraft_protocol_game::text::RawText;
+use mcrs_minecraft_protocol_game::text::Text;
+use mcrs_minecraft_wire::VarInt;
+
+use crate::MenuSync;
+use crate::cursor_slot::cursor_slot;
+use crate::last_container_id::LastContainerId;
+use crate::menu_content::menu_content;
+use crate::menu_slots::MenuSlots;
+use crate::wire_names::WireNames;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
+
+const INVENTORY_CONTAINER_ID: u8 = 0;
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the open reads the viewer, the menu, the holders, the stacks and the wire names"
+)]
+pub(crate) fn open_menu_sync(
+    opened: On<MenuOpened>,
+    mut viewers: Query<(&Menus, Option<&Owner>, Option<&PlayerHolders>)>,
+    mut counters: Query<&mut LastContainerId>,
+    menus: Query<(&MenuLayout, &MenuParts)>,
+    holders: Query<&Slots>,
+    mut stacks: Stacks,
+    wire_names: WireNames,
+    mut packets: MessageWriter<OutboundPlayerPacket>,
+    mut bytes: Local<Vec<u8>>,
+    mut commands: Commands,
+) {
+    let MenuOpened { viewer, menu } = *opened;
+    let Ok((viewer_menus, owner, player_holders)) = viewers.get_mut(viewer) else {
+        return;
+    };
+    let Ok((layout, parts)) = menus.get(menu) else {
+        return;
+    };
+    let Some(kind) = layout.kind() else {
+        if viewer_menus.iter().next() == Some(menu) {
+            let sync = MenuSync::new(INVENTORY_CONTAINER_ID, layout.len());
+            commands.entity(menu).insert(sync);
+        }
+        return;
+    };
+    let Ok(mut last) = counters.get_mut(viewer) else {
+        return;
+    };
+    let container_id = last.advance();
+    let mut sync = MenuSync::new(container_id, layout.len());
+    if let Some(&Owner(session)) = owner
+        && let Ok(title) = RawText::from_text(&Text::text(""))
+    {
+        let screen = ClientboundOpenScreen {
+            container_id: VarInt(i32::from(container_id)),
+            menu_type: kind,
+            title,
+        };
+        packets.write(to(session, PacketPayload::OpenScreen(screen)));
+        let content = menu_content(
+            &mut sync,
+            MenuSlots { layout, parts },
+            player_holders.map(cursor_slot),
+            &holders,
+            &mut stacks,
+            &wire_names.names(),
+            &mut bytes,
+        );
+        packets.write(to(session, PacketPayload::ContainerSetContent(content)));
+    }
+    commands.entity(menu).insert(sync);
+}

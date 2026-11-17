@@ -6,11 +6,12 @@ use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine_item::SlotRef;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client_view::SlotView;
-use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
@@ -21,10 +22,9 @@ use mcrs_minecraft_wire::Encode;
 use crate::InventoryInput;
 use crate::MenuSync;
 use crate::creative_drops::CreativeDrops;
-use crate::holder_slots::holder_entity;
+use crate::menu_slots::MenuSlots;
 use crate::stack_size::max_stack_size;
 use crate::wire_names::WireNames;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
 pub(crate) fn set_creative_mode_slot(
@@ -52,12 +52,8 @@ pub(crate) fn set_creative_mode_slot(
 
 pub(crate) fn apply_creative_packet(
     InRef(input): InRef<InventoryInput>,
-    mut players: Query<(
-        &PlayerHolders,
-        &mut MenuSync,
-        Option<&PlayerGameMode>,
-        &mut CreativeDrops,
-    )>,
+    mut players: Query<(&Menus, Option<&PlayerGameMode>, &mut CreativeDrops)>,
+    mut menus: Query<(&MenuLayout, &MenuParts, &mut MenuSync)>,
     table: Res<ItemTable>,
     clock: Res<BirthClock>,
     mut commands: Commands,
@@ -70,16 +66,23 @@ pub(crate) fn apply_creative_packet(
     else {
         return;
     };
-    let Ok((holders, mut sync, game_mode, mut drops)) = players.get_mut(player) else {
+    let Ok((player_menus, game_mode, mut drops)) = players.get_mut(player) else {
         return;
     };
+    let Some(first) = player_menus.iter().next() else {
+        return;
+    };
+    let Ok((layout, parts, mut sync)) = menus.get_mut(first) else {
+        return;
+    };
+    let menu = MenuSlots { layout, parts };
     let stack = stack.as_ref();
     let creative = game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative);
     let fits = stack.is_none_or(|stack| stack.count.get() <= max_stack_size(stack, &table));
     let entry = u16::try_from(slot)
         .ok()
-        .filter(|index| (1..InventoryMenu::LEN).contains(index))
-        .and_then(InventoryMenu::slot);
+        .filter(|index| (1..menu.len()).contains(index))
+        .and_then(|index| menu.slot(index));
     if creative && fits && slot < 0 {
         if drops.try_drop(clock.0)
             && let Some(stack) = stack
@@ -90,12 +93,8 @@ pub(crate) fn apply_creative_packet(
     }
     if creative
         && fits
-        && let Some(entry) = entry
+        && let Some(target) = entry
     {
-        let target = SlotRef {
-            holder: holder_entity(holders, player, entry.holder),
-            index: entry.index,
-        };
         commands.entity(player).creative_set(target, stack.cloned());
     }
     set_view(&mut sync, slot, stack);

@@ -1,38 +1,47 @@
+use mcrs_minecraft_engine_inventory_menu::MenuButtons;
+use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_inventory_click::Menu;
-use mcrs_minecraft_inventory_menu::InventoryMenu;
-use mcrs_minecraft_inventory_menu::MenuRange;
-use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_menu::RouteWhen;
 
-use crate::click_slots::ClickSlots;
+use crate::menu_slots::MenuSlots;
 
-pub(crate) struct ClickMenu<'slots>(pub(crate) &'slots ClickSlots<'slots>);
+pub(crate) struct ClickMenu<'menu> {
+    pub(crate) slots: MenuSlots<'menu>,
+    pub(crate) buttons: MenuButtons,
+}
 
 impl Menu for ClickMenu<'_> {
-    type Slot = MenuSlot;
+    type Slot = SlotRef;
 
     fn entry_count(&self) -> u16 {
-        InventoryMenu::LEN
+        self.slots.len()
     }
 
-    fn slot(&self, index: u16) -> Option<MenuSlot> {
-        InventoryMenu::slot(index)
+    fn slot(&self, index: u16) -> Option<SlotRef> {
+        self.slots.slot(index)
     }
 
     fn quick_move_destinations(&self, source: u16) -> impl Iterator<Item = u16> {
-        let slots = self.0;
-        let holds_empty =
-            |index: u16| InventoryMenu::slot(index).is_some_and(|slot| slots.holds_empty(slot));
-        InventoryMenu::quick_move_destinations(source, None, holds_empty)
+        let buttons = self.buttons;
+        let route = (self.slots.layout.routes(source)).find(|route| holds(route.when));
+        route
             .into_iter()
-            .flatten()
-            .flat_map(MenuRange::iter)
+            .flat_map(|route| route.to.iter())
+            .filter(move |index| !buttons.contains(*index))
     }
 
     fn permits_pick_up_all(&self, index: u16) -> bool {
-        InventoryMenu::permits_pick_up_all(index)
+        self.slots.layout.permits_pick_up_all(index) && !self.buttons.contains(index)
     }
 
     fn permits_drag(&self, index: u16) -> bool {
-        InventoryMenu::permits_drag(index)
+        self.slots.layout.permits_drag(index) && !self.buttons.contains(index)
+    }
+}
+
+fn holds(when: RouteWhen) -> bool {
+    match when {
+        RouteWhen::Always => true,
+        RouteWhen::Wears { .. } => false,
     }
 }

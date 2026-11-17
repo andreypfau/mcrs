@@ -1,32 +1,49 @@
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Query;
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_inventory_client_view::SlotView;
-use mcrs_minecraft_inventory_menu::InventoryMenu;
-use mcrs_minecraft_inventory_menu::MenuSlot;
-use mcrs_minecraft_inventory_player::Holder;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 
 use crate::MenuSync;
+use crate::menu_slots::MenuSlots;
 use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
 
 pub(crate) fn forget_rejected_swap(
     result: On<RequestResult>,
-    mut players: Query<(&Selected, &mut MenuSync)>,
+    players: Query<(&Selected, &Menus)>,
+    mut menus: Query<(&MenuLayout, &MenuParts, &mut MenuSync)>,
 ) {
     if result.id != HAND_SWAP_REQUEST || result.outcome.is_ok() {
         return;
     }
-    let Ok((selected, mut sync)) = players.get_mut(result.holder) else {
+    let player = result.holder;
+    let Ok((selected, player_menus)) = players.get(player) else {
         return;
     };
+    let Some(open) = player_menus.open() else {
+        return;
+    };
+    let Ok((layout, parts, mut sync)) = menus.get_mut(open) else {
+        return;
+    };
+    let menu = MenuSlots { layout, parts };
     for index in [u16::from(selected.0), OFF_HAND] {
-        let Some(entry) = InventoryMenu::index(MenuSlot::new(Holder::Inventory, index)) else {
-            continue;
+        let slot = SlotRef {
+            holder: player,
+            index,
         };
-        if let Some(view) = sync.view.entry_mut(usize::from(entry)) {
-            *view = SlotView::Unknown;
+        for entry in 0..menu.len() {
+            if menu.slot(entry) != Some(slot) {
+                continue;
+            }
+            if let Some(view) = sync.view.entry_mut(usize::from(entry)) {
+                *view = SlotView::Unknown;
+            }
         }
     }
 }
