@@ -48,16 +48,22 @@ pub async fn index_assets(objects: &str) -> IndexLayer {
     let promises = Array::new();
     for object in INDEX_OBJECTS {
         let url = object.url(objects);
-        promises.push(&future_to_promise(async move {
+        let fetched = future_to_promise(async move {
             fetch_object(object, &url)
                 .await
                 .map(|bytes| Uint8Array::from(bytes.as_slice()).into())
                 .map_err(JsValue::from)
+        });
+        promises.push(&future_to_promise(async move {
+            within(fetched, FONT_DEADLINE_MS)
+                .await
+                .map_err(JsValue::from)
         }));
     }
-    let settled = within(Promise::all_settled(&promises), FONT_DEADLINE_MS)
+    let settled = JsFuture::from(Promise::all_settled(&promises))
         .await
-        .map(|settled| Array::from(&settled));
+        .map(|settled| Array::from(&settled))
+        .map_err(describe);
     IndexLayer::gather(INDEX_OBJECTS.iter().enumerate().map(|(index, object)| {
         let body = match &settled {
             Ok(settled) => settled_body(&settled.get(index as u32)),
