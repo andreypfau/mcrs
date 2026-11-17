@@ -67,6 +67,13 @@ impl GameDirectory {
 mod tests {
     use super::*;
 
+    const ABSOLUTE_DATA: &str = if cfg!(windows) { "C:/data" } else { "/data" };
+    const ABSOLUTE_DATA_ROOT: &str = if cfg!(windows) {
+        "C:/data/mcrs"
+    } else {
+        "/data/mcrs"
+    };
+
     #[test]
     fn the_root_is_the_override_or_the_platform_data_folder() {
         let cases: [(Platform, &[(&str, &str)], Option<&str>); 9] = [
@@ -83,8 +90,8 @@ mod tests {
             (Platform::MacOs, &[], None),
             (
                 Platform::Unix,
-                &[("XDG_DATA_HOME", "/data"), ("HOME", "/u")],
-                Some("/data/mcrs"),
+                &[("XDG_DATA_HOME", ABSOLUTE_DATA), ("HOME", "/u")],
+                Some(ABSOLUTE_DATA_ROOT),
             ),
             (
                 Platform::Unix,
