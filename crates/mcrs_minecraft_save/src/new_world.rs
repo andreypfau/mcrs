@@ -1,5 +1,4 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
@@ -8,7 +7,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::folder_id::make_free_folder;
 use crate::{
-    Difficulty, DifficultySettings, LevelDat, LevelVersion, SaveError, WorldGenSettings,
+    Difficulty, DifficultySettings, LevelDat, LevelVersion, SaveError, SaveLock, WorldGenSettings,
     seed_from_text, trim_name, write_level_dat, write_world_gen_settings,
 };
 
@@ -29,12 +28,15 @@ pub enum NewWorldMode {
     Creative,
 }
 
+/// Makes a new world folder in `saves` and writes its files. The folder is locked before any
+/// file is written; the returned lock holds it (its `dir()` is the folder) so the caller can hand
+/// it to its server. On a failure the lock is released and no file is removed.
 pub fn create_world(
     saves: &Path,
     world: &NewWorld,
     registries: &Registries,
     last_played: i64,
-) -> Result<PathBuf, SaveError> {
+) -> Result<SaveLock, SaveError> {
     let dimensions = registries
         .registry::<WorldPreset>()
         .and_then(|presets| presets.get(presets.by_name(&world.world_type)?))
@@ -42,7 +44,7 @@ pub fn create_world(
         .ok_or_else(|| SaveError::UnknownWorldPreset {
             preset: world.world_type.clone(),
         })?;
-    let dir = saves.join(make_free_folder(saves, &world.name)?);
+    let lock = SaveLock::take(&saves.join(make_free_folder(saves, &world.name)?))?;
     let settings = WorldGenSettings {
         seed: seed_from_text(&world.seed_text).unwrap_or(world.random_seed),
         dimensions,
@@ -50,15 +52,9 @@ pub fn create_world(
         generate_structures: true,
         legacy_custom_options: None,
     };
-    let written = write_world_gen_settings(&dir, &settings, registries)
-        .and_then(|()| write_level_dat(&dir, &level(world, last_played)));
-    match written {
-        Ok(()) => Ok(dir),
-        Err(error) => {
-            let _ = fs::remove_dir_all(&dir);
-            Err(error)
-        }
-    }
+    write_world_gen_settings(lock.dir(), &settings, registries)?;
+    write_level_dat(lock.dir(), &level(world, last_played))?;
+    Ok(lock)
 }
 
 fn level(world: &NewWorld, last_played: i64) -> LevelDat {

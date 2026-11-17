@@ -1,6 +1,6 @@
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::world_preset_keys::NORMAL;
-use mcrs_minecraft_save::{NewWorld, NewWorldMode, create_world, seed_from_text};
+use mcrs_minecraft_save::{NewWorld, NewWorldMode, SaveLock, create_world, seed_from_text};
 
 #[test]
 fn a_world_name_gives_the_first_free_folder_id() {
@@ -24,8 +24,14 @@ fn a_world_name_gives_the_first_free_folder_id() {
             seed_text: String::new(),
             random_seed: 0,
         };
-        let dir = create_world(&saves, &world, test_registries(), 0).unwrap();
-        assert_eq!(dir, saves.join(expected), "{name:?}");
+        let lock = create_world(&saves, &world, test_registries(), 0).unwrap();
+        assert_eq!(lock.dir(), saves.join(expected), "{name:?}");
+        assert!(SaveLock::is_held(lock.dir()).unwrap(), "{name:?}");
+        drop(lock);
+        assert!(
+            !SaveLock::is_held(&saves.join(expected)).unwrap(),
+            "{name:?}"
+        );
         std::fs::remove_dir_all(saves).unwrap();
     }
 }

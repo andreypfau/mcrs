@@ -20,12 +20,19 @@ use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::{
     LevelDat, LevelVersion, RespawnData, SaveError, SaveLock, WorldGenSettings, read_level_dat,
-    read_world_gen_settings, write_level_dat, write_world_gen_settings,
+    read_level_data_version, read_world_gen_settings, restore_level_dat_backup, write_level_dat,
+    write_world_gen_settings,
 };
+
+use crate::WorldOpenError;
 use tracing::{error, info};
 
 #[derive(Resource)]
 pub struct WorldLock(pub SaveLock);
+
+/// Why the world did not open. Inserted with the `AppExit::error()` of a failed start.
+#[derive(Resource, Debug)]
+pub struct FailedStart(pub WorldOpenError);
 
 #[derive(Resource, Clone)]
 pub(crate) struct PluginDimensions(pub Dimensions);
@@ -73,6 +80,9 @@ pub(crate) fn bake_dimensions(
         }
         Err(error) => {
             error!("the world does not open:\n{error}");
+            commands.remove_resource::<WorldSave>();
+            commands.remove_resource::<WorldLock>();
+            commands.insert_resource(FailedStart(error));
             exit.write(AppExit::error());
         }
     }
@@ -86,7 +96,7 @@ fn dimension_list(
     host: Option<Uuid>,
     seed: &mut WorldSeed,
     game_mode: &mut DefaultGameMode,
-) -> Result<(String, Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>), String> {
+) -> Result<(String, Vec<(ResourceKeyBuf<Dimension>, DimensionEntry)>), WorldOpenError> {
     let saved = match save {
         Some(save) => {
             let new_world = NewWorld {
@@ -105,30 +115,31 @@ fn dimension_list(
         None => None,
     };
     if let Some(given) = given {
-        Ok(("plugin".to_owned(), bake_list(&given.0, registries)?))
+        let list = bake_list(&given.0, registries).map_err(WorldOpenError::Dimensions)?;
+        Ok(("plugin".to_owned(), list))
     } else if let Some(saved) = saved {
-        Ok(("save".to_owned(), bake(&saved, registries)?))
+        let list = bake(&saved, registries).map_err(WorldOpenError::Dimensions)?;
+        Ok(("save".to_owned(), list))
     } else {
-        Ok((
-            preset.to_owned(),
-            bake(preset_dimensions(registries, preset)?, registries)?,
-        ))
+        let list = bake(preset_dimensions(registries, preset)?, registries)
+            .map_err(WorldOpenError::Dimensions)?;
+        Ok((preset.to_owned(), list))
     }
 }
 
 fn preset_dimensions<'r>(
     registries: &'r Registries,
     preset: &str,
-) -> Result<&'r Dimensions, String> {
+) -> Result<&'r Dimensions, WorldOpenError> {
     registries
         .registry::<WorldPreset>()
         .and_then(|presets| presets.get(presets.by_name(&ResourceLocationBuf::read(preset).ok()?)?))
         .map(|named| &named.dimensions)
         .ok_or_else(|| {
-            format!(
+            WorldOpenError::Dimensions(format!(
                 "{}: no world preset is named {preset}",
                 mcrs_minecraft_game_registries::registry_keys::WORLD_PRESET
-            )
+            ))
         })
 }
 
@@ -150,18 +161,17 @@ fn open_world(
     registries: &Registries,
     new_world: &NewWorld,
     host: Option<Uuid>,
-) -> Result<OpenedWorld, String> {
-    let level = match read_level_dat(dir) {
-        Ok(level) => Level::Present(Box::new(level)),
-        Err(SaveError::Missing { .. }) => Level::Missing,
-        Err(error) => {
-            error!("level.dat unreadable and left alone: {error}");
-            Level::Unreadable
-        }
+) -> Result<OpenedWorld, WorldOpenError> {
+    let level = match restore_level_dat_backup(dir).and_then(|()| read_level_data_version(dir)) {
+        Ok(Some(found)) if found == VERSION.world_version => Some(read_level_dat(dir)?),
+        Ok(found) => return Err(version_error(dir, found)),
+        Err(SaveError::DataVersion { found, .. }) => return Err(version_error(dir, Some(found))),
+        Err(SaveError::Missing { .. }) => None,
+        Err(error) => return Err(error.into()),
     };
     let settings = match read_world_gen_settings(dir, registries) {
         Ok(settings) => settings,
-        Err(SaveError::Missing { .. }) if matches!(level, Level::Missing) => {
+        Err(SaveError::Missing { .. }) if level.is_none() => {
             let dimensions = match new_world.dimensions {
                 Some(given) => given.clone(),
                 None => preset_dimensions(registries, new_world.preset)?.clone(),
@@ -173,44 +183,42 @@ fn open_world(
                 generate_structures: true,
                 legacy_custom_options: None,
             };
-            write_world_gen_settings(dir, &settings, registries).map_err(|e| e.to_string())?;
+            write_world_gen_settings(dir, &settings, registries)?;
             settings
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => return Err(error.into()),
     };
-    let level = match level {
-        Level::Present(level) => Some(*level),
-        Level::Missing => {
+    let mut level = match level {
+        Some(level) => level,
+        None => {
             let level = new_level(dir, new_world.game_mode);
-            write_level_dat(dir, &level).map_err(|e| e.to_string())?;
-            Some(level)
+            write_level_dat(dir, &level)?;
+            level
         }
-        Level::Unreadable => None,
     };
-    let game_mode = level.map(|mut level| {
-        let first_start = !level.initialized;
-        if first_start {
-            level.spawn = RespawnData::default();
-            level.initialized = true;
-        }
-        let new_host = host.filter(|&host| level.singleplayer_uuid != Some(host));
-        level.singleplayer_uuid = new_host.or(level.singleplayer_uuid);
-        if first_start || new_host.is_some() {
-            write_level_dat(dir, &level).map_err(|e| e.to_string())?;
-        }
-        Ok::<_, String>(GameMode::from_id(level.game_type))
-    });
+    let first_start = !level.initialized;
+    if first_start {
+        level.spawn = RespawnData::default();
+        level.initialized = true;
+    }
+    let new_host = host.filter(|&host| level.singleplayer_uuid != Some(host));
+    level.singleplayer_uuid = new_host.or(level.singleplayer_uuid);
+    if first_start || new_host.is_some() {
+        write_level_dat(dir, &level)?;
+    }
     Ok(OpenedWorld {
         seed: settings.seed,
         dimensions: settings.dimensions,
-        game_mode: game_mode.transpose()?.flatten(),
+        game_mode: GameMode::from_id(level.game_type),
     })
 }
 
-enum Level {
-    Missing,
-    Present(Box<LevelDat>),
-    Unreadable,
+fn version_error(dir: &Path, found: Option<i32>) -> WorldOpenError {
+    WorldOpenError::DataVersion {
+        dir: dir.to_owned(),
+        found,
+        expected: VERSION.world_version,
+    }
 }
 
 fn new_level(dir: &Path, game_mode: GameMode) -> LevelDat {

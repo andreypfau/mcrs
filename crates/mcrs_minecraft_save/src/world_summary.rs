@@ -94,9 +94,10 @@ fn summary(dir: &Path, folder_id: String) -> Option<WorldSummary> {
         .map(|name| dir.join(name))
         .find(|path| fs::metadata(path).is_ok_and(|metadata| metadata.is_file()))?;
     let locked = SaveLock::is_held(dir).ok()?;
-    let parsed = fs::read(&file)
+    let level_dat = dir.join("level.dat");
+    let parsed = fs::read(&level_dat)
         .ok()
-        .and_then(|bytes| decode::<SummaryFile>(&bytes, &file).ok())
+        .and_then(|bytes| decode::<SummaryFile>(&bytes, &level_dat).ok())
         .and_then(|summary| summary.data.into_level());
     let (level, last_played) = match parsed {
         Some(Played { level, last_played }) => (Some(level), Some(last_played)),

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use bevy_app::{App, AppExit, Plugin, Startup};
+use bevy_app::{App, AppExit, Plugin, PreStartup};
 use mcrs_minecraft_engine::EnginePlugin;
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
@@ -12,13 +12,14 @@ use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::dimension::Dimensions;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_save::SaveLock;
+use mcrs_minecraft_save::{SaveError, SaveLock};
 use tracing::error;
 
+use crate::WorldOpenError;
 use crate::require::require;
 use crate::server_core_plugin::ServerCorePlugin;
 use crate::world_options::{
-    PluginDimensions, WorldHost, WorldLock, WorldPresetName, bake_dimensions,
+    FailedStart, PluginDimensions, WorldHost, WorldLock, WorldPresetName, bake_dimensions,
 };
 
 pub struct DimensionWorldsPlugin {
@@ -67,6 +68,11 @@ impl Plugin for DimensionWorldsPlugin {
                     }
                     Err(error) => {
                         error!("the world does not open:\n{error}");
+                        let error = match error {
+                            SaveError::Locked { dir } => WorldOpenError::Locked { dir },
+                            error => WorldOpenError::Save(error),
+                        };
+                        app.insert_resource(FailedStart(error));
                         app.world_mut().write_message(AppExit::error());
                         false
                     }
@@ -87,7 +93,8 @@ impl Plugin for DimensionWorldsPlugin {
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }
-        app.add_systems(Startup, bake_dimensions);
+        // Before Startup, so that no Startup system writes into a save directory that did not open.
+        app.add_systems(PreStartup, bake_dimensions);
         app.add_plugins(HeightmapPredicatesPlugin);
         app.add_plugins(EnginePlugin);
     }

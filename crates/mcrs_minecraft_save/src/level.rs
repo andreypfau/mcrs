@@ -354,6 +354,37 @@ pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     parse_level_dat(&read_bytes(&path)?, &path)
 }
 
+/// Restores `level.dat` from `level.dat_old` when only the backup exists: the backup is read
+/// first, and renamed only when it reads. A failed read changes no file.
+pub fn restore_level_dat_backup(world: &Path) -> Result<(), SaveError> {
+    let path = world.join("level.dat");
+    let backup = world.join("level.dat_old");
+    let level_missing =
+        matches!(fs::metadata(&path), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
+    if !level_missing || !fs::metadata(&backup).is_ok_and(|metadata| metadata.is_file()) {
+        return Ok(());
+    }
+    parse_level_dat(&read_bytes(&backup)?, &backup)?;
+    fs::rename(&backup, &path).map_err(|source| SaveError::Io { path, source })
+}
+
+/// Reads only `Data.DataVersion` of `level.dat`; `None` when the field is missing.
+pub fn read_level_data_version(world: &Path) -> Result<Option<i32>, SaveError> {
+    #[derive(Deserialize)]
+    struct File {
+        #[serde(rename = "Data")]
+        data: Data,
+    }
+    #[derive(Deserialize)]
+    struct Data {
+        #[serde(rename = "DataVersion")]
+        data_version: Option<i32>,
+    }
+    let path = world.join("level.dat");
+    let file: File = decode(&read_bytes(&path)?, &path)?;
+    Ok(file.data.data_version)
+}
+
 pub fn write_level_dat(world: &Path, level: &LevelDat) -> Result<(), SaveError> {
     let path = world.join("level.dat");
     write_gzip_compound(&path, LevelDatFile::from(level))
