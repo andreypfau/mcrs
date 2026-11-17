@@ -13,6 +13,7 @@ use bevy_asset::AssetServer;
 #[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
 use glam::Vec3;
+use hashbrown::hash_map::EntryRef;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::schema::{
@@ -605,6 +606,10 @@ struct Builder {
     ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
+    /// Blocks of one family share their properties and their conditions, so each pair is
+    /// compiled and evaluated once.
+    condition_states:
+        hashbrown::HashMap<BlockProperties, FxHashMap<Box<str>, Box<[bool]>>, FxBuildHasher>,
 }
 
 impl Builder {
@@ -636,6 +641,7 @@ impl Builder {
             names: read,
             ids,
             permutations: 0,
+            condition_states: hashbrown::HashMap::default(),
         })
     }
 
@@ -708,16 +714,33 @@ impl Builder {
 
         let components = file.block.components;
 
+        // Taken for the body so that the permutations can borrow their states while the
+        // states are registered; an error ends the load, so the map is not put back then.
+        let mut condition_states = std::mem::take(&mut self.condition_states);
+        let by_condition = match condition_states.entry_ref(&properties) {
+            EntryRef::Occupied(entry) => entry.into_mut(),
+            EntryRef::Vacant(entry) => {
+                entry.insert_with_key(properties.clone(), FxHashMap::default())
+            }
+        };
+        for permutation in &file.block.permutations {
+            let text = permutation.condition.as_str();
+            if by_condition.contains_key(text) {
+                continue;
+            }
+            let matching =
+                matching_states(text, &properties).map_err(|source| BlockError::Condition {
+                    condition: permutation.condition.clone(),
+                    source,
+                })?;
+            by_condition.insert(text.into(), matching);
+        }
         let mut permutations = Vec::with_capacity(file.block.permutations.len());
         for permutation in &file.block.permutations {
-            let condition =
-                StateCondition::compile(&permutation.condition, &properties).map_err(|source| {
-                    BlockError::Condition {
-                        condition: permutation.condition.clone(),
-                        source,
-                    }
-                })?;
-            permutations.push((condition, &permutation.components));
+            // The loop above put every condition of the file in the map.
+            if let Some(matching) = by_condition.get(permutation.condition.as_str()) {
+                permutations.push((&**matching, &permutation.components));
+            }
         }
         self.permutations += permutations.len();
 
@@ -743,20 +766,10 @@ impl Builder {
         let air = [Block::Air, Block::CaveAir, Block::VoidAir]
             .map(Block::id)
             .contains(&id);
-        let mut values = vec![0u8; properties.0.len()];
-        let mut inputs = StateInputs::new(&properties);
-        let mut vm = ScalarVm::new();
         for index in 0..state_count {
-            let mut rest = index;
-            for (slot, property) in values.iter_mut().zip(&properties.0).rev() {
-                *slot = (rest % property.values.len()) as u8;
-                rest /= property.values.len();
-            }
-
-            inputs.select(&values);
             let mut resolved = components.clone();
-            for (condition, overlay) in &permutations {
-                if condition.matches(&mut vm, &inputs) {
+            for (matching, overlay) in &permutations {
+                if matching.get(index) == Some(&true) {
                     resolved.overlay(overlay);
                 }
             }
@@ -793,6 +806,7 @@ impl Builder {
                 self.filter_of.insert(id, filter);
             }
         }
+        self.condition_states = condition_states;
 
         let identifier = description.identifier.clone();
         *self.blocks.get_mut(id.index()).ok_or_else(unknown)? = Some(BlockEntry {
@@ -999,6 +1013,29 @@ impl Builder {
             ids: std::mem::take(&mut self.ids),
         })
     }
+}
+
+/// Whether `condition` holds in each state of a block with `properties`, by state index.
+fn matching_states(
+    condition: &str,
+    properties: &BlockProperties,
+) -> Result<Box<[bool]>, ConditionError> {
+    let condition = StateCondition::compile(condition, properties)?;
+    let state_count = properties.state_count();
+    let mut values = vec![0u8; properties.0.len()];
+    let mut inputs = StateInputs::new(properties);
+    let mut vm = ScalarVm::new();
+    let mut matching = Vec::with_capacity(state_count);
+    for index in 0..state_count {
+        let mut rest = index;
+        for (slot, property) in values.iter_mut().zip(&properties.0).rev() {
+            *slot = (rest % property.values.len()) as u8;
+            rest /= property.values.len();
+        }
+        inputs.select(&values);
+        matching.push(condition.matches(&mut vm, &inputs));
+    }
+    Ok(matching.into_boxed_slice())
 }
 
 fn intern<T: Clone + PartialEq>(table: &mut Vec<T>, value: &T) -> u16 {
