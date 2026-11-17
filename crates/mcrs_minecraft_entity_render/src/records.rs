@@ -63,7 +63,7 @@ pub struct InputRecord {
     pub clips: [ClipSlot; CLIP_SLOTS],
 }
 
-pub const INPUT_VALUES: usize = 16;
+pub const INPUT_VALUES: usize = 32;
 pub const CLIP_SLOTS: usize = 4;
 
 #[repr(C)]
@@ -87,7 +87,7 @@ pub struct ScatterEntry {
 const _: () = assert!(size_of::<TickRecord>() == 32);
 const _: () = assert!(size_of::<CullRecord>() == 16);
 const _: () = assert!(size_of::<StateRecord>() == 48);
-const _: () = assert!(size_of::<InputRecord>() == 96);
+const _: () = assert!(size_of::<InputRecord>() == 160);
 const _: () = assert!(size_of::<ScatterEntry>() == 40);
 
 #[must_use]

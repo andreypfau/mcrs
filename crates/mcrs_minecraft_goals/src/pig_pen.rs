@@ -158,7 +158,7 @@ impl PigPen {
                     player: EntityId(u64::from(index)),
                     key,
                     position: DVec3::new(random.unit() * side, 0.0, random.unit() * side),
-                    eye_height: 1.62,
+                    eye_height: EntityTypeData::PLAYER.eye_height,
                     flags: PlayerFlags::ALIVE,
                     visibility: 1.0,
                     vehicle: None,

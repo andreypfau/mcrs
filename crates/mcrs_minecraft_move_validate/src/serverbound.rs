@@ -6,6 +6,7 @@ pub enum Serverbound {
     Accept(Accept),
     VehicleMove(VehicleMove),
     ClientTickEnd,
+    PlayerInput,
     PlayerLoaded,
     Pong(i32),
     Other,

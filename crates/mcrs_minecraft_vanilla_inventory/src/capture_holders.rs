@@ -12,10 +12,12 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 
 use crate::PlayerHolders;
@@ -26,6 +28,7 @@ use crate::close_place::Place;
 use crate::close_place::close_place;
 use crate::from_holders::from_holders;
 use crate::hand_launch::hand_launch;
+use crate::launch_drops::eye_height_of;
 
 #[expect(
     clippy::type_complexity,
@@ -41,12 +44,15 @@ pub(crate) fn capture_holders(
         Option<&Selected>,
         Option<&PlayerHolders>,
         Option<&Transform>,
+        Option<&Pose>,
+        Option<&AttributeInstances>,
         Option<&GameProfile>,
     )>,
     holders: Query<&Slots>,
     mut stacks: Stacks,
 ) -> Option<PlayerItems> {
-    let (slots, selected, player_holders, transform, profile) = players.get(player).ok()?;
+    let (slots, selected, player_holders, transform, pose, attributes, profile) =
+        players.get(player).ok()?;
     let mut values = from_holders(
         slots,
         selected.map_or(0, |selected| selected.0),
@@ -67,7 +73,8 @@ pub(crate) fn capture_holders(
         let transform = transform.copied().unwrap_or(Transform::IDENTITY);
         let source = profile.map_or(0, |profile| profile.id.as_u128());
         apply_close(&mut commands, player, player_holders, &values);
-        drop_rests(&mut commands, rests, transform, source);
+        let eye_height = eye_height_of(pose, attributes);
+        drop_rests(&mut commands, rests, transform, eye_height, source);
     }
     Some(values)
 }
@@ -93,10 +100,19 @@ fn apply_close(
         .load_inventory(vec![None]);
 }
 
-fn drop_rests(commands: &mut Commands, rests: Vec<ItemStack>, transform: Transform, source: u128) {
+fn drop_rests(
+    commands: &mut Commands,
+    rests: Vec<ItemStack>,
+    transform: Transform,
+    eye_height: f32,
+    source: u128,
+) {
     for rest in rests {
-        commands
-            .spawn_stack(rest)
-            .launch(hand_launch(transform, source, Cause::MenuRest));
+        commands.spawn_stack(rest).launch(hand_launch(
+            transform,
+            eye_height,
+            source,
+            Cause::MenuRest,
+        ));
     }
 }

@@ -61,12 +61,7 @@ fn own_update(packet: &PacketPayload) -> Option<OwnUpdate> {
     };
     let mut rest: &[u8] = bytes;
     let id = VarInt::decode(&mut rest).unwrap();
-    assert_eq!(
-        id.0,
-        ClientboundUpdateAttributes::ID,
-        "only attributes are sent"
-    );
-    Some(decode_update(rest))
+    (id.0 == ClientboundUpdateAttributes::ID).then(|| decode_update(rest))
 }
 
 fn decode_update(mut rest: &[u8]) -> OwnUpdate {

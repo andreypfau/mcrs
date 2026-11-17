@@ -2,6 +2,7 @@ use crate::Dimensions;
 use crate::Scaling;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub enum Pose {
     #[default]
     Standing,

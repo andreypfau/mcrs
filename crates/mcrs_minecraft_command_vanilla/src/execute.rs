@@ -19,7 +19,6 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_text::Text;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -292,10 +291,6 @@ pub(crate) fn build(
     })
 }
 
-fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
-    mcrs_minecraft_command::anchored(anchor, position, PLAYER_EYE_HEIGHT)
-}
-
 fn as_target(state: &SourceState, target: EntityView<'_>) -> SourceState {
     target.run_as(state)
 }
@@ -320,12 +315,17 @@ fn rotated_as_target(state: &SourceState, target: EntityView<'_>) -> SourceState
     state.with_look(target.look())
 }
 
-fn facing_target(anchor: LookAnchor, state: &SourceState, target: EntityView<'_>) -> SourceState {
-    facing_at(state, anchor_point(anchor, target.position()))
+fn facing_target(
+    anchor: LookAnchor,
+    state: &SourceState,
+    from: DVec3,
+    target: EntityView<'_>,
+) -> SourceState {
+    let to = mcrs_minecraft_command::anchored(anchor, target.position(), target.eye_height());
+    facing_at(state, from, to)
 }
 
-fn facing_at(state: &SourceState, to: DVec3) -> SourceState {
-    let from = anchor_point(state.anchor, state.position);
+fn facing_at(state: &SourceState, from: DVec3, to: DVec3) -> SourceState {
     state.with_look(mcrs_minecraft_command_argument::rotation_toward(from, to))
 }
 
@@ -395,7 +395,7 @@ pub(crate) fn modify(
                 command.facing.targets,
                 &mut found,
                 &mut output,
-                |state, target| facing_target(anchor, state, target),
+                |state, target| facing_target(anchor, state, source.anchor_position(), target),
             )
         }
         Branch::Positioned => one(SourceState {
@@ -419,7 +419,11 @@ pub(crate) fn modify(
             let to = context
                 .arg(&call.invocation, command.facing.position)?
                 .position(&source);
-            one(facing_at(&call.invocation.source, to))
+            one(facing_at(
+                &call.invocation.source,
+                source.anchor_position(),
+                to,
+            ))
         }
         Branch::Align => {
             let state = state();

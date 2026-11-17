@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod apply_entity_data;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
@@ -23,6 +24,7 @@ pub mod local_motion;
 pub mod local_player;
 pub mod movement_input;
 pub mod player;
+pub mod player_load;
 pub mod player_view;
 mod pong;
 mod received;

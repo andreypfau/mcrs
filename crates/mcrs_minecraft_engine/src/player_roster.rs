@@ -7,10 +7,12 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::ability::PlayerGameMode;
 use crate::game_profile::GameProfile;
+use crate::player_dimensions::PlayerBody;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RosterRow {
@@ -20,6 +22,7 @@ pub struct RosterRow {
     pub name: String,
     pub transform: Transform,
     pub mode: GameMode,
+    pub dimensions: Dimensions,
 }
 
 #[derive(Resource, Default)]
@@ -42,6 +45,7 @@ type RosterQuery<'w, 's> = Query<
         &'static GameProfile,
         &'static Transform,
         &'static PlayerGameMode,
+        PlayerBody,
     ),
     With<Player>,
 >;
@@ -53,15 +57,16 @@ pub(crate) fn report_own_players(
 ) {
     own.0.clear();
     own.0.extend(
-        players
-            .iter()
-            .map(|(&Owner(session), profile, &transform, mode)| RosterRow {
+        players.iter().map(
+            |(&Owner(session), profile, &transform, mode, body)| RosterRow {
                 dim: label.0,
                 session,
                 uuid: profile.id,
                 name: profile.username.clone(),
                 transform,
                 mode: mode.0,
-            }),
+                dimensions: body.dimensions(),
+            },
+        ),
     );
 }

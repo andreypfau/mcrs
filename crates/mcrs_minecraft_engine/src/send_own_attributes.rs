@@ -4,17 +4,16 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Query, ResMut};
-use bytes::{BufMut, BytesMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{AttributeInstances, AttributeSnapshot};
-use mcrs_minecraft_protocol::{Packet, VarInt};
+use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_replication::{AttributeState, PlayerData};
 
 use crate::ability::OpLevelAnnounced;
-use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
+use crate::bus::{OutboundPlayerPacket, send_own_entity_state};
 use crate::network_id::player_network_id;
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
@@ -77,19 +76,7 @@ pub(crate) fn send_own_attributes(
             entity_id: VarInt(player_network_id(session)),
             attributes: snapshots,
         };
-        let mut bytes = BytesMut::new().writer();
-        match packet.encode_with_id(&mut bytes) {
-            Ok(()) => {
-                let packet = bytes.into_inner().freeze();
-                writer.write(to(session, PacketPayload::OwnEntityState(packet)));
-            }
-            Err(error) => {
-                tracing::warn!(
-                    ?session,
-                    "the attributes of a player did not encode: {error}"
-                );
-            }
-        }
+        send_own_entity_state(&mut writer, session, &packet, "attributes");
     }
 }
 

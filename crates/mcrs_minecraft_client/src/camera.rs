@@ -6,7 +6,7 @@ use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
 use mcrs_minecraft_client_world::abilities::Abilities;
-use mcrs_minecraft_client_world::local_motion::LocalMotion;
+use mcrs_minecraft_client_world::local_motion::{self, LocalMotion};
 use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
@@ -15,7 +15,6 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
 
-const STANDING_EYE_HEIGHT: f32 = 1.62;
 const DEFAULT_WALKING_SPEED: f32 = 0.1;
 const BASE_MOVEMENT_SPEED: f32 = 0.1;
 const SPRINT_SPEED_MODIFIER: f32 = 0.3;
@@ -252,14 +251,13 @@ fn tick_camera(
     mut filters: Single<&mut CameraFilters, With<PlayerCamera>>,
 ) {
     let (motion, abilities, sprint) = *player;
-    let motion = Motion {
+    let eye = local_motion::eye_height(motion);
+    let flight = Motion {
         flying: flies(motion),
         sprinting: sprint.active,
     };
-    let zoom = target_zoom(motion, walking_speed(abilities), options.effect_scale);
-    filters
-        .get_or_settle(STANDING_EYE_HEIGHT, zoom)
-        .tick(STANDING_EYE_HEIGHT, zoom);
+    let zoom = target_zoom(flight, walking_speed(abilities), options.effect_scale);
+    filters.get_or_settle(eye, zoom).tick(eye, zoom);
 }
 
 fn place_camera(
@@ -284,13 +282,13 @@ fn place_camera(
 ) {
     let (current, previous, motion, abilities, sprint, mut body) = player.into_inner();
     let (mut filters, mut camera, mut projection) = camera.into_inner();
-    let motion = Motion {
+    let flight = Motion {
         flying: flies(motion),
         sprinting: sprint.active,
     };
     let filters = *filters.get_or_settle(
-        STANDING_EYE_HEIGHT,
-        target_zoom(motion, walking_speed(abilities), options.effect_scale),
+        local_motion::eye_height(motion),
+        target_zoom(flight, walking_speed(abilities), options.effect_scale),
     );
     let partial_tick = time.overstep_fraction();
 
@@ -322,6 +320,8 @@ fn place_camera(
 mod tests {
     use super::*;
     use crate::options::ClientOptionsPlugin;
+    use mcrs_minecraft_physics::PlayerState;
+    use mcrs_minecraft_pose::Pose;
 
     fn camera_far(app: &mut App) -> f32 {
         let mut cameras = app
@@ -418,11 +418,11 @@ mod tests {
         assert!((start - 1.1).abs() < 1e-6, "flying alone is {start}");
         let target = target_zoom(sprinting, walking_speed, options.effect_scale);
         let mut filters = ViewFilters {
-            eye: Smoothed::settled(STANDING_EYE_HEIGHT),
+            eye: Smoothed::settled(local_motion::eye_height(None)),
             zoom: Smoothed::settled(start),
         };
         for expected in [82.775, 85.6625, 87.10625, 87.828125, 88.18906] {
-            filters.tick(STANDING_EYE_HEIGHT, target);
+            filters.tick(local_motion::eye_height(None), target);
             let fov = f32::from(options.fov) * filters.zoom.current;
             assert!((fov - expected).abs() < 1e-4, "{fov} != {expected}");
         }
@@ -431,6 +431,22 @@ mod tests {
             (between - 87.918_36).abs() < 1e-3,
             "a quarter of the way from 87.828125 to 88.18906 is {between}"
         );
+    }
+
+    #[test]
+    fn the_eye_filter_moves_half_of_the_way_to_the_eye_height_of_a_crouch() {
+        let mut state = PlayerState::default();
+        let standing = local_motion::eye_height(Some(&LocalMotion(state)));
+        state.pose = Pose::Crouching;
+        let crouching = local_motion::eye_height(Some(&LocalMotion(state)));
+        let mut eye = Smoothed::settled(standing);
+        for expected in [0.175, 0.0875, 0.04375] {
+            eye.approach(crouching);
+            let step = eye.previous - eye.current;
+            assert!((step - expected).abs() < 1e-5, "{step} != {expected}");
+        }
+        state.attributes.scale = 2.0;
+        assert_eq!(local_motion::eye_height(Some(&LocalMotion(state))), 2.54);
     }
 
     #[test]

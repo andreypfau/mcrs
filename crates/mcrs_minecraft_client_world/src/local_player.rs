@@ -13,18 +13,22 @@ use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundRespawn};
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundClientTickEnd, ServerboundMovePlayerPos,
-    ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
+    PlayerInputFlags, ServerboundAcceptTeleportation, ServerboundClientTickEnd,
+    ServerboundMovePlayerPos, ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
+    ServerboundPlayerInput,
 };
 
 use crate::abilities;
 use crate::attribute_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
+use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_motion::{self, LocalMotion};
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
 use crate::walk::walk;
 
@@ -44,6 +48,9 @@ enum MovePacket {
 
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct LastSentMovement(Option<SentMovement>);
+
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LastSentInput(Option<MovementInput>);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SentMovement {
@@ -99,10 +106,19 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(abilities::on_player_abilities)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)
+            .add_observer(local_motion::on_set_entity_data)
+            .add_observer(player_load::start_load::<ClientboundLogin>)
+            .add_observer(player_load::start_load::<ClientboundRespawn>)
+            .add_observer(player_load::on_game_event)
             .add_systems(
                 FixedUpdate,
                 (
                     accept_teleports.before(LocalPlayerTick),
+                    player_load::end_player_load
+                        .run_if(player_load::player_loading)
+                        .after(accept_teleports)
+                        .before(SendSelectedSlot)
+                        .before(LocalPlayerTick),
                     (
                         capture_old_transform,
                         local_motion::write_motion_inputs,
@@ -185,7 +201,17 @@ fn accept_teleports(
 }
 
 fn send_movement(
-    player: Single<(&PhysicsTransform, &LocalMotion, &mut LastSentMovement), With<Player>>,
+    input: Res<MovementInput>,
+    player: Single<
+        (
+            &PhysicsTransform,
+            &LocalMotion,
+            &mut LastSentMovement,
+            &mut LastSentInput,
+            &mut PlayerLoad,
+        ),
+        With<Player>,
+    >,
     connection: Option<Single<(&mut ClientConnection, &ConnectionState)>>,
 ) {
     let Some(connection) = connection else { return };
@@ -194,7 +220,13 @@ fn send_movement(
         return;
     }
 
-    let (transform, motion, mut last_sent) = player.into_inner();
+    let (transform, motion, mut last_sent, mut last_input, mut load) = player.into_inner();
+    if *load == PlayerLoad::Loaded && last_input.0 != Some(*input) {
+        last_input.0 = Some(*input);
+        connection.write_packet(&ServerboundPlayerInput {
+            input: input_flags(*input),
+        });
+    }
     let body_flags = motion.0.body.flags;
     let flags = MoveFlags::new()
         .with_on_ground(body_flags.on_ground)
@@ -215,6 +247,20 @@ fn send_movement(
         }
     }
     connection.write_packet(&ServerboundClientTickEnd);
+    if let PlayerLoad::Loading(progress) = &mut *load {
+        progress.tick_ends_sent = progress.tick_ends_sent.saturating_add(1);
+    }
+}
+
+fn input_flags(input: MovementInput) -> PlayerInputFlags {
+    PlayerInputFlags::new()
+        .with_forward(input.forward)
+        .with_backward(input.backward)
+        .with_left(input.left)
+        .with_right(input.right)
+        .with_jump(input.jump)
+        .with_shift(input.shift)
+        .with_sprint(input.sprint)
 }
 
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {

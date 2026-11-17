@@ -8,6 +8,7 @@ use crate::client_on_ground::ClientOnGround;
 use crate::column_change::ColumnChange;
 use crate::dig_rate::dig_rate;
 use crate::diggers::Diggers;
+use crate::player_dimensions::PlayerBody;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
@@ -53,6 +54,7 @@ pub(crate) fn advance_digs(
         &PlayerGameMode,
         &InDimension,
         &Transform,
+        PlayerBody,
         &ClientOnGround,
         &mut BreakSession,
     )>,
@@ -67,7 +69,7 @@ pub(crate) fn advance_digs(
         return;
     };
     diggers.0.retain(|&player| {
-        let Ok((&Owner(session), mode, dimension, transform, &on_ground, mut digging)) =
+        let Ok((&Owner(session), mode, dimension, transform, body, &on_ground, mut digging)) =
             players.get_mut(player)
         else {
             return false;
@@ -75,7 +77,7 @@ pub(crate) fn advance_digs(
         let view = world
             .get(dimension.0)
             .filter(|_| mode.0 == GameMode::Survival);
-        let eye = eye_position(transform.translation);
+        let eye = eye_position(transform.translation, body.dimensions());
         let diggable = |pos: BlockPos| -> Result<Option<(BlockStateId, f32)>, Unavailable> {
             let Some(view) = view.as_ref() else {
                 return Ok(None);

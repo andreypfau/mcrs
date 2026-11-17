@@ -54,6 +54,12 @@ impl EntityAnimation {
     }
 
     #[must_use]
+    pub fn query_number(&self, slot: QuerySlot) -> Option<f32> {
+        let raw = u32::try_from(self.queries.get(slot)?).ok()?;
+        Some(f32::from_bits(raw))
+    }
+
+    #[must_use]
     pub fn instance(&self, entry: usize) -> Option<&Instance> {
         self.instances.get(entry)
     }

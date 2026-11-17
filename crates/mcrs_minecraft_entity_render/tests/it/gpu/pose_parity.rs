@@ -44,6 +44,99 @@ struct Inputs {
     swimming: bool,
     #[serde(default)]
     clip_start_ticks: BTreeMap<String, Option<f64>>,
+    #[serde(skip)]
+    player: Option<PlayerState>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct PlayerState {
+    pose: &'static str,
+    swim_amount: f64,
+    fall_flying: bool,
+    fall_flying_ticks: f64,
+    spin_attacking: bool,
+    velocity: [f64; 2],
+    bed_y_rotation: Option<f64>,
+}
+
+fn player_cases() -> Vec<PoseCase> {
+    let standing = PlayerState {
+        pose: "standing",
+        ..PlayerState::default()
+    };
+    let gliding = PlayerState {
+        pose: "fall_flying",
+        fall_flying: true,
+        fall_flying_ticks: 5.0,
+        velocity: [0.3, 0.8],
+        ..standing
+    };
+    let states = [
+        (
+            true,
+            PlayerState {
+                pose: "swimming",
+                swim_amount: 0.6,
+                ..standing
+            },
+        ),
+        (
+            false,
+            PlayerState {
+                swim_amount: 0.3,
+                ..standing
+            },
+        ),
+        (false, gliding),
+        (
+            false,
+            PlayerState {
+                spin_attacking: true,
+                ..gliding
+            },
+        ),
+        (
+            true,
+            PlayerState {
+                pose: "spin_attack",
+                spin_attacking: true,
+                swim_amount: 0.4,
+                ..standing
+            },
+        ),
+        (
+            false,
+            PlayerState {
+                pose: "sleeping",
+                bed_y_rotation: Some(90.0),
+                ..standing
+            },
+        ),
+        (
+            false,
+            PlayerState {
+                pose: "sleeping",
+                ..standing
+            },
+        ),
+    ];
+    states
+        .into_iter()
+        .map(|(in_water, state)| PoseCase {
+            model: "minecraft:player".to_owned(),
+            layer: "main".to_owned(),
+            inputs: Inputs {
+                walk_position: 17.3,
+                walk_speed: 0.4,
+                head_yaw_degrees: 35.0,
+                head_pitch_degrees: 20.0,
+                age_ticks: 40.0,
+                swimming: in_water,
+                clip_start_ticks: BTreeMap::new(),
+                player: Some(state),
+            },
+        })
+        .collect()
 }
 
 const STARTED_CLIPS: [(&str, Option<&str>); 4] = [
@@ -63,6 +156,32 @@ impl QuerySource for CaseQueries<'_> {
     fn query(&self, query: EntityQuery) -> Option<Value> {
         let inputs = self.inputs;
         let number = |value: f64| Some(Value::Number(value as f32));
+        let flag = |on: bool| number(if on { 1.0 } else { 0.0 });
+        if let Some(player) = inputs.player {
+            let [x, z] = player.velocity;
+            let answer = match query {
+                EntityQuery::Pose => Some(Value::String(string_hash(player.pose))),
+                EntityQuery::IsFallFlying => flag(player.fall_flying),
+                EntityQuery::IsSpinAttacking => flag(player.spin_attacking),
+                EntityQuery::IsUsingItem | EntityQuery::DeathTicks | EntityQuery::FrameAlpha => {
+                    number(0.0)
+                }
+                EntityQuery::SwimAmount => number(player.swim_amount),
+                EntityQuery::FallFlyingTicks => number(player.fall_flying_ticks),
+                EntityQuery::VelocityX => number(x),
+                EntityQuery::VelocityZ => number(z),
+                EntityQuery::TickVelocityLengthSquared => number(x * x + z * z),
+                EntityQuery::BedYRotation => number(player.bed_y_rotation.unwrap_or(0.0)),
+                EntityQuery::HasBed => flag(player.bed_y_rotation.is_some()),
+                EntityQuery::ModelScale | EntityQuery::IsAlive => number(1.0),
+                EntityQuery::BodyYRotation => number(0.0),
+                EntityQuery::HeadYRotation(Some(0)) => number(inputs.head_yaw_degrees),
+                _ => None,
+            };
+            if answer.is_some() {
+                return answer;
+            }
+        }
         match query {
             EntityQuery::ModifiedDistanceMoved => number(inputs.walk_position),
             EntityQuery::ModifiedMoveSpeed => number(inputs.walk_speed),
@@ -102,6 +221,7 @@ fn geometry_of(case: &PoseCase) -> &'static str {
         ("minecraft:pig_baby", "main") => "geometry.pig.baby",
         ("minecraft:pig", "saddle") => "geometry.pig.saddle",
         ("minecraft:frog", "main") => "geometry.frog",
+        ("minecraft:player", "main") => "geometry.player",
         (model, layer) => panic!("no geometry for {model} / {layer}"),
     }
 }
@@ -365,15 +485,15 @@ fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
             definition.program
         );
     }
-    let artefact: PoseArtefact = serde_json::from_str(&fixture("entity_poses").text()).unwrap();
+    let mut artefact: PoseArtefact = serde_json::from_str(&fixture("entity_poses").text()).unwrap();
+    artefact.cases.extend(player_cases());
     let mut arena = SlotArena::new();
     let mut vm = ScalarVm::new();
     let mut slots: HashMap<u32, Slot<'_>> = HashMap::new();
     for case in &artefact.cases {
-        let identifier = if case.model == "minecraft:frog" {
-            "minecraft:frog"
-        } else {
-            "minecraft:pig"
+        let identifier = match case.model.as_str() {
+            "minecraft:frog" | "minecraft:player" => case.model.as_str(),
+            _ => "minecraft:pig",
         };
         let (definition, entity) = pack.entity(identifier).unwrap();
         let tables = &library.definitions[definition];

@@ -1,12 +1,14 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
+use mcrs_minecraft_client_world::apply_entity_data::apply_entity_data;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{AttributeInstances, InstanceChange};
 use mcrs_minecraft_entity_visual::{
-    Age, ClientEntity, Equipment, Living, Motion, Placement, ServerTicking, SyncedData,
+    Age, ClientEntity, Equipment, Living, Motion, Placement, PlayerPoseTicks, ServerTicking,
+    SleepingBed, SyncedData, TickVelocity,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::ByteAngle;
@@ -20,7 +22,6 @@ use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::entity_data_index;
 
 use crate::add_entity_data::AddEntityData;
-use crate::apply_entity_data::apply_entity_data;
 use crate::fuse::{FUSE_INDEX, Fuse};
 use crate::item_entity_stack::{ITEM_STACK_INDEX, ItemEntityStack};
 use crate::network_entities::NetworkEntities;
@@ -105,6 +106,13 @@ fn on_add_entity(
         None => {
             spawned.insert(TrackedVelocity::new(velocity));
         }
+    }
+    if client.kind == EntityType::Player {
+        spawned.insert((
+            PlayerPoseTicks::default(),
+            TickVelocity::new(velocity),
+            SleepingBed::default(),
+        ));
     }
     match client.type_data() {
         Some(data) if data.is_living() => {

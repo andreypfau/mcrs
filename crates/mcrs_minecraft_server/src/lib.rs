@@ -2,6 +2,7 @@ mod entity_motion;
 mod falling_blocks;
 mod item_entities;
 pub mod operator_broadcast;
+mod player_pose;
 mod vanilla_blocks;
 mod vanilla_brains;
 
@@ -78,6 +79,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(self.worlds)
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
+            .add(VanillaPlayerPosePlugin)
             .add(VanillaEntityAttributesPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
@@ -99,6 +101,14 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(EntityPhysicsPlugin::<MobColumn>::default());
         app.add_dimension_plugin(MobReplicationPlugin::<MobColumn>::default());
+    }
+}
+
+pub struct VanillaPlayerPosePlugin;
+
+impl Plugin for VanillaPlayerPosePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(player_pose::PlayerPosePlugin);
     }
 }
 
