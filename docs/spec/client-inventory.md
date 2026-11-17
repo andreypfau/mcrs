@@ -624,7 +624,8 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
     it (CINV-RCV-001).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
-Experiment E17 (issue 901), case 1, decides step 2 (section 10).
+Experiment E17 of `inventory-transactions.md` confirms step 2 for the removal of one item
+(ITX-JAV-025).
 
 ### CINV-HND-002: The swap key outside a screen
 
@@ -643,7 +644,7 @@ Experiment E17 (issue 901), case 1, decides step 2 (section 10).
   - A press while the two slots hold the empty stack also sends the packet.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
-Experiment E17 (issue 901), case 2, decides step 4 (section 10).
+Experiment E17 of `inventory-transactions.md` confirms step 4 (ITX-JAV-025).
 
 ---
 
@@ -712,6 +713,3 @@ These experiments have not run.
 - **E5** (recorder, vanilla client). Outside a screen, press Q, then Control and Q, then F. Do
   each with a stack in the selected slot and with the empty stack. Do each again as a spectator.
   Record the serverbound packets. Expect CINV-HND-001 and CINV-HND-002.
-- **E17** (issue 901). It adds an experiment to `inventory-transactions.md`. Case 1 decides step 2
-  of CINV-HND-001: the client removes the item before the answer of the server. Case 2 decides
-  step 4 of CINV-HND-002: the client changes no stack.

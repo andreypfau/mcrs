@@ -274,7 +274,7 @@ with the status 4 or 5 drops from the selected slot. `n` is the selected slot. T
 the request `drop(P[n], count(P[n]))`. The status 5 gives the request `drop(P[n], 1)`. When
 `P[n]` holds the empty stack, the server does nothing. The server ignores the packet of a
 spectator. IEN-SPN-001 states the item entity. After the drop, the client view of `P[n]` is the
-stack that the server holds. ITX-JAV-022 states the result when a plugin denies the request. See.
+stack that the server holds. ITX-JAV-022 states the result when a plugin denies the request.
 
 **INV-SEL-005** (`design`, semantic). The `player_action` packet with the status 7 gives the
 request `swap(P[n], P[40])`, where `n` is the selected slot. When the two slots hold the empty
@@ -285,9 +285,10 @@ changes a slot, so the filters of the two slots apply with no other rule.
 **INV-SEL-006** (`design`, client agreement). When the request of INV-SEL-005 has a rejection or
 a denial (ITX-JAV-022), the client view of `P[n]` and of `P[40]` becomes not known. The
 comparison of INV-SYN-003 then sends the two stacks. Reason: the server does not know what the
-client shows for the two slots, so it sends both. ITX-JAV-021 states that the vanilla client
-changes neither slot before the answer. By default, the two slots have no filter (INV-SLT-001, INV-SLT-005). Only a filter that a
-plugin gives to `P[n]` or to `P[40]` can cause such a rejection.
+client shows for the two slots, so it sends both. ITX-JAV-025 states that the vanilla client
+changes neither slot before the answer. By default, the two slots have no filter (INV-SLT-001,
+INV-SLT-005). Only a filter that a plugin gives to `P[n]` or to `P[40]` can cause such a
+rejection.
 
 ## 4. The insert rule
 
