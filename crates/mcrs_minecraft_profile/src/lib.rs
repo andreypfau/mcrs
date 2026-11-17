@@ -365,9 +365,8 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
         fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
             let properties = Vec::<Property>::deserialize(value::SeqAccessDeserializer::new(seq))?;
             if properties.len() > MAX_PROPERTIES {
-                return Err(A::Error::custom(format_args!(
-                    "List is too long: {}, expected range [0-{MAX_PROPERTIES}]",
-                    properties.len()
+                return Err(A::Error::custom(ProfileError::TooManyProperties(
+                    properties.len(),
                 )));
             }
             for property in &properties {
@@ -397,9 +396,8 @@ fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property>, D::Error
                 }
             }
             if properties.len() > MAX_PROPERTIES {
-                return Err(A::Error::custom(format_args!(
-                    "List is too long: {}, expected range [0-{MAX_PROPERTIES}]",
-                    properties.len()
+                return Err(A::Error::custom(ProfileError::TooManyProperties(
+                    properties.len(),
                 )));
             }
             Ok(properties)

@@ -499,10 +499,8 @@ const DECODED_PLAIN: [&str; 9] = [
     "profile",
 ];
 
-const NBT_FORM_PLAIN: [&str; 1] = ["map_decorations"];
-
 fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: usize) {
-    if !NBT_FORM_PLAIN.contains(&kind) {
+    if kind != "map_decorations" {
         assert_eq!(hex(written), hex(expected), "{kind}");
         return;
     }
@@ -593,15 +591,6 @@ struct PlainDecodeError {
     wire: String,
 }
 
-const OWN_FORM_DECODES: [(&str, BuiltinKey); 1] = [("profile", BuiltinKey::Profile)];
-
-fn own_form(kind: &str) -> Option<BuiltinKey> {
-    OWN_FORM_DECODES
-        .iter()
-        .find(|(name, _)| *name == kind)
-        .map(|(_, component)| *component)
-}
-
 fn with_one_component(kind: &str, component: &str) -> Vec<u8> {
     let type_id = COMPONENT_TYPES
         .iter()
@@ -618,7 +607,7 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
 
     let mut decoded = 0;
     for case in &golden.decodes {
-        if own_form(&case.kind).is_none() {
+        if case.kind != "profile" {
             continue;
         }
         let bare = with_one_component(&case.kind, &case.wire);
@@ -642,13 +631,13 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
 
     let mut rejected = 0;
     for case in &golden.decode_errors {
-        let Some(component) = own_form(&case.kind) else {
+        if case.kind != "profile" {
             continue;
-        };
+        }
         let bare = with_one_component(&case.kind, &case.wire);
         assert_eq!(
             read_all(&bare, read_wire),
-            Err(WireError::BadValue(component)),
+            Err(WireError::BadValue(BuiltinKey::Profile)),
             "{}",
             case.wire
         );

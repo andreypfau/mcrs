@@ -1356,10 +1356,9 @@ network NBT (STK-TYP-003). Thus `type` is an identifier on the wire, not a numer
 the wire form gives a decode error when the NBT is not a valid saved form. The limits of the network
 NBT of STK-SHP-004 apply.
 
-The order of the keys of each compound in the NBT is unspecified. The vanilla client reads the NBT
-as a map, and the hash sorts the keys (STK-HSH-006). Thus a parity test of the wire form must
-compare the decoded trees, not the bytes. The game does not write the keys in the order of the
-input or of the table (experiment E26).
+The order of the keys of each compound in the NBT is unspecified (experiment E26). The vanilla
+client reads the NBT as a map, and the hash sorts the keys (STK-HSH-006). Thus a parity test of
+the wire form must compare the decoded trees, not the bytes.
 
 The reader of the saved form ignores a key of a decoration entry that the table does not list
 (STK-SHP-001). An entry that is not valid makes the whole value not valid. An identifier that

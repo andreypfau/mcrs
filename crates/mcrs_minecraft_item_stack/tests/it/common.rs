@@ -3,6 +3,8 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_wire::Encode;
+use mcrs_minecraft_wire::VarInt;
 
 pub(crate) const COMPONENT_TYPES: [&str; 73] = [
     "custom_data",
@@ -97,13 +99,10 @@ pub(crate) fn unhex(hex: &str) -> Vec<u8> {
 }
 
 pub(crate) fn var_int(value: usize) -> Vec<u8> {
-    let mut value = u32::try_from(value).expect("the test lengths fit in 32 bits");
     let mut bytes = Vec::new();
-    while value >= 0x80 {
-        bytes.push(u8::try_from(value & 0x7f).expect("seven bits fit in a byte") | 0x80);
-        value >>= 7;
-    }
-    bytes.push(u8::try_from(value).expect("the last group is below 128"));
+    VarInt(i32::try_from(value).expect("the test lengths fit in 32 bits"))
+        .encode(&mut bytes)
+        .expect("a Vec takes every byte");
     bytes
 }
 

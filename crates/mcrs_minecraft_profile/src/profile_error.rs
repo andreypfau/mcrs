@@ -4,6 +4,7 @@ use core::fmt;
 use crate::MAX_PROPERTIES;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProfileError<'a> {
     StringTooLong {
         text: &'a str,

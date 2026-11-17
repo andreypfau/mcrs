@@ -502,8 +502,7 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn profile(&self, tag: &NbtTag) -> Result<Profile, SavedError> {
-        let profile: Profile = from_tag(tag.clone()).map_err(|_| self.bad())?;
-        Ok(profile)
+        from_tag(tag.clone()).map_err(|_| self.bad())
     }
 
     fn block_set(&self, tag: &NbtTag) -> Result<BlockSet, SavedError> {
