@@ -11,15 +11,27 @@ sources:
   - README.md
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client_jar/src/native.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client_gui/src/inventory_key.rs
+  - crates/mcrs_minecraft_client_gui/src/menu_screens_plugin.rs
+  - crates/mcrs_minecraft_client_options/src/client_options.rs
+  - crates/mcrs_minecraft_entity_render/src/main_world.rs
+  - crates/mcrs_minecraft_render/src/render_path.rs
   - issue:136
   - issue:341
   - issue:521
   - issue:344
   - issue:337
+  - pr:731
+  - pr:757
+  - pr:780
+  - pr:799
+  - pr:826
+  - pr:945
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -36,10 +48,12 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 |---|---|
 | Terrain with the block models and light of the game | Works, and the light includes coloured block light |
 | Sky, clouds and the fog of the environment | Works |
-| Mobs | Works for the five mob types the server has. The client draws far mobs as flat images, which [How the client renders](/docs/en/client/rendering/) explains |
+| Mobs | Works for pigs, frogs and players, the types that have a model in the entity pack of the repository. The client does not draw the other mob types of the server yet. The native client draws a player with the skin of its profile. The client draws far mobs as flat images, which [How the client renders](/docs/en/client/rendering/) explains |
 | F3 overlay with frame and stage times | Works |
 | Chat with command suggestions | Works |
 | Breaking blocks in creative mode, and showing the block you aim at | Works |
+| Hotbar | Works. The mouse wheel and the keys 1 to 9 select a slot, and spectator mode shows no hotbar |
+| Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the world folder |
 | Joining the mcrs server or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
 
 ## What is missing
@@ -49,17 +63,17 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Sound | <Status issue={136} />. The client is silent |
 | Particles | <Status issue={137} /> |
 | Weather (rain, snow, lightning) | <Status issue={341} />. Today rain only dims the sun and the moon |
-| Inventory and container screens | <Status issue={521} /> covers the player inventory, and the screens are <Status issue={129} />, <Status issue={130} /> and <Status issue={131} />. The client draws an inventory screen only when you start it with `MCRS_SCREEN=inventory`, and you cannot play with that screen |
-| A web build | <Status issue={344} />. The build draws the sky in Chrome, but start-up blocks the page for 87 s and the build never reaches a steady frame |
+| Inventory and container screens | <Status issue={521} /> covers the player inventory. E opens the inventory screen, which shows the stacks the server sends and the figure of your player, but a click does not move a stack yet. Clicks are <Status issue={129} />, container screens are <Status issue={130} />, and the creative inventory is <Status issue={131} /> |
+| A web build | <Status issue={344} />. Chrome draws the world over WebGPU and over WebGL2. On WebGL2 the browser draws no mobs, and the CPU and GPU times of the web build are not measured yet |
 | Binary downloads | None yet. Releases are planned, and at this date no issue tracks them |
 
-## Only one platform is checked
+## The author checks one platform
 
-The author has checked one platform, an Apple M4 Max with macOS and Metal. Linux and Windows are not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
+The author checks the client on one platform, an Apple M4 Max with macOS and Metal. On Linux the client builds with both Wayland and X11, and a contributor ran it under Wayland when that support was added.[^826] Windows is not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
 
 ## A 96-column view
 
-The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower `MCRS_VIEW`, the number of columns the client asks for.
+The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower Render Distance in the video settings, or start the client with a smaller `MCRS_VIEW`, the number of columns it asks for.
 
 ## Build it from source to run it
 
@@ -71,4 +85,5 @@ A detailed guide for players will come before the alpha. Until then, this page g
 
 The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/).
 
+[^826]: <Status pr={826} state="works" /> Turns on the Wayland backend of the client next to X11.
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
