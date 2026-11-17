@@ -4,8 +4,7 @@ use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Slots;
-
-use crate::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 pub(crate) fn clear_items(
     In(player): In<Entity>,

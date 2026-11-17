@@ -216,6 +216,18 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_engine_server",
 ];
 
+const CLIENT_USABLE_PACKAGES: [&str; 2] = [
+    "mcrs_minecraft_engine_item",
+    "mcrs_minecraft_player_holders",
+];
+
+const SERVER_ONLY_PACKAGES: [&str; 4] = [
+    "mcrs_minecraft_engine",
+    "mcrs_minecraft_engine_server",
+    "mcrs_minecraft_save",
+    "mcrs_minecraft_server",
+];
+
 const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
     "mcrs_minecraft_network",
     "mcrs_minecraft_protocol",
@@ -530,6 +542,15 @@ fn layers(ctx: &Context) -> Outcome {
         return Err(format!(
             "the inventory gameplay depends on the packet edge ({}); move the code that needs it to mcrs_minecraft_inventory_server",
             edge.join(", ")
+        ));
+    }
+    for package in CLIENT_USABLE_PACKAGES {
+        linked_forbidden(ctx, package, &SERVER_ONLY_PACKAGES, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "an inventory crate that a client uses links a server-only crate ({}); move the code that needs it to mcrs_minecraft_vanilla_inventory",
+            linked.join(", ")
         ));
     }
     for package in ENTITY_RENDER_PACKAGES {

@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_vanilla_inventory"
-description = "The gameplay of the player inventory: the holders of each player, the hand actions, the close, the drops and the player file"
+description = "The gameplay of the player inventory: the hand actions, the close, the drops and the player file"
 version.workspace = true
 edition.workspace = true
 
@@ -30,12 +30,20 @@ mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_pose = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_vanilla_item_entity.workspace = true
+serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_save.workspace = true
 mcrs_minecraft_text.workspace = true

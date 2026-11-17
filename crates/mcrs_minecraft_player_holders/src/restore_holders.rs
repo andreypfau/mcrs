@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::lifecycle::Add;
@@ -19,7 +21,7 @@ use crate::PlayerHolders;
 use crate::PlayerItemsRestored;
 use crate::player_policy::player_policy;
 
-pub(crate) fn restore_holders(
+pub fn restore_holders(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
     players: Query<Option<&PlayerHolders>>,
@@ -44,7 +46,7 @@ pub(crate) fn restore_holders(
     commands.trigger(PlayerItemsRestored { entity: player });
 }
 
-pub(crate) fn restore_carried(
+pub fn restore_carried(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
     players: Query<Option<&PlayerHolders>>,

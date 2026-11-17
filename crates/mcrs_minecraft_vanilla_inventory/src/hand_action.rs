@@ -12,8 +12,8 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
-use crate::PlayerHolders;
 use crate::request_ids::HAND_DROP_REQUEST;
 use crate::request_ids::HAND_SWAP_REQUEST;
 

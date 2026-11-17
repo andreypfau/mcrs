@@ -5,8 +5,8 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
-use crate::PlayerHolders;
 use crate::close_inventory_menu::Carried;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -11,8 +11,8 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
-use crate::PlayerHolders;
 use crate::carried_codec::has_carried;
 use crate::close_inventory_menu::Carried;
 use crate::close_inventory_menu::CloseMove;

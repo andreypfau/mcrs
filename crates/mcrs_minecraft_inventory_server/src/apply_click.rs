@@ -39,8 +39,8 @@ use crate::click_slots::StackHandle;
 use crate::cursor_slot::cursor_slot;
 use crate::menu_queue::MenuQueue;
 use crate::menu_slots::MenuSlots;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 pub(crate) struct ClickPlan {
     menu: Entity,

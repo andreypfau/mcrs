@@ -15,8 +15,8 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
-use crate::PlayerHolders;
 use crate::insert_stack::max_stack_size;
 use crate::request_ids::CREATIVE_REQUEST;
 

@@ -26,7 +26,7 @@ use crate::last_container_id::LastContainerId;
 use crate::menu_content::menu_content;
 use crate::menu_slots::MenuSlots;
 use crate::wire_names::WireNames;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 const INVENTORY_CONTAINER_ID: u8 = 0;
 

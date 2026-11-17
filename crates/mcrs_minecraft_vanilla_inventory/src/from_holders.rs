@@ -3,8 +3,7 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_stack::ItemStack;
-
-use crate::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 pub(crate) fn from_holders(
     inventory: &Slots,

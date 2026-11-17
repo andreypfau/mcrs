@@ -59,7 +59,6 @@ impl Plugin for ItemPersistencePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ItemComponents>()
             .init_resource::<RequestScratch>();
-        crate::persist::register(app);
     }
 }
 

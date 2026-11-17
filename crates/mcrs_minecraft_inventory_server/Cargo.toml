@@ -28,6 +28,7 @@ mcrs_minecraft_inventory_transaction.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_vanilla_inventory.workspace = true

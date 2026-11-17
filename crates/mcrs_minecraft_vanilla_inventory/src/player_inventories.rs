@@ -5,8 +5,8 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
-use crate::PlayerHolders;
 use crate::from_holders::from_holders;
 
 #[derive(SystemParam)]

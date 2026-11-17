@@ -1,9 +1,4 @@
-use alloc::string::String;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-
 use bevy_app::App;
-use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::In;
 use bevy_ecs::world::World;
@@ -12,6 +7,10 @@ use mcrs_minecraft_engine::persisted_registry::PersistScope;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine::persisted_registry::PersistedForm;
+use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::SlotStack;
@@ -27,10 +26,8 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::Selected;
-use crate::Slots;
-use crate::Stacks;
-use crate::load_inventory::load_inventory;
+use crate::EnderItems;
+use crate::WornEquipment;
 
 const INVENTORY_SLOTS: usize = 36;
 const ENDER_SLOTS: u8 = 27;
@@ -40,35 +37,6 @@ const INVENTORY: &str = "Inventory";
 const ENDER_ITEMS: &str = "EnderItems";
 const EQUIPMENT: &str = "equipment";
 const SELECTED_ITEM_SLOT: &str = "SelectedItemSlot";
-
-#[derive(Component, Clone, Debug, Default, PartialEq)]
-pub struct EnderItems(pub Vec<SlotStack>);
-
-#[derive(Component, Clone, Debug, Default, PartialEq)]
-pub struct WornEquipment {
-    pub mainhand: Option<ItemStack>,
-    pub offhand: Option<ItemStack>,
-    pub feet: Option<ItemStack>,
-    pub legs: Option<ItemStack>,
-    pub chest: Option<ItemStack>,
-    pub head: Option<ItemStack>,
-    pub body: Option<ItemStack>,
-    pub saddle: Option<ItemStack>,
-}
-
-impl WornEquipment {
-    fn slots_mut(&mut self) -> [(&'static str, &mut Option<ItemStack>); 7] {
-        [
-            ("offhand", &mut self.offhand),
-            ("feet", &mut self.feet),
-            ("legs", &mut self.legs),
-            ("chest", &mut self.chest),
-            ("head", &mut self.head),
-            ("body", &mut self.body),
-            ("saddle", &mut self.saddle),
-        ]
-    }
-}
 
 #[derive(Serialize, Deserialize)]
 struct SelectedItemSlot(i32);
@@ -83,11 +51,11 @@ impl PersistedForm<Selected> for SelectedItemSlot {
             .ok()
             .filter(|slot| *slot < HOTBAR_SLOTS)
             .map(Selected)
-            .ok_or_else(|| alloc::format!("no hotbar slot {}", self.0))
+            .ok_or_else(|| format!("no hotbar slot {}", self.0))
     }
 }
 
-pub(crate) fn register(app: &mut App) {
+pub(crate) fn register_ender_items(app: &mut App) {
     app.register_persisted_codec(
         &[ENDER_ITEMS],
         PersistScope::Persisted,
@@ -96,7 +64,7 @@ pub(crate) fn register(app: &mut App) {
     );
 }
 
-pub(crate) fn register_player(app: &mut App) {
+pub(crate) fn register_player_items(app: &mut App) {
     app.register_persisted_as::<Selected, SelectedItemSlot>(
         &[SELECTED_ITEM_SLOT],
         PersistScope::Persisted,
@@ -209,13 +177,14 @@ fn slot_stacks(
 
 fn apply_inventory(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<(), PersistedError> {
     let names = registry_names(world, INVENTORY)?;
-    let mut values: Vec<Option<ItemStack>> = alloc::vec![None; INVENTORY_SLOTS];
+    let mut values: Vec<Option<ItemStack>> = vec![None; INVENTORY_SLOTS];
     for SlotStack { slot, stack } in slot_stacks(tag, &names, INVENTORY)? {
         if let Some(value) = values.get_mut(usize::from(slot)) {
             *value = Some(stack);
         }
     }
-    load_inventory(world, holder, values);
+    world.commands().entity(holder).load_inventory(values);
+    world.flush();
     Ok(())
 }
 
@@ -272,7 +241,7 @@ fn capture_equipment(
     };
     let names = registry_names(world, EQUIPMENT)?;
     let mut compound = NbtCompound::new();
-    for (key, stack) in worn.slots_mut() {
+    for (key, stack) in worn_slots(&mut worn) {
         if let Some(stack) = stack.as_ref() {
             let saved =
                 write_saved(stack, &names).map_err(|error| encode_error(EQUIPMENT, error))?;
@@ -299,11 +268,11 @@ fn apply_equipment(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
             read_saved(saved, &names).map_err(|error| decode_error(EQUIPMENT, error))?;
             continue;
         }
-        let Some((_, slot)) = worn.slots_mut().into_iter().find(|(name, _)| name == key) else {
-            return Err(decode_error(
-                EQUIPMENT,
-                alloc::format!("unknown slot `{key}`"),
-            ));
+        let Some((_, slot)) = worn_slots(&mut worn)
+            .into_iter()
+            .find(|(name, _)| name == key)
+        else {
+            return Err(decode_error(EQUIPMENT, format!("unknown slot `{key}`")));
         };
         *slot = Some(read_saved(saved, &names).map_err(|error| decode_error(EQUIPMENT, error))?);
     }
@@ -312,4 +281,16 @@ fn apply_equipment(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
         .map_err(|_| PersistedError::NoEntity(holder))?
         .insert(worn);
     Ok(())
+}
+
+fn worn_slots(worn: &mut WornEquipment) -> [(&'static str, &mut Option<ItemStack>); 7] {
+    [
+        ("offhand", &mut worn.offhand),
+        ("feet", &mut worn.feet),
+        ("legs", &mut worn.legs),
+        ("chest", &mut worn.chest),
+        ("head", &mut worn.head),
+        ("body", &mut worn.body),
+        ("saddle", &mut worn.saddle),
+    ]
 }
