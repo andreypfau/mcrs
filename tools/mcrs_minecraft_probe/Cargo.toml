@@ -6,7 +6,12 @@ edition.workspace = true
 publish = false
 
 [lib]
+test = false
 doctest = false
+
+[[bin]]
+name = "mcrs_minecraft_probe"
+test = false
 
 [lints]
 workspace = true
