@@ -4,8 +4,12 @@ use mcrs_minecraft_engine_inventory_menu::MenuPlugin;
 use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::ItemAppExt;
 
-use crate::armour_place::ArmourPlace;
+use crate::armour_gates::ArmourGates;
 use crate::armour_place::armour_place;
+use crate::armour_take::armour_take;
+use crate::locking_enchantments::LockingEnchantments;
+use crate::locking_enchantments::derive_locking_enchantments;
+use crate::locking_enchantments::forget_locking_enchantments;
 use crate::player_entity_type::PlayerEntityType;
 use crate::player_entity_type::derive_player_entity_type;
 use crate::player_entity_type::forget_player_entity_type;
@@ -26,10 +30,20 @@ impl Plugin for PlayerHoldersPlugin {
                 Gate::Refuses
             }
         };
-        app.insert_resource(ArmourPlace(place))
+        let take = match app.register_slot_gate(armour_take) {
+            Ok(id) => Gate::Ask(id),
+            Err(error) => {
+                tracing::error!("an armour slot refuses each take: {error}");
+                Gate::Refuses
+            }
+        };
+        app.insert_resource(ArmourGates { place, take })
             .init_resource::<PlayerEntityType>()
+            .init_resource::<LockingEnchantments>()
             .add_observer(derive_player_entity_type)
             .add_observer(forget_player_entity_type)
+            .add_observer(derive_locking_enchantments)
+            .add_observer(forget_locking_enchantments)
             .add_observer(hold_new_player);
     }
 }

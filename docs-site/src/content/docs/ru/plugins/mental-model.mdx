@@ -71,7 +71,7 @@ fn log_creative_players(
 | Метод `Listener` | Наблюдатель (observer), функция вида `fn(e: On<Event>)`, или система |
 | `runTaskTimer` | Система в `FixedUpdate`, она выполняется 20 раз в секунду |
 
-Данные вашего плагина живут по тому же правилу. Кладите их в компоненты и ресурсы, а если нужно запомнить игрока, сохраните id `Entity` и найдите игрока заново, когда он понадобится. Компоненты режима игры, полета и уровня оператора лежат в [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
+Данные вашего плагина живут по тому же правилу. Кладите их в компоненты и ресурсы, а если нужно запомнить игрока, сохраните id `Entity` и найдите игрока заново, когда он понадобится. Компонент режима игры лежит в [player_game_mode.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_game_mode/src/player_game_mode.rs), а компоненты полета и уровня оператора лежат в [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
 
 ## `Bukkit.getServer()` здесь нет
 

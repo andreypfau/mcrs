@@ -4,27 +4,6 @@ use bevy_ecs::prelude::Component;
 use bevy_ecs::schedule::SystemSet;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
-
-#[derive(
-    Component,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Deref,
-    DerefMut,
-    serde::Serialize,
-    serde::Deserialize,
-)]
-pub struct PlayerGameMode(pub GameMode);
-
-impl Default for PlayerGameMode {
-    fn default() -> Self {
-        Self(GameMode::Survival)
-    }
-}
 
 #[derive(
     Component,

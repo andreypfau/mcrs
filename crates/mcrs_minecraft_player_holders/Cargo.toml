@@ -14,15 +14,18 @@ workspace = true
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_inventory_file.workspace = true
 mcrs_minecraft_inventory_menu.workspace = true
 mcrs_minecraft_inventory_player.workspace = true
 mcrs_minecraft_inventory_transaction.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true
 tracing.workspace = true

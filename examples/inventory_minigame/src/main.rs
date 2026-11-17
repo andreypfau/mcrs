@@ -13,7 +13,7 @@ fn main() {
             ItemPlugin::new(ItemTable::leak([])),
             VanillaInventoryPlugin,
             KitPlugin::new(PlayerItems::default()),
-            ArenaRulesPlugin::default(),
+            ArenaRulesPlugin,
             ShopPlugin,
         ))
         .run();

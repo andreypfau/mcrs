@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -5,7 +7,6 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
@@ -19,9 +20,12 @@ use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
+use mcrs_minecraft_item_stack::EnchantmentId;
+use mcrs_minecraft_item_stack::EnchantmentLevel;
+use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::HashScratch;
@@ -37,6 +41,7 @@ use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
@@ -503,5 +508,78 @@ fn inv_slt_003_a_helmet_enters_the_head_slot_by_a_click_and_by_a_quick_move() {
             [(0, STONE, 5), (39, STONE, 1)],
             "{name}"
         );
+    }
+}
+
+#[test]
+fn inv_slt_004_a_locked_armour_stack_leaves_the_head_slot_only_in_creative_mode() {
+    const HEAD_ENTRY: u16 = 5;
+    const HEAD: u16 = 39;
+    struct Case {
+        name: &'static str,
+        enchantment: &'static str,
+        game_mode: Option<GameMode>,
+        inventory: Vec<(usize, Kind, u8)>,
+    }
+    let locked = || vec![(0, STONE, 5), (39, STONE, 1)];
+    let taken = || vec![(0, STONE, 5)];
+    let cases = [
+        Case {
+            name: "a curse in survival mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: Some(GameMode::Survival),
+            inventory: locked(),
+        },
+        Case {
+            name: "a curse without a game mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: None,
+            inventory: locked(),
+        },
+        Case {
+            name: "a curse in creative mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: Some(GameMode::Creative),
+            inventory: taken(),
+        },
+        Case {
+            name: "an enchantment without the effect",
+            enchantment: "minecraft:protection",
+            game_mode: Some(GameMode::Survival),
+            inventory: taken(),
+        },
+    ];
+    for case in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        match case.game_mode {
+            Some(game_mode) => world.entity_mut(player).insert(PlayerGameMode(game_mode)),
+            None => world.entity_mut(player).remove::<PlayerGameMode>(),
+        };
+        let id = world
+            .resource::<CurrentRegistries>()
+            .id_of(
+                ResourceLocation::read("minecraft:enchantment").expect("a registry name"),
+                ResourceLocation::read(case.enchantment).expect("an enchantment name"),
+            )
+            .expect("the data pack has the enchantment");
+        let enchantment = EnchantmentLevel {
+            enchantment: EnchantmentId(id),
+            level: NonZeroU8::MIN,
+        };
+        let helmet = ItemStack::new(STONE, Count::new(1).expect("a count above 0"))
+            .set(Equippable::new(EquippableSlot::Head))
+            .set(Enchantments::new([enchantment]).expect("one enchantment"));
+        world.commands().spawn_stack(helmet).put_at(player, HEAD);
+        world.flush();
+        world.run_schedule(FixedUpdate);
+        sent(world);
+        let state = i32::from(state_id(world, player));
+
+        click(world, player, Packet::pick_up(state, HEAD_ENTRY));
+        world.run_schedule(FixedUpdate);
+
+        assert_eq!(stacks(world, player), case.inventory, "{}", case.name);
     }
 }

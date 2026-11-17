@@ -3,10 +3,10 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::InRef;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::RegisteredSystemError;
+use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_inventory_click::MenuClickError;
 use mcrs_minecraft_engine_inventory_click::MenuClicker;
 use mcrs_minecraft_engine_inventory_click::MenuClicks;
@@ -15,9 +15,10 @@ use mcrs_minecraft_engine_inventory_menu::MenuButtons;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_click::ClickError;
 use mcrs_minecraft_inventory_click::ClickPlayer;
 use mcrs_minecraft_inventory_client_view::ClickSync;
@@ -25,6 +26,7 @@ use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
+use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 use crate::InventoryInput;
 use crate::MenuSync;
@@ -95,6 +97,7 @@ fn plan_click(
     InRef(input): InRef<InventoryInput>,
     players: Query<(&PlayerHolders, &Selected, Option<&PlayerGameMode>, &Menus), With<Slots>>,
     menus: Query<(&MenuLayout, &MenuButtons, &MenuSync)>,
+    requests: Option<Res<VanillaInventoryRequests>>,
     mut clicks: MenuClicks,
 ) -> Option<ClickPlan> {
     let &InventoryInput::Click {
@@ -142,13 +145,25 @@ fn plan_click(
             view: ViewChange::Claims,
         });
     }
+    let Some(requests) = requests else {
+        return Some(ClickPlan {
+            menu,
+            request: None,
+            pressed: None,
+            view: ViewChange::FullContent,
+        });
+    };
+    let source = requests.source;
     let clicker = MenuClicker {
         player: ClickPlayer {
             mode,
             selected: selected.0,
         },
         cursor: cursor_slot(player_holders),
-        request: CLICK_REQUEST,
+        request: RequestId {
+            source,
+            serial: CLICK_REQUEST,
+        },
     };
     let (request, view) = match clicks.plan(player, click, clicker) {
         Ok(request) if request.ops().next().is_none() => (None, ViewChange::Claims),

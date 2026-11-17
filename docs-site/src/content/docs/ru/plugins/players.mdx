@@ -28,9 +28,13 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]\npub struct GameProfile"} title="GameProfile" />
 
-Режим игры, состояние полета и уровень оператора лежат в одном файле:
+Режим игры лежит в крейте `mcrs_minecraft_game_mode`, поэтому сервер и клиент используют один и тот же компонент. Фича `bevy` добавляет derive `Component`:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_game_mode::GameMode;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode и PlayerFlying" />
+<Example file="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" from="#[derive(" to="impl Default" title="PlayerGameMode" />
+
+Состояние полета и уровень оператора лежат в движке:
+
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_engine_world::session::PlayerSession;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerFlying" />
 
 `PlayerOpLevel` в том же файле хранит уровень оператора, от 0 для игрока без прав оператора до 4. Тестовое окружение читает режим игры так:
 

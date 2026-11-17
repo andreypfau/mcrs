@@ -10,7 +10,7 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::{AttributeInstances, SavedAttributes};
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -21,7 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 use tracing::error;
 
-use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::ability::{PlayerFlying, PlayerOpLevel};
 use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
 use crate::carried_attributes::CarriedAttributes;

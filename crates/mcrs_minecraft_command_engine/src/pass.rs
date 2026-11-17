@@ -21,7 +21,6 @@ use bevy_ecs::world::World;
 use mcrs_command::{End, Limits, Resume, SourceLists, Stage};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::PlayerBody;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::command_handoff::CommandHandoff;
 use mcrs_minecraft_engine::coordinator::running_dimensions::RunningDimensions;
 use mcrs_minecraft_engine::dim_mail::DimMail;
@@ -32,6 +31,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 

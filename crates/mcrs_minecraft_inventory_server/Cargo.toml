@@ -21,7 +21,7 @@ mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_engine_world.workspace = true
-mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_inventory_click.workspace = true
 mcrs_minecraft_inventory_client_view.workspace = true
 mcrs_minecraft_inventory_menu = { workspace = true, features = ["bevy"] }

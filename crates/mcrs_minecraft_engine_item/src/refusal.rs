@@ -17,7 +17,7 @@ impl fmt::Display for Refusal {
             Self::Denied(denial) => write!(
                 formatter,
                 "denied by source {} with code {}",
-                denial.source.0, denial.code
+                denial.source, denial.code
             ),
         }
     }

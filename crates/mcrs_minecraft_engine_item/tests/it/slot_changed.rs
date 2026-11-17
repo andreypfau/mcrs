@@ -3,7 +3,6 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::SlotChanged;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
@@ -14,6 +13,7 @@ use mcrs_minecraft_item_stack::Rarity;
 use crate::fixture::PLAIN;
 use crate::fixture::app;
 use crate::fixture::count;
+use crate::fixture::request_id;
 use crate::fixture::spawn;
 
 struct Case {
@@ -62,7 +62,7 @@ const CASES: [Case; 6] = [
     Case {
         name: "a request commit",
         command: |world, holder, _| {
-            let request = Request::new(RequestId(1)).split(at(holder, 0), at(holder, 2), 2);
+            let request = Request::new(request_id(world)).split(at(holder, 0), at(holder, 2), 2);
             world.commands().entity(holder).request(request);
         },
         changed: &[0, 2],

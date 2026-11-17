@@ -1,4 +1,3 @@
-use crate::ability::PlayerGameMode;
 use crate::advance_digs::{advance_digs, any_digger};
 use crate::block_action_ack::BlockActionAck;
 use crate::break_session::{ActiveDig, BreakSession, Crack, DelayedBreak};
@@ -36,7 +35,7 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol::VarInt;

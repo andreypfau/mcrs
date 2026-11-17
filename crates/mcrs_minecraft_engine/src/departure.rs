@@ -6,12 +6,12 @@ use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::error;
 
-use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::ability::{PlayerFlying, PlayerOpLevel};
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::persisted_registry::{CaptureCause, PersistedRegistry, PersistedSnapshot};

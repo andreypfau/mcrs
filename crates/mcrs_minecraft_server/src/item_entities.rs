@@ -1,6 +1,5 @@
 use bevy_app::{App, FixedUpdate, Plugin, SubApp};
 use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Query, With, World};
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::{PlayerBody, PoseSystems};
@@ -11,7 +10,7 @@ use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_server::InventoryServerPlugin;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_physics::Aabb;

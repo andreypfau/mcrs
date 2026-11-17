@@ -3,17 +3,19 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
+use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+use crate::VanillaInventoryRequests;
 use crate::request_ids::HAND_DROP_REQUEST;
 use crate::request_ids::HAND_SWAP_REQUEST;
 
@@ -28,8 +30,16 @@ pub(crate) fn apply_hand_action(
     In((player, action)): In<(Entity, HandAction)>,
     players: Query<(&Slots, &Selected, Option<&PlayerGameMode>), With<PlayerHolders>>,
     counts: Query<&Count>,
+    requests: Option<Res<VanillaInventoryRequests>>,
     mut commands: Commands,
 ) {
+    let Some(requests) = requests else {
+        return;
+    };
+    let id = |serial| RequestId {
+        source: requests.source,
+        serial,
+    };
     let Ok((slots, selected, game_mode)) = players.get(player) else {
         return;
     };
@@ -53,7 +63,7 @@ pub(crate) fn apply_hand_action(
                     Err(_) => return,
                 },
             };
-            Request::new(HAND_DROP_REQUEST).drop(hand, count)
+            Request::new(id(HAND_DROP_REQUEST)).drop(hand, count)
         }
         HandAction::SwapHands => {
             if held.is_none() && slots.get(usize::from(OFF_HAND)).is_none() {
@@ -63,7 +73,7 @@ pub(crate) fn apply_hand_action(
                 holder: player,
                 index: OFF_HAND,
             };
-            Request::new(HAND_SWAP_REQUEST).swap(hand, off_hand)
+            Request::new(id(HAND_SWAP_REQUEST)).swap(hand, off_hand)
         }
     };
     commands.entity(player).request(request);

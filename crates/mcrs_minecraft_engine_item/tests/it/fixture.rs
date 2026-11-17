@@ -3,11 +3,14 @@ use std::sync::LazyLock;
 use bevy_app::App;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemState;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
+use mcrs_minecraft_engine_item::RequestId;
+use mcrs_minecraft_engine_item::RequestSource;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_stack::Builtin;
 use mcrs_minecraft_item_stack::Count;
@@ -102,7 +105,19 @@ pub fn app() -> App {
     app.add_plugins(ItemPlugin::new(*TABLE))
         .register_item_component::<Soulbound>()
         .unwrap();
+    let source = app.allocate_request_source().unwrap();
+    app.insert_resource(TestSource(source));
     app
+}
+
+#[derive(Resource)]
+struct TestSource(RequestSource);
+
+pub fn request_id(world: &World) -> RequestId {
+    RequestId {
+        source: world.resource::<TestSource>().0,
+        serial: 7,
+    }
 }
 
 pub fn spawn(world: &mut World, value: ItemStack) -> Entity {

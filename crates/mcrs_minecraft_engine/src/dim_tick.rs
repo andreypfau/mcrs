@@ -380,7 +380,7 @@ mod tests {
                 Owner(PlayerSession(1)),
                 EntityUuid(profile().id),
                 Transform::default(),
-                crate::ability::PlayerGameMode::default(),
+                mcrs_minecraft_game_mode::PlayerGameMode::default(),
                 crate::ability::PlayerFlying(false),
                 crate::ability::PlayerOpLevel(0),
                 crate::teleport::TeleportState::default(),

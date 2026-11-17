@@ -8,10 +8,9 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
-use crate::ability::PlayerGameMode;
 use crate::bus::{self, PacketPayload};
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};

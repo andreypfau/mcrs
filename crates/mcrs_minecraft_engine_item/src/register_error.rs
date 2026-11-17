@@ -7,6 +7,7 @@ pub enum RegisterError {
     MaskFull,
     UnsupportedStorage,
     GateTableFull,
+    SourcesExhausted,
 }
 
 impl fmt::Display for RegisterError {
@@ -16,6 +17,7 @@ impl fmt::Display for RegisterError {
             Self::MaskFull => "the world has the maximum number of item component types",
             Self::UnsupportedStorage => "an item component type must be stored in tables",
             Self::GateTableFull => "the world has the maximum number of slot gates",
+            Self::SourcesExhausted => "the world has the maximum number of request sources",
         })
     }
 }
