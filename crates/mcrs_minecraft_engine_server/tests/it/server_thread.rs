@@ -5,7 +5,7 @@ use bevy_app::{App, AppExit};
 use mcrs_minecraft_engine::server_edit::Weather;
 use mcrs_minecraft_engine_server::{
     DataPack, DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin, ServerThread,
-    ServerThreadError,
+    ServerThreadError, WorldOpenError,
 };
 
 const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
@@ -35,6 +35,13 @@ fn server_app(world: PathBuf) -> Result<App, &'static str> {
     Ok(app)
 }
 
+fn held_server_app(world: PathBuf) -> Result<App, &'static str> {
+    let lock = mcrs_minecraft_save::SaveLock::take(&world).unwrap();
+    let app = server_app(world);
+    drop(lock);
+    app
+}
+
 fn failing_app(_: PathBuf) -> Result<App, &'static str> {
     Err("no data pack")
 }
@@ -46,18 +53,25 @@ fn app_without_shutdown(_: PathBuf) -> Result<App, &'static str> {
 #[test]
 fn a_server_thread_saves_and_finishes_on_request() {
     type Build = fn(PathBuf) -> Result<App, &'static str>;
-    let cases: [(&str, Build, Result<AppExit, ServerThreadError<&str>>); 3] = [
-        ("a server", server_app, Ok(AppExit::Success)),
-        (
-            "a failing build",
-            failing_app,
-            Err(ServerThreadError::Build("no data pack")),
-        ),
+    type Finished = Result<AppExit, ServerThreadError<&'static str>>;
+    let cases: [(&str, Build, fn(&Finished) -> bool); 4] = [
+        ("a server", server_app, |finished| {
+            matches!(finished, Ok(AppExit::Success))
+        }),
+        ("a failing build", failing_app, |finished| {
+            matches!(finished, Err(ServerThreadError::Build("no data pack")))
+        }),
         (
             "an app without a shutdown plugin",
             app_without_shutdown,
-            Err(ServerThreadError::NoShutdownPlugin),
+            |finished| matches!(finished, Err(ServerThreadError::NoShutdownPlugin)),
         ),
+        ("a held world", held_server_app, |finished| {
+            matches!(
+                finished,
+                Err(ServerThreadError::World(WorldOpenError::Locked { .. }))
+            )
+        }),
     ];
     for (name, build, expected) in cases {
         let world = std::env::temp_dir().join(format!(
@@ -81,8 +95,8 @@ fn a_server_thread_saves_and_finishes_on_request() {
             std::thread::sleep(Duration::from_millis(10));
         };
         let saved = mcrs_minecraft_save::read_weather(&world).is_ok_and(|weather| weather.raining);
-        assert_eq!(saved, expected.is_ok(), "{name}: the weather on disk");
-        assert_eq!(finished, expected, "{name}");
+        assert_eq!(saved, finished.is_ok(), "{name}: the weather on disk");
+        assert!(expected(&finished), "{name}: {finished:?}");
         let _ = std::fs::remove_dir_all(world);
     }
 }
