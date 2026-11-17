@@ -20,7 +20,8 @@ use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;
-use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_fog::{FogInputs, FogParameters};
 use mcrs_minecraft_model::vanilla_source;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin};
@@ -88,9 +89,7 @@ impl Plugin for SkyPlugin {
             .add_systems(
                 Update,
                 (
-                    clear_sky
-                        .in_set(SessionSet::Clear)
-                        .run_if(entered_configuration),
+                    clear_sky.in_set(SessionSet::Clear).run_if(session_boundary),
                     build_sky_environment
                         .after(SessionSet::Derive)
                         .run_if(resource_exists::<CurrentRegistries>),
@@ -372,14 +371,17 @@ fn evaluate_sky(
 
 fn extract_sky(
     mut commands: Commands,
-    environment: Extract<Option<Res<SkyEnvironment>>>,
-    textures: Extract<Option<Res<SkyTextures>>>,
+    sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
     clouds: Extract<Res<Clouds>>,
+    extracted: Option<Res<ExtractedSky>>,
 ) {
-    let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
+    let (Some(environment), Some(textures)) = (sources.0.as_ref(), sources.1.as_ref()) else {
+        if extracted.is_some() {
+            commands.remove_resource::<ExtractedSky>();
+        }
         return;
     };
     let mut effects = environment.key().effects;

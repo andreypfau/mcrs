@@ -10,6 +10,9 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlags};
 
+use mcrs_minecraft_client_entity::NetworkEntities;
+use mcrs_minecraft_entity_visual::{ClientEntity, ServerTicking};
+
 use crate::{Client, add_entity};
 
 const PIG: i32 = 5;
@@ -72,6 +75,21 @@ fn a_far_position_sync_snaps_and_a_remove_despawns() {
     });
     client.app.world_mut().flush();
     assert_eq!(client.entity(PIG), None);
+}
+
+#[test]
+fn the_end_of_a_session_leaves_no_entity_and_the_normal_tick_rate() {
+    let mut client = pig_at(0.0);
+    client.receive(ClientboundTickingState {
+        tick_rate: 40.0,
+        frozen: true,
+    });
+    client.end_session();
+    let world = client.app.world_mut();
+    let left = world.query::<&ClientEntity>().iter(world).count();
+    assert_eq!(left, 0);
+    assert!(world.resource::<NetworkEntities>().is_empty());
+    assert_eq!(client.ticking(), ServerTicking::default());
 }
 
 #[test]

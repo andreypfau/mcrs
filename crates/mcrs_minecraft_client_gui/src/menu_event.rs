@@ -5,4 +5,5 @@ use mcrs_minecraft_client_widget::WidgetEvent;
 pub enum MenuEvent {
     Widget(WidgetEvent),
     CloseRequested,
+    Confirmed,
 }

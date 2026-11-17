@@ -1,3 +1,4 @@
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -101,15 +102,20 @@ fn spawned(
     mut commands: Commands,
 ) {
     if let Ok((player, transform)) = player.single() {
-        let state = PlayerState {
-            flight0: abilities::flight_after_change(mode, false),
-            ..PlayerState::new(transform.translation)
-        };
         commands.entity(player).insert((
-            LocalMotion(state),
+            LocalMotion::spawned(mode, transform.translation),
             SyncedData::default(),
             LastSentInput::default(),
         ));
+    }
+}
+
+impl LocalMotion {
+    pub(crate) fn spawned(mode: GameMode, position: DVec3) -> Self {
+        Self(PlayerState {
+            flight0: abilities::flight_after_change(mode, false),
+            ..PlayerState::new(position)
+        })
     }
 }
 

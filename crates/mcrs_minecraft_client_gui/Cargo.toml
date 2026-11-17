@@ -41,10 +41,14 @@ mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_save.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_text_flatten.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+time.workspace = true
 uuid.workspace = true
 wgpu = { version = "30", default-features = false }
 bevy = { version = "0.20.1", default-features = false, features = [

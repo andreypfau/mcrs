@@ -164,6 +164,9 @@ pub(crate) fn menu_keys(
             && let Some(gui) = gui_key(key.key_code)
         {
             widgets.key_press(gui, modifiers, now_ms, &width, &mut events);
+            if events.is_empty() && matches!(gui, GuiKey::Enter | GuiKey::NumpadEnter) {
+                out.write(MenuEvent::Confirmed);
+            }
         }
         out.write_batch(events.drain(..).map(MenuEvent::Widget));
     }

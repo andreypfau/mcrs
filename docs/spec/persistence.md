@@ -252,7 +252,9 @@ and the kind of lock; semantic for the rest. Confidence: medium.
 6. A server with no save directory takes no lock.
 7. The world list of the mcrs client tests the lock as SAVE-LOCK-001 states.
 8. A delete of the mcrs client takes the lock before it removes a file. When another process holds
-   the lock, the delete removes no file (`client-world-screens.md`, WORLD-DEL-003).
+   the lock, the delete removes no file. The delete removes `session.lock` while it still holds
+   the lock, then releases the lock, and then removes the empty folder
+   (`client-world-screens.md`, WORLD-DEL-003, step 2).
 9. When the local server of the client does not start because of the error of step 2, the client
    shows the screen of a failed start (`client-title-screen.md`, TITLE-LOAD-006, edge cases).
    The reason is `selectWorld.locked`, "Locked by another running instance of Minecraft."

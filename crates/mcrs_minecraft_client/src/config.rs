@@ -11,7 +11,7 @@ use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
 use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT, VIEW_DISTANCE_RANGE};
-use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_client_world::screen::{AccessibilityParent, Screen};
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
 #[cfg(not(target_family = "wasm"))]
@@ -347,16 +347,17 @@ impl Knobs {
 
     pub fn start_screen(&self) -> Screen {
         match self.knob("SCREEN") {
-            None | Some("none") => Screen::None,
+            None | Some("title") => Screen::Title,
+            Some("none") => Screen::None,
             Some("inventory") => Screen::Inventory,
             Some("pause") => Screen::Pause,
             Some("options") => Screen::Options,
             Some("video") => Screen::VideoSettings,
-            Some("accessibility") => Screen::AccessibilitySettings,
+            Some("accessibility") => Screen::AccessibilitySettings(AccessibilityParent::Options),
             Some(other) => reject(
                 "SCREEN",
                 other,
-                "expected none, inventory, pause, options, video or accessibility",
+                "expected title, none, inventory, pause, options, video or accessibility",
             )
             .unwrap_or_default(),
         }

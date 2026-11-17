@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::{Commands, ResMut};
 
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct NetworkEntities(HashMap<i32, Entity>);
@@ -32,5 +33,14 @@ impl NetworkEntities {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+}
+
+pub(crate) fn clear_network_entities(
+    mut entities: ResMut<NetworkEntities>,
+    mut commands: Commands,
+) {
+    for entity in entities.drain() {
+        commands.entity(entity).try_despawn();
     }
 }

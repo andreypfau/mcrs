@@ -6,7 +6,6 @@ use bevy::asset::AssetPlugin;
 use bevy::asset::io::AssetSourceId;
 use bevy::asset::io::file::FileAssetReader;
 use bevy::log::{BoxedLayer, LogPlugin};
-use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::RenderPlugin;
 use bevy::render::render_resource::WgpuFeatures;
@@ -23,10 +22,8 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_save::{self as save, SaveError};
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
@@ -34,34 +31,23 @@ use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, config, sky, vanilla, window_options,
+    ClientPlugins, ClientTerrainPlugin, config,
+    game_directory::{GameDirectory, Platform},
+    sky, vanilla, window_options,
 };
-use mcrs_minecraft_client_gui::inventory_figure::inventory_figure;
 use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
 use mcrs_minecraft_client_world::asset_source::asset_source;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
-use mcrs_minecraft_client_world::registries::SessionSet;
+#[cfg(feature = "singleplayer")]
+use mcrs_minecraft_client_world::world_list::{WorldList, WorldStoreError};
 use mcrs_minecraft_client_world::{local_player, player};
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList, OpListEntry};
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_engine_server::login::SingleplayerProfile;
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_engine_server::{
-    BoundAddress, DataPack, DimensionWorldsPlugin, NetworkCompressionThreshold, ServerCorePlugin,
-    ServerNetworkPlugin,
-};
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect, offline_player_uuid};
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_server::MinecraftServerPlugins;
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -101,11 +87,15 @@ fn scene_dir(_: &Knobs) -> Option<PathBuf> {
     reason = "app setup reads top to bottom in the order added"
 )]
 pub fn run() -> AppExit {
+    let utc_offset = time::UtcOffset::current_local_offset().unwrap_or_else(|error| {
+        eprintln!("warning: the time zone of the system: {error}; the world list shows UTC");
+        time::UtcOffset::UTC
+    });
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
     let world = world_folder();
-    let knobs = knobs(world.as_deref());
-    let save_data = world.as_deref().map(load_save).unwrap_or_default();
+    let game_directory = game_directory();
+    let knobs = knobs(game_directory.as_ref());
     let frozen_at = knobs.frozen_time();
     let resolution = knobs.resolution();
     let scene = scene_dir(&knobs);
@@ -226,7 +216,6 @@ pub fn run() -> AppExit {
     .add_systems(
         Update,
         (log_registry_counts, log_seeded_resources)
-            .after(apply_saved_clocks)
             .run_if(resource_exists_and_changed::<CurrentRegistries>),
     )
     .add_systems(
@@ -247,37 +236,53 @@ pub fn run() -> AppExit {
     }
 
     let username = knobs.username();
-    let local_uuid = save_data
-        .player_uuid
-        .unwrap_or_else(|| offline_player_uuid(&username));
     let local_world = cfg!(feature = "singleplayer") && knobs.server().is_none();
+    app.add_plugins(ClientNetworkPlugin {
+        holds_vanilla_pack: true,
+        play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+    });
     #[cfg(feature = "singleplayer")]
-    let server = server_address(&knobs).unwrap_or_else(|| {
+    {
         #[cfg(feature = "dev")]
-        let traces = {
+        let column_traces = {
             let traces = ColumnTraceSink::default();
             app.insert_resource(traces.clone());
             Some(traces)
         };
         #[cfg(not(feature = "dev"))]
-        let traces = None;
-        let host = SingleplayerProfile {
-            name: username.clone(),
-            id: local_uuid,
+        let column_traces = None;
+        let server = mcrs_minecraft_client::local_server::LocalServerPlugin {
+            asset_path: assets.clone(),
+            data_pack: data_pack.clone(),
+            ops_file: game_directory.as_ref().map(GameDirectory::ops_file),
+            username: username.clone(),
+            open_to_lan: knobs.open_to_lan(),
+            settings: knobs.server_settings(),
+            column_traces,
         };
-        host_integrated_server(&knobs, world.as_deref(), &assets, &data_pack, traces, host)
-    });
-    #[cfg(not(feature = "singleplayer"))]
-    let server = server_address(&knobs)
-        .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
-    app.add_plugins(ClientNetworkPlugin {
-        server,
-        username,
-        profile_id: save_data.player_uuid,
-        view_distance,
-        holds_vanilla_pack: true,
-        play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
-    });
+        if let Some(game_directory) = &game_directory {
+            app.add_plugins(mcrs_minecraft_client::world_list::WorldListPlugin {
+                saves: game_directory.saves(),
+                server: server.clone(),
+            });
+        } else {
+            app.insert_resource(WorldList::Unavailable(WorldStoreError::Io(
+                std::io::ErrorKind::NotFound,
+            )));
+        }
+        app.add_plugins(server);
+    }
+    if let Some(server) = server_address(&knobs) {
+        let join = JoinRequest {
+            server,
+            username,
+            profile_id: None,
+            view_distance,
+        };
+        app.add_systems(Startup, move |mut requests: MessageWriter<JoinRequest>| {
+            requests.write(join.clone());
+        });
+    }
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
@@ -286,32 +291,24 @@ pub fn run() -> AppExit {
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_key::InventoryKeyPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
-        command_history: knobs.command_history().or_else(|| {
-            world
-                .as_deref()
-                .map(|world| world.join("command_history.txt"))
-        }),
+        command_history: knobs
+            .command_history()
+            .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
     });
     app.add_plugins(chat_input::ChatScreenPlugin);
-    app.add_plugins((MenuPlugin, MenuScreensPlugin { local_world }));
-    app.insert_resource(ExitOnDisconnect);
-
-    let mut saved_clocks = save_data.world_clocks;
-    if let Some(ticks) = frozen_at {
-        for state in saved_clocks.values_mut() {
-            state.total_ticks = ticks;
-            state.partial_tick = 0.0;
-        }
-    }
-    app.insert_resource(SavedClocks(saved_clocks))
-        .add_systems(
-            Update,
-            apply_saved_clocks.after(SessionSet::Derive).run_if(
-                resource_exists::<SavedClocks>.and_then(resource_exists::<CurrentRegistries>),
-            ),
-        )
-        .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
-        .insert_resource(save_data.weather);
+    app.add_plugins((
+        MenuPlugin,
+        MenuScreensPlugin {
+            preselected_world: world
+                .as_deref()
+                .filter(|_| local_world)
+                .and_then(|world| preselected_world(world, game_directory.as_ref())),
+            utc_offset,
+            singleplayer: cfg!(feature = "singleplayer"),
+        },
+    ));
+    app.insert_resource(AdvanceTime(frozen_at.is_none()))
+        .insert_resource(WeatherLevel::default());
 
     app.add_plugins(ClientTerrainPlugin(terrain_limits(MAX_VIEW_DISTANCE)));
     #[cfg(feature = "dev")]
@@ -320,23 +317,11 @@ pub fn run() -> AppExit {
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
 
-    let look = knobs.look_override();
-    let (yaw, pitch) = look.unwrap_or((save_data.yaw, save_data.pitch));
-    if look.is_some() {
+    if let Some((yaw, pitch)) = knobs.look_override() {
         app.insert_resource(local_player::LookOverride { yaw, pitch });
     }
-    let position = knobs.position_override();
-    if let Some(position) = position {
+    if let Some(position) = knobs.position_override() {
         app.insert_resource(local_player::PositionOverride(position));
-    }
-    player::spawn_player(
-        app.world_mut(),
-        position.unwrap_or(save_data.position),
-        yaw,
-        pitch,
-    );
-    if let Some(figure) = inventory_figure(local_uuid) {
-        app.world_mut().spawn(figure);
     }
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app);
@@ -367,84 +352,6 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
     }
 }
 
-#[cfg(feature = "singleplayer")]
-fn host_integrated_server(
-    knobs: &Knobs,
-    world: Option<&Path>,
-    assets: &str,
-    data_pack: &Path,
-    traces: Option<ColumnTraceSink>,
-    host: SingleplayerProfile,
-) -> SocketAddr {
-    let open_to_lan = knobs.open_to_lan();
-    let settings = knobs.server_settings();
-    let mut server = App::new();
-    let plugins = MinecraftServerPlugins {
-        core: ServerCorePlugin {
-            owns_task_pools: false,
-            asset_path: Some(assets.to_owned()),
-            data_pack: DataPack::Directory(data_pack.to_owned()),
-            ..MinecraftServerPlugins::default().core
-        },
-        worlds: DimensionWorldsPlugin {
-            world: world.map(Path::to_path_buf),
-            column_traces: traces,
-            ops: OpList::new(
-                std::iter::once(OpListEntry {
-                    uuid: host.id,
-                    name: host.name.clone(),
-                    level: mcrs_minecraft_engine::ability::PlayerOpLevel::MAX,
-                    bypasses_player_limit: true,
-                })
-                .chain(OpList::read_entries(Path::new(OPS_FILE)).unwrap_or_else(
-                    |error| {
-                        eprintln!("{error}");
-                        std::process::exit(1);
-                    },
-                )),
-            ),
-            seed: settings.world_seed,
-            preset: settings.world_preset,
-            default_game_mode: settings.default_game_mode,
-            ..Default::default()
-        },
-        world_gen: WorldGenPlugin,
-        network: ServerNetworkPlugin {
-            bind_address: config::integrated_bind_address(open_to_lan),
-            compression_threshold: if open_to_lan {
-                NetworkCompressionThreshold::default()
-            } else {
-                NetworkCompressionThreshold(-1)
-            },
-            singleplayer_profile: Some(host),
-            ..Default::default()
-        },
-    }
-    .build();
-    server.add_plugins(plugins);
-    let address = server.world().resource::<BoundAddress>().0;
-    let spawned = mcrs_minecraft_engine_server::spawn_server_thread(server, |app| {
-        if let AppExit::Error(code) = mcrs_minecraft_engine_server::run_server_loop(app) {
-            error!("the integrated server stopped with an error");
-            std::process::exit(i32::from(code.get()));
-        }
-    });
-    if let Err(error) = spawned {
-        error!(%error, "the integrated server thread did not start");
-        std::process::exit(1);
-    }
-    match world {
-        Some(world) => info!(
-            world = %world.display(),
-            %address,
-            "hosting an integrated server, which reads this world's saved chunks and \
-             generates the columns it has never saved",
-        ),
-        None => info!(%address, "hosting an integrated server"),
-    }
-    SocketAddr::new(std::net::Ipv4Addr::LOCALHOST.into(), address.port())
-}
-
 fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     let address = knobs.server()?;
     match address.to_socket_addrs().map(|mut a| a.next()) {
@@ -460,7 +367,7 @@ fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     clippy::disallowed_methods,
     reason = "the client binary reads its settings from the environment"
 )]
-fn knobs(world: Option<&Path>) -> Knobs {
+fn knobs(game_directory: Option<&GameDirectory>) -> Knobs {
     let variables = std::env::vars_os().filter_map(|(name, value)| {
         let name = name.into_string().ok()?;
         #[cfg(windows)]
@@ -473,8 +380,34 @@ fn knobs(world: Option<&Path>) -> Knobs {
     Knobs::new(
         variables,
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0"),
-        world.map(|world| world.join("options.json")),
+        game_directory.map(GameDirectory::options_file),
     )
+}
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the client binary reads its settings from the environment"
+)]
+fn game_directory() -> Option<GameDirectory> {
+    let directory = GameDirectory::pick(Platform::current(), |name| std::env::var_os(name));
+    if directory.is_none() {
+        eprintln!(
+            "no game directory: set MCRS_GAME_DIR; the options and the command history are not kept"
+        );
+    }
+    directory
+}
+
+fn preselected_world(world: &Path, game_directory: Option<&GameDirectory>) -> Option<String> {
+    let world = std::fs::canonicalize(world).ok()?;
+    let saves = game_directory.and_then(|directory| std::fs::canonicalize(directory.saves()).ok());
+    if saves.is_none_or(|saves| world.parent() != Some(saves.as_path())) {
+        warn!(world = %world.display(), "the world folder is not in the saves folder, no world is preselected");
+        return None;
+    }
+    world
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
 }
 
 fn world_folder() -> Option<PathBuf> {
@@ -484,106 +417,6 @@ fn world_folder() -> Option<PathBuf> {
         std::process::exit(1);
     }
     Some(path)
-}
-
-struct SaveData {
-    world_clocks: save::WorldClockStates,
-    player_uuid: Option<Uuid>,
-    advance_time: bool,
-    weather: WeatherLevel,
-    position: DVec3,
-    yaw: f32,
-    pitch: f32,
-}
-
-impl Default for SaveData {
-    fn default() -> Self {
-        Self {
-            world_clocks: save::WorldClockStates::default(),
-            player_uuid: None,
-            advance_time: true,
-            weather: WeatherLevel::default(),
-            position: DVec3::new(0.5, 80.0, 0.5),
-            yaw: 0.0,
-            pitch: 0.0,
-        }
-    }
-}
-
-fn load_save(world: &Path) -> SaveData {
-    let level = save::read_level_dat(world).unwrap_or_else(|err| fatal(err));
-    let world_clocks = save::read_world_clocks(world).unwrap_or_else(|err| fatal(err));
-    let weather = save::read_weather(world).unwrap_or_else(|err| fatal(err));
-    let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
-
-    let (position, yaw, pitch) = match level.singleplayer_uuid {
-        Some(uuid) => match save::read_player_dat(world, uuid) {
-            Ok(Some(player)) => match (player.pos(), player.rotation()) {
-                (Some(pos), Some(rotation)) => (DVec3::from_array(pos), rotation[0], rotation[1]),
-                _ => spawn_fallback(&level.spawn),
-            },
-            Ok(None) => spawn_fallback(&level.spawn),
-            Err(err) => fatal(err),
-        },
-        None => spawn_fallback(&level.spawn),
-    };
-
-    SaveData {
-        world_clocks,
-        player_uuid: level.singleplayer_uuid,
-        advance_time: game_rules
-            .get(mcrs_minecraft_game_rule::GameRule::AdvanceTime)
-            .is_none_or(|value| value != 0),
-        weather: WeatherLevel {
-            rain: if weather.raining { 1.0 } else { 0.0 },
-            thunder: if weather.thundering { 1.0 } else { 0.0 },
-        },
-        position,
-        yaw,
-        pitch,
-    }
-}
-
-fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32) {
-    (
-        DVec3::new(
-            spawn.pos[0] as f64 + 0.5,
-            spawn.pos[1] as f64,
-            spawn.pos[2] as f64 + 0.5,
-        ),
-        spawn.yaw,
-        spawn.pitch,
-    )
-}
-
-fn fatal(err: SaveError) -> ! {
-    eprintln!("{err}");
-    std::process::exit(1);
-}
-
-#[derive(Resource)]
-struct SavedClocks(save::WorldClockStates);
-
-fn apply_saved_clocks(
-    saved: Res<SavedClocks>,
-    registries: Res<CurrentRegistries>,
-    mut clocks: ResMut<WorldClocks>,
-    mut commands: Commands,
-) {
-    if let Some(registry) = registries.registry::<WorldClock>() {
-        for (name, state) in &saved.0 {
-            match registry
-                .by_name(name)
-                .and_then(|id| Id::checked(id.number(), registry.len()))
-            {
-                Some(id) => clocks.insert(id, *state),
-                None => {
-                    warn!(clock = %name, "discarding saved clock state with no world_clock registry entry")
-                }
-            }
-        }
-    }
-    commands.remove_resource::<SavedClocks>();
 }
 
 fn log_registry_counts(registries: Res<CurrentRegistries>) {

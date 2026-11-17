@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::settings::WgpuLimits;
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_entity_render::{EntityAssets, EntityRenderPlugin};
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -13,16 +15,27 @@ impl Plugin for ClientEntityRenderPlugin {
         app.add_plugins((EntityRenderPlugin, crate::player_skins::PlayerSkinsPlugin))
             .add_systems(
                 Update,
-                build_entity_assets
-                    .run_if(resource_exists::<CurrentRegistries>)
-                    .run_if(mcrs_minecraft_entity_render::entity_passes),
+                (
+                    clear_entity_assets
+                        .in_set(SessionSet::Clear)
+                        .run_if(session_boundary),
+                    build_entity_assets
+                        .after(SessionSet::Clear)
+                        .run_if(resource_exists::<CurrentRegistries>)
+                        .run_if(mcrs_minecraft_entity_render::entity_passes),
+                ),
             );
     }
+}
+
+fn clear_entity_assets(mut commands: Commands) {
+    commands.remove_resource::<EntityAssets>();
 }
 
 #[derive(Default)]
 struct Built {
     registries: Option<bevy::ecs::change_detection::Tick>,
+    generation: u32,
 }
 
 fn build_entity_assets(
@@ -30,7 +43,6 @@ fn build_entity_assets(
     catalog: Option<Res<BlockCatalog>>,
     registries: Res<CurrentRegistries>,
     device: Option<Res<RenderDevice>>,
-    assets: Option<Res<EntityAssets>>,
     mut built: Local<Built>,
 ) {
     let Some(resources) = catalog.as_deref().and_then(BlockCatalog::pack) else {
@@ -45,7 +57,8 @@ fn build_entity_assets(
         device.limits().max_texture_array_layers
     });
     let mut entity_assets = EntityAssets::build(resources, &registries, array_layers);
-    entity_assets.generation = assets.map_or(0, |assets| assets.generation.wrapping_add(1));
+    built.generation = built.generation.wrapping_add(1);
+    entity_assets.generation = built.generation;
     info!(
         definitions = entity_assets.library.definitions.len(),
         textures = entity_assets.library.textures.len(),

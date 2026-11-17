@@ -191,7 +191,7 @@ mod tests {
         use crate::test_session::Server;
         use mcrs_minecraft_core::Look;
         use mcrs_minecraft_network::client::{
-            ClientConnection, ClientNetworkPlugin, finish_configuration,
+            ClientConnection, ClientNetworkPlugin, JoinRequest, finish_configuration,
         };
         use mcrs_minecraft_pose::Pose;
         use mcrs_minecraft_protocol::Packet;
@@ -212,13 +212,16 @@ mod tests {
         fn joined(mut app: App) -> (App, Server, Entity) {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             app.add_plugins(ClientNetworkPlugin {
+                holds_vanilla_pack: false,
+                play: None,
+            });
+            app.world_mut().write_message(JoinRequest {
                 server: listener.local_addr().unwrap(),
                 username: "Steve".to_owned(),
                 profile_id: None,
                 view_distance: 8,
-                holds_vanilla_pack: false,
-                play: None,
             });
+            app.update();
             let (mut server, _information) = Server::join(&listener);
             let connection = (0..1000)
                 .find_map(|_| {

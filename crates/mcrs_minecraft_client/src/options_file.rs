@@ -95,6 +95,9 @@ fn write_options(path: &Path, text: &str) -> io::Result<()> {
 fn replace_file(path: &Path, text: &str) -> io::Result<()> {
     use io::Write as _;
 
+    if let Some(folder) = path.parent() {
+        std::fs::create_dir_all(folder)?;
+    }
     let mut partial = path.as_os_str().to_owned();
     partial.push(".tmp");
     let mut file = File::create(&partial)?;
@@ -179,6 +182,7 @@ mod tests {
         let folder =
             std::env::temp_dir().join(format!("mcrs-options-retry-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&folder);
+        std::fs::write(&folder, "").unwrap();
         let path = folder.join("options.json");
         let mut app = App::new();
         app.add_plugins((
@@ -203,7 +207,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<ButtonInput<MouseButton>>()
             .release(MouseButton::Left);
-        std::fs::create_dir(&folder).unwrap();
+        std::fs::remove_file(&folder).unwrap();
         app.update();
         app.update();
         assert!(!path.exists(), "a later frame does not try the save again");

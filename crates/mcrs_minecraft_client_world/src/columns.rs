@@ -44,7 +44,8 @@ use crate::joined_game::CurrentDimension;
 use crate::sign::sign_block;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, DeferredRows, close_connection_later,
+    ClientConnection, ClientNetworkSystems, ConnectionEnd, ConnectionEnded, DeferredRows,
+    close_connection_later,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
@@ -52,7 +53,8 @@ use mcrs_minecraft_volume::{
     Access, BiomeVolume, BlockVolume, DenseSection, LightVolume, SectionVolume, Unavailable, Volume,
 };
 
-use crate::registries::{SessionSet, entered_configuration};
+use crate::registries::SessionSet;
+use crate::session::session_boundary;
 
 pub const AIR: BlockStateId = BlockStateId::AIR;
 
@@ -765,7 +767,8 @@ pub enum ClientTerrainSet {
 
 impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ColumnStore>();
+        app.init_resource::<ColumnStore>()
+            .add_message::<ConnectionEnded>();
         app.world_mut()
             .resource_mut::<ColumnStore>()
             .set_unlit_light(self.unlit_light);
@@ -801,7 +804,7 @@ impl Plugin for ColumnCachePlugin {
                 clear_columns
                     .in_set(SessionSet::Clear)
                     .before(settle_columns)
-                    .run_if(entered_configuration),
+                    .run_if(session_boundary),
                 settle_columns.in_set(ClientTerrainSet::Settle),
             ),
         );
@@ -1248,7 +1251,7 @@ fn settle_columns(
                         close_connection_later(
                             &mut commands,
                             *entity,
-                            format!("Internal Exception: {error:#}"),
+                            ConnectionEnd::Lost(format!("Internal Exception: {error:#}")),
                         );
                     }
                     arrivals.queue.clear();

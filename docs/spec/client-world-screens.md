@@ -699,9 +699,16 @@ file. `source_suggested_black_box_confirmed` for steps 2 and 3 by
 - **Inputs:** an activation of "Delete", and the answer on the confirmation screen.
 - **Behavior:**
   1. WORLD-DEL-001 applies.
-  2. WORLD-DEL-002, steps 1 to 4, apply. The client takes and releases the lock as
-     `persistence.md`, SAVE-LOCK-002, states. The removal runs off the frame. The window
-     continues to draw.
+  2. WORLD-DEL-002, steps 1, 2 and 4, apply. Step 3 has this order in mcrs (WORLD-DEV-015):
+     1. With the lock held, the client removes each file and folder of the world folder except
+        `session.lock`.
+     2. With the lock still held, the client removes `session.lock`.
+     3. The client releases the lock.
+     4. The client removes the world folder only when it is empty. It never removes a file that
+        another process made in the folder after step 2.
+     Each of the removals of substeps 1, 2 and 4 has the attempts of WORLD-DEL-002, step 4. The
+     client takes and releases the lock as `persistence.md`, SAVE-LOCK-002, states. The removal
+     runs off the frame. The window continues to draw.
   3. While the removal runs, "Select World" shows with the loading entry of WORLD-LIST-003. When
      the removal ends, the list reads the summaries again.
   4. No toast shows. A world folder that the removal did not remove shows in the list again.
@@ -709,9 +716,21 @@ file. `source_suggested_black_box_confirmed` for steps 2 and 3 by
   - A delete of a large world does not stop the frames of the client.
   - A delete of a world that another process holds removes no file. The entry shows again as a
     locked world.
+  - A delete never removes a `session.lock` that another process holds, and never removes a file
+    that another process made after substep 2.
+- **Edge cases:**
+  - Another process opens the world folder between substeps 2 and 4 of step 2 and makes a new
+    `session.lock`. Then the last removal fails after its attempts, and the folder stays on the
+    disk with the files of that process. No toast shows. A folder with no `level.dat` is not in
+    the list (WORLD-DIR-001), so the entry does not show again.
+  - Limit: a process that opened the old `session.lock` before substep 2 and tries its lock after
+    substep 3 holds a lock on a removed file, and a third process can then make and lock a new
+    `session.lock` in the same folder. Each client tries the lock at once after it opens the
+    file, so the window is a few system calls.
 
-Provenance: `design` for steps 2 to 4: the client never waits on the disk in a frame, and mcrs
-has no toast. `source_suggested` for the rest. Kind: semantic. Confidence: medium.
+Provenance: `design` for steps 2 to 4 and the edge case: the client never waits on the disk in a
+frame, mcrs has no toast, and the order of step 2 removes no lock file that another process
+holds (WORLD-DEV-015). `source_suggested` for the rest. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1399,6 +1418,26 @@ The other documents state these points of this document:
   folder. The player sees "Unable to load worlds" and can go back to the title screen.
 - **Bug reference:** `none`.
 - **Test:** a differential test does not compare a saves folder that fails to list.
+
+### WORLD-DEV-015: A delete removes `session.lock` while it holds the lock
+
+- **Rule:** WORLD-DEL-003, step 2.
+- **Reference:** the client removes the files of the world folder with the lock held. Then it
+  releases the lock, and after the release it removes `session.lock` and the world folder
+  (WORLD-DEL-002, step 3).
+- **Reason:** on Linux and macOS, a second process can take the lock in the gap between the
+  release and the removal of `session.lock`. The removal then removes the lock file that the
+  second process holds. A third process then makes a new `session.lock` and takes a second
+  lock on the same world, and two processes write the same world. When the client removes
+  `session.lock` with the lock held, a process that opens the folder later makes a new
+  `session.lock`, and the last removal fails because the folder is not empty.
+- **Visible to the client:** only when another process opens the world while the client
+  deletes it. Then the folder stays on the disk with the files of that process (WORLD-DEL-003,
+  edge cases).
+- **Bug reference:** `none`.
+- **Test:** after the removal of `session.lock` and before the last removal, a second process
+  makes a new `session.lock` in the folder and takes its lock. The delete fails, and the folder
+  and the new `session.lock` stay, with the lock of the second process.
 
 ---
 
