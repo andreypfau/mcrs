@@ -459,6 +459,16 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_dimension"]
 opt-level = 3
 
+[profile.dev.package."mcrs_minecraft_resource"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_datapack"]
+opt-level = 3
+
+# The global allocator of most test binaries; every allocation of a fixture load passes through it.
+[profile.dev.package."mcrs_test_alloc"]
+opt-level = 3
+
 # The level field tests recompute the field from scratch after every change:
 # 0.6 seconds at opt-level 2, 4.7 at opt-level 0.
 [profile.dev.package."mcrs_minecraft_engine_world"]
