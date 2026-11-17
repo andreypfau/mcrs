@@ -1,91 +1,15 @@
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 use bevy::ecs::message::Messages;
 use bevy::ecs::resource::IsResource;
 use bevy::prelude::*;
-use mcrs_minecraft_client::local_server::LocalServerPlugin;
-use mcrs_minecraft_client_entity::ClientEntityPlugin;
-use mcrs_minecraft_client_world::chat::ClientChatPlugin;
-use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
-use mcrs_minecraft_client_world::game_mode::GameModePlugin;
-use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
-use mcrs_minecraft_client_world::inventory_packets::InventoryPacketsPlugin;
-use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client::test_support::{joined, open, update_until};
 use mcrs_minecraft_client_world::player::Player;
-use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
-use mcrs_minecraft_client_world::session::{
-    LocalServer, LocalServerError, LocalServerStopped, LocalWorldOrigin, OpenLocalWorld,
-};
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, ClientSession, LeaveRequest};
+use mcrs_minecraft_client_world::session::{LocalServer, LocalServerError, LocalServerStopped};
+use mcrs_minecraft_network::client::LeaveRequest;
 use mcrs_minecraft_save::SaveLock;
-use mcrs_minecraft_server_settings::ServerSettings;
 
-use crate::boot::boot;
-
-const TIMEOUT: Duration = Duration::from_secs(40);
-
-fn client() -> App {
-    boot(|app| {
-        app.add_plugins((
-            ClientNetworkPlugin {
-                holds_vanilla_pack: true,
-                play: Some(GAME_CLIENTBOUND),
-            },
-            ColumnCachePlugin::default(),
-            GameModePlugin,
-            InventoryPacketsPlugin,
-            ClientEntityPlugin,
-            ClientChatPlugin {
-                command_history: None,
-            },
-            LocalServerPlugin {
-                asset_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),
-                data_pack: mcrs_minecraft_fixtures::vanilla_dir().to_owned(),
-                ops_file: None,
-                username: "Player".to_owned(),
-                open_to_lan: false,
-                settings: ServerSettings::default(),
-                column_traces: None,
-            },
-        ))
-        .init_resource::<Time<Real>>()
-        .insert_resource(RequestedViewDistance(2));
-    })
-}
-
-fn world_folder(name: &str) -> PathBuf {
-    let folder = std::env::temp_dir().join(format!("mcrs-{name}-{}", std::process::id()));
-    std::fs::remove_dir_all(&folder).ok();
-    folder
-}
-
-fn open(app: &mut App, folder: &Path) {
-    app.world_mut().write_message(OpenLocalWorld {
-        folder: folder.to_owned(),
-        host: None,
-        origin: LocalWorldOrigin::Opened,
-        lock: None,
-    });
-}
-
-fn update_until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
-    while !done(app) {
-        assert!(start.elapsed() < TIMEOUT, "timed out waiting for {what}");
-        std::thread::sleep(Duration::from_millis(5));
-        app.update();
-    }
-}
-
-fn joined(app: &mut App) -> bool {
-    app.world_mut()
-        .query_filtered::<(), (With<ClientSession>, With<JoinedGame>)>()
-        .iter(app.world())
-        .next()
-        .is_some()
-}
+use crate::local_world::{client, world_folder};
 
 fn stopped(app: &mut App) -> Option<Result<(), LocalServerError>> {
     app.world_mut()

@@ -7,6 +7,10 @@
 mod boot;
 #[cfg(feature = "singleplayer")]
 mod local_server;
+#[cfg(feature = "singleplayer")]
+mod local_world;
+#[cfg(feature = "singleplayer")]
+mod menu_clicks;
 mod session;
 mod sky;
 #[cfg(feature = "singleplayer")]

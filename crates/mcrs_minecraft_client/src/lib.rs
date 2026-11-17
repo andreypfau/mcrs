@@ -54,6 +54,8 @@ pub mod sky;
 pub mod sky_state;
 pub mod stream;
 pub mod terrain_debug_entry;
+#[cfg(all(feature = "test-support", not(target_family = "wasm")))]
+pub mod test_support;
 pub mod tint;
 #[cfg(not(target_family = "wasm"))]
 mod title;
