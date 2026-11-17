@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use mcrs_minecraft_core::codec::IntArray;
 
 use crate::player_name::{check_player_name, player_name};
-use crate::property::{check_property, properties};
+use crate::property::{check_property, is_grouped_by_name, properties};
 use crate::{
     GameProfileValue, MAX_PROPERTIES, PlayerModelType, ProfileError, ProfileIdentity, Property,
     SkinPatch, ints_uuid, uuid_ints,
@@ -48,6 +48,9 @@ impl Profile {
         }
         if properties.len() > MAX_PROPERTIES {
             return Err(ProfileError::TooManyProperties(properties.len()));
+        }
+        if !is_grouped_by_name(properties) {
+            return Err(ProfileError::UngroupedProperties);
         }
         Ok(())
     }

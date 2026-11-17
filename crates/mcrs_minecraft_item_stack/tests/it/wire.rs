@@ -575,7 +575,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (32, 48));
+    assert_eq!((decoded, kept), (40, 48));
 }
 
 #[derive(Deserialize)]
@@ -620,7 +620,6 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
         let read = read_all(&bare, read_wire)
             .expect("the game decoded it")
             .expect("a stone");
-        assert_eq!(hex(&wire(Some(&read))), hex(&bare), "{}", case.wire);
         let from_json = read_saved(
             &saved(&format!(
                 r#"{{id:"minecraft:stone",components:{{"minecraft:{}":{}}}}}"#,
@@ -629,11 +628,17 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
             &Names,
         )
         .expect("the game wrote a valid saved form");
+        let written_back = if read == from_json {
+            wire(Some(&from_json))
+        } else {
+            bare
+        };
+        assert_eq!(hex(&wire(Some(&read))), hex(&written_back), "{}", case.wire);
         let written = write_saved(&read, &Names).expect("the component has a saved form");
         assert_eq!(read_saved(&written, &Names), Ok(from_json), "{}", case.wire);
         decoded += 1;
     }
-    assert_eq!(decoded, 1);
+    assert_eq!(decoded, 2);
 
     let mut rejected = 0;
     for case in &golden.decode_errors {

@@ -11,6 +11,7 @@ pub enum ProfileError<'a> {
     StringTooLong(StringTooLong<'a>),
     DisallowedNameCharacters(&'a str),
     TooManyProperties(usize),
+    UngroupedProperties,
 }
 
 impl fmt::Display for ProfileError<'_> {
@@ -24,6 +25,9 @@ impl fmt::Display for ProfileError<'_> {
                 f,
                 "List is too long: {count}, expected range [0-{MAX_PROPERTIES}]"
             ),
+            Self::UngroupedProperties => {
+                f.write_str("Properties with one name must be next to each other")
+            }
         }
     }
 }

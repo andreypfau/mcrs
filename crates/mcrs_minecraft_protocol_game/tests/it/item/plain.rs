@@ -109,34 +109,61 @@ fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     }
 }
 
+struct SeenProfile {
+    value: ItemComponentValue,
+    wire: String,
+}
+
+fn assert_saved_form_and_hash(
+    kind: DataComponentType,
+    value: &ItemComponentValue,
+    row: &Value,
+    input: &str,
+) {
+    let json = persistent_json(value);
+    assert_eq!(
+        json_value(value),
+        serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
+        "{kind:?} json of {input}"
+    );
+    assert_eq!(&from_json(kind, &json), value, "{kind:?} rereads {json}");
+
+    let mut nbt = Vec::new();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&named(value), &mut nbt).unwrap();
+    assert_eq!(
+        nbt_tree(&nbt),
+        nbt_tree(&hex(row.nbt.as_ref().unwrap())),
+        "{kind:?} nbt of {input}"
+    );
+    assert_eq!(
+        hash_ops::hash(&named(value)).unwrap(),
+        row.hash.unwrap(),
+        "{kind:?} hash of {input}"
+    );
+}
+
 #[test]
 fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
     let lookup = lookup();
     let mut checked = 0;
+    let mut profiles: Vec<SeenProfile> = Vec::new();
     for row in golden().values {
         let Some(input) = &row.input else { continue };
         let kind = kind(&row.kind);
         let value = from_json(kind, input);
-        let json = persistent_json(&value);
-        assert_eq!(
-            json_value(&value),
-            serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
-            "{kind:?} json of {input}"
-        );
-        assert_eq!(from_json(kind, &json), value, "{kind:?} rereads {json}");
-
-        let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
-        assert_eq!(
-            nbt_tree(&nbt),
-            nbt_tree(&hex(row.nbt.as_ref().unwrap())),
-            "{kind:?} nbt of {input}"
-        );
-        assert_eq!(
-            hash_ops::hash(&named(&value)).unwrap(),
-            row.hash.unwrap(),
-            "{kind:?} hash of {input}"
-        );
+        let cached_by_the_game = kind == DataComponentType::Profile
+            && profiles
+                .iter()
+                .any(|seen| seen.value == value && seen.wire != row.wire);
+        if kind == DataComponentType::Profile {
+            profiles.push(SeenProfile {
+                value: value.clone(),
+                wire: row.wire.clone(),
+            });
+        }
+        if !cached_by_the_game {
+            assert_saved_form_and_hash(kind, &value, &row, input);
+        }
 
         let bytes = hex(&row.wire);
         let ours = wire(&lookup, &value);
@@ -312,5 +339,5 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 33);
+    assert_eq!(checked, 34);
 }

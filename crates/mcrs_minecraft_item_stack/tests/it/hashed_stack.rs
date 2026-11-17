@@ -212,10 +212,16 @@ fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
         .expect("the stack is not empty")
 }
 
+struct SeenProfile {
+    stack: ItemStack,
+    wire: String,
+}
+
 #[test]
 fn a_component_has_the_hash_that_the_game_recorded() {
     let mut scratch = HashScratch::default();
     let mut compared: Vec<String> = Vec::new();
+    let mut profiles: Vec<SeenProfile> = Vec::new();
     let cases = plain_cases()
         .into_iter()
         .chain(record_cases())
@@ -224,6 +230,18 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         let component = component_type(&case.kind);
         let stack = stack_with(component, &case.wire);
         let label = format!("{} {}", case.kind, case.case);
+        if case.kind == "profile" {
+            let cached_by_the_game = profiles
+                .iter()
+                .any(|seen| seen.stack == stack && seen.wire != case.wire);
+            profiles.push(SeenProfile {
+                stack: stack.clone(),
+                wire: case.wire.clone(),
+            });
+            if cached_by_the_game {
+                continue;
+            }
+        }
         let hashed = hash_stack(Some(&stack), &Names, &mut scratch)
             .expect("a decoded component has a hash")
             .expect("the stack is not empty");

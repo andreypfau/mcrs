@@ -29,6 +29,16 @@ pub fn grouped_by_name(properties: Vec<Property>) -> Vec<Property> {
     grouped
 }
 
+pub(crate) fn is_grouped_by_name(properties: &[Property]) -> bool {
+    (1..properties.len()).all(|end| match properties.split_at_checked(end) {
+        Some((before, [next, ..])) => {
+            before.last().is_some_and(|last| last.name == next.name)
+                || before.iter().all(|property| property.name != next.name)
+        }
+        _ => true,
+    })
+}
+
 pub(crate) fn check_property(property: &Property) -> Result<(), ProfileError<'_>> {
     BoundedString::<64>::check(&property.name)?;
     BoundedString::<32767>::check(&property.value)?;
@@ -86,7 +96,7 @@ pub(crate) fn properties<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Property
                     properties.len(),
                 )));
             }
-            Ok(properties)
+            Ok(grouped_by_name(properties))
         }
     }
 
