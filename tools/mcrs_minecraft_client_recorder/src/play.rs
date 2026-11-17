@@ -2,7 +2,9 @@ use glam::DVec3;
 use mcrs_minecraft_client_ticks::Abilities;
 use mcrs_minecraft_client_ticks::Attribute;
 use mcrs_minecraft_client_ticks::BlockChange;
+use mcrs_minecraft_client_ticks::DataEntity;
 use mcrs_minecraft_client_ticks::Effect;
+use mcrs_minecraft_client_ticks::EntityData;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Keys;
 use mcrs_minecraft_client_ticks::Modifier;
@@ -24,8 +26,10 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerAbilities;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSectionBlocksUpdate;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundInteract;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPosRot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerRot;
@@ -142,6 +146,15 @@ pub(crate) fn decode_clientbound(
             let packet = ClientboundForgetLevelChunk::decode(r)?;
             Event::ChunkForgotten([packet.x, packet.z])
         }
+        "set_entity_data" => {
+            let id = VarInt::decode(r)?.0;
+            let entity = if Some(id) == player {
+                DataEntity::Own
+            } else {
+                DataEntity::Other(id)
+            };
+            return Ok(Play::Events(entity_data(entity, r)));
+        }
         _ => return Ok(Play::Events(Vec::new())),
     };
     Ok(Play::Events(vec![event]))
@@ -167,8 +180,9 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
         "player_command" => match ServerboundPlayerCommand::decode(r)?.action {
             PlayerCommandAction::StartSprinting => Event::Sprinting(true),
             PlayerCommandAction::StopSprinting => Event::Sprinting(false),
-            _ => return Ok(Play::Events(Vec::new())),
+            action => Event::Command(snake_case(&format!("{action:?}"))),
         },
+        "interact" => Event::Interact(ServerboundInteract::decode(r)?.using_secondary_action),
         "use_item" => Event::UseItem,
         "player_action"
             if ServerboundPlayerAction::decode(r)?.action == PlayerAction::ReleaseUseItem =>
@@ -255,4 +269,64 @@ fn effect_name(id: i32) -> String {
             || format!("#{id}"),
             |effect| effect.as_static_str().to_owned(),
         )
+}
+
+fn entity_data(entity: DataEntity, r: &mut &[u8]) -> Vec<Event> {
+    let mut events = Vec::new();
+    loop {
+        let entry = (|| -> anyhow::Result<Option<(u8, i32, MetaDataValue<'_>)>> {
+            let index = u8::decode(r)?;
+            if index == 0xFF {
+                return Ok(None);
+            }
+            let serializer = VarInt::decode(&mut &r[..])?.0;
+            Ok(Some((index, serializer, MetaDataValue::decode(r)?)))
+        })();
+        let (index, serializer, value) = match entry {
+            Ok(Some(entry)) => entry,
+            Ok(None) => return events,
+            Err(error) => {
+                println!("set_entity_data of {entity:?}: {error}; the later entries are not kept");
+                return events;
+            }
+        };
+        let undecoded = matches!(
+            value,
+            MetaDataValue::Particle | MetaDataValue::Particles | MetaDataValue::ResolvableProfile
+        );
+        events.push(Event::EntityData(EntityData {
+            entity,
+            index,
+            value: data_text(serializer, &value),
+        }));
+        if undecoded {
+            return events;
+        }
+    }
+}
+
+fn data_text(serializer: i32, value: &MetaDataValue<'_>) -> String {
+    match value {
+        MetaDataValue::Byte(byte) => format!("byte:{:#04x}", byte.cast_unsigned()),
+        MetaDataValue::VarInt(int) => format!("int:{}", int.0),
+        MetaDataValue::Float(float) => format!("float:{float}"),
+        MetaDataValue::Boolean(boolean) => format!("bool:{boolean}"),
+        MetaDataValue::OptionalBlockPos(None) => "block_pos:-".to_owned(),
+        MetaDataValue::BlockPos(at) | MetaDataValue::OptionalBlockPos(Some(at)) => {
+            format!("block_pos:{},{},{}", at.x, at.y, at.z)
+        }
+        MetaDataValue::Pose(pose) => format!("pose:{}", snake_case(&format!("{pose:?}"))),
+        _ => format!("serializer:{serializer}"),
+    }
+}
+
+fn snake_case(name: &str) -> String {
+    let mut text = String::new();
+    for (position, letter) in name.char_indices() {
+        if letter.is_ascii_uppercase() && position > 0 {
+            text.push('_');
+        }
+        text.push(letter.to_ascii_lowercase());
+    }
+    text
 }

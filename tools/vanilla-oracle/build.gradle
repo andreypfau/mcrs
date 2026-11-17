@@ -261,6 +261,13 @@ tasks.register('dumpAttributes', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/attribute-out".toString()]
 }
 
+tasks.register('dumpPlayerDimensions', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.PlayerDimensionOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/player-dimension-out".toString()]
+}
+
 tasks.register('dumpLoot', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath

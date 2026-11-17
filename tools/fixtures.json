@@ -466,6 +466,16 @@
     ]
   },
   {
+    "name": "player_dimensions",
+    "task": "dumpPlayerDimensions",
+    "outputs": [
+      {
+        "file": "player_dimensions.json",
+        "to": "crates/mcrs_minecraft_entity/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "block_models",
     "task": "dumpBlockModels",
     "outputs": [

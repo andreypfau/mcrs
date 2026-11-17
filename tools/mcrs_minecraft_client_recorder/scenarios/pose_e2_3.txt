@@ -1,0 +1,20 @@
+# Sprint into water of depth 2, release the sprint key, release W, then jump off the bottom: a
+# swimmer on the ground keeps the sprint without W. Experiment E2, step 3, of
+# docs/spec/player-pose.md: POSE-SRV-002, POSE-SRV-003.
+experiment pose_e2_3
+arena -16 96 -16 48 110 16
+
+step swim
+instruction After Go, hold Ctrl and W for 4 seconds, release Ctrl, release W after 1 second, then hold Space for 1 second.
+input 61 forward,sprint
+input 141 forward
+input 161 none
+input 181 jump
+input 201 none
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 2 97 -4 31 98 4 minecraft:stone
+fill 3 98 -3 30 99 3 minecraft:water
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 15
+ticks 240

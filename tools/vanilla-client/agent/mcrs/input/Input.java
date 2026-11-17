@@ -12,6 +12,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.screens.InBedChatScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.sdl.SDLVideo;
@@ -54,6 +55,7 @@ public final class Input {
         }
         tick++;
         String keys = "none";
+        boolean leaveBed = false;
         LocalPlayer player = client.player;
         for (String[] line : lines) {
             int at = Integer.parseInt(line[0]);
@@ -61,12 +63,16 @@ public final class Input {
                 break;
             }
             keys = line[1];
+            leaveBed = at == tick && Set.of(keys.split(",")).contains("leave_bed");
             if (at == tick && line.length == 4 && player != null) {
                 player.setYRot(Float.parseFloat(line[2]));
                 player.setXRot(Float.parseFloat(line[3]));
             }
         }
         hold(client.options, Set.of(keys.split(",")));
+        if (leaveBed && client.gui.screen() instanceof InBedChatScreen bed) {
+            bed.onClose();
+        }
     }
 
     private static void start() {

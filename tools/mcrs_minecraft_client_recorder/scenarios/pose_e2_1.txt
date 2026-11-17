@@ -1,0 +1,29 @@
+# Crouch on open ground, then hold Shift in creative flight. Experiment E2, step 1, of
+# docs/spec/player-pose.md: POSE-SRV-002, POSE-SRV-009, POSE-NET-002, POSE-NET-005, POSE-CLI-002.
+experiment pose_e2_1
+arena -16 96 -16 48 110 16
+
+step crouch
+instruction After Go, hold Shift for 1 second, then release it.
+input 61 shift
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 120
+
+step fly_shift
+instruction After Go: double-tap Space to fly, hold Space for 1 second to rise, then hold Shift for half a second.
+input 61 jump
+input 63 none
+input 65 jump
+input 67 none
+input 69 jump
+input 89 none
+input 91 shift
+input 101 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode creative @a
+start 0.5 100 0.5 -90 0
+ticks 140

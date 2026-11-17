@@ -115,7 +115,8 @@ target of the tick.
 | Swim, crawl, glide with elytra, spin attack with a trident | 0.4 |
 | Sleep | 0.2 |
 
-The value of the attribute `minecraft:scale` multiplies the eye height.
+The value of the attribute `minecraft:scale` multiplies the eye height, except in the pose `sleeping`,
+which has fixed dimensions (`entity-physics.md`, PHY-BOX-003).
 
 **CBK-TGT-003** (`source_suggested`, semantic). The ray starts at the eye position and goes along
 the view direction. Its length is the larger of the block range and the entity range.

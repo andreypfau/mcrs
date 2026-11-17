@@ -29,6 +29,8 @@ use mcrs_minecraft_protocol::packets::table::row_of;
 use crate::delay::Delay;
 use crate::delay::parse_trace;
 use crate::names::Names;
+use crate::play::Play;
+use crate::play::decode_clientbound;
 use crate::proxy::Connection;
 use crate::proxy::Observed;
 use crate::scenario::Scenario;
@@ -277,5 +279,35 @@ fn a_delayed_item_waits_half_its_round_trip_and_never_passes_an_earlier_one() {
         delay.pop_due(at(200)),
         Some(2),
         "the second item is due at 10 ms, but the connection keeps the order"
+    );
+}
+
+#[test]
+fn each_entity_data_entry_is_one_event_until_a_value_without_a_known_length() {
+    let names = Names::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
+    let packed_position: i64 = (2 << 38) | 100;
+    let mut body = vec![42, 0, 0, 0x82, 6, 20, 5, 14, 11, 1];
+    body.extend_from_slice(&packed_position.to_be_bytes());
+    body.extend_from_slice(&[10, 17, 0, 15, 3]);
+    body.extend_from_slice(&1.0_f32.to_be_bytes());
+    body.push(0xFF);
+    let Play::Events(events) = decode_clientbound(
+        &names,
+        Some(42),
+        id(game_clientbound::NAMES, "set_entity_data"),
+        &body,
+    )
+    .unwrap() else {
+        panic!("set_entity_data gives events");
+    };
+    let lines: Vec<String> = events.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        lines,
+        [
+            "< data self 0 byte:0x82",
+            "< data self 6 pose:crouching",
+            "< data self 14 block_pos:2,100,0",
+            "< data self 10 serializer:17",
+        ]
     );
 }

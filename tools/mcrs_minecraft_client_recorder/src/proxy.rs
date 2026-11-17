@@ -160,7 +160,7 @@ impl Connection {
         u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
 
-    fn client_frame(&mut self, mut frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
+    fn client_frame(&mut self, frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
         let packet = decompress(
             frame.clone(),
             self.client.threshold,
@@ -198,13 +198,19 @@ impl Connection {
                     if name == "accept_teleportation" {
                         cheat.teleported();
                     }
-                    if let Some(changed) = cheat.rewrite(name, body) {
-                        out.push(Observed::Rewritten);
-                        frame = reframe(id, &changed, self.client.threshold, &mut self.deflate)?;
-                        rewritten = Some(changed);
-                    }
+                    rewritten = cheat.rewrite(id, name, body, self.player)?;
                 }
-                return self.play_frame(id, rewritten.as_deref().unwrap_or(body), frame, out);
+                let Some(packets) = rewritten else {
+                    return self.play_frame(id, body, frame, out);
+                };
+                out.push(Observed::Rewritten);
+                for packet in packets {
+                    let mut body = &packet[..];
+                    let id = VarInt::decode(&mut body)?.0;
+                    let frame = reframe(&packet, self.client.threshold, &mut self.deflate)?;
+                    self.play_frame(id, body, frame, out)?;
+                }
+                return Ok(());
             }
             State::Status | State::Login | State::Configuration => {}
         }
@@ -365,14 +371,11 @@ fn next_frame(inbound: &mut Inbound) -> anyhow::Result<Option<Bytes>> {
 }
 
 fn reframe(
-    id: i32,
-    body: &[u8],
+    packet: &[u8],
     threshold: CompressionThreshold,
     deflate: &mut Option<Deflate>,
 ) -> anyhow::Result<Bytes> {
-    let mut packet = BytesMut::new();
-    VarInt(id).encode((&mut packet).writer())?;
-    packet.extend_from_slice(body);
+    let mut packet = BytesMut::from(packet);
     encode_frame(&mut packet, 0, threshold, deflate)?;
     Ok(split_frame(&mut packet)?)
 }

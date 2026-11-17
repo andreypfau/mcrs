@@ -28,6 +28,7 @@ fetch_verified "$work/server.jar" \
     "$(jq -r '.downloads.server.size' "$work/$id.json")" || exit 2
 
 case "$1" in
+    pose*) out="$recorder_here/recordings/pose" ;;
     e*) out="$recorder_root/crates/mcrs_minecraft_physics/tests/fixtures/player" ;;
     *) out="$recorder_root/crates/mcrs_minecraft_move_predict/tests/fixtures/conformance" ;;
 esac
