@@ -29,7 +29,7 @@ and does not state them again.
   **craft grid**, **craft result**, **player inventory**, **infinite materials**, **client view**:
   as `inventory.md`, section 0.1, defines them. The comparison is the comparison of INV-SYN-003.
 - **Local player**: as `client-camera.md`, section 0.1, defines it.
-- **Tick**: as `client-entities.md`, section 0.1, defines it.
+- **Tick**, **frame**: as `client-entities.md`, section 0.1, defines them.
 - **Press**, **spectator**, **hotbar keys**, **HUD**, **HUD game mode**: as `client-hotbar.md`,
   section 0.1, defines them.
 - **Creative flag**: as `client-block-breaking.md`, section 0.1, defines it.
@@ -380,14 +380,23 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Reas
 the server can differ from the stacks of the client. Thus only the server can decide that a
 click changes nothing.
 
-### CINV-PKT-007: The order of the clicks
+### CINV-PKT-007: The order of the clicks and the close
 
-- **Inputs:** two or more clicks.
+- **Inputs:** two or more events that each give a click or a close of CINV-CLS-001, in one frame or
+  in more frames. A tick of CINV-CLS-001 is an event at the time when the client runs it.
 - **Behavior:**
-  1. The client sends the clicks in the order of the events that give them.
-  2. The client makes the local result of a click before it sends the click.
-  3. The local result of a click is the start of the next click.
-- **Postconditions:** the server applies the clicks in the same order (ITX-MOD-005).
+  1. The client handles each event at once, in the order of the events.
+  2. The client sends the `container_click` packets and the `container_close` packet in the order
+     of the events that give them.
+  3. The client makes the local result of a click before it sends the click.
+  4. The local result of a click is the start of the next click.
+  5. When a click comes before a close, the client makes the local result of the click before the
+     close. CINV-CLS-002 then applies to that local result.
+- **Postconditions:**
+  - The server applies the clicks and the close in the same order (ITX-MOD-005, INV-CLS-001).
+  - After a close, no event gives a click until the inventory screen opens again. A gesture that
+    the close interrupts gives no click. An example is a mouse press with a cursor stack, then a
+    key event of `key.inventory` before the mouse release.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -839,3 +848,11 @@ These experiments have not run.
   Expect the menu indices of CINV-LAY-002, no click in the empty area, and -999 outside the window
   area. Then put 5 dirt in the cursor. Press and release the left button at (229, 98). Expect no
   click (CINV-LAY-004).
+- **E7** (recorder, vanilla client). Put 5 dirt in the cursor and 10 stone in an entry. Let the
+  input agent give these events in one frame: a mouse press and a mouse release of the left
+  button on that entry, then a key event of E. Record the serverbound packets and the clientbound
+  packets of the next two ticks. Expect a `container_click` with 5 dirt in the entry and 10 stone
+  in the cursor, then a `container_close`. Expect a `container_set_slot` for the entry that gets
+  the stone, and a `set_cursor_item` with the empty stack. Open the screen again and put 5 dirt in
+  the cursor. Press the left button on an empty entry, and press E before the release. Expect a
+  `container_close` and no `container_click` (CINV-PKT-007).
