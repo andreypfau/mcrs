@@ -11,11 +11,11 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundRespawn;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetPlayerInventory;
-use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
+use crate::fixture::body;
 use crate::fixture::client_with_player;
 use crate::fixture::content;
 use crate::fixture::cursor;
@@ -75,12 +75,6 @@ const CONTENT_STATE_ID: i32 = 7;
 
 fn owned(stack_of: (Kind, u8)) -> ItemStack {
     stack(stack_of.0, stack_of.1)
-}
-
-fn body<P: Encode>(packet: &P) -> Vec<u8> {
-    let mut body = Vec::new();
-    packet.encode(&mut body).expect("the packet encodes");
-    body
 }
 
 fn encode(world: &World, inbound: Inbound) -> Vec<u8> {

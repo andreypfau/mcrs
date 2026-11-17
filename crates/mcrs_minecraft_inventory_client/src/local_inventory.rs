@@ -50,6 +50,12 @@ pub(crate) struct StackNames<'w> {
     registries: Option<Res<'w, CurrentRegistries>>,
 }
 
+pub(crate) fn shows_inventory_menu(menus: &Menus) -> bool {
+    menus
+        .open()
+        .is_some_and(|open| menus.iter().next() == Some(open))
+}
+
 impl StackNames<'_> {
     pub(crate) fn names(&self) -> Option<RegistryNames<'_>> {
         Some(RegistryNames::new(
@@ -69,8 +75,7 @@ impl LocalInventory<'_, '_> {
     }
 
     pub(crate) fn shows_inventory_menu(&self) -> bool {
-        let menus = self.player.2;
-        menus.open() == menus.iter().next()
+        shows_inventory_menu(self.player.2)
     }
 
     pub(crate) fn cursor(&self) -> SlotRef {

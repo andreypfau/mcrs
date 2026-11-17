@@ -61,7 +61,8 @@ specification.
 |-|-|-|
 | `Slots`, `InSlot`, `SlotPolicy` on the client | as `docs/inventory-design.md` section 2 | the client edge; `PlayerHoldersPlugin` for the policy |
 | `PlayerHolders` on the client | authoritative truth: the three child holders of the local player | `PlayerHoldersPlugin` |
-| `Selected` on the client | authoritative truth | the client edge |
+| `Selected` on the client | materialized derived state: a projection of `SelectedHotbarSlot`. The client derives it from the hotbar slot until the GUI half removes the old value. | one projection system of the client world |
+| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. | one projection system of the client world |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
 | `MenuClick` | temporal fact: one click of a viewer | a bot, a GUI or a screen |
 | `MenuDrag` | authoritative truth: the drag in progress on one menu | `MenuClicks`; `MenuClickPlugin` inserts it when the menu opens and resets it when a menu of the viewer closes |

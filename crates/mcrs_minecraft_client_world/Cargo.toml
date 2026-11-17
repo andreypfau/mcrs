@@ -37,7 +37,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy", "wire"] }
 mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_inventory_client.workspace = true
 mcrs_minecraft_inventory_file.workspace = true

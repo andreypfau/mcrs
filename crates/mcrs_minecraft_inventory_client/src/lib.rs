@@ -1,11 +1,25 @@
+mod clear_craft_result;
+mod click_source;
+mod close_menu;
+mod close_menus;
+mod container_close;
 mod container_set_content;
 mod container_set_slot;
 mod inventory_client_plugin;
+mod inventory_client_set;
 mod local_inventory;
+mod menu_click;
+mod outbox;
+mod outgoing;
+mod predict_clicks;
 mod remote_menu;
 mod respawn;
+mod send_outbox;
 mod set_cursor_item;
 mod set_player_inventory;
 
+pub use close_menu::CloseMenu;
 pub use inventory_client_plugin::InventoryClientPlugin;
+pub use inventory_client_set::InventoryClientSet;
+pub use menu_click::MenuClick;
 pub use remote_menu::RemoteMenu;
