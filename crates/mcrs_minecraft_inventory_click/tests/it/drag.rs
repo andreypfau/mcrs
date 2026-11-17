@@ -1,10 +1,10 @@
 use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::Clicked;
 use mcrs_minecraft_inventory_click::Drag;
-use mcrs_minecraft_inventory_menu::MenuSlot;
 use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::fixture::CURSOR;
+use crate::fixture::HeldSlot;
 use crate::fixture::Operation;
 use crate::fixture::Player;
 use crate::fixture::Stack;
@@ -40,7 +40,7 @@ fn drag(player: &Player, kind: u8, slots: &[Clicked]) -> Vec<Operation> {
     ops
 }
 
-fn set(slot: MenuSlot, stack: Stack) -> Operation {
+fn set(slot: HeldSlot, stack: Stack) -> Operation {
     Op::Set {
         slot,
         stack,
