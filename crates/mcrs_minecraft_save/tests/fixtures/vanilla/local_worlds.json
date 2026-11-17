@@ -1,0 +1,221 @@
+{
+  "game_version": "26.4-snapshot-7",
+  "folder_ids": [
+    {
+      "name": "New World",
+      "existing": [],
+      "folder_id": "New World"
+    },
+    {
+      "name": "New World",
+      "existing": [
+        "New World"
+      ],
+      "folder_id": "New World (1)"
+    },
+    {
+      "name": "New World",
+      "existing": [
+        "New World",
+        "New World (1)"
+      ],
+      "folder_id": "New World (2)"
+    },
+    {
+      "name": "a.b:c",
+      "existing": [],
+      "folder_id": "a_b_c"
+    },
+    {
+      "name": "con",
+      "existing": [],
+      "folder_id": "_con_"
+    },
+    {
+      "name": "COM1",
+      "existing": [],
+      "folder_id": "_COM1_"
+    },
+    {
+      "name": "Map (1)",
+      "existing": [
+        "Map (1)"
+      ],
+      "folder_id": "Map (1) (1)"
+    },
+    {
+      "name": "Map (0)",
+      "existing": [],
+      "folder_id": "Map (0)"
+    },
+    {
+      "name": "World",
+      "existing": [],
+      "folder_id": "World"
+    },
+    {
+      "name": "x/y\\z*?\"<>|`",
+      "existing": [],
+      "folder_id": "x_y_z_______"
+    }
+  ],
+  "seeds": [
+    {
+      "text": "12345",
+      "seed": 12345
+    },
+    {
+      "text": " -7 ",
+      "seed": -7
+    },
+    {
+      "text": "abc",
+      "seed": 96354
+    },
+    {
+      "text": "9223372036854775808",
+      "seed": -1773151197
+    },
+    {
+      "text": "0x10",
+      "seed": 1546855
+    },
+    {
+      "text": "",
+      "seed": null
+    },
+    {
+      "text": "  ",
+      "seed": null
+    },
+    {
+      "text": "+5",
+      "seed": 5
+    },
+    {
+      "text": "-",
+      "seed": 45
+    },
+    {
+      "text": "١٢٣",
+      "seed": 123
+    },
+    {
+      "text": " 12",
+      "seed": 155329
+    },
+    {
+      "text": "-9223372036854775808",
+      "seed": -9223372036854775808
+    }
+  ],
+  "summaries": [
+    {
+      "folder": "backup_only",
+      "readable": false,
+      "shown_name": "backup_only",
+      "last_played": 1700000000000,
+      "disabled": false,
+      "info": "Failed to load world summary"
+    },
+    {
+      "folder": "empty_name",
+      "readable": true,
+      "shown_name": "empty_name",
+      "last_played": 1000,
+      "disabled": false,
+      "info": "Survival Mode, Version: 26.4 Snapshot 7",
+      "game_mode": "survival",
+      "commands": false
+    },
+    {
+      "folder": "game_type_1",
+      "readable": true,
+      "shown_name": "G1",
+      "last_played": 1000,
+      "disabled": false,
+      "info": "Creative Mode, Commands, Version: 26.4 Snapshot 7",
+      "game_mode": "creative",
+      "commands": true
+    },
+    {
+      "folder": "game_type_7",
+      "readable": true,
+      "shown_name": "G7",
+      "last_played": 1000,
+      "disabled": false,
+      "info": "Survival Mode, Version: 26.4 Snapshot 7",
+      "game_mode": "survival",
+      "commands": false
+    },
+    {
+      "folder": "game_type_minus_1",
+      "readable": true,
+      "shown_name": "Gm1",
+      "last_played": 1000,
+      "disabled": false,
+      "info": "Survival Mode, Version: 26.4 Snapshot 7",
+      "game_mode": "survival",
+      "commands": false
+    },
+    {
+      "folder": "game_type_missing",
+      "readable": true,
+      "shown_name": "Gnone",
+      "last_played": 1000,
+      "disabled": false,
+      "info": "Survival Mode, Version: 26.4 Snapshot 7",
+      "game_mode": "survival",
+      "commands": false
+    },
+    {
+      "folder": "storage_19132",
+      "readable": true,
+      "shown_name": "V19132",
+      "last_played": 1000,
+      "disabled": true,
+      "info": "Must be converted!",
+      "game_mode": "survival",
+      "commands": false
+    },
+    {
+      "folder": "storage_19134",
+      "readable": false,
+      "shown_name": "storage_19134",
+      "last_played": 1700000000000,
+      "disabled": false,
+      "info": "Failed to load world summary"
+    }
+  ],
+  "lock": {
+    "other_process_sees_held_lock": true,
+    "bytes": "e29883",
+    "other_process_sees_lock_after_second_handle_closes": false,
+    "bytes_after_release": "e29883",
+    "file_kept_after_release": true,
+    "other_process_sees_released_lock": false,
+    "test_while_other_process_holds": true,
+    "take_while_other_process_holds": "refused",
+    "take_after_other_process_releases": "taken",
+    "test_without_file": false,
+    "test_of_file_not_writable": true
+  },
+  "backup": {
+    "level_name": "Backup",
+    "files_after": [
+      "level.dat",
+      "session.lock"
+    ]
+  },
+  "delete": {
+    "delete_while_other_process_holds": "refused",
+    "files_after_refused_delete": [
+      "level.dat",
+      "region",
+      "region/r.0.0.mca",
+      "session.lock"
+    ],
+    "delete_after_release": "deleted",
+    "folder_exists_after_delete": false
+  }
+}

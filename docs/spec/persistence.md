@@ -220,7 +220,9 @@ A second process observes a save directory that another process holds:
   `session.lock`. It changes no other file of the save directory.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by
-`assets/minecraft/lang/en_us.json` of the client jar. Kind: file format for the file, its content
+`assets/minecraft/lang/en_us.json` of the client jar. `source_suggested_black_box_confirmed` for
+the content, the release that keeps the file, the conflict between two processes and the test of
+the lock by `crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `lock` (section Experiments, E1 to E4). Kind: file format for the file, its content
 and the kind of lock; semantic for the rest. Confidence: medium.
 
 ## SAVE-LOCK-002: The lock of a save directory in mcrs
@@ -421,7 +423,9 @@ server does:
 The world list of the client does not read `level.dat_old`. Such a folder shows as an unreadable
 world (`client-world-screens.md`, WORLD-DIR-002, step 1).
 
-Provenance: `source_suggested` for steps 1 to 3. `design` for step 4. Kind: semantic.
+Provenance: `source_suggested_black_box_confirmed` for steps 1 and 2 and the postconditions by
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `backup` (section Experiments, E5).
+`source_suggested` for step 3. `design` for step 4. Kind: semantic.
 Confidence: medium.
 
 ## SAVE-VERSION-002: The version of `level.dat`
@@ -1227,16 +1231,18 @@ Provenance: `design`. Kind: scope. Confidence: high. Test: none; this is a state
 
 ## Experiments
 
-Use `tools/vanilla-oracle` with the game version of `assets/minecraft/version.json`, on macOS. A
-second process tries the lock with `fcntl` and with `flock`. A tracked fixture does not hold the
-output yet, so the rules keep their labels.
+The task `dumpLocalWorlds` of `tools/vanilla-oracle` runs E1, E3, E4 and E5 and the game part of
+E2 with the game version of `assets/minecraft/version.json`. It writes
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json` (fixture `local_worlds` of `tools/fixtures.json`). The
+second process of the task is a Java process of the game. The capture ran on macOS. The `fcntl`
+and `flock` attempts of E2 ran by hand with a script, and the fixture does not hold them.
 
 | Experiment | Rules | Steps | Result |
 |------------|-------|-------|--------|
 | E1 | SAVE-LOCK-001 | Let the game take the lock of a new directory. Read `session.lock`. Release the lock and read the file again. | The file holds `E2 98 83` before and after the release. The release keeps the file. |
-| E2 | SAVE-LOCK-001, SAVE-LOCK-002 step 3 | Let the game hold the lock. In a second process, try a POSIX record lock and a `flock` lock with no wait. Then hold each kind in the second process, and let the game test the lock and take it. | Both attempts of the second process fail at once. The game tests the directory as locked for each kind, and its attempt to take the lock fails. |
+| E2 | SAVE-LOCK-001, SAVE-LOCK-002 step 3 | Let the game hold the lock. In a second process, test the lock as the game does. By hand, also try a POSIX record lock and a `flock` lock with no wait. Then hold the lock of the game in the second process, and let the game test the lock and take it. Release it and let the game take it. By hand, also hold each kind in the second process. | The second process sees the lock, and its attempts fail at once. The game tests the directory as locked for each kind, and its attempt to take the lock fails. After the release, the game takes the lock. |
 | E3 | SAVE-LOCK-001 | Let the game test a directory with no `session.lock`, and a directory whose `session.lock` the process cannot open for write. | The first directory is not locked. The second directory is locked. |
-| E4 | SAVE-LOCK-001 | Let the game hold the lock. In the same process, read `session.lock` through a second handle and close it. Then try the lock from a second process. | The second process gets the lock. The close of the second handle released the POSIX record lock of the game (SAVE-LOCK-002, step 4). |
+| E4 | SAVE-LOCK-001 | Let the game hold the lock. In the same process, read `session.lock` through a second handle and close it. Then try the lock from a second process. | The second process sees no lock. The close of the second handle released the POSIX record lock of the game (SAVE-LOCK-002, step 4). |
 | E5 | SAVE-LEVEL-002 | Make a save directory with only `level.dat_old`. Let the game open it and read the world data. | The game reads the values of `level.dat_old`. Then the directory holds `level.dat` and `session.lock`, and no `level.dat_old`. |
 
 ## Unresolved

@@ -319,3 +319,10 @@ tasks.register('dumpFont', JavaExec) {
 		"${projectDir}/../../crates/mcrs_minecraft_client_jar/src/release.json".toString()
 	]
 }
+
+tasks.register('dumpLocalWorlds', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.LocalWorldOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/local-worlds-out".toString()]
+}

@@ -204,7 +204,9 @@ Kind: semantic. Confidence: medium.
 - **Postconditions:** the client reads no other field for the list. A `level.dat` with more
   fields than this table is not unreadable.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed` for steps 1 and 3, the storage version, the
+game mode and the commands by `crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `summaries`
+(section 14, E3). `source_suggested` for the rest. Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-003: Unreadable world in the vanilla client
 
@@ -221,7 +223,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 - **Postconditions:** the player can delete an unreadable world.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium.
+file. `source_suggested_black_box_confirmed` for the inputs and steps 1 to 3 by
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `summaries` (section 14, E3). Kind: semantic. Confidence: medium.
 
 ### WORLD-DIR-004: Saves folder and summaries (mcrs subset)
 
@@ -687,7 +690,8 @@ file. Kind: layout. Confidence: medium.
   New World" (WORLD-LIST-003, step 4). A delete of a locked world removes no file.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts by the language
-file. Kind: semantic. Confidence: medium.
+file. `source_suggested_black_box_confirmed` for steps 2 and 3 by
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `delete` (section 14, E4). Kind: semantic. Confidence: medium.
 
 ### WORLD-DEL-003: Delete (mcrs subset)
 
@@ -1036,7 +1040,9 @@ Provenance: `design` (`client-menu.md`, MENU-DEV-002). Kind: layout. Confidence:
 - **Edge cases:** the test of step 5 is the test of the file system. On a file system with no
   regard to case, `new world` is taken when `New World` exists.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed` for steps 1 to 5 by
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `folder_ids` (section 14, E1). `source_suggested` for
+steps 6 and 7. Kind: semantic. Confidence: medium.
 
 ### WORLD-SEED-001: Seed of the text of the seed box
 
@@ -1068,7 +1074,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 | U+00A0 followed by `12` | the hash of the text, because step 1 does not remove U+00A0 |
 | `-9223372036854775808` | −9223372036854775808 |
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed` for steps 1, 3 and 4 and for the empty
+result of step 2 by `crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json`, `seeds` (section 14, E2).
+`source_suggested` for the time of the random choice in step 2. Kind: semantic. Confidence:
+medium.
 
 ---
 
@@ -1388,13 +1397,14 @@ The other documents state these points of this document:
 
 ## 14. Experiments
 
-Use `tools/vanilla-oracle` with the game version of `assets/minecraft/version.json`, on macOS.
-The oracle calls the game in one process, with no client screen. A tracked fixture does not hold
-the output yet, so the rules keep their labels.
+The task `dumpLocalWorlds` of `tools/vanilla-oracle` runs each experiment with the game version
+of `assets/minecraft/version.json`, with no client screen. It writes
+`crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json` (fixture `local_worlds` of `tools/fixtures.json`). The
+capture ran on macOS.
 
 | Experiment | Rules | Steps | Result |
 |------------|-------|-------|--------|
-| E1 | WORLD-NAME-001 | For each row of the table of WORLD-NAME-001, and for `COM1`, `Map (0)`, `World` and `` x/y\z*?"<>\|` ``, make the folders that exist and ask the game for the folder id. Ask again in a saves folder that the process cannot write. | Each row of the table gives its folder id. `COM1` gives `_COM1_`, `Map (0)` and `World` stay, and the last name gives `x_y_z_______`. `new world` beside `New World` gives `new world (1)`. The saves folder that the process cannot write gives an access error. |
+| E1 | WORLD-NAME-001 | For each row of the table of WORLD-NAME-001, and for `COM1`, `Map (0)`, `World` and `` x/y\z*?"<>\|` ``, make the folders that exist and ask the game for the folder id. | Each row of the table gives its folder id. `COM1` gives `_COM1_`, `Map (0)` and `World` stay, and the last name gives `x_y_z_______`. The fixture holds no name that differs only in case, because the test is that of the file system. |
 | E2 | WORLD-SEED-001 | Ask the game for the seed of each text of the table of WORLD-SEED-001, and of the empty text, two spaces, `+5`, `-`, `١٢٣`, U+00A0 followed by `12`, and `-9223372036854775808`. | The table holds. The empty text and two spaces give no seed. The other results are in the table. |
 | E3 | WORLD-DIR-001, WORLD-DIR-002, WORLD-DIR-003 | Make a saves folder with these entries: worlds with `GameType` 1, 7, −1 and none; a world with only `level.dat_old`; a world with storage version 19134; a world with storage version 19132; a world with an empty `LevelName`; a folder with only `region/`; a regular file. Ask the game for the list. | The folder with only `region/` and the regular file are not in the list. `GameType` 1 gives creative with commands. 7, −1 and none give survival with no commands. The world with only `level.dat_old` and the world with storage version 19134 are unreadable worlds, with the info "Failed to load world summary" and the modification time of their file. The world with 19132 is disabled with "Must be converted!". The empty name shows the folder id. |
 | E4 | WORLD-DEL-002, WORLD-DEL-003 | Hold the lock of a world in a second process. Ask the game to delete the world. Release the lock and ask again. | The first delete fails on the lock and removes no file. The second delete removes the world folder with `session.lock`. |
