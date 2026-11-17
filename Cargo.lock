@@ -6596,6 +6596,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "uuid",
 ]
