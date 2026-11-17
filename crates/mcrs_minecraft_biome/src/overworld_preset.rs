@@ -1334,57 +1334,70 @@ mod tests {
         assert_eq!(named, with_overworld_carvers);
     }
 
+    struct Landing {
+        climate: TargetPoint,
+        biome: BiomeKey,
+    }
+
     #[test]
     fn the_climate_search_lands_on_the_expected_biomes() {
         let table = overworld_parameter_list();
-        let at = |temperature, humidity, continentalness, erosion, depth, weirdness| {
-            *table
-                .find_value(TargetPoint::new(
-                    temperature,
-                    humidity,
-                    continentalness,
-                    erosion,
-                    depth,
-                    weirdness,
-                ))
-                .unwrap()
-        };
-        assert_eq!(
-            at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
-            crate::biome_keys::MUSHROOM_FIELDS.location()
-        );
-        assert_eq!(
-            at(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::biome_keys::DEEP_FROZEN_OCEAN.location()
-        );
-        assert_eq!(
-            at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::biome_keys::WARM_OCEAN.location()
-        );
-        assert_eq!(
-            at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
-            crate::biome_keys::FROZEN_OCEAN.location()
-        );
-        assert_eq!(
-            at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
-            crate::biome_keys::DEEP_DARK.location()
-        );
-        assert_eq!(
-            at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
-            crate::biome_keys::LUSH_CAVES.location()
-        );
-        assert_eq!(
-            at(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
-            crate::biome_keys::DRIPSTONE_CAVES.location()
-        );
-        assert_eq!(
-            at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
-            crate::biome_keys::DESERT.location()
-        );
-        assert_eq!(
-            at(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
-            crate::biome_keys::ICE_CAVES.location()
-        );
+        let landings = [
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::MUSHROOM_FIELDS,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::DEEP_FROZEN_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::WARM_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::FROZEN_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
+                biome: crate::biome_keys::DEEP_DARK,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
+                biome: crate::biome_keys::LUSH_CAVES,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
+                biome: crate::biome_keys::DRIPSTONE_CAVES,
+            },
+            Landing {
+                climate: TargetPoint::new(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
+                biome: crate::biome_keys::DESERT,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
+                biome: crate::biome_keys::ICE_CAVES,
+            },
+            // Weirdness picks between a slice's plain biome and its variant, so
+            // the same climate on either side of zero must be able to differ.
+            Landing {
+                climate: TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, -0.2),
+                biome: crate::biome_keys::SNOWY_PLAINS,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, 0.2),
+                biome: crate::biome_keys::ICE_SPIKES,
+            },
+        ];
+        for landing in landings {
+            let expected = landing.biome.location();
+            assert_eq!(
+                table.find_value(landing.climate),
+                Some(&expected),
+                "the climate that should land on {expected}"
+            );
+        }
     }
 
     #[test]
@@ -1404,19 +1417,5 @@ mod tests {
         assert_eq!(at(0.4, 0.0), crate::biome_keys::CRIMSON_FOREST.location());
         assert_eq!(at(0.0, 0.5), crate::biome_keys::WARPED_FOREST.location());
         assert_eq!(at(-0.5, 0.0), crate::biome_keys::BASALT_DELTAS.location());
-    }
-
-    /// Weirdness picks between a slice's plain biome and its variant, so the
-    /// same climate on either side of zero must be able to differ.
-    #[test]
-    fn weirdness_selects_the_variant_grid() {
-        let table = overworld_parameter_list();
-        let at = |weirdness| {
-            *table
-                .find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness))
-                .unwrap()
-        };
-        assert_eq!(at(-0.2), crate::biome_keys::SNOWY_PLAINS.location());
-        assert_eq!(at(0.2), crate::biome_keys::ICE_SPIKES.location());
     }
 }

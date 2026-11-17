@@ -94,26 +94,13 @@ fn a_region_slot_equals_the_column_carved_alone() {
 }
 
 #[test]
-fn a_region_is_keyed_by_its_floor_reach_and_capacity() {
+fn a_region_is_keyed_by_floor_reach_capacity_seed_and_height_and_built_once() {
     let router = land();
     a_column_below_zero_belongs_to_the_region_below_zero(&router);
     a_source_past_a_columns_reach_does_not_carve_it_through_a_shared_region(&router);
     the_region_cache_holds_at_most_its_capacity(&router);
-}
-
-#[test]
-fn a_region_is_built_once_for_all_its_columns() {
-    a_region_shared_by_threads_is_built_once(&land());
-}
-
-#[test]
-fn two_seeds_do_not_share_a_region() {
-    two_seeds_do_not_share_one(&land(), &build_settings_router("overworld", 845));
-}
-
-#[test]
-fn two_heights_or_one_column_do_not_share_a_region() {
-    let router = land();
+    a_region_shared_by_threads_is_built_once(&router);
+    two_seeds_do_not_share_one(&router, &build_settings_router("overworld", 845));
     two_heights_do_not_share_one(&router);
     a_region_of_one_column_is_not_kept(&router);
 }
