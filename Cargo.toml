@@ -332,13 +332,16 @@ telemetry-diagnostics = ["dep:bevy_diagnostic"]
 opt-level = 0
 debug = "line-tables-only"
 debug-assertions = true
+codegen-backend = "cranelift"
 
 [profile.dev.package."*"]
 opt-level = 3
+codegen-backend = "llvm"
 debug = false
 
 [profile.dev.build-override]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.release.build-override]
 opt-level = 3
@@ -351,102 +354,141 @@ strip = true
 
 [profile.dev.package."mcrs_minecraft_worldgen"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_anvil"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_nbt"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_snbt"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_protocol"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_protocol_game"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_noise"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_density"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_surface"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_feature"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_feature_place"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_generator"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_carver"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_structure"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_structure_place"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_light_engine"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_molang"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_item"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_registries"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_assets"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_core"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_numeric"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_chunk"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_environment"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_biome"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_dimension"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_resource"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_datapack"]
 opt-level = 3
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_minecraft_fixtures"]
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_minecraft_server"]
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_test_alloc"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_engine_world"]
 opt-level = 2
+codegen-backend = "llvm"
 
 [profile.web]
 inherits = "release"

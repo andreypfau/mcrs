@@ -2,12 +2,16 @@
 BEVY_ASSET_ROOT = { value = ".", relative = true }
 
 [target.wasm32-unknown-unknown]
-rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis']
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis', '-Zcodegen-backend=llvm']
+
+[target.wasm32v1-none]
+rustflags = ['-Zcodegen-backend=llvm']
 
 [target.aarch64-apple-darwin]
-rustflags = ["-Zshare-generics=y", "-Zthreads=0", "-Zcache-proc-macros"]
+rustflags = ["-Zshare-generics=y", "-Zthreads=4", "-Zcache-proc-macros"]
 
 [unstable]
+codegen-backend = true
 embed-metadata = false
 fine-grain-locking = true
 checksum-freshness = true
