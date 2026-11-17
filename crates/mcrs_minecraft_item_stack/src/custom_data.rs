@@ -22,7 +22,7 @@ impl Hash for CustomData {
     }
 }
 
-fn compounds_equal(left: &NbtCompound, right: &NbtCompound) -> bool {
+pub(crate) fn compounds_equal(left: &NbtCompound, right: &NbtCompound) -> bool {
     left.child_tags.len() == right.child_tags.len()
         && contains_each_entry(left, right)
         && contains_each_entry(right, left)

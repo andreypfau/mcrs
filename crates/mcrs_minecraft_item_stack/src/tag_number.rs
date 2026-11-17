@@ -28,6 +28,14 @@ impl TagNumber {
         }
     }
 
+    pub(crate) fn to_long(self) -> i64 {
+        match self {
+            Self::Integer(value) => value,
+            Self::Float(value) => value as i64,
+            Self::Double(value) => value as i64,
+        }
+    }
+
     pub(crate) fn to_float(self) -> f32 {
         match self {
             Self::Integer(value) => value as f32,

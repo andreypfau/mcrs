@@ -7,7 +7,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
 
-pub(crate) const COMPONENT_TYPES: [&str; 74] = [
+pub(crate) const COMPONENT_TYPES: [&str; 83] = [
     "custom_data",
     "max_stack_size",
     "max_damage",
@@ -81,7 +81,16 @@ pub(crate) const COMPONENT_TYPES: [&str; 74] = [
     "firework_explosion",
     "fireworks",
     "profile",
+    "note_block_sound",
+    "banner_patterns",
+    "base_color",
+    "pot_decorations",
+    "container",
     "block_state",
+    "bees",
+    "sulfur_cube_content",
+    "lock",
+    "container_loot",
 ];
 
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {

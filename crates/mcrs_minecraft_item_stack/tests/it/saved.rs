@@ -95,8 +95,8 @@ impl Names {
             NameTable::ComponentType => &[
                 "max_stack_size",
                 "damage",
-                "bundle_contents",
-                "charged_projectiles",
+                "entity_data",
+                "block_entity_data",
             ],
             NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
             NameTable::SoundEvent => &["item.armor.equip_iron", "entity.item.break"],
@@ -344,10 +344,10 @@ fn an_equippable_takes_its_defaults_and_keeps_an_empty_entity_list_apart_from_no
 #[test]
 fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
     let forward = with_components(
-        r#""minecraft:bundle_contents":[],"!minecraft:charged_projectiles":{},"minecraft:repair_cost":2,"!minecraft:damage":{},"minecraft:custom_name":"named""#,
+        r#""minecraft:entity_data":{id:"minecraft:pig"},"!minecraft:block_entity_data":{},"minecraft:repair_cost":2,"!minecraft:damage":{},"minecraft:custom_name":"named""#,
     );
     let backward = with_components(
-        r#""minecraft:custom_name":"named","!minecraft:damage":{},"minecraft:repair_cost":2,"!minecraft:charged_projectiles":{},"minecraft:bundle_contents":[]"#,
+        r#""minecraft:custom_name":"named","!minecraft:damage":{},"minecraft:repair_cost":2,"!minecraft:block_entity_data":{},"minecraft:entity_data":{id:"minecraft:pig"}"#,
     );
 
     let stack = read_saved(&forward, &Names).expect("each key is valid");
@@ -361,7 +361,7 @@ fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
             _ => None,
         })
         .collect();
-    assert_eq!(undecoded, ["minecraft:bundle_contents"]);
+    assert_eq!(undecoded, ["minecraft:entity_data"]);
 
     let written = write_saved(&stack, &Names).expect("each entry has a saved form");
     let Some(NbtTag::Compound(patch)) = written.get("components") else {
@@ -378,8 +378,8 @@ fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
             "!minecraft:damage",
             "minecraft:custom_name",
             "minecraft:repair_cost",
-            "minecraft:bundle_contents",
-            "!minecraft:charged_projectiles",
+            "!minecraft:block_entity_data",
+            "minecraft:entity_data",
         ]
     );
 }
@@ -443,7 +443,7 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
         (r#""!minecraft:damage":1b"#, SavedError::BadRemovalValue),
         (r#"damage:1,"minecraft:damage":2"#, SavedError::RepeatedKey),
         (
-            r#""!bundle_contents":{},"!minecraft:bundle_contents":{}"#,
+            r#""!entity_data":{},"!minecraft:entity_data":{}"#,
             SavedError::RepeatedKey,
         ),
         (

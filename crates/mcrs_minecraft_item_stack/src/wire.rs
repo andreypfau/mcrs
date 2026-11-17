@@ -16,12 +16,12 @@ use crate::check_saved_form::check_saved_form;
 use crate::saved::is_air;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
-use crate::wire_value::read_value;
+use crate::wire_value::read_value_at;
 use crate::wire_value::read_var_int;
 use crate::wire_value::write_value;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Entries {
+pub(crate) enum Entries {
     Bare,
     LengthPrefixed,
 }
@@ -101,16 +101,27 @@ fn read_frame<L: NameLookup>(
         .name(NameTable::Item, kind)
         .ok_or(WireError::UnknownItem)?;
     let air = is_air(item);
+    let mut stack = ItemStack::new(Kind(kind), count);
+    read_patch(input, names, entries, 0, &mut stack)?;
+    Ok((!air).then_some(stack))
+}
+
+pub(crate) fn read_patch<L: NameLookup>(
+    input: &mut &[u8],
+    names: &L,
+    entries: Entries,
+    depth: u32,
+    stack: &mut ItemStack,
+) -> Result<(), WireError> {
     let values = frame_length(input)?;
     let removals = frame_length(input)?;
-    let mut stack = ItemStack::new(Kind(kind), count);
     for _ in 0..values {
         let component = read_type(input, names)?;
         let entry = match entries {
-            Entries::Bare => read_bare_value(input, names, &component)?,
+            Entries::Bare => read_bare_value(input, names, &component, depth)?,
             Entries::LengthPrefixed => read_prefixed_value(input, names, &component)?,
         };
-        put_new(&mut stack, entry, component.id)?;
+        put_new(stack, entry, component.id)?;
     }
     for _ in 0..removals {
         let component = read_type(input, names)?;
@@ -118,9 +129,9 @@ fn read_frame<L: NameLookup>(
             Some(key) => PatchEntry::Removal(key),
             None => PatchEntry::UndecodedRemoval(component.name.to_buf()),
         };
-        put_new(&mut stack, entry, component.id)?;
+        put_new(stack, entry, component.id)?;
     }
-    Ok((!air).then_some(stack))
+    Ok(())
 }
 
 struct TypeRef<'names> {
@@ -149,10 +160,11 @@ fn read_bare_value<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
     component: &TypeRef<'_>,
+    depth: u32,
 ) -> Result<PatchEntry, WireError> {
     let unsupported = WireError::UnsupportedComponentType(component.id);
     let key = component.builtin.ok_or(unsupported)?;
-    Ok(PatchEntry::Value(read_value(key, input, names)?))
+    Ok(PatchEntry::Value(read_value_at(key, input, names, depth)?))
 }
 
 fn read_prefixed_value<L: NameLookup>(
@@ -168,10 +180,11 @@ fn read_prefixed_value<L: NameLookup>(
     if let Some(key) = component.builtin {
         let mut value_input = bytes;
         let bad_length = WireError::BadLength(component.id);
-        let value = read_value(key, &mut value_input, names).map_err(|error| match error {
-            WireError::UnexpectedEnd => bad_length,
-            other => other,
-        })?;
+        let value =
+            read_value_at(key, &mut value_input, names, 0).map_err(|error| match error {
+                WireError::UnexpectedEnd => bad_length,
+                other => other,
+            })?;
         if !value_input.is_empty() {
             return Err(bad_length);
         }
@@ -237,6 +250,18 @@ fn write_present<L: NameLookup>(
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     check_saved_form(stack, names)?;
+    put_var_int(output, i32::from(stack.count.get()));
+    put_var_int(output, i32::from(stack.kind.0));
+    write_patch(stack, names, entries, 0, output)
+}
+
+pub(crate) fn write_patch<L: NameLookup>(
+    stack: &ItemStack,
+    names: &L,
+    entries: Entries,
+    depth: u32,
+    output: &mut Vec<u8>,
+) -> Result<(), WireError> {
     let patch = stack.patch();
     if patch
         .iter()
@@ -244,8 +269,6 @@ fn write_present<L: NameLookup>(
     {
         return Err(WireError::SavedValueOnly);
     }
-    put_var_int(output, i32::from(stack.count.get()));
-    put_var_int(output, i32::from(stack.kind.0));
     put_length(output, patch.iter().filter(|entry| is_value(entry)).count())?;
     put_length(
         output,
@@ -255,8 +278,8 @@ fn write_present<L: NameLookup>(
         if is_value(entry) {
             put_var_int(output, type_id(entry, names)?);
             match entries {
-                Entries::Bare => write_entry_value(entry, names, output)?,
-                Entries::LengthPrefixed => write_prefixed_value(entry, names, output)?,
+                Entries::Bare => write_entry_value(entry, names, depth, output)?,
+                Entries::LengthPrefixed => write_prefixed_value(entry, names, depth, output)?,
             }
         }
     }
@@ -298,10 +321,11 @@ fn type_id<L: NameLookup>(entry: &PatchEntry, names: &L) -> Result<i32, WireErro
 fn write_entry_value<L: NameLookup>(
     entry: &PatchEntry,
     names: &L,
+    depth: u32,
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     match entry {
-        PatchEntry::Value(value) => write_value(value, names, output),
+        PatchEntry::Value(value) => write_value(value, names, depth, output),
         PatchEntry::UndecodedWire(value) => {
             output.extend_from_slice(value.bytes());
             Ok(())
@@ -313,10 +337,11 @@ fn write_entry_value<L: NameLookup>(
 fn write_prefixed_value<L: NameLookup>(
     entry: &PatchEntry,
     names: &L,
+    depth: u32,
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     let start = output.len();
-    write_entry_value(entry, names, output)?;
+    write_entry_value(entry, names, depth, output)?;
     let length = output.len().saturating_sub(start);
     let before = output.len();
     put_length(output, length)?;

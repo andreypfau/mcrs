@@ -27,6 +27,7 @@ pub enum SavedError {
     UnnamedId(NameTable),
     BadUndecodedBytes,
     WireValueOnly(ComponentType),
+    TooDeep,
 }
 
 impl fmt::Display for SavedError {
@@ -74,6 +75,7 @@ impl fmt::Display for SavedError {
                 "the component type {} has only an undecoded wire form",
                 component_type.0
             ),
+            Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
         }
     }
 }
