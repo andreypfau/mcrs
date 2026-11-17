@@ -78,9 +78,9 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 
 | Crate | Layer | Owns |
 |-|-|-|
-| `container_click` | 3, data, `no_std` | the click value; its codec behind the feature `wire` |
+| `container_click` | 3, data, `no_std` | the click value; `Click::from_input` (a gesture to a click); its codec behind the feature `wire` |
 | `inventory_menu` | 3, data | the layout, the menu entries |
-| `inventory_click` | 3, rules, `no_std` | a click to operations; `Click::from_input` (a gesture to a click) |
+| `inventory_click` | 3, rules, `no_std` | a click to operations |
 | `inventory_transaction` | 3, rules | the planner of a request |
 | `inventory_client_view` | 3 | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | the inventory of a player file |
@@ -162,7 +162,7 @@ pub struct PlayerItemFilePlugin;
 | Name | Crate | Contract |
 |-|-|-|
 | `Click`, `ClickKind`, `Clicked` | `container_click` | One gesture on one menu entry, as data. |
-| `Click::from_input` | `inventory_click` | Makes a click from a gesture of a pointer or a key. |
+| `Click::from_input` | `container_click` | Makes a click from a gesture of a pointer or a key. |
 | `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
 | `MenuClick { viewer, click }` | `inventory_client` | The one way to click on the client. |
 | `RemoteMenu` | `inventory_client` | A menu that the server opened, with its state id. |
@@ -245,7 +245,7 @@ Each step is one pull request.
 | Step | Issue | Content |
 |-|-|-|
 | A | #982 | The holders and the slot policy are usable by a client. This document. |
-| B | none | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
+| B | #984 | The click value (`Click`, `ClickKind`, `Clicked`) moves to the new crate `container_click`. The packet `ServerboundContainerClick` carries `Click`, and `ContainerInput` is deleted. The click adapter moves from `inventory_server` to the new crate `engine_inventory_click` as `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag` and `MenuClickPlugin`. |
 | C | #129 | The new crate `inventory_client`: the inbound packets on `engine_item` holders, `RemoteMenu`, `MenuClick`, and the prediction with the planner and the commit of the server. It stores no predicted click. Also the pointer and the keys, the carried stack, and the drop and the hand swap by `spec/inventory-transactions.md`. Specification: `spec/client-inventory.md`. |
 | D | #130 | The open and the close of the menus of the server, generic layouts, container screens, drag paint, double click, item tooltips. Specification: `spec/client-container-screen.md`. |
 | E | #131 | The creative screen. Specification: `spec/client-creative-inventory.md`. |
