@@ -132,6 +132,12 @@ fn cube(faces: &[Image; 6]) -> Result<Image, String> {
     }) {
         return Err("the panorama faces differ in size or format".to_owned());
     }
+    if size.width != size.height {
+        return Err(format!(
+            "the panorama faces are {}x{}, not square",
+            size.width, size.height
+        ));
+    }
     let mut data = Vec::new();
     for face in CUBE_FACES {
         let Some(bytes) = faces.get(face).and_then(|face| face.data.as_deref()) else {
@@ -183,5 +189,24 @@ mod tests {
             cube.texture_view_descriptor.unwrap().dimension,
             Some(TextureViewDimension::Cube)
         );
+    }
+
+    #[test]
+    fn matching_faces_that_are_not_square_are_rejected() {
+        let faces: [Image; 6] = std::array::from_fn(|_| {
+            Image::new_fill(
+                Extent3d {
+                    width: 2,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                &[0, 0, 0, 255],
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::RENDER_WORLD,
+            )
+        });
+
+        assert!(cube(&faces).is_err());
     }
 }
