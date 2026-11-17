@@ -5705,9 +5705,11 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "mcrs_minecraft_engine_inventory_menu",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_inventory_file",
+ "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_vanilla_inventory",

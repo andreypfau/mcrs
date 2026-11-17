@@ -8,6 +8,8 @@ its own file, and `src/main.rs` adds the plugins.
 - `KitPlugin`: at `EnterGame`, the plugin keeps the items of the player in a
   `KitSnapshot` and gives the player the kit. At `LeaveGame`, the player gets the
   items of the snapshot back, and the snapshot goes away.
+- `ShopPlugin`: at `OpenShop`, the player gets a shop menu. Pressing an offer entry gives the
+  player the offered stack.
 
 ```sh
 cargo run -p mcrs_minecraft_inventory_minigame
