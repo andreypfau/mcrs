@@ -16,7 +16,12 @@ use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::EntityTypeId;
+use mcrs_minecraft_item_stack::EntityTypeSet;
+use mcrs_minecraft_item_stack::Equippable;
+use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::Food;
+use mcrs_minecraft_item_stack::InlineSoundEvent;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxDamage;
@@ -30,6 +35,7 @@ use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::SavedError;
 use mcrs_minecraft_item_stack::SlotGroup;
 use mcrs_minecraft_item_stack::SlotStack;
+use mcrs_minecraft_item_stack::SoundEventRef;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
@@ -87,6 +93,9 @@ impl Names {
                 &["max_stack_size", "damage", "bundle_contents", "custom_data"]
             }
             NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
+            NameTable::SoundEvent => &["item.armor.equip_iron"],
+            NameTable::EntityType => &["pig", "zombie"],
+            NameTable::EntityTypeTag => &["skeletons"],
             _ => &[],
         }
     }
@@ -268,6 +277,57 @@ fn the_writer_gives_the_canonical_form_of_what_the_reader_accepts() {
         let written = write_saved(&stack, &Names).expect(input);
         assert_same(&written, &saved(canonical), input);
     }
+}
+
+#[test]
+fn an_equippable_takes_its_defaults_and_keeps_an_empty_entity_list_apart_from_no_list() {
+    let head = Equippable::new(EquippableSlot::Head);
+    let body = Equippable::new(EquippableSlot::Body);
+    let mut nobody = body.clone();
+    nobody.allowed_entities = Some(EntityTypeSet::EntityTypes(Vec::new().into()));
+    let mut pig = body.clone();
+    pig.allowed_entities = Some(EntityTypeSet::EntityTypes(vec![EntityTypeId(0)].into()));
+    let mut snip = Equippable::new(EquippableSlot::Feet);
+    snip.shearing_sound = Some(SoundEventRef::Inline(InlineSoundEvent::new(
+        ResourceLocationBuf::read("mcrs:snip").expect("an identifier"),
+    )));
+    let cases = [
+        (
+            r#"{slot:"head",dispensable:1b,swappable:1b,damage_on_hurt:1b,equip_on_interact:0b,can_be_sheared:0b}"#,
+            &head,
+            r#"{slot:"head"}"#,
+        ),
+        (r#"{slot:"body"}"#, &body, r#"{slot:"body"}"#),
+        (
+            r#"{slot:"body",allowed_entities:[]}"#,
+            &nobody,
+            r#"{slot:"body",allowed_entities:[]}"#,
+        ),
+        (
+            r#"{slot:"body",allowed_entities:["pig"]}"#,
+            &pig,
+            r#"{slot:"body",allowed_entities:"minecraft:pig"}"#,
+        ),
+        (
+            r#"{slot:"feet",shearing_sound:{sound_id:"mcrs:snip",range:"far"}}"#,
+            &snip,
+            r#"{slot:"feet",shearing_sound:{sound_id:"mcrs:snip"}}"#,
+        ),
+    ];
+    for (input, expected, canonical) in cases {
+        let read = read_saved(
+            &with_components(&format!(r#""minecraft:equippable":{input}"#)),
+            &Names,
+        )
+        .expect(input);
+        assert_eq!(read, stack(STONE, 1).set(expected.clone()), "{input}");
+        let written = write_saved(&read, &Names).expect(input);
+        let canonical = saved(&format!(
+            r#"{{id:"minecraft:stone",count:1,components:{{"minecraft:equippable":{canonical}}}}}"#
+        ));
+        assert_same(&written, &canonical, input);
+    }
+    assert_ne!(body, nobody, "STK-SHP-031: no list is not the empty list");
 }
 
 #[test]

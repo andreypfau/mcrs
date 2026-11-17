@@ -29,7 +29,13 @@ use crate::Damage;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
+use crate::EntityTypeId;
+use crate::EntityTypeSet;
+use crate::EntityTypeTagId;
+use crate::Equippable;
+use crate::EquippableSlot;
 use crate::Food;
+use crate::InlineSoundEvent;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
@@ -50,6 +56,8 @@ use crate::RepairCost;
 use crate::SavedError;
 use crate::SlotGroup;
 use crate::SlotStack;
+use crate::SoundEventId;
+use crate::SoundEventRef;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -298,6 +306,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::TooltipDisplay => Builtin::TooltipDisplay(reader.tooltip_display(tag)?),
         BuiltinKey::Food => Builtin::Food(reader.food(tag)?),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(tag)?),
+        BuiltinKey::Equippable => Builtin::Equippable(reader.equippable(tag)?),
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(tag, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(tag, component)?)),
         BuiltinKey::Lore => Builtin::Lore(read_lore(tag)?),
@@ -528,6 +537,87 @@ impl<L: NameLookup> Reader<'_, L> {
     fn block(&self, text: &str) -> Result<BlockId, SavedError> {
         self.entry(NameTable::Block, self.location(text)?)
             .map(BlockId)
+    }
+
+    fn equippable(&self, tag: &NbtTag) -> Result<Equippable, SavedError> {
+        let map = self.map(tag)?;
+        let slot = self.string(self.necessary(map, "slot")?)?;
+        let mut equippable = Equippable::new(EquippableSlot::from_name(slot).ok_or(self.bad())?);
+        equippable.equip_sound = self.optional(map, "equip_sound", Self::sound_event)?;
+        equippable.set_asset_id(self.optional(map, "asset_id", |reader, tag| {
+            Ok(reader.identifier(tag)?.to_buf())
+        })?);
+        equippable.set_camera_overlay(self.optional(map, "camera_overlay", |reader, tag| {
+            Ok(reader.identifier(tag)?.to_buf())
+        })?);
+        equippable.allowed_entities =
+            self.optional(map, "allowed_entities", Self::entity_type_set)?;
+        equippable.dispensable = self.flag(map, "dispensable", equippable.dispensable)?;
+        equippable.swappable = self.flag(map, "swappable", equippable.swappable)?;
+        equippable.damage_on_hurt = self.flag(map, "damage_on_hurt", equippable.damage_on_hurt)?;
+        equippable.equip_on_interact =
+            self.flag(map, "equip_on_interact", equippable.equip_on_interact)?;
+        equippable.can_be_sheared = self.flag(map, "can_be_sheared", equippable.can_be_sheared)?;
+        equippable.shearing_sound = self.optional(map, "shearing_sound", Self::sound_event)?;
+        Ok(equippable)
+    }
+
+    fn optional<T>(
+        &self,
+        map: &NbtCompound,
+        field: &str,
+        read: impl FnOnce(&Self, &NbtTag) -> Result<T, SavedError>,
+    ) -> Result<Option<T>, SavedError> {
+        map.get(field).map(|tag| read(self, tag)).transpose()
+    }
+
+    fn flag(&self, map: &NbtCompound, field: &str, absent: bool) -> Result<bool, SavedError> {
+        map.get(field).map_or(Ok(absent), |tag| self.boolean(tag))
+    }
+
+    fn sound_event(&self, tag: &NbtTag) -> Result<SoundEventRef, SavedError> {
+        match tag {
+            NbtTag::String(name) => {
+                let id = self.entry(NameTable::SoundEvent, self.location(name)?)?;
+                Ok(SoundEventRef::Registry(SoundEventId(id)))
+            }
+            NbtTag::Compound(map) => {
+                let sound_id = self.identifier(self.necessary(map, "sound_id")?)?;
+                let mut inline = InlineSoundEvent::new(sound_id.to_buf());
+                inline.range = map
+                    .get("range")
+                    .and_then(TagNumber::of)
+                    .map(TagNumber::to_float);
+                Ok(SoundEventRef::Inline(inline))
+            }
+            _ => Err(self.bad()),
+        }
+    }
+
+    fn entity_type_set(&self, tag: &NbtTag) -> Result<EntityTypeSet, SavedError> {
+        let mut entity_types: Vec<EntityTypeId> = Vec::new();
+        match tag {
+            NbtTag::String(text) => {
+                if let Some(entity_tag) = text.strip_prefix(TAG_MARKER) {
+                    let entity_tag =
+                        self.entry(NameTable::EntityTypeTag, self.location(entity_tag)?)?;
+                    return Ok(EntityTypeSet::Tag(EntityTypeTagId(entity_tag)));
+                }
+                entity_types.push(self.entity_type(text)?);
+            }
+            NbtTag::List(list) => {
+                for element in list {
+                    entity_types.push(self.entity_type(self.string(element)?)?);
+                }
+            }
+            _ => return Err(self.bad()),
+        }
+        Ok(EntityTypeSet::EntityTypes(Cow::Owned(entity_types)))
+    }
+
+    fn entity_type(&self, text: &str) -> Result<EntityTypeId, SavedError> {
+        self.entry(NameTable::EntityType, self.location(text)?)
+            .map(EntityTypeId)
     }
 }
 

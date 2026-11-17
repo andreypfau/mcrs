@@ -8,4 +8,7 @@ pub enum NameTable {
     BlockTag,
     ComponentType,
     MapDecorationType,
+    SoundEvent,
+    EntityType,
+    EntityTypeTag,
 }

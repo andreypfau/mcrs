@@ -5267,6 +5267,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
