@@ -69,7 +69,7 @@ pub fn read_saves(saves: &Path) -> Result<Vec<WorldSummary>, SaveError> {
     fs::create_dir_all(saves).map_err(io)?;
     let mut worlds = Vec::new();
     for entry in fs::read_dir(saves).map_err(io)? {
-        let Ok(entry) = entry else { continue };
+        let entry = entry.map_err(io)?;
         let Ok(folder_id) = entry.file_name().into_string() else {
             continue;
         };
@@ -168,16 +168,21 @@ impl SummaryData {
             *version == LEVEL_FORMAT_VERSION || *version == CONVERSION_STORAGE_VERSION
         })?;
         let version_id = self.version.as_ref().and_then(|version| version.id);
+        let game_type = if (0..=3).contains(&self.game_type) {
+            self.game_type
+        } else {
+            0
+        };
         let level = ListedLevel {
             level_name: self.level_name,
             version_name: self.version.map(|version| version.name).unwrap_or_default(),
             world_version: self.data_version.or(version_id).unwrap_or(0),
             storage_version,
-            game_type: self.game_type,
+            game_type,
             hardcore: self
                 .difficulty_settings
                 .is_some_and(|difficulty| difficulty.hardcore),
-            allow_commands: self.allow_commands.unwrap_or(self.game_type == 1),
+            allow_commands: self.allow_commands.unwrap_or(game_type == 1),
             experimental: self
                 .enabled_features
                 .is_some_and(|features| features.iter().any(|flag| flag != VANILLA_FEATURE)),

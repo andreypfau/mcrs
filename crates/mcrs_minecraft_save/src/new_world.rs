@@ -43,16 +43,15 @@ pub fn create_world(
             preset: world.world_type.clone(),
         })?;
     let dir = saves.join(make_free_folder(saves, &world.name)?);
-    let written = write_level_dat(&dir, &level(world, last_played)).and_then(|()| {
-        let settings = WorldGenSettings {
-            seed: seed_from_text(&world.seed_text).unwrap_or(world.random_seed),
-            dimensions,
-            bonus_chest: false,
-            generate_structures: true,
-            legacy_custom_options: None,
-        };
-        write_world_gen_settings(&dir, &settings, registries)
-    });
+    let settings = WorldGenSettings {
+        seed: seed_from_text(&world.seed_text).unwrap_or(world.random_seed),
+        dimensions,
+        bonus_chest: false,
+        generate_structures: true,
+        legacy_custom_options: None,
+    };
+    let written = write_world_gen_settings(&dir, &settings, registries)
+        .and_then(|()| write_level_dat(&dir, &level(world, last_played)));
     match written {
         Ok(()) => Ok(dir),
         Err(error) => {

@@ -20,7 +20,7 @@ pub fn delete_world(dir: &Path) -> Result<(), SaveError> {
     drop(lock);
     retry(dir, || {
         fs::remove_file(dir.join(LOCK_FILE)).or_else(missing)?;
-        remove_entry(dir)
+        fs::remove_dir(dir)
     })
 }
 
@@ -54,11 +54,25 @@ fn remove_contents(dir: &Path) -> io::Result<()> {
 }
 
 fn remove_entry(path: &Path) -> io::Result<()> {
-    if fs::symlink_metadata(path)?.is_dir() {
+    let file_type = fs::symlink_metadata(path)?.file_type();
+    if file_type.is_dir() {
         fs::remove_dir_all(path)
+    } else if is_directory_link(file_type) {
+        fs::remove_dir(path)
     } else {
         fs::remove_file(path)
     }
+}
+
+#[cfg(windows)]
+fn is_directory_link(file_type: fs::FileType) -> bool {
+    use std::os::windows::fs::FileTypeExt;
+    file_type.is_symlink_dir()
+}
+
+#[cfg(not(windows))]
+fn is_directory_link(_: fs::FileType) -> bool {
+    false
 }
 
 fn missing(error: io::Error) -> io::Result<()> {

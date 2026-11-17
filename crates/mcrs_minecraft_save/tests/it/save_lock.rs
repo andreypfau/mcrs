@@ -7,10 +7,6 @@ fn a_held_save_cannot_be_taken_again_until_its_lock_drops() {
     assert!(!SaveLock::is_held(&dir).unwrap());
 
     let lock = SaveLock::take(&dir).unwrap();
-    assert_eq!(
-        std::fs::read(dir.join("session.lock")).unwrap(),
-        [0xE2, 0x98, 0x83]
-    );
     assert!(SaveLock::is_held(&dir).unwrap());
     assert!(matches!(SaveLock::take(&dir), Err(SaveError::Locked { dir: named }) if named == dir));
     assert!(
@@ -20,6 +16,10 @@ fn a_held_save_cannot_be_taken_again_until_its_lock_drops() {
 
     drop(lock);
     assert!(!SaveLock::is_held(&dir).unwrap());
+    assert_eq!(
+        std::fs::read(dir.join("session.lock")).unwrap(),
+        [0xE2, 0x98, 0x83]
+    );
     drop(SaveLock::take(&dir).unwrap());
     std::fs::remove_dir_all(root).unwrap();
 }
