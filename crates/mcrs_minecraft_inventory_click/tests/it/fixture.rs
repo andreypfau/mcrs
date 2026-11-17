@@ -9,7 +9,6 @@ use mcrs_minecraft_inventory_click::Operations;
 use mcrs_minecraft_inventory_click::Slots;
 use mcrs_minecraft_inventory_menu::MenuEntry;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::RouteWhen;
 use mcrs_minecraft_inventory_player::ArmourLock;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
@@ -270,10 +269,7 @@ impl Menu for Window<'_> {
             |index: u16| menu_slot(index).is_some_and(|slot| player.stack(slot) == Some(None));
         MenuLayout::INVENTORY
             .routes(source)
-            .find(|route| match route.when {
-                RouteWhen::Always => true,
-                RouteWhen::Wears { slot, target } => equip == Some(slot) && holds_empty(target),
-            })
+            .find(|route| route.when.holds(equip, holds_empty))
             .into_iter()
             .flat_map(|route| route.to.iter())
     }

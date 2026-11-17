@@ -29,10 +29,7 @@ fn quick_move_destinations(
 ) -> Option<Vec<u16>> {
     let route = MenuLayout::INVENTORY
         .routes(source)
-        .find(|route| match route.when {
-            RouteWhen::Always => true,
-            RouteWhen::Wears { slot, target } => equip == Some(slot) && empty.contains(&target),
-        })?;
+        .find(|route| route.when.holds(equip, |target| empty.contains(&target)))?;
     Some(route.to.iter().collect())
 }
 
