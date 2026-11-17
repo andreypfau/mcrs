@@ -6,7 +6,7 @@ This document states the item stack as data: its parts, its component patch, its
 format that carries it. It states the meaning of four component types, and it lists each component
 type of this game version.
 
-Sections 8.1 to 8.4 state the shape of 30 component types. For
+Sections 8.1 to 8.5 state the shape of 38 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -65,6 +65,8 @@ section 8.
   (STK-SHP-033).
 - **Effect instance**: a status effect with its amplifier, its duration and its flags
   (STK-SHP-034).
+- **Dye colour**: one of the 16 names of STK-SHP-048.
+- **Entity data**: an entity type and a compound of free NBT (STK-SHP-049).
 
 ### 0.2 Provenance
 
@@ -104,7 +106,7 @@ section 8.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
-| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.4 |
+| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.5 |
 
 ### 0.5 Notation
 
@@ -563,13 +565,17 @@ is a map with these keys:
 The reader also accepts one string, the identifier of the item. That string means the count 1 and
 an empty patch. The writer always writes the map.
 
+The item air is an error in the map and in the string form. The text of the error contains `Item
+must not be minecraft:air`. A count out of `1..99` is an error with the text `Value must be within
+range [1;99]: <count>`.
+
 **STK-TPL-003** (`source_suggested_black_box_confirmed`, wire). The wire form of an item template
 has these fields, in this order: item id (VarInt), count (VarInt), then the patch as STK-NET-001
 states it. The item id comes before the count. This order is different from the order of the wire
 stack.
 
-**STK-TPL-004** (`source_suggested`, wire). A count of 0 in the wire form is a decode error. An
-item id of air is a decode error. The reference reader accepts a negative count and a count
+**STK-TPL-004** (`source_suggested`, wire). A count of 0 or an item id of air in the wire form is a
+decode error (STK-TPL-008). The reference reader accepts a negative count and a count
 larger than 99. The item template then holds that count. A stack that someone makes from an item
 template with a negative count is the empty stack (STK-EMP-001). A writer must not write a count
 out of `1..99`.
@@ -587,6 +593,26 @@ patch entry without effect (STK-PAT-004). The writers of the item template write
 patch entries. The hash of the component that owns the item template includes them
 (STK-HSH-004). A stack that someone makes from the item template has a patch in normal form
 (STK-TPL-006 and STK-PAT-005).
+
+**STK-TPL-008** (`source_suggested_black_box_confirmed`, wire). The reader of the wire form of an
+item template reads the item id, the count and the patch. Then it checks the item and the count. An
+item of air or a count of 0 is a decode error with the text `Item must be non-empty`. The two causes
+give the same text. When the patch has an error, the reader gives the error of the patch. Only the
+reader of the saved form gives the text `Item must not be minecraft:air` (STK-TPL-002). These
+component types use this reader in their wire forms:
+
+| Component type | Item templates in the wire form |
+|---|---|
+| `minecraft:use_remainder` | one item template |
+| `minecraft:sulfur_cube_content` | one item template |
+| `minecraft:charged_projectiles` | each element of the list (STK-SHP-052) |
+| `minecraft:bundle_contents` | each element of the list (STK-SHP-051) |
+| `minecraft:container` | each element of the list, as an optional item template (STK-SHP-053) |
+| `minecraft:pot_decorations` | each of the four sides, as an optional item template (STK-TPL-005) |
+
+An optional item template with the byte `00` holds nothing, and the reader does no check. For
+example, the wire form `01 00 01 00 00` of `minecraft:bundle_contents` has one element with the item
+air and the count 1. It is a decode error with the text `Item must be non-empty`.
 
 ### 6.7 The hashed stack
 
@@ -1034,7 +1060,7 @@ This section states the shape of 15 component types. The counts of prototypes co
 files of `assets/mcrs/item_definition/`.
 
 **STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
-STK-SHP-020, and each rule of sections 8.2 to 8.4 that names a component type, states it in a table. The
+STK-SHP-020, and each rule of sections 8.2 to 8.5 that names a component type, states it in a table. The
 columns are:
 
 - "Field": the key of the field in the saved form. `(value)` means that the component is one
@@ -1128,7 +1154,7 @@ size is not specified. Two texts are equal when their content, their style and t
 equal (STK-PAT-007).
 
 **STK-SHP-005** (`design`, unspecified). A server must not send a component of sections 8.1 to
-8.4 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
+8.5 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
 For an id that is not in a list of names, the reference reader of the wire form gives the name
 with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
 writes such an id.
@@ -2047,6 +2073,295 @@ instrument `{"sound_event":"minecraft:entity.item.break","use_duration":7.0,"ran
 those of STK-SHP-004 only. Equality: as STK-SHP-033. Floats are equal as STK-EQ-005 states.
 Prototypes: 1 prototype has this component with the reference `minecraft:ponder_goat_horn`.
 
+### 8.5 Shapes of the container, bee, firework and banner types
+
+This section states the shape of 8 more component types. STK-SHP-001 to STK-SHP-005 apply to each
+rule of this section. STK-SHP-032 to STK-SHP-034 and STK-SHP-047 to STK-SHP-050 state the forms
+that more than one rule uses. The fixture `item_nested` has the cases `charged_*`, `bundle_*` and
+`container_*`. The fixture `item_records` has the cases `explosion_*`, `fireworks_*` and `loot_*`.
+The fixture `item_holders` has the cases `banner_patterns_*`. The fixture `item_registry_refs` has
+samples of `minecraft:bees`. The fixture `item_plain` has the cases of experiment E29. Each case
+has the JSON, the NBT, the wire form and the hash that the game wrote.
+
+**STK-SHP-047** (`source_suggested_black_box_confirmed`, wire). The rules of this section use this
+form in addition to the forms of STK-SHP-002 and STK-SHP-032:
+
+| Form | Saved form in NBT | Saved form in JSON | Hash node | Wire form |
+|------|-------------------|--------------------|-----------|-----------|
+| long | Long tag | number | long | a Long tag in the network NBT of the component (STK-SHP-055) |
+
+A long is a signed 64-bit integer. The reader of the saved form converts a number to a long as
+STK-SHP-002 states for an int, with 64 bits in place of 32 bits. In JSON, an integer from 2^63 to
+2^64 − 1 gives the low 64 bits of the number. Thus `18446744073709551615` gives -1. An integer
+larger than 2^64 − 1 gives 9223372036854775807. An integer smaller than -2^63 gives
+-9223372036854775808. Thus `18446744073709551617` gives 9223372036854775807. Deviation D13 records
+the reference behaviour. The provenance of the statements on an integer larger than 2^64 − 1 or smaller
+than -2^63 is `design`. A number with a fraction loses its fraction. Thus `1.9` gives 1. The
+conversion of a Float tag or a Double tag has the provenance `source_suggested`.
+
+**STK-SHP-048** (`source_suggested_black_box_confirmed`, wire). A dye colour is a name of a list
+(STK-SHP-003). The list has these names and ids:
+
+| Name | Id | Name | Id | Name | Id | Name | Id |
+|------|----|------|----|------|----|------|----|
+| `white` | 0 | `yellow` | 4 | `light_gray` | 8 | `brown` | 12 |
+| `orange` | 1 | `lime` | 5 | `cyan` | 9 | `green` | 13 |
+| `magenta` | 2 | `pink` | 6 | `purple` | 10 | `red` | 14 |
+| `light_blue` | 3 | `gray` | 7 | `blue` | 11 | `black` | 15 |
+
+The comparison of a name is exact. Thus `Red` is an error. The wire form is the id as a VarInt.
+STK-SHP-005 states the reader of an id out of `0..15`.
+
+**STK-SHP-049** (`source_suggested_black_box_confirmed`, wire). Entity data is an entity type and a
+compound of free NBT. The entity type is an entry of the static registry `minecraft:entity_type`.
+`assets/mcrs/reports/registries.json` gives the numeric ids. Each entity type is valid. For
+example, `minecraft:bees` accepts the entity type `minecraft:pig`.
+
+The saved form is one NBT compound, with the forms and the JSON conversions of STK-SHP-043. The
+compound must have the key `id`. Its value is a String tag: the identifier of the entity type. The
+reader takes the entity type from `id`, and keeps the other keys as the compound. The reader of the
+saved form gives an error in these cases:
+
+- the compound has no key `id`;
+- the value of `id` is not a String tag;
+- the value of `id` does not name an entity type.
+
+The writer of the saved form writes the compound with the key `id` added, as an identifier with its
+namespace. The hash node is the map node of that compound, as STK-SHP-043 states.
+
+The wire form has these fields, in this order:
+
+| Field | Wire form |
+|-------|-----------|
+| entity type | VarInt: the numeric id |
+| compound | one network NBT of the compound, without the key `id` |
+
+The network NBT has the limits of STK-SHP-004. An NBT that is not a compound is a decode error. The
+end tag `00` in place of the compound is also a decode error. When the compound on the wire has the
+key `id`, the reader drops that key. The entity type comes only from the VarInt.
+
+Equality: two values are equal when the entity types are equal and the compounds without `id` are
+equal (STK-EQ-006).
+
+**STK-SHP-050** (`source_suggested_black_box_confirmed`, wire). An element of the types
+`minecraft:bundle_contents`, `minecraft:charged_projectiles` and `minecraft:container` holds one
+item template (section 6.6). These statements apply to such an element:
+
+- The saved form is the saved form of the item template (STK-TPL-002). The reader also accepts the
+  string form. The writer always writes the map, and omits `count` when the count is 1.
+- The wire form is the wire form of the item template (STK-TPL-003). It has no length prefix, also
+  inside the wire stack with length prefix (STK-NET-011).
+- No element holds the empty stack. In the saved form, the item air and a count out of `1..99` are
+  errors (STK-TPL-002). In the wire form, the item air and the count 0 are decode errors with the
+  text `Item must be non-empty` (STK-TPL-008).
+- The patch of the item template keeps each patch entry, also an entry without effect
+  (STK-TPL-007). The writers write each such entry. For example, an arrow with
+  `minecraft:max_stack_size` 64 keeps that entry in the JSON, the NBT, the wire form and the hash.
+- The rules of this section put no limit on the depth of nested item templates. The limits of the
+  format that carries the outer value apply. Deviation D11 records the limit of mcrs.
+
+The hash of the component is the hash of its whole saved form (STK-HSH-004). The tree of an element
+is the map of STK-TPL-002. The key `components` holds a map. Its keys are `<type>` and `!<type>`
+with the namespace, as STK-SAV-003 states. The value of a `<type>` key is the saved form of the
+nested component, as a subtree of the same tree. The value of a `!<type>` key is the empty map. The
+hash does not use a separate hash of a nested component.
+
+Equality: two elements are equal when their items, their counts and their patches are equal. Two
+patches are equal when they have patch entries for the same component types, of the same kind, with
+equal components (STK-PAT-007). A patch entry without effect takes part. Thus
+`{"id":"minecraft:arrow"}` and `{"id":"minecraft:arrow","components":{"minecraft:max_stack_size":64}}`
+are not equal.
+
+**STK-SHP-051** (`source_suggested_black_box_confirmed`, wire). `minecraft:bundle_contents`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | list of item template (STK-SHP-050) | no limit on the length | necessary | list of item template |
+
+The order of the list has a meaning. The writers keep the order. The value has no other field. A
+document for bundles states the weight of the contents, the selected element and the extra check of
+strict validation (STK-VAL-001).
+
+For example, `["minecraft:arrow",{"id":"minecraft:arrow","count":1,"components":{"minecraft:max_stack_size":64}}]`
+gives the saved form
+`[{"id":"minecraft:arrow"},{"id":"minecraft:arrow","components":{"minecraft:max_stack_size":64}}]`.
+Its wire form is `02 8808 01 00 00 8808 01 01 00 01 40`, and its hash is -128193339. Limits: none
+on the number of elements. Equality: the two lists have equal elements (STK-SHP-050) in the same
+order. Prototypes: 17 prototypes have this component with the empty list `[]`. The other 1669
+prototypes do not have it.
+
+**STK-SHP-052** (`source_suggested_black_box_confirmed`, wire). `minecraft:charged_projectiles`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | list of item template (STK-SHP-050) | 0 to 1024 elements | necessary | list of item template, at most 1024 elements |
+
+Limits: 1024 elements. A saved form with more elements is not a valid saved form. A wire form with
+a number larger than 1024 is a decode error. No reader removes the elements past the limit. The
+order of the list has a meaning, and the writers keep it.
+
+For example, the value with one firework rocket that has
+`{"flight_duration":3,"explosions":[{"shape":"creeper","colors":[255]}]}` as `minecraft:fireworks`
+has the wire form `01 8A0B 01 01 00 47 03 01 03 01 000000FF 00 00 00`.
+Equality: the two lists have equal elements (STK-SHP-050) in the same order. Prototypes: 1
+prototype has this component with the empty list `[]`. The other 1685 prototypes do not have it.
+
+**STK-SHP-053** (`source_suggested_black_box_confirmed`, wire). `minecraft:container` holds the
+slots of a container item. The value is a list of `n` slots, from slot 0 to slot `n - 1`. Each slot
+holds an item template or nothing. Slot `n - 1` holds an item template. The empty value has `n` = 0.
+`n` is at most 256.
+
+The saved form is a list of maps, with 0 to 256 elements. Each map has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `slot` | int | `0..255` | necessary | none: the position in the list of the wire form |
+| `item` | item template (STK-SHP-050) | STK-SHP-050 | necessary | none: see below |
+
+The reader of the saved form puts the item template of each map into its slot. When two maps have
+one slot, the map that is later in the list wins. This is not an error. The limit of 256 counts
+each map of the input, also a map with a repeated slot. The writer of the saved form writes one map
+for each slot that holds an item template, in the order of the slot numbers. It writes no map for a
+slot that holds nothing. Thus `[{"slot":5,"item":"minecraft:stone"},{"slot":2,"item":{"id":"minecraft:apple","count":3}}]`
+gives `[{"slot":2,"item":{"id":"minecraft:apple","count":3}},{"slot":5,"item":{"id":"minecraft:stone"}}]`.
+
+The wire form is a list of 0 to 256 elements. Element `i` is slot `i`. Each element is an optional
+item template (STK-TPL-005): `00` for a slot that holds nothing, or `01` and the item template. The
+writer writes `n` elements. A number larger than 256 is a decode error. For example, the value
+above has the wire form `06 00 00 01 8608 03 00 00 00 00 01 01 01 00 00`. A value with one item
+template in slot 255 has 256 elements on the wire.
+
+The hash is the hash of the saved form (STK-SHP-050). Limits: 256 slots, and 256 maps in the saved
+form. Equality: the two values have the same `n`, and each slot holds equal item templates or
+nothing in both. The order of the maps in the input has no effect. Prototypes: 45 prototypes have
+this component with the empty list `[]`. The other 1641 prototypes do not have it. A document for
+containers states how a block copies the slots.
+
+**STK-SHP-054** (`design`, wire). The reader of the wire form of `minecraft:container` drops each
+element `00` at the end of the list. Thus `02 01 8808 01 00 00 00` gives the value with one slot,
+and `01 00` gives the empty value. A writer must not write an element `00` at the end of the list.
+Reason: a value must have one saved form, one wire form and one hash. The saved form has no form
+for an empty slot at the end. Deviation D9 records the reference behaviour.
+
+**STK-SHP-055** (`source_suggested_black_box_confirmed`, wire). `minecraft:container_loot`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `loot_table` | identifier | each identifier | necessary | in the network NBT |
+| `seed` | long (STK-SHP-047) | each long | `0` | in the network NBT |
+
+The wire form is the saved form as one network NBT (STK-TYP-003), with the limits of STK-SHP-004.
+`loot_table` names an entry of the registry `minecraft:loot_table`. No reader checks that the loot
+table exists. Thus `minecraft:chests/x` is valid. A string that is not an identifier is an error.
+
+For example, `{"loot_table":"minecraft:chests/x","seed":-1}` has the hash -148875692. The wire
+form of `{"loot_table":"minecraft:chests/simple_dungeon"}` is
+`0A 08 000A 6C6F6F745F7461626C65 001F <the identifier> 00`. Limits: none. Equality: each field is
+equal. Prototypes: no prototype has this component.
+
+**STK-SHP-056** (`source_suggested_black_box_confirmed`, wire). `minecraft:bees` is a list of
+occupants:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | list of occupant (below) | no limit on the length | necessary | list of occupant |
+
+An occupant has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `entity_data` | entity data (STK-SHP-049) | STK-SHP-049 | necessary | STK-SHP-049 |
+| `ticks_in_hive` | int | each int | necessary | VarInt |
+| `min_ticks_in_hive` | int | each int | necessary | VarInt |
+
+The component puts no limit on the number of occupants. A list of 4 occupants is valid. A document
+for hives states how many occupants a hive takes. A negative number of ticks is valid.
+
+For example, `[{"entity_data":"{id:\"bee\",HasNectar:1b}","ticks_in_hive":-1,"min_ticks_in_hive":2400}]`
+gives the saved form
+`[{"entity_data":{"HasNectar":1,"id":"minecraft:bee"},"ticks_in_hive":-1,"min_ticks_in_hive":2400}]`
+in JSON. In NBT, `HasNectar` stays a Byte tag. The wire form is
+`01 0B 0A 01 0009 4861734E6563746172 01 00 FFFFFFFF0F E012`, and the hash is -1122153002. Limits:
+none on the number of occupants. Equality: the two lists have equal occupants in the same order.
+Two occupants are equal when each field is equal. Prototypes: 2 prototypes have this component with
+the empty list `[]`. The other 1684 prototypes do not have it.
+
+**STK-SHP-057** (`source_suggested_black_box_confirmed`, wire). `minecraft:firework_explosion`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `shape` | name of the list "firework shape" (below) | below | necessary | VarInt: the id |
+| `colors` | list of int of 4 bytes (STK-SHP-032) | each int | the empty list | list of 4 bytes |
+| `fade_colors` | list of int of 4 bytes (STK-SHP-032) | each int | the empty list | list of 4 bytes |
+| `has_trail` | boolean | `false`, `true` | `false` | one byte |
+| `has_twinkle` | boolean | `false`, `true` | `false` | one byte |
+
+The list "firework shape" has the names `small_ball` 0, `large_ball` 1, `star` 2, `creeper` 3 and
+`burst` 4. The comparison of a name is exact. Thus `STAR` is an error. An element of `colors` or
+`fade_colors` is an int. It is not a colour of STK-SHP-032, so a list of 3 numbers is an error. In
+NBT, each list is a List tag of Int tags.
+
+For example, `{"shape":"star","colors":[16711680,65280],"fade_colors":[255],"has_trail":true,"has_twinkle":true}`
+has the wire form `02 02 00FF0000 0000FF00 01 000000FF 01 01`. The value `{"shape":"small_ball"}`
+has the wire form `00 00 00 00 00`. Limits: none on the number of colours. Equality: each field is
+equal. The order of each list has an effect. Prototypes: no prototype has this component.
+
+**STK-SHP-058** (`source_suggested_black_box_confirmed`, wire). `minecraft:fireworks`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `flight_duration` | unsigned byte (STK-SHP-034) | each int | `0` | VarInt, `0..255` |
+| `explosions` | list of firework explosion (STK-SHP-057) | 0 to 256 elements | the empty list | list of firework explosion, at most 256 elements |
+
+`flight_duration` has the saved form, the reader and the hash node of the unsigned byte of
+STK-SHP-034. Thus `255` gives `-1` in JSON, `-1b` in NBT and `FF01` on the wire. `300` gives 44,
+and `-1` gives 255. The wire form is a VarInt with the number in `0..255`, not one byte.
+
+The reference reader of the wire form keeps each VarInt as the flight duration. Such a value out of
+`0..255` has no saved form. The reader of this project gives a decode error for a number out of
+`0..255`. The provenance of this paragraph is `design`. Deviation D10 records the reference
+behaviour.
+
+Limits: 256 explosions. A saved form with more explosions is not a valid saved form. A wire form
+with a number larger than 256 is a decode error. For example,
+`{"flight_duration":-56,"explosions":[{"shape":"burst","colors":[1]}]}` has the wire form
+`C801 01 04 01 00000001 00 00 00`. Equality: each field is equal, and the two lists have equal
+explosions in the same order. Prototypes: 1 prototype has this component with
+`{"flight_duration":1}`. The other 1685 prototypes do not have it.
+
+**STK-SHP-059** (`source_suggested_black_box_confirmed`, wire). `minecraft:banner_patterns` is a
+list of layers:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | list of layer (below) | no limit on the length | necessary | list of layer |
+
+A layer has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `pattern` | referenced value of the registry `minecraft:banner_pattern` (STK-SHP-033) | STK-SHP-033 | necessary | STK-SHP-033 |
+| `color` | dye colour (STK-SHP-048) | STK-SHP-048 | necessary | VarInt: the id |
+
+`minecraft:banner_pattern` is a data-pack registry. An inline banner pattern has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `asset_id` | identifier | each identifier | necessary | String (32767) |
+| `translation_key` | string | each string | necessary | String (32767) |
+
+`asset_id` names an asset of a resource pack. No reader checks that the asset exists, or that a
+translation of `translation_key` exists. The component puts no limit on the number of layers. A
+list of 7 layers is valid. A document for the loom states the limit of a loom.
+
+The order of the layers has a meaning, and the writers keep it. For example,
+`[{"pattern":"minecraft:creeper","color":"red"},{"pattern":{"asset_id":"mcrs:x","translation_key":"block.mcrs.banner.x"},"color":"light_blue"}]`
+has the wire form `02 05 0E 00 06 6D6372733A78 13 <the translation key> 03`. The reference
+`minecraft:creeper` has the id 4. Limits: those of the strings only. Equality: the two lists have
+equal layers in the same order. Two layers are equal when each field is equal (STK-SHP-033).
+Prototypes: 17 prototypes have this component with the empty list `[]`. The other 1669 prototypes
+do not have it.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -2142,6 +2457,77 @@ Prototypes: 1 prototype has this component with the reference `minecraft:ponder_
 - **Bug reference**: none.
 - **Test**: a differential test does not compare two such values in one process.
 
+**D9.**
+
+- **Rule**: STK-SHP-054.
+- **Reference**: the reference reader of the wire form of `minecraft:container` keeps each element
+  `00` at the end of the list. The value then has more slots than its saved form states. The
+  reference finds it not equal to the value without those slots, but the two values have one saved
+  form and one hash.
+- **mcrs**: the reader drops each element `00` at the end of the list. Reason: a value must have
+  one saved form, one wire form and one hash.
+- **Visible to the client**: no. The vanilla client and the vanilla server write no element `00` at
+  the end of the list.
+- **Bug reference**: none.
+- **Test**: a differential test compares the saved form and the hash of such a value, not the wire
+  form that the reference writes again.
+
+**D10.**
+
+- **Rule**: STK-SHP-058.
+- **Reference**: the reference reader of the wire form of `minecraft:fireworks` accepts each VarInt
+  as `flight_duration`. The writer of the saved form then gives an error for a number larger than
+  255. It writes a negative number as its low 8 bits.
+- **mcrs**: the reader of the wire form gives a decode error for a number out of `0..255`. Reason: a
+  strict reader refuses input that no conforming writer produces.
+- **Visible to the client**: no. The vanilla client and the vanilla server write no such number.
+- **Bug reference**: none.
+- **Test**: a differential test does not compare a wire form with such a number.
+
+**D11.**
+
+- **Rule**: STK-SHP-050.
+- **Reference**: the reference puts no limit on the depth of nested item templates in the wire
+  form. Only the size of the packet limits the depth.
+- **mcrs**: the readers of the wire form and of the saved form refuse more than 170 levels of
+  nested item templates. Reason: a reader must not overflow its stack. In
+  `minecraft:bundle_contents` and `minecraft:charged_projectiles`, one level of nesting takes 3 NBT
+  levels, and an NBT tree of depth 512 holds 170 levels. In `minecraft:container`, one level of nesting takes 4 NBT levels.
+  Thus the NBT depth limit can refuse a chain of containers with fewer than 170 levels.
+- **Visible to the client**: no. The vanilla client and the vanilla server write no item template
+  at a depth of more than 170 levels.
+- **Bug reference**: none.
+- **Test**: a wire form with 171 levels of nested item templates gives a decode error. A wire form
+  with 170 levels decodes.
+
+**D12.**
+
+- **Rule**: STK-TPL-004.
+- **Reference**: the reference reader of the wire form of an item template accepts a negative
+  count. A stack that someone makes from that item template is the empty stack.
+- **mcrs**: the reader gives a decode error for a negative count. Reason: a writer must not write a
+  count out of `1..99`. The reader accepts a count of 100 to 255. The saved form check then refuses
+  the item template in the wire stack with length prefix.
+- **Visible to the client**: no. The vanilla client and the vanilla server write no such count.
+- **Bug reference**: none.
+- **Test**: none.
+
+**D13.**
+
+- **Rule**: STK-SHP-047.
+- **Reference**: the reference reader of the saved form in JSON converts each integer number to a
+  long by its low 64 bits. Thus `18446744073709551617` gives 1, and `-9223372036854775809` gives
+  9223372036854775807.
+- **mcrs**: the JSON reader reads an integer out of the range -2^63 to 2^64 − 1 as a double. The
+  long then comes from the double, as STK-SHP-002 states for a Double tag. Thus
+  `18446744073709551617` gives 9223372036854775807, and `-9223372036854775809` gives
+  -9223372036854775808. Reason: the JSON reader of mcrs holds an integer in at most 64 bits.
+- **Visible to the client**: no. The JSON form is not on the wire, and the vanilla writers write no
+  such integer. Only a hand-written data pack file can hold one.
+- **Bug reference**: none.
+- **Test**: the case of the fixture `item_plain` with the seed `18446744073709551617` expects the
+  seed 9223372036854775807. The test does not compare that case with the result of the game.
+
 ## 10. Unresolved
 
 - **Q1**: STK-SAV-006. Which callers keep a stack whose patch has a bad key, and which drop the
@@ -2154,8 +2540,9 @@ Prototypes: 1 prototype has this component with the reference `minecraft:ponder_
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types? Sections 8.1 to 8.4 state 30 types, with `map_id`,
-  `map_decorations`, `profile`, `equippable` and the 11 types of section 8.4.
+  document owns each group of types? Sections 8.1 to 8.5 state 38 types, with `map_id`,
+  `map_decorations`, `profile`, `equippable`, the 11 types of section 8.4 and the 8 types of
+  section 8.5.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
@@ -2373,3 +2760,95 @@ Results:
   `[1,2]` gives a list of Byte tags.
 - The list `[1b,"a",{}]` has the NBT `0A 00000003 | 01 0000 01 00 | 08 0000 0001 61 00 | 00`.
   Its hash is the hash of the list without the wrappers.
+
+**E29.** Rules: STK-SHP-047 to STK-SHP-059.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of `tools/fixtures.json`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For a case of the kind "value", read the JSON, the NBT, the wire form and the hash.
+4. For a case of the kind "error", read the rejection.
+5. For a case of the kind "decode", give the wire form to the reader. Read the JSON of the result.
+6. For a case of the kind "decode error", give the wire form to the reader. Read the decode error.
+
+The fixture keeps the cases of the four kinds in its lists `values`, `errors`, `decodes` and
+`decode_errors`. The field `kind` of a case gives the component type.
+
+| Component type | Kind | Input | Rule |
+|----------------|------|-------|------|
+| `bundle_contents` | value | `["minecraft:arrow",{"id":"minecraft:arrow","count":1,"components":{"minecraft:max_stack_size":64}}]` | STK-SHP-050 |
+| `bundle_contents` | value | `[{"id":"minecraft:shulker_box","components":{"minecraft:container":[{"slot":1,"item":{"id":"minecraft:arrow","count":2,"components":{"minecraft:custom_name":"x","!minecraft:max_stack_size":{}}}}]}}]` | STK-SHP-050 |
+| `charged_projectiles` | value | `[{"id":"minecraft:firework_rocket","components":{"minecraft:fireworks":{"flight_duration":3,"explosions":[{"shape":"creeper","colors":[255]}]}}}]` | STK-SHP-052 |
+| `container` | value | `[{"slot":5,"item":"minecraft:stone"},{"slot":2,"item":{"id":"minecraft:apple","count":3}}]` | STK-SHP-053 |
+| `container` | value | `[{"slot":0,"item":"minecraft:stone"},{"slot":0,"item":"minecraft:apple"}]` | STK-SHP-053 |
+| `container` | value | `[{"slot":255,"item":"minecraft:stone"}]` | STK-SHP-053 |
+| `container_loot` | value | `{"loot_table":"chests/x","seed":1.9}` | STK-SHP-047 |
+| `container_loot` | value | `{"loot_table":"minecraft:chests/x","seed":18446744073709551617}` | STK-SHP-047 |
+| `container_loot` | value | `{"loot_table":"minecraft:chests/x","seed":-1}` | STK-SHP-055 |
+| `bees` | value | `[{"entity_data":"{id:\"bee\",HasNectar:1b}","ticks_in_hive":-1,"min_ticks_in_hive":2400}]` | STK-SHP-049 |
+| `bees` | value | a list of 4 occupants `{"entity_data":{"id":"minecraft:bee"},"ticks_in_hive":0,"min_ticks_in_hive":0}` | STK-SHP-056 |
+| `firework_explosion` | value | `{"shape":"large_ball","colors":[1.9,-2.9],"fade_colors":[],"has_trail":false}` | STK-SHP-057 |
+| `fireworks` | value | `{"flight_duration":255}` | STK-SHP-058 |
+| `fireworks` | value | `{"flight_duration":300}` | STK-SHP-058 |
+| `fireworks` | value | `{"flight_duration":-1}` | STK-SHP-058 |
+| `banner_patterns` | value | 7 layers with the pattern `creeper` and the colours `white`, `orange`, `magenta`, `light_blue`, `yellow`, `lime` and `black` | STK-SHP-059 |
+| `bundle_contents` | error | `[{"id":"minecraft:air"}]` | STK-SHP-050 |
+| `bundle_contents` | error | `[{"id":"minecraft:stone","count":0}]` | STK-SHP-050 |
+| `bundle_contents` | error | `[{"id":"minecraft:stone","count":100}]` | STK-SHP-050 |
+| `charged_projectiles` | error | a list of 1025 strings `"minecraft:arrow"` | STK-SHP-052 |
+| `container` | error | `[{"slot":256,"item":"minecraft:stone"}]` | STK-SHP-053 |
+| `container` | error | `[{"slot":-1,"item":"minecraft:stone"}]` | STK-SHP-053 |
+| `container` | error | `[{"item":"minecraft:stone"}]` | STK-SHP-053 |
+| `container` | error | a list of 257 maps `{"slot":0,"item":"minecraft:stone"}` | STK-SHP-053 |
+| `container` | error | `[{"slot":0,"item":{"id":"minecraft:air"}}]` | STK-SHP-050 |
+| `container_loot` | error | `{"seed":1}` | STK-SHP-055 |
+| `container_loot` | error | `{"loot_table":"minecraft:chests/x","seed":"1"}` | STK-SHP-047 |
+| `container_loot` | error | `{"loot_table":"Not Valid"}` | STK-SHP-055 |
+| `bees` | error | `[{"entity_data":{"Health":5.0},"ticks_in_hive":0,"min_ticks_in_hive":0}]` | STK-SHP-049 |
+| `bees` | error | `[{"entity_data":{"id":"minecraft:no_such_entity"},"ticks_in_hive":0,"min_ticks_in_hive":0}]` | STK-SHP-049 |
+| `bees` | error | `[{"entity_data":{"id":"minecraft:bee"},"ticks_in_hive":0}]` | STK-SHP-056 |
+| `bees` | error | `[{"entity_data":{"id":5},"ticks_in_hive":0,"min_ticks_in_hive":0}]` | STK-SHP-049 |
+| `firework_explosion` | error | `{"colors":[1]}` | STK-SHP-057 |
+| `firework_explosion` | error | `{"shape":"STAR"}` | STK-SHP-057 |
+| `firework_explosion` | error | `{"shape":"star","colors":[[1.0,0.0,0.0]]}` | STK-SHP-057 |
+| `fireworks` | error | a map with `explosions`: a list of 257 maps `{"shape":"star"}` | STK-SHP-058 |
+| `banner_patterns` | error | `[{"pattern":"minecraft:no_such_pattern","color":"red"}]` | STK-SHP-059 |
+| `banner_patterns` | error | `[{"pattern":"minecraft:creeper","color":"Red"}]` | STK-SHP-048 |
+| `banner_patterns` | error | `[{"pattern":{"asset_id":"mcrs:x"},"color":"red"}]` | STK-SHP-059 |
+| `banner_patterns` | error | `[{"pattern":"minecraft:creeper"}]` | STK-SHP-059 |
+| `container` | decode | `02 01 8808 01 00 00 00` | STK-SHP-054 |
+| `container` | decode | `01 00` | STK-SHP-054 |
+| `bees` | decode | `01 67 0A 08 0002 6964 000D 6D696E6563726166743A636F77 00 0A 00` | STK-SHP-049 |
+| `container` | decode error | `81 02` | STK-SHP-053 |
+| `charged_projectiles` | decode error | `81 08` | STK-SHP-052 |
+| `fireworks` | decode error | `00 81 02` | STK-SHP-058 |
+| `bees` | decode error | `01 67 00 0A 00` | STK-SHP-049 |
+| `bundle_contents` | decode error | `01 00 01 00 00` | STK-SHP-050 |
+
+Results:
+
+- The game accepts each case of the kind "value" and rejects each case of the kind "error".
+- The string `"minecraft:arrow"` gives `{"id":"minecraft:arrow"}`. The count 1 is not in the saved
+  form. The entry `minecraft:max_stack_size` 64 of an arrow stays in the JSON, the NBT, the wire
+  form and the hash.
+- The nested `minecraft:container` keeps its removal entry `!minecraft:max_stack_size`. In the
+  hash, the value of that key is the empty map.
+- Each hash of a value with item templates is the hash of the whole saved tree.
+- The slots 5 and 2 give the saved order 2, 5 and 6 elements on the wire. Two maps with the slot 0
+  give the item of the later map. The slot 255 gives 256 elements on the wire.
+- The seed `1.9` gives 1, and `18446744073709551617` gives 1. The seed `-1` stays in the saved form.
+  The table `chests/x` gets the namespace `minecraft`.
+- The SNBT entity data gives the entity type `minecraft:bee`. `HasNectar` is a Byte tag in NBT and
+  `1` in JSON. The ticks `-1` stay. Four occupants are valid.
+- The colours `1.9` and `-2.9` give 1 and -2. The defaults of the explosion are not in the saved
+  form.
+- The flight durations 255, 300 and -1 give `-1`, `44` and `-1` in JSON. On the wire, they are
+  `FF01`, `2C` and `FF01`.
+- Seven layers are valid.
+- The case `02 01 8808 01 00 00 00` gives the JSON of one slot. The case `01 00` gives `[]`. The
+  JSON does not show if the reference keeps the element `00` at the end (D9).
+- The case of `minecraft:bees` with the key `id` in the NBT gives the entity type
+  `minecraft:pig`, from the VarInt, and no other key.
+- Each case of the kind "decode error" gives a decode error: a list that is too long, the end tag
+  in place of the compound, and the item air.
