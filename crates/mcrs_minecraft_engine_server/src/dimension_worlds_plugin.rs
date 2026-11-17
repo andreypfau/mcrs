@@ -93,7 +93,6 @@ impl Plugin for DimensionWorldsPlugin {
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }
-        // Before Startup, so that no Startup system writes into a save directory that did not open.
         app.add_systems(PreStartup, bake_dimensions);
         app.add_plugins(HeightmapPredicatesPlugin);
         app.add_plugins(EnginePlugin);

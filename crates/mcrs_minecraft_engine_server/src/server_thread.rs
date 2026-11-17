@@ -14,7 +14,6 @@ use crate::run_server_loop_with;
 use crate::shutdown::{ShutdownPlugin, ShutdownSignal, forward_shutdown, shutdown_system};
 use crate::world_options::FailedStart;
 
-// No Clone or PartialEq: `World` carries a `SaveError`, which holds an `io::Error`.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum ServerThreadError<E> {

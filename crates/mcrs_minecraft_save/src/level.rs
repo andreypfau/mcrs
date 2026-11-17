@@ -354,8 +354,6 @@ pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     parse_level_dat(&read_bytes(&path)?, &path)
 }
 
-/// Restores `level.dat` from `level.dat_old` when only the backup exists: the backup is read
-/// first, and renamed only when it reads. A failed read changes no file.
 pub fn restore_level_dat_backup(world: &Path) -> Result<(), SaveError> {
     let path = world.join("level.dat");
     let backup = world.join("level.dat_old");
@@ -368,7 +366,6 @@ pub fn restore_level_dat_backup(world: &Path) -> Result<(), SaveError> {
     fs::rename(&backup, &path).map_err(|source| SaveError::Io { path, source })
 }
 
-/// Reads only `Data.DataVersion` of `level.dat`; `None` when the field is missing.
 pub fn read_level_data_version(world: &Path) -> Result<Option<i32>, SaveError> {
     #[derive(Deserialize)]
     struct File {

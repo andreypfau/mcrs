@@ -28,9 +28,6 @@ pub enum NewWorldMode {
     Creative,
 }
 
-/// Makes a new world folder in `saves` and writes its files. The folder is locked before any
-/// file is written; the returned lock holds it (its `dir()` is the folder) so the caller can hand
-/// it to its server. On a failure the lock is released and no file is removed.
 pub fn create_world(
     saves: &Path,
     world: &NewWorld,

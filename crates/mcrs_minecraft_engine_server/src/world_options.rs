@@ -30,7 +30,6 @@ use tracing::{error, info};
 #[derive(Resource)]
 pub struct WorldLock(pub SaveLock);
 
-/// Why the world did not open. Inserted with the `AppExit::error()` of a failed start.
 #[derive(Resource, Debug)]
 pub struct FailedStart(pub WorldOpenError);
 

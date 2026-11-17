@@ -2,17 +2,12 @@ use crate::{AssetObject, Files};
 
 const FONTS: &str = "minecraft/font/";
 
-/// The objects of the asset index that loaded, and the ones that did not.
-///
-/// The font objects load as one group: when one of them fails, `files` holds none of them, so
-/// the text keeps to the glyphs of the jar. Every other object stands on its own.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct IndexLayer {
     pub files: Files,
     pub failures: Vec<ObjectFailure>,
 }
 
-/// An object of the asset index that did not load.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectFailure {
     pub path: &'static str,
