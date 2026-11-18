@@ -170,6 +170,15 @@ impl CreativeScreenState {
         self.content(content).get(index)
     }
 
+    #[must_use]
+    pub fn grid_search_entry(&self, slot: u16, content: &CreativeTabContent) -> Option<usize> {
+        if self.selected_tab().kind != CreativeTabKind::Search {
+            return None;
+        }
+        let index = CreativeGeometry::content_index(slot, self.first_row(content))?;
+        self.result.get(index).copied()
+    }
+
     fn apply_selection(
         &mut self,
         tab: CreativeTabIndex,

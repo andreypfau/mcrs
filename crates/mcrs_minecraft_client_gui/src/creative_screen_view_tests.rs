@@ -106,7 +106,7 @@ impl TabRow {
     }
 }
 
-fn item(name: &str) -> Kind {
+pub(crate) fn item(name: &str) -> Kind {
     let location = ResourceLocation::read(name).unwrap();
     Kind(TABLE.id(NameTable::Item, location).unwrap())
 }
@@ -131,7 +131,7 @@ fn tab_icon(name: &str) -> SceneIcon {
     }
 }
 
-fn creative_app() -> App {
+pub(crate) fn creative_app() -> App {
     let mut app = App::new();
     app.insert_resource::<ItemTable>(*TABLE)
         .add_plugins((ItemPlugin::default(), PlayerHoldersPlugin, SlotIconPlugin))
@@ -182,7 +182,10 @@ fn draw(app: &mut App) {
     app.update();
 }
 
-fn creative(app: &mut App, change: impl FnOnce(&mut CreativeScreenState, &CreativeTabContent)) {
+pub(crate) fn creative(
+    app: &mut App,
+    change: impl FnOnce(&mut CreativeScreenState, &CreativeTabContent),
+) {
     let world = app.world_mut();
     world.resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
         change(&mut screen, world.resource());

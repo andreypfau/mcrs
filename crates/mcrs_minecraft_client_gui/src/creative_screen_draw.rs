@@ -32,10 +32,11 @@ const HOTBAR_COLUMNS: u16 = 9;
 const HOTBAR_MENU_START: u16 = 36;
 const FIRST_INVENTORY_ENTRY: u16 = 5;
 const LAST_INVENTORY_ENTRY: u16 = 45;
-const ENTRY_SIZE: i32 = 16;
+pub(crate) const ENTRY_SIZE: i32 = 16;
 const HIGHLIGHT_INSET: i32 = 4;
 const HIGHLIGHT_SIZE: i32 = 24;
 const CARRIED_OFFSET: i32 = 8;
+const DESTROY_SLOT_KEY: &str = "inventory.binSlot";
 
 pub(crate) fn creative_sprites() -> impl Iterator<Item = &'static str> {
     CREATIVE_TABS
@@ -168,6 +169,7 @@ fn creative_screen(frame: &CreativeFrame, icons: &ItemIcons, scene: &mut GuiScen
     }
     draw_slots(frame, icons, scene, window, tab.kind);
     request_tab_tooltip(frame, scene, window);
+    request_destroy_tooltip(frame, scene, window, tab.kind);
     if let Some(slot) = frame
         .stacks
         .carried()
@@ -244,7 +246,7 @@ fn draw_slots(
     }
 }
 
-fn slot_corner(hit: CreativeHit) -> Option<GuiPoint> {
+pub(crate) fn slot_corner(hit: CreativeHit) -> Option<GuiPoint> {
     match hit {
         CreativeHit::GridSlot(slot) => CreativeGeometry::grid_slot(slot),
         CreativeHit::HotbarSlot(column) => CreativeGeometry::hotbar_slot(column),
@@ -282,6 +284,23 @@ fn request_tab_tooltip(frame: &CreativeFrame, scene: &mut GuiScene, window: GuiP
     let title = frame.language.get(tab.tab().title_key);
     scene.tooltip.request(scene.cursor, |lines| {
         lines.push(vec![Span::new(title, WHITE)]);
+    });
+}
+
+fn request_destroy_tooltip(
+    frame: &CreativeFrame,
+    scene: &mut GuiScene,
+    window: GuiPoint,
+    kind: CreativeTabKind,
+) {
+    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
+    let hit = CreativeGeometry::hit(window, pointer, kind, frame.content.visible_tabs());
+    if hit != CreativeHit::DestroySlot || frame.stacks.carried().is_some() {
+        return;
+    }
+    let text = frame.language.get(DESTROY_SLOT_KEY);
+    scene.tooltip.request(scene.cursor, |lines| {
+        lines.push(vec![Span::new(text, WHITE)]);
     });
 }
 

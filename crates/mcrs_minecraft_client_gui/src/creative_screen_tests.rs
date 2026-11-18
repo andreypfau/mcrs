@@ -378,6 +378,11 @@ fn the_search_text_filters_the_search_list_by_name_id_and_tag() {
             not_found: &["minecraft:diamond"],
         },
         SearchRow {
+            text: "random",
+            found: &["minecraft:painting"],
+            not_found: &["minecraft:stone"],
+        },
+        SearchRow {
             text: "#swords",
             found: &["minecraft:diamond_sword", "minecraft:iron_sword"],
             not_found: &["minecraft:diamond", "minecraft:stone"],

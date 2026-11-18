@@ -98,6 +98,21 @@ impl CreativeTabContent {
         self.lists.tab_list(tab.tab().id)
     }
 
+    pub fn tabs_holding<'a>(
+        &'a self,
+        stack: &'a ItemStack,
+    ) -> impl Iterator<Item = CreativeTabIndex> + 'a {
+        CreativeTabIndex::all().filter(move |tab| {
+            tab.tab().kind == CreativeTabKind::Items
+                && self.visible.contains(*tab)
+                && self
+                    .lists
+                    .tab_search_list(tab.tab().id)
+                    .iter()
+                    .any(|held| held.mergeable(stack))
+        })
+    }
+
     #[must_use]
     pub fn search_list(&self) -> &[ItemStack] {
         self.lists.search_list()

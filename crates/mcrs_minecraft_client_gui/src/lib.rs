@@ -11,6 +11,9 @@ mod controls_screen;
 mod create_world_screen;
 mod creative_clicks;
 mod creative_grid;
+mod creative_item_tooltip;
+#[cfg(test)]
+mod creative_item_tooltip_tests;
 mod creative_layout;
 pub mod creative_screen_draw;
 pub mod creative_screen_open;

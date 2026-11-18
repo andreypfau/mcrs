@@ -1,17 +1,24 @@
 use std::ops::Range;
 
 use mcrs_minecraft_creative_content::SearchQuery;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_item_tooltip::item_name;
+use mcrs_minecraft_item_tooltip::AttackBases;
+use mcrs_minecraft_item_tooltip::TooltipInputs;
+use mcrs_minecraft_item_tooltip::TooltipView;
+use mcrs_minecraft_item_tooltip::append_tooltip_parts;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_text::Text;
 
 use crate::language::ClientLanguage;
+use crate::menu_item_tooltip::player_attack_bases;
+use crate::menu_item_tooltip::prototype_components;
 
 #[derive(Clone, Debug, Default)]
 pub struct CreativeSearchIndex {
@@ -49,10 +56,19 @@ impl CreativeSearchIndex {
             tag_ids.push(tag);
             index.tag_names.push(name.clone());
         }
+        let names = RegistryNames::new(registries, items);
+        let attack = player_attack_bases(None);
+        let mut tooltip = Vec::new();
         for stack in search_list {
             let parts_start = index.parts.len();
             if let Some(language) = language {
-                index.push_name(stack, items, language);
+                let sources = PartSources {
+                    items,
+                    names: &names,
+                    attack,
+                    language,
+                };
+                index.push_parts(stack, &sources, &mut tooltip);
             }
             let tags_start = index.tags.len();
             if let (Some(tags), Some(id)) = (&item_tags, Id::checked(stack.kind.0, item_count)) {
@@ -92,14 +108,43 @@ impl CreativeSearchIndex {
         )
     }
 
-    fn push_name(&mut self, stack: &ItemStack, items: &ItemTable, language: &ClientLanguage) {
-        if let Some(name) = item_name(stack, items) {
-            let part = search_part(&language.plain_text(&name));
+    pub fn matching_tags<'a>(
+        &'a self,
+        stack: usize,
+        query: &'a SearchQuery,
+    ) -> impl Iterator<Item = &'a ResourceLocationBuf> + 'a {
+        let entry = self.entries.get(stack);
+        let item = entry.and_then(|entry| entry.item.as_ref());
+        let tags = entry
+            .and_then(|entry| self.tags.get(entry.tags.clone()))
+            .unwrap_or_default();
+        tags.iter()
+            .filter_map(|tag| self.tag_names.get(*tag))
+            .filter(move |tag| {
+                item.is_some_and(|item| query.matches(item.as_location(), [tag.as_location()], []))
+            })
+    }
+
+    fn push_parts(&mut self, stack: &ItemStack, sources: &PartSources, tooltip: &mut Vec<Text>) {
+        let mut inputs =
+            TooltipInputs::new(sources.attack, prototype_components(sources.items, stack));
+        inputs.view = TooltipView::Creative;
+        tooltip.clear();
+        append_tooltip_parts(stack, sources.items, sources.names, &inputs, tooltip);
+        for part in tooltip.iter() {
+            let part = search_part(&sources.language.plain_text(part));
             if !part.is_empty() {
                 self.parts.push(part);
             }
         }
     }
+}
+
+struct PartSources<'a> {
+    items: &'a ItemTable,
+    names: &'a RegistryNames<'a>,
+    attack: AttackBases,
+    language: &'a ClientLanguage,
 }
 
 fn search_part(text: &str) -> String {

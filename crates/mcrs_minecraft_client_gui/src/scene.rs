@@ -966,6 +966,9 @@ impl Plugin for GuiPlugin {
                         .run_if(not(creative_screen_shown)),
                     open_creative_screen,
                     draw_creative_screen.run_if(creative_screen_shown),
+                    crate::creative_item_tooltip::request_creative_item_tooltip
+                        .run_if(resource_exists::<ItemTable>)
+                        .run_if(creative_screen_shown),
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
