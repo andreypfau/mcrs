@@ -340,33 +340,49 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
             .map(|krate| (*krate).to_owned())
             .collect(),
     )?;
-    let appended: [(&str, &str, fn(&str) -> Result<String, String>); 3] = [
-        (
-            game_rules::DEFINITIONS,
-            game_rules::ENUM_FILE,
-            game_rules::definition_impl,
-        ),
-        (
-            potions::POTION_DEFINITIONS,
-            potions::POTION_ENUM_FILE,
-            potions::potion_effects_impl,
-        ),
-        (
-            potions::EFFECT_DEFINITIONS,
-            potions::EFFECT_ENUM_FILE,
-            potions::effect_colors_impl,
-        ),
+    let appended = [
+        AppendedImpl {
+            registry: game_rules::REGISTRY,
+            definitions: game_rules::DEFINITIONS,
+            enum_file: game_rules::ENUM_FILE,
+            implementation: game_rules::definition_impl,
+        },
+        AppendedImpl {
+            registry: potions::POTION,
+            definitions: potions::POTION_DEFINITIONS,
+            enum_file: potions::POTION_ENUM_FILE,
+            implementation: potions::potion_effects_impl,
+        },
+        AppendedImpl {
+            registry: potions::MOB_EFFECT,
+            definitions: potions::EFFECT_DEFINITIONS,
+            enum_file: potions::EFFECT_ENUM_FILE,
+            implementation: potions::effect_colors_impl,
+        },
     ];
-    for (definitions, enum_file, implementation) in appended {
-        let path = root.join(definitions);
+    for appended in appended {
+        let path = root.join(appended.definitions);
         let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+        registries::check_definition_keys(
+            &registries,
+            appended.registry,
+            appended.definitions,
+            &json,
+        )?;
         let source = files
-            .get_mut(enum_file)
-            .ok_or_else(|| format!("{enum_file}: not generated"))?;
-        source.push_str(&implementation(&json)?);
-        *source = keys::rustfmt(enum_file, source)?;
+            .get_mut(appended.enum_file)
+            .ok_or_else(|| format!("{}: not generated", appended.enum_file))?;
+        source.push_str(&(appended.implementation)(&json)?);
+        *source = keys::rustfmt(appended.enum_file, source)?;
     }
     Ok(files)
+}
+
+struct AppendedImpl {
+    registry: &'static str,
+    definitions: &'static str,
+    enum_file: &'static str,
+    implementation: fn(&str) -> Result<String, String>,
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {

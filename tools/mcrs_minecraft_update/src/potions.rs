@@ -9,8 +9,8 @@ pub const POTION_DEFINITIONS: &str = "assets/mcrs/registry_definition/potion.jso
 pub const POTION_ENUM_FILE: &str = "crates/mcrs_minecraft_potion/src/potion_keys.rs";
 pub const EFFECT_DEFINITIONS: &str = "assets/mcrs/registry_definition/mob_effect.json";
 pub const EFFECT_ENUM_FILE: &str = "crates/mcrs_minecraft_entity/src/mob_effect_keys.rs";
-const POTION: &str = "minecraft:potion";
-const MOB_EFFECT: &str = "minecraft:mob_effect";
+pub const POTION: &str = "minecraft:potion";
+pub const MOB_EFFECT: &str = "minecraft:mob_effect";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
