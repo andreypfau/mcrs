@@ -57,6 +57,7 @@ pub mod menu_event;
 mod menu_gesture;
 mod menu_input;
 pub mod menu_input_systems;
+mod menu_item_tooltip;
 pub mod menu_label_text;
 pub mod menu_options_systems;
 pub mod menu_plugin;

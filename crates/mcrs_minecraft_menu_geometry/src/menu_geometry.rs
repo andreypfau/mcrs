@@ -115,6 +115,12 @@ impl MenuGeometry {
         self.entries.corner(index)
     }
 
+    #[must_use]
+    pub fn entry_area(&self, index: u16) -> Option<GuiRect> {
+        let corner = self.entries.corner(index)?;
+        Some(GuiRect::new(corner.x, corner.y, ENTRY_SIZE, ENTRY_SIZE))
+    }
+
     pub fn entries(&self) -> impl Iterator<Item = EntryCorner> + use<> {
         let entries = self.entries;
         (0..entries.len()).filter_map(move |index| {
@@ -142,12 +148,12 @@ impl MenuGeometry {
         if !(0..self.width).contains(&local.x) || !(0..self.height).contains(&local.y) {
             return Clicked::Outside;
         }
-        self.entries()
-            .find(|entry| {
-                GuiRect::new(entry.corner.x, entry.corner.y, ENTRY_SIZE, ENTRY_SIZE)
-                    .contains_point(local)
+        (0..self.entries.len())
+            .find(|&index| {
+                self.entry_area(index)
+                    .is_some_and(|area| area.contains_point(local))
             })
-            .map_or(Clicked::Nowhere, |entry| Clicked::Entry(entry.index))
+            .map_or(Clicked::Nowhere, Clicked::Entry)
     }
 }
 

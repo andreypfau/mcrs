@@ -17,6 +17,7 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
@@ -983,6 +984,8 @@ impl Plugin for GuiPlugin {
                 (
                     begin_gui_frame,
                     draw_screens,
+                    crate::menu_item_tooltip::request_menu_item_tooltip
+                        .run_if(resource_exists::<ItemTable>),
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
