@@ -20,7 +20,7 @@ pub(crate) fn project_panorama_view(
         _ if !players.is_empty() => PanoramaDraw::Hidden,
         Screen::Title => PanoramaDraw::Plain,
         Screen::None
-        | Screen::Inventory
+        | Screen::Menu
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
         | Screen::WorldListError => PanoramaDraw::Hidden,

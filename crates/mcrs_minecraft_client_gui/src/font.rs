@@ -194,6 +194,32 @@ pub fn draw_tinted_text(
     tint: impl Fn(u32) -> u32,
     out: &mut Vec<GuiQuad>,
 ) {
+    draw_spans(font, origin, spans, tint, Shadow::Drawn, out);
+}
+
+pub(crate) fn draw_text_without_shadow(
+    font: &Font,
+    origin: IVec2,
+    spans: &[Span],
+    out: &mut Vec<GuiQuad>,
+) {
+    draw_spans(font, origin, spans, |color| color, Shadow::Omitted, out);
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Shadow {
+    Drawn,
+    Omitted,
+}
+
+fn draw_spans(
+    font: &Font,
+    origin: IVec2,
+    spans: &[Span],
+    tint: impl Fn(u32) -> u32,
+    shadow: Shadow,
+    out: &mut Vec<GuiQuad>,
+) {
     let mut x = origin.x as f32;
     for span in spans {
         x = draw_glyphs(
@@ -201,7 +227,7 @@ pub fn draw_tinted_text(
             Vec2::new(x, origin.y as f32),
             span.text.chars().map(|ch| (ch, span.bold)),
             tint(span.color),
-            true,
+            shadow == Shadow::Drawn,
             out,
         );
     }

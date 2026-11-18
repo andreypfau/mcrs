@@ -140,7 +140,7 @@ fn parent(screen: Screen, world: WorldPresence) -> Screen {
         }
         Screen::None
         | Screen::Title
-        | Screen::Inventory
+        | Screen::Menu
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
         | Screen::Pause
@@ -299,7 +299,7 @@ fn write_menu_options(
             Screen::MouseSettings(_) => mouse_settings_screen::write_option(&mut next, widget),
             Screen::None
             | Screen::Title
-            | Screen::Inventory
+            | Screen::Menu
             | Screen::GameModeSwitcher(_)
             | Screen::Chat
             | Screen::Pause

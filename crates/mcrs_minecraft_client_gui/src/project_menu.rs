@@ -214,7 +214,7 @@ fn screen_menu(
             )?,
             Vec::new(),
         ),
-        Screen::None | Screen::Inventory | Screen::GameModeSwitcher(_) | Screen::Chat => {
+        Screen::None | Screen::Menu | Screen::GameModeSwitcher(_) | Screen::Chat => {
             return None;
         }
     };
