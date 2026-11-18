@@ -2,7 +2,7 @@
 title: Read player data
 description: A player is an entity with components. How to query players, which ids exist for one player, and how to change a player.
 sidebar:
-  order: 10
+  order: 12
 kind: how-to
 audience: [jvm]
 stability: stable
@@ -17,6 +17,17 @@ sources:
   - crates/mcrs_minecraft_engine_world/src/entity_ids.rs
   - crates/mcrs_minecraft_server/tests/it/entity_ids.rs
   - crates/mcrs_minecraft_engine/src/persisted_registry.rs
+  - crates/mcrs_minecraft_entity_attribute/src/attribute_instances.rs
+  - crates/mcrs_minecraft_entity_attribute/src/instance_edit.rs
+  - crates/mcrs_minecraft_entity_attribute/src/saved_modifier.rs
+  - crates/mcrs_minecraft_engine_attributes/src/player_attributes_plugin.rs
+  - crates/mcrs_minecraft_vanilla_attributes/src/sprint_attribute_plugin.rs
+  - crates/mcrs_minecraft_vanilla_attributes/src/creative_range_plugin.rs
+  - crates/mcrs_minecraft_engine/src/send_own_attributes.rs
+  - crates/mcrs_minecraft_engine/src/persistence.rs
+  - crates/mcrs_minecraft_engine/src/carried_attributes.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_server/tests/it/own_attributes.rs
   - issue:158
   - issue:159
 verified:
@@ -78,6 +89,18 @@ The client sees one more number, the entity id in packets, and it does not depen
 
 Inside the world of a player you can insert or edit its components. Do not change a player from a system that runs in a different world. A change that crosses worlds is a message or an effect. The vanilla commands `gamemode` and `teleport` do this with command effects, see [Add a command](/docs/en/plugins/commands/).
 
+## Change an attribute
+
+Max health, movement speed and the two interaction ranges that set the reach are attributes of a player. With `VanillaEntityAttributesPlugin` in the server, every player entity has the component `AttributeInstances` from the crate `mcrs_minecraft_entity_attribute`, and it starts with the bases of the player type, because `PlayerAttributesPlugin` registers it as a required component of `Player`. A system in the world of the player changes an attribute with `apply`. It takes an `Attribute`, such as `Attribute::MaxHealth`, and an `InstanceEdit`: `SetBase` sets the base value, `Put` adds or replaces a modifier, and `Remove` takes a modifier away by its id. The sprint plugin puts its modifier on movement speed while a player sprints and removes it when the player stops:
+
+<Example file="crates/mcrs_minecraft_vanilla_attributes/src/sprint_attribute_plugin.rs" from="fn give_sprint_modifier(" to={"    }\n}"} title="The sprint modifier on movement speed" />
+
+`apply` returns an `InstanceChange`, and the system marks the component changed only when a value changed, so systems that wait for a change of `AttributeInstances` skip a player whose values stayed the same. Your plugin edits the component the same way. A repository test sets the base of `Attribute::MaxHealth` to 30 and reads it back after the player joins again.
+
+The server sends each changed attribute to the client of the player and to the other players whose clients show this player. Only attributes that their definition marks as synced go out. The player file keeps the bases and the modifiers of kind `ModifierKind::Permanent`. A transient modifier, such as the sprint modifier, is not saved, but it stays with the player through a change of dimension.
+
+The sprint modifier and the extra reach in creative mode (0.5 for blocks, 2.0 for entities) come from `VanillaSprintAttributePlugin` and `VanillaCreativeRangePlugin`. Each is a member of the server plugin group, so you can disable one and keep the other, as [Remove and replace vanilla parts](/docs/en/plugins/customize-server/) shows.
+
 ## Send a message to a player
 
 mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a session. The chat plugin does this for a player who has chat hidden:
@@ -86,7 +109,7 @@ mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 
-The server saves player data to the player files of the world folder, as [Worlds and saves](/docs/en/server/worlds/) describes. A component of your plugin goes into the player file only when the plugin registers it with `PersistScope::Persisted`, as [Dimensions](/docs/en/plugins/dimensions/) explains.[^159]
+The server saves player data to the player files of the world folder, as [Worlds and saves](/docs/en/server/worlds/) describes. A component of your plugin goes into the player file only when the plugin registers it with `PersistScope::Persisted`, as the page on [persisted components](/docs/en/plugins/persisted-components/) explains.[^159]
 
 Next: [Test a plugin without a client](/docs/en/plugins/testing/), where a test joins a fake player and reads these components.
 
