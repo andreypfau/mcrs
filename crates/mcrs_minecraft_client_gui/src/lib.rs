@@ -14,7 +14,6 @@ mod creative_grid;
 mod creative_item_tooltip;
 #[cfg(test)]
 mod creative_item_tooltip_tests;
-mod creative_layout;
 mod creative_screen_draw;
 mod creative_screen_open;
 pub mod creative_screen_plugin;
@@ -115,6 +114,7 @@ mod title_screen;
 pub mod tooltip;
 mod video_settings_screen;
 mod viewer;
+pub mod wheel_notches;
 mod world_entry;
 mod world_list_error_screen;
 mod world_rows;

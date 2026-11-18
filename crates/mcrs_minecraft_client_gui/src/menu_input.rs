@@ -256,7 +256,7 @@ pub(crate) fn modifiers(keys: &ButtonInput<KeyCode>) -> KeyModifiers {
     modifiers
 }
 
-fn gui_key(code: KeyCode) -> Option<GuiKey> {
+pub(crate) fn gui_key(code: KeyCode) -> Option<GuiKey> {
     Some(match code {
         KeyCode::Tab => GuiKey::Tab,
         KeyCode::Enter => GuiKey::Enter,

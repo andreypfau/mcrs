@@ -1,4 +1,4 @@
 use bevy_ecs::component::Component;
 
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, Debug)]
 pub struct CreativeScreen;

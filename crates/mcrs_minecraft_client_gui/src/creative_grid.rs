@@ -1,6 +1,7 @@
+use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_menu_geometry::{CreativeGeometry, CreativeHit, CreativeTabKind};
 
-use crate::creative_layout::CreativeLayout;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
 
@@ -15,11 +16,14 @@ impl<'a> CreativeGrid<'a> {
         self.state.grid_stack(slot, self.content)
     }
 
-    pub(crate) fn layout(self) -> CreativeLayout {
-        CreativeLayout {
-            selected: self.state.selected_tab().kind,
-            visible: self.content.visible_tabs(),
-        }
+    pub(crate) fn hit(self, width: i32, height: i32, pointer: GuiPoint) -> CreativeHit {
+        let window = CreativeGeometry::window(width, height);
+        let selected = self.state.selected_tab().kind;
+        CreativeGeometry::hit(window, pointer, selected, self.content.visible_tabs())
+    }
+
+    pub(crate) fn searches(self) -> bool {
+        self.state.selected_tab().kind == CreativeTabKind::Search
     }
 
     pub(crate) fn can_scroll(self) -> bool {

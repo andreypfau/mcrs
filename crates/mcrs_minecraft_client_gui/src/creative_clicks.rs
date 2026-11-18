@@ -2,10 +2,9 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_container_click::{Click, Clicked, StackPresence};
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction};
-use mcrs_minecraft_menu_geometry::{CreativeHit, CreativeTabIndex, CreativeTabKind};
+use mcrs_minecraft_menu_geometry::CreativeHit;
 
 use crate::creative_grid::CreativeGrid;
-use crate::creative_layout::CreativeLayout;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
 
@@ -18,20 +17,12 @@ pub(crate) struct CreativeClicks<'w> {
 }
 
 impl CreativeClicks<'_> {
-    pub(crate) fn layout(&self) -> Option<CreativeLayout> {
-        self.grid().map(CreativeGrid::layout)
-    }
-
     pub(crate) fn grid(&self) -> Option<CreativeGrid<'_>> {
         Some(CreativeGrid {
             state: self.screen.as_deref()?,
             content: self.content.as_deref()?,
         })
     }
-}
-
-pub(crate) fn search_tab() -> Option<CreativeTabIndex> {
-    CreativeTabIndex::all().find(|tab| tab.tab().kind == CreativeTabKind::Search)
 }
 
 pub(crate) fn clicked(hit: CreativeHit) -> Clicked {

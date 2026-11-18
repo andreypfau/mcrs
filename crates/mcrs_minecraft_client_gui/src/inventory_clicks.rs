@@ -6,10 +6,10 @@ use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
+use bevy::input::mouse::{MouseButtonInput, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS};
+use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiKey};
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -28,7 +28,6 @@ use crate::chat_input;
 use crate::close_menu_screen::close_menu_screen;
 use crate::creative_clicks::{self, CreativeClicks};
 use crate::creative_grid::CreativeGrid;
-use crate::creative_layout::CreativeLayout;
 use crate::creative_screen_draw;
 use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_shown::shows_creative_screen;
@@ -50,9 +49,9 @@ use crate::scene::{self, GuiConfig, GuiSize};
 use crate::search_input::SearchInput;
 use crate::search_point::SearchPoint;
 use crate::viewer::Viewer;
+use crate::wheel_notches;
 
 const INVENTORY: KeyCode = KeyCode::KeyE;
-const NOTCHES_PER_LOGICAL_PIXEL: f64 = 0.1;
 
 pub struct InventoryClicksPlugin;
 
@@ -183,17 +182,11 @@ impl ScreenPointer<'_, '_> {
     }
 
     fn notches(&self, wheel: &MouseWheel) -> f64 {
-        let vertical = f64::from(wheel.y);
-        match wheel.unit {
-            MouseScrollUnit::Line => vertical,
-            MouseScrollUnit::Pixel => {
-                let scale = (self.window.single()).map_or(1.0, |window| window.scale_factor());
-                vertical * NOTCHES_PER_LOGICAL_PIXEL / f64::from(scale)
-            }
-        }
+        let scale = (self.window.single()).map_or(1.0, |window| window.scale_factor());
+        f64::from(wheel.y) * wheel_notches::notches_per_unit(wheel.unit, scale)
     }
 
-    fn hover(&self, geometry: Option<MenuGeometry>, creative: Option<CreativeLayout>) -> Hover {
+    fn hover(&self, geometry: Option<MenuGeometry>, creative: Option<CreativeGrid>) -> Hover {
         let outside = Hover::Menu(Clicked::Outside);
         let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
             return outside;
@@ -304,32 +297,6 @@ fn key_event(key: KeyCode) -> Option<ScreenEvent> {
     Some(ScreenEvent::Key(gesture))
 }
 
-fn is_digit(key: KeyCode) -> bool {
-    matches!(
-        key,
-        KeyCode::Digit0
-            | KeyCode::Digit1
-            | KeyCode::Digit2
-            | KeyCode::Digit3
-            | KeyCode::Digit4
-            | KeyCode::Digit5
-            | KeyCode::Digit6
-            | KeyCode::Digit7
-            | KeyCode::Digit8
-            | KeyCode::Digit9
-            | KeyCode::Numpad0
-            | KeyCode::Numpad1
-            | KeyCode::Numpad2
-            | KeyCode::Numpad3
-            | KeyCode::Numpad4
-            | KeyCode::Numpad5
-            | KeyCode::Numpad6
-            | KeyCode::Numpad7
-            | KeyCode::Numpad8
-            | KeyCode::Numpad9
-    )
-}
-
 impl ClickState {
     fn reset(&mut self, gestures: &mut Gestures) {
         gestures.mouse.clear();
@@ -382,8 +349,8 @@ impl ClickState {
         moved
     }
 
-    fn collect(&mut self, gestures: &mut Gestures, hover: Hover, creative: Option<CreativeLayout>) {
-        let searches = creative.is_some_and(CreativeLayout::searches);
+    fn collect(&mut self, gestures: &mut Gestures, hover: Hover, creative: Option<CreativeGrid>) {
+        let searches = creative.is_some_and(CreativeGrid::searches);
         let key_modifiers = menu_input::modifiers(&gestures.keys);
         let modifiers = Modifiers {
             shift: gestures.keys.any_pressed(item_key_codes::SHIFT),
@@ -438,7 +405,7 @@ fn swaps_from_search(
     let SearchInput::Key { input, .. } = input else {
         return false;
     };
-    if !is_digit(input.key_code) {
+    if !matches!(menu_input::gui_key(input.key_code), Some(GuiKey::Digit(_))) {
         return false;
     }
     let Some(ScreenEvent::Key(gesture)) = key_event(input.key_code) else {
@@ -504,9 +471,7 @@ fn play(
                 return FrameEnd::Closed;
             }
             ScreenEvent::SelectSearchTab => {
-                if let Some(tab) = creative_clicks::search_tab() {
-                    return FrameEnd::SelectTab(tab);
-                }
+                return FrameEnd::SelectTab(CreativeTabIndex::SEARCH);
             }
             ScreenEvent::Press(button) => {
                 if button == MouseButton::Left
@@ -523,7 +488,7 @@ fn play(
                     *search = SearchPress::None;
                 }
                 if matches!(hover, Hover::Creative(CreativeHit::GridSlot(_)))
-                    && (frame.grid.map(CreativeGrid::layout)).is_some_and(CreativeLayout::searches)
+                    && frame.grid.is_some_and(CreativeGrid::searches)
                 {
                     return FrameEnd::Search(SearchInput::SelectAll);
                 }
@@ -590,12 +555,13 @@ fn click_in_menu(
         return;
     }
     let geometry = open.and_then(|open| MenuGeometry::of_layout(open.layout));
-    let layout =
-        (world_and_outputs.p0().1.layout()).filter(|_| stacks.shows_creative_screen(current));
-    let hover = pointer.hover(geometry, layout);
-    state.collect(&mut gestures, hover, layout);
+    let shown = stacks.shows_creative_screen(current);
+    let clicks = world_and_outputs.p0().1;
+    let creative = clicks.grid().filter(|_| shown);
+    let hover = pointer.hover(geometry, creative);
+    state.collect(&mut gestures, hover, creative);
     let mut tabs = world_and_outputs.p1().4;
-    let moved = state.scroll(&mut gestures.wheel, &pointer, layout.is_some(), &mut tabs);
+    let moved = state.scroll(&mut gestures.wheel, &pointer, shown, &mut tabs);
     let ClickState {
         last_screen,
         events,
@@ -623,7 +589,7 @@ fn click_in_menu(
                     viewer: &viewer,
                     targets: view.as_ref(),
                     items: items.as_mut(),
-                    grid: creative.grid().filter(|_| layout.is_some()),
+                    grid: creative.grid().filter(|_| shown),
                     gesture: &mut *gesture,
                     sent: &mut *sent,
                 };
