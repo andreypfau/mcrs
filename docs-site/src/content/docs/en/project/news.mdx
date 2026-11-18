@@ -31,7 +31,6 @@ sources:
   - pr:731
   - pr:735
   - pr:744
-  - pr:745
   - pr:757
   - pr:758
   - pr:767
@@ -67,7 +66,7 @@ This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1098 co
 - Player bans and the whitelist follow their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
 - The server disconnects and saves every player before shutdown (<Status pr={624} state="works" />).
 - The server writes changed chunks back to their region files, and a clean shutdown saves the world (<Status issue={78} />).
-- The server saves worlds and players. An autosave runs every 6000 ticks, a region it cannot read goes to a quarantine folder, the state of structures survives a restart, and a clean shutdown saves the players (<Status pr={744} state="works" />, <Status pr={745} state="works" />). The player file keeps the attributes of a player too (<Status pr={851} state="works" />).
+- The server saves worlds and players. An autosave runs every 6000 ticks, a region it cannot read goes to a quarantine folder, the state of structures survives a restart, and a clean shutdown saves the players (<Status pr={744} state="works" />). The player file keeps the attributes of a player too (<Status pr={851} state="works" />).
 - The server opens a folder without `level.dat` as a new world and locks the world folder through `session.lock` (<Status pr={969} state="works" />).
 - A player can break blocks in creative mode (<Status pr={643} state="works" />), and in survival mode with an empty hand (<Status pr={735} state="works" />). A player can place a block item on the face of a block (<Status pr={770} state="works" />), and a block that loses its support breaks (<Status pr={774} state="works" />). Falling blocks fall (<Status pr={798} state="works" />).
 - Item stacks are typed values, and a dropped stack becomes an item entity that the server replicates (<Status pr={704} state="works" />, <Status pr={705} state="works" />, <Status pr={749} state="works" />). `/summon` can make an item entity (<Status pr={750} state="works" />), and a broken block drops the items of its loot table (<Status pr={768} state="works" />).
@@ -122,7 +121,7 @@ A plugin here is Rust code that is compiled into the server.
 
 - A plugin can add plugins to every dimension world with `add_dimension_plugin`, or to one dimension world with `add_dimension_plugin_to` (<Status pr={552} state="works" />).
 - The chat event is cancellable. An observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} />). Join, leave, movement and block events are not done.
-- A plugin saves a component in the player file with `register_persisted` of `PersistedAppExt`, for the host and every dimension world in one call (<Status pr={745} state="works" />).
+- A plugin saves a component in the player file with `register_persisted` of `PersistedAppExt`, for the host and every dimension world in one call (<Status pr={744} state="works" />).
 - A block placement arrives as the public message `UseItemOnRequest`, and the break systems are the public set `BlockBreakSet` (<Status pr={770} state="works" />). Every inventory packet arrives as one public `InventoryInput` message (<Status pr={767} state="works" />).
 - `ServerNetworkPlugin` has the fields `forwarding`, `proxy_upstreams`, `join_limits`, `profile` and `nbt_budget` (<Status pr={855} state="works" />, <Status pr={927} state="works" />, <Status pr={939} state="works" />, <Status pr={933} state="works" />, <Status pr={1006} state="works" />).
 - A plugin opens a menu over any holder with `open_menu` or `open_titled_menu` of `MenuCommandsExt` and reads `EntryPressed`, `MenuOpened` and `MenuClosed` (<Status pr={977} state="works" />). `MenuLayout::of` builds the generic container menus (<Status pr={1003} state="works" />).
