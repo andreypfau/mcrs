@@ -17,6 +17,7 @@ use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::local_motion::LocalMotion;
 use crate::local_player::LastSentInput;
 use crate::player::{Player, player_at};
+use crate::player_load::{LoadProgress, PlayerLoad};
 use crate::session::InSession;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::SyncedData;
@@ -101,6 +102,7 @@ fn on_login(
                     LocalGameMode::spawned(&login.player_spawn_info),
                     PermissionLevel::default(),
                     InSession(event.entity),
+                    PlayerLoad::Loading(LoadProgress::default()),
                 ));
                 if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
                     player.insert(AttributeInstances::new(bases));
@@ -307,6 +309,22 @@ mod tests {
 
         client.deliver(&respawn(OVERWORLD.into(), dimension_type(4)));
         assert!(client.dropped(), "a type number past the dimension types");
+    }
+
+    #[test]
+    fn the_player_that_the_first_login_spawns_waits_for_the_level() {
+        let mut client = Client::playing(Some(session(0)));
+        client.deliver(&login(7, dimension_type(0)));
+
+        let mut players = client
+            .app
+            .world_mut()
+            .query_filtered::<&PlayerLoad, With<Player>>();
+        assert_eq!(
+            players.single(client.app.world()).ok(),
+            Some(&PlayerLoad::Loading(LoadProgress::default())),
+            "the client reports the player loaded only once the level around it is there"
+        );
     }
 
     #[test]

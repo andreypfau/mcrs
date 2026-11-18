@@ -13,3 +13,5 @@ workspace = true
 [dependencies]
 mcrs_minecraft_client_widget.workspace = true
 mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_inventory_menu.workspace = true
+mcrs_minecraft_resource.workspace = true
