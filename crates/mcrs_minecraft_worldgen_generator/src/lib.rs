@@ -742,20 +742,18 @@ pub fn multi_noise_grid(
     let mut ws = Workspace::new();
     noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
 
-    let mut last = None;
+    let mut cursor = table.cursor();
     let mut ids = Vec::with_capacity(points);
     for at in 0..points {
-        ids.push(table.biome_at_from(
-            TargetPoint::new(
-                values[at],
-                values[points + at],
-                values[2 * points + at],
-                values[3 * points + at],
-                values[4 * points + at],
-                values[5 * points + at],
-            ),
-            &mut last,
-        )?);
+        let target = TargetPoint::new(
+            values[at],
+            values[points + at],
+            values[2 * points + at],
+            values[3 * points + at],
+            values[4 * points + at],
+            values[5 * points + at],
+        );
+        ids.push(*cursor.find_value(target)?);
     }
 
     Some(BiomeGrid { volume, ids })
