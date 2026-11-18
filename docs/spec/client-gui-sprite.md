@@ -63,9 +63,11 @@ A colour is a 32-bit ARGB value in hexadecimal.
 ### 0.5 Scope
 
 In scope: the `gui` section of the sprite metadata, the three scaling types, the missing
-sprite, and the glint over an item icon in the GUI.
+sprite, and the glint over an item icon in the GUI. The `texture` section of the metadata of the
+glint texture is in scope (GSPR-GLINT-001).
 
-Out of scope: the animation and the `texture` sections of the sprite metadata, the layout of
+Out of scope: the animation section of the sprite metadata, the `texture` section of each other
+sprite, the layout of
 the atlas, and the tint colour of a draw. The glint of an item in the world, in the hand and on
 armour is out of scope. The colour of an item icon before the glint is out of scope.
 
@@ -304,7 +306,8 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
   - At `s = 0.75`, a white glint pixel adds 0.5625 to each channel. A glint value of 128 / 255
     adds about 0.1417.
   - At `s = 0`, the glint adds nothing, and the alpha does not change.
-  - At the default `s`, a translucent pixel of the icon has an alpha of at least 0.75.
+  - At the default `s`, each pixel with `α ≥ 0.1` has an alpha of at least 0.75 after the
+    glint. A pixel with `α < 0.1` is not drawn (step 1).
 
 Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/shaders/core/item.vsh`
 and `item.fsh` of the client jar). Kind: layout. Confidence: medium.
@@ -344,7 +347,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 - **Reference:** the projection point is the true atlas coordinate of the sprite point. The
   client packs the sprites of the resource pack into the atlas, and the size of the atlas
   follows the sprites. A resource pack that adds sprites can make the atlas larger. The glint
-  stripes then become finer. The position of the sprite in the atlas gives the origin
+  stripes then become coarser. The position of the sprite in the atlas gives the origin
   `(o_x, o_y)`.
 - **Reason:** the scale and the origin are accidents of the packing. mcrs keeps the look of the
   vanilla pack without the packing algorithm of the reference. The rule uses the fraction of the

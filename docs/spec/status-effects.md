@@ -243,8 +243,10 @@ player file (EFX-SAV-001). The effects do not tick while the player is away.
 
 **EFX-INS-003** (`source_suggested`, wire, confidence: high). The table lists each effect kind
 with its network id and its colour. The network id is the VarInt of the packets in section 8. The
-registry report `minecraft:mob_effect` gives it. The colour is the RGB value that the particle of
-EFX-NET-005 uses. `assets/mcrs/registry_definition/mob_effect.json` gives the colour. When the
+registry report `minecraft:mob_effect` gives it. The colour is the RGB value of the effect kind in
+the registry. Each effect kind has a colour. Only the particle `entity_effect` of EFX-NET-005
+carries the colour. The particles of `trial_omen` and `raid_omen` have no colour.
+`assets/mcrs/registry_definition/mob_effect.json` gives the colour. When the
 table and the file differ, the file is correct. `item-stack.md`, STK-SHP-063, uses the colour for
 the colour of a potion.
 
