@@ -13,20 +13,19 @@ sources:
   - crates/mcrs_minecraft_command/src/permission.rs
   - docs/spec/command-permissions.md
   - crates/mcrs_minecraft_engine_server/src/loopback_ops.rs
-  - docs/spec/loopback-operators.md
   - issue:285
   - issue:667
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists the commands that the server registers today, the permission level each one needs and the specification that states its behavior. The server registers {fact('root_commands')} root commands, or 21 names when you count the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both `plugin.rs` files and the permission calls of each command on commit `19bc615fa`. A vanilla command that is missing from the list does not exist here yet. For example, `setblock`, `give`, `say` and `stop` are not registered.
+This page lists the commands that the server registers today, the permission level each one needs and the specification that states its behavior. The server registers {fact('root_commands')} root commands, or 21 names when you count the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both `plugin.rs` files and the permission calls of each command on commit `b9bf112d8`. A vanilla command that is missing from the list does not exist here yet. For example, `setblock`, `give`, `say` and `stop` are not registered.
 
 <Aside type="caution" title="WIP">
 The table is written by hand for now, and it will be generated from the two `plugin.rs` files. The command tree with permission levels is planned, and so is a Bedrock command dialect.[^285][^667]
@@ -44,7 +43,7 @@ Every command needs a permission level. There are five levels and they are order
 | 3 | `admins` |
 | 4 | `owners` |
 
-A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. The server binary gives no player operator rights for joining from its own machine; only `ops.json` and the `op` command make operators. A host app that embeds the server can set `profile: ServerProfile::Local` on `ServerNetworkPlugin`. Then a player who joins from a loopback address and is missing from `ops.json` becomes an operator at level `owners` until the process ends or a `deop`, and the server does not write that player to `ops.json`. The [loopback-operators spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/loopback-operators.md) states the rules. Every command in the next table needs level 2 or 3, so only operators can run them.
+A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. In the server binary only `ops.json` and the `op` command make operators, as [Who becomes an operator](/docs/en/server/connections/#who-becomes-an-operator) explains. Every command in the next table needs level 2 or 3, so only operators can run them.
 
 ## Commands
 
