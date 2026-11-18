@@ -87,8 +87,8 @@ The steps, in order:
 7. Store `registries.json`, `packets.json` and `datapack.json` in
    `assets/mcrs/reports`, and replace `assets/mcrs/block_definition`,
    `assets/mcrs/item_definition` and `assets/mcrs/registry_definition` (the game
-   rules, the effects of each potion and the colour of each effect) with what the dump wrote, including the README of the block
-   definitions.
+   rules, the effects of each potion and the colour of each effect) with what
+   the dump wrote, including the README of the block definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
    regenerate the registry key sources from the three reports.
 9. Write `assets/mcrs/reports/creative_tabs.json` from a run of the game (see

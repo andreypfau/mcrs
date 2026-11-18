@@ -509,8 +509,8 @@ fn a_stack_view_evaluates_the_item_model_properties() {
             Outcome::Tint(0xFF38_5DC6),
         ),
         (
-            "a healing potion has the colour of its effect",
-            potion_stack(Potion::Healing, vec![]),
+            "a strong healing potion has the colour of its effect",
+            potion_stack(Potion::StrongHealing, vec![]),
             &potion,
             Outcome::Tint(0xFFF8_2423),
         ),
