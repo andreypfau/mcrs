@@ -99,8 +99,8 @@ In scope:
 Out of scope:
 
 - the press, the release and the keys that give one click, the prediction of a click, the
-  state id, the close by the player and the clientbound `container_close`:
-  `client-inventory.md`;
+  state id, the close by the player (CINV-CLS-004) and the clientbound `container_close`
+  (CINV-CLS-003): `client-inventory.md`;
 - the keyboard navigation between slots, and the narration of slots;
 - the draw of an item, of its count and of its damage bar in a slot;
 - the image of an item tooltip, for example the contents of a bundle, and the wheel on a bundle;
