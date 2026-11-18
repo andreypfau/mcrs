@@ -6,9 +6,9 @@ use mcrs_minecraft_inventory_menu::MenuOrder;
 use mcrs_minecraft_inventory_menu::MenuRange;
 use mcrs_minecraft_inventory_menu::Route;
 use mcrs_minecraft_inventory_menu::RouteWhen;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 
 const PLAYER: u8 = 0;
 const CRAFT_GRID: u8 = 1;

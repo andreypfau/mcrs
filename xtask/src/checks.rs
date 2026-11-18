@@ -49,7 +49,7 @@ const NO_STD_PACKAGES: [&str; 18] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 141] = [
+const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -135,6 +135,7 @@ const NO_BEVY_PACKAGES: [&str; 141] = [
     "mcrs_minecraft_loot_condition",
     "mcrs_minecraft_map_decoration",
     "mcrs_minecraft_menu_geometry",
+    "mcrs_minecraft_menu_key",
     "mcrs_minecraft_mesh",
     "mcrs_minecraft_model_file",
     "mcrs_minecraft_move_predict",
@@ -224,6 +225,15 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_client_world",
     "mcrs_minecraft_server",
     "mcrs_minecraft_engine_server",
+];
+
+const PROXY_PACKAGES: [&str; 1] = ["mcrs_minecraft_protocol_game"];
+
+const PROXY_FORBIDDEN: [&str; 4] = [
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_menu",
+    "mcrs_minecraft_inventory_player",
+    "mcrs_minecraft_inventory_transaction",
 ];
 
 const CLIENT_USABLE_PACKAGES: [&str; 3] = [
@@ -528,6 +538,15 @@ fn layers(ctx: &Context) -> Outcome {
     if !linked.is_empty() {
         return Err(format!(
             "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            linked.join(", ")
+        ));
+    }
+    for package in PROXY_PACKAGES {
+        linked_forbidden(ctx, package, &PROXY_FORBIDDEN, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "the play-state packets link an inventory layout or rules crate ({}); a proxy takes the packets alone, so move the key or value they need to a key or data crate",
             linked.join(", ")
         ));
     }

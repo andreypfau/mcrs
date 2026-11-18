@@ -46,6 +46,7 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 
 use crate::CreativeArea;
 use crate::CreativeClick;
+use crate::click_purpose::ClickPurpose;
 use crate::click_source::ClickSource;
 use crate::creative_drop_counter::CreativeDropCounter;
 use crate::local_inventory::StackNames;
@@ -54,7 +55,6 @@ use crate::outbox::Outbox;
 use crate::outgoing::Outgoing;
 use crate::predict_click::ClickScratch;
 
-const CREATIVE_SERIAL: u32 = 2;
 const ENTRIES: u16 = 46;
 const HOTBAR: core::ops::Range<u16> = 36..45;
 const HOTBAR_KEYS: u8 = 9;
@@ -287,7 +287,7 @@ fn plan_creative(
                 cursor: cursor_slot,
                 request: RequestId {
                     source: source.0,
-                    serial: CREATIVE_SERIAL,
+                    serial: ClickPurpose::Creative.serial(),
                 },
             };
             let Ok(request) = clicks.plan(viewer, click, clicker) else {

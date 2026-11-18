@@ -1,11 +1,11 @@
 use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_menu_geometry::BackgroundPart;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_menu_geometry::TextureRect;
 use mcrs_minecraft_menu_geometry::TitlePosition;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_resource::rl;
 
 struct Case {
