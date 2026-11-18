@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_table::ItemTable;
@@ -21,6 +22,9 @@ use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
+use crate::creative_item_tooltip::request_creative_item_tooltip;
+use crate::creative_screen_draw::{creative_sprites, draw_creative_screen};
+use crate::creative_screen_shown::{creative_screen_shown, shows_creative_screen};
 use crate::drag_preview::DragPreview;
 use crate::font::Font;
 use crate::font_definition::FontOptions;
@@ -236,6 +240,15 @@ impl GuiAtlasData {
                 )),
                 _ => images.push((Packed::Named(name), pixels, width, height)),
             }
+        }
+        for name in creative_sprites() {
+            load_image(
+                pack,
+                name,
+                &texture_path(name),
+                Ok(Scaling::Stretch),
+                &mut images,
+            );
         }
         let mut backgrounds = Vec::new();
         for texture in menu_backgrounds() {
@@ -607,7 +620,13 @@ pub(crate) struct ScreenStacks {
 )]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
+    player: Query<(
+        &PlayerHolders,
+        &Menus,
+        &Selected,
+        Option<&PlayerGameMode>,
+        Option<&Abilities>,
+    )>,
     menus: Query<(&MenuLayout, &MenuParts, Option<Ref<MenuTitle>>)>,
     holders: Query<&Slots>,
     atlas: Option<Res<GuiAtlas>>,
@@ -619,7 +638,7 @@ pub(crate) fn draw_screens(
 ) {
     let scene = &mut *scene;
     let stacks = &mut *stacks;
-    let Ok((player, player_menus, selected, mode)) = player.single() else {
+    let Ok((player, player_menus, selected, mode, abilities)) = player.single() else {
         return;
     };
     let occupant = |slot: SlotRef| holders.get(slot.holder).ok()?.get(usize::from(slot.index));
@@ -642,7 +661,7 @@ pub(crate) fn draw_screens(
     if let Some(language) = language {
         stacks.labels.follow(open, title, language.into());
     }
-    if *screen != Screen::Menu {
+    if *screen != Screen::Menu || shows_creative_screen(*screen, player_menus, abilities) {
         return;
     }
     let (Some(atlas), Some(geometry)) = (atlas, MenuGeometry::of_layout(layout)) else {
@@ -943,7 +962,12 @@ impl Plugin for GuiPlugin {
                     begin_gui_frame,
                     draw_screens,
                     crate::menu_item_tooltip::request_menu_item_tooltip
-                        .run_if(resource_exists::<ItemTable>),
+                        .run_if(resource_exists::<ItemTable>)
+                        .run_if(not(creative_screen_shown)),
+                    draw_creative_screen.run_if(creative_screen_shown),
+                    request_creative_item_tooltip
+                        .run_if(resource_exists::<ItemTable>)
+                        .run_if(creative_screen_shown),
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),

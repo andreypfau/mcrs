@@ -16,6 +16,7 @@ mod map_parts;
 mod map_summary;
 mod name_part;
 mod profile_part;
+mod random_painting_part;
 mod tooltip_detail;
 mod tooltip_inputs;
 mod tooltip_view;

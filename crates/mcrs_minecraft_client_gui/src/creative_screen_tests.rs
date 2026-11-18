@@ -1,12 +1,19 @@
 use std::sync::LazyLock;
 
+use bevy::input::ButtonState;
+use bevy::input::keyboard::Key;
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::keyboard::NativeKey;
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_widget::KeyModifiers;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_creative_content::OperatorCondition;
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_creative_report::CreativeReport;
+use mcrs_minecraft_engine_inventory_menu::MenuOf;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
@@ -18,20 +25,25 @@ use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
+use mcrs_minecraft_menu_geometry::CreativeGeometry;
 use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::rl;
 
+use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
+use crate::creative_search_edit;
 use crate::creative_search_index::CreativeSearchIndex;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
+use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::TABLE;
+use crate::search_input::SearchInput;
 
 const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
 const COLORED_BLOCKS: CreativeTabIndex = tab(1);
@@ -49,7 +61,8 @@ const fn tab(index: usize) -> CreativeTabIndex {
 
 static REPORT: LazyLock<LoadedCreativeReport> = LazyLock::new(LoadedCreativeReport::embedded);
 
-static VANILLA: LazyLock<CreativeTabContent> = LazyLock::new(|| vanilla(OperatorCondition::NotMet));
+pub(crate) static VANILLA: LazyLock<CreativeTabContent> =
+    LazyLock::new(|| vanilla(OperatorCondition::NotMet));
 
 fn vanilla(operator: OperatorCondition) -> CreativeTabContent {
     CreativeTabContent::build(CreativeInputs {
@@ -347,6 +360,131 @@ fn a_selection_resets_the_scroll_and_the_search_text() {
     }
 }
 
+struct SearchKeyRow {
+    name: &'static str,
+    keys: &'static [SearchKey],
+    text: &'static str,
+    scrolled: bool,
+    copied: Option<&'static str>,
+}
+
+#[derive(Clone, Copy)]
+struct SearchKey {
+    code: KeyCode,
+    text: Option<&'static str>,
+    modifiers: KeyModifiers,
+}
+
+const fn typed(code: KeyCode, text: &'static str) -> SearchKey {
+    SearchKey {
+        code,
+        text: Some(text),
+        modifiers: KeyModifiers::NONE,
+    }
+}
+
+const fn shortcut(code: KeyCode) -> SearchKey {
+    SearchKey {
+        code,
+        text: None,
+        modifiers: KeyModifiers::CONTROL,
+    }
+}
+
+const W: SearchKey = typed(KeyCode::KeyW, "w");
+const SELECT_ALL: SearchKey = shortcut(KeyCode::KeyA);
+const COPY: SearchKey = shortcut(KeyCode::KeyC);
+const CUT: SearchKey = shortcut(KeyCode::KeyX);
+
+#[test]
+fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
+    let rows = [
+        SearchKeyRow {
+            name: "twenty wide characters",
+            keys: &[W; 20],
+            text: "wwwwwwwwwwwwwwwwwwww",
+            scrolled: true,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a short text",
+            keys: &[W; 2],
+            text: "ww",
+            scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a copy without a selection",
+            keys: &[W, COPY],
+            text: "w",
+            scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a cut without a selection",
+            keys: &[W, CUT],
+            text: "w",
+            scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a cut of the whole text",
+            keys: &[W, W, SELECT_ALL, CUT],
+            text: "",
+            scrolled: false,
+            copied: Some("ww"),
+        },
+    ];
+    let width = |text: &str| 6 * i32::try_from(text.chars().count()).unwrap();
+    for row in rows {
+        let mut state = opened(&VANILLA);
+        state.select(SEARCH, &VANILLA);
+        let mut copied = None;
+        for key in row.keys {
+            let input = SearchInput::Key {
+                input: KeyboardInput {
+                    key_code: key.code,
+                    logical_key: Key::Unidentified(NativeKey::Unidentified),
+                    state: ButtonState::Pressed,
+                    text: key.text.map(Into::into),
+                    repeat: false,
+                    window: Entity::PLACEHOLDER,
+                },
+                modifiers: key.modifiers,
+            };
+            state.edit_search(&VANILLA, |edit| {
+                copied = creative_search_edit::apply_search(
+                    edit,
+                    &input,
+                    CreativeGeometry::SEARCH_BOX,
+                    None,
+                    &width,
+                    || None,
+                )
+                .or(copied.take());
+            });
+        }
+        let search = state.search_box();
+        assert_eq!(search.text(), row.text, "{}: the search text", row.name);
+        assert_eq!(
+            copied.as_deref(),
+            row.copied,
+            "{}: the copied text",
+            row.name
+        );
+        let first = search
+            .layout(CreativeGeometry::SEARCH_BOX, 0, &width)
+            .visible
+            .start;
+        assert_eq!(
+            first > 0,
+            row.scrolled,
+            "{}: the first visible position {first}",
+            row.name
+        );
+    }
+}
+
 struct SearchRow {
     text: &'static str,
     found: &'static [&'static str],
@@ -375,6 +513,11 @@ fn the_search_text_filters_the_search_list_by_name_id_and_tag() {
             text: "minecraft:sword",
             found: &["minecraft:diamond_sword", "minecraft:iron_sword"],
             not_found: &["minecraft:diamond"],
+        },
+        SearchRow {
+            text: "random",
+            found: &["minecraft:painting"],
+            not_found: &["minecraft:stone"],
         },
         SearchRow {
             text: "#swords",
@@ -457,7 +600,9 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource::<ItemTable>(*TABLE)
         .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
-        .init_resource::<ClientOptions>();
+        .insert_resource(Screen::Menu)
+        .init_resource::<ClientOptions>()
+        .add_systems(Update, mark_creative_screen.after(CreativeContentSystems));
     let player = app
         .world_mut()
         .spawn((
@@ -466,6 +611,7 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
             PermissionLevel::GAMEMASTERS,
         ))
         .id();
+    app.world_mut().spawn(MenuOf(player));
     app.update();
     let content = app.world().resource::<CreativeTabContent>();
     assert!(
@@ -487,15 +633,11 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         content.search_list().len() > search_without_operator,
         "the search list holds the operator stacks only with the condition"
     );
-    let selected = {
-        let world = app.world_mut();
-        world.resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
-            let content = world.resource::<CreativeTabContent>();
-            screen.select(OP_BLOCKS, content);
-            screen.selected()
-        })
-    };
-    assert_eq!(selected, OP_BLOCKS);
+    select(&mut app, OP_BLOCKS);
+    assert_eq!(
+        app.world().resource::<CreativeScreenState>().selected(),
+        OP_BLOCKS
+    );
 
     app.world_mut()
         .entity_mut(player)
@@ -512,4 +654,30 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         BUILDING_BLOCKS,
         "the deop moves the selection"
     );
+
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PermissionLevel::GAMEMASTERS);
+    app.update();
+    select(&mut app, OP_BLOCKS);
+    *app.world_mut().resource_mut::<Screen>() = Screen::None;
+    app.update();
+    for level in [PermissionLevel(0), PermissionLevel::GAMEMASTERS] {
+        app.world_mut().entity_mut(player).insert(level);
+        app.update();
+    }
+    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.update();
+    assert_eq!(
+        app.world().resource::<CreativeScreenState>().selected(),
+        OP_BLOCKS,
+        "a deop and a reop while the screen is closed keep the last tab"
+    );
+}
+
+fn select(app: &mut App, tab: CreativeTabIndex) {
+    app.world_mut()
+        .resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
+            screen.select(tab, world.resource::<CreativeTabContent>());
+        });
 }

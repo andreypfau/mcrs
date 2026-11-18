@@ -287,3 +287,57 @@ fn a_click_on_a_styled_line_inserts_or_suggests_by_modifier() {
         assert_eq!(screen.input(), input, "{style:?} {mode:?}");
     }
 }
+
+struct ClipboardRow {
+    keys: &'static [Key],
+    copied: Option<&'static str>,
+    input: &'static str,
+}
+
+#[test]
+fn copy_and_cut_reach_the_clipboard_only_with_a_selection() {
+    let tree = Tree::new().build();
+    let source = source();
+    let cx = context(&tree, &source);
+    let rows = [
+        ClipboardRow {
+            keys: &[Key::Copy],
+            copied: None,
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::Cut],
+            copied: None,
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::SelectAll, Key::Copy],
+            copied: Some("abc"),
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::SelectAll, Key::Cut],
+            copied: Some("abc"),
+            input: "",
+        },
+    ];
+    for row in rows {
+        let mut history = History::default();
+        let mut screen = ChatScreen::default();
+        screen.open("", InputStyle::Plain, &cx);
+        screen.type_text("abc", &cx);
+        let mut copied = None;
+        for &key in row.keys {
+            if let Outcome::Copy(text) = screen.key(key, &mut history, &cx) {
+                copied = Some(text);
+            }
+        }
+        assert_eq!(
+            copied.as_deref(),
+            row.copied,
+            "{:?}: the copied text",
+            row.keys
+        );
+        assert_eq!(screen.input(), row.input, "{:?}: the input", row.keys);
+    }
+}
