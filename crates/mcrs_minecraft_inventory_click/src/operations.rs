@@ -59,6 +59,18 @@ impl<I: Copy + PartialEq, T: Copy> Operations<I, T> {
         }
         taken
     }
+
+    pub(crate) fn split_to(&self, slot: I) -> u8 {
+        let mut given: u8 = 0;
+        for op in self.iter() {
+            if let Op::Split { to, count, .. } = op
+                && to == slot
+            {
+                given = given.saturating_add(count);
+            }
+        }
+        given
+    }
 }
 
 impl<I, T> Default for Operations<I, T> {

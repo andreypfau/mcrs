@@ -149,10 +149,6 @@ impl<'w> ClickSlots<'w> {
         }
     }
 
-    pub(crate) fn holds_empty(&self, slot: SlotRef) -> bool {
-        matches!(self.state(slot), SlotState::Holds { stack: None, .. })
-    }
-
     fn answer(&self, gate: Gate, slot: SlotRef, stack: Entity) -> Filter {
         let query = GateQuery {
             slot,
