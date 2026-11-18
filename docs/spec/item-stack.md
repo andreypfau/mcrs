@@ -6,7 +6,7 @@ This document states the item stack as data: its parts, its component patch, its
 format that carries it. It states the meaning of four component types, and it lists each component
 type of this game version.
 
-Sections 8.1 to 8.5 state the shape of 38 component types. For
+Sections 8.1 to 8.6 state the shape of 40 component types. For
 each other component type that section 7 does not state, this document gives only the row of
 section 8.
 
@@ -67,6 +67,7 @@ section 8.
   (STK-SHP-034).
 - **Dye colour**: one of the 16 names of STK-SHP-048.
 - **Entity data**: an entity type and a compound of free NBT (STK-SHP-049).
+- **NBT depth**: the number of levels of the saved form of a stack in NBT (STK-TPL-009).
 
 ### 0.2 Provenance
 
@@ -106,7 +107,7 @@ section 8.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
-| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.5 |
+| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.6 |
 
 ### 0.5 Notation
 
@@ -614,6 +615,74 @@ An optional item template with the byte `00` holds nothing, and the reader does 
 example, the wire form `01 00 01 00 00` of `minecraft:bundle_contents` has one element with the item
 air and the count 1. It is a decode error with the text `Item must be non-empty`.
 
+**STK-TPL-009** (`source_suggested`, wire). The NBT depth of a stack is the depth of the saved form
+of the stack in NBT. That saved form is the tree that the writer of the saved stack writes
+(STK-SAV-001), not the tree of the input. Count the depth in this way:
+
+1. The Compound tag of the saved stack has the level 1.
+2. A tag inside a Compound tag or a List tag has the level of that tag plus 1.
+3. The NBT depth is the highest level of a Compound tag or a List tag in the tree.
+
+Only a Compound tag and a List tag count. A tag of each other kind adds no level, also an array
+tag. An empty Compound tag and an empty List tag count. A wrapper of `text-component.md`,
+TXT-NBT-002, is a Compound tag, thus it counts. The NBT reader counts in the same way. It refuses a
+Compound tag or a List tag at a level above 512 (TXT-NBT-005).
+
+The writer writes the map form of each value, also when the input has a short form. Thus the string
+form of an item template (STK-TPL-002) counts as a map with the key `id`. Each kind of nesting adds
+these levels from one item template to the item template inside it:
+
+| Component type | Tags from an item template to the next item template | Levels |
+|---|---|---|
+| `minecraft:use_remainder`, `minecraft:sulfur_cube_content` | the map `components`, the next item template | 2 |
+| `minecraft:pot_decorations` | the map `components`, the map of the component, the next item template | 3 |
+| `minecraft:bundle_contents`, `minecraft:charged_projectiles` | the map `components`, the list, the next item template | 3 |
+| `minecraft:container` | the map `components`, the list, the map of the slot, the next item template | 4 |
+
+A component of each other type adds the levels of its own saved form. For example,
+`minecraft:custom_data` of the outer stack is a Compound tag at the level 3. Thus its own tree can
+have at most 510 levels in a stack with an NBT depth of 512.
+
+A file or a packet can hold the saved stack below its own root. The NBT reader of that file counts
+the levels from the root of the file. Thus the file can be deeper than 512 levels when the stack is
+not. See U5.
+
+**STK-TPL-010** (`design`, deviation). Each reader of a stack must refuse a stack with an NBT depth
+larger than 512. A stack with the NBT depth 512 is valid. The readers give these results:
+
+| Reader | Result of a refusal |
+|---|---|
+| the wire stack (STK-NET-001 and STK-NET-006) | a decode error |
+| the wire stack with length prefix (STK-NET-007) | a decode error |
+| the saved stack (STK-SAV-001, STK-SAV-008 and STK-SAV-010), in each format | an error and no stack |
+
+The rule applies to each kind of nesting, also to a component type that a later game version adds.
+The same limit applies to an item template that a reader reads alone, for example in a data pack
+file. The map of that item template has the level 1, as the map of a saved stack. The reader must
+stop at the first level above 512. It must not overflow its own stack, also for a chain that fills
+a whole packet. The text of the error is not specified.
+
+Reason: a reader must not overflow its stack. Each stack must also have a saved form that the NBT
+reader can read again. Deviation D11 records the reference behaviour.
+
+A bundle chain of `n` levels is a stack of `minecraft:bundle` with one item template in
+`minecraft:bundle_contents`. The item templates of the levels 1 to `n − 1` are bundles of the same
+form, each with the item template of the next level. The item template of the level `n` is
+`{"id":"minecraft:stone"}`. A container chain of `n` levels has the same form, with
+`minecraft:shulker_box` and one map with the slot 0 in `minecraft:container`. In a bundle chain, the
+item template of the level `k` has the NBT level `1 + 3k`. In a container chain, it has the NBT
+level `1 + 4k`. These stacks show the boundary:
+
+| Stack | NBT depth | Result |
+|---|---|---|
+| a bundle chain of 170 levels | 511 | valid |
+| a bundle chain of 170 levels, the level 170 with the patch `{"minecraft:max_stack_size":64}` | 512 | valid |
+| a bundle chain of 170 levels, the level 170 with the patch `{"minecraft:lore":[]}` | 513 | refused |
+| a bundle chain of 171 levels | 514 | refused |
+| a container chain of 127 levels | 509 | valid |
+| a container chain of 127 levels, the level 127 with the patch `{"minecraft:custom_data":{"a":{}}}` | 512 | valid |
+| a container chain of 128 levels | 513 | refused |
+
 ### 6.7 The hashed stack
 
 **STK-HSH-001** (`source_suggested_black_box_confirmed`, wire). The hashed stack has these fields,
@@ -1060,7 +1129,7 @@ This section states the shape of 15 component types. The counts of prototypes co
 files of `assets/mcrs/item_definition/`.
 
 **STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
-STK-SHP-020, and each rule of sections 8.2 to 8.5 that names a component type, states it in a table. The
+STK-SHP-020, and each rule of sections 8.2 to 8.6 that names a component type, states it in a table. The
 columns are:
 
 - "Field": the key of the field in the saved form. `(value)` means that the component is one
@@ -1154,7 +1223,7 @@ size is not specified. Two texts are equal when their content, their style and t
 equal (STK-PAT-007).
 
 **STK-SHP-005** (`design`, unspecified). A server must not send a component of sections 8.1 to
-8.5 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
+8.6 with a value out of the range of its saved form. Reason: the client cannot save or hash that component.
 For an id that is not in a list of names, the reference reader of the wire form gives the name
 with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
 writes such an id.
@@ -1255,12 +1324,22 @@ gives a decode error for a level out of `1..255`. A writer must not write the le
 that component has no saved form. A writer must not write one enchantment two times. The order of
 the entries in the wire form is the choice of the writer.
 
+The wire form of the map is a VarInt with the number of entries, then each entry. An entry is the
+numeric id of the enchantment as a VarInt, then the level as a VarInt. The numeric id has no
+offset of 1, and the wire form has no inline enchantment. This is different from a referenced
+value (STK-SHP-033). For example, `{"minecraft:sharpness":5}` has the wire form `01 21 05`, because
+`minecraft:sharpness` has the numeric id 33 in the vanilla registry. The level 255 is `FF01`. The
+empty map is `00`. The saved form in NBT is a Compound tag with an Int tag for each level. The
+hash node is a map node. Each key is a string node with the namespace, and each level is an int
+node.
+
 The reference reader of the wire form accepts the level 0. Deviation D5 records that behaviour.
 The reference reader also accepts one enchantment two times, and the level of the last entry
-wins. In the saved form, two keys that name one enchantment are an error. For example, a map with `sharpness` and `minecraft:sharpness` is not a
-valid saved form. These statements have the provenance `source_suggested`. Equality: the two maps have the same
-enchantments with the same levels. The order has no effect. Prototypes: each prototype has this
-component with the empty map `{}`.
+wins. In the saved form, two keys that name one enchantment are an error. For example, a map with
+`sharpness` and `minecraft:sharpness` is not a valid saved form. Experiment E30 confirms these two
+statements with `minecraft:stored_enchantments`, which has the same readers (STK-SHP-060).
+Equality: the two maps have the same enchantments with the same levels. The order has no effect.
+Prototypes: each prototype has this component with the empty map `{}`.
 
 **STK-SHP-016** (`source_suggested_black_box_confirmed`, wire). `minecraft:attribute_modifiers`
 is a list of entries. The saved form is a list of maps. The wire form is the number of entries,
@@ -2157,8 +2236,8 @@ item template (section 6.6). These statements apply to such an element:
 - The patch of the item template keeps each patch entry, also an entry without effect
   (STK-TPL-007). The writers write each such entry. For example, an arrow with
   `minecraft:max_stack_size` 64 keeps that entry in the JSON, the NBT, the wire form and the hash.
-- The rules of this section put no limit on the depth of nested item templates. The limits of the
-  format that carries the outer value apply. Deviation D11 records the limit of mcrs.
+- The rules of this section put no limit on the number of levels of nested item templates.
+  STK-TPL-010 limits the NBT depth of the stack that holds them.
 
 The hash of the component is the hash of its whole saved form (STK-HSH-004). The tree of an element
 is the map of STK-TPL-002. The key `components` holds a map. Its keys are `<type>` and `!<type>`
@@ -2362,6 +2441,59 @@ equal layers in the same order. Two layers are equal when each field is equal (S
 Prototypes: 17 prototypes have this component with the empty list `[]`. The other 1669 prototypes
 do not have it.
 
+### 8.6 Shapes of the stored enchantment and painting variant types
+
+This section states the shape of 2 more component types. STK-SHP-001 to STK-SHP-005 apply to each
+rule of this section. The fixture `item_plain` has the cases of experiment E30. Each case has the
+JSON, the NBT, the wire form and the hash that the game wrote. The fixture `item_registry_refs` has
+one sample of `minecraft:stored_enchantments`.
+
+**STK-SHP-060** (`source_suggested_black_box_confirmed`, wire). `minecraft:stored_enchantments` has
+the shape of `minecraft:enchantments` (STK-SHP-015). The saved form, the ranges, the wire form, the
+hash node and the equality are the same. Deviation D5 also applies to this component type. Only the
+type id is different: 13 for `minecraft:enchantments` and 45 for `minecraft:stored_enchantments`.
+
+The component holds the enchantments that an enchanted book stores. They do not act on the holder of
+the stack. Another document states how an anvil applies them to another stack.
+
+For example, `{"sharpness":255}` gives the saved form `{"minecraft:sharpness":255}`, the wire form
+`01 21 FF01` and the hash -604126434. The empty map `{}` has the wire form `00` and the hash
+-982207288. The wire form `02 21 01 21 02` gives `{"minecraft:sharpness":2}`. The wire form
+`01 FF01 01` names no enchantment, thus it is a decode error.
+
+Prototypes: 1 prototype has this component. It is `minecraft:enchanted_book`, with the empty map
+`{}`. The other 1685 prototypes do not have it.
+
+**STK-SHP-061** (`source_suggested_black_box_confirmed`, wire). `minecraft:painting/variant`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | entry of the registry `minecraft:painting_variant` | each entry | necessary | VarInt: the numeric id of the entry plus 1 |
+
+`minecraft:painting_variant` is a data-pack registry. The numeric id is the id that the server sent
+for this connection (`registry.md`). The component sets the variant of the painting that the item
+places. Another document states the painting.
+
+The saved form is one String tag: the identifier of the entry. The reader accepts an identifier
+without a namespace. The saved form has no inline painting variant. Thus a map is an error, also a
+map with the fields of a painting variant. A number is an error. An identifier that names no entry
+is an error. The hash node is a string node with the namespace.
+
+The wire form is the wire form of a reference of STK-SHP-033: the numeric id plus 1. STK-SHP-062
+states the VarInt 0. For example, `"minecraft:kebab"` has the numeric id 24 in the vanilla
+registry. It has the wire form `19` and the hash -670067346. `"aztec"` gives `"minecraft:aztec"`,
+the wire form `02` and the hash -260769345. The wire form `01` gives `minecraft:alban`, the entry
+with the numeric id 0. The wire form `FF01` names no entry, thus it is a decode error.
+
+Limits: none. Equality: the two values name the same entry. Prototypes: no prototype has this
+component.
+
+**STK-SHP-062** (`design`, deviation). The reader of the wire form of `minecraft:painting/variant`
+gives a decode error for the VarInt 0. A writer must not write the VarInt 0. In the reference, the
+VarInt 0 starts an inline painting variant, and such a value has no saved form (STK-SHP-061).
+Reason: a reader must not accept a value that the writer of the saved form and the hash cannot
+write. Deviation D14 records the reference behaviour.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -2486,19 +2618,22 @@ do not have it.
 
 **D11.**
 
-- **Rule**: STK-SHP-050.
+- **Rule**: STK-TPL-010.
 - **Reference**: the reference puts no limit on the depth of nested item templates in the wire
-  form. Only the size of the packet limits the depth.
-- **mcrs**: the readers of the wire form and of the saved form refuse more than 170 levels of
-  nested item templates. Reason: a reader must not overflow its stack. In
-  `minecraft:bundle_contents` and `minecraft:charged_projectiles`, one level of nesting takes 3 NBT
-  levels, and an NBT tree of depth 512 holds 170 levels. In `minecraft:container`, one level of nesting takes 4 NBT levels.
-  Thus the NBT depth limit can refuse a chain of containers with fewer than 170 levels.
-- **Visible to the client**: no. The vanilla client and the vanilla server write no item template
-  at a depth of more than 170 levels.
+  form and in the JSON form. Only the size of the packet or of the file limits the depth. Thus the
+  reference can hold and write a stack with an NBT depth larger than 512 (STK-TPL-009). Its NBT
+  reader then refuses each file that holds that stack.
+- **mcrs**: each reader of a stack refuses a stack with an NBT depth larger than 512. The count
+  is the same for each kind of nesting. Reason: a reader must not overflow its stack. Each stack
+  must also have a saved form that the NBT reader can read again.
+- **Visible to the client**: no. A stack of normal play has an NBT depth far below 512. Only a
+  command, a data pack or a modified client can make a deeper stack.
 - **Bug reference**: none.
-- **Test**: a wire form with 171 levels of nested item templates gives a decode error. A wire form
-  with 170 levels decodes.
+- **Test**: each stack of the boundary table of STK-TPL-010 gives the result of the table. The test
+  reads each stack as a wire stack, as a wire stack with length prefix, and as a saved stack in NBT
+  and in JSON. A bundle chain of 100000 levels in one wire stack gives a
+  decode error, and the reader does not overflow its stack. A differential test does not compare a
+  refused stack with the result of the game.
 
 **D12.**
 
@@ -2528,6 +2663,22 @@ do not have it.
 - **Test**: the case of the fixture `item_plain` with the seed `18446744073709551617` expects the
   seed 9223372036854775807. The test does not compare that case with the result of the game.
 
+**D14.**
+
+- **Rule**: STK-SHP-062.
+- **Reference**: the reference reader of the wire form of `minecraft:painting/variant` reads the
+  VarInt 0, then an inline painting variant. That value has no saved form and no hash. In the wire
+  stack with length prefix, the check of STK-NET-009 then refuses the stack. In each other packet,
+  the vanilla client keeps the value.
+- **mcrs**: the reader of the wire form gives a decode error for the VarInt 0 in each format that
+  carries the component. Reason: a reader must not accept a value that the writer of the saved form
+  and the hash cannot write.
+- **Visible to the client**: no. The vanilla client and the vanilla server make a painting variant
+  of an item only from its saved form, which has no inline form. Thus they write no VarInt 0.
+- **Bug reference**: none.
+- **Test**: a wire form `00` of `minecraft:painting/variant` gives a decode error. A differential
+  test does not compare a wire form with the VarInt 0.
+
 ## 10. Unresolved
 
 - **Q1**: STK-SAV-006. Which callers keep a stack whose patch has a bad key, and which drop the
@@ -2540,15 +2691,19 @@ do not have it.
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail?
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types? Sections 8.1 to 8.5 state 38 types, with `map_id`,
-  `map_decorations`, `profile`, `equippable`, the 11 types of section 8.4 and the 8 types of
-  section 8.5.
+  document owns each group of types? Sections 8.1 to 8.6 state 40 types, with `map_id`,
+  `map_decorations`, `profile`, `equippable`, the 11 types of section 8.4, the 8 types of
+  section 8.5 and the 2 types of section 8.6.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 - **U2**: STK-CMD-003. If `[]` is valid in the command form.
 - **U3**: the command form with the item `minecraft:air`.
 - **U4**: STK-SHP-042. What the vanilla client does with a hidden effect in the wire form of
   `minecraft:potion_contents`: it keeps the effect, drops it or fails.
+- **U5**: STK-TPL-009. A file holds a stack below its own root, for example in the inventory of a
+  player or in a block entity of a chunk. The NBT reader of the file counts from the root of the
+  file. Thus it can refuse a file with a stack that STK-TPL-010 accepts. What does the writer of
+  such a file do with that stack? The document of each file decides.
 
 ## 11. Experiments
 
@@ -2852,3 +3007,51 @@ Results:
   `minecraft:pig`, from the VarInt, and no other key.
 - Each case of the kind "decode error" gives a decode error: a list that is too long, the end tag
   in place of the compound, and the item air.
+
+**E30.** Rules: STK-SHP-015, STK-SHP-060 and STK-SHP-061.
+
+Steps:
+
+1. Add each case of the table below to the input of the fixture `item_plain` of `tools/fixtures.json`.
+2. Write the fixture again with `tools/vanilla-oracle`.
+3. For a case of the kind "value", read the JSON, the NBT, the wire form and the hash.
+4. For a case of the kind "error", read the rejection.
+5. For a case of the kind "decode", give the wire form to the reader. Read the JSON of the result.
+6. For a case of the kind "decode error", give the wire form to the reader. Read the decode error.
+
+The fixture keeps the cases of the four kinds in its lists `values`, `errors`, `decodes` and
+`decode_errors`. The field `kind` of a case gives the component type.
+
+| Component type | Kind | Input | Rule |
+|----------------|------|-------|------|
+| `stored_enchantments` | value | `{"sharpness":255}` | STK-SHP-060 |
+| `stored_enchantments` | value | `{}` | STK-SHP-060 |
+| `painting/variant` | value | `"minecraft:kebab"` | STK-SHP-061 |
+| `painting/variant` | value | `"aztec"` | STK-SHP-061 |
+| `stored_enchantments` | error | `{"minecraft:sharpness":0}` | STK-SHP-015 |
+| `stored_enchantments` | error | `{"minecraft:sharpness":256}` | STK-SHP-015 |
+| `stored_enchantments` | error | `{"minecraft:no_such_enchantment":1}` | STK-SHP-015 |
+| `stored_enchantments` | error | `{"sharpness":1,"minecraft:sharpness":2}` | STK-SHP-015 |
+| `stored_enchantments` | error | `[]` | STK-SHP-015 |
+| `painting/variant` | error | `"minecraft:no_such_painting"` | STK-SHP-061 |
+| `painting/variant` | error | `{"width":1,"height":1,"asset_id":"mcrs:x"}` | STK-SHP-061 |
+| `painting/variant` | error | `5` | STK-SHP-061 |
+| `painting/variant` | decode | `01` | STK-SHP-061 |
+| `stored_enchantments` | decode | `02 21 01 21 02` | STK-SHP-015 |
+| `painting/variant` | decode error | `FF01` | STK-SHP-061 |
+| `stored_enchantments` | decode error | `01 FF01 01` | STK-SHP-015 |
+
+Results:
+
+- The game accepts each case of the kind "value" and rejects each case of the kind "error".
+- `sharpness` gets the namespace `minecraft`. The level 255 is an Int tag in NBT and `FF01` on the
+  wire. The numeric id of `minecraft:sharpness` is `21` on the wire, with no offset.
+- The levels 0 and 256 are errors. An enchantment that does not exist is an error. The keys
+  `sharpness` and `minecraft:sharpness` in one map give an error for a duplicate key.
+- The wire form `02 21 01 21 02` gives the level 2 of the last entry.
+- `minecraft:kebab` has the wire form `19`: its numeric id 24 plus 1. `aztec` gets the namespace
+  `minecraft`. The saved form and the hash node of each painting variant are a string.
+- A map with the fields of a painting variant is an error: the saved form must be a string.
+- The wire form `01` gives `minecraft:alban`. `FF01` gives a decode error for the id 254 of
+  `minecraft:painting_variant`, and `01 FF01 01` gives a decode error for the id 255 of
+  `minecraft:enchantment`. Thus only the painting variant has the offset 1.
