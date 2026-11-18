@@ -14,6 +14,8 @@ pub trait Slots {
 
     fn place(&self, slot: Self::Slot, stack: Self::Stack) -> Filter;
 
+    fn same_holder(&self, left: Self::Slot, right: Self::Slot) -> bool;
+
     fn equal(&self, left: Self::Stack, right: Self::Stack) -> bool;
 
     fn can_stack(&self, stack: Planned<Self::Stack>) -> bool;
