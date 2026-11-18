@@ -1,6 +1,7 @@
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
+use crate::durability::Durability;
 use crate::font::{Font, Span, draw_text};
 use crate::scene::GuiQuad;
 
@@ -20,11 +21,11 @@ pub fn bar_color(damage: i32, max_damage: i32) -> u32 {
 
 pub struct Decorated {
     pub count: u8,
-    pub damage: Option<(i32, i32)>,
+    pub damage: Option<Durability>,
 }
 
 pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<GuiQuad>) {
-    if let Some((damage, max_damage)) = stack.damage {
+    if let Some(Durability { damage, max_damage }) = stack.damage {
         let (left, top) = (origin.x + 2, origin.y + 13);
         out.push(GuiQuad::Fill {
             rect: IRect::new(left, top, left + 13, top + 2),
@@ -85,7 +86,10 @@ mod tests {
         let mut out = Vec::new();
         let stack = Decorated {
             count: 1,
-            damage: Some((50, 100)),
+            damage: Some(Durability {
+                damage: 50,
+                max_damage: 100,
+            }),
         };
         decorations(IVec2::new(10, 20), &stack, corpus_font(), &mut out);
         assert_eq!(

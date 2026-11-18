@@ -114,16 +114,19 @@ impl<'a> StackView<'a> {
             && !self.has(DataComponentType::Unbreakable)
     }
 
-    pub(crate) fn max_damage(&self) -> i32 {
+    #[must_use]
+    pub fn max_damage(&self) -> i32 {
         self.get::<MaxDamage>().map_or(0, |max| max.0)
     }
 
-    pub(crate) fn damage_value(&self) -> i32 {
+    #[must_use]
+    pub fn damage_value(&self) -> i32 {
         let damage = self.get::<Damage>().map_or(0, |damage| damage.0);
         damage.min(self.max_damage()).max(0)
     }
 
-    pub(crate) fn is_damaged(&self) -> bool {
+    #[must_use]
+    pub fn is_damaged(&self) -> bool {
         self.is_damageable() && self.damage_value() > 0
     }
 

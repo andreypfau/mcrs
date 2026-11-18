@@ -1,11 +1,12 @@
 use bevy::math::IVec2;
-use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_item::slots;
 
+use crate::player_stacks::PlayerStacks;
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
-pub fn hotbar(size: GuiSize, selected: u8, slots: &SlotTable, out: &mut Vec<GuiQuad>) {
+pub fn hotbar(size: GuiSize, selected: u8, stacks: &PlayerStacks, out: &mut Vec<GuiQuad>) {
     let (cx, h) = (size.width / 2, size.height);
-    let offhand = slots.get(slots::OFFHAND);
+    let offhand = stacks.get(slots::OFFHAND);
     out.push(sprite(
         IVec2::new(cx - 91, h - 22),
         IVec2::new(182, 22),
@@ -25,7 +26,7 @@ pub fn hotbar(size: GuiSize, selected: u8, slots: &SlotTable, out: &mut Vec<GuiQ
     }
     let y = h - 16 - 3;
     for i in 0..9u16 {
-        if let Some(stack) = slots.get(slots::HOTBAR.start + i) {
+        if let Some(stack) = stacks.get(slots::HOTBAR.start + i) {
             out.push(GuiQuad::Item {
                 origin: IVec2::new(cx - 90 + i32::from(i) * 20 + 2, y),
                 stack,

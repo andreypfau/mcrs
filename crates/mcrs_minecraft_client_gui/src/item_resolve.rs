@@ -1,20 +1,24 @@
-use std::sync::Arc;
-
+use crate::durability::Durability;
 use bevy::app::{App, Plugin, Update};
-use bevy::ecs::world::EntityRef;
 use bevy::math::{EulerRot, Mat3, Mat4, Quat, Vec3};
 use bevy::prelude::{
-    Commands, Component, DetectChanges, Entity, Has, IntoScheduleConfigs, Query, Ref, Res,
-    SystemCondition, With, resource_exists,
+    Commands, Component, DetectChanges, Entity, IntoScheduleConfigs, Local, MessageReader, Query,
+    Res, SystemCondition, on_message, resource_changed, resource_exists,
 };
 use bytemuck::{Pod, Zeroable};
-use mcrs_minecraft_item::{Held, ItemStack, Items, StackRevision};
+use mcrs_minecraft_engine_item::SlotChanged;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_inventory_client::InventoryClientSet;
+use mcrs_minecraft_item_stack::ItemModel;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
-use mcrs_minecraft_protocol_game::item::ItemModel;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
-use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
+use mcrs_minecraft_model::item_model_eval::Evaluator;
+use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_model_file::model_file::{DisplayTransform, GuiLight};
 
 #[repr(C)]
@@ -36,6 +40,7 @@ pub struct RenderLayer {
 pub struct ItemRenderLayers {
     pub layers: Vec<RenderLayer>,
     pub gui_light: GuiLight,
+    pub damage: Option<Durability>,
 }
 
 pub struct ItemRenderPlugin;
@@ -46,52 +51,74 @@ impl Plugin for ItemRenderPlugin {
             Update,
             resolve_item_layers
                 .after(ClientNetworkSystems::Receive)
-                .run_if(resource_exists::<Items>.and_then(resource_exists::<ItemModels>)),
+                .after(InventoryClientSet::Predict)
+                .run_if(
+                    resource_exists::<ItemTable>
+                        .and_then(resource_exists::<ItemModels>)
+                        .and_then(
+                            on_message::<SlotChanged>
+                                .or_else(resource_changed::<ItemModels>)
+                                .or_else(resource_changed::<ItemTable>),
+                        ),
+                ),
         );
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each access is its own parameter"
+)]
 pub fn resolve_item_layers(
-    items: Res<Items>,
     models: Res<ItemModels>,
-    stacks: Query<(Entity, Ref<StackRevision>, Has<ItemRenderLayers>), With<Held>>,
-    reads: Query<EntityRef, With<ItemStack>>,
+    table: Res<ItemTable>,
     registries: Option<Res<CurrentRegistries>>,
+    mut changes: MessageReader<SlotChanged>,
+    holders: Query<&Slots>,
+    mut stacks: Stacks,
+    mut dirty: Local<Vec<Entity>>,
     mut commands: Commands,
 ) {
-    let all = models.is_changed();
-    let registries = registries.as_deref().map(|registries| &**registries);
-    for (entity, revision, resolved) in &stacks {
-        if !(all || !resolved || revision.is_changed()) {
-            continue;
+    dirty.clear();
+    if models.is_changed() || table.is_changed() {
+        changes.clear();
+        for slots in &holders {
+            dirty.extend(slots.occupied());
         }
-        let Ok(stack) = reads.get(entity) else {
+    } else {
+        for change in changes.read() {
+            let slot = change.slot;
+            let occupant = holders
+                .get(slot.holder)
+                .ok()
+                .and_then(|slots| slots.get(usize::from(slot.index)));
+            dirty.extend(occupant);
+        }
+    }
+    dirty.sort_unstable();
+    dirty.dedup();
+    let registries = registries.as_deref().map(|registries| &**registries);
+    for &stack in dirty.iter() {
+        let Some(value) = stacks.to_value(stack) else {
             continue;
         };
-        let lookup = |child| reads.get(child).ok();
         commands
-            .entity(entity)
-            .insert(resolve(stack, &items, &models, registries, &lookup));
+            .entity(stack)
+            .try_insert(resolve(&value, &table, &models, registries));
     }
 }
 
-pub fn resolve<'a>(
-    stack: EntityRef<'a>,
-    items: &Items,
+pub fn resolve(
+    stack: &ItemStack,
+    table: &ItemTable,
     models: &ItemModels,
     registries: Option<&Registries>,
-    lookup: &impl Fn(Entity) -> Option<EntityRef<'a>>,
 ) -> ItemRenderLayers {
-    let item = match stack.get::<ItemModel>() {
-        Some(ItemModel(id)) => models.get(id.as_str()),
-        None => &models.missing,
-    };
-    let stack = EntityStack {
-        entity: stack,
-        items,
-        lookup,
-    };
-    let foil = stack.has_foil();
+    let item = table
+        .effective::<ItemModel>(stack)
+        .and_then(|model| models.by_id.get(&model.get()))
+        .unwrap_or(&models.missing);
+    let stack = StackView { stack, table };
     let evaluator = Evaluator {
         stack,
         registries,
@@ -102,6 +129,7 @@ pub fn resolve<'a>(
     let gui_light = layers
         .first()
         .map_or(GuiLight::Front, |layer| layer.model.gui_light);
+    let foil = stack.has_foil();
     ItemRenderLayers {
         layers: layers
             .into_iter()
@@ -111,20 +139,20 @@ pub fn resolve<'a>(
             })
             .collect(),
         gui_light,
+        damage: stack.is_damaged().then(|| Durability {
+            damage: stack.damage_value(),
+            max_damage: stack.max_damage(),
+        }),
     }
 }
 
 struct Layer<'m> {
-    model: &'m Arc<BakedItemModel>,
+    model: &'m BakedItemModel,
     transform: Mat4,
     tints: Vec<u32>,
 }
 
-fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
-    evaluator: &Evaluator<'_, EntityStack<'w, '_, L>>,
-    node: &'m BakedNode,
-    out: &mut Vec<Layer<'m>>,
-) {
+fn collect<'m>(evaluator: &Evaluator<'_>, node: &'m BakedNode, out: &mut Vec<Layer<'m>>) {
     match node {
         BakedNode::Empty | BakedNode::BundleSelectedItem => {}
         BakedNode::Model {
@@ -280,20 +308,32 @@ fn gui_vertices(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::OnceLock;
+    use std::num::NonZeroU8;
+    use std::sync::{LazyLock, OnceLock};
 
     use bevy::app::App;
-    use bevy::ecs::world::World;
-    use mcrs_minecraft_core::codec::Bounded;
-    use mcrs_minecraft_engine_registries::test_corpus;
-    use mcrs_minecraft_item::SlotTable;
+    use bevy::prelude::DetectChanges;
+    use mcrs_minecraft_engine_item::HolderCommandsExt;
+    use mcrs_minecraft_engine_item::ItemCommandsExt;
+    use mcrs_minecraft_engine_item::ItemPlugin;
+    use mcrs_minecraft_engine_item::StackCommandsExt;
+    use mcrs_minecraft_engine_registries::test_item_table;
+    use mcrs_minecraft_item::RgbInt;
     use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
-    use mcrs_minecraft_item::value::{is_child_kind, named_entry, ops};
-    use mcrs_minecraft_protocol_game::item::{
-        ComponentPatch, Damage, DyedColor, Enchantments, FireworkExplosion, FireworkShape,
-        ItemStackValue, RgbInt,
-    };
-    use mcrs_minecraft_resource::rl;
+    use mcrs_minecraft_item_stack::ArgbColor;
+    use mcrs_minecraft_item_stack::Count;
+    use mcrs_minecraft_item_stack::Damage;
+    use mcrs_minecraft_item_stack::DyedColor;
+    use mcrs_minecraft_item_stack::EnchantmentId;
+    use mcrs_minecraft_item_stack::EnchantmentLevel;
+    use mcrs_minecraft_item_stack::Enchantments;
+    use mcrs_minecraft_item_stack::FireworkExplosion;
+    use mcrs_minecraft_item_stack::FireworkShape;
+    use mcrs_minecraft_item_stack::Kind;
+    use mcrs_minecraft_item_stack::MaxStackSize;
+    use mcrs_minecraft_item_stack::NameLookup;
+    use mcrs_minecraft_item_stack::NameTable;
+    use mcrs_minecraft_resource::ResourceLocation;
 
     use super::*;
     use mcrs_minecraft_model::atlas::SpriteRegistry;
@@ -301,9 +341,7 @@ mod tests {
     use mcrs_minecraft_model::item_model_bake::bake_all;
     use mcrs_minecraft_model::resource_set::ResourceSet;
 
-    fn items() -> &'static Items {
-        &test_corpus().1
-    }
+    static TABLE: LazyLock<ItemTable> = LazyLock::new(test_item_table);
 
     fn models() -> &'static ItemModels {
         static MODELS: OnceLock<ItemModels> = OnceLock::new();
@@ -312,78 +350,26 @@ mod tests {
         })
     }
 
-    fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
-        ItemStackValue {
-            item: mcrs_minecraft_item_key::item_keys::Item::read(&format!("minecraft:{path}"))
-                .unwrap()
-                .id(),
-            count: Bounded(count),
-            components,
-        }
+    fn stack(path: &str, count: u8) -> ItemStack {
+        let name = format!("minecraft:{path}");
+        let location = ResourceLocation::read(&name).unwrap();
+        let kind = Kind(TABLE.id(NameTable::Item, location).unwrap());
+        ItemStack::new(kind, Count::new(count).unwrap())
     }
 
-    fn world() -> World {
-        let mut world = World::new();
-        world.insert_resource(items().clone());
-        world
-    }
-
-    fn spawn(world: &mut World, path: &str, count: i32, components: ComponentPatch) -> Entity {
-        let entry = named_entry(items(), &value(path, count, components.clone())).unwrap();
-        let effective = entry.prototype.apply(&components);
-        let mut stack = world.spawn((
-            ItemStack {
-                item: entry.id,
-                count: count as u8,
-            },
-            StackRevision::default(),
-        ));
-        for kind in DataComponentType::ALL.iter().copied() {
-            if let Some(given) = effective.get_value(kind)
-                && !is_child_kind(kind)
-            {
-                (ops(kind).insert)(&mut stack, given).unwrap();
-            }
-        }
-        stack.id()
-    }
-
-    fn set<K: mcrs_minecraft_protocol_game::item::ItemDataComponent>(
-        world: &mut World,
-        stack: Entity,
-        value: K,
-    ) {
-        let value: mcrs_minecraft_protocol_game::item::ItemComponentValue = value.into();
-        (ops(value.kind()).insert)(&mut world.entity_mut(stack), &value).unwrap();
-        world.get_mut::<StackRevision>(stack).unwrap().0 += 1;
-    }
-
-    fn eval<'w>(
-        world: &'w World,
-        stack: Entity,
-    ) -> Evaluator<'static, EntityStack<'w, 'static, impl Copy + Fn(Entity) -> Option<EntityRef<'w>>>>
-    {
+    fn eval(stack: &ItemStack) -> Evaluator<'_> {
         Evaluator {
-            stack: EntityStack {
-                entity: world.entity(stack),
-                items: items(),
-                lookup: move |child| world.get_entity(child).ok(),
+            stack: StackView {
+                stack,
+                table: &TABLE,
             },
             registries: None,
             grass_colormap: models().grass_colormap.as_deref(),
         }
     }
 
-    fn resolved(world: &World, stack: Entity) -> ItemRenderLayers {
-        resolve(world.entity(stack), items(), models(), None, &|child| {
-            world.get_entity(child).ok()
-        })
-    }
-
-    fn patch(f: impl FnOnce(&mut ComponentPatch)) -> ComponentPatch {
-        let mut patch = ComponentPatch::EMPTY;
-        f(&mut patch);
-        patch
+    fn resolved(stack: &ItemStack) -> ItemRenderLayers {
+        resolve(stack, &TABLE, models(), None)
     }
 
     fn near(a: Vec3, b: [f32; 3]) -> bool {
@@ -400,35 +386,34 @@ mod tests {
             tints_follow_vanilla_colour_rules();
             a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side();
             a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted();
-            the_system_resolves_held_stacks_once_per_revision();
+            the_system_rebuilds_only_the_stacks_of_changed_slots();
         }
     }
 
     fn damage_and_count_ranges_follow_the_stack() {
-        let mut world = world();
-        let pick = spawn(
-            &mut world,
-            "diamond_pickaxe",
-            1,
-            patch(|p| p.set(Damage(Bounded(100)))),
-        );
-        let e = eval(&world, pick);
+        let pick = stack("diamond_pickaxe", 1).set(Damage(100));
+        let e = eval(&pick);
         assert!((e.range(&RangeProperty::Damage { normalize: true }) - 0.0640615).abs() < 1e-6);
         assert_eq!(e.range(&RangeProperty::Damage { normalize: false }), 100.0);
         assert!(e.condition(&ConditionProperty::Damaged));
         assert!(!e.condition(&ConditionProperty::Broken));
-        set(&mut world, pick, Damage(Bounded(1560)));
-        let e = eval(&world, pick);
-        assert!(e.condition(&ConditionProperty::Broken));
-        let stone = spawn(&mut world, "stone", 17, ComponentPatch::EMPTY);
-        let e = eval(&world, stone);
+        assert_eq!(
+            resolved(&pick).damage,
+            Some(Durability {
+                damage: 100,
+                max_damage: 1561
+            })
+        );
+        let pick = stack("diamond_pickaxe", 1).set(Damage(1560));
+        assert!(eval(&pick).condition(&ConditionProperty::Broken));
+        let stone = stack("stone", 17);
+        let e = eval(&stone);
         assert_eq!(e.range(&RangeProperty::Count { normalize: true }), 0.265625);
         assert!(!e.condition(&ConditionProperty::Damaged));
+        assert_eq!(resolved(&stone).damage, None);
     }
 
     fn has_component_distinguishes_prototype_and_patch() {
-        let mut world = world();
-        let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
         let max_stack = |ignore_default| ConditionProperty::HasComponent {
             component: DataComponentType::MaxStackSize,
             ignore_default,
@@ -437,53 +422,41 @@ mod tests {
             component: DataComponentType::DyedColor,
             ignore_default,
         };
-        let e = eval(&world, stone);
+        let stone = stack("stone", 1);
+        let e = eval(&stone);
         assert!(e.condition(&max_stack(false)));
         assert!(!e.condition(&max_stack(true)));
         assert!(!e.condition(&dyed(false)));
-        set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
-        (ops(DataComponentType::MaxStackSize).remove)(&mut world.entity_mut(stone));
-        let e = eval(&world, stone);
+        let stone = stack("stone", 1)
+            .set(DyedColor(ArgbColor(0xFF0000)))
+            .unset::<MaxStackSize>();
+        let e = eval(&stone);
         assert!(e.condition(&dyed(false)));
         assert!(e.condition(&dyed(true)));
         assert!(!e.condition(&max_stack(false)));
-        assert!(e.condition(&max_stack(true)));
     }
 
     fn tints_follow_vanilla_colour_rules() {
-        let mut world = world();
-        let star = spawn(
-            &mut world,
-            "firework_star",
-            1,
-            patch(|p| {
-                p.set(FireworkExplosion {
-                    shape: FireworkShape::SmallBall,
-                    colors: vec![0x112233, 0x445566, 0x778899],
-                    fade_colors: Vec::new(),
-                    has_trail: false,
-                    has_twinkle: false,
-                })
-            }),
-        );
-        let plain = spawn(&mut world, "firework_star", 1, ComponentPatch::EMPTY);
+        let star = stack("firework_star", 1).set(FireworkExplosion {
+            shape: FireworkShape::SmallBall,
+            colors: vec![0x112233, 0x445566, 0x778899],
+            fade_colors: Vec::new(),
+            has_trail: false,
+            has_twinkle: false,
+        });
+        let plain = stack("firework_star", 1);
         let firework = TintSource::Firework {
             default: RgbInt(-7697782),
         };
-        let potion = spawn(&mut world, "potion", 1, ComponentPatch::EMPTY);
-        let dyed = spawn(
-            &mut world,
-            "leather_chestplate",
-            1,
-            patch(|p| p.set(DyedColor(RgbInt(0x123456)))),
-        );
-        assert_eq!(eval(&world, star).tint(&firework), 0xFF44_5566);
-        assert_eq!(eval(&world, plain).tint(&firework), (-7697782i32) as u32);
+        let potion = stack("potion", 1);
+        let dyed = stack("leather_chestplate", 1).set(DyedColor(ArgbColor(0x123456)));
+        assert_eq!(eval(&star).tint(&firework), 0xFF44_5566);
+        assert_eq!(eval(&plain).tint(&firework), (-7697782i32) as u32);
         assert_eq!(
-            eval(&world, dyed).tint(&TintSource::Dye { default: RgbInt(0) }),
+            eval(&dyed).tint(&TintSource::Dye { default: RgbInt(0) }),
             0xFF12_3456
         );
-        let e = eval(&world, potion);
+        let e = eval(&potion);
         assert_eq!(
             e.tint(&TintSource::Potion {
                 default: RgbInt(-13083194)
@@ -527,9 +500,7 @@ mod tests {
     }
 
     fn a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side() {
-        let mut world = world();
-        let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
-        let layers = resolved(&world, stone);
+        let layers = resolved(&stack("stone", 1));
         assert_eq!(layers.gui_light, GuiLight::Side);
         assert_eq!(layers.layers.len(), 1);
         let layer = &layers.layers[0];
@@ -561,9 +532,7 @@ mod tests {
     }
 
     fn a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted() {
-        let mut world = world();
-        let stick = spawn(&mut world, "stick", 1, ComponentPatch::EMPTY);
-        let layers = resolved(&world, stick);
+        let layers = resolved(&stack("stick", 1));
         assert_eq!(layers.gui_light, GuiLight::Front);
         let layer = &layers.layers[0];
         let (front, _) = quads(layer)
@@ -577,72 +546,78 @@ mod tests {
         );
         assert!(quads(layer).all(|(quad, _)| quad.iter().all(|v| v.sprite == front[0].sprite)));
 
-        let sharp = spawn(
-            &mut world,
-            "stick",
-            1,
-            patch(|p| {
-                p.set(Enchantments(vec![(
-                    mcrs_minecraft_item::harness::entry("sharpness"),
-                    1,
-                )]))
-            }),
-        );
-        assert!(
-            resolved(&world, sharp)
-                .layers
-                .iter()
-                .all(|layer| layer.foil)
-        );
+        let level = EnchantmentLevel {
+            enchantment: EnchantmentId(0),
+            level: NonZeroU8::MIN,
+        };
+        let sharp = stack("stick", 1).set(Enchantments::new([level]).unwrap());
+        assert!(resolved(&sharp).layers.iter().all(|layer| layer.foil));
     }
 
-    fn the_system_resolves_held_stacks_once_per_revision() {
+    fn the_system_rebuilds_only_the_stacks_of_changed_slots() {
         let mut app = App::new();
-        app.insert_resource(items().clone());
-        app.insert_resource(ItemModels {
-            by_id: models().by_id.clone(),
-            missing: models().missing.clone(),
-            grass_colormap: None,
-        });
-        app.add_systems(Update, resolve_item_layers);
+        app.insert_resource(*TABLE)
+            .insert_resource(ItemModels {
+                by_id: models().by_id.clone(),
+                missing: models().missing.clone(),
+                grass_colormap: None,
+            })
+            .add_plugins((ItemPlugin::default(), ItemRenderPlugin));
         let world = app.world_mut();
-        let holder = world.spawn(SlotTable::fixed(9)).id();
-        let held = spawn(world, "stick", 1, ComponentPatch::EMPTY);
-        world.entity_mut(held).insert(Held { holder, index: 0 });
-        assert_eq!(world.get::<SlotTable>(holder).unwrap().get(0), Some(held));
-        let loose = spawn(world, "stick", 1, ComponentPatch::EMPTY);
+        let holder = world.spawn_empty().id();
+        world
+            .commands()
+            .entity(holder)
+            .load_inventory(vec![Some(stack("stick", 1)); 3]);
+        world.flush();
         app.update();
-        assert_eq!(
-            app.world().get::<ItemRenderLayers>(held).unwrap().gui_light,
-            GuiLight::Front
-        );
-        assert!(app.world().get::<ItemRenderLayers>(loose).is_none());
-
-        let world = app.world_mut();
-        let before = world
-            .entity(held)
-            .get_ref::<ItemRenderLayers>()
-            .unwrap()
-            .last_changed();
-        app.update();
-        assert_eq!(
-            app.world()
-                .entity(held)
+        let occupant = |app: &App, index| app.world().get::<Slots>(holder).unwrap().get(index);
+        let (first, second) = (occupant(&app, 0).unwrap(), occupant(&app, 1).unwrap());
+        let changed = |app: &App, stack: Entity| {
+            let layers = app
+                .world()
+                .entity(stack)
                 .get_ref::<ItemRenderLayers>()
-                .unwrap()
-                .last_changed(),
-            before
-        );
+                .unwrap();
+            (layers.gui_light, layers.last_changed())
+        };
+        let (light, built) = changed(&app, second);
+        assert_eq!(light, GuiLight::Front);
+        let (_, first_built) = changed(&app, first);
+        let third = occupant(&app, 2).unwrap();
+        let untouched = changed(&app, third);
+
+        app.update();
+        assert_eq!(changed(&app, first), (GuiLight::Front, first_built));
+        assert_eq!(changed(&app, second), (GuiLight::Front, built));
 
         let world = app.world_mut();
-        set(world, held, ItemModel(rl!("minecraft:stone").to_buf()));
+        let model = ItemModel::from_static(ResourceLocation::read("minecraft:stone").unwrap());
+        world.commands().entity(first).despawn();
+        world
+            .commands()
+            .spawn_stack(stack("stick", 1).set(model))
+            .put_at(holder, 0);
+        world
+            .commands()
+            .entity(second)
+            .insert(Count::new(2).unwrap())
+            .touch();
+        world.flush();
         app.update();
-        let after = app
-            .world()
-            .entity(held)
-            .get_ref::<ItemRenderLayers>()
-            .unwrap();
-        assert_eq!(after.gui_light, GuiLight::Side);
-        assert_ne!(after.last_changed(), before);
+        let replaced = occupant(&app, 0).unwrap();
+        assert_ne!(replaced, first);
+        assert_eq!(changed(&app, replaced).0, GuiLight::Side);
+        let (light, rebuilt) = changed(&app, second);
+        assert_eq!(light, GuiLight::Front);
+        assert_ne!(
+            rebuilt, built,
+            "a count change of a slot rebuilds its stack"
+        );
+        assert_eq!(
+            changed(&app, third),
+            untouched,
+            "an unchanged slot keeps its layers"
+        );
     }
 }
