@@ -19,11 +19,14 @@ use mcrs_minecraft_engine_item::{SlotRef, Slots, Stacks};
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::{InventoryClientSet, MenuAction, MenuInput};
 use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::close_menu_screen::close_menu_screen;
+use crate::creative_clicks::{CreativeClicks, CreativeLayout, CreativeTabSelect};
+use crate::creative_screen_shown::shows_creative_screen;
 use crate::cursor_grab;
 use crate::drag_preview::DragPreview;
 use crate::follow_open_menu::follow_open_menu;
@@ -34,6 +37,7 @@ use crate::menu_gesture::MenuGesture;
 use crate::menu_screen;
 use crate::menu_stacks::MenuStacks;
 use crate::modifiers::Modifiers;
+use crate::release_rule::ReleaseRule;
 use crate::scene::{self, GuiConfig, GuiSize};
 use crate::viewer::Viewer;
 
@@ -90,6 +94,7 @@ struct ClickState {
 enum FrameEnd {
     Open,
     Closed,
+    SelectTab(CreativeTabIndex),
 }
 
 #[derive(SystemParam)]
@@ -111,16 +116,20 @@ impl ScreenPointer<'_, '_> {
         self.window.single().ok()?.cursor_position()
     }
 
-    fn hover(&self, geometry: Option<MenuGeometry>) -> Hover {
+    fn hover(&self, geometry: Option<MenuGeometry>, creative: Option<CreativeLayout>) -> Hover {
         let outside = Hover::Menu(Clicked::Outside);
-        let (Ok(window), Some(config), Some(geometry)) =
-            (self.window.single(), self.config.as_deref(), geometry)
-        else {
+        let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
             return outside;
         };
         let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
         let Some(pointer) = scene::gui_pointer(window, config, size.scale).map(scene::gui_point)
         else {
+            return outside;
+        };
+        if let Some(creative) = creative {
+            return Hover::Creative(creative.hit(size.width, size.height, pointer));
+        }
+        let Some(geometry) = geometry else {
             return outside;
         };
         let corner = geometry.window(size.width, size.height);
@@ -164,6 +173,12 @@ struct OpenMenu<'a> {
 impl LocalStacks<'_, '_> {
     fn player(&self) -> Option<Entity> {
         self.player.single().ok().map(|(entity, ..)| entity)
+    }
+
+    fn shows_creative_screen(&self, screen: Screen) -> bool {
+        self.player
+            .single()
+            .is_ok_and(|(_, _, menus, abilities)| shows_creative_screen(screen, menus, abilities))
     }
 
     fn open_menu(&self) -> Option<OpenMenu<'_>> {
@@ -213,7 +228,8 @@ fn key_event(key: KeyCode) -> Option<ScreenEvent> {
 }
 
 impl ClickState {
-    fn collect(&mut self, gestures: &mut Gestures, hover: Hover) {
+    fn collect(&mut self, gestures: &mut Gestures, hover: Hover, creative: Option<CreativeLayout>) {
+        let inventory_key_closes = creative.is_none_or(CreativeLayout::inventory_key_closes);
         let modifiers = Modifiers {
             shift: gestures.keys.any_pressed(item_key_codes::SHIFT),
             control: gestures.keys.any_pressed(item_key_codes::CONTROL),
@@ -234,6 +250,7 @@ impl ClickState {
         }
         for event in gestures.keyboard.read() {
             if event.state == ButtonState::Pressed
+                && (event.key_code != INVENTORY || inventory_key_closes)
                 && let Some(screen_event) = key_event(event.key_code)
             {
                 self.events.push_back(QueuedEvent {
@@ -250,6 +267,12 @@ impl ClickState {
 fn play(frame: &mut GestureFrame, events: &mut VecDeque<QueuedEvent>) -> FrameEnd {
     while let Some(queued) = events.pop_front() {
         let sent = frame.sent.len();
+        if let (ScreenEvent::Release(MouseButton::Left), Some(tab)) =
+            (queued.event, queued.hover.tab())
+        {
+            frame.gesture.release = ReleaseRule::NoClick;
+            return FrameEnd::SelectTab(tab);
+        }
         match queued.event {
             ScreenEvent::Close => {
                 events.clear();
@@ -262,7 +285,7 @@ fn play(frame: &mut GestureFrame, events: &mut VecDeque<QueuedEvent>) -> FrameEn
                 frame.release(button, queued.hover, queued.modifiers);
             }
             ScreenEvent::Key(gesture) => {
-                frame.click(queued.hover.clicked(), gesture, queued.modifiers);
+                frame.click(queued.hover, gesture, queued.modifiers);
             }
         }
         if frame.sent.len() > sent {
@@ -288,6 +311,7 @@ type Outputs<'w, 's> = (
     Query<'w, 's, &'static mut CursorOptions, With<PrimaryWindow>>,
     MessageWriter<'w, MenuInput>,
     ResMut<'w, DragPreview>,
+    CreativeTabSelect<'w>,
 );
 
 fn click_in_menu(
@@ -295,11 +319,11 @@ fn click_in_menu(
     pointer: ScreenPointer,
     stacks: LocalStacks,
     mut items: Option<Stacks>,
-    mut world_and_outputs: ParamSet<(Option<MenuTargets>, Outputs)>,
+    mut world_and_outputs: ParamSet<((Option<MenuTargets>, CreativeClicks), Outputs)>,
     mut state: Local<ClickState>,
     mut menu_stacks: Local<MenuStacks>,
 ) {
-    let (screen, _, _, mut drag_preview) = world_and_outputs.p1();
+    let (screen, _, _, mut drag_preview, _) = world_and_outputs.p1();
     let current = screen.as_deref().copied().unwrap_or_default();
     let open = stacks.open_menu();
     let menu = open.map(|open| open.menu);
@@ -318,9 +342,12 @@ fn click_in_menu(
     if !has_input && state.events.is_empty() && state.gesture.open_drag().is_none() {
         return;
     }
-    let hover = pointer.hover(open.and_then(|open| MenuGeometry::of_layout(open.layout)));
+    let geometry = open.and_then(|open| MenuGeometry::of_layout(open.layout));
+    let layout =
+        (world_and_outputs.p0().1.layout()).filter(|_| stacks.shows_creative_screen(current));
+    let hover = pointer.hover(geometry, layout);
     if has_input {
-        state.collect(&mut gestures, hover);
+        state.collect(&mut gestures, hover, layout);
     }
     let position = pointer.position();
     let moved = mem::replace(&mut state.pointer, position) != position;
@@ -340,12 +367,13 @@ fn click_in_menu(
                 index: 0,
             };
             let viewer = stacks.viewer(open, &mut menu_stacks);
-            let mut targets = world_and_outputs.p0();
+            let (mut targets, creative) = world_and_outputs.p0();
             let view = (targets.as_mut()).and_then(|targets| targets.read(viewer.entity, cursor));
             let mut frame = GestureFrame {
                 viewer: &viewer,
                 targets: view.as_ref(),
                 items: items.as_mut(),
+                grid: creative.grid(),
                 gesture,
                 sent,
             };
@@ -366,9 +394,12 @@ fn click_in_menu(
             }
         }
     };
-    let (screen, mut cursor, mut inputs, mut drag_preview) = world_and_outputs.p1();
+    let (screen, mut cursor, mut inputs, mut drag_preview, mut tabs) = world_and_outputs.p1();
     for input in sent.drain(..) {
         inputs.write(input);
+    }
+    if let FrameEnd::SelectTab(tab) = end {
+        tabs.select(tab);
     }
     if end == FrameEnd::Closed {
         preview.clear();

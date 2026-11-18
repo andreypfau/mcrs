@@ -9,6 +9,7 @@ pub mod chunk_map;
 mod close_menu_screen;
 mod controls_screen;
 mod create_world_screen;
+mod creative_clicks;
 pub mod creative_screen_draw;
 pub mod creative_screen_open;
 pub mod creative_screen_plugin;

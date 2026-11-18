@@ -7,8 +7,9 @@ use mcrs_minecraft_container_click::{
 use mcrs_minecraft_engine_inventory_click::MenuTargetView;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_click::{DragKind, DragStage};
-use mcrs_minecraft_inventory_client::{MenuAction, MenuInput};
+use mcrs_minecraft_inventory_client::{CreativeClick, MenuAction, MenuInput};
 
+use crate::creative_clicks::{self, CreativeGrid};
 use crate::drag_preview::DragPreview;
 use crate::hover::Hover;
 use crate::last_press::LastPress;
@@ -41,6 +42,7 @@ pub(crate) struct GestureFrame<'a, 'w, 's> {
     pub(crate) viewer: &'a Viewer<'a>,
     pub(crate) targets: Option<&'a MenuTargetView<'a>>,
     pub(crate) items: Option<&'a mut Stacks<'w, 's>>,
+    pub(crate) grid: Option<CreativeGrid<'a>>,
     pub(crate) gesture: &'a mut MenuGesture,
     pub(crate) sent: &'a mut Vec<MenuInput>,
 }
@@ -60,18 +62,23 @@ impl GestureFrame<'_, '_, '_> {
         });
     }
 
-    pub(crate) fn click(
-        &mut self,
-        clicked: Clicked,
-        gesture: Gesture,
-        modifiers: Modifiers,
-    ) -> bool {
-        let input = self.viewer.input(gesture, clicked, modifiers);
-        let click = Click::from_input(clicked, input);
-        if let Some(click) = click {
+    pub(crate) fn click(&mut self, hover: Hover, gesture: Gesture, modifiers: Modifiers) -> bool {
+        let input = self.viewer.input(gesture, hover, modifiers, self.grid);
+        let Some(click) = Click::from_input(hover.clicked(), input) else {
+            return false;
+        };
+        let Hover::Creative(hit) = hover else {
             self.send(click);
-        }
-        click.is_some()
+            return true;
+        };
+        let Some(area) = creative_clicks::area(hit, self.grid) else {
+            return false;
+        };
+        self.sent.push(MenuInput {
+            viewer: self.viewer.entity,
+            action: MenuAction::Creative(CreativeClick { area, click }),
+        });
+        true
     }
 
     pub(crate) fn follow_pointer(&mut self, hover: Hover, moved: bool, preview: &mut DragPreview) {
@@ -90,7 +97,7 @@ impl GestureFrame<'_, '_, '_> {
         }
         if moved
             && open.opened_by == PressKind::Single
-            && let Clicked::Entry(index) = hover.clicked()
+            && let Some(index) = hover.menu_entry()
             && !open.contains(index)
             && let Some(split) = targets.drag_split(open.kind, open.len())
             && (open.kind == DragKind::Full || u32::from(split.count) > open.len())
@@ -124,14 +131,11 @@ impl GestureFrame<'_, '_, '_> {
         let clicked = hover.clicked();
         self.gesture.take_press(LastPress {
             button,
-            target: match clicked {
-                Clicked::Entry(index) => Some(index),
-                Clicked::Outside | Clicked::Nowhere => None,
-            },
+            target: hover.menu_entry(),
             menu: self.viewer.menu,
             at,
         });
-        if button == MouseButton::Left && matches!(hover, Hover::RecipeBookButton) {
+        if button == MouseButton::Left && hover.takes_left_press() {
             if self.gesture.open_drag().is_none() {
                 self.gesture.release = ReleaseRule::NoClick;
             }
@@ -145,15 +149,20 @@ impl GestureFrame<'_, '_, '_> {
             button: number,
             binding,
         };
-        let input = self.viewer.input(gesture, clicked, modifiers);
+        let input = self.viewer.input(gesture, hover, modifiers, self.grid);
         let kind = match button {
-            _ if input.cursor == StackPresence::Empty || clicked == Clicked::Nowhere => None,
+            _ if input.cursor == StackPresence::Empty
+                || clicked == Clicked::Nowhere
+                || !hover.permits_drag() =>
+            {
+                None
+            }
             MouseButton::Left => Some(DragKind::Split),
             MouseButton::Right => Some(DragKind::Single),
             _ if binding == ButtonBinding::PickItem && input.creative => Some(DragKind::Full),
             _ => None,
         };
-        let clicked_now = self.click(clicked, gesture, modifiers);
+        let clicked_now = self.click(hover, gesture, modifiers);
         self.gesture.release = match self.gesture.release {
             ReleaseRule::Drag(open) => ReleaseRule::Drag(open),
             ReleaseRule::NoClick | ReleaseRule::Click if clicked_now => ReleaseRule::NoClick,
@@ -168,10 +177,9 @@ impl GestureFrame<'_, '_, '_> {
             return;
         };
         let rule = self.gesture.release;
-        let clicked = hover.clicked();
         if button == MouseButton::Left
             && self.gesture.press == PressKind::Double
-            && self.double_release(clicked, modifiers)
+            && self.double_release(hover, modifiers)
         {
             self.gesture.release = ReleaseRule::Click;
             return;
@@ -187,7 +195,7 @@ impl GestureFrame<'_, '_, '_> {
                     button: number,
                     binding: button_binding(button),
                 };
-                self.click(clicked, gesture, modifiers);
+                self.click(hover, gesture, modifiers);
             }
             ReleaseRule::NoClick => {}
         }
@@ -206,8 +214,8 @@ impl GestureFrame<'_, '_, '_> {
         self.send(drag(DragStage::End, Clicked::Outside));
     }
 
-    fn double_release(&mut self, clicked: Clicked, modifiers: Modifiers) -> bool {
-        let (Clicked::Entry(target), Some(targets)) = (clicked, self.targets) else {
+    fn double_release(&mut self, hover: Hover, modifiers: Modifiers) -> bool {
+        let (Some(target), Some(targets)) = (hover.menu_entry(), self.targets) else {
             return false;
         };
         if !targets.permits_pick_up_all(target) {
@@ -217,7 +225,7 @@ impl GestureFrame<'_, '_, '_> {
             self.send(Click {
                 kind: ClickKind::PickUpAll,
                 button: 0,
-                clicked,
+                clicked: Clicked::Entry(target),
             });
             return true;
         }
