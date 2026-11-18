@@ -44,6 +44,7 @@ pub struct LocalServerPlugin {
     pub open_to_lan: bool,
     pub settings: ServerSettings,
     pub column_traces: Option<ColumnTraceSink>,
+    pub extend_server: fn(&mut App),
 }
 
 #[derive(Resource)]
@@ -268,6 +269,7 @@ fn build_server(
         let mut server = App::new();
         server.insert_resource(WorldLock(lock));
         server.add_plugins(plugins);
+        (settings.extend_server)(&mut server);
         Ok(server)
     }
 }

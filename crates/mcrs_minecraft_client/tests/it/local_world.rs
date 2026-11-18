@@ -34,6 +34,7 @@ pub(crate) fn client() -> App {
                 open_to_lan: false,
                 settings: ServerSettings::default(),
                 column_traces: None,
+                extend_server: |_| {},
             },
         ))
         .init_resource::<Time<Real>>()
