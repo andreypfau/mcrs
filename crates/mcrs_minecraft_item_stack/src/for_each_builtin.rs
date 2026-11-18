@@ -33,6 +33,14 @@ macro_rules! for_each_builtin {
             SuspiciousStewEffects => "suspicious_stew_effects",
             OminousBottleAmplifier => "ominous_bottle_amplifier",
             Instrument => "instrument",
+            ChargedProjectiles => "charged_projectiles",
+            BundleContents => "bundle_contents",
+            FireworkExplosion => "firework_explosion",
+            Fireworks => "fireworks",
+            BannerPatterns => "banner_patterns",
+            Container => "container",
+            Bees => "bees",
+            ContainerLoot => "container_loot",
         }
     };
 }

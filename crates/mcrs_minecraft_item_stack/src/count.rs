@@ -5,6 +5,8 @@ use core::num::NonZeroU8;
 pub struct Count(NonZeroU8);
 
 impl Count {
+    pub(crate) const ONE: Self = Self(NonZeroU8::MIN);
+
     #[must_use]
     pub fn new(count: u8) -> Option<Self> {
         NonZeroU8::new(count).map(Self)

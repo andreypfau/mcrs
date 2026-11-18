@@ -18,6 +18,11 @@ use crate::ArgbColor;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
+use crate::BannerLayer;
+use crate::BannerPatternId;
+use crate::BannerPatterns;
+use crate::BeeOccupant;
+use crate::Bees;
 use crate::BlockId;
 use crate::BlockSet;
 use crate::BlockState;
@@ -25,24 +30,34 @@ use crate::BlockStateProperty;
 use crate::BlockTagId;
 use crate::Builtin;
 use crate::BuiltinKey;
+use crate::BundleContents;
+use crate::ChargedProjectiles;
 use crate::ComponentType;
+use crate::Container;
+use crate::Count;
 use crate::CustomData;
 use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
 use crate::DimensionPos;
+use crate::DyeColor;
 use crate::DyedColor;
 use crate::EffectInstance;
 use crate::EnchantmentGlintOverride;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
+use crate::EntityData;
 use crate::EntityTypeId;
 use crate::EntityTypeSet;
 use crate::EntityTypeTagId;
 use crate::Equippable;
 use crate::EquippableSlot;
+use crate::FireworkExplosion;
+use crate::FireworkShape;
+use crate::Fireworks;
 use crate::Food;
+use crate::InlineBannerPattern;
 use crate::InlineInstrument;
 use crate::InlineSoundEvent;
 use crate::InlineTrimMaterial;
@@ -51,6 +66,8 @@ use crate::Instrument;
 use crate::InstrumentId;
 use crate::ItemModel;
 use crate::ItemName;
+use crate::ItemStack;
+use crate::Kind;
 use crate::LodestoneTracker;
 use crate::Lore;
 use crate::MapId;
@@ -80,12 +97,18 @@ use crate::TrimMaterialId;
 use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::WireError;
+use crate::check_saved_form::MAX_COUNT;
+use crate::check_saved_form::MAX_NESTING;
 use crate::lore::MAX_LINES;
 use crate::saved;
+use crate::saved::is_air;
 use crate::saved_form::Fault;
 use crate::saved_form::saved_form;
 use crate::split_nbt::split_nbt;
 use crate::tag_sink::TagSink;
+use crate::wire::Entries;
+use crate::wire::read_patch;
+use crate::wire::write_patch;
 use crate::wire_text::read_text;
 use crate::wire_text::write_text;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
@@ -122,12 +145,17 @@ pub(crate) fn put_length(output: &mut Vec<u8>, length: usize) -> Result<(), Wire
     Ok(())
 }
 
-pub(crate) fn read_value<L: NameLookup>(
+pub(crate) fn read_value_at<L: NameLookup>(
     component: BuiltinKey,
     input: &mut &[u8],
     names: &L,
+    depth: u32,
 ) -> Result<Builtin, WireError> {
-    let reader = Reader { component, names };
+    let reader = Reader {
+        component,
+        names,
+        depth,
+    };
     Ok(match component {
         BuiltinKey::MaxStackSize => Builtin::MaxStackSize(MaxStackSize(reader.var_int(input)?)),
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.var_int(input)?)),
@@ -190,12 +218,44 @@ pub(crate) fn read_value<L: NameLookup>(
             Builtin::OminousBottleAmplifier(OminousBottleAmplifier(reader.var_int(input)?))
         }
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(input)?)),
+        BuiltinKey::ChargedProjectiles => Builtin::ChargedProjectiles(ChargedProjectiles(
+            reader.templates(input, ChargedProjectiles::MAX_PROJECTILES, Reader::template)?,
+        )),
+        BuiltinKey::BundleContents => Builtin::BundleContents(BundleContents(reader.templates(
+            input,
+            usize::MAX,
+            Reader::template,
+        )?)),
+        BuiltinKey::FireworkExplosion => {
+            Builtin::FireworkExplosion(reader.firework_explosion(input)?)
+        }
+        BuiltinKey::Fireworks => Builtin::Fireworks(Fireworks {
+            flight_duration: u8::try_from(reader.var_int(input)?)
+                .map_err(|_| WireError::OutOfRange(component))?,
+            explosions: reader.limited_list(
+                input,
+                Fireworks::MAX_EXPLOSIONS,
+                Reader::firework_explosion,
+            )?,
+        }),
+        BuiltinKey::BannerPatterns => {
+            Builtin::BannerPatterns(BannerPatterns(reader.list(input, Reader::banner_layer)?))
+        }
+        BuiltinKey::Container => {
+            let slots = reader.templates(input, Container::MAX_SLOTS, |reader, input| {
+                reader.optional(input, Reader::template)
+            })?;
+            Builtin::Container(Container::new(slots).ok_or(WireError::OutOfRange(component))?)
+        }
+        BuiltinKey::Bees => Builtin::Bees(Bees(reader.list(input, Reader::bee)?)),
+        BuiltinKey::ContainerLoot => reader.saved_form_as_nbt(input)?,
     })
 }
 
 struct Reader<'names, L> {
     component: BuiltinKey,
     names: &'names L,
+    depth: u32,
 }
 
 impl<L: NameLookup> Reader<'_, L> {
@@ -471,15 +531,109 @@ impl<L: NameLookup> Reader<'_, L> {
     fn list<T>(
         &self,
         input: &mut &[u8],
-        mut read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
+        read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
     ) -> Result<Vec<T>, WireError> {
         let count = self.length(input)?;
         let budget = input.len() / mem::size_of::<T>().max(1);
-        let mut values: Vec<T> = Vec::with_capacity(count.min(budget));
+        self.elements(input, count, Vec::with_capacity(count.min(budget)), read)
+    }
+
+    fn templates<T>(
+        &self,
+        input: &mut &[u8],
+        max: usize,
+        read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
+    ) -> Result<Vec<T>, WireError> {
+        let count = self.length(input)?;
+        if count > max {
+            return Err(WireError::OutOfRange(self.component));
+        }
+        self.elements(input, count, Vec::new(), read)
+    }
+
+    fn elements<T>(
+        &self,
+        input: &mut &[u8],
+        count: usize,
+        mut values: Vec<T>,
+        mut read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
+    ) -> Result<Vec<T>, WireError> {
         for _ in 0..count {
             values.push(read(self, input)?);
         }
         Ok(values)
+    }
+
+    fn limited_list<T>(
+        &self,
+        input: &mut &[u8],
+        max: usize,
+        read: impl FnMut(&Self, &mut &[u8]) -> Result<T, WireError>,
+    ) -> Result<Vec<T>, WireError> {
+        let mut peek = *input;
+        if self.length(&mut peek)? > max {
+            return Err(WireError::OutOfRange(self.component));
+        }
+        self.list(input, read)
+    }
+
+    fn template(&self, input: &mut &[u8]) -> Result<ItemStack, WireError> {
+        let depth = self.depth.saturating_add(1);
+        if depth > MAX_NESTING {
+            return Err(WireError::TooDeep);
+        }
+        let kind = u16::try_from(self.var_int(input)?).map_err(|_| WireError::UnknownItem)?;
+        let item = self
+            .names
+            .name(NameTable::Item, kind)
+            .ok_or(WireError::UnknownItem)?;
+        let air = is_air(item);
+        let count = self.var_int(input)?;
+        let mut stack = ItemStack::new(Kind(kind), Count::ONE);
+        read_patch(input, self.names, Entries::Bare, depth, &mut stack)?;
+        if air {
+            return Err(WireError::EmptyStack);
+        }
+        stack.count = match u8::try_from(count) {
+            Ok(count) => Count::new(count).ok_or(WireError::EmptyStack)?,
+            Err(_) if count < 0 => return Err(self.bad()),
+            Err(_) => return Err(WireError::CountTooLarge),
+        };
+        Ok(stack)
+    }
+
+    fn firework_explosion(&self, input: &mut &[u8]) -> Result<FireworkExplosion, WireError> {
+        let int = |reader: &Self, input: &mut &[u8]| Ok(i32::from_be_bytes(reader.bytes(input)?));
+        Ok(FireworkExplosion {
+            shape: self.list_entry(input, &FireworkShape::ALL)?,
+            colors: self.list(input, int)?,
+            fade_colors: self.list(input, int)?,
+            has_trail: self.boolean(input)?,
+            has_twinkle: self.boolean(input)?,
+        })
+    }
+
+    fn banner_layer(&self, input: &mut &[u8]) -> Result<BannerLayer, WireError> {
+        let pattern = match self.registry_form(input, NameTable::BannerPattern)? {
+            Some(id) => RegistryValue::Reference(BannerPatternId(id)),
+            None => RegistryValue::Inline(InlineBannerPattern::new(
+                self.identifier_buf(input)?,
+                self.string(input)?,
+            )),
+        };
+        Ok(BannerLayer {
+            pattern,
+            color: self.list_entry(input, &DyeColor::ALL)?,
+        })
+    }
+
+    fn bee(&self, input: &mut &[u8]) -> Result<BeeOccupant, WireError> {
+        let entity_type = EntityTypeId(self.known_id(input, NameTable::EntityType)?);
+        Ok(BeeOccupant {
+            entity_data: EntityData::new(entity_type, self.custom_data(input)?),
+            ticks_in_hive: self.var_int(input)?,
+            min_ticks_in_hive: self.var_int(input)?,
+        })
     }
 
     fn block_state(&self, input: &mut &[u8]) -> Result<BlockState, WireError> {
@@ -599,11 +753,13 @@ impl<L: NameLookup> Reader<'_, L> {
 pub(crate) fn write_value<L: NameLookup>(
     value: &Builtin,
     names: &L,
+    depth: u32,
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     let writer = Writer {
         component: value.key(),
         names,
+        depth,
     };
     match value {
         Builtin::MaxStackSize(MaxStackSize(number))
@@ -689,6 +845,14 @@ pub(crate) fn write_value<L: NameLookup>(
             put_var_int(output, *amplifier);
         }
         Builtin::Instrument(Instrument(instrument)) => writer.instrument(instrument, output)?,
+        Builtin::ChargedProjectiles(value) => writer.charged_projectiles(value, output)?,
+        Builtin::BundleContents(value) => writer.list(&value.0, output, Writer::template)?,
+        Builtin::FireworkExplosion(explosion) => writer.firework_explosion(explosion, output)?,
+        Builtin::Fireworks(fireworks) => writer.fireworks(fireworks, output)?,
+        Builtin::BannerPatterns(value) => writer.list(&value.0, output, Writer::banner_layer)?,
+        Builtin::Container(container) => writer.container(container, output)?,
+        Builtin::Bees(value) => writer.list(&value.0, output, Writer::bee)?,
+        Builtin::ContainerLoot(_) => writer.saved_form_as_nbt(value, output)?,
     }
     Ok(())
 }
@@ -700,6 +864,7 @@ fn put_boolean(output: &mut Vec<u8>, value: bool) {
 struct Writer<'names, L> {
     component: BuiltinKey,
     names: &'names L,
+    depth: u32,
 }
 
 impl<L: NameLookup> Writer<'_, L> {
@@ -952,6 +1117,110 @@ impl<L: NameLookup> Writer<'_, L> {
                 write_text(&inline.description, self.component, output)
             }
         }
+    }
+
+    fn template(&self, stack: &ItemStack, output: &mut Vec<u8>) -> Result<(), WireError> {
+        let depth = self.depth.saturating_add(1);
+        if depth > MAX_NESTING {
+            return Err(WireError::TooDeep);
+        }
+        let item = self
+            .names
+            .name(NameTable::Item, stack.kind.0)
+            .ok_or(WireError::UnnamedId(NameTable::Item))?;
+        if is_air(item) {
+            return Err(WireError::EmptyStack);
+        }
+        let count = stack.count.get();
+        if count > MAX_COUNT {
+            return Err(WireError::CountOutOfRange);
+        }
+        put_var_int(output, i32::from(stack.kind.0));
+        put_var_int(output, i32::from(count));
+        write_patch(stack, self.names, Entries::Bare, depth, output)
+    }
+
+    fn charged_projectiles(
+        &self,
+        ChargedProjectiles(projectiles): &ChargedProjectiles,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        self.limited_list(
+            projectiles,
+            ChargedProjectiles::MAX_PROJECTILES,
+            output,
+            Self::template,
+        )
+    }
+
+    fn container(&self, container: &Container, output: &mut Vec<u8>) -> Result<(), WireError> {
+        self.list(container.slots(), output, |writer, slot, output| {
+            writer.optional(slot.as_ref(), output, Self::template)
+        })
+    }
+
+    fn limited_list<T>(
+        &self,
+        values: &[T],
+        max: usize,
+        output: &mut Vec<u8>,
+        write: impl FnMut(&Self, &T, &mut Vec<u8>) -> Result<(), WireError>,
+    ) -> Result<(), WireError> {
+        if values.len() > max {
+            return Err(WireError::OutOfRange(self.component));
+        }
+        self.list(values, output, write)
+    }
+
+    fn fireworks(&self, fireworks: &Fireworks, output: &mut Vec<u8>) -> Result<(), WireError> {
+        put_var_int(output, i32::from(fireworks.flight_duration));
+        self.limited_list(
+            &fireworks.explosions,
+            Fireworks::MAX_EXPLOSIONS,
+            output,
+            Self::firework_explosion,
+        )
+    }
+
+    fn bee(&self, occupant: &BeeOccupant, output: &mut Vec<u8>) -> Result<(), WireError> {
+        put_var_int(output, i32::from(occupant.entity_data.entity_type.0));
+        occupant
+            .entity_data
+            .data()
+            .encode(&mut *output)
+            .map_err(|_| WireError::BadValue(self.component))?;
+        put_var_int(output, occupant.ticks_in_hive);
+        put_var_int(output, occupant.min_ticks_in_hive);
+        Ok(())
+    }
+
+    fn firework_explosion(
+        &self,
+        explosion: &FireworkExplosion,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        self.list_id(&FireworkShape::ALL, explosion.shape, output)?;
+        for colors in [&explosion.colors, &explosion.fade_colors] {
+            self.list(colors, output, |_, color, output| {
+                output.extend_from_slice(&color.to_be_bytes());
+                Ok(())
+            })?;
+        }
+        put_boolean(output, explosion.has_trail);
+        put_boolean(output, explosion.has_twinkle);
+        Ok(())
+    }
+
+    fn banner_layer(&self, layer: &BannerLayer, output: &mut Vec<u8>) -> Result<(), WireError> {
+        match &layer.pattern {
+            RegistryValue::Reference(id) => write_registry_reference(output, id.0),
+            RegistryValue::Inline(pattern) => {
+                put_var_int(output, INLINE_VALUE);
+                self.identifier(pattern.asset_id(), output)?;
+                self.string(&pattern.translation_key, output)?;
+            }
+        }
+        self.list_id(&DyeColor::ALL, layer.color, output)
     }
 
     fn entity_type_set(

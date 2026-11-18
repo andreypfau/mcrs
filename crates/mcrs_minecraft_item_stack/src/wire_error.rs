@@ -32,6 +32,7 @@ pub enum WireError {
     },
     UnnamedId(NameTable),
     SavedValueOnly,
+    TooDeep,
 }
 
 impl WireError {
@@ -52,6 +53,7 @@ impl WireError {
     pub(crate) fn of_saved(error: SavedError, component: BuiltinKey) -> Self {
         match error {
             SavedError::OutOfRange(component) => Self::OutOfRange(component),
+            SavedError::TooDeep => Self::TooDeep,
             SavedError::UnknownEntry { component, table } => {
                 Self::UnknownEntry { component, table }
             }
@@ -112,6 +114,7 @@ impl fmt::Display for WireError {
             Self::UnnamedId(table) => write!(formatter, "a numeric id has no name in {table:?}"),
             Self::SavedValueOnly => formatter
                 .write_str("the patch holds an undecoded saved component, which has no wire form"),
+            Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
         }
     }
 }

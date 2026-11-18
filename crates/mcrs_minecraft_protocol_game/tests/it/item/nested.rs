@@ -238,10 +238,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
     };
 
     let air = decode(DataComponentType::UseRemainder, "00010000").unwrap_err();
-    assert_eq!(
-        wire_kind(&air).to_string(),
-        "Item must not be minecraft:air"
-    );
+    assert_eq!(wire_kind(&air).to_string(), "Item must be non-empty");
     let zero = decode(DataComponentType::UseRemainder, "01000000").unwrap_err();
     assert_eq!(wire_kind(&zero).to_string(), "Item must be non-empty");
 

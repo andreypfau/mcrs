@@ -20,6 +20,11 @@ use crate::ArgbColor;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
+use crate::BannerLayer;
+use crate::BannerPatternId;
+use crate::BannerPatterns;
+use crate::BeeOccupant;
+use crate::Bees;
 use crate::BlockId;
 use crate::BlockSet;
 use crate::BlockState;
@@ -27,25 +32,35 @@ use crate::BlockStateProperty;
 use crate::BlockTagId;
 use crate::Builtin;
 use crate::BuiltinKey;
+use crate::BundleContents;
+use crate::ChargedProjectiles;
 use crate::ComponentType;
+use crate::Container;
+use crate::ContainerLoot;
 use crate::Count;
 use crate::CustomData;
 use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
 use crate::DimensionPos;
+use crate::DyeColor;
 use crate::DyedColor;
 use crate::EffectInstance;
 use crate::EnchantmentGlintOverride;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
+use crate::EntityData;
 use crate::EntityTypeId;
 use crate::EntityTypeSet;
 use crate::EntityTypeTagId;
 use crate::Equippable;
 use crate::EquippableSlot;
+use crate::FireworkExplosion;
+use crate::FireworkShape;
+use crate::Fireworks;
 use crate::Food;
+use crate::InlineBannerPattern;
 use crate::InlineInstrument;
 use crate::InlineSoundEvent;
 use crate::InlineTrimMaterial;
@@ -92,10 +107,12 @@ use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
 use crate::check_saved_form::MAX_COUNT;
+use crate::check_saved_form::MAX_NESTING;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
+use crate::entity_data::ENTITY_TYPE_KEY;
 use crate::saved_form::DISPLAY_DEFAULT;
 use crate::saved_form::DISPLAY_HIDDEN;
 use crate::saved_form::DISPLAY_OVERRIDE;
@@ -120,16 +137,29 @@ const SLOT: &str = "Slot";
 const AIR: &str = "air";
 
 pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemStack, SavedError> {
-    let Some(NbtTag::String(id)) = saved.get(ID) else {
-        return Err(SavedError::BadItemId);
-    };
+    read_stack(saved, names, 0)
+}
+
+fn read_item<L: NameLookup>(id: &str, names: &L) -> Result<Kind, SavedError> {
     let item = ResourceLocation::read(id).map_err(|_| SavedError::BadItemId)?;
     if is_air(item) {
         return Err(SavedError::AirItem);
     }
-    let kind = names
+    names
         .id(NameTable::Item, item)
-        .ok_or(SavedError::UnknownItem)?;
+        .map(Kind)
+        .ok_or(SavedError::UnknownItem)
+}
+
+fn read_stack<L: NameLookup>(
+    saved: &NbtCompound,
+    names: &L,
+    depth: u32,
+) -> Result<ItemStack, SavedError> {
+    let Some(NbtTag::String(id)) = saved.get(ID) else {
+        return Err(SavedError::BadItemId);
+    };
+    let kind = read_item(id, names)?;
     let count = match saved.get(COUNT) {
         None => 1,
         Some(count) => TagNumber::of(count).ok_or(SavedError::BadCount)?.to_int(),
@@ -139,7 +169,7 @@ pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemS
         .filter(|count| *count <= MAX_COUNT)
         .and_then(Count::new)
         .ok_or(SavedError::BadCount)?;
-    let mut stack = ItemStack::new(Kind(kind), count);
+    let mut stack = ItemStack::new(kind, count);
     match saved.get(COMPONENTS) {
         None => {}
         Some(NbtTag::Compound(patch)) => {
@@ -148,7 +178,7 @@ pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemS
                 if key.is_repeated(patch.child_tags.get(..index).unwrap_or_default()) {
                     return Err(SavedError::RepeatedKey);
                 }
-                stack.put_entry(read_entry(key, value, names)?);
+                stack.put_entry(read_entry(key, value, names, depth)?);
             }
         }
         Some(_) => return Err(SavedError::BadPatch),
@@ -231,6 +261,7 @@ fn read_entry<L: NameLookup>(
     key: SavedKey<'_>,
     value: &NbtTag,
     names: &L,
+    depth: u32,
 ) -> Result<PatchEntry, SavedError> {
     let name = key.name;
     let builtin = BuiltinKey::from_location(name);
@@ -247,7 +278,9 @@ fn read_entry<L: NameLookup>(
         });
     }
     match builtin {
-        Some(component) => Ok(PatchEntry::Value(read_value(component, value, names)?)),
+        Some(component) => Ok(PatchEntry::Value(read_value_at(
+            component, value, names, depth,
+        )?)),
         None => Ok(PatchEntry::Undecoded(UndecodedValue {
             name: name.to_buf(),
             bytes: encode(value)?,
@@ -289,7 +322,7 @@ fn encode(tag: &NbtTag) -> Result<Box<[u8]>, SavedError> {
     Ok(writer.into_inner().into_boxed_slice())
 }
 
-fn decode(bytes: &[u8]) -> Result<NbtTag, SavedError> {
+pub(crate) fn decode(bytes: &[u8]) -> Result<NbtTag, SavedError> {
     let mut reader = NbtReadHelper::new(Cursor::new(bytes));
     let tag = NbtTag::deserialize(&mut reader).map_err(|_| SavedError::BadUndecodedBytes)?;
     let end = reader
@@ -307,7 +340,20 @@ pub(crate) fn read_value<L: NameLookup>(
     tag: &NbtTag,
     names: &L,
 ) -> Result<Builtin, SavedError> {
-    let reader = Reader { component, names };
+    read_value_at(component, tag, names, 0)
+}
+
+fn read_value_at<L: NameLookup>(
+    component: BuiltinKey,
+    tag: &NbtTag,
+    names: &L,
+    depth: u32,
+) -> Result<Builtin, SavedError> {
+    let reader = Reader {
+        component,
+        names,
+        depth,
+    };
     Ok(match component {
         BuiltinKey::MaxStackSize => {
             Builtin::MaxStackSize(MaxStackSize(reader.int(tag, STACK_SIZE)?))
@@ -357,12 +403,43 @@ pub(crate) fn read_value<L: NameLookup>(
             OminousBottleAmplifier(reader.int(tag, OMINOUS_AMPLIFIER)?),
         ),
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(tag)?)),
+        BuiltinKey::ChargedProjectiles => {
+            let list = reader.list(tag)?;
+            if list.len() > ChargedProjectiles::MAX_PROJECTILES {
+                return Err(SavedError::OutOfRange(component));
+            }
+            Builtin::ChargedProjectiles(ChargedProjectiles(reader.templates(list)?))
+        }
+        BuiltinKey::BundleContents => {
+            Builtin::BundleContents(BundleContents(reader.templates(reader.list(tag)?)?))
+        }
+        BuiltinKey::FireworkExplosion => {
+            Builtin::FireworkExplosion(reader.firework_explosion(tag)?)
+        }
+        BuiltinKey::Fireworks => Builtin::Fireworks(reader.fireworks(tag)?),
+        BuiltinKey::BannerPatterns => Builtin::BannerPatterns(BannerPatterns(
+            reader.each(reader.list(tag)?, Reader::banner_layer)?,
+        )),
+        BuiltinKey::Container => Builtin::Container(reader.container(tag)?),
+        BuiltinKey::Bees => Builtin::Bees(Bees(reader.each(reader.list(tag)?, Reader::bee)?)),
+        BuiltinKey::ContainerLoot => {
+            let map = reader.map(tag)?;
+            Builtin::ContainerLoot(ContainerLoot {
+                loot_table: reader
+                    .identifier(reader.necessary(map, "loot_table")?)?
+                    .to_buf(),
+                seed: (reader
+                    .optional(map, "seed", |reader, tag| Ok(reader.number(tag)?.to_long()))?)
+                .unwrap_or_default(),
+            })
+        }
     })
 }
 
 struct Reader<'names, L> {
     component: BuiltinKey,
     names: &'names L,
+    depth: u32,
 }
 
 impl<L: NameLookup> Reader<'_, L> {
@@ -697,17 +774,12 @@ impl<L: NameLookup> Reader<'_, L> {
         &self,
         map: &NbtCompound,
         field: &str,
-        mut read: impl FnMut(&Self, &NbtTag) -> Result<T, SavedError>,
+        read: impl FnMut(&Self, &NbtTag) -> Result<T, SavedError>,
     ) -> Result<Vec<T>, SavedError> {
         let Some(tag) = map.get(field) else {
             return Ok(Vec::new());
         };
-        let list = self.list(tag)?;
-        let mut values: Vec<T> = Vec::with_capacity(list.len());
-        for element in list {
-            values.push(read(self, element)?);
-        }
-        Ok(values)
+        self.each(self.list(tag)?, read)
     }
 
     fn block_state(&self, tag: &NbtTag) -> Result<BlockState, SavedError> {
@@ -860,6 +932,131 @@ impl<L: NameLookup> Reader<'_, L> {
             });
         }
         Ok(SuspiciousStewEffects(effects))
+    }
+
+    fn each<T>(
+        &self,
+        list: &[NbtTag],
+        mut read: impl FnMut(&Self, &NbtTag) -> Result<T, SavedError>,
+    ) -> Result<Vec<T>, SavedError> {
+        let mut values: Vec<T> = Vec::with_capacity(list.len());
+        for element in list {
+            values.push(read(self, element)?);
+        }
+        Ok(values)
+    }
+
+    fn templates(&self, list: &[NbtTag]) -> Result<Vec<ItemStack>, SavedError> {
+        let mut stacks: Vec<ItemStack> = Vec::new();
+        for element in list {
+            stacks.push(self.template(element)?);
+        }
+        Ok(stacks)
+    }
+
+    fn template(&self, tag: &NbtTag) -> Result<ItemStack, SavedError> {
+        let depth = self.depth.saturating_add(1);
+        if depth > MAX_NESTING {
+            return Err(SavedError::TooDeep);
+        }
+        match tag {
+            NbtTag::String(id) => Ok(ItemStack::new(read_item(id, self.names)?, Count::ONE)),
+            NbtTag::Compound(map) => read_stack(map, self.names, depth),
+            _ => Err(self.bad()),
+        }
+    }
+
+    fn container(&self, tag: &NbtTag) -> Result<Container, SavedError> {
+        let list = self.list(tag)?;
+        if list.len() > Container::MAX_SLOTS {
+            return Err(SavedError::OutOfRange(self.component));
+        }
+        let mut slots: Vec<Option<ItemStack>> = Vec::new();
+        for element in list {
+            let map = self.map(element)?;
+            let slot = self.int(self.necessary(map, "slot")?, 0..=255)?;
+            let slot = usize::try_from(slot).map_err(|_| SavedError::OutOfRange(self.component))?;
+            let item = self.template(self.necessary(map, "item")?)?;
+            if slots.len() <= slot {
+                slots.resize(slot.saturating_add(1), None);
+            }
+            if let Some(present) = slots.get_mut(slot) {
+                *present = Some(item);
+            }
+        }
+        Container::new(slots).ok_or(SavedError::OutOfRange(self.component))
+    }
+
+    fn entity_data(&self, tag: &NbtTag) -> Result<EntityData, SavedError> {
+        let data = self.custom_data(tag)?;
+        let entity_type = self.string(self.necessary(&data, ENTITY_TYPE_KEY)?)?;
+        let entity_type = self.entity_type(entity_type)?;
+        Ok(EntityData::new(entity_type, data))
+    }
+
+    fn bee(&self, tag: &NbtTag) -> Result<BeeOccupant, SavedError> {
+        let map = self.map(tag)?;
+        Ok(BeeOccupant {
+            entity_data: self.entity_data(self.necessary(map, "entity_data")?)?,
+            ticks_in_hive: self.number(self.necessary(map, "ticks_in_hive")?)?.to_int(),
+            min_ticks_in_hive: self
+                .number(self.necessary(map, "min_ticks_in_hive")?)?
+                .to_int(),
+        })
+    }
+
+    fn firework_explosion(&self, tag: &NbtTag) -> Result<FireworkExplosion, SavedError> {
+        let map = self.map(tag)?;
+        let shape = self.string(self.necessary(map, "shape")?)?;
+        let int = |reader: &Self, tag: &NbtTag| Ok(reader.number(tag)?.to_int());
+        Ok(FireworkExplosion {
+            shape: FireworkShape::from_name(shape).ok_or(self.bad())?,
+            colors: self.listed(map, "colors", int)?,
+            fade_colors: self.listed(map, "fade_colors", int)?,
+            has_trail: self.flag(map, "has_trail", false)?,
+            has_twinkle: self.flag(map, "has_twinkle", false)?,
+        })
+    }
+
+    fn fireworks(&self, tag: &NbtTag) -> Result<Fireworks, SavedError> {
+        let map = self.map(tag)?;
+        let explosions = match map.get("explosions") {
+            Some(tag) => {
+                let list = self.list(tag)?;
+                if list.len() > Fireworks::MAX_EXPLOSIONS {
+                    return Err(SavedError::OutOfRange(self.component));
+                }
+                self.each(list, Self::firework_explosion)?
+            }
+            None => Vec::new(),
+        };
+        let flight_duration = self.optional(map, "flight_duration", |reader, tag| {
+            Ok(reader.number(tag)?.to_int() as u8)
+        })?;
+        Ok(Fireworks {
+            flight_duration: flight_duration.unwrap_or_default(),
+            explosions,
+        })
+    }
+
+    fn banner_layer(&self, tag: &NbtTag) -> Result<BannerLayer, SavedError> {
+        let map = self.map(tag)?;
+        let pattern = match self.necessary(map, "pattern")? {
+            NbtTag::Compound(pattern) => RegistryValue::Inline(InlineBannerPattern::new(
+                self.identifier(self.necessary(pattern, "asset_id")?)?
+                    .to_buf(),
+                self.string(self.necessary(pattern, "translation_key")?)?
+                    .to_string(),
+            )),
+            pattern => RegistryValue::Reference(BannerPatternId(
+                self.entry(NameTable::BannerPattern, self.identifier(pattern)?)?,
+            )),
+        };
+        let color = self.string(self.necessary(map, "color")?)?;
+        Ok(BannerLayer {
+            pattern,
+            color: DyeColor::from_name(color).ok_or(self.bad())?,
+        })
     }
 
     fn instrument(

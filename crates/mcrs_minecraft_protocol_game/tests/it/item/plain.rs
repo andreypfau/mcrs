@@ -17,6 +17,20 @@ use crate::item::harness::{
     try_from_json, wire,
 };
 
+struct Deviating {
+    deviation: &'static str,
+    kind: &'static str,
+    input: &'static str,
+    json: &'static str,
+}
+
+const DEVIATING: [Deviating; 1] = [Deviating {
+    deviation: "D13",
+    kind: "container_loot",
+    input: r#"{"loot_table":"minecraft:chests/x","seed":18446744073709551617}"#,
+    json: r#"{"loot_table":"minecraft:chests/x","seed":9223372036854775807}"#,
+}];
+
 const REFUSED_ON_THE_WIRE: [(&str, &str); 1] = [(
     "lodestone_tracker",
     r#"{"target":{"dimension":"mcrs:custom","pos":[0,4096,-1]}}"#,
@@ -163,6 +177,19 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         let Some(input) = &row.input else { continue };
         let kind = kind(&row.kind);
         let value = from_json(kind, input);
+        if let Some(case) = DEVIATING
+            .iter()
+            .find(|case| case.kind == row.kind && case.input == input)
+        {
+            assert_eq!(
+                json_value(&value),
+                serde_json::from_str::<serde_json::Value>(case.json).unwrap(),
+                "{}: {kind:?} json of {input}",
+                case.deviation
+            );
+            checked += 1;
+            continue;
+        }
         let cached_by_the_game = kind == DataComponentType::Profile
             && profiles
                 .iter()
@@ -241,7 +268,7 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 86);
+    assert_eq!(checked, 110);
 }
 
 #[test]
@@ -297,7 +324,7 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 3);
+    assert_eq!(checked, 8);
 }
 
 #[test]
@@ -358,5 +385,5 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 35);
+    assert_eq!(checked, 38);
 }

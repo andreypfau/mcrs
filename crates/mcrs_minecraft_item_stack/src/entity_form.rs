@@ -1,12 +1,20 @@
 use alloc::borrow::Cow;
 
 use crate::AttributeModifiers;
+use crate::BannerPatterns;
+use crate::Bees;
+use crate::BundleContents;
+use crate::ChargedProjectiles;
+use crate::Container;
+use crate::ContainerLoot;
 use crate::CustomData;
 use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
 use crate::DyedColor;
 use crate::EnchantmentGlintOverride;
+use crate::FireworkExplosion;
+use crate::Fireworks;
 use crate::Food;
 use crate::Instrument;
 use crate::ItemModel;
@@ -72,6 +80,22 @@ impl EntityForm for SuspiciousStewEffects {}
 impl EntityForm for OminousBottleAmplifier {}
 
 impl EntityForm for Instrument {}
+
+impl EntityForm for BannerPatterns {}
+
+impl EntityForm for Bees {}
+
+impl EntityForm for BundleContents {}
+
+impl EntityForm for ChargedProjectiles {}
+
+impl EntityForm for Container {}
+
+impl EntityForm for ContainerLoot {}
+
+impl EntityForm for FireworkExplosion {}
+
+impl EntityForm for Fireworks {}
 
 impl EntityForm for ItemModel {
     fn borrow_static(&'static self) -> Self {

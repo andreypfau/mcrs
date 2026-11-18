@@ -6,12 +6,18 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item_stack::AttributeModifiers;
+use mcrs_minecraft_item_stack::BannerPatterns;
+use mcrs_minecraft_item_stack::Bees;
 use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::BlockStateProperty;
+use mcrs_minecraft_item_stack::BundleContents;
+use mcrs_minecraft_item_stack::ChargedProjectiles;
+use mcrs_minecraft_item_stack::Container;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::Equippable;
+use mcrs_minecraft_item_stack::Fireworks;
 use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::Instrument;
 use mcrs_minecraft_item_stack::InstrumentId;
@@ -305,7 +311,7 @@ fn the_prototypes_have_the_counts_of_the_specification() {
 
 #[test]
 fn the_prototypes_have_the_flat_values_of_the_specification() {
-    let cases: [(&str, usize, usize); 4] = [
+    let cases: [(&str, usize, usize); 10] = [
         (
             "STK-SHP-037 enchantment glint override",
             count(|prototype| prototype.get() == Some(&EnchantmentGlintOverride(true))),
@@ -325,6 +331,44 @@ fn the_prototypes_have_the_flat_values_of_the_specification() {
             "STK-SHP-045 ominous bottle amplifier",
             count(|prototype| prototype.get() == Some(&OminousBottleAmplifier(0))),
             1,
+        ),
+        (
+            "STK-SHP-052 charged projectiles",
+            count(|prototype| prototype.get() == Some(&ChargedProjectiles(Vec::new()))),
+            1,
+        ),
+        (
+            "STK-SHP-051 bundle contents",
+            count(|prototype| prototype.get() == Some(&BundleContents(Vec::new()))),
+            17,
+        ),
+        (
+            "STK-SHP-058 fireworks",
+            count(|prototype| {
+                prototype.get::<Fireworks>().is_some_and(|fireworks| {
+                    fireworks.flight_duration == 1 && fireworks.explosions.is_empty()
+                })
+            }),
+            1,
+        ),
+        (
+            "STK-SHP-059 banner patterns",
+            count(|prototype| prototype.get() == Some(&BannerPatterns(Vec::new()))),
+            17,
+        ),
+        (
+            "STK-SHP-053 container",
+            count(|prototype| {
+                prototype
+                    .get::<Container>()
+                    .is_some_and(|container| container.slots().is_empty())
+            }),
+            45,
+        ),
+        (
+            "STK-SHP-056 bees",
+            count(|prototype| prototype.get() == Some(&Bees(Vec::new()))),
+            2,
         ),
     ];
     for (rule, actual, expected) in cases {

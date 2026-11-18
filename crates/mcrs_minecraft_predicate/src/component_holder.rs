@@ -1,6 +1,12 @@
 use mcrs_minecraft_item_stack::AttributeModifiers;
+use mcrs_minecraft_item_stack::BannerPatterns;
+use mcrs_minecraft_item_stack::Bees;
 use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::Builtin;
+use mcrs_minecraft_item_stack::BundleContents;
+use mcrs_minecraft_item_stack::ChargedProjectiles;
+use mcrs_minecraft_item_stack::Container;
+use mcrs_minecraft_item_stack::ContainerLoot;
 use mcrs_minecraft_item_stack::CustomData;
 use mcrs_minecraft_item_stack::CustomModelData;
 use mcrs_minecraft_item_stack::CustomName;
@@ -8,6 +14,8 @@ use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::DyedColor;
 use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::FireworkExplosion;
+use mcrs_minecraft_item_stack::Fireworks;
 use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::Instrument;
 use mcrs_minecraft_item_stack::ItemComponent;
@@ -90,6 +98,16 @@ impl<'a> ComponentHolder<'a> {
                 self.effective::<OminousBottleAmplifier>().is_some()
             }
             DataComponentType::Instrument => self.effective::<Instrument>().is_some(),
+            DataComponentType::BannerPatterns => self.effective::<BannerPatterns>().is_some(),
+            DataComponentType::Bees => self.effective::<Bees>().is_some(),
+            DataComponentType::BundleContents => self.effective::<BundleContents>().is_some(),
+            DataComponentType::ChargedProjectiles => {
+                self.effective::<ChargedProjectiles>().is_some()
+            }
+            DataComponentType::Container => self.effective::<Container>().is_some(),
+            DataComponentType::ContainerLoot => self.effective::<ContainerLoot>().is_some(),
+            DataComponentType::FireworkExplosion => self.effective::<FireworkExplosion>().is_some(),
+            DataComponentType::Fireworks => self.effective::<Fireworks>().is_some(),
             _ => false,
         }
     }
@@ -125,6 +143,14 @@ impl<'a> ComponentHolder<'a> {
             Builtin::SuspiciousStewEffects(value) => self.effective() == Some(value),
             Builtin::OminousBottleAmplifier(value) => self.effective() == Some(value),
             Builtin::Instrument(value) => self.effective() == Some(value),
+            Builtin::BannerPatterns(value) => self.effective() == Some(value),
+            Builtin::Bees(value) => self.effective() == Some(value),
+            Builtin::BundleContents(value) => self.effective() == Some(value),
+            Builtin::ChargedProjectiles(value) => self.effective() == Some(value),
+            Builtin::Container(value) => self.effective() == Some(value),
+            Builtin::ContainerLoot(value) => self.effective() == Some(value),
+            Builtin::FireworkExplosion(value) => self.effective() == Some(value),
+            Builtin::Fireworks(value) => self.effective() == Some(value),
             _ => false,
         }
     }

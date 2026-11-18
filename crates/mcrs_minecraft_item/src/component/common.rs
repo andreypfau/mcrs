@@ -409,8 +409,8 @@ impl<R> Serialize for TypedEntityData<R> {
     }
 }
 
-impl<'de, R> Deserialize<'de> for TypedEntityData<R> {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+impl<R> TypedEntityData<R> {
+    fn deserialize_any_id<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let mut tag = compound_or_snbt(d)?;
         let Some(id) = tag.child_tags.iter().position(|(key, _)| key == "id") else {
             return Err(D::Error::custom("Expected 'id' field"));
@@ -640,6 +640,20 @@ impl Decode<'_> for MobEffectDetails {
 
 macro_rules! typed_entity_data_wire {
     ($($registry:ty),* $(,)?) => {$(
+        impl<'de> Deserialize<'de> for TypedEntityData<$registry> {
+            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                let data = Self::deserialize_any_id(d)?;
+                if <$registry>::get(data.id.as_key().location()).is_none() {
+                    return Err(D::Error::custom(format!(
+                        "no {} is named {}",
+                        stringify!($registry),
+                        data.id
+                    )));
+                }
+                Ok(data)
+            }
+        }
+
         impl Encode for TypedEntityData<$registry> {
             fn encode(&self, mut w: impl Write) -> Result<()> {
                 <$registry>::get(self.id.as_key().location())
@@ -652,6 +666,10 @@ macro_rules! typed_entity_data_wire {
         impl Decode<'_> for TypedEntityData<$registry> {
             fn decode(r: &mut &[u8]) -> Result<Self> {
                 let entry = <$registry>::decode(r)?;
+                ensure!(
+                    r.first() != Some(&mcrs_minecraft_nbt::END_ID),
+                    "Expected non-null compound tag"
+                );
                 ensure!(
                     r.first() == Some(&mcrs_minecraft_nbt::COMPOUND_ID),
                     "expected a compound tag"

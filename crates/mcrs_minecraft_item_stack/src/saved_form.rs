@@ -5,9 +5,17 @@ use mcrs_minecraft_text::Text;
 
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
+use crate::BannerLayer;
+use crate::BannerPatterns;
+use crate::Bees;
 use crate::BlockSet;
 use crate::Builtin;
 use crate::BuiltinKey;
+use crate::BundleContents;
+use crate::ChargedProjectiles;
+use crate::ComponentType;
+use crate::Container;
+use crate::ContainerLoot;
 use crate::CustomData;
 use crate::CustomModelData;
 use crate::CustomName;
@@ -16,14 +24,18 @@ use crate::DyedColor;
 use crate::EffectInstance;
 use crate::EnchantmentGlintOverride;
 use crate::Enchantments;
+use crate::EntityData;
 use crate::EntityTypeSet;
 use crate::Equippable;
+use crate::FireworkExplosion;
+use crate::Fireworks;
 use crate::Food;
 use crate::HashError;
 use crate::InlineInstrument;
 use crate::Instrument;
 use crate::InstrumentId;
 use crate::ItemName;
+use crate::ItemStack;
 use crate::LodestoneTracker;
 use crate::Lore;
 use crate::MapDecorations;
@@ -34,6 +46,7 @@ use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::OminousBottleAmplifier;
+use crate::PatchEntry;
 use crate::PotionContents;
 use crate::RegistryValue;
 use crate::RepairCost;
@@ -48,14 +61,19 @@ use crate::TooltipDisplay;
 use crate::Trim;
 use crate::Unbreakable;
 use crate::WireError;
+use crate::check_saved_form::MAX_COUNT;
+use crate::check_saved_form::MAX_NESTING;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::lore::MAX_LINES;
+use crate::saved::decode;
+use crate::saved::is_air;
 use crate::saved_sink::Field;
 use crate::saved_sink::KeyedEntry;
 use crate::saved_sink::Leaf;
+use crate::saved_sink::MapKey;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 
@@ -74,6 +92,11 @@ pub(crate) enum Fault {
         component: BuiltinKey,
         table: NameTable,
     },
+    TooDeep,
+    WireValueOnly {
+        component: BuiltinKey,
+        component_type: ComponentType,
+    },
 }
 
 impl Fault {
@@ -82,6 +105,8 @@ impl Fault {
             Self::BadValue(component) => SavedError::BadValue(component),
             Self::OutOfRange(component) => SavedError::OutOfRange(component),
             Self::UnnamedId { table, .. } => SavedError::UnnamedId(table),
+            Self::TooDeep => SavedError::TooDeep,
+            Self::WireValueOnly { component_type, .. } => SavedError::WireValueOnly(component_type),
         }
     }
 
@@ -90,6 +115,10 @@ impl Fault {
             Self::BadValue(component) => HashError::BadValue(component),
             Self::OutOfRange(component) => HashError::OutOfRange(component),
             Self::UnnamedId { component, table } => HashError::UnknownEntry { component, table },
+            Self::TooDeep => HashError::TooDeep,
+            Self::WireValueOnly { component_type, .. } => {
+                HashError::UndecodedComponent(component_type)
+            }
         }
     }
 
@@ -98,6 +127,8 @@ impl Fault {
             Self::BadValue(component) => WireError::BadValue(component),
             Self::OutOfRange(component) => WireError::OutOfRange(component),
             Self::UnnamedId { component, table } => WireError::UnknownEntry { component, table },
+            Self::TooDeep => WireError::TooDeep,
+            Self::WireValueOnly { component, .. } => WireError::BadValue(component),
         }
     }
 }
@@ -107,9 +138,19 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
     names: &L,
     sink: &mut S,
 ) -> Result<S::Node, Fault> {
+    saved_form_at(value, names, sink, 0)
+}
+
+fn saved_form_at<S: SavedSink, L: NameLookup>(
+    value: &Builtin,
+    names: &L,
+    sink: &mut S,
+    depth: u32,
+) -> Result<S::Node, Fault> {
     let walk = Walk {
         component: value.key(),
         names,
+        depth,
     };
     match value {
         Builtin::MaxStackSize(MaxStackSize(size)) => walk.int(sink, *size, STACK_SIZE),
@@ -139,7 +180,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
         }
         Builtin::BlockState(state) => sink.keyed_map(state.properties(), |sink, property| {
             Ok(KeyedEntry {
-                key: &property.name,
+                key: MapKey::String(&property.name),
                 value: sink.leaf(Leaf::String(&property.value)),
             })
         }),
@@ -161,6 +202,36 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
             walk.int(sink, *amplifier, OMINOUS_AMPLIFIER)
         }
         Builtin::Instrument(Instrument(instrument)) => walk.instrument(sink, instrument),
+        Builtin::ChargedProjectiles(ChargedProjectiles(projectiles)) => {
+            if projectiles.len() > ChargedProjectiles::MAX_PROJECTILES {
+                return Err(Fault::OutOfRange(walk.component));
+            }
+            sink.list(projectiles.iter(), |sink, stack| walk.template(sink, stack))
+        }
+        Builtin::BundleContents(BundleContents(stacks)) => {
+            sink.list(stacks.iter(), |sink, stack| walk.template(sink, stack))
+        }
+        Builtin::FireworkExplosion(explosion) => walk.firework_explosion(sink, explosion),
+        Builtin::Fireworks(fireworks) => walk.fireworks(sink, fireworks),
+        Builtin::BannerPatterns(BannerPatterns(layers)) => {
+            sink.list(layers.iter(), |sink, layer| walk.banner_layer(sink, layer))
+        }
+        Builtin::Container(container) => walk.container(sink, container),
+        Builtin::Bees(Bees(occupants)) => sink.list(occupants.iter(), |sink, occupant| {
+            let entity_data = walk.entity_data(sink, &occupant.entity_data)?;
+            Ok(sink.fields([
+                Field::new("entity_data", entity_data),
+                Field::new(
+                    "ticks_in_hive",
+                    sink.leaf(Leaf::Int(occupant.ticks_in_hive)),
+                ),
+                Field::new(
+                    "min_ticks_in_hive",
+                    sink.leaf(Leaf::Int(occupant.min_ticks_in_hive)),
+                ),
+            ]))
+        }),
+        Builtin::ContainerLoot(loot) => Ok(walk.container_loot(sink, loot)),
     }
 }
 
@@ -186,6 +257,7 @@ fn listed<S: SavedSink, T>(
 struct Walk<'names, L> {
     component: BuiltinKey,
     names: &'names L,
+    depth: u32,
 }
 
 impl<L: NameLookup> Walk<'_, L> {
@@ -360,7 +432,7 @@ impl<L: NameLookup> Walk<'_, L> {
                 Field::new("rotation", sink.leaf(Leaf::Float(decoration.rotation))),
             ]);
             Ok(KeyedEntry {
-                key: &decoration.key,
+                key: MapKey::String(&decoration.key),
                 value,
             })
         })
@@ -592,4 +664,174 @@ impl<L: NameLookup> Walk<'_, L> {
             }
         }
     }
+
+    fn template<S: SavedSink>(&self, sink: &mut S, stack: &ItemStack) -> Result<S::Node, Fault> {
+        let depth = self.depth.saturating_add(1);
+        if depth > MAX_NESTING {
+            return Err(Fault::TooDeep);
+        }
+        let item = self.name(NameTable::Item, stack.kind.0)?;
+        if is_air(item) {
+            return Err(Fault::BadValue(self.component));
+        }
+        let count = stack.count.get();
+        if count > MAX_COUNT {
+            return Err(Fault::OutOfRange(self.component));
+        }
+        let count = (count != 1).then(|| sink.leaf(Leaf::Int(i32::from(count))));
+        let mut entries = stack
+            .patch()
+            .iter()
+            .filter(|entry| is_saved(entry))
+            .peekable();
+        let components = if entries.peek().is_some() {
+            Some(sink.keyed_map(entries, |sink, entry| self.patch_entry(sink, entry, depth))?)
+        } else {
+            None
+        };
+        Ok(sink.fields([
+            Field::new("id", sink.leaf(Leaf::Name(item))),
+            Field::optional("count", count),
+            Field::optional("components", components),
+        ]))
+    }
+
+    fn patch_entry<'entry, S: SavedSink>(
+        &self,
+        sink: &mut S,
+        entry: &'entry PatchEntry,
+        depth: u32,
+    ) -> Result<KeyedEntry<'entry, S::Node>, Fault> {
+        let bad = Fault::BadValue(self.component);
+        Ok(match entry {
+            PatchEntry::Value(value) => KeyedEntry {
+                key: MapKey::Name(value.key().location().ok_or(bad)?),
+                value: saved_form_at(value, self.names, sink, depth)?,
+            },
+            PatchEntry::Removal(component) => KeyedEntry {
+                key: MapKey::Removal(component.location().ok_or(bad)?),
+                value: sink.fields([]),
+            },
+            PatchEntry::Undecoded(value) => {
+                let tag = decode(&value.bytes).map_err(|_| bad)?;
+                KeyedEntry {
+                    key: MapKey::Name(value.name.as_location()),
+                    value: sink.tag(&tag).ok_or(bad)?,
+                }
+            }
+            PatchEntry::UndecodedRemoval(name) => KeyedEntry {
+                key: MapKey::Removal(name.as_location()),
+                value: sink.fields([]),
+            },
+            PatchEntry::UndecodedWire(value) => {
+                return Err(Fault::WireValueOnly {
+                    component: self.component,
+                    component_type: value.component(),
+                });
+            }
+            PatchEntry::Custom(_) => return Err(bad),
+        })
+    }
+
+    fn container<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        container: &Container,
+    ) -> Result<S::Node, Fault> {
+        let slots = container.slots().iter().enumerate();
+        let filled = slots.filter_map(|(slot, stack)| Some((slot, stack.as_ref()?)));
+        sink.list(filled, |sink, (slot, stack)| {
+            let slot = i32::try_from(slot).map_err(|_| Fault::OutOfRange(self.component))?;
+            let item = self.template(sink, stack)?;
+            Ok(sink.fields([
+                Field::new("slot", sink.leaf(Leaf::Int(slot))),
+                Field::new("item", item),
+            ]))
+        })
+    }
+
+    fn container_loot<S: SavedSink>(&self, sink: &S, loot: &ContainerLoot) -> S::Node {
+        let seed = (loot.seed != 0).then(|| sink.leaf(Leaf::Long(loot.seed)));
+        sink.fields([
+            Field::optional("seed", seed),
+            Field::new(
+                "loot_table",
+                sink.leaf(Leaf::Name(loot.loot_table.as_location())),
+            ),
+        ])
+    }
+
+    fn entity_data<S: SavedSink>(&self, sink: &mut S, data: &EntityData) -> Result<S::Node, Fault> {
+        let entity_type = self.name(NameTable::EntityType, data.entity_type.0)?;
+        sink.entity_data(data.data(), entity_type)
+            .ok_or(Fault::BadValue(self.component))
+    }
+
+    fn firework_explosion<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        explosion: &FireworkExplosion,
+    ) -> Result<S::Node, Fault> {
+        let colors = listed(sink, &explosion.colors, |sink, color| {
+            Ok(sink.leaf(Leaf::Int(*color)))
+        })?;
+        let fade_colors = listed(sink, &explosion.fade_colors, |sink, color| {
+            Ok(sink.leaf(Leaf::Int(*color)))
+        })?;
+        let has_trail = explosion.has_trail.then(|| sink.leaf(Leaf::Boolean(true)));
+        let has_twinkle = explosion
+            .has_twinkle
+            .then(|| sink.leaf(Leaf::Boolean(true)));
+        Ok(sink.fields([
+            Field::new("shape", sink.leaf(Leaf::String(explosion.shape.name()))),
+            Field::optional("colors", colors),
+            Field::optional("fade_colors", fade_colors),
+            Field::optional("has_trail", has_trail),
+            Field::optional("has_twinkle", has_twinkle),
+        ]))
+    }
+
+    fn fireworks<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        fireworks: &Fireworks,
+    ) -> Result<S::Node, Fault> {
+        if fireworks.explosions.len() > Fireworks::MAX_EXPLOSIONS {
+            return Err(Fault::OutOfRange(self.component));
+        }
+        let flight_duration = (fireworks.flight_duration != 0)
+            .then(|| sink.leaf(Leaf::Byte(fireworks.flight_duration.cast_signed())));
+        let explosions = listed(sink, &fireworks.explosions, |sink, explosion| {
+            self.firework_explosion(sink, explosion)
+        })?;
+        Ok(sink.fields([
+            Field::optional("flight_duration", flight_duration),
+            Field::optional("explosions", explosions),
+        ]))
+    }
+
+    fn banner_layer<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        layer: &BannerLayer,
+    ) -> Result<S::Node, Fault> {
+        let pattern = match &layer.pattern {
+            RegistryValue::Reference(id) => self.entry(sink, NameTable::BannerPattern, id.0)?,
+            RegistryValue::Inline(pattern) => sink.fields([
+                Field::new("asset_id", sink.leaf(Leaf::Name(pattern.asset_id()))),
+                Field::new(
+                    "translation_key",
+                    sink.leaf(Leaf::String(&pattern.translation_key)),
+                ),
+            ]),
+        };
+        Ok(sink.fields([
+            Field::new("pattern", pattern),
+            Field::new("color", sink.leaf(Leaf::String(layer.color.name()))),
+        ]))
+    }
+}
+
+fn is_saved(entry: &PatchEntry) -> bool {
+    !matches!(entry, PatchEntry::Custom(_))
 }
