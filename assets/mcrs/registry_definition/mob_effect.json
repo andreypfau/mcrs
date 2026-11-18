@@ -1,0 +1,125 @@
+{
+  "minecraft:absorption": {
+    "color": 2445989
+  },
+  "minecraft:bad_omen": {
+    "color": 745784
+  },
+  "minecraft:blindness": {
+    "color": 2039587
+  },
+  "minecraft:breath_of_the_nautilus": {
+    "color": 65518
+  },
+  "minecraft:conduit_power": {
+    "color": 1950417
+  },
+  "minecraft:darkness": {
+    "color": 2696993
+  },
+  "minecraft:dolphins_grace": {
+    "color": 8954814
+  },
+  "minecraft:fire_resistance": {
+    "color": 16750848
+  },
+  "minecraft:freezing": {
+    "color": 10415854
+  },
+  "minecraft:glowing": {
+    "color": 9740385
+  },
+  "minecraft:haste": {
+    "color": 14270531
+  },
+  "minecraft:health_boost": {
+    "color": 16284963
+  },
+  "minecraft:hero_of_the_village": {
+    "color": 4521796
+  },
+  "minecraft:hunger": {
+    "color": 5797459
+  },
+  "minecraft:infested": {
+    "color": 9214860
+  },
+  "minecraft:instant_damage": {
+    "color": 11101546
+  },
+  "minecraft:instant_health": {
+    "color": 16262179
+  },
+  "minecraft:invisibility": {
+    "color": 16185078
+  },
+  "minecraft:jump_boost": {
+    "color": 16646020
+  },
+  "minecraft:levitation": {
+    "color": 13565951
+  },
+  "minecraft:luck": {
+    "color": 5882118
+  },
+  "minecraft:mining_fatigue": {
+    "color": 4866583
+  },
+  "minecraft:nausea": {
+    "color": 5578058
+  },
+  "minecraft:night_vision": {
+    "color": 12779366
+  },
+  "minecraft:oozing": {
+    "color": 10092451
+  },
+  "minecraft:poison": {
+    "color": 8889187
+  },
+  "minecraft:raid_omen": {
+    "color": 14565464
+  },
+  "minecraft:regeneration": {
+    "color": 13458603
+  },
+  "minecraft:resistance": {
+    "color": 9520880
+  },
+  "minecraft:saturation": {
+    "color": 16262179
+  },
+  "minecraft:slow_falling": {
+    "color": 15978425
+  },
+  "minecraft:slowness": {
+    "color": 9154528
+  },
+  "minecraft:speed": {
+    "color": 3402751
+  },
+  "minecraft:strength": {
+    "color": 16762624
+  },
+  "minecraft:trial_omen": {
+    "color": 1484454
+  },
+  "minecraft:unluck": {
+    "color": 12624973
+  },
+  "minecraft:water_breathing": {
+    "color": 10017472
+  },
+  "minecraft:weakness": {
+    "color": 4738376
+  },
+  "minecraft:weaving": {
+    "color": 7891290
+  },
+  "minecraft:wind_charged": {
+    "color": 12438015
+  },
+  "minecraft:wither": {
+    "color": 7561558
+  }
+}

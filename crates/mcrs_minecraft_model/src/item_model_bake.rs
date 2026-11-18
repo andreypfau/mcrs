@@ -15,6 +15,7 @@ use crate::item_model_generator;
 use crate::item_model_transform::compose;
 use crate::model_id::ModelId;
 use crate::resource_set::ResourceSet;
+use crate::sprite_atlas::SpriteAtlas;
 use mcrs_minecraft_model_file::face_bake::{self, VariantTransform};
 use mcrs_minecraft_model_file::model_file::{
     DisplayContext, DisplayTransform, Element, FaceEntry, GuiLight,
@@ -28,6 +29,7 @@ pub struct ItemQuad {
     pub dir: Direction,
     pub normal: Vec3,
     pub sprite: u16,
+    pub atlas: SpriteAtlas,
     pub tint: Option<u32>,
 }
 
@@ -390,7 +392,13 @@ fn bake_model(
                 .ok_or_else(|| format!("{} names no texture array", texture.sprite))?
                 .size;
             let frames = sprites.frames(sprite);
-            quads.extend(item_model_generator::extrude(sprite, side, &frames, layer)?);
+            quads.extend(item_model_generator::extrude(
+                sprite,
+                sprites.atlas(sprite),
+                side,
+                &frames,
+                layer,
+            )?);
         }
     } else {
         for face in face_bake::bake_elements(&model.elements, VariantTransform::default())
@@ -405,6 +413,7 @@ fn bake_model(
                 dir: face.direction,
                 normal: face.direction.normal().as_vec3(),
                 sprite,
+                atlas: sprites.atlas(sprite),
                 tint: face.tint,
             });
         }
@@ -418,7 +427,11 @@ fn bake_model(
     })
 }
 
-pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQuad>, String> {
+pub(super) fn element_quads(
+    element: Element,
+    sprite: u16,
+    atlas: SpriteAtlas,
+) -> Result<Vec<ItemQuad>, String> {
     let faces = face_bake::bake_elements(&[element], VariantTransform::default())
         .map_err(|error| error.to_string())?;
     Ok(faces
@@ -429,6 +442,7 @@ pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQua
             dir: face.direction,
             normal: face.direction.normal().as_vec3(),
             sprite,
+            atlas,
             tint: face.tint,
         })
         .collect())
@@ -465,7 +479,7 @@ fn missing_model(
         std::array::from_fn(|_| Some(face.clone())),
     );
     Ok(BakedItemModel {
-        quads: element_quads(element, sprite)?,
+        quads: element_quads(element, sprite, sprites.atlas(sprite))?,
         display: DisplayTransform::IDENTITY,
         gui_light: GuiLight::Side,
     })
@@ -496,6 +510,7 @@ mod tests {
                 dir: Direction::North,
                 normal: Direction::North.normal().as_vec3(),
                 sprite: 0,
+                atlas: SpriteAtlas::Block,
                 tint: None,
             }],
             display: DisplayTransform::IDENTITY,

@@ -1,6 +1,7 @@
 use mcrs_minecraft_registries::Registries;
 
 use crate::item_model_asset::{Case, ConditionProperty, RangeProperty, SelectSwitch, TintSource};
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_item::RgbInt;
 use mcrs_minecraft_item::registry_keys::TRIM_MATERIAL;
 use mcrs_minecraft_item_stack::ArgbColor;
@@ -12,6 +13,7 @@ use mcrs_minecraft_item_stack::PotionContents as StackPotionContents;
 use mcrs_minecraft_item_stack::RegistryValue;
 use mcrs_minecraft_item_stack::Trim as StackTrim;
 use mcrs_minecraft_item_stack::TrimMaterialId;
+use mcrs_minecraft_potion::potion_keys::Potion;
 
 use crate::colormap::colormap_rgba;
 use crate::item_model_context::ItemModelContext;
@@ -36,22 +38,52 @@ fn scaled(normalize: bool, value: f32, max: f32) -> f32 {
     }
 }
 
-fn firework(colors: &[i32], default: RgbInt) -> u32 {
-    match colors {
-        [] => default.0 as u32,
-        [only] => opaque(*only),
-        _ => {
-            let count = u64::try_from(colors.len()).unwrap_or(u64::MAX);
-            let channel = |shift: u32| {
-                let sum: u64 = colors
-                    .iter()
-                    .map(|color| u64::from((color.cast_unsigned() >> shift) & 0xFF))
-                    .sum();
-                u32::try_from(sum / count).unwrap_or(0xFF)
-            };
-            0xFF00_0000 | channel(16) << 16 | channel(8) << 8 | channel(0)
+fn weighted_mean(colors: impl Iterator<Item = (u32, u64)>) -> Option<u32> {
+    let mut sums = [0_u64; 3];
+    let mut total = 0_u64;
+    for (color, weight) in colors {
+        for (sum, shift) in sums.iter_mut().zip([16, 8, 0]) {
+            let channel = weight.checked_mul(u64::from((color >> shift) & 0xFF))?;
+            *sum = sum.checked_add(channel)?;
         }
+        total = total.checked_add(weight)?;
     }
+    let [red, green, blue] = sums.map(|sum| u32::try_from(sum.checked_div(total)?).ok());
+    Some(red? << 16 | green? << 8 | blue?)
+}
+
+fn firework(colors: &[i32], default: RgbInt) -> u32 {
+    weighted_mean(colors.iter().map(|color| (color.cast_unsigned(), 1)))
+        .map_or(default.0 as u32, |rgb| 0xFF00_0000 | rgb)
+}
+
+fn potion(contents: &StackPotionContents, default: RgbInt) -> i32 {
+    if let Some(color) = contents.custom_color {
+        return color;
+    }
+    let named = contents
+        .potion
+        .and_then(|id| Potion::from_protocol_id(id.0))
+        .map_or(&[][..], Potion::effects)
+        .iter()
+        .filter(|effect| effect.show_particles)
+        .map(|effect| (effect.effect, effect.amplifier));
+    let custom = contents
+        .custom_effects
+        .iter()
+        .filter(|effect| effect.show_particles)
+        .filter_map(|effect| {
+            Some((
+                MobEffect::from_protocol_id(effect.effect.0)?,
+                effect.amplifier,
+            ))
+        });
+    weighted_mean(
+        named
+            .chain(custom)
+            .map(|(effect, amplifier)| (effect.color(), u64::from(amplifier) + 1)),
+    )
+    .map_or(default.0, u32::cast_signed)
 }
 
 fn grass(colormap: Option<&[u8]>, temperature: f32, downfall: f32) -> u32 {
@@ -192,8 +224,7 @@ impl Evaluator<'_> {
             TintSource::Potion { default } => opaque(
                 self.stack
                     .get::<StackPotionContents>()
-                    .and_then(|contents| contents.custom_color)
-                    .unwrap_or(default.0),
+                    .map_or(default.0, |contents| potion(contents, *default)),
             ),
             TintSource::Firework { default } => firework(
                 self.stack

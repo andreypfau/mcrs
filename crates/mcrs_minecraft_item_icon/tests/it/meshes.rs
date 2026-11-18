@@ -55,6 +55,13 @@ fn a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side() {
     assert!(!stone.foil());
     let quads = vertices(only_layer(&stone));
     assert_eq!(quads.len(), 6);
+    assert!(
+        quads
+            .iter()
+            .flatten()
+            .all(|v| v.sprite & GuiVertex::ITEM_ATLAS_BIT == 0),
+        "a block texture is in the block atlas"
+    );
     let front: Vec<Vec3> = quads.iter().map(facing).filter(|n| n.z > 0.0).collect();
     assert_eq!(front.len(), 3, "{front:?}");
     for (normal, brightness) in [
@@ -94,6 +101,11 @@ fn a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted() {
             .all(|v| (0.0..=16.0).contains(&v.pos[0]) && (0.0..=16.0).contains(&v.pos[1]))
     );
     assert!(quads.iter().flatten().all(|v| v.sprite == front[0].sprite));
+    assert_ne!(
+        front[0].sprite & GuiVertex::ITEM_ATLAS_BIT,
+        0,
+        "an item texture is in the item atlas"
+    );
     assert!(!stick.foil());
 
     let level = EnchantmentLevel {

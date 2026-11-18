@@ -292,6 +292,14 @@ tasks.register('dumpBlockModels', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-model-out".toString()]
 }
 
+tasks.register('dumpPotionColors', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.PotionColorOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/potion-color-out".toString()]
+}
+
 tasks.register('dumpBlockFaces', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
