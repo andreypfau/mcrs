@@ -176,6 +176,14 @@ tasks.register('dumpDefinitions', JavaExec) {
 	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
 }
 
+tasks.register('dumpCreativeTabs', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.CreativeTabDumper'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('creativeTabsOut') ?: "${layout.buildDirectory.get()}/creative_tabs.json".toString()]
+}
+
 tasks.register('dumpChunks', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
