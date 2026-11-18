@@ -517,6 +517,21 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(Pointer::Hotbar(4)), Event::Press(LEFT)],
+            &[over(Pointer::Hotbar(5))],
+            &[Event::Key(KeyCode::KeyT)],
+            &[Event::Release(LEFT)],
+        ],
+        selected: SEARCH_TAB,
+        cursor: stacks::held(Item::Stone, 10),
+        ..row(
+            "the chat key during a drag selects the search tab and the release distributes nothing",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
         frames: &[
             &[over(Pointer::Grid(STONE_SLOT)), Event::Press(LEFT)],
             &[Event::Release(LEFT)],

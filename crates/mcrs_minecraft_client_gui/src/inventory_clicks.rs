@@ -376,8 +376,7 @@ fn play(
                 *search = SearchPress::Released(pressed);
             }
             if let Some(tab) = hover.tab() {
-                frame.gesture.release = ReleaseRule::NoClick;
-                return FrameEnd::TabReleased(tab);
+                return select_tab(frame, scroll, tab);
             }
         }
         match event {
@@ -386,7 +385,7 @@ fn play(
                 return FrameEnd::Closed;
             }
             ScreenEvent::SelectSearchTab => {
-                return FrameEnd::TabReleased(CreativeTabIndex::SEARCH);
+                return select_tab(frame, scroll, CreativeTabIndex::SEARCH);
             }
             ScreenEvent::Press(button) => {
                 if button == MouseButton::Left
@@ -427,6 +426,16 @@ fn play(
         }
     }
     FrameEnd::Open
+}
+
+fn select_tab(
+    frame: &mut GestureFrame,
+    scroll: &mut ScrollDrag,
+    tab: CreativeTabIndex,
+) -> FrameEnd {
+    *scroll = ScrollDrag::Idle;
+    frame.gesture.release = ReleaseRule::NoClick;
+    FrameEnd::TabReleased(tab)
 }
 
 fn open_inventory(
