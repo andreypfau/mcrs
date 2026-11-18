@@ -86,6 +86,10 @@ section 8.
 - `assets/mcrs/reports/packets.json`: the packet id report of the game.
 - `assets/mcrs/item_definition/`: one file for each item, which the game writes through
   `tools/vanilla-oracle`. STK-PRO-002 states the keys.
+- `assets/mcrs/registry_definition/mob_effect.json` and
+  `assets/mcrs/registry_definition/potion.json`: the colour of each effect kind and the effects of
+  each potion. The task `dumpDefinitions` of `tools/vanilla-oracle` writes them. STK-SHP-063 states
+  the keys.
 - The fixtures `hash_ops`, `item_plain`, `item_nested`, `item_records`, `item_holders`,
   `item_registry_refs` and `inventory_packets` of `tools/fixtures.json`. The codecs of the game write each expected value of these goldens.
 
@@ -107,7 +111,7 @@ section 8.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
-| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.6 |
+| `STK-SHP` | the shapes of the component types of sections 8.1 to 8.6, and the colour of a potion contents value (STK-SHP-063) |
 
 ### 0.5 Notation
 
@@ -1820,6 +1824,8 @@ cases `cmd_*`, `block_state_*` and `lodestone_*`. The fixture `item_registry_ref
 the cases of experiment E28. Each case has the JSON, the NBT, the wire form and the hash that the
 game wrote.
 
+STK-SHP-063 also states the colour of a value of `minecraft:potion_contents`.
+
 **STK-SHP-032** (`source_suggested_black_box_confirmed`, wire). The rules of this section use these
 forms in addition to the forms of STK-SHP-002:
 
@@ -2050,6 +2056,66 @@ A writer of the wire form of `minecraft:potion_contents` must write `00` for `hi
 reader of the wire form reads a hidden effect, and this project then drops it. Reason: a value must
 have the same saved form after a read from each format. The provenance of this paragraph is
 `design`. What the vanilla client does with a hidden effect on the wire is not known (U4).
+
+**STK-SHP-063** (`source_suggested`, layout, confidence: medium). The colour of a value
+of `minecraft:potion_contents` depends on a default colour `D`. These steps give the colour:
+
+1. When `custom_color` has a value, the colour is that value. The effects have no effect on the
+   colour.
+2. Else, take the effect instances of the potion that `potion` names, and each element of
+   `custom_effects`. When `potion` has no value, take only `custom_effects`.
+3. Remove each effect instance whose `show_particles` is `false`. Of the other fields, only `id`
+   and `amplifier` have an effect on the colour.
+4. When no effect instance remains, the colour is `D`.
+5. Else, give each effect instance the weight `w` = amplifier + 1. The amplifier is in `0..255`
+   (STK-SHP-034), thus `w` is in `1..256`.
+6. For each effect instance, multiply the red, the green and the blue channel of its effect kind by
+   `w`. Add the products of each channel. Add the weights to get the total weight `W`.
+7. Divide each channel sum by `W`, and round the quotient down. Each result is in `0..255`.
+8. The colour has these three channels and the alpha 255.
+
+The order of the effect instances has no effect on the colour. Each sum is an exact integer
+(deviation D15).
+
+The colour of an effect kind is an RGB int: red in the bits 16 to 23, green in the bits 8 to 15
+and blue in the bits 0 to 7. These files give the data of the steps:
+
+- `assets/mcrs/registry_definition/mob_effect.json`: an object with one key for each effect kind.
+  The value is `{"color": <int>}`, the RGB colour of the effect kind.
+- `assets/mcrs/registry_definition/potion.json`: an object with one key for each entry of the
+  registry `minecraft:potion`. The value is `{"effects": [...]}`, the effect instances of the
+  potion. Each element has all the fields of STK-SHP-034 except `hidden_effect`.
+
+The tint source `minecraft:potion` of an item model gives a colour to a stack:
+
+- The field `default` of the tint source is `D`.
+- When the stack has the effective component `minecraft:potion_contents`, the result is the colour
+  of that component. Else, the result is `D`.
+- The tint source then sets the alpha of the result to 255. Thus the alpha of `custom_color` and of
+  `default` has no effect on the tint.
+
+The vanilla resource pack uses this tint source in the item models of `minecraft:potion`,
+`minecraft:splash_potion`, `minecraft:lingering_potion` and `minecraft:tipped_arrow`. Each of these
+models has `default` `-13083194`, which is `FF385DC6`.
+
+Examples, with `D` = `FF385DC6`. A tint is in hexadecimal ARGB, and the colour of an effect kind
+is in hexadecimal RGB:
+
+| Value | Effect instances that remain, with `w` | Sums of red, green, blue / `W` | Tint |
+|-------|-----------------------------------------|--------------------------------|------|
+| `{"potion":"minecraft:water"}` | none | none | `FF385DC6` |
+| `{}` | none | none | `FF385DC6` |
+| `{"potion":"minecraft:healing"}` | `instant_health` (`F82423`), 1 | 248, 36, 35 / 1 | `FFF82423` |
+| `{"potion":"minecraft:strong_healing"}` | `instant_health` (`F82423`), 2 | 496, 72, 70 / 2 | `FFF82423` |
+| `{"potion":"minecraft:night_vision"}` | `night_vision` (`C2FF66`), 1 | 194, 255, 102 / 1 | `FFC2FF66` |
+| `{"potion":"minecraft:turtle_master"}` | `slowness` (`8BAFE0`), 4; `resistance` (`9146F0`), 3 | 991, 910, 1616 / 7 | `FF8D82E6` |
+| `{"potion":"minecraft:strong_turtle_master"}` | `slowness` (`8BAFE0`), 6; `resistance` (`9146F0`), 4 | 1414, 1330, 2304 / 10 | `FF8D85E6` |
+| `{"potion":"minecraft:night_vision","custom_effects":[{"id":"minecraft:speed","amplifier":1},{"id":"minecraft:poison","show_particles":false}]}` | `night_vision` (`C2FF66`), 1; `speed` (`33EBFF`), 2 | 296, 725, 612 / 3 | `FF62F1CC` |
+| `{"custom_effects":[{"id":"minecraft:poison","show_particles":false}]}` | none | none | `FF385DC6` |
+| `{"potion":"minecraft:healing","custom_color":16711680}` | not used | not used | `FFFF0000` |
+| `{"custom_color":255}` | not used | not used | `FF0000FF` |
+
+A stack of `minecraft:potion` without the effective component also gets `FF385DC6`.
 
 **STK-SHP-043** (`source_suggested_black_box_confirmed`, wire). `minecraft:custom_data` is free
 NBT. The game gives it no meaning:
@@ -2678,6 +2744,20 @@ write. Deviation D14 records the reference behaviour.
 - **Bug reference**: none.
 - **Test**: a wire form `00` of `minecraft:painting/variant` gives a decode error. A differential
   test does not compare a wire form with the VarInt 0.
+
+**D15.**
+
+- **Rule**: STK-SHP-063.
+- **Reference**: the reference adds the channel sums and the total weight as signed 32-bit
+  integers, and a sum out of that range wraps. A product of one effect instance is at most
+  256 × 255 = 65280. Thus a wrap needs at least 32897 effect instances that take part.
+- **mcrs**: each sum is an exact integer. Reason: a wrapped sum gives a colour without meaning, or
+  a negative channel.
+- **Visible to the client**: yes, only for a value with such a number of effect instances. The
+  colour of the icon then differs. The vanilla client and the vanilla server make no such value.
+- **Bug reference**: none.
+- **Test**: a differential test does not compare a value whose sums are out of the range of a
+  signed 32-bit integer.
 
 ## 10. Unresolved
 

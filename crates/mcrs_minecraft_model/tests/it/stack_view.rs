@@ -1,6 +1,7 @@
 use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_item_stack::ArgbColor;
 use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::BlockStateProperty;
@@ -10,6 +11,7 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomModelData;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::DyedColor;
+use mcrs_minecraft_item_stack::EffectInstance;
 use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
@@ -20,10 +22,12 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::LodestoneTracker;
 use mcrs_minecraft_item_stack::MaxStackSize;
+use mcrs_minecraft_item_stack::MobEffectId;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::PotionContents;
+use mcrs_minecraft_item_stack::PotionId;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::UndecodedValue;
 use mcrs_minecraft_item_table::DefinitionFile;
@@ -34,6 +38,7 @@ use mcrs_minecraft_model::item_model_asset::UnbakedItemModel;
 use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::item_model_eval::Evaluator;
 use mcrs_minecraft_model::stack_view::StackView;
+use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
 
@@ -111,6 +116,21 @@ fn enchanted(kind: Kind) -> ItemStack {
         level: NonZeroU8::MIN,
     };
     one(kind).set(Enchantments::new([level]).unwrap())
+}
+
+fn effect(kind: MobEffect, amplifier: u8, show_particles: bool) -> EffectInstance {
+    let mut effect = EffectInstance::new(MobEffectId(kind.id().number()));
+    effect.amplifier = amplifier;
+    effect.show_particles = show_particles;
+    effect
+}
+
+fn potion_stack(potion: Potion, custom_effects: Vec<EffectInstance>) -> ItemStack {
+    one(ARROW).set(PotionContents {
+        potion: Some(PotionId(potion.id().number())),
+        custom_effects,
+        ..PotionContents::default()
+    })
 }
 
 fn lodestone(kind: Kind) -> ItemStack {
@@ -481,6 +501,42 @@ fn a_stack_view_evaluates_the_item_model_properties() {
             }),
             &potion,
             Outcome::Tint(0xFF00_FF00),
+        ),
+        (
+            "a water bottle has the default colour",
+            potion_stack(Potion::Water, vec![]),
+            &potion,
+            Outcome::Tint(0xFF38_5DC6),
+        ),
+        (
+            "a healing potion has the colour of its effect",
+            potion_stack(Potion::Healing, vec![]),
+            &potion,
+            Outcome::Tint(0xFFF8_2423),
+        ),
+        (
+            "a night vision potion has the colour of its effect",
+            potion_stack(Potion::NightVision, vec![]),
+            &potion,
+            Outcome::Tint(0xFFC2_FF66),
+        ),
+        (
+            "the effects of a potion mix by amplifier",
+            potion_stack(Potion::TurtleMaster, vec![]),
+            &potion,
+            Outcome::Tint(0xFF8D_82E6),
+        ),
+        (
+            "custom effects mix with the potion and a hidden one is left out",
+            potion_stack(
+                Potion::NightVision,
+                vec![
+                    effect(MobEffect::Speed, 1, true),
+                    effect(MobEffect::Poison, 0, false),
+                ],
+            ),
+            &potion,
+            Outcome::Tint(0xFF62_F1CC),
         ),
         (
             "one firework colour",

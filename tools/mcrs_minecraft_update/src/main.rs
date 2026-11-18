@@ -29,6 +29,7 @@ mod gradle;
 mod keys;
 mod names;
 mod owners;
+mod potions;
 mod registries;
 mod release;
 #[cfg(test)]
@@ -339,13 +340,32 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
             .map(|krate| (*krate).to_owned())
             .collect(),
     )?;
-    let path = root.join(game_rules::DEFINITIONS);
-    let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
-    let rules = files
-        .get_mut(game_rules::ENUM_FILE)
-        .ok_or_else(|| format!("{}: not generated", game_rules::ENUM_FILE))?;
-    rules.push_str(&game_rules::definition_impl(&json)?);
-    *rules = keys::rustfmt(game_rules::ENUM_FILE, rules)?;
+    let appended: [(&str, &str, fn(&str) -> Result<String, String>); 3] = [
+        (
+            game_rules::DEFINITIONS,
+            game_rules::ENUM_FILE,
+            game_rules::definition_impl,
+        ),
+        (
+            potions::POTION_DEFINITIONS,
+            potions::POTION_ENUM_FILE,
+            potions::potion_effects_impl,
+        ),
+        (
+            potions::EFFECT_DEFINITIONS,
+            potions::EFFECT_ENUM_FILE,
+            potions::effect_colors_impl,
+        ),
+    ];
+    for (definitions, enum_file, implementation) in appended {
+        let path = root.join(definitions);
+        let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+        let source = files
+            .get_mut(enum_file)
+            .ok_or_else(|| format!("{enum_file}: not generated"))?;
+        source.push_str(&implementation(&json)?);
+        *source = keys::rustfmt(enum_file, source)?;
+    }
     Ok(files)
 }
 
