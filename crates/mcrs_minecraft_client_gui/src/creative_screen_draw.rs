@@ -14,6 +14,7 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::drag_preview::DragPreview;
 use crate::edit_box_draw::draw_edit_box_in;
 use crate::font::{Span, draw_str_without_shadow};
 use crate::item_decorations::WHITE;
@@ -22,7 +23,9 @@ use crate::language::ClientLanguage;
 use crate::menu_draw;
 use crate::menu_input::menu_clock;
 use crate::menu_label_text::LABEL_COLOR;
-use crate::menu_screen::{DIM_BOTTOM, DIM_TOP, background, empty_icon};
+use crate::menu_screen::{
+    DIM_BOTTOM, DIM_TOP, background, draw_carried, draw_previewed_entry, empty_icon,
+};
 use crate::menu_stacks::MenuStacks;
 use crate::scene::{GuiAtlas, GuiAtlasData, GuiQuad, GuiScene, sprite};
 use crate::slot_icon::SlotIcon;
@@ -35,7 +38,6 @@ const LAST_INVENTORY_ENTRY: u16 = 45;
 pub(crate) const ENTRY_SIZE: i32 = 16;
 const HIGHLIGHT_INSET: i32 = 4;
 const HIGHLIGHT_SIZE: i32 = 24;
-const CARRIED_OFFSET: i32 = 8;
 const DESTROY_SLOT_KEY: &str = "inventory.binSlot";
 
 pub(crate) fn creative_sprites() -> impl Iterator<Item = &'static str> {
@@ -61,6 +63,7 @@ pub(crate) fn draw_creative_screen(
     content: Res<CreativeTabContent>,
     atlas: Option<Res<GuiAtlas>>,
     language: Option<Res<ClientLanguage>>,
+    drag: Option<Res<DragPreview>>,
     time: Res<Time<Real>>,
     icons: ItemIcons,
     slot_icons: Query<&'static SlotIcon>,
@@ -83,10 +86,12 @@ pub(crate) fn draw_creative_screen(
     if language.is_changed() {
         text_tooltip.shown = None;
     }
+    let no_drag = DragPreview::default();
     let frame = CreativeFrame {
         state: &creative,
         content: &content,
         stacks: &stacks,
+        drag: drag.as_deref().unwrap_or(&no_drag),
         slot_icons: &slot_icons,
         atlas: &atlas.0,
         language: &language,
@@ -132,6 +137,7 @@ struct CreativeFrame<'a> {
     state: &'a CreativeScreenState,
     content: &'a CreativeTabContent,
     stacks: &'a MenuStacks,
+    drag: &'a DragPreview,
     slot_icons: &'a Query<'a, 'a, &'static SlotIcon>,
     atlas: &'a GuiAtlasData,
     language: &'a ClientLanguage,
@@ -141,6 +147,12 @@ struct CreativeFrame<'a> {
 impl CreativeFrame<'_> {
     fn slot_icon(&self, stack: Entity) -> Option<SlotIcon> {
         self.slot_icons.get(stack).ok().copied()
+    }
+
+    fn carried(&self) -> Option<SlotIcon> {
+        self.stacks
+            .carried()
+            .and_then(|stack| self.slot_icon(stack))
     }
 }
 
@@ -214,14 +226,8 @@ fn creative_screen(
     draw_slots(frame, icons, scene, window, tab.kind, hit);
     request_tab_tooltip(frame, text_tooltip, scene, window);
     request_destroy_tooltip(frame, text_tooltip, scene, hit);
-    if let Some(slot) = frame
-        .stacks
-        .carried()
-        .and_then(|stack| frame.slot_icon(stack))
-    {
-        let at = scene.cursor - CARRIED_OFFSET;
-        ItemIcons::draw_icon(scene, at, slot.icon, slot.overlay, Overlays::Stack);
-    }
+    let carried = frame.carried();
+    draw_carried(scene, carried, frame.drag);
 }
 
 fn unselected_tabs(
@@ -304,6 +310,12 @@ pub(crate) fn slot_corner(hit: CreativeHit) -> Option<GuiPoint> {
 }
 
 fn draw_entry(frame: &CreativeFrame, at: IVec2, index: u16, scene: &mut GuiScene) {
+    if let Some(preview) = frame.drag.entry(index)
+        && frame.stacks.carried().is_some()
+    {
+        draw_previewed_entry(scene, at, preview, frame.carried());
+        return;
+    }
     match frame.stacks.get(index) {
         Some(stack) => {
             if let Some(slot) = frame.slot_icon(stack) {

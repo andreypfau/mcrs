@@ -7,6 +7,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_engine_item::{ItemCommandsExt, ItemPlugin, StackCommandsExt};
 use mcrs_minecraft_game_mode::{Abilities, GameMode};
+use mcrs_minecraft_inventory_click::{DragEntry, DragKind, DragSplit};
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_icon::{IconSources, Overlays, StackOverlay, resolve};
 use mcrs_minecraft_item_stack::{Count, ItemStack, Kind, NameLookup, NameTable};
@@ -16,7 +17,7 @@ use mcrs_minecraft_model::item_model_asset::DisplayContext;
 use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_model::stack_view::StackView;
-use mcrs_minecraft_player_holders::{PlayerHoldersPlugin, restore_holders};
+use mcrs_minecraft_player_holders::{PlayerHolders, PlayerHoldersPlugin, restore_holders};
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::creative_screen_draw::draw_creative_screen;
@@ -25,6 +26,7 @@ use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_screen_tests::VANILLA;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::drag_preview::DragPreview;
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
 use crate::mark_creative_screen::mark_creative_screen;
@@ -424,4 +426,70 @@ fn a_steady_frame_over_a_tab_draws_its_title_without_allocation() {
         .map(|span| span.text.as_str())
         .collect();
     assert_eq!(title, ["Colored Blocks"]);
+}
+
+#[test]
+fn a_drag_over_the_hotbar_previews_the_split_and_the_rest_of_the_carried_stack() {
+    let mut app = creative_app();
+    let world = app.world_mut();
+    let player = world
+        .query_filtered::<&PlayerHolders, With<Player>>()
+        .single(world)
+        .unwrap()
+        .cursor;
+    let stack = ItemStack::new(item("minecraft:stone"), Count::new(10).unwrap());
+    world.commands().spawn_stack(stack).put_at(player, 0);
+    world.flush();
+    let mut drag = DragPreview::default();
+    for index in [37, 38, 39] {
+        drag.join(index, DragEntry { held: 0, cap: 64 });
+    }
+    drag.split(DragSplit {
+        kind: DragKind::Split,
+        count: 10,
+        max: 64,
+        size: 3,
+    });
+    world.insert_resource(drag);
+    *world.resource_mut::<Screen>() = Screen::Menu;
+    let cursor = IVec2::new(400, 230);
+    world.resource_mut::<GuiScene>().cursor = cursor;
+    draw(&mut app);
+    let scene = app.world().resource::<GuiScene>();
+    let corners: Vec<IVec2> = (1..4)
+        .map(|column| WINDOW + IVec2::new(9 + 18 * column, 112))
+        .collect();
+    let fills: Vec<IRect> = (scene.quads.iter())
+        .filter_map(|quad| match quad {
+            GuiQuad::Fill {
+                rect,
+                color: 0x80FF_FFFF,
+            } => Some(*rect),
+            _ => None,
+        })
+        .collect();
+    let areas: Vec<IRect> = (corners.iter())
+        .map(|corner| IRect::from_corners(*corner, *corner + 16))
+        .collect();
+    assert_eq!(fills, areas, "a white fill on each previewed hotbar entry");
+    let drawn: Vec<(IVec2, u8)> = (scene.quads.iter())
+        .filter_map(|quad| match *quad {
+            GuiQuad::Icon { origin, index }
+                if corners.contains(&origin) || origin == cursor - 8 =>
+            {
+                Some((origin, scene.icons[index].overlay.count))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        drawn,
+        vec![
+            (corners[0], 3),
+            (corners[1], 3),
+            (corners[2], 3),
+            (cursor - 8, 1)
+        ],
+        "3 in each previewed entry and 1 at the mouse"
+    );
 }

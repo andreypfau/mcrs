@@ -155,21 +155,7 @@ pub fn menu_screen(
         if let Some(preview) = drag.entry(entry.index)
             && carried_stack.is_some()
         {
-            scene.quads.push(GuiQuad::Fill {
-                rect: IRect::from_corners(at, at + 16),
-                color: DRAG_FILL,
-            });
-            if let Some(slot) = carried {
-                let (count, overlays) = match preview {
-                    EntryPreview::Fits(count) => (count, Overlays::Stack),
-                    EntryPreview::Capped(count) => (count, Overlays::Capped),
-                };
-                let overlay = StackOverlay {
-                    count,
-                    ..slot.overlay
-                };
-                ItemIcons::draw_icon(scene, at, slot.icon, overlay, overlays);
-            }
+            draw_previewed_entry(scene, at, preview, carried);
             continue;
         }
         match stacks.get(entry.index) {
@@ -192,6 +178,33 @@ pub fn menu_screen(
             "container/slot_highlight_front",
         ));
     }
+    draw_carried(scene, carried, drag);
+}
+
+pub(crate) fn draw_previewed_entry(
+    scene: &mut GuiScene,
+    at: IVec2,
+    preview: EntryPreview,
+    carried: Option<SlotIcon>,
+) {
+    scene.quads.push(GuiQuad::Fill {
+        rect: IRect::from_corners(at, at + 16),
+        color: DRAG_FILL,
+    });
+    if let Some(slot) = carried {
+        let (count, overlays) = match preview {
+            EntryPreview::Fits(count) => (count, Overlays::Stack),
+            EntryPreview::Capped(count) => (count, Overlays::Capped),
+        };
+        let overlay = StackOverlay {
+            count,
+            ..slot.overlay
+        };
+        ItemIcons::draw_icon(scene, at, slot.icon, overlay, overlays);
+    }
+}
+
+pub(crate) fn draw_carried(scene: &mut GuiScene, carried: Option<SlotIcon>, drag: &DragPreview) {
     if let Some(slot) = carried {
         let count = drag.cursor().unwrap_or(slot.overlay.count);
         if count != 0 {
@@ -199,7 +212,8 @@ pub fn menu_screen(
                 count,
                 ..slot.overlay
             };
-            ItemIcons::draw_icon(scene, cursor - 8, slot.icon, overlay, Overlays::Stack);
+            let at = scene.cursor - 8;
+            ItemIcons::draw_icon(scene, at, slot.icon, overlay, Overlays::Stack);
         }
     }
 }
