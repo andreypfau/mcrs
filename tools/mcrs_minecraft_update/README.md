@@ -91,6 +91,8 @@ The steps, in order:
    definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
    regenerate the registry key sources from the three reports.
+9. Write `assets/mcrs/reports/creative_tabs.json` from a run of the game (see
+   below).
 
 Three diffs are printed, and each is computed before the files it describes are
 replaced:
@@ -126,6 +128,28 @@ the descriptor, prints the names diff and writes the report. It touches neither
 `assets/minecraft/version.json`, the descriptor nor another report, and it runs no Gradle
 task. A second run over the same jar prints `names diff: 0 rows` and leaves the
 file unchanged.
+
+## The creative report
+
+```sh
+cargo run -p mcrs_minecraft_update -- creative-tabs
+```
+
+`assets/mcrs/reports/creative_tabs.json` holds the stacks of each items tab of the
+creative screen and the feature flags of each item that needs a flag other than
+`minecraft:vanilla`. The data pack does not contain the tab lists, so the task
+`dumpCreativeTabs` of `tools/vanilla-oracle` takes them from a run of the game on
+the vanilla data pack with each feature flag on. `docs/spec/client-creative-inventory.md`,
+CCI-CNT-001, states the shape.
+
+The command runs that task, reads its output with `mcrs_minecraft_creative_report`
+and stops if the reader rejects it. Then it replaces the stored report. The tabs are
+in the order of the registry, and the items and the keys of each stack are in
+sorted order, so a second run gives the same bytes. A full
+update writes this report after the names report. The reader knows the tabs from
+the registry key sources that the binary was built with. When a version adds or
+renames a tab, the full update stops at this step with an unknown tab. Run
+`creative-tabs` again: the rebuild takes the new key sources.
 
 ## The registry key sources
 

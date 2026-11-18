@@ -21,6 +21,7 @@ use mcrs_minecraft_client_jar::{RELEASE, get, official_dir};
 mod block_entity_assets;
 mod blocks;
 mod corpus;
+mod creative_tabs;
 mod definitions;
 mod fixtures;
 mod game_rules;
@@ -37,6 +38,7 @@ const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
        mcrs_minecraft_update recapture <fixture name | --all>
        mcrs_minecraft_update names
+       mcrs_minecraft_update creative-tabs
        mcrs_minecraft_update keys
        mcrs_minecraft_update block-entities [--check]
 
@@ -62,6 +64,10 @@ names writes assets/mcrs/reports/names.json from the client jar the descriptor n
 entry names of every registry of datapack.json that has elements and the tag names of every
 registry, in sorted order. It prints the entries and tags added and removed against the stored
 file, then writes the registry key sources from the stored reports. It touches nothing else.
+
+creative-tabs runs the oracle task dumpCreativeTabs, checks its output with the creative report
+reader and writes assets/mcrs/reports/creative_tabs.json. The update writes it after the names
+report.
 
 block-entities writes the geometry files and the data files of the static block entities under
 assets/mcrs from the oracle artefacts and the shape table; --check fails when they differ.
@@ -96,6 +102,7 @@ enum Recapture {
 enum Invocation {
     Recapture(Recapture),
     Names,
+    CreativeTabs,
     Keys,
     BlockEntities { check: bool },
     Update(Options),
@@ -106,6 +113,7 @@ fn main() {
     let result = match command(args).unwrap_or_else(|| usage()) {
         Invocation::Recapture(args) => recapture(&args),
         Invocation::Names => names_report(),
+        Invocation::CreativeTabs => write_creative_tabs(&workspace_root()),
         Invocation::Keys => write_keys(&workspace_root(), None),
         Invocation::BlockEntities { check: false } => block_entity_assets::write(&workspace_root()),
         Invocation::BlockEntities { check: true } => block_entity_assets::check(&workspace_root()),
@@ -121,6 +129,7 @@ fn command(args: Vec<String>) -> Option<Invocation> {
     match args.first().map(String::as_str) {
         Some("recapture") => recapture_target(&args[1..]).map(Invocation::Recapture),
         Some("names") => (args.len() == 1).then_some(Invocation::Names),
+        Some("creative-tabs") => (args.len() == 1).then_some(Invocation::CreativeTabs),
         Some("keys") => (args.len() == 1).then_some(Invocation::Keys),
         Some("block-entities") => match &args[1..] {
             [] => Some(Invocation::BlockEntities { check: false }),
@@ -270,7 +279,12 @@ fn run(options: &Options) -> Result<(), String> {
             replace_definitions(&root, dumped, diff_out)
         })
     })?;
-    write_names(&root, &jar, diff_out)
+    write_names(&root, &jar, diff_out)?;
+    write_creative_tabs(&root)
+}
+
+fn write_creative_tabs(root: &Path) -> Result<(), String> {
+    creative_tabs::write(root, &root.join(REPORTS))
 }
 
 fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), String> {
@@ -438,10 +452,15 @@ mod tests {
             (&["keys", "1.0"], false),
             (&["names"], true),
             (&["names", "--allow-dirty"], false),
+            (&["creative-tabs"], true),
+            (&["creative-tabs", "--allow-dirty"], false),
         ] {
             let parsed = command(args.iter().map(|arg| arg.to_string()).collect());
             assert_eq!(
-                matches!(parsed, Some(Invocation::Keys | Invocation::Names)),
+                matches!(
+                    parsed,
+                    Some(Invocation::Keys | Invocation::Names | Invocation::CreativeTabs)
+                ),
                 accepted,
                 "{args:?}"
             );

@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_creative_report"
+description = "The creative report: the stacks of each items tab of the creative screen and the feature flags of each item"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_resource.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_item_stack.workspace = true

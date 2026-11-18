@@ -4937,6 +4937,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_creative_report"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_engine_registries",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_resource",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_damage"
 version = "0.5.8"
 dependencies = [
@@ -7034,6 +7048,7 @@ dependencies = [
  "mcrs_minecraft_block_entity_oracle",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_creative_report",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_resource",
