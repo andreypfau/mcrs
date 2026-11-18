@@ -67,13 +67,12 @@ impl CreativeTabContent {
             inputs.registries,
             inputs.language,
         );
-        let mut visible = VisibleTabs::always();
-        for tab in CreativeTabIndex::all() {
-            if tab.tab().kind == CreativeTabKind::Items && !lists.tab_list(tab.tab().id).is_empty()
-            {
-                visible = visible.with(tab);
-            }
-        }
+        let visible = CreativeTabIndex::all()
+            .filter(|index| {
+                let tab = index.tab();
+                tab.kind == CreativeTabKind::Items && !lists.tab_list(tab.id).is_empty()
+            })
+            .fold(VisibleTabs::always(), VisibleTabs::with);
         Self {
             lists,
             search,

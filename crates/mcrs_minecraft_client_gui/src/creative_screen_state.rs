@@ -162,11 +162,10 @@ impl CreativeScreenState {
     #[must_use]
     pub fn grid_stack<'a>(
         &'a self,
-        slot: usize,
+        slot: u16,
         content: &'a CreativeTabContent,
     ) -> Option<&'a ItemStack> {
-        let index =
-            CreativeGeometry::content_index(u16::try_from(slot).ok()?, self.first_row(content))?;
+        let index = CreativeGeometry::content_index(slot, self.first_row(content))?;
         self.content(content).get(index)
     }
 

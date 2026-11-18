@@ -51,9 +51,6 @@ static REPORT: LazyLock<LoadedCreativeReport> = LazyLock::new(LoadedCreativeRepo
 
 static VANILLA: LazyLock<CreativeTabContent> = LazyLock::new(|| vanilla(OperatorCondition::NotMet));
 
-static VANILLA_OPERATOR: LazyLock<CreativeTabContent> =
-    LazyLock::new(|| vanilla(OperatorCondition::Met));
-
 fn vanilla(operator: OperatorCondition) -> CreativeTabContent {
     CreativeTabContent::build(CreativeInputs {
         report: Some(
@@ -139,7 +136,7 @@ struct ScrollRow {
     len: usize,
     wheel: &'static [f64],
     scroll: f64,
-    slots: &'static [(usize, Option<usize>)],
+    slots: &'static [(u16, Option<usize>)],
 }
 
 #[test]
@@ -438,7 +435,7 @@ fn the_search_finds_a_player_head_by_the_name_of_its_player() {
 }
 
 #[test]
-fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab() {
+fn an_empty_tab_is_hidden() {
     let only_building_blocks = sized(10);
     let visible = only_building_blocks.visible_tabs();
     for (tab, shown) in [
@@ -451,27 +448,6 @@ fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab()
     ] {
         assert_eq!(visible.contains(tab), shown, "tab {}", tab.index());
     }
-    assert!(
-        VANILLA_OPERATOR.visible_tabs().contains(OP_BLOCKS),
-        "an operator sees the tab"
-    );
-    assert!(
-        !VANILLA.visible_tabs().contains(OP_BLOCKS),
-        "a player without the condition does not"
-    );
-    assert!(
-        VANILLA_OPERATOR.search_list().len() > VANILLA.search_list().len(),
-        "the search list holds the operator stacks only with the condition"
-    );
-
-    let mut state = opened(&VANILLA_OPERATOR);
-    state.select(OP_BLOCKS, &VANILLA_OPERATOR);
-    state.open(&VANILLA);
-    assert_eq!(
-        state.selected(),
-        BUILDING_BLOCKS,
-        "an open does not keep a hidden tab"
-    );
 }
 
 #[test]
@@ -496,6 +472,7 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         !content.visible_tabs().contains(OP_BLOCKS),
         "the option off hides the tab from an operator"
     );
+    let search_without_operator = content.search_list().len();
 
     app.world_mut()
         .resource_mut::<ClientOptions>()
@@ -505,6 +482,10 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
     assert!(
         content.visible_tabs().contains(OP_BLOCKS),
         "an operator in creative with the option on sees the tab"
+    );
+    assert!(
+        content.search_list().len() > search_without_operator,
+        "the search list holds the operator stacks only with the condition"
     );
     let selected = {
         let world = app.world_mut();

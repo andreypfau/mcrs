@@ -79,7 +79,7 @@ impl CreativeSearchIndex {
             return false;
         };
         let Some(item) = &entry.item else {
-            return false;
+            return *query == SearchQuery::new("");
         };
         let parts = self.parts.get(entry.parts.clone()).unwrap_or_default();
         let tags = self.tags.get(entry.tags.clone()).unwrap_or_default();

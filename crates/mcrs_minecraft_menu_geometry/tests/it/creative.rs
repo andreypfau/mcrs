@@ -38,6 +38,34 @@ fn the_tab_columns_give_the_x_positions() {
 }
 
 #[test]
+fn the_tab_row_and_column_name_the_sprites() {
+    let cases = [
+        (
+            BUILDING_BLOCKS,
+            "tab_top_selected_1",
+            "tab_top_unselected_1",
+        ),
+        (SEARCH, "tab_top_selected_7", "tab_top_unselected_7"),
+        (
+            INVENTORY,
+            "tab_bottom_selected_7",
+            "tab_bottom_unselected_7",
+        ),
+    ];
+    for (index, selected, unselected) in cases {
+        let tab = index.tab();
+        assert_eq!(
+            tab.selected_sprite().path(),
+            format!("container/creative_inventory/{selected}"),
+        );
+        assert_eq!(
+            tab.unselected_sprite().path(),
+            format!("container/creative_inventory/{unselected}"),
+        );
+    }
+}
+
+#[test]
 fn the_slots_have_their_item_positions() {
     let cases = [
         (CreativeGeometry::grid_slot(0), Some((9, 18))),
