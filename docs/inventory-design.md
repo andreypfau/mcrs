@@ -265,7 +265,8 @@ the craft grid does the same. At a leave and at a dimension change, the observer
 the open menu and then for the first menu (INV-CLS-003).
 
 `VanillaInventoryPlugin` reads the game rule of section 1 from the game rules of the world.
-The serial numbers of its requests are public constants beside `HandAction`.
+`RequestPurpose` names the purpose of each request of the plugin and converts it to and from
+the serial of `RequestId`.
 
 ## 4.6 `mcrs_minecraft_inventory_server` (layer 5, edge)
 
