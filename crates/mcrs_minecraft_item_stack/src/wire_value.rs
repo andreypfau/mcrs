@@ -316,7 +316,7 @@ impl<L: NameLookup> Reader<'_, L> {
 
     fn saved_form_as_nbt(&self, input: &mut &[u8]) -> Result<Builtin, WireError> {
         let mut bytes = split_nbt(input, self.component)?;
-        let tag = NbtTag::decode(&mut bytes)
+        let tag = mcrs_minecraft_nbt::without_nbt_budget(|| NbtTag::decode(&mut bytes))
             .map_err(|error| WireError::of_value(&error, self.component))?;
         saved::read_value(self.component, &tag, self.names)
             .map_err(|error| WireError::of_saved(error, self.component))
@@ -725,8 +725,9 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn custom_data(&self, input: &mut &[u8]) -> Result<NbtCompound, WireError> {
-        let mut bytes = split_nbt(input, self.component)?;
-        match NbtTag::decode(&mut bytes) {
+        let mut bytes = mcrs_minecraft_nbt::split_wire(input)
+            .map_err(|error| WireError::of_value(&error, self.component))?;
+        match mcrs_minecraft_nbt::without_nbt_budget(|| NbtTag::decode(&mut bytes)) {
             Ok(NbtTag::Compound(compound)) => Ok(compound),
             Ok(_) => Err(self.bad()),
             Err(error) => Err(WireError::of_value(&error, self.component)),

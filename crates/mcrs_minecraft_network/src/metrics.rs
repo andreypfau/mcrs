@@ -1,4 +1,5 @@
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
@@ -162,13 +163,14 @@ impl TableCounts {
             }
             Err(error) => (
                 Some(id),
-                format!(
-                    "{DECODER_EXCEPTION}: Failed to decode packet '{}'",
-                    self.packet_type(id)
-                ),
+                self.decode_failure(id),
                 format!("{}: {error:#}", self.name(id)),
             ),
         };
+        Err(self.fail(row, cause, detail))
+    }
+
+    fn fail(&mut self, row: Option<i32>, cause: String, detail: String) -> Malformed {
         let count = match row {
             None => Some(&mut self.unknown),
             Some(id) => usize::try_from(id)
@@ -179,10 +181,17 @@ impl TableCounts {
             *count += 1;
             *count == 1
         });
-        Err(Malformed {
+        Malformed {
             cause,
             log: first.then(|| format!("inbound packet: {:?} {detail}", self.table.state)),
-        })
+        }
+    }
+
+    fn decode_failure(&self, id: i32) -> String {
+        format!(
+            "{DECODER_EXCEPTION}: Failed to decode packet '{}'",
+            self.packet_type(id)
+        )
     }
 
     fn name(&self, id: i32) -> &'static str {
@@ -240,6 +249,7 @@ macro_rules! counts {
 pub struct PacketDispatcher {
     side: PacketSide,
     tables: Box<[TableCounts]>,
+    nbt_budget: NbtBudget,
 }
 
 impl PacketDispatcher {
@@ -253,6 +263,7 @@ impl PacketDispatcher {
                 configuration_serverbound,
                 game_serverbound
             ),
+            nbt_budget: NbtBudget::default(),
         }
     }
 
@@ -265,6 +276,7 @@ impl PacketDispatcher {
                 configuration_clientbound,
                 game_clientbound
             ),
+            nbt_budget: NbtBudget::default(),
         }
     }
 
@@ -294,6 +306,10 @@ impl PacketDispatcher {
         }
     }
 
+    pub(crate) fn set_nbt_budget(&mut self, budget: NbtBudget) {
+        self.nbt_budget = budget;
+    }
+
     pub fn counts(&self, state: ConnectionState) -> Option<&TableCounts> {
         self.tables
             .iter()
@@ -312,7 +328,23 @@ impl PacketDispatcher {
         id: i32,
         body: &[u8],
     ) -> Result<Option<Trigger>, Malformed> {
+        let (side, budget) = (self.side, self.nbt_budget);
         match self.counts_mut(state) {
+            Some(counts) if side == PacketSide::Serverbound => {
+                let mut recorded = Ok(None);
+                let fits = mcrs_minecraft_nbt::with_nbt_budget(budget, || {
+                    recorded = counts.record(id, body);
+                })
+                .is_ok();
+                match recorded {
+                    Ok(_) if !fits => {
+                        let cause = counts.decode_failure(id);
+                        let detail = format!("{}: {NbtQuotaExceeded}", counts.name(id));
+                        Err(counts.fail(Some(id), cause, detail))
+                    }
+                    recorded => recorded,
+                }
+            }
             Some(counts) => counts.record(id, body),
             None => Err(Malformed {
                 cause: format!("{DECODER_EXCEPTION}: Received unknown packet id {id}"),
@@ -388,5 +420,91 @@ mod tests {
         );
         let line = log(&mut counts, keep_alive, &[0; 9]).unwrap();
         assert!(line.contains("1 bytes left over"), "{line}");
+    }
+
+    fn two_nbt(
+        id: i32,
+        r: &mut &[u8],
+        _: &mut Triggers,
+    ) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>> {
+        use mcrs_minecraft_nbt::tag::NbtTag;
+        use mcrs_minecraft_protocol::Decode;
+        let first = NbtTag::decode(r);
+        let second = NbtTag::decode(r);
+        if id == 0 {
+            first?;
+            second?;
+        }
+        Ok(Decoded::NotImplemented("two_nbt"))
+    }
+
+    fn two_arrays(length: i32) -> Vec<u8> {
+        let mut array = vec![mcrs_minecraft_nbt::BYTE_ARRAY_ID];
+        array.extend_from_slice(&length.to_be_bytes());
+        array.resize(array.len() + length as usize, 0);
+        [array.clone(), array].concat()
+    }
+
+    #[test]
+    fn the_network_nbt_of_one_packet_shares_one_budget_and_a_refusal_is_logged_once() {
+        let mut counts = PacketDispatcher::serverbound()
+            .with_play(PlayTable::new(&game_serverbound::TABLE, two_nbt));
+        counts.set_nbt_budget(NbtBudget {
+            bytes: 2_097_152,
+            tags: 262_144,
+        });
+        let fits = two_arrays(1_048_576);
+        let over = two_arrays(1_048_577);
+        for _ in 0..2 {
+            assert!(
+                matches!(counts.dispatch(ConnectionState::Game, 0, &fits), Ok(None)),
+                "each packet has a budget of its own"
+            );
+        }
+        let refused = counts
+            .dispatch(ConnectionState::Game, 0, &over)
+            .expect_err("the packet is past the byte limit");
+        assert!(
+            refused.cause.starts_with(DECODER_EXCEPTION),
+            "{}",
+            refused.cause
+        );
+        assert!(
+            refused.log.is_some(),
+            "the first failure of a row is logged"
+        );
+        let again = counts
+            .dispatch(ConnectionState::Game, 0, &over)
+            .expect_err("the packet is past the byte limit");
+        assert_eq!(again.log, None);
+
+        let swallowed = counts
+            .dispatch(ConnectionState::Game, 1, &over)
+            .expect_err("a swallowed quota error is still a refusal");
+        assert!(
+            swallowed.cause.starts_with(DECODER_EXCEPTION),
+            "{}",
+            swallowed.cause
+        );
+        let line = swallowed.log.expect("the first failure of a row is logged");
+        assert!(line.contains("exceeds its budget"), "{line}");
+        assert_eq!(
+            counts
+                .dispatch(ConnectionState::Game, 1, &over)
+                .expect_err("a swallowed quota error is still a refusal")
+                .log,
+            None
+        );
+        let failures = counts.counts(ConnectionState::Game).unwrap().failures(1);
+        assert_eq!(failures, 2, "each refusal is counted under its row");
+
+        counts.set_nbt_budget(NbtBudget {
+            bytes: 1_000_000,
+            tags: 262_144,
+        });
+        assert!(
+            counts.dispatch(ConnectionState::Game, 0, &fits).is_err(),
+            "the plugin byte limit applies"
+        );
     }
 }
