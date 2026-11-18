@@ -13,6 +13,8 @@ mod local_server;
 mod local_world;
 #[cfg(feature = "singleplayer")]
 mod menu_clicks;
+#[cfg(feature = "singleplayer")]
+mod screen_clicks;
 mod session;
 mod sky;
 #[cfg(feature = "singleplayer")]

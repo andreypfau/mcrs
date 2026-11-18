@@ -1,14 +1,16 @@
 use bevy::math::{IRect, IVec2};
-use mcrs_minecraft_client_widget::GuiPoint;
+use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 
 use crate::inventory_figure::figure_rect;
+use crate::menu_draw;
 use crate::player_stacks::PlayerStacks;
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
 const GEOMETRY: MenuGeometry = MenuGeometry::INVENTORY;
+const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DIM_TOP: u32 = 0xC010_1010;
 const DIM_BOTTOM: u32 = 0xD010_1010;
 
@@ -23,12 +25,17 @@ fn empty_icon(menu: u16) -> Option<&'static str> {
     }
 }
 
-fn vector(point: GuiPoint) -> IVec2 {
-    IVec2::new(point.x, point.y)
+pub(crate) fn window_corner(size: GuiSize) -> IVec2 {
+    menu_draw::point(GEOMETRY.window(size.width, size.height))
 }
 
-pub(crate) fn window_corner(size: GuiSize) -> IVec2 {
-    vector(GEOMETRY.window(size.width, size.height))
+pub(crate) fn recipe_book_button(corner: GuiPoint) -> GuiRect {
+    GuiRect::new(
+        corner.x.saturating_add(RECIPE_BOOK_BUTTON.x),
+        corner.y.saturating_add(RECIPE_BOOK_BUTTON.y),
+        RECIPE_BOOK_BUTTON.width,
+        RECIPE_BOOK_BUTTON.height,
+    )
 }
 
 pub fn inventory_screen(
@@ -38,7 +45,7 @@ pub fn inventory_screen(
     out: &mut Vec<GuiQuad>,
 ) {
     let corner = GEOMETRY.window(size.width, size.height);
-    let top_left = vector(corner);
+    let top_left = menu_draw::point(corner);
     out.push(GuiQuad::FillGradient {
         rect: IRect::new(0, 0, size.width, size.height),
         top: DIM_TOP,
@@ -52,20 +59,20 @@ pub fn inventory_screen(
     out.push(GuiQuad::Figure {
         rect: figure_rect(top_left),
     });
-    let button = IVec2::new(top_left.x + 104, size.height / 2 - 22);
-    let over_button = (button.x..button.x + 20).contains(&cursor.x)
-        && (button.y..button.y + 18).contains(&cursor.y);
+    let button = recipe_book_button(corner);
+    let pointer = GuiPoint::new(cursor.x, cursor.y);
+    let button_area = menu_draw::irect(button);
     out.push(sprite(
-        button,
-        IVec2::new(20, 18),
-        if over_button {
+        button_area.min,
+        button_area.size(),
+        if button.contains_point(pointer) {
             "recipe_book/button_highlighted"
         } else {
             "recipe_book/button"
         },
     ));
-    let highlight = match GEOMETRY.clicked_at(corner, GuiPoint::new(cursor.x, cursor.y)) {
-        Clicked::Entry(index) => GEOMETRY.entry(index).map(vector),
+    let highlight = match GEOMETRY.clicked_at(corner, pointer) {
+        Clicked::Entry(index) => GEOMETRY.entry(index).map(menu_draw::point),
         Clicked::Outside | Clicked::Nowhere => None,
     };
     if let Some(position) = highlight {
@@ -76,7 +83,7 @@ pub fn inventory_screen(
         ));
     }
     for entry in GEOMETRY.entries() {
-        let at = top_left + vector(entry.corner);
+        let at = top_left + menu_draw::point(entry.corner);
         match stacks.get(entry.index) {
             Some(stack) => out.push(GuiQuad::Item { origin: at, stack }),
             None => {

@@ -1,11 +1,6 @@
 use bevy::prelude::*;
 use mcrs_minecraft_client::test_support::ServerAnswers;
 use mcrs_minecraft_client::test_support::connection;
-use mcrs_minecraft_client::test_support::count_server_answers;
-use mcrs_minecraft_client::test_support::creative_player;
-use mcrs_minecraft_client::test_support::give;
-use mcrs_minecraft_client::test_support::joined;
-use mcrs_minecraft_client::test_support::open;
 use mcrs_minecraft_client::test_support::player_slot;
 use mcrs_minecraft_client::test_support::round_trip;
 use mcrs_minecraft_client::test_support::update_until;
@@ -37,11 +32,9 @@ use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_save::SaveLock;
 use mcrs_minecraft_text::Text;
 
-use crate::local_world::client_extending_server;
-use crate::local_world::world_folder;
+use crate::local_world::LocalWorld;
 use crate::stacks::AGREED;
 use crate::stacks::Entry;
 use crate::stacks::Item;
@@ -50,10 +43,10 @@ use crate::stacks::at;
 use crate::stacks::cursor;
 use crate::stacks::empty;
 use crate::stacks::held;
+use crate::stacks::holding;
 use crate::stacks::item_name;
 use crate::stacks::on;
 use crate::stacks::stack_at;
-use crate::stacks::value;
 
 const OPEN_CHEST: &str = "chest";
 
@@ -126,23 +119,13 @@ const AFTER_CLOSE: &[Entry] = &[at(36, Item::Stone, 17), at(37, Item::Dirt, 7)];
 
 #[test]
 fn a_server_container_menu_is_held_clicked_and_closed_by_the_client() {
-    let folder = world_folder("container-menus");
-    let mut app = client_extending_server(open_chest_on_command);
-    count_server_answers(&mut app);
-    open(&mut app, &folder);
-    update_until(&mut app, "the join", joined);
-    update_until(&mut app, "the inventory menu in creative mode", |app| {
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world().resource::<ServerAnswers>().contents > 0
-            && creative_player(app.world_mut()).is_some()
-    });
-    round_trip(&mut app);
-    let viewer = creative_player(app.world_mut()).unwrap();
-    let given = value(app.world(), Some(GIVEN));
-    give(app.world_mut(), viewer, GIVEN_ENTRY, given);
-    round_trip(&mut app);
+    let mut local_world = LocalWorld::join("container-menus", open_chest_on_command, |_| {});
+    let viewer = local_world.viewer;
+    local_world.give(&[holding(GIVEN_ENTRY, Some(GIVEN))]);
+    let app = &mut local_world.app;
+    round_trip(app);
 
-    let menu = open_chest(&mut app, viewer, 1);
+    let menu = open_chest(app, viewer, 1);
     let world = app.world();
     assert_eq!(
         world.get::<MenuLayout>(menu).map(MenuLayout::len),
@@ -173,7 +156,7 @@ fn a_server_container_menu_is_held_clicked_and_closed_by_the_client() {
             action: MenuAction::Click(row.click),
         });
         app.update();
-        round_trip(&mut app);
+        round_trip(app);
 
         assert_eq!(
             *app.world().resource::<ServerAnswers>(),
@@ -198,14 +181,9 @@ fn a_server_container_menu_is_held_clicked_and_closed_by_the_client() {
         );
     }
 
-    close_with_a_cursor_stack(&mut app, viewer);
-    replace_the_open_menu(&mut app, viewer);
-
-    app.world_mut().write_message(AppExit::Success);
-    app.update();
-    let lock = SaveLock::take(&folder).expect("the server released the world");
-    drop(lock);
-    std::fs::remove_dir_all(&folder).ok();
+    close_with_a_cursor_stack(app, viewer);
+    replace_the_open_menu(app, viewer);
+    local_world.leave();
 }
 
 fn close_with_a_cursor_stack(app: &mut App, viewer: Entity) {

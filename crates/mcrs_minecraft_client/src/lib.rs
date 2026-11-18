@@ -31,6 +31,7 @@ pub mod entities;
 pub mod frozen_clocks;
 #[cfg(not(target_family = "wasm"))]
 pub mod game_directory;
+pub mod hand_keys_plugin;
 pub mod input;
 pub mod light_volume;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -79,6 +80,7 @@ impl PluginGroup for ClientPlugins {
         PluginGroupBuilder::start::<Self>()
             .add(vanilla::VanillaAssetsPlugin)
             .add(input::ClientInputPlugin)
+            .add(hand_keys_plugin::HandKeysPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(mcrs_minecraft_client_world::game_mode::GameModePlugin)
             .add(block_breaking::BlockBreakingPlugin)

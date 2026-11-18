@@ -43,6 +43,10 @@ pub(crate) const fn empty(entry: u16) -> Entry {
     Entry { entry, stack: None }
 }
 
+pub(crate) const fn holding(entry: u16, stack: Option<Stack>) -> Entry {
+    Entry { entry, stack }
+}
+
 pub(crate) const fn click(kind: ClickKind, button: u8, clicked: Clicked) -> Click {
     Click {
         kind,
