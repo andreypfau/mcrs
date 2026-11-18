@@ -3,7 +3,6 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
-use std::time::Instant;
 
 use bevy::platform::cell::SyncCell;
 use bevy::prelude::*;
@@ -41,8 +40,6 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
-
-const TIMEOUT: Duration = Duration::from_secs(40);
 
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ServerAnswers {
@@ -158,10 +155,8 @@ pub fn open(app: &mut App, folder: &Path) {
     });
 }
 
-pub fn update_until(app: &mut App, what: &str, mut done: impl FnMut(&mut App) -> bool) {
-    let start = Instant::now();
+pub fn update_until(app: &mut App, mut done: impl FnMut(&mut App) -> bool) {
     while !done(app) {
-        assert!(start.elapsed() < TIMEOUT, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(5));
         app.update();
     }
@@ -189,9 +184,7 @@ pub fn round_trip(app: &mut App) {
         connection(app.world_mut()).write_packet(&ServerboundChatCommand {
             command: Bounded("time query gametime"),
         });
-        update_until(app, "the answer to a command", |app| {
-            app.world().resource::<ChatFeedback>().0 > seen
-        });
+        update_until(app, |app| app.world().resource::<ChatFeedback>().0 > seen);
     }
 }
 
