@@ -1,6 +1,11 @@
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::Drag;
+use mcrs_minecraft_inventory_click::DragEntry;
+use mcrs_minecraft_inventory_click::DragKind;
+use mcrs_minecraft_inventory_click::DragSplit;
+use mcrs_minecraft_inventory_click::EntryPreview;
+use mcrs_minecraft_inventory_click::Slots;
 use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::fixture::CURSOR;
@@ -302,4 +307,95 @@ fn itx_jav_016_a_packet_that_does_not_fit_resets_the_drag() {
         vec![],
         "a player who left creative mode before the end makes no items"
     );
+}
+
+struct PreviewRow {
+    name: &'static str,
+    player: Player,
+    kind: u8,
+    slots: &'static [u16],
+    capped: Option<u16>,
+}
+
+fn count(stack: Stack) -> u8 {
+    stack.map_or(0, |stack| stack.count)
+}
+
+#[test]
+fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
+    let rows = [
+        PreviewRow {
+            name: "drag kind 0 of 10 stone over three empty entries",
+            player: Player::new().carrying(stone(10)),
+            kind: SPLIT,
+            slots: &[9, 10, 11],
+            capped: None,
+        },
+        PreviewRow {
+            name: "drag kind 1 that fills an entry to the maximum is not capped",
+            player: Player::new().carrying(stone(64)).with(9, stone(63)),
+            kind: SINGLE,
+            slots: &[9, 10],
+            capped: None,
+        },
+        PreviewRow {
+            name: "drag kind 0 caps an entry at its capacity",
+            player: Player::new().carrying(stone(64)).with(9, stone(60)),
+            kind: SPLIT,
+            slots: &[9, 10],
+            capped: Some(9),
+        },
+        PreviewRow {
+            name: "drag kind 2 in creative mode fills each entry",
+            player: Player::new()
+                .creative()
+                .carrying(stone(5))
+                .with(9, stone(10)),
+            kind: FULL,
+            slots: &[9, 10],
+            capped: Some(9),
+        },
+    ];
+    for row in rows {
+        let carried = row.player.cursor_stack().expect("each row carries a stack");
+        let kind = DragKind::from_button(row.kind << 2).expect("each row names a drag kind");
+        let split = DragSplit {
+            kind,
+            count: carried.count,
+            max: carried.max,
+            size: u32::try_from(row.slots.len()).expect("a row has few entries"),
+        };
+        let drag_entry = |index: u16| DragEntry {
+            held: count(row.player.at(index)),
+            cap: row
+                .player
+                .load(entry(index))
+                .expect("each row names a loaded entry")
+                .limit
+                .min(carried.max),
+        };
+        let ops = drag(&row.player, row.kind, &entries(row.slots));
+        let after = apply(&row.player, &ops);
+        for &index in row.slots {
+            let preview = split
+                .entry(drag_entry(index))
+                .expect("a drag of two or more entries shows a preview");
+            assert_eq!(
+                count(after.at(index)),
+                preview.count(),
+                "{}: entry {index}",
+                row.name
+            );
+            assert_eq!(
+                matches!(preview, EntryPreview::Capped(_)),
+                row.capped == Some(index),
+                "{}: the capped text of entry {index}",
+                row.name
+            );
+        }
+        if kind != DragKind::Full {
+            let cursor = split.cursor(row.slots.iter().copied().map(drag_entry));
+            assert_eq!(count(after.cursor_stack()), cursor, "{}: cursor", row.name);
+        }
+    }
 }

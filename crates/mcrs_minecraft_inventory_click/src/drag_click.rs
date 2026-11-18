@@ -7,7 +7,10 @@ use mcrs_minecraft_inventory_transaction::Planned;
 use crate::ClickError;
 use crate::ClickPlayer;
 use crate::Drag;
+use crate::DragEntry;
 use crate::DragKind;
+use crate::DragSplit;
+use crate::EntryPreview;
 use crate::Menu;
 use crate::Slots;
 use crate::pick_up;
@@ -100,17 +103,14 @@ fn end<M: Menu<Slot = S::Slot>, S: Slots>(
     ops: &mut Ops<S>,
 ) -> Result<(), ClickError> {
     let size = drag.len();
+    let split = DragSplit::from_carried(kind, &carried, size);
     match (size, kind) {
         (0, _) | (1, DragKind::Full) => Ok(()),
         (1, DragKind::Split) => pick_up_single(view, drag, MouseButton::Primary, ops),
         (1, DragKind::Single) => pick_up_single(view, drag, MouseButton::Secondary, ops),
         (_, DragKind::Split | DragKind::Single) if u32::from(carried.count) < size => Ok(()),
-        (_, DragKind::Split) => {
-            let part = u8::try_from(u32::from(carried.count) / size).unwrap_or(u8::MAX);
-            spread(view, drag, part, cursor, carried, ops)
-        }
-        (_, DragKind::Single) => spread(view, drag, 1, cursor, carried, ops),
-        (_, DragKind::Full) => fill(view, drag, cursor, carried, ops),
+        (_, DragKind::Split | DragKind::Single) => spread(view, drag, split, cursor, carried, ops),
+        (_, DragKind::Full) => fill(view, drag, split, cursor, carried, ops),
     }
 }
 
@@ -131,7 +131,7 @@ fn pick_up_single<M: Menu<Slot = S::Slot>, S: Slots>(
 fn spread<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     drag: &Drag,
-    part: u8,
+    split: DragSplit,
     cursor: &Seat<S>,
     carried: Planned<S::Stack>,
     ops: &mut Ops<S>,
@@ -142,7 +142,9 @@ fn spread<M: Menu<Slot = S::Slot>, S: Slots>(
             continue;
         }
         let held = target.stack.map_or(0, |held| held.count);
-        let count = part.min(target.cap(carried).saturating_sub(held));
+        let cap = target.cap(carried);
+        let filled = split.entry(DragEntry { held, cap }).map_or(held, EntryPreview::count);
+        let count = filled.saturating_sub(held);
         if count > 0 {
             ops.push(Op::Split {
                 from: cursor.slot,
@@ -157,6 +159,7 @@ fn spread<M: Menu<Slot = S::Slot>, S: Slots>(
 fn fill<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     drag: &Drag,
+    split: DragSplit,
     cursor: &Seat<S>,
     carried: Planned<S::Stack>,
     ops: &mut Ops<S>,
@@ -168,7 +171,8 @@ fn fill<M: Menu<Slot = S::Slot>, S: Slots>(
             continue;
         }
         let held = target.stack.map_or(0, |held| held.count);
-        let full = target.cap(carried);
+        let cap = target.cap(carried);
+        let full = split.entry(DragEntry { held, cap }).map_or(held, EntryPreview::count);
         if held == full {
             continue;
         }
