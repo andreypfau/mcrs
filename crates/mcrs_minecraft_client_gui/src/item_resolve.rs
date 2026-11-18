@@ -129,15 +129,12 @@ pub fn resolve(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{LazyLock, OnceLock};
-
     use bevy::app::App;
     use bevy::prelude::DetectChanges;
     use mcrs_minecraft_engine_item::HolderCommandsExt;
     use mcrs_minecraft_engine_item::ItemCommandsExt;
     use mcrs_minecraft_engine_item::ItemPlugin;
     use mcrs_minecraft_engine_item::StackCommandsExt;
-    use mcrs_minecraft_engine_registries::test_item_table;
     use mcrs_minecraft_item_stack::Count;
     use mcrs_minecraft_item_stack::ItemModel;
     use mcrs_minecraft_item_stack::Kind;
@@ -146,18 +143,7 @@ mod tests {
     use mcrs_minecraft_resource::ResourceLocation;
 
     use super::*;
-    use mcrs_minecraft_model::atlas::SpriteRegistry;
-    use mcrs_minecraft_model::item_model_bake::bake_all;
-    use mcrs_minecraft_model::resource_set::ResourceSet;
-
-    static TABLE: LazyLock<ItemTable> = LazyLock::new(test_item_table);
-
-    fn models() -> &'static ItemModels {
-        static MODELS: OnceLock<ItemModels> = OnceLock::new();
-        MODELS.get_or_init(|| {
-            bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap()
-        })
-    }
+    use crate::menu_test_app::{MODELS, TABLE};
 
     fn stack(path: &str, count: u8) -> ItemStack {
         let name = format!("minecraft:{path}");
@@ -175,7 +161,7 @@ mod tests {
             let mut app = App::new();
             app.insert_resource(*TABLE)
                 .insert_resource({
-                    let mut models = models().clone();
+                    let mut models = MODELS.clone();
                     models.grass_colormap = None;
                     models
                 })

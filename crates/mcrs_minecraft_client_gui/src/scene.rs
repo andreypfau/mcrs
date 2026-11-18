@@ -958,8 +958,7 @@ impl Plugin for GuiPlugin {
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
                 Update,
-                build_icon_meshes
-                    .run_if(resource_exists::<ItemModels>.and_then(resource_changed::<ItemModels>)),
+                build_icon_meshes.run_if(resource_exists_and_changed::<ItemModels>),
             )
             .add_systems(
                 PostUpdate,
@@ -1025,32 +1024,27 @@ mod tests {
 
     mod jar {
         use bevy::ecs::system::RunSystemOnce;
-        use mcrs_minecraft_engine_registries::test_item_table;
         use mcrs_minecraft_item_icon::{IconSources, resolve};
         use mcrs_minecraft_item_stack::{ItemStack, Kind, NameLookup, NameTable};
-        use mcrs_minecraft_model::atlas::SpriteRegistry;
         use mcrs_minecraft_model::item_model_asset::DisplayContext;
-        use mcrs_minecraft_model::item_model_bake::bake_all;
         use mcrs_minecraft_model::item_model_context::ItemModelContext;
         use mcrs_minecraft_model::stack_view::StackView;
         use mcrs_minecraft_resource::ResourceLocation;
 
         use super::*;
-        use crate::menu_test_app::ATLAS;
+        use crate::menu_test_app::{ATLAS, MODELS, TABLE};
 
         #[test]
         fn a_stack_overlay_draws_the_count_beside_an_icon() {
-            let table = test_item_table();
-            let models = bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap();
             let location = ResourceLocation::read("minecraft:stone").unwrap();
-            let kind = Kind(table.id(NameTable::Item, location).unwrap());
+            let kind = Kind(TABLE.id(NameTable::Item, location).unwrap());
             let stack = ItemStack::new(kind, Count::new(17).unwrap());
             let view = StackView {
                 stack: &stack,
-                table: &table,
+                table: &TABLE,
             };
             let sources = IconSources {
-                models: &models,
+                models: &MODELS,
                 registries: None,
             };
             let icon = resolve(view, &sources, &ItemModelContext::new(DisplayContext::Gui));

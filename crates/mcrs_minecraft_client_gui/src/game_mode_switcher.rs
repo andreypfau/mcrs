@@ -331,26 +331,18 @@ mod tests {
     }
 
     mod jar {
-        use std::sync::{Arc, LazyLock};
+        use std::sync::Arc;
 
-        use mcrs_minecraft_engine_registries::test_item_table;
         use mcrs_minecraft_item_icon::{IconSources, StackOverlay, resolve};
-        use mcrs_minecraft_model::atlas::SpriteRegistry;
         use mcrs_minecraft_model::item_model_asset::DisplayContext;
-        use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all};
         use mcrs_minecraft_model::item_model_context::ItemModelContext;
         use mcrs_minecraft_model::resource_set::ResourceSet;
         use mcrs_minecraft_model::stack_view::StackView;
         use mcrs_minecraft_resource::ResourceLocation;
 
         use super::*;
-        use crate::menu_test_app::ATLAS;
+        use crate::menu_test_app::{ATLAS, MODELS, TABLE};
         use crate::scene::{GuiQuad, GuiSize, SceneIcon};
-
-        static TABLE: LazyLock<ItemTable> = LazyLock::new(test_item_table);
-        static MODELS: LazyLock<ItemModels> = LazyLock::new(|| {
-            bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap()
-        });
 
         fn expected_icon(name: &str) -> SceneIcon {
             let location = ResourceLocation::read(name).unwrap();

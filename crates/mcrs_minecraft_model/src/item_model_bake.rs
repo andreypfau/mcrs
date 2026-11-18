@@ -330,17 +330,28 @@ struct FoldKey {
 
 fn transformed(model: &BakedItemModel, transform: Mat4) -> BakedItemModel {
     let normals = Mat3::from_mat4(transform).inverse().transpose();
+    let mirrored = transform.determinant() < 0.0;
     BakedItemModel {
         quads: model
             .quads
             .iter()
-            .map(|quad| ItemQuad {
-                positions: quad
+            .map(|quad| {
+                let normal = normals * quad.normal;
+                let mut positions = quad
                     .positions
-                    .map(|position| transform.transform_point3(position)),
-                dir: nearest_direction(normals * quad.normal).unwrap_or(quad.dir),
-                normal: (normals * quad.normal).normalize_or(quad.normal),
-                ..quad.clone()
+                    .map(|position| transform.transform_point3(position));
+                let mut uvs = quad.uvs;
+                if mirrored {
+                    positions.reverse();
+                    uvs.reverse();
+                }
+                ItemQuad {
+                    positions,
+                    uvs,
+                    dir: nearest_direction(normal).unwrap_or(quad.dir),
+                    normal: normal.normalize_or(quad.normal),
+                    ..quad.clone()
+                }
             })
             .collect(),
         display: model.display,
@@ -480,7 +491,7 @@ mod tests {
     fn a_folded_face_turns_and_mirrors_with_its_transform() {
         let model = BakedItemModel {
             quads: vec![ItemQuad {
-                positions: [Vec3::ZERO; 4],
+                positions: [Vec3::ZERO, Vec3::Y, Vec3::new(1.0, 1.0, 0.0), Vec3::X],
                 uvs: [[0.0; 2]; 4],
                 dir: Direction::North,
                 normal: Direction::North.normal().as_vec3(),
@@ -507,6 +518,11 @@ mod tests {
                 Vec3::Z,
             ),
             (
+                Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)),
+                Direction::North,
+                Vec3::NEG_Z,
+            ),
+            (
                 Mat4::from_translation(Vec3::ONE),
                 Direction::North,
                 Vec3::NEG_Z,
@@ -519,6 +535,12 @@ mod tests {
                 quad.normal.abs_diff_eq(normal, 1e-6),
                 "{transform:?} turns the north normal to {normal}, not {}",
                 quad.normal
+            );
+            let [first, second, _, last] = quad.positions;
+            let winding = (second - first).cross(last - first);
+            assert!(
+                winding.dot(normal) > 0.0,
+                "{transform:?} keeps the vertex winding facing {normal}"
             );
         }
     }

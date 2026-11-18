@@ -12,6 +12,10 @@ use mcrs_minecraft_client_widget::{GuiExtent, WidgetId};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_client_world::world_list::{ReadWorldList, WorldList};
+use mcrs_minecraft_engine_registries::test_item_table;
+use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_model::atlas::SpriteRegistry;
+use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{ListedLevel, WorldSummary};
@@ -25,6 +29,11 @@ use crate::scene::{GuiAtlas, GuiAtlasData, GuiConfig, GuiScene, GuiSize};
 
 pub(crate) static ATLAS: LazyLock<Arc<GuiAtlasData>> =
     LazyLock::new(|| Arc::new(GuiAtlasData::load(ResourceSet::corpus()).unwrap()));
+
+pub(crate) static TABLE: LazyLock<ItemTable> = LazyLock::new(test_item_table);
+
+pub(crate) static MODELS: LazyLock<ItemModels> =
+    LazyLock::new(|| bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap());
 
 pub(crate) const GUI: GuiExtent = GuiExtent::new(427, 240);
 
