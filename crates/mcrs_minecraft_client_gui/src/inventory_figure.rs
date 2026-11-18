@@ -80,7 +80,7 @@ pub(crate) fn pose_inventory_figure(
     mut view: ResMut<FigureView>,
 ) {
     let invisible = player.iter().any(|(data, _)| data.is_invisible());
-    if *screen != Screen::Inventory || invisible {
+    if *screen != Screen::Menu || invisible {
         view.set_if_neq(FigureView(None));
         return;
     }

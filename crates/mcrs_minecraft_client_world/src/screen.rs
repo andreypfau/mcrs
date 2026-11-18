@@ -6,7 +6,7 @@ pub enum Screen {
     #[default]
     None,
     Title,
-    Inventory,
+    Menu,
     GameModeSwitcher(GameMode),
     Chat,
     Pause,

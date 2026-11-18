@@ -359,7 +359,7 @@ fn open_inventory(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     if *screen == Screen::None && !joined.is_empty() {
-        *screen = Screen::Inventory;
+        *screen = Screen::Menu;
         cursor_grab::grab(&mut cursor, false);
     }
 }
@@ -376,7 +376,7 @@ fn click_in_inventory(
     let current = screen.as_deref().copied().unwrap_or_default();
     let last = mem::replace(&mut state.last_screen, current);
     let Some(mut screen) =
-        screen.filter(|_| last == Screen::Inventory && current == Screen::Inventory)
+        screen.filter(|_| last == Screen::Menu && current == Screen::Menu)
     else {
         gestures.mouse.clear();
         gestures.keyboard.clear();
@@ -468,7 +468,7 @@ mod tests {
         let mut app = key_app();
         assert_eq!(
             press(&mut app, KeyCode::KeyE),
-            (Screen::Inventory, CursorGrabMode::None)
+            (Screen::Menu, CursorGrabMode::None)
         );
     }
 

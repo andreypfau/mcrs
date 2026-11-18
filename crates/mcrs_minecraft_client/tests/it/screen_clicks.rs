@@ -85,7 +85,7 @@ const fn row(name: &'static str) -> Row {
     Row {
         name,
         game_mode: GameMode::Creative,
-        screen: Screen::Inventory,
+        screen: Screen::Menu,
         grab: CursorGrabMode::Locked,
         given: &[],
         given_cursor: None,

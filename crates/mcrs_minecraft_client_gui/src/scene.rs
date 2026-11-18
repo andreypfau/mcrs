@@ -576,7 +576,7 @@ fn draw_screens(
     if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
         hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
     }
-    if *screen == Screen::Inventory {
+    if *screen == Screen::Menu {
         inventory_screen(scene.size, scene.cursor, &stacks, &mut scene.quads);
     }
 }
@@ -864,7 +864,7 @@ impl Plugin for GuiPlugin {
                         .after(begin_gui_frame)
                         .before(EntitySlotSystems)
                         .run_if(resource_exists::<FigureView>.and_then(
-                            resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
+                            resource_equals(Screen::Menu).or_else(resource_changed::<Screen>),
                         )),
                 ),
             );
