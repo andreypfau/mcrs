@@ -136,7 +136,8 @@ impl SpriteRegistry {
     }
 
     pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
-        self.item_atlas = ItemAtlasMembers::default();
+        let mut item_atlas = ItemAtlasMembers::default();
+        let mut loaded = Vec::new();
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
                 serde_json::from_slice(bytes).map_err(|error| SpriteError::Atlas {
@@ -145,14 +146,16 @@ impl SpriteRegistry {
                 })?;
             let permutations = sources.permutations(pack)?;
             if resource_id::full_id(&id) == ITEM_ATLAS {
-                self.item_atlas
+                item_atlas
                     .sprites
                     .extend(permutations.iter().map(|(sprite, _)| sprite.clone()));
-                self.item_atlas.directories.extend(sources.directories());
-                self.item_atlas.sprites.extend(sources.singles());
+                item_atlas.directories.extend(sources.directories());
+                item_atlas.sprites.extend(sources.singles());
             }
-            self.permutations.extend(permutations);
+            loaded.extend(permutations);
         }
+        self.item_atlas = item_atlas;
+        self.permutations.extend(loaded);
         for (name, &id) in &self.index {
             if let Some(sprite) = self.table.get_mut(usize::from(id)) {
                 sprite.atlas = self.item_atlas.atlas_of(pack, name);
