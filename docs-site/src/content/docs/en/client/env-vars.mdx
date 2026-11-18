@@ -37,7 +37,7 @@ Some names here may change, because the client knobs move into plugin fields.[^2
 
 The client binary collects every `MCRS_*` variable of the process and removes the prefix. The code is in `crates/mcrs_minecraft_client/src/native.rs`. If a name appears twice, the first value counts. When a value is bad, the native client prints it to stderr and refuses to start. An on/off variable is the exception: the client prints the bad value and keeps the default. The browser build takes the same names from the query string in lower case, for example `?time=6000`.
 
-A client built with `singleplayer` has an integrated server, and that server also reads the server variables above, such as `WORLD_SEED` and `WORLD_PRESET`.
+A client built with `singleplayer` has an integrated server, and that server also reads the [server variables](/docs/en/reference/env-vars/#server), such as `WORLD_SEED` and `WORLD_PRESET`.
 
 | Variable | Default | What it does | File |
 |---|---|---|---|

@@ -49,7 +49,7 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 | `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
 | `MCRS_FORWARDING` | off | Whether the server takes the player's UUID, name, profile properties and address from a Velocity proxy (modern forwarding). When it is on, every login must come through the proxy. |
 | `MCRS_FORWARDING_SECRET` | empty | The secret that the server shares with Velocity. The server uses the value exactly as it is and does not trim whitespace. |
-| `MCRS_PROXY_UPSTREAMS` | empty | Exact IP addresses of trusted proxies, separated by commas. A connection from one of them must start with a PROXY protocol header, version 1 or 2, and the server takes the client address from that header. Empty turns the feature off. |
+| `MCRS_PROXY_UPSTREAMS` | empty | Exact IP addresses of trusted proxies, separated by commas. A connection from one of them must start with a PROXY protocol header, version 1 or 2, and the server takes the client address from that header. Leave the variable unset to turn the feature off. An empty value stops the server. |
 
 <Aside type="caution" title="No authentication">
 The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
