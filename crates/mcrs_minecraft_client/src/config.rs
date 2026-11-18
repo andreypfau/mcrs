@@ -349,7 +349,7 @@ impl Knobs {
         match self.knob("SCREEN") {
             None | Some("title") => Screen::Title,
             Some("none") => Screen::None,
-            Some("inventory") => Screen::Inventory,
+            Some("inventory") => Screen::Menu,
             Some("pause") => Screen::Pause,
             Some("options") => Screen::Options,
             Some("video") => Screen::VideoSettings,

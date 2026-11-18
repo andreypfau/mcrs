@@ -6209,6 +6209,8 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_client_widget",
  "mcrs_minecraft_container_click",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_resource",
 ]
 
 [[package]]

@@ -19,18 +19,18 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::{InventoryClientSet, MenuAction, MenuInput};
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_item::slots;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+use crate::close_menu_screen::close_menu_screen;
 use crate::cursor_grab;
-use crate::inventory_screen;
+use crate::follow_open_menu::follow_open_menu;
 use crate::item_key_codes;
-use crate::player_stacks::PlayerStacks;
+use crate::menu_screen;
+use crate::menu_stacks::MenuStacks;
 use crate::scene::{self, GuiConfig, GuiSize};
 
-const GEOMETRY: MenuGeometry = MenuGeometry::INVENTORY;
 const INVENTORY: KeyCode = KeyCode::KeyE;
 
 pub struct InventoryClicksPlugin;
@@ -41,12 +41,14 @@ impl Plugin for InventoryClicksPlugin {
             Update,
             (
                 open_inventory.run_if(input_just_pressed(INVENTORY)),
-                click_in_inventory,
+                follow_open_menu,
+                click_in_menu,
             )
                 .chain()
                 .after(ClientNetworkSystems::Receive)
                 .before(InventoryClientSet::Predict),
-        );
+        )
+        .add_observer(close_menu_screen);
     }
 }
 
@@ -84,6 +86,7 @@ struct QueuedEvent {
 #[derive(Default)]
 struct ClickState {
     last_screen: Screen,
+    last_menu: Option<Entity>,
     release: ReleaseRule,
     events: VecDeque<QueuedEvent>,
 }
@@ -117,9 +120,11 @@ impl Hover {
 }
 
 impl ScreenPointer<'_, '_> {
-    fn hover(&self) -> Hover {
+    fn hover(&self, geometry: Option<MenuGeometry>) -> Hover {
         let outside = Hover::Menu(Clicked::Outside);
-        let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
+        let (Ok(window), Some(config), Some(geometry)) =
+            (self.window.single(), self.config.as_deref(), geometry)
+        else {
             return outside;
         };
         let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
@@ -127,11 +132,13 @@ impl ScreenPointer<'_, '_> {
         else {
             return outside;
         };
-        let corner = GEOMETRY.window(size.width, size.height);
-        if inventory_screen::recipe_book_button(corner).contains_point(pointer) {
+        let corner = geometry.window(size.width, size.height);
+        if geometry.is_inventory()
+            && menu_screen::recipe_book_button(corner).contains_point(pointer)
+        {
             Hover::RecipeBookButton
         } else {
-            Hover::Menu(GEOMETRY.clicked_at(corner, pointer))
+            Hover::Menu(geometry.clicked_at(corner, pointer))
         }
     }
 }
@@ -153,10 +160,20 @@ struct LocalStacks<'w, 's> {
     holders: Query<'w, 's, &'static Slots>,
 }
 
-struct Viewer {
+#[derive(Clone, Copy)]
+struct OpenMenu<'a> {
+    viewer: Entity,
+    creative: bool,
+    holders: &'a PlayerHolders,
+    menu: Entity,
+    layout: &'a MenuLayout,
+    parts: &'a MenuParts,
+}
+
+struct Viewer<'a> {
     entity: Entity,
     creative: bool,
-    stacks: PlayerStacks,
+    stacks: &'a MenuStacks,
 }
 
 impl LocalStacks<'_, '_> {
@@ -164,35 +181,52 @@ impl LocalStacks<'_, '_> {
         self.player.single().ok().map(|(entity, ..)| entity)
     }
 
-    fn viewer(&self) -> Option<Viewer> {
-        let (entity, holders, menus, abilities) = self.player.single().ok()?;
-        let stacks = PlayerStacks::of_player(holders, menus, &self.menus, &self.holders)?;
-        Some(Viewer {
-            entity,
+    fn open_menu(&self) -> Option<OpenMenu<'_>> {
+        let (viewer, holders, menus, abilities) = self.player.single().ok()?;
+        let menu = menus.open()?;
+        let (layout, parts) = self.menus.get(menu).ok()?;
+        Some(OpenMenu {
+            viewer,
             creative: abilities.is_some_and(|abilities| abilities.instant_build),
-            stacks,
+            holders,
+            menu,
+            layout,
+            parts,
         })
+    }
+
+    fn viewer<'a>(&self, open: OpenMenu, stacks: &'a mut MenuStacks) -> Viewer<'a> {
+        stacks.collect(open.layout, open.parts, open.holders.cursor, |slot| {
+            self.holders
+                .get(slot.holder)
+                .ok()?
+                .get(usize::from(slot.index))
+        });
+        Viewer {
+            entity: open.viewer,
+            creative: open.creative,
+            stacks,
+        }
     }
 }
 
-impl Viewer {
-    fn presence(&self, menu: u16) -> StackPresence {
-        if self.stacks.get(menu).is_some() {
-            StackPresence::Stack
-        } else {
-            StackPresence::Empty
-        }
+fn presence(stack: Option<Entity>) -> StackPresence {
+    match stack {
+        Some(_) => StackPresence::Stack,
+        None => StackPresence::Empty,
     }
+}
 
+impl Viewer<'_> {
     fn input(&self, gesture: Gesture, clicked: Clicked, modifiers: Modifiers) -> ClickInput {
         ClickInput {
             gesture,
             shift: modifiers.shift,
             control: modifiers.control,
             creative: self.creative,
-            cursor: self.presence(slots::CARRIED),
+            cursor: presence(self.stacks.carried()),
             target: match clicked {
-                Clicked::Entry(menu) => self.presence(menu),
+                Clicked::Entry(menu) => presence(self.stacks.get(menu)),
                 Clicked::Outside | Clicked::Nowhere => StackPresence::Empty,
             },
         }
@@ -313,11 +347,16 @@ impl QueuedEvent {
 }
 
 impl ClickState {
-    fn collect(&mut self, gestures: &mut Gestures, pointer: &ScreenPointer) {
+    fn collect(
+        &mut self,
+        gestures: &mut Gestures,
+        pointer: &ScreenPointer,
+        geometry: Option<MenuGeometry>,
+    ) {
         if gestures.mouse.is_empty() && gestures.keyboard.is_empty() {
             return;
         }
-        let hover = pointer.hover();
+        let hover = pointer.hover(geometry);
         let modifiers = Modifiers {
             shift: gestures.keys.any_pressed(item_key_codes::SHIFT),
             control: gestures.keys.any_pressed(item_key_codes::CONTROL),
@@ -359,12 +398,16 @@ fn open_inventory(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     if *screen == Screen::None && !joined.is_empty() {
-        *screen = Screen::Inventory;
+        *screen = Screen::Menu;
         cursor_grab::grab(&mut cursor, false);
     }
 }
 
-fn click_in_inventory(
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each access is its own parameter"
+)]
+fn click_in_menu(
     mut gestures: Gestures,
     screen: Option<ResMut<Screen>>,
     pointer: ScreenPointer,
@@ -372,26 +415,32 @@ fn click_in_inventory(
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut inputs: MessageWriter<MenuInput>,
     mut state: Local<ClickState>,
+    mut menu_stacks: Local<MenuStacks>,
 ) {
     let current = screen.as_deref().copied().unwrap_or_default();
+    let open = stacks.open_menu();
+    let menu = open.map(|open| open.menu);
     let last = mem::replace(&mut state.last_screen, current);
+    let last_menu = mem::replace(&mut state.last_menu, menu);
     let Some(mut screen) =
-        screen.filter(|_| last == Screen::Inventory && current == Screen::Inventory)
+        screen.filter(|_| last == Screen::Menu && current == Screen::Menu && last_menu == menu)
     else {
         gestures.mouse.clear();
         gestures.keyboard.clear();
         state.reset();
         return;
     };
-    state.collect(&mut gestures, &pointer);
+    let geometry = open.and_then(|open| MenuGeometry::of_layout(open.layout));
+    state.collect(&mut gestures, &pointer, geometry);
     if state.events.is_empty() {
         return;
     }
-    let viewer = stacks.viewer();
+    let viewer = open.map(|open| stacks.viewer(open, &mut menu_stacks));
     let ClickState {
         last_screen,
         release,
         events,
+        ..
     } = &mut *state;
     while let Some(queued) = events.pop_front() {
         if let ScreenEvent::Close = queued.event {
@@ -468,7 +517,7 @@ mod tests {
         let mut app = key_app();
         assert_eq!(
             press(&mut app, KeyCode::KeyE),
-            (Screen::Inventory, CursorGrabMode::None)
+            (Screen::Menu, CursorGrabMode::None)
         );
     }
 
