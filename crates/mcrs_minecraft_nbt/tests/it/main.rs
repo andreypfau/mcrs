@@ -4,6 +4,7 @@
     reason = "a test reports a failure by panicking"
 )]
 mod array_kinds;
+mod budget;
 mod compound_keys;
 mod declared_lengths;
 mod encodings;

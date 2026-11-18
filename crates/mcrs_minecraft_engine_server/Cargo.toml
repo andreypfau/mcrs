@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_nbt.workspace = true
 mcrs_engine_link.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_save.workspace = true
@@ -48,7 +49,6 @@ bevy_asset = { workspace = true, features = ["multi_threaded"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_nbt.workspace = true
 tokio.workspace = true
 bevy_tasks.workspace = true
 

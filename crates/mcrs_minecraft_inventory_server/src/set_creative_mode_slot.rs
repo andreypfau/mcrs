@@ -16,6 +16,7 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_wire::Encode;
@@ -33,19 +34,23 @@ pub(crate) fn set_creative_mode_slot(
     mut inputs: MessageWriter<InventoryInput>,
     mut bytes: Local<Vec<u8>>,
 ) {
-    let Some(packet) = received.packet() else {
-        return;
+    let unlimited = NbtBudget {
+        bytes: u64::MAX,
+        tags: u64::MAX,
     };
-    bytes.clear();
-    if packet.item.encode(&mut *bytes).is_err() {
-        return;
-    }
-    let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &wire_names.names()) else {
+    let read = mcrs_minecraft_nbt::with_nbt_budget(unlimited, || {
+        let packet = received.packet()?;
+        bytes.clear();
+        packet.item.encode(&mut *bytes).ok()?;
+        let stack = read_wire_with_length(&mut bytes.as_slice(), &wire_names.names()).ok()?;
+        Some((packet.slot, stack))
+    });
+    let Ok(Some((slot, stack))) = read else {
         return;
     };
     inputs.write(InventoryInput::CreativeSet {
         player: received.entity,
-        slot: packet.slot,
+        slot,
         stack,
     });
 }

@@ -4,6 +4,7 @@ use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
 use mcrs_minecraft_engine::whitelist::Whitelist;
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
 use mcrs_minecraft_network::{ForwardingSecret, NetworkPlugin, default_favicon};
 
@@ -32,6 +33,7 @@ pub struct ServerNetworkPlugin {
     pub send_buffer_bytes: usize,
     pub accept_backlog: u32,
     pub rate_limit: InboundRateLimit,
+    pub nbt_budget: NbtBudget,
     pub whitelist: Whitelist,
     pub banlist: BanList,
     pub profile: ServerProfile,
@@ -66,6 +68,7 @@ impl Default for ServerNetworkPlugin {
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
             rate_limit: InboundRateLimit::default(),
+            nbt_budget: NbtBudget::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
             profile: ServerProfile::default(),
@@ -94,6 +97,7 @@ impl Plugin for ServerNetworkPlugin {
             send_buffer_bytes: self.send_buffer_bytes,
             accept_backlog: self.accept_backlog,
             rate_limit: self.rate_limit,
+            nbt_budget: self.nbt_budget,
             per_ip_accept_limit: self.forwarding.is_none(),
             proxy_upstreams: self.proxy_upstreams.clone(),
         });

@@ -51,7 +51,7 @@ unsafe impl GlobalAlloc for RecordingAllocator {
 #[global_allocator]
 static ALLOCATOR: RecordingAllocator = RecordingAllocator;
 
-fn largest_request<T>(read: impl FnOnce() -> T) -> (T, usize) {
+pub(crate) fn largest_request<T>(read: impl FnOnce() -> T) -> (T, usize) {
     LARGEST_REQUEST.with(|largest| largest.set(0));
     let value = read();
     (value, LARGEST_REQUEST.with(Cell::get))

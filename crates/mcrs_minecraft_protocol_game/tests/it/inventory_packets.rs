@@ -6,6 +6,7 @@ use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
@@ -496,6 +497,234 @@ fn edit_book_bounds_pages_and_title() {
         title: Some(Bounded(title.as_str())),
     };
     assert!(packet.encode(&mut out).is_err());
+}
+
+#[test]
+fn edit_book_refuses_one_page_past_the_limit_on_decode() {
+    let book = |pages: usize| {
+        let mut bytes = vec![0, u8::try_from(pages).expect("below 128 pages")];
+        for _ in 0..pages {
+            bytes.extend_from_slice(&[1, b'x']);
+        }
+        bytes.push(0);
+        bytes
+    };
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES).as_slice()).is_ok(),
+        "a book at the page limit decodes"
+    );
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES + 1).as_slice()).is_err(),
+        "a book past the page limit is refused"
+    );
+}
+
+const CUSTOM_DATA: usize = 0;
+const CUSTOM_NAME: usize = 6;
+const WRITTEN_BOOK_CONTENT: usize = 57;
+const CONTAINER: usize = 77;
+
+fn var_int(value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(i32::try_from(value).expect("the test lengths fit in 32 bits"))
+        .encode(&mut bytes)
+        .expect("a Vec takes every byte");
+    bytes
+}
+
+fn byte_array_under_a(length: usize) -> Vec<u8> {
+    let declared = i32::try_from(length).expect("the test lengths fit in 32 bits");
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&declared.to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    nbt
+}
+
+fn with_component(kind: usize, value: &[u8]) -> Vec<u8> {
+    [var_int(1), var_int(0), var_int(kind), value.to_vec()].concat()
+}
+
+fn creative_slot(kind: usize, value: &[u8]) -> Vec<u8> {
+    let component = [var_int(value.len()), value.to_vec()].concat();
+    [
+        36i16.to_be_bytes().to_vec(),
+        var_int(1),
+        var_int(1),
+        with_component(kind, &component),
+    ]
+    .concat()
+}
+
+fn container_of_two(length: usize) -> Vec<u8> {
+    let template = [
+        vec![1],
+        var_int(1),
+        var_int(1),
+        with_component(0, &byte_array_under_a(length)),
+    ]
+    .concat();
+    [var_int(2), template.clone(), template].concat()
+}
+
+fn text(content: &str) -> Vec<u8> {
+    let length = u16::try_from(content.len()).expect("the text fits a String");
+    [
+        vec![8],
+        length.to_be_bytes().to_vec(),
+        content.as_bytes().to_vec(),
+    ]
+    .concat()
+}
+
+fn book_of(pages: usize, page: &str, filtered: bool) -> Vec<u8> {
+    let text = if filtered {
+        [text(page), vec![1], text(page)].concat()
+    } else {
+        [text(page), vec![0]].concat()
+    };
+    let mut book = [
+        var_int(1),
+        b"t".to_vec(),
+        vec![0],
+        var_int(1),
+        b"a".to_vec(),
+    ]
+    .concat();
+    book.extend([var_int(0), var_int(pages)].concat());
+    for _ in 0..pages {
+        book.extend_from_slice(&text);
+    }
+    book.push(0);
+    book
+}
+
+#[test]
+fn a_creative_slot_packet_shares_one_nbt_budget_across_its_stack() {
+    let cases = [
+        (
+            creative_slot(CUSTOM_DATA, &byte_array_under_a(2_097_148)),
+            true,
+        ),
+        (
+            creative_slot(CUSTOM_DATA, &byte_array_under_a(2_097_149)),
+            false,
+        ),
+        (creative_slot(CONTAINER, &container_of_two(1_048_572)), true),
+        (
+            creative_slot(CONTAINER, &container_of_two(1_048_573)),
+            false,
+        ),
+        (
+            creative_slot(
+                WRITTEN_BOOK_CONTENT,
+                &book_of(100, &"x".repeat(10_485), false),
+            ),
+            true,
+        ),
+        (
+            creative_slot(
+                WRITTEN_BOOK_CONTENT,
+                &book_of(100, &"x".repeat(10_486), false),
+            ),
+            false,
+        ),
+        (
+            creative_slot(WRITTEN_BOOK_CONTENT, &book_of(262_145, "", false)),
+            false,
+        ),
+    ];
+    let budget = NbtBudget {
+        bytes: 2_097_152,
+        tags: 262_144,
+    };
+    for (index, (bytes, passes)) in cases.iter().enumerate() {
+        let read = mcrs_minecraft_nbt::with_nbt_budget(budget, || {
+            ServerboundSetCreativeModeSlot::decode(&mut bytes.as_slice()).map(|_| ())
+        });
+        if *passes {
+            assert!(matches!(read, Ok(Ok(()))), "{index}: {read:?}");
+        } else {
+            assert!(matches!(read, Err(NbtQuotaExceeded)), "{index}: {read:?}");
+        }
+    }
+}
+
+fn named_patch(name: Option<&str>, kind: usize, value: &[u8]) -> Vec<u8> {
+    match name {
+        Some(name) => [
+            var_int(2),
+            var_int(0),
+            var_int(CUSTOM_NAME),
+            text(name),
+            var_int(kind),
+            value.to_vec(),
+        ]
+        .concat(),
+        None => with_component(kind, value),
+    }
+}
+
+fn shulker_of_books(books: usize, name: Option<&str>) -> Vec<u8> {
+    let page = "\u{3042}".repeat(1024);
+    let book = [
+        vec![1],
+        var_int(1),
+        var_int(1),
+        named_patch(name, WRITTEN_BOOK_CONTENT, &book_of(100, &page, true)),
+    ]
+    .concat();
+    [var_int(books), book.repeat(books)].concat()
+}
+
+fn at_default_budget(read: impl FnOnce() -> bool) -> Result<bool, NbtQuotaExceeded> {
+    mcrs_minecraft_nbt::with_nbt_budget(NbtBudget::default(), read)
+}
+
+#[test]
+fn a_survival_shulker_of_books_passes_and_a_long_list_is_refused_at_the_default_budget() {
+    let creative = |bytes: &[u8]| ServerboundSetCreativeModeSlot::decode(&mut &*bytes).is_ok();
+    let thirteen_books = creative_slot(CONTAINER, &shulker_of_books(13, None));
+    assert_eq!(
+        at_default_budget(|| creative(&thirteen_books)),
+        Ok(true),
+        "NBQ-VEC-018"
+    );
+
+    let mut list = vec![10, 9, 0, 1, b'a', 1];
+    list.extend_from_slice(&300_000i32.to_be_bytes());
+    list.resize(list.len() + 300_000, 0);
+    list.push(0);
+    let long_list = creative_slot(CUSTOM_DATA, &list);
+    assert_eq!(
+        at_default_budget(|| creative(&long_list)),
+        Err(NbtQuotaExceeded),
+        "NBQ-VEC-019"
+    );
+
+    let name = "\u{3042}".repeat(50);
+    let full_shulker = [
+        var_int(1),
+        var_int(1),
+        named_patch(Some(&name), CONTAINER, &shulker_of_books(27, Some(&name))),
+    ]
+    .concat();
+    assert_eq!(
+        at_default_budget(|| ProtoStack::decode(&mut full_shulker.as_slice()).is_ok()),
+        Ok(true),
+        "NBQ-VEC-020"
+    );
+    let one_short = NbtBudget {
+        bytes: 33_185_999,
+        tags: 262_144,
+    };
+    assert_eq!(
+        mcrs_minecraft_nbt::with_nbt_budget(one_short, || {
+            ProtoStack::decode(&mut full_shulker.as_slice()).is_ok()
+        }),
+        Err(NbtQuotaExceeded),
+        "the charge of NBQ-VEC-020 is 33 186 000"
+    );
 }
 
 #[test]
