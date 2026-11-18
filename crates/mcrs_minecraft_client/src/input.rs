@@ -1,4 +1,4 @@
-use bevy::input::mouse::{AccumulatedMouseMotion, MouseScrollUnit, MouseWheel};
+use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
@@ -7,6 +7,7 @@ use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 
 use mcrs_minecraft_client_gui::item_key_codes;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
+use mcrs_minecraft_client_gui::wheel_notches;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::game_mode::LocalGameMode;
@@ -19,7 +20,6 @@ use mcrs_minecraft_game_mode::Abilities;
 const FLY_SPEED_PER_NOTCH: f32 = 0.005;
 const FLY_SPEED_MIN: f32 = 0.0;
 const FLY_SPEED_MAX: f32 = 0.2;
-const NOTCHES_PER_LOGICAL_PIXEL: f64 = 0.1;
 
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
 
@@ -160,12 +160,8 @@ fn read_wheel(
     let spectator = game_mode.is_some_and(|mode| mode.current == GameMode::Spectator);
     let mut speed = abilities.flying_speed;
     let mut slot = selected.0;
-    let scale = NOTCHES_PER_LOGICAL_PIXEL / f64::from(window.scale_factor());
     for event in wheel.read() {
-        let per_unit = match event.unit {
-            MouseScrollUnit::Line => 1.0,
-            MouseScrollUnit::Pixel => scale,
-        };
+        let per_unit = wheel_notches::notches_per_unit(event.unit, window.scale_factor());
         let notches = sums.add(f64::from(event.x) * per_unit, f64::from(event.y) * per_unit);
         if notches.horizontal == 0 && notches.vertical == 0 {
             continue;

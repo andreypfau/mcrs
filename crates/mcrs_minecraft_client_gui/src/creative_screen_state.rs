@@ -38,6 +38,7 @@ impl Default for CreativeScreenState {
         search.text_color = SEARCH_TEXT_COLOR;
         search.invert = false;
         search.can_lose_focus = false;
+        search.set_editing(true);
         Self {
             selected: CreativeTabIndex::FIRST,
             scroll: 0.0,
@@ -56,7 +57,9 @@ impl CreativeScreenState {
         } else {
             CreativeTabIndex::FIRST
         };
-        self.apply_selection(tab, SearchReset::Clear, content);
+        self.search.set("");
+        self.match_search(content);
+        self.apply_selection(tab, SearchReset::Keep, content);
     }
 
     pub fn select(&mut self, tab: CreativeTabIndex, content: &CreativeTabContent) {
@@ -167,6 +170,15 @@ impl CreativeScreenState {
     ) -> Option<&'a ItemStack> {
         let index = CreativeGeometry::content_index(slot, self.first_row(content))?;
         self.content(content).get(index)
+    }
+
+    #[must_use]
+    pub fn grid_search_entry(&self, slot: u16, content: &CreativeTabContent) -> Option<usize> {
+        if self.selected_tab().kind != CreativeTabKind::Search {
+            return None;
+        }
+        let index = CreativeGeometry::content_index(slot, self.first_row(content))?;
+        self.result.get(index).copied()
     }
 
     fn apply_selection(

@@ -25,6 +25,7 @@ pub struct CreativeContent {
 struct TabList {
     tab: ResourceLocationBuf,
     stacks: Vec<ItemStack>,
+    search: Vec<ItemStack>,
 }
 
 impl CreativeContent {
@@ -35,11 +36,13 @@ impl CreativeContent {
         for tab in report.tabs() {
             let mut stacks = build_list(report, tab, ListKind::TabList, &session);
             same_stacks::remove_same_stacks(&mut stacks);
+            let search = build_list(report, tab, ListKind::SearchList, &session);
+            search_list.extend_from_slice(&search);
             tabs.push(TabList {
                 tab: tab.id().to_buf(),
                 stacks,
+                search,
             });
-            search_list.extend(build_list(report, tab, ListKind::SearchList, &session));
         }
         same_stacks::remove_same_stacks(&mut search_list);
         Self { tabs, search_list }
@@ -51,6 +54,15 @@ impl CreativeContent {
             .iter()
             .find(|list| list.tab == tab)
             .map(|list| list.stacks.as_slice())
+            .unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn tab_search_list(&self, tab: ResourceLocation<'_>) -> &[ItemStack] {
+        self.tabs
+            .iter()
+            .find(|list| list.tab == tab)
+            .map(|list| list.search.as_slice())
             .unwrap_or_default()
     }
 

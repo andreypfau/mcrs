@@ -20,6 +20,7 @@ use crate::container_set_slot::container_set_slot;
 use crate::creative_drop_counter::CreativeDropCounter;
 use crate::creative_drop_counter::count_down_creative_drops;
 use crate::creative_drop_counter::creative_drops_pending;
+use crate::empty_creative_cursor::empty_creative_cursor;
 use crate::open_screen::open_screen;
 use crate::outbox::Outbox;
 use crate::outbox::outbox_has_packets;
@@ -96,6 +97,7 @@ impl Plugin for InventoryClientPlugin {
             .add_observer(set_cursor_item)
             .add_observer(set_player_inventory)
             .add_observer(respawn)
-            .add_observer(container_close);
+            .add_observer(container_close)
+            .add_observer(empty_creative_cursor);
     }
 }
