@@ -136,6 +136,7 @@ impl SpriteRegistry {
     }
 
     pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
+        self.item_atlas = ItemAtlasMembers::default();
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
                 serde_json::from_slice(bytes).map_err(|error| SpriteError::Atlas {
@@ -150,6 +151,11 @@ impl SpriteRegistry {
                 self.item_atlas.directories.extend(sources.directories());
             }
             self.permutations.extend(permutations);
+        }
+        for (name, &id) in &self.index {
+            if let Some(sprite) = self.table.get_mut(usize::from(id)) {
+                sprite.atlas = self.item_atlas.atlas_of(pack, name);
+            }
         }
         Ok(())
     }
@@ -793,6 +799,7 @@ mod tests {
             a_sprite_is_interned_once();
             every_atlas_parses_and_the_item_trims_permute_into_sprites();
             the_missing_sprite_is_a_generated_checker();
+            sprites_interned_before_the_atlas_lists_load_take_their_atlas();
         }
     }
 
@@ -1064,6 +1071,23 @@ mod tests {
                 .intern(pack, "minecraft:trims/items/chestplate_trim_nope")
                 .is_err()
         );
+    }
+
+    fn sprites_interned_before_the_atlas_lists_load_take_their_atlas() {
+        let pack = ResourceSet::corpus();
+        let mut registry = SpriteRegistry::default();
+        let cases = [
+            ("minecraft:item/stick", SpriteAtlas::Item),
+            ("minecraft:block/stone", SpriteAtlas::Block),
+        ];
+        let ids: Vec<u16> = cases
+            .iter()
+            .map(|(id, _)| registry.intern(pack, id).unwrap())
+            .collect();
+        registry.load_atlases(pack).unwrap();
+        for ((name, atlas), id) in cases.iter().zip(ids) {
+            assert_eq!(registry.atlas(id), *atlas, "{name}");
+        }
     }
 
     fn the_missing_sprite_is_a_generated_checker() {

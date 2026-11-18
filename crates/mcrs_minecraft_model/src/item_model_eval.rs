@@ -38,22 +38,23 @@ fn scaled(normalize: bool, value: f32, max: f32) -> f32 {
     }
 }
 
-fn firework(colors: &[i32], default: RgbInt) -> u32 {
-    match colors {
-        [] => default.0 as u32,
-        [only] => opaque(*only),
-        _ => {
-            let count = u64::try_from(colors.len()).unwrap_or(u64::MAX);
-            let channel = |shift: u32| {
-                let sum: u64 = colors
-                    .iter()
-                    .map(|color| u64::from((color.cast_unsigned() >> shift) & 0xFF))
-                    .sum();
-                u32::try_from(sum / count).unwrap_or(0xFF)
-            };
-            0xFF00_0000 | channel(16) << 16 | channel(8) << 8 | channel(0)
+fn weighted_mean(colors: impl Iterator<Item = (u32, u64)>) -> Option<u32> {
+    let mut sums = [0_u64; 3];
+    let mut total = 0_u64;
+    for (color, weight) in colors {
+        for (sum, shift) in sums.iter_mut().zip([16, 8, 0]) {
+            let channel = weight.checked_mul(u64::from((color >> shift) & 0xFF))?;
+            *sum = sum.checked_add(channel)?;
         }
+        total = total.checked_add(weight)?;
     }
+    let [red, green, blue] = sums.map(|sum| u32::try_from(sum.checked_div(total)?).ok());
+    Some(red? << 16 | green? << 8 | blue?)
+}
+
+fn firework(colors: &[i32], default: RgbInt) -> u32 {
+    weighted_mean(colors.iter().map(|color| (color.cast_unsigned(), 1)))
+        .map_or(default.0 as u32, |rgb| 0xFF00_0000 | rgb)
 }
 
 fn potion(contents: &StackPotionContents, default: RgbInt) -> i32 {
@@ -77,21 +78,12 @@ fn potion(contents: &StackPotionContents, default: RgbInt) -> i32 {
                 effect.amplifier,
             ))
         });
-    let mut sums = [0_u64; 3];
-    let mut total = 0_u64;
-    for (effect, amplifier) in named.chain(custom) {
-        let weight = u64::from(amplifier) + 1;
-        let color = effect.color();
-        for (sum, shift) in sums.iter_mut().zip([16, 8, 0]) {
-            *sum += weight * u64::from((color >> shift) & 0xFF);
-        }
-        total += weight;
-    }
-    if total == 0 {
-        return default.0;
-    }
-    let [red, green, blue] = sums.map(|sum| u32::try_from(sum / total).unwrap_or(0xFF));
-    (red << 16 | green << 8 | blue).cast_signed()
+    weighted_mean(
+        named
+            .chain(custom)
+            .map(|(effect, amplifier)| (effect.color(), u64::from(amplifier) + 1)),
+    )
+    .map_or(default.0, u32::cast_signed)
 }
 
 fn grass(colormap: Option<&[u8]>, temperature: f32, downfall: f32) -> u32 {
