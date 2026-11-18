@@ -62,7 +62,7 @@ impl Args {
         );
         Self {
             side,
-            seed: argument(&args, 1, 845),
+            seed: seed(&args, 1, 845),
             offset,
         }
     }
@@ -75,6 +75,14 @@ fn argument<T: FromStr>(args: &[String], at: usize, default: T) -> T {
     })
 }
 
+fn seed(args: &[String], at: usize, default: u64) -> u64 {
+    args.get(at).map_or(default, |text| {
+        text.parse::<u64>()
+            .or_else(|_| text.parse::<i64>().map(|signed| signed as u64))
+            .unwrap_or_else(|_| panic!("argument {at} `{text}` is not a seed"))
+    })
+}
+
 fn square(from: i32, side: i32) -> Vec<ColumnPos> {
     (0..side)
         .flat_map(|z| (0..side).map(move |x| ColumnPos::new(from + x, from + z)))
@@ -82,6 +90,10 @@ fn square(from: i32, side: i32) -> Vec<ColumnPos> {
 }
 
 fn start(seed: u64) -> App {
+    let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_max_level(tracing::Level::INFO)
+        .try_init();
     let mut plugins = MinecraftServerPlugins::embedded();
     plugins.core.asset_path = Some(ASSETS.to_owned());
     plugins.core.worlds = Placement::Inline;
@@ -96,13 +108,20 @@ fn start(seed: u64) -> App {
     app.finish();
     app.cleanup();
     let deadline = Instant::now() + PATIENCE;
-    while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
-        assert!(Instant::now() < deadline, "never reached Playing");
+    loop {
         assert!(
             app.should_exit().is_none(),
             "the app exited before Playing: {:?}",
             app.should_exit()
         );
+        let playing = app
+            .world()
+            .get_resource::<State<AppState>>()
+            .is_some_and(|state| *state.get() == AppState::Playing);
+        if playing {
+            break;
+        }
+        assert!(Instant::now() < deadline, "never reached Playing");
         app.update();
         assert!(
             app.should_exit().is_none(),
@@ -158,27 +177,24 @@ fn dimension_of(world: &mut World) -> Entity {
         .expect("the dimension entity")
 }
 
-fn loaded(world: &mut World, columns: &[ColumnPos]) -> usize {
+fn retain_pending(world: &mut World, pending: &mut Vec<ColumnPos>) {
     let dim = dimension_of(world);
     let Some(index) = world.get::<SectionIndex>(dim) else {
-        return 0;
+        return;
     };
     let Some(rows) = world.get::<DimensionTypeConfig>(dim) else {
-        return 0;
+        return;
     };
     let first = rows.min_y >> SectionPos::BITS;
     let rows = first..first + rows.section_count as i32;
-    columns
-        .iter()
-        .filter(|column| {
-            rows.clone().all(|y| {
-                index
-                    .get(SectionPos::new(column.x, y, column.z))
-                    .and_then(|section| world.get::<SectionStage>(section))
-                    == Some(&SectionStage::Loaded)
-            })
+    pending.retain(|column| {
+        !rows.clone().all(|y| {
+            index
+                .get(SectionPos::new(column.x, y, column.z))
+                .and_then(|section| world.get::<SectionStage>(section))
+                == Some(&SectionStage::Loaded)
         })
-        .count()
+    });
 }
 
 fn main() {
@@ -207,6 +223,7 @@ fn main() {
         loading.add_ticket(column);
     }
 
+    let mut pending = columns.clone();
     let mut ticks = 0u64;
     loop {
         tick(&mut app);
@@ -216,13 +233,14 @@ fn main() {
             "the app exited while loading columns: {:?}",
             app.should_exit()
         );
-        let done = loaded(cell(&mut app, label), &columns);
-        if done == columns.len() {
+        retain_pending(cell(&mut app, label), &mut pending);
+        if pending.is_empty() {
             break;
         }
         assert!(
             started.elapsed() < PATIENCE,
-            "only {done} of {} columns loaded",
+            "only {} of {} columns loaded",
+            columns.len() - pending.len(),
             columns.len()
         );
     }
