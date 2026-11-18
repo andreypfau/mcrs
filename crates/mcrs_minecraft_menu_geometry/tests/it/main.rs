@@ -1,1 +1,2 @@
+mod generic;
 mod inventory;

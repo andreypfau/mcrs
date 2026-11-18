@@ -1,10 +1,10 @@
 use bevy::math::IVec2;
 use mcrs_minecraft_item::slots;
 
-use crate::player_stacks::PlayerStacks;
+use crate::menu_stacks::MenuStacks;
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
-pub fn hotbar(size: GuiSize, selected: u8, stacks: &PlayerStacks, out: &mut Vec<GuiQuad>) {
+pub fn hotbar(size: GuiSize, selected: u8, stacks: &MenuStacks, out: &mut Vec<GuiQuad>) {
     let (cx, h) = (size.width / 2, size.height);
     let offhand = stacks.get(slots::OFFHAND);
     out.push(sprite(
