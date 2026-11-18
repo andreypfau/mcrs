@@ -2057,7 +2057,7 @@ reader of the wire form reads a hidden effect, and this project then drops it. R
 have the same saved form after a read from each format. The provenance of this paragraph is
 `design`. What the vanilla client does with a hidden effect on the wire is not known (U4).
 
-**STK-SHP-063** (`source_suggested`, layout, confidence: medium). The colour of a value
+**STK-SHP-063** (`source_suggested_black_box_confirmed`, layout). The colour of a value
 of `minecraft:potion_contents` depends on a default colour `D`. These steps give the colour:
 
 1. When `custom_color` has a value, the colour is that value. The effects have no effect on the
@@ -2075,7 +2075,7 @@ of `minecraft:potion_contents` depends on a default colour `D`. These steps give
 8. The colour has these three channels and the alpha 255.
 
 The order of the effect instances has no effect on the colour. Each sum is an exact integer
-(deviation D15).
+(deviation D15). Experiment E31 shows the steps for a set of values.
 
 The colour of an effect kind is an RGB int: red in the bits 16 to 23, green in the bits 8 to 15
 and blue in the bits 0 to 7. These files give the data of the steps:
@@ -3135,3 +3135,36 @@ Results:
 - The wire form `01` gives `minecraft:alban`. `FF01` gives a decode error for the id 254 of
   `minecraft:painting_variant`, and `01 FF01 01` gives a decode error for the id 255 of
   `minecraft:enchantment`. Thus only the painting variant has the offset 1.
+
+**E31.** Rule: STK-SHP-063.
+
+Steps:
+
+1. Write the fixture `potion_colors` of `tools/fixtures.json` with `tools/vanilla-oracle`. The
+   oracle makes a value of `minecraft:potion_contents` for each case of the table below.
+2. Give each value to the game with the default colour `D` = `-13083194`. Read the colour.
+
+| `potion` | `custom_color` | `custom_effects` (id, amplifier, `show_particles`) | Colour |
+|----------|----------------|-----------------------------------------------------|--------|
+| no value | no value | none | `FF385DC6` |
+| `water` | no value | none | `FF385DC6` |
+| `strong_healing` | no value | none | `FFF82423` |
+| `turtle_master` | no value | none | `FF8D82E6` |
+| `strong_turtle_master` | no value | none | `FF8D85E6` |
+| no value | no value | `speed` 0 `true` | `FF33EBFF` |
+| no value | no value | `speed` 0 `false` | `FF385DC6` |
+| `night_vision` | no value | `speed` 1 `true`; `poison` 0 `false` | `FF62F1CC` |
+| no value | no value | `speed` 255 `true`; `poison` 0 `true` | `FF33EAFE` |
+| no value | no value | `instant_health` 2 `true`; `wither` 1 `true` | `FFC23C37` |
+| `strong_healing` | `65280` | `speed` 0 `true` | `0000FF00` |
+| no value | `0` | none | `00000000` |
+
+Results:
+
+- `custom_color` gives the colour as it is, with its alpha. The effects then have no effect.
+- A potion with no effect instance gives `D`. An effect instance with `show_particles` `false`
+  gives no part of the colour.
+- The amplifier gives the weight of an effect instance. `turtle_master` and
+  `strong_turtle_master` have different amplifiers and thus different colours.
+- The effect instances of `potion` and of `custom_effects` mix into one colour.
+- A colour from the effects has the alpha 255.

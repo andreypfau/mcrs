@@ -2,6 +2,7 @@ use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ArgbColor;
 use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::BlockStateProperty;
@@ -41,6 +42,7 @@ use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
+use serde::Deserialize;
 
 const ITEMS: [(&str, &str); 9] = [
     ("compass", r#""minecraft:max_stack_size": 64"#),
@@ -116,21 +118,6 @@ fn enchanted(kind: Kind) -> ItemStack {
         level: NonZeroU8::MIN,
     };
     one(kind).set(Enchantments::new([level]).unwrap())
-}
-
-fn effect(kind: MobEffect, amplifier: u8, show_particles: bool) -> EffectInstance {
-    let mut effect = EffectInstance::new(MobEffectId(kind.id().number()));
-    effect.amplifier = amplifier;
-    effect.show_particles = show_particles;
-    effect
-}
-
-fn potion_stack(potion: Potion, custom_effects: Vec<EffectInstance>) -> ItemStack {
-    one(ARROW).set(PotionContents {
-        potion: Some(PotionId(potion.id().number())),
-        custom_effects,
-        ..PotionContents::default()
-    })
 }
 
 fn lodestone(kind: Kind) -> ItemStack {
@@ -503,45 +490,6 @@ fn a_stack_view_evaluates_the_item_model_properties() {
             Outcome::Tint(0xFF00_FF00),
         ),
         (
-            "a water bottle has the default colour",
-            potion_stack(Potion::Water, vec![]),
-            &potion,
-            Outcome::Tint(0xFF38_5DC6),
-        ),
-        (
-            "a strong healing potion has the colour of its effect",
-            potion_stack(Potion::StrongHealing, vec![]),
-            &potion,
-            Outcome::Tint(0xFFF8_2423),
-        ),
-        (
-            "custom effects alone give the colour without a potion",
-            one(ARROW).set(PotionContents {
-                custom_effects: vec![effect(MobEffect::Speed, 0, true)],
-                ..PotionContents::default()
-            }),
-            &potion,
-            Outcome::Tint(0xFF33_EBFF),
-        ),
-        (
-            "the effects of a potion mix by amplifier",
-            potion_stack(Potion::TurtleMaster, vec![]),
-            &potion,
-            Outcome::Tint(0xFF8D_82E6),
-        ),
-        (
-            "custom effects mix with the potion and a hidden one is left out",
-            potion_stack(
-                Potion::NightVision,
-                vec![
-                    effect(MobEffect::Speed, 1, true),
-                    effect(MobEffect::Poison, 0, false),
-                ],
-            ),
-            &potion,
-            Outcome::Tint(0xFF62_F1CC),
-        ),
-        (
             "one firework colour",
             one(STAR).set(explosion(vec![0x0011_2233])),
             &firework,
@@ -598,5 +546,61 @@ fn a_stack_view_evaluates_the_item_model_properties() {
     ];
     for (name, stack, model, expected) in cases {
         assert_eq!(evaluate(&stack, model), Some(expected), "{name}");
+    }
+}
+
+#[derive(Deserialize)]
+struct PotionColors {
+    default: i32,
+    cases: Vec<PotionColorCase>,
+}
+
+#[derive(Deserialize)]
+struct PotionColorCase {
+    potion: Option<Potion>,
+    custom_color: Option<i32>,
+    custom_effects: Vec<ObservedEffect>,
+    color: i32,
+}
+
+#[derive(Deserialize)]
+struct ObservedEffect {
+    id: MobEffect,
+    amplifier: u8,
+    show_particles: bool,
+}
+
+#[test]
+fn a_potion_tint_matches_the_game() {
+    let observed: PotionColors = serde_json::from_str(&fixture("potion_colors").text()).unwrap();
+    let model = tint(&format!(
+        r#"{{"type": "minecraft:potion", "default": {}}}"#,
+        observed.default
+    ));
+    for case in observed.cases {
+        let custom_effects = case
+            .custom_effects
+            .iter()
+            .map(|observed| {
+                let mut effect = EffectInstance::new(MobEffectId(observed.id.id().number()));
+                effect.amplifier = observed.amplifier;
+                effect.show_particles = observed.show_particles;
+                effect
+            })
+            .collect();
+        let stack = one(ARROW).set(PotionContents {
+            potion: case.potion.map(|potion| PotionId(potion.id().number())),
+            custom_color: case.custom_color,
+            custom_effects,
+            ..PotionContents::default()
+        });
+        assert_eq!(
+            evaluate(&stack, &model),
+            Some(Outcome::Tint(0xFF00_0000 | case.color.cast_unsigned())),
+            "{:?} {:?} {}",
+            case.potion,
+            case.custom_color,
+            case.custom_effects.len(),
+        );
     }
 }
