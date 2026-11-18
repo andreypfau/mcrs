@@ -1,8 +1,6 @@
 use mcrs_minecraft_registries::Registries;
 
-use crate::item_model_asset::{
-    Case, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
-};
+use crate::item_model_asset::{Case, ConditionProperty, RangeProperty, SelectSwitch, TintSource};
 use mcrs_minecraft_item::RgbInt;
 use mcrs_minecraft_item::registry_keys::TRIM_MATERIAL;
 use mcrs_minecraft_item_stack::ArgbColor;
@@ -16,6 +14,7 @@ use mcrs_minecraft_item_stack::Trim as StackTrim;
 use mcrs_minecraft_item_stack::TrimMaterialId;
 
 use crate::colormap::colormap_rgba;
+use crate::item_model_context::ItemModelContext;
 use crate::stack_view::StackView;
 
 fn opaque(color: i32) -> u32 {
@@ -26,6 +25,7 @@ pub struct Evaluator<'a> {
     pub stack: StackView<'a>,
     pub registries: Option<&'a Registries>,
     pub grass_colormap: Option<&'a [u8]>,
+    pub context: ItemModelContext,
 }
 
 fn scaled(normalize: bool, value: f32, max: f32) -> f32 {
@@ -119,7 +119,7 @@ impl Evaluator<'_> {
                     .iter()
                     .position(|case| case.when.iter().any(|key| key.location() == name))
             }
-            SelectSwitch::DisplayContext { cases } => position(cases, &DisplayContext::Gui),
+            SelectSwitch::DisplayContext { cases } => position(cases, &self.context.display),
             SelectSwitch::BlockState {
                 block_state_property,
                 cases,

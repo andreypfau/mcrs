@@ -29,7 +29,9 @@ use mcrs_minecraft_item_stack::UndecodedValue;
 use mcrs_minecraft_item_table::DefinitionFile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
+use mcrs_minecraft_model::item_model_asset::DisplayContext;
 use mcrs_minecraft_model::item_model_asset::UnbakedItemModel;
+use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::item_model_eval::Evaluator;
 use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -173,6 +175,7 @@ fn evaluate(stack: &ItemStack, model: &str) -> Option<Outcome> {
         },
         registries: None,
         grass_colormap: None,
+        context: ItemModelContext::new(DisplayContext::Gui),
     };
     if model == "foil" {
         return Some(Outcome::Foil(evaluator.stack.has_foil()));
