@@ -535,6 +535,15 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        frames: &[&[Event::Key(KeyCode::KeyT), Event::Key(KeyCode::KeyE)]],
+        selected: SEARCH_TAB,
+        search: "e",
+        ..row(
+            "a key after the chat key in one frame types its character in the search tab",
+            ITEMS_TAB,
+        )
+    },
+    Row {
         given_cursor: stacks::held(Item::Stone, 5),
         frames: &[&[Event::Key(KeyCode::Escape)]],
         screen: Screen::None,

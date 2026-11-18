@@ -367,7 +367,7 @@ impl ClickState {
     }
 
     fn collect(&mut self, gestures: &mut Gestures, hover: Hover, creative: Option<CreativeGrid>) {
-        let searches = creative.is_some_and(CreativeGrid::searches);
+        let mut searches = creative.is_some_and(CreativeGrid::searches);
         let key_modifiers = menu_input::modifiers(&gestures.keys);
         let modifiers = Modifiers {
             shift: gestures.keys.any_pressed(item_key_codes::SHIFT),
@@ -397,7 +397,10 @@ impl ClickState {
                     input: event.clone(),
                     modifiers: key_modifiers,
                 }),
-                chat_input::CHAT if creative.is_some() => ScreenEvent::SelectSearchTab,
+                chat_input::CHAT if creative.is_some() => {
+                    searches = true;
+                    ScreenEvent::SelectSearchTab
+                }
                 code => match key_event(code) {
                     Some(screen_event) => screen_event,
                     None => continue,
