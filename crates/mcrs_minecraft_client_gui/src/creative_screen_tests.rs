@@ -365,6 +365,7 @@ struct SearchKeyRow {
     keys: &'static [SearchKey],
     text: &'static str,
     scrolled: bool,
+    copied: Option<&'static str>,
 }
 
 #[derive(Clone, Copy)]
@@ -382,28 +383,63 @@ const fn typed(code: KeyCode, text: &'static str) -> SearchKey {
     }
 }
 
+const fn shortcut(code: KeyCode) -> SearchKey {
+    SearchKey {
+        code,
+        text: None,
+        modifiers: KeyModifiers::CONTROL,
+    }
+}
+
 const W: SearchKey = typed(KeyCode::KeyW, "w");
+const SELECT_ALL: SearchKey = shortcut(KeyCode::KeyA);
+const COPY: SearchKey = shortcut(KeyCode::KeyC);
+const CUT: SearchKey = shortcut(KeyCode::KeyX);
 
 #[test]
-fn a_search_key_keeps_the_caret_in_view() {
+fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
     let rows = [
         SearchKeyRow {
             name: "twenty wide characters",
             keys: &[W; 20],
             text: "wwwwwwwwwwwwwwwwwwww",
             scrolled: true,
+            copied: None,
         },
         SearchKeyRow {
             name: "a short text",
             keys: &[W; 2],
             text: "ww",
             scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a copy without a selection",
+            keys: &[W, COPY],
+            text: "w",
+            scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a cut without a selection",
+            keys: &[W, CUT],
+            text: "w",
+            scrolled: false,
+            copied: None,
+        },
+        SearchKeyRow {
+            name: "a cut of the whole text",
+            keys: &[W, W, SELECT_ALL, CUT],
+            text: "",
+            scrolled: false,
+            copied: Some("ww"),
         },
     ];
     let width = |text: &str| 6 * i32::try_from(text.chars().count()).unwrap();
     for row in rows {
         let mut state = opened(&VANILLA);
         state.select(SEARCH, &VANILLA);
+        let mut copied = None;
         for key in row.keys {
             let input = SearchInput::Key {
                 input: KeyboardInput {
@@ -417,18 +453,25 @@ fn a_search_key_keeps_the_caret_in_view() {
                 modifiers: key.modifiers,
             };
             state.edit_search(&VANILLA, |edit| {
-                creative_tab_select::apply_search(
+                copied = creative_tab_select::apply_search(
                     edit,
                     &input,
                     CreativeGeometry::SEARCH_BOX,
                     None,
                     &width,
-                    None,
-                );
+                    || None,
+                )
+                .or(copied.take());
             });
         }
         let search = state.search_box();
         assert_eq!(search.text(), row.text, "{}: the search text", row.name);
+        assert_eq!(
+            copied.as_deref(),
+            row.copied,
+            "{}: the copied text",
+            row.name
+        );
         let first = search
             .layout(CreativeGeometry::SEARCH_BOX, 0, &width)
             .visible
