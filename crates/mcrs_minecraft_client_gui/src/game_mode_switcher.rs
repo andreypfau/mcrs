@@ -190,17 +190,22 @@ fn switcher(
 ) {
     let font = &atlas.0.font;
     let (cx, cy) = (scene.size.width / 2, scene.size.height / 2);
-    let out = &mut scene.quads;
-    out.push(sprite(
+    scene.quads.push(sprite(
         IVec2::new(cx - 62, cy - SLOT_AREA_PADDED - 27),
         IVec2::new(125, 75),
         "container/gamemode_switcher",
     ));
     let name = [Span::new(language.get(selected.translation_key()), WHITE)];
-    draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, &name, out);
+    draw_centered_text(
+        font,
+        cx,
+        cy - SLOT_AREA_PADDED - 20,
+        &name,
+        &mut scene.quads,
+    );
     let key = vec![Span::new(language.get(SWITCH_KEY_NAME), AQUA)];
     let hint = language.translate("debug.gamemodes.select_next", WHITE, &[key]);
-    draw_centered_text(font, cx, cy + 5, &hint, out);
+    draw_centered_text(font, cx, cy + 5, &hint, &mut scene.quads);
     for (index, (&mode, stack)) in ICONS.iter().zip(stacks).enumerate() {
         let at = IVec2::new(
             cx - ALL_SLOTS_WIDTH / 2 + index as i32 * SLOT_AREA_PADDED,
