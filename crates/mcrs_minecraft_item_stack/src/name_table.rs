@@ -17,4 +17,5 @@ pub enum NameTable {
     TrimPattern,
     Instrument,
     BannerPattern,
+    PaintingVariant,
 }

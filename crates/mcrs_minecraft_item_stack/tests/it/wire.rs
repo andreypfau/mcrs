@@ -11,8 +11,9 @@ use mcrs_minecraft_item_stack::BlockSet;
 use mcrs_minecraft_item_stack::BlockTagId;
 use mcrs_minecraft_item_stack::Builtin;
 use mcrs_minecraft_item_stack::BuiltinKey;
-use mcrs_minecraft_item_stack::BundleContents;
 use mcrs_minecraft_item_stack::ComponentType;
+use mcrs_minecraft_item_stack::Container;
+use mcrs_minecraft_item_stack::CustomData;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentId;
@@ -96,7 +97,7 @@ impl Names {
         };
         match table {
             NameTable::Item => ITEMS.to_vec(),
-            NameTable::Enchantment => indexed(&["sharpness", "unbreaking"]),
+            NameTable::Enchantment => vec![(33, "sharpness"), (40, "unbreaking")],
             NameTable::Attribute => indexed(&["attack_damage"]),
             NameTable::Block => indexed(&["stone", "dirt"]),
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
@@ -116,6 +117,7 @@ impl Names {
             NameTable::TrimPattern => indexed(&["bolt", "coast"]),
             NameTable::Instrument => vec![(4, "ponder_goat_horn")],
             NameTable::BannerPattern => vec![(4, "creeper")],
+            NameTable::PaintingVariant => vec![(0, "alban"), (1, "aztec"), (24, "kebab")],
             _ => Vec::new(),
         }
     }
@@ -231,9 +233,9 @@ fn one_entry_cases() -> Vec<(&'static str, ItemStack, &'static str, &'static str
         ("rarity", stone().set(Rarity::Epic), "0c", "03"),
         (
             "enchantments",
-            stone().set(Enchantments::new([level(0, 5), level(1, 255)]).expect("two types")),
+            stone().set(Enchantments::new([level(33, 5), level(40, 255)]).expect("two types")),
             "0d",
-            "02 00 05 01 ff01",
+            "02 21 05 28 ff01",
         ),
         (
             "attribute_modifiers",
@@ -348,10 +350,10 @@ fn removals_follow_the_values_and_the_empty_stack_is_one_byte() {
 fn a_repeated_enchantment_on_the_wire_keeps_the_last_level() {
     type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
     let cases: [(&str, Read); 2] = [
-        ("01 01 01 00 0d 02 00 01 00 03", read_wire),
-        ("01 01 01 00 0d 05 02 00 01 00 03", read_wire_with_length),
+        ("01 01 01 00 0d 02 21 01 21 03", read_wire),
+        ("01 01 01 00 0d 05 02 21 01 21 03", read_wire_with_length),
     ];
-    let expected = stack(STONE, 1).set(Enchantments::new([level(0, 3)]).expect("one type"));
+    let expected = stack(STONE, 1).set(Enchantments::new([level(33, 3)]).expect("one type"));
     for (bytes, read) in cases {
         assert_eq!(
             read_all(&unhex(bytes), read),
@@ -413,59 +415,346 @@ fn saved(snbt: &str) -> NbtCompound {
     parse_compound(snbt).expect("the test input is valid SNBT")
 }
 
-#[test]
-fn nested_templates_stop_at_170_levels() {
-    let wire = |levels: usize| {
-        unhex(&format!(
-            "{}01 01 00 00",
-            "01 01 01 00 34 01 ".repeat(levels)
-        ))
+#[derive(Clone, Copy, Debug)]
+enum Nesting {
+    Bundle,
+    Container,
+}
+
+impl Nesting {
+    fn component(self) -> &'static str {
+        match self {
+            Self::Bundle => "bundle_contents",
+            Self::Container => "container",
+        }
+    }
+
+    fn wire_list(self) -> Vec<u8> {
+        match self {
+            Self::Bundle => vec![0x01],
+            Self::Container => vec![0x01, 0x01],
+        }
+    }
+
+    fn saved_list(self, item: NbtCompound) -> NbtTag {
+        let element = match self {
+            Self::Bundle => item,
+            Self::Container => {
+                let mut slot = NbtCompound::new();
+                slot.put("slot", NbtTag::Int(0));
+                slot.put("item", NbtTag::Compound(item));
+                slot
+            }
+        };
+        NbtTag::List(vec![NbtTag::Compound(element)])
+    }
+
+    fn json_list(self, item: &str) -> String {
+        match self {
+            Self::Bundle => format!("[{item}]"),
+            Self::Container => format!(r#"[{{"slot":0,"item":{item}}}]"#),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Readers {
+    All,
+    WireOnly,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Component {
+    kind: &'static str,
+    wire: &'static str,
+    saved: &'static str,
+}
+
+#[derive(Debug)]
+struct Chain {
+    nesting: Nesting,
+    levels: usize,
+    innermost: Option<Component>,
+}
+
+impl Chain {
+    fn wire(&self) -> (Vec<u8>, Vec<u8>) {
+        let header = with_one_component(self.nesting.component(), "");
+        let list = self.nesting.wire_list();
+        let stone = match self.innermost {
+            Some(component) => with_one_component(component.kind, component.wire),
+            None => unhex("01 01 00 00"),
+        };
+        let nested = [header.clone(), list.clone()]
+            .concat()
+            .repeat(self.levels - 1);
+        let body = [list, nested, stone].concat();
+        let bare = [header.clone(), body.clone()].concat();
+        let prefixed = [header, var_int(body.len()), body].concat();
+        (bare, prefixed)
+    }
+
+    fn innermost_patch(&self) -> String {
+        self.innermost
+            .map(|component| format!(r#""minecraft:{}":{}"#, component.kind, component.saved))
+            .unwrap_or_default()
+    }
+
+    fn saved(&self) -> NbtCompound {
+        let mut item = saved(&format!(
+            r#"{{id:"minecraft:stone",components:{{{}}}}}"#,
+            self.innermost_patch()
+        ));
+        for _ in 0..self.levels {
+            let mut components = NbtCompound::new();
+            components.put(
+                &format!("minecraft:{}", self.nesting.component()),
+                self.nesting.saved_list(item),
+            );
+            item = saved(r#"{id:"minecraft:stone"}"#);
+            item.put("components", NbtTag::Compound(components));
+        }
+        item
+    }
+
+    fn json(&self) -> String {
+        let mut item = format!(
+            r#"{{"id":"minecraft:stone","components":{{{}}}}}"#,
+            self.innermost_patch()
+        );
+        for _ in 0..self.levels {
+            item = format!(
+                r#"{{"id":"minecraft:stone","components":{{"minecraft:{}":{}}}}}"#,
+                self.nesting.component(),
+                self.nesting.json_list(&item)
+            );
+        }
+        item
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Expect {
+    Valid,
+    TooDeep,
+}
+
+struct Row {
+    chain: Chain,
+    readers: Readers,
+    expect: Expect,
+}
+
+fn read_json(json: &str) -> Result<ItemStack, SavedError> {
+    let mut deserializer = serde_json::Deserializer::from_str(json);
+    deserializer.disable_recursion_limit();
+    let compound = NbtCompound::deserialize(&mut deserializer).expect("the chain is valid JSON");
+    read_saved(&compound, &Names)
+}
+
+const TEXT_WITH_LIST: Component = Component {
+    kind: "custom_name",
+    wire: "0a 08 0004 74657874 0001 63 09 0005 6578747261 08 00000001 0001 64 00",
+    saved: r#"{"text":"c","extra":["d"]}"#,
+};
+
+const TEXT_WITH_WRAPPER: Component = Component {
+    kind: "custom_name",
+    wire: "0a 08 0004 74657874 0001 61 09 0005 6578747261 0a 00000002 08 0000 0001 62 00 08 0004 74657874 0001 63 01 0004 626f6c64 01 00 00",
+    saved: r#"{"text":"a","extra":["b",{"text":"c","bold":true}]}"#,
+};
+
+fn depth_rows() -> [Row; 12] {
+    let row = |nesting, levels, innermost, readers, expect| Row {
+        chain: Chain {
+            nesting,
+            levels,
+            innermost,
+        },
+        readers,
+        expect,
     };
-    let deepest = read_wire(&mut wire(170).as_slice(), &Names)
-        .expect("170 levels of templates are allowed")
-        .expect("the stack is not air");
-    assert_eq!(
-        read_wire(&mut wire(171).as_slice(), &Names).err(),
-        Some(WireError::TooDeep)
-    );
-
-    let mut output = Vec::new();
-    write_wire(Some(&deepest), &Names, &mut output).expect("170 levels have a wire form");
-    assert_eq!(output, wire(170));
-    let saved_deepest = write_saved(&deepest, &Names).expect("170 levels have a saved form");
-    assert_eq!(read_saved(&saved_deepest, &Names).as_ref(), Ok(&deepest));
-    assert!(
-        hash(&deepest).is_ok_and(|hashed| hashed.is_some()),
-        "170 levels have a hash"
-    );
-
-    let mut patch = NbtCompound::new();
-    patch.put(
-        "minecraft:bundle_contents",
-        NbtTag::List(vec![NbtTag::Compound(saved_deepest)]),
-    );
-    let mut saved_too_deep = saved(r#"{id:"minecraft:stone"}"#);
-    saved_too_deep.put("components", NbtTag::Compound(patch));
-    assert_eq!(
-        read_saved(&saved_too_deep, &Names).err(),
-        Some(SavedError::TooDeep)
-    );
-
-    let too_deep = stack(STONE, 1).set(BundleContents(vec![deepest]));
-    assert_eq!(
-        write_wire(Some(&too_deep), &Names, &mut Vec::new()),
-        Err(WireError::TooDeep)
-    );
-    assert_eq!(write_saved(&too_deep, &Names), Err(SavedError::TooDeep));
-    assert_eq!(hash(&too_deep).err(), Some(HashError::TooDeep));
+    let max_stack_size = Component {
+        kind: "max_stack_size",
+        wire: "40",
+        saved: "64",
+    };
+    let lore = Component {
+        kind: "lore",
+        wire: "00",
+        saved: "[]",
+    };
+    let custom_data = Component {
+        kind: "custom_data",
+        wire: "0a 0a 0001 61 00 00",
+        saved: r#"{"a":{}}"#,
+    };
+    let mixed_list = Component {
+        kind: "custom_data",
+        wire: "0a 09 0001 61 0a 00000002 03 0000 000186a0 00 08 0000 0001 78 00 00",
+        saved: r#"{"a":[100000,"x"]}"#,
+    };
+    [
+        row(Nesting::Bundle, 170, None, Readers::All, Expect::Valid),
+        row(
+            Nesting::Bundle,
+            170,
+            Some(max_stack_size),
+            Readers::All,
+            Expect::Valid,
+        ),
+        row(
+            Nesting::Bundle,
+            170,
+            Some(lore),
+            Readers::All,
+            Expect::TooDeep,
+        ),
+        row(Nesting::Bundle, 171, None, Readers::All, Expect::TooDeep),
+        row(Nesting::Container, 127, None, Readers::All, Expect::Valid),
+        row(
+            Nesting::Container,
+            127,
+            Some(custom_data),
+            Readers::All,
+            Expect::Valid,
+        ),
+        row(Nesting::Container, 128, None, Readers::All, Expect::TooDeep),
+        row(
+            Nesting::Container,
+            127,
+            Some(mixed_list),
+            Readers::All,
+            Expect::TooDeep,
+        ),
+        row(
+            Nesting::Container,
+            127,
+            Some(TEXT_WITH_LIST),
+            Readers::All,
+            Expect::Valid,
+        ),
+        row(
+            Nesting::Container,
+            127,
+            Some(TEXT_WITH_WRAPPER),
+            Readers::All,
+            Expect::TooDeep,
+        ),
+        row(
+            Nesting::Bundle,
+            100_000,
+            None,
+            Readers::WireOnly,
+            Expect::TooDeep,
+        ),
+        row(
+            Nesting::Container,
+            100_000,
+            None,
+            Readers::WireOnly,
+            Expect::TooDeep,
+        ),
+    ]
 }
 
 #[test]
-fn each_error_names_the_rule_that_the_input_breaks() {
-    type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
+fn each_reader_refuses_a_stack_deeper_than_512_nbt_levels() {
+    for Row {
+        chain,
+        readers,
+        expect,
+    } in depth_rows()
+    {
+        let label = format!("{chain:?}");
+        let (bare, prefixed) = chain.wire();
+        let from_bare = read_all(&bare, read_wire);
+        let from_prefixed = read_all(&prefixed, read_wire_with_length);
+        let from_saved = (readers == Readers::All).then(|| read_saved(&chain.saved(), &Names));
+        let from_json = (readers == Readers::All).then(|| read_json(&chain.json()));
+        if expect == Expect::TooDeep {
+            assert_eq!(from_bare, Err(WireError::TooDeep), "{label}");
+            assert_eq!(from_prefixed, Err(WireError::TooDeep), "{label}");
+            for from_saved in [from_saved, from_json].into_iter().flatten() {
+                assert_eq!(from_saved, Err(SavedError::TooDeep), "{label}");
+            }
+            continue;
+        }
+        let read = from_bare
+            .expect("the stack is not too deep")
+            .expect("the stack is not air");
+        assert_eq!(from_prefixed.as_ref(), Ok(&Some(read.clone())), "{label}");
+        assert_eq!(from_saved, Some(Ok(read.clone())), "{label}");
+        assert_eq!(from_json, Some(Ok(read.clone())), "{label}");
+        assert_eq!(hex(&wire(Some(&read))), hex(&bare), "{label}");
+        assert_eq!(
+            hex(&wire_with_length(Some(&read))),
+            hex(&prefixed),
+            "{label}"
+        );
+        let written = write_saved(&read, &Names).expect("the stack has a saved form");
+        assert_eq!(read_saved(&written, &Names).as_ref(), Ok(&read), "{label}");
+        assert!(hash(&read).is_ok_and(|hashed| hashed.is_some()), "{label}");
+
+        let deeper = Container::new(vec![Some(read)]).expect("one slot");
+        let deeper = stack(STONE, 1).set(deeper);
+        assert_eq!(
+            write_wire(Some(&deeper), &Names, &mut Vec::new()),
+            Err(WireError::TooDeep),
+            "{label}"
+        );
+        assert_eq!(
+            write_saved(&deeper, &Names),
+            Err(SavedError::TooDeep),
+            "{label}"
+        );
+        assert_eq!(hash(&deeper).err(), Some(HashError::TooDeep), "{label}");
+    }
+
+    for bundle_levels in [0, 1] {
+        let mut undecoded = saved(r#"{id:"minecraft:stone"}"#);
+        let mut components = NbtCompound::new();
+        components.put(
+            "minecraft:entity_data",
+            NbtTag::Compound(nested_compound(600)),
+        );
+        undecoded.put("components", NbtTag::Compound(components));
+        for _ in 0..bundle_levels {
+            let mut components = NbtCompound::new();
+            components.put(
+                "minecraft:bundle_contents",
+                Nesting::Bundle.saved_list(undecoded),
+            );
+            undecoded = saved(r#"{id:"minecraft:stone"}"#);
+            undecoded.put("components", NbtTag::Compound(components));
+        }
+        assert_eq!(
+            read_saved(&undecoded, &Names),
+            Err(SavedError::TooDeep),
+            "{bundle_levels}"
+        );
+    }
+
+    let custom_data = stack(STONE, 1).set(CustomData(nested_compound(511)));
+    assert_eq!(write_saved(&custom_data, &Names), Err(SavedError::TooDeep));
+}
+
+fn nested_compound(levels: usize) -> NbtCompound {
+    let mut compound = NbtCompound::new();
+    for _ in 1..levels {
+        let mut outer = NbtCompound::new();
+        outer.put("a", NbtTag::Compound(compound));
+        compound = outer;
+    }
+    compound
+}
+
+type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
+
+fn error_reads() -> [(&'static str, Read, WireError); 15] {
     let bare: Read = read_wire;
     let prefixed: Read = read_wire_with_length;
-    let reads: [(&str, Read, WireError); 14] = [
+    [
         ("01", bare, WireError::UnexpectedEnd),
         ("01 01 ffffffff0f 00", bare, WireError::Malformed),
         ("01 e807 00 00", bare, WireError::UnknownItem),
@@ -496,7 +785,7 @@ fn each_error_names_the_rule_that_the_input_breaks() {
             WireError::BadValue(BuiltinKey::Rarity),
         ),
         (
-            "01 01 01 00 0d 01 00 00",
+            "01 01 01 00 0d 01 21 00",
             bare,
             WireError::OutOfRange(BuiltinKey::Enchantments),
         ),
@@ -529,8 +818,17 @@ fn each_error_names_the_rule_that_the_input_breaks() {
             bare,
             WireError::OutOfRange(BuiltinKey::Fireworks),
         ),
-    ];
-    for (bytes, read, expected) in reads {
+        (
+            "01 01 01 00 6d 00",
+            bare,
+            WireError::BadValue(BuiltinKey::PaintingVariant),
+        ),
+    ]
+}
+
+#[test]
+fn each_error_names_the_rule_that_the_input_breaks() {
+    for (bytes, read, expected) in error_reads() {
         let bytes = unhex(bytes);
         assert_eq!(
             read(&mut bytes.as_slice(), &Names),
@@ -578,7 +876,7 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 28] = [
+const DECODED_PLAIN: [&str; 30] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -607,6 +905,8 @@ const DECODED_PLAIN: [&str; 28] = [
     "container",
     "bees",
     "container_loot",
+    "stored_enchantments",
+    "painting/variant",
 ];
 
 fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: usize) {
@@ -696,7 +996,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (89, 46));
+    assert_eq!((decoded, kept), (93, 93));
 }
 
 #[derive(Deserialize)]
@@ -727,7 +1027,7 @@ fn with_one_component(kind: &str, component: &str) -> Vec<u8> {
     [unhex("01 01 01 00"), vec![type_id], unhex(component)].concat()
 }
 
-const TYPED_KINDS: [(&str, BuiltinKey); 7] = [
+const TYPED_KINDS: [(&str, BuiltinKey); 9] = [
     ("profile", BuiltinKey::Profile),
     ("potion_contents", BuiltinKey::PotionContents),
     ("container", BuiltinKey::Container),
@@ -735,6 +1035,8 @@ const TYPED_KINDS: [(&str, BuiltinKey); 7] = [
     ("charged_projectiles", BuiltinKey::ChargedProjectiles),
     ("fireworks", BuiltinKey::Fireworks),
     ("bundle_contents", BuiltinKey::BundleContents),
+    ("stored_enchantments", BuiltinKey::StoredEnchantments),
+    ("painting/variant", BuiltinKey::PaintingVariant),
 ];
 
 fn typed_kind(kind: &str) -> Option<BuiltinKey> {
@@ -799,7 +1101,7 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
         assert_eq!(read_saved(&written, &Names), Ok(from_json), "{}", case.wire);
         decoded += 1;
     }
-    assert_eq!(decoded, 6);
+    assert_eq!(decoded, 8);
 
     let mut rejected = 0;
     for case in &golden.decode_errors {
@@ -811,13 +1113,21 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
                 WireError::OutOfRange(key)
             }
             BuiltinKey::BundleContents => WireError::EmptyStack,
+            BuiltinKey::StoredEnchantments => WireError::UnknownEntry {
+                component: key,
+                table: NameTable::Enchantment,
+            },
+            BuiltinKey::PaintingVariant => WireError::UnknownEntry {
+                component: key,
+                table: NameTable::PaintingVariant,
+            },
             _ => WireError::BadValue(key),
         };
         let bare = with_one_component(&case.kind, &case.wire);
         assert_eq!(read_all(&bare, read_wire), Err(expected), "{}", case.wire);
         rejected += 1;
     }
-    assert_eq!(rejected, 6);
+    assert_eq!(rejected, 8);
 }
 
 #[test]
@@ -1016,6 +1326,27 @@ fn a_lore_has_at_most_256_lines_in_each_form() {
         assert_eq!(written.err(), wire_error, "{count}");
         assert_eq!(hash(&stack).err(), hash_error, "{count}");
     }
+}
+
+#[test]
+fn a_writer_measures_the_depth_past_a_component_that_only_the_wire_form_holds() {
+    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+        .expect("entity data with a length prefix")
+        .expect("a stone");
+    let deepest = Chain {
+        nesting: Nesting::Container,
+        levels: 127,
+        innermost: None,
+    };
+    let deepest = read_all(&deepest.wire().0, read_wire)
+        .expect("a stack of 512 levels")
+        .expect("a stone");
+    let slots = Container::new(vec![Some(wire_only), Some(deepest)]).expect("two slots");
+    let outer = stack(STONE, 1).set(slots);
+    assert_eq!(
+        write_wire(Some(&outer), &Names, &mut Vec::new()),
+        Err(WireError::TooDeep)
+    );
 }
 
 #[test]

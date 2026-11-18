@@ -24,7 +24,7 @@ use crate::stacks::Item;
 use crate::stacks::Stack;
 use crate::stacks::cursor;
 use crate::stacks::held;
-use crate::stacks::kind;
+use crate::stacks::item_of;
 use crate::stacks::stack_at;
 use crate::stacks::value;
 
@@ -313,6 +313,17 @@ const ROWS: &[Row] = &[
         entries: &[],
         cursor: None,
     },
+    Row {
+        name: "an enchanted book from the grid into the hotbar",
+        game_mode: GameMode::Creative,
+        actions: &[
+            grid(Item::EnchantedBook, ClickKind::QuickMove, 0),
+            on(Area::Hotbar, ClickKind::PickUp, 39),
+        ],
+        sent: &[sent(39, Item::EnchantedBook, 1)],
+        entries: &[at(39, Item::EnchantedBook, 1)],
+        cursor: None,
+    },
 ];
 
 #[test]
@@ -425,19 +436,17 @@ fn creative_click(world: &World, action: &Action) -> CreativeClick {
 
 fn stack_of(world: &World, stack: Option<&ItemStack>) -> Option<Stack> {
     let stack = stack?;
-    let item = [Item::Stone, Item::Dirt]
-        .into_iter()
-        .find(|item| kind(world, *item) == stack.kind)
-        .expect("the test gives only stone and dirt");
-    Some(Stack {
-        item,
+    let read = Stack {
+        item: item_of(world, stack.kind),
         count: stack.count.get(),
-    })
+    };
+    assert_eq!(value(world, Some(read)).as_ref(), Some(stack), "{read:?}");
+    Some(read)
 }
 
 fn saved_value_only(stack: ItemStack) -> ItemStack {
     stack.with_entry(PatchEntry::Undecoded(UndecodedValue {
-        name: ResourceLocationBuf::minecraft("stored_enchantments").unwrap(),
+        name: ResourceLocationBuf::minecraft("writable_book_content").unwrap(),
         bytes: Box::new([]),
     }))
 }

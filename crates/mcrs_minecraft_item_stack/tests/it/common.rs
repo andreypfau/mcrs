@@ -7,7 +7,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
 
-pub(crate) const COMPONENT_TYPES: [&str; 83] = [
+pub(crate) const COMPONENT_TYPES: [&str; 110] = [
     "custom_data",
     "max_stack_size",
     "max_damage",
@@ -91,6 +91,33 @@ pub(crate) const COMPONENT_TYPES: [&str; 83] = [
     "sulfur_cube_content",
     "lock",
     "container_loot",
+    "break_sound",
+    "compostable",
+    "cooking_fuel",
+    "brewing_fuel",
+    "mob_visibility",
+    "villager/variant",
+    "wolf/variant",
+    "wolf/sound_variant",
+    "wolf/collar",
+    "fox/variant",
+    "salmon/size",
+    "parrot/variant",
+    "tropical_fish/pattern",
+    "tropical_fish/base_color",
+    "tropical_fish/pattern_color",
+    "mooshroom/variant",
+    "rabbit/variant",
+    "pig/variant",
+    "pig/sound_variant",
+    "cow/variant",
+    "cow/sound_variant",
+    "chicken/variant",
+    "chicken/sound_variant",
+    "zombie_nautilus/variant",
+    "frog/variant",
+    "horse/variant",
+    "painting/variant",
 ];
 
 pub(crate) fn stack(kind: u16, count: u8) -> ItemStack {

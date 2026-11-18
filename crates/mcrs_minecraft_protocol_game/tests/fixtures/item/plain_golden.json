@@ -1661,6 +1661,38 @@
       "nbt": "090a00000007080005636f6c6f72000577686974650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200066f72616e67650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200076d6167656e74610800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f72000a6c696768745f626c75650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f72000679656c6c6f770800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200046c696d650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f720005626c61636b0800077061747465726e00116d696e6563726166743a6372656570657200",
       "hash": -585409259,
       "wire": "07050005010502050305040505050f"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"sharpness\":255}",
+      "json": "{\"minecraft:sharpness\":255}",
+      "nbt": "0a0300136d696e6563726166743a73686172706e657373000000ff00",
+      "hash": -604126434,
+      "wire": "0121ff01"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "00"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"minecraft:kebab\"",
+      "json": "\"minecraft:kebab\"",
+      "nbt": "08000f6d696e6563726166743a6b65626162",
+      "hash": -670067346,
+      "wire": "19"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"aztec\"",
+      "json": "\"minecraft:aztec\"",
+      "nbt": "08000f6d696e6563726166743a617a746563",
+      "hash": -260769345,
+      "wire": "02"
     }
   ],
   "errors": [
@@ -2213,6 +2245,46 @@
       "kind": "banner_patterns",
       "input": "[{\"pattern\":\"minecraft:creeper\"}]",
       "error": "No key color in MapLike[{\"pattern\":\"minecraft:creeper\"}]"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:sharpness\":0}",
+      "error": "Value 0 outside of range [1:255] missed input: {\"minecraft:sharpness\":0}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:sharpness\":256}",
+      "error": "Value 256 outside of range [1:255] missed input: {\"minecraft:sharpness\":256}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:no_such_enchantment\":1}",
+      "error": "Failed to get element minecraft:no_such_enchantment from registry minecraft:enchantment missed input: {\"minecraft:no_such_enchantment\":1}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"sharpness\":1,\"minecraft:sharpness\":2}",
+      "error": "Duplicate entry for key: 'Reference{ResourceKey[minecraft:enchantment / minecraft:sharpness]=Enchantment Sharpness}' missed input: {\"minecraft:sharpness\":2}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"minecraft:no_such_painting\"",
+      "error": "Failed to get element minecraft:no_such_painting from registry minecraft:painting_variant"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "{\"width\":1,\"height\":1,\"asset_id\":\"mcrs:x\"}",
+      "error": "Not a string: {\"width\":1,\"height\":1,\"asset_id\":\"mcrs:x\"}"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "5",
+      "error": "Not a string: 5"
     }
   ],
   "decodes": [
@@ -2405,6 +2477,16 @@
       "kind": "bees",
       "wire": "01670a0800026964000d6d696e6563726166743a636f77000a00",
       "json": "[{\"entity_data\":{\"id\":\"minecraft:pig\"},\"ticks_in_hive\":10,\"min_ticks_in_hive\":0}]"
+    },
+    {
+      "kind": "painting/variant",
+      "wire": "01",
+      "json": "\"minecraft:alban\""
+    },
+    {
+      "kind": "stored_enchantments",
+      "wire": "0221012102",
+      "json": "{\"minecraft:sharpness\":2}"
     }
   ],
   "decode_errors": [
@@ -2447,6 +2529,16 @@
       "kind": "bundle_contents",
       "wire": "0100010000",
       "error": "Item must be non-empty"
+    },
+    {
+      "kind": "painting/variant",
+      "wire": "ff01",
+      "error": "No value with id 254"
+    },
+    {
+      "kind": "stored_enchantments",
+      "wire": "01ff0101",
+      "error": "No value with id 255"
     }
   ]
 }

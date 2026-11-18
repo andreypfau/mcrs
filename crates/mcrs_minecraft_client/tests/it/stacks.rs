@@ -5,16 +5,29 @@ use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::EnchantmentId;
+use mcrs_minecraft_item_stack::EnchantmentLevel;
+use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::StoredEnchantments;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_player_holders::PlayerHolders;
+use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::ResourceLocation;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Item {
     Stone,
     Dirt,
+    EnchantedBook,
 }
+
+const ITEMS: [Item; 3] = [Item::Stone, Item::Dirt, Item::EnchantedBook];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Stack {
@@ -70,6 +83,7 @@ pub(crate) fn item_name(item: Item) -> &'static str {
     match item {
         Item::Stone => "minecraft:stone",
         Item::Dirt => "minecraft:dirt",
+        Item::EnchantedBook => "minecraft:enchanted_book",
     }
 }
 
@@ -79,19 +93,44 @@ pub(crate) fn kind(world: &World, item: Item) -> Kind {
 
 pub(crate) fn value(world: &World, stack: Option<Stack>) -> Option<ItemStack> {
     let stack = stack?;
-    Some(ItemStack::new(
-        kind(world, stack.item),
-        Count::new(stack.count).unwrap(),
-    ))
+    let value = ItemStack::new(kind(world, stack.item), Count::new(stack.count).unwrap());
+    Some(match stack.item {
+        Item::EnchantedBook => value.set(stored_sharpness(world)),
+        Item::Stone | Item::Dirt => value,
+    })
+}
+
+pub(crate) fn stored_sharpness(world: &World) -> StoredEnchantments {
+    let names = RegistryNames::new(
+        world.resource::<CurrentRegistries>(),
+        world.resource::<ItemTable>(),
+    );
+    let sharpness = ResourceLocation::read("minecraft:sharpness").unwrap();
+    let enchantment = EnchantmentId(names.id(NameTable::Enchantment, sharpness).unwrap());
+    let level = EnchantmentLevel {
+        enchantment,
+        level: 5.try_into().unwrap(),
+    };
+    StoredEnchantments(Enchantments::new([level]).unwrap())
+}
+
+pub(crate) fn item_of(world: &World, found: Kind) -> Item {
+    ITEMS
+        .into_iter()
+        .find(|item| kind(world, *item) == found)
+        .expect("the test gives only stone, dirt and an enchanted book")
 }
 
 pub(crate) fn stack_at(world: &World, holder: Entity, index: u16) -> Option<Stack> {
     let stack = world.entity(world.get::<Slots>(holder)?.get(usize::from(index))?);
-    let found = *stack.get::<Kind>()?;
-    let item = [Item::Stone, Item::Dirt]
-        .into_iter()
-        .find(|item| kind(world, *item) == found)
-        .expect("the test gives only stone and dirt");
+    let item = item_of(world, *stack.get::<Kind>()?);
+    if item == Item::EnchantedBook {
+        assert_eq!(
+            stack.get::<StoredEnchantments>(),
+            Some(&stored_sharpness(world)),
+            "the book keeps its stored enchantments"
+        );
+    }
     Some(Stack {
         item,
         count: stack.get::<Count>()?.get(),

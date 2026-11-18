@@ -29,10 +29,12 @@ use mcrs_minecraft_item_stack::MapId;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::OminousBottleAmplifier;
+use mcrs_minecraft_item_stack::PaintingVariant;
 use mcrs_minecraft_item_stack::PotionContents;
 use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
+use mcrs_minecraft_item_stack::StoredEnchantments;
 use mcrs_minecraft_item_stack::SuspiciousStewEffects;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::TooltipDisplay;
@@ -108,6 +110,10 @@ impl<'a> ComponentHolder<'a> {
             DataComponentType::ContainerLoot => self.effective::<ContainerLoot>().is_some(),
             DataComponentType::FireworkExplosion => self.effective::<FireworkExplosion>().is_some(),
             DataComponentType::Fireworks => self.effective::<Fireworks>().is_some(),
+            DataComponentType::StoredEnchantments => {
+                self.effective::<StoredEnchantments>().is_some()
+            }
+            DataComponentType::PaintingVariant => self.effective::<PaintingVariant>().is_some(),
             _ => false,
         }
     }
@@ -151,6 +157,8 @@ impl<'a> ComponentHolder<'a> {
             Builtin::ContainerLoot(value) => self.effective() == Some(value),
             Builtin::FireworkExplosion(value) => self.effective() == Some(value),
             Builtin::Fireworks(value) => self.effective() == Some(value),
+            Builtin::StoredEnchantments(value) => self.effective() == Some(value),
+            Builtin::PaintingVariant(value) => self.effective() == Some(value),
             _ => false,
         }
     }

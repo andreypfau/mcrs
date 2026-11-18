@@ -20,11 +20,14 @@ use crate::saved_sink::MapKey;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 use crate::saved_sink::TAG_MARKER;
+use crate::saved_sink::WireOnly;
 
 pub(crate) struct TagSink;
 
 impl SavedSink for TagSink {
     type Node = NbtTag;
+
+    const WIRE_ONLY: WireOnly = WireOnly::Refuse;
 
     fn leaf(&self, leaf: Leaf<'_>) -> NbtTag {
         match leaf {
@@ -110,14 +113,19 @@ impl SavedSink for TagSink {
         let items = items.into_iter();
         let mut child_tags: Vec<(String, NbtTag)> = Vec::with_capacity(items.size_hint().0);
         for item in items {
-            let KeyedEntry { key, value } = entry(self, item)?;
-            let key = match key {
-                MapKey::String(key) => key.to_string(),
-                MapKey::Name(name) => name.to_string(),
-                MapKey::Removal(name) => format!("{REMOVAL_MARKER}{name}"),
-            };
-            child_tags.push((key, value));
+            entry(self, item).map(|entry| push_keyed(&mut child_tags, entry))?;
         }
         Ok(NbtTag::Compound(NbtCompound { child_tags }))
     }
+}
+
+#[inline(never)]
+fn push_keyed(child_tags: &mut Vec<(String, NbtTag)>, entry: KeyedEntry<'_, NbtTag>) {
+    let KeyedEntry { key, value } = entry;
+    let key = match key {
+        MapKey::String(key) => key.to_string(),
+        MapKey::Name(name) => name.to_string(),
+        MapKey::Removal(name) => format!("{REMOVAL_MARKER}{name}"),
+    };
+    child_tags.push((key, value));
 }

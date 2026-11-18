@@ -75,7 +75,7 @@ impl fmt::Display for SavedError {
                 "the component type {} has only an undecoded wire form",
                 component_type.0
             ),
-            Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
+            Self::TooDeep => formatter.write_str("the saved form of the stack is nested too deep"),
         }
     }
 }
