@@ -1,6 +1,7 @@
 mod click;
 mod client;
 mod command_tree;
+mod frozen_ticks;
 mod host;
 mod known_difference;
 mod menu_packet;
@@ -25,10 +26,12 @@ pub use offline_player_uuid::offline_player_uuid;
 pub use player_action_status::PlayerActionStatus;
 pub use player_ban::PlayerBan;
 pub use run::run;
-pub use scenario::{Action, Observe, PlayerFileRead, ProbeMainArm, Scenario, Step, Target};
+pub use scenario::{
+    Action, ExpectedPacket, Observe, PlayerFileRead, ProbeMainArm, Scenario, Step, Target,
+};
 pub use sound_played::SoundPlayed;
 pub use swing::{AnimateObserved, ProbeHand, SwingObserved};
 pub use trace::{
-    ChatMessage, ConnectionState, Disconnect, Observed, PacketKind, PacketObserved, StepTrace,
-    SwingWireCheck, Trace, TraceVersion,
+    ChatMessage, Checkpoint, ConnectionState, Disconnect, Observed, PacketKind, PacketObserved,
+    StepTrace, SwingWireCheck, Trace, TraceVersion,
 };

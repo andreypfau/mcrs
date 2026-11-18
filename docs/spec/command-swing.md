@@ -201,7 +201,7 @@ Provenance: `black_box_confirmed` (`tools/mcrs_minecraft_probe/traces/command_sw
 `try_pig_cmd_t1`..`try_pig_cmd_t4`, `cmd_h2_blocked_at_t3`, `cmd_h2_unlocked_at_t4`,
 `cmd_c2_blocked_at_t3`, `cmd_c2_unlocked_at_t4`, `cmd_f4_blocked_at_t8`, `cmd_f4_unlocked_at_t9`,
 `swing_haste_default`, `swing_haste_explicit`, `swing_fatigue_explicit`, `swing_conduit_explicit`,
-`swing_spectator_self`, `swing_cross_dimension_target`, `swing_dead_bob_past_removal`,
+`swing_spectator_self`, `swing_cross_dimension_target`, `wait_dead_bob_removal`, `swing_dead_bob_past_removal`,
 `swing_dead_bob_score`) for cooldown, effect scaling, and delivery.
 Kind: `semantic, wire`. Confidence: `high`.
 
@@ -231,7 +231,7 @@ Provenance: `black_box_confirmed` (`tools/mcrs_minecraft_probe/traces/command_sw
 `swing_bare_alice`, `swing_multiple_targets`, `swing_item_only_fails`, `swing_notfound_fails`,
 `swing_while_blocked_reports_success`, `swing_while_blocked_score`, `swing_execute_store_result`,
 `swing_feedback_false`, `swing_feedback_false_score`, `swing_same_tick_execute`,
-`swing_dead_bob_past_removal`, `swing_dead_bob_score`). Kind: wire, semantic. Confidence: high.
+`wait_dead_bob_removal`, `swing_dead_bob_past_removal`, `swing_dead_bob_score`). Kind: wire, semantic. Confidence: high.
 
 ---
 
@@ -313,8 +313,9 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/command_swing
      (`equip_whack_control_alice`, `punch_whack_positive_control`).
   2. Run the `none 40` and `punch` sequence (`swing_none_blocks_later_punch`).
   3. Run the slow `/swing` and `punch` sequence (`swing_cooldown_blocks_later_punch`).
-  4. Freeze ticks (`equip_slow_stick_alice`), send `punch`, advance `tick step 2`, and run
-     `/swing` with `execute store result` and scoreboard read before `tick unfreeze`
+  4. Freeze ticks (`equip_slow_stick_alice`) and send `punch`. Wait for Bob to receive
+     Alice's `swing_animation` and confirm two ticks elapsed on the frozen world's game clock.
+     Then run `/swing` with `execute store result` and read the score before unfreezing
      (`punch_cooldown_blocks_later_swing`).
   5. Reset `swing_res` (`99`), start a slow `punch` cooldown on `Alice`
      (`equip_very_slow_stick_alice`, `punch_very_slow_for_blocked_cmd`).
@@ -353,16 +354,17 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/command_swing
   33. Teleport `Bob` to `minecraft:the_nether` (`move_bob_nether`).
   34. Run `swing Bob` from Overworld `Alice` (`swing_cross_dimension_target`).
   35. Return `Bob` to the Overworld, wait past post-teleport invulnerability (`3500` ms), kill
-      `Bob`, wait `1500` ms past corpse removal, and run
+      `Bob`, and wait for Alice to receive Bob's `remove_entities` before running
       `execute store result score Alice swing_res run swing Bob` (`return_bob_overworld`,
-      `wait_bob_return_invuln`, `prep_dead_bob_cmd`, `wait_dead_bob_removal`,
+      `wait_bob_return_invuln`, `wait_dead_bob_removal`,
       `swing_dead_bob_past_removal`, `swing_dead_bob_score`).
   - Result (`punch_whack_positive_control`, `swing_none_blocks_later_punch`,
     `swing_cooldown_blocks_later_punch`, `punch_cooldown_blocks_later_swing`,
     `swing_while_blocked_reports_success`, `swing_while_blocked_score`,
     `swing_execute_store_result`): unlocked `whack` emits a swing, `none` sets cooldown, and both
-    sources share one cooldown window across ticks (`tick step 2` blocks `/swing` with zero added
-    swings). Blocked `/swing` still updates `99 -> 1` (`Alice has 1 [swing_res]`) and sends
+    sources share one cooldown window. After the recorded punch and two world ticks, the offhand
+    `/swing` produces zero additional swings. Blocked `/swing` still updates
+    `99 -> 1` (`Alice has 1 [swing_res]`) and sends
     `commands.swing.success.single`; `swing_execute_store_result` records `4` for
     `@e[distance=..5]` (excluding the item entity) and `0` for `@e[type=minecraft:item]`.
   - Result (`try_pig_cmd_t1`..`try_pig_cmd_t4`): the unscaled frozen pig unlocks at tick `T + 4`.

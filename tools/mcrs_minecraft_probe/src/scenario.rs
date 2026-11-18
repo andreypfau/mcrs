@@ -29,13 +29,11 @@ impl TryFrom<ScenarioFields> for Scenario {
 
     fn try_from(fields: ScenarioFields) -> Result<Self, Self::Error> {
         validate_operator_levels(&fields.target)?;
-        let world_acks = crate::client::needs_world_acks(&fields.observe);
         for step in &fields.steps {
             validate_action(
                 &step.id,
                 &step.action,
-                fields.observe.inventory,
-                world_acks,
+                &fields.observe,
                 ActionScope::TopLevel,
             )?;
         }
@@ -71,17 +69,29 @@ enum ActionScope {
 fn validate_action(
     step_id: &str,
     action: &Action,
-    observe_inventory: bool,
-    world_acks: bool,
+    observe: &Observe,
     scope: ActionScope,
 ) -> Result<(), ScenarioError> {
-    if !observe_inventory && matches!(action, Action::Click(_) | Action::Close { .. }) {
+    if !observe.inventory && matches!(action, Action::Click(_) | Action::Close { .. }) {
         return Err(ScenarioError::MenuViewNeeded {
             step: step_id.to_owned(),
         });
     }
-    if !world_acks && matches!(action, Action::SyncPosition(_)) {
+    if !crate::client::needs_world_acks(observe) && matches!(action, Action::SyncPosition(_)) {
         return Err(ScenarioError::WorldAcksNeeded {
+            step: step_id.to_owned(),
+        });
+    }
+    if !observe.swing
+        && matches!(
+            action,
+            Action::AwaitPacket {
+                packet: ExpectedPacket::Swing { .. },
+                ..
+            }
+        )
+    {
+        return Err(ScenarioError::SwingObservationNeeded {
             step: step_id.to_owned(),
         });
     }
@@ -93,13 +103,7 @@ fn validate_action(
                 });
             }
             for child in steps {
-                validate_action(
-                    step_id,
-                    child,
-                    observe_inventory,
-                    world_acks,
-                    ActionScope::SequenceChild,
-                )?;
+                validate_action(step_id, child, observe, ActionScope::SequenceChild)?;
             }
             Ok(())
         }
@@ -116,6 +120,7 @@ fn validate_action(
 pub(crate) enum ScenarioError {
     MenuViewNeeded { step: String },
     WorldAcksNeeded { step: String },
+    SwingObservationNeeded { step: String },
     UnsupportedSequenceStep { step: String },
     InvalidOperatorLevel { name: String, level: u8 },
     UnknownOperatorLevel { name: String },
@@ -134,6 +139,10 @@ impl fmt::Display for ScenarioError {
                 "the step {step} uses `sync_position`, which requires world acknowledgements; \
                  set at least one of `observe.inventory`, `observe.swing`, `observe.animate`, \
                  or `observe.packet_order` to true"
+            ),
+            Self::SwingObservationNeeded { step } => write!(
+                formatter,
+                "the step {step} waits for a swing packet; set `observe.swing` to true"
             ),
             Self::UnsupportedSequenceStep { step } => write!(
                 formatter,
@@ -312,10 +321,26 @@ pub enum Action {
     Wait {
         ms: u64,
     },
+    AwaitPacket {
+        client: String,
+        packet: ExpectedPacket,
+    },
+    AdvanceTicks {
+        ticks: u32,
+    },
     Sequence {
         steps: Vec<Action>,
     },
     RestartServer {},
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpectedPacket {
+    Swing { subject: String },
+    BlockAck { sequence: i32 },
+    AddEntity { subject: String },
+    RemoveEntity { subject: String },
 }
 
 #[expect(
@@ -326,14 +351,14 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-pub(crate) fn has_target_action(steps: &[Step]) -> bool {
-    steps.iter().any(|step| action_uses_target(&step.action))
+pub(crate) fn needs_pose(steps: &[Step]) -> bool {
+    steps.iter().any(|step| action_uses_pose(&step.action))
 }
 
-fn action_uses_target(action: &Action) -> bool {
+fn action_uses_pose(action: &Action) -> bool {
     match action {
-        Action::Attack { .. } | Action::Interact { .. } => true,
-        Action::Sequence { steps } => steps.iter().any(action_uses_target),
+        Action::Attack { .. } | Action::Interact { .. } | Action::UseItem { .. } => true,
+        Action::Sequence { steps } => steps.iter().any(action_uses_pose),
         _ => false,
     }
 }
@@ -343,10 +368,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn has_target_action_detects_top_level_and_nested_targets() {
+    fn needs_pose_detects_top_level_use_item_and_nested_target() {
         let passive: Scenario =
             serde_json::from_str(r#"{ "steps": [{ "id": "join", "join": "Alice" }] }"#).unwrap();
-        assert!(!has_target_action(&passive.steps));
+        assert!(
+            !needs_pose(&passive.steps),
+            "joining alone does not need pose"
+        );
+
+        let use_item: Scenario = serde_json::from_str(
+            r#"{ "steps": [{ "id": "use", "use_item": { "client": "Alice", "hand": "main", "sequence": 1 } }] }"#,
+        )
+        .unwrap();
+        assert!(
+            needs_pose(&use_item.steps),
+            "use_item sends the accepted look"
+        );
 
         let nested: Scenario = serde_json::from_str(
             r#"{
@@ -359,6 +396,9 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert!(has_target_action(&nested.steps));
+        assert!(
+            needs_pose(&nested.steps),
+            "interact needs the current position"
+        );
     }
 }

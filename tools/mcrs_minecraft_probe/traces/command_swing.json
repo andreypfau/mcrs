@@ -3630,7 +3630,6 @@
         "sent": {
           "disconnects": [],
           "console_output": [
-            "Stepping 2 tick(s)",
             "Made Alice swing an arm",
             "Alice has 1 [swing_res]",
             "The game is running normally"
@@ -3649,7 +3648,24 @@
       ],
       "swing_bytes": {
         "canonical": true
-      }
+      },
+      "checkpoints": [
+        {
+          "packet": {
+            "client": "Bob",
+            "packet": {
+              "swing": {
+                "subject": "Alice"
+              }
+            }
+          }
+        },
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "wait_slow_punch_expire",
@@ -9206,236 +9222,31 @@
       "swings": []
     },
     {
-      "id": "prep_dead_bob_cmd",
+      "id": "wait_dead_bob_removal",
       "observed": {
-        "console": {
-          "output": [
+        "sent": {
+          "disconnects": [],
+          "console_output": [
             "Set [swing_res] for Alice to 99",
             "Bob was killed",
             "Killed Bob"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.scoreboard.players.set.success.single",
-                    "with": [
-                      {
-                        "translate": "chat.square_brackets",
-                        "with": [
-                          {
-                            "text": "swing_res",
-                            "hover_event": {
-                              "action": "show_text",
-                              "value": "swing_res"
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "text": "Alice",
-                        "click_event": {
-                          "action": "suggest_command",
-                          "command": "/tell Alice "
-                        },
-                        "hover_event": {
-                          "action": "show_text",
-                          "value": "Alice"
-                        },
-                        "insertion": "Alice"
-                      },
-                      99
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "death.attack.genericKill",
-                "with": [
-                  {
-                    "text": "Bob",
-                    "click_event": {
-                      "action": "suggest_command",
-                      "command": "/tell Bob "
-                    },
-                    "hover_event": {
-                      "action": "show_entity",
-                      "id": "minecraft:player",
-                      "uuid": [
-                        -89793373,
-                        -1009502901,
-                        -1373905431,
-                        -442414277
-                      ],
-                      "name": "Bob"
-                    },
-                    "insertion": "Bob"
-                  }
-                ]
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.kill.success.single",
-                    "with": [
-                      {
-                        "text": "Bob",
-                        "click_event": {
-                          "action": "suggest_command",
-                          "command": "/tell Bob "
-                        },
-                        "hover_event": {
-                          "action": "show_entity",
-                          "id": "minecraft:player",
-                          "uuid": [
-                            -89793373,
-                            -1009502901,
-                            -1373905431,
-                            -442414277
-                          ],
-                          "name": "Bob"
-                        },
-                        "insertion": "Bob"
-                      }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.scoreboard.players.set.success.single",
-                    "with": [
-                      {
-                        "translate": "chat.square_brackets",
-                        "with": [
-                          {
-                            "text": "swing_res",
-                            "hover_event": {
-                              "action": "show_text",
-                              "value": "swing_res"
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "text": "Alice",
-                        "click_event": {
-                          "action": "suggest_command",
-                          "command": "/tell Alice "
-                        },
-                        "hover_event": {
-                          "action": "show_text",
-                          "value": "Alice"
-                        },
-                        "insertion": "Alice"
-                      },
-                      99
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "death.attack.genericKill",
-                "with": [
-                  {
-                    "text": "Bob",
-                    "click_event": {
-                      "action": "suggest_command",
-                      "command": "/tell Bob "
-                    },
-                    "hover_event": {
-                      "action": "show_entity",
-                      "id": "minecraft:player",
-                      "uuid": [
-                        -89793373,
-                        -1009502901,
-                        -1373905431,
-                        -442414277
-                      ],
-                      "name": "Bob"
-                    },
-                    "insertion": "Bob"
-                  }
-                ]
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.kill.success.single",
-                    "with": [
-                      {
-                        "text": "Bob",
-                        "click_event": {
-                          "action": "suggest_command",
-                          "command": "/tell Bob "
-                        },
-                        "hover_event": {
-                          "action": "show_entity",
-                          "id": "minecraft:player",
-                          "uuid": [
-                            -89793373,
-                            -1009502901,
-                            -1373905431,
-                            -442414277
-                          ],
-                          "name": "Bob"
-                        },
-                        "insertion": "Bob"
-                      }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
           ]
         }
       },
       "command_trees": [],
-      "swings": []
-    },
-    {
-      "id": "wait_dead_bob_removal",
-      "observed": {
-        "sent": {
-          "disconnects": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "packet": {
+            "client": "Alice",
+            "packet": {
+              "remove_entity": {
+                "subject": "Bob"
+              }
+            }
+          }
         }
-      },
-      "command_trees": [],
-      "swings": []
+      ]
     },
     {
       "id": "swing_dead_bob_past_removal",

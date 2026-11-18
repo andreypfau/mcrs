@@ -57,7 +57,9 @@ A scenario is a JSON file in `scenarios/`.
 | `"attack": { "client", "target" }` | the client sends `attack` against the nearest tracked entity matching `target` |
 | `"interact": { "client", "target", "hand", "secondary" }` | the client sends `interact` against `target`; optional `secondary` defaults to `false` |
 | `"wait": { "ms": <n> }` | the driver waits `ms` milliseconds and settles events |
-| `"sequence": { "steps": [...] }` | the driver runs inner `send_loaded`, `sync_position`, `click`, `close`, `select_slot`, `player_action`, `creative_slot`, `use_block`, `punch`, `punch_burst`, `use_item`, `use_item_on`, `attack`, `interact`, `client_main_arm`, `punch_extra_byte`, `console`, and `wait` actions in order and settles events once at the end; `join`, `join_deferred`, `leave`, `command`, `suggest`, `restart_server`, and nested `sequence` are rejected at load |
+| `"await_packet": { "client": "<name>", "packet": { "swing": { "subject": "<name>" } } }` | waits up to ten seconds for a matching packet received since the step began. Packet predicates also include `add_entity` and `remove_entity` with `subject`, and `block_ack` with `sequence`. A swing predicate requires `observe.swing` |
+| `"advance_ticks": { "ticks": <n> }` | verifies the server is frozen, steps the world by `n` ticks, and waits until the reported game time advances by exactly `n`. With zero ticks, it checks that world time holds |
+| `"sequence": { "steps": [...] }` | runs inner `send_loaded`, `sync_position`, `click`, `close`, `select_slot`, `player_action`, `creative_slot`, `use_block`, `punch`, `punch_burst`, `use_item`, `use_item_on`, `attack`, `interact`, `client_main_arm`, `punch_extra_byte`, `console`, `wait`, `await_packet`, and `advance_ticks` in order, then settles events once at the end |
 | `"restart_server": {}` | the driver closes the connection of each client; then the host stops the server, which saves the world, and starts it again on the same world and port. A later step of such a client needs a new `join` |
 
 A click has these fields:
@@ -90,7 +92,7 @@ A step with `"read_player_file": { "client": "<name>", "fields": [...] }` adds t
 fields of the saved player file after the step to the trace. The harness does not save the world.
 Put a `save-all flush` command in the step.
 
-With `observe.inventory`, `observe.swing`, `observe.animate` or `observe.packet_order`, each client answers a position sync with an accept and the end of a chunk batch with a receipt. With `join`, each client sends `player_loaded` once after login; `join_deferred` skips `player_loaded` until a `send_loaded` step. Without any of these `observe` flags, scenarios that contain `attack` or `interact` still acknowledge `player_position` so nearest-target lookups have current coordinates, while passive scenarios send none of these automatic packets (an explicit `send_loaded` step still sends `player_loaded`) and scenarios containing `sync_position` fail to load because `sync_position` requires at least one of those `observe` flags to run world acknowledgements.
+With `observe.inventory`, `observe.swing`, `observe.animate` or `observe.packet_order`, each client answers a position sync with an accept and the end of a chunk batch with a receipt. With `join`, each client sends `player_loaded` once after login. `join_deferred` waits for an explicit `send_loaded` step. Scenarios with `attack`, `interact`, or `use_item` acknowledge `player_position` so target lookups and item use have the current position or look. Chunk receipts, automatic `player_loaded`, and the `sync_position` action still require an observation flag from the first sentence.
 
 Use long lower-case names that no account holds. The vanilla server asks the account service for
 a name that is not online.
@@ -163,6 +165,10 @@ With `observe.packet_order` and `"packet_order": true` on a step, the step also 
 `{ "client", "packet" }` entries for `swing_animation`, `sound`, `block_update`,
 `section_blocks_update`, `set_equipment`, and `set_entity_data`, grouped by client and preserving
 arrival order within each client.
+
+`await_packet` and `advance_ticks` add successful checkpoints to the step's `checkpoints`
+in action order. Packet checkpoints identify the receiving client and the matched predicate.
+Game-tick checkpoints store the verified world-time delta. A failed checkpoint stops the recording.
 
 A step with `read_player_file` has `player_file`: each named field as SNBT text, with the keys of
 each compound in order. A field that the file does not have is `null`.

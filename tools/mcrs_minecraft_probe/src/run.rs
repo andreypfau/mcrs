@@ -1,9 +1,9 @@
 use crate::client::{self, Event, LoadSignal, Login, Order, QueuedOrder, Signal};
 use crate::swing::CapturedSwing;
 use crate::{
-    Action, AnimateObserved, ChatMessage, CommandTree, ConnectionState, Direction, Disconnect,
-    Host, MenuEvent, Observe, Observed, PacketKind, PacketObserved, Scenario, StepTrace,
-    SwingObserved, SwingWireCheck, Trace, TraceVersion,
+    Action, AnimateObserved, ChatMessage, Checkpoint, CommandTree, ConnectionState, Direction,
+    Disconnect, ExpectedPacket, Host, MenuEvent, Observe, Observed, PacketKind, PacketObserved,
+    Scenario, StepTrace, SwingObserved, SwingWireCheck, Trace, TraceVersion,
 };
 use anyhow::Context;
 use mcrs_minecraft_core::VERSION;
@@ -26,6 +26,7 @@ struct Clients {
     events_in: UnboundedSender<Event>,
     events: UnboundedReceiver<Event>,
     next_suggest_id: i32,
+    step_start: time::Instant,
 }
 
 struct SettleSink {
@@ -37,6 +38,7 @@ struct SettleSink {
     swings: Vec<CapturedSwing>,
     animates: Vec<AnimateObserved>,
     packets: Vec<PacketObserved>,
+    checkpoints: Vec<Checkpoint>,
     orders: BTreeMap<String, UnboundedSender<QueuedOrder>>,
     packet_sample_start: Option<time::Instant>,
 }
@@ -52,6 +54,7 @@ impl SettleSink {
             swings: Vec::new(),
             animates: Vec::new(),
             packets: Vec::new(),
+            checkpoints: Vec::new(),
             orders: BTreeMap::new(),
             packet_sample_start: None,
         }
@@ -66,6 +69,7 @@ enum RecvOutcome {
 
 trait SettleClock {
     fn now(&self) -> time::Instant;
+    fn try_recv(&mut self) -> RecvOutcome;
     async fn recv_before(&mut self, deadline: time::Instant) -> RecvOutcome;
 }
 
@@ -78,6 +82,14 @@ impl SettleClock for LiveClock<'_> {
         time::Instant::now()
     }
 
+    fn try_recv(&mut self) -> RecvOutcome {
+        match self.events.try_recv() {
+            Ok(event) => RecvOutcome::Event(event),
+            Err(mpsc::error::TryRecvError::Disconnected) => RecvOutcome::Closed,
+            Err(mpsc::error::TryRecvError::Empty) => RecvOutcome::Timeout,
+        }
+    }
+
     async fn recv_before(&mut self, deadline: time::Instant) -> RecvOutcome {
         match time::timeout_at(deadline, self.events.recv()).await {
             Ok(Some(event)) => RecvOutcome::Event(event),
@@ -88,7 +100,14 @@ impl SettleClock for LiveClock<'_> {
 }
 
 pub(crate) fn is_sequence_step(action: &Action) -> bool {
-    order_of(action).is_some() || matches!(action, Action::Wait { .. } | Action::Console { .. })
+    order_of(action).is_some()
+        || matches!(
+            action,
+            Action::Wait { .. }
+                | Action::Console { .. }
+                | Action::AwaitPacket { .. }
+                | Action::AdvanceTicks { .. }
+        )
 }
 
 pub async fn run<H: Host>(
@@ -98,8 +117,8 @@ pub async fn run<H: Host>(
     host: &mut H,
 ) -> anyhow::Result<Trace> {
     let (events_in, events) = mpsc::unbounded_channel();
-    let tracks_pose = client::needs_world_acks(&scenario.observe)
-        || crate::scenario::has_target_action(&scenario.steps);
+    let tracks_pose =
+        client::needs_world_acks(&scenario.observe) || crate::scenario::needs_pose(&scenario.steps);
     let mut clients = Clients {
         tracks_pose,
         known_players: collect_players(scenario),
@@ -107,11 +126,13 @@ pub async fn run<H: Host>(
         events_in,
         events,
         next_suggest_id: 1,
+        step_start: time::Instant::now(),
     };
     let mut steps = Vec::with_capacity(scenario.steps.len());
     for step in &scenario.steps {
+        clients.step_start = time::Instant::now();
         clients.sink.packet_sample_start =
-            (scenario.observe.packet_order && step.packet_order).then(time::Instant::now);
+            (scenario.observe.packet_order && step.packet_order).then_some(clients.step_start);
         let observed = clients
             .act(&step.action, address, host)
             .await
@@ -168,6 +189,7 @@ pub async fn run<H: Host>(
             swing_bytes,
             animates: scenario.observe.animate.then_some(animates),
             packets: (scenario.observe.packet_order && step.packet_order).then_some(packets),
+            checkpoints: mem::take(&mut clients.sink.checkpoints),
             player_file,
         };
         step_trace.normalize_per_client();
@@ -236,6 +258,14 @@ impl Clients {
                 let events = self.settle(self.sink.quiet).await?;
                 collect_sent(&[], &events, Vec::new())
             }
+            Action::AwaitPacket { client, packet } => {
+                self.await_packet(client, packet).await?;
+                collect_sent(&[], &[], Vec::new())
+            }
+            Action::AdvanceTicks { ticks } => {
+                self.advance_ticks(host, *ticks).await?;
+                collect_sent(&[], &[], Vec::new())
+            }
             Action::Sequence { steps } => self.sequence(steps, host).await,
             Action::RestartServer {} => self.restart(host).await,
             _ => anyhow::bail!("unhandled probe action"),
@@ -289,6 +319,9 @@ impl Clients {
                 | Signal::Commands(_)
                 | Signal::Suggestions { .. }
                 | Signal::Swing(_)
+                | Signal::BlockAck(_)
+                | Signal::Added(_)
+                | Signal::Removed(_)
                 | Signal::Animate(_)
                 | Signal::Packet(_) => continue,
                 Signal::Disconnected(reason) => Some(reason),
@@ -338,6 +371,9 @@ impl Clients {
                 | Signal::Commands(_)
                 | Signal::Suggestions { .. }
                 | Signal::Swing(_)
+                | Signal::BlockAck(_)
+                | Signal::Added(_)
+                | Signal::Removed(_)
                 | Signal::Animate(_)
                 | Signal::Packet(_)
                 | Signal::Closed
@@ -474,12 +510,62 @@ impl Clients {
                     Action::Console { lines } => {
                         console_output.extend(host.console(lines)?);
                     }
+                    Action::AwaitPacket { client, packet } => {
+                        self.await_packet(client, packet).await?
+                    }
+                    Action::AdvanceTicks { ticks } => self.advance_ticks(host, *ticks).await?,
                     _ => anyhow::bail!("unsupported action inside sequence"),
                 }
             }
         }
         let events = self.settle(FIRST_PACKET).await?;
         collect_sent(&senders, &events, console_output)
+    }
+
+    async fn await_packet(&mut self, client: &str, packet: &ExpectedPacket) -> anyhow::Result<()> {
+        let deadline = time::Instant::now() + FIRST_EVENT;
+        while time::Instant::now() < deadline
+            && let Ok(Some(event)) = time::timeout_at(deadline, self.events.recv()).await
+        {
+            let matches = event.client == client
+                && event.at >= self.step_start
+                && match (&event.signal, packet) {
+                    (Signal::Swing(swing), ExpectedPacket::Swing { subject }) => {
+                        &swing.observed.subject == subject
+                    }
+                    (Signal::BlockAck(received), ExpectedPacket::BlockAck { sequence }) => {
+                        received == sequence
+                    }
+                    (Signal::Added(added), ExpectedPacket::AddEntity { subject }) => {
+                        added == subject
+                    }
+                    (Signal::Removed(removed), ExpectedPacket::RemoveEntity { subject }) => {
+                        removed.contains(subject)
+                    }
+                    _ => false,
+                };
+            match event.signal {
+                Signal::Failed(error) => anyhow::bail!("{} session failed: {error}", event.client),
+                Signal::Disconnected(_) | Signal::Closed => {
+                    anyhow::bail!("{} disconnected while waiting for {packet:?}", event.client)
+                }
+                other => self.sink.record_non_terminal(event.client, other, event.at),
+            }
+            if matches {
+                self.sink.checkpoints.push(Checkpoint::Packet {
+                    client: client.to_owned(),
+                    packet: packet.clone(),
+                });
+                return Ok(());
+            }
+        }
+        anyhow::bail!("{client} did not receive {packet:?}")
+    }
+
+    async fn advance_ticks<H: Host>(&mut self, host: &mut H, ticks: u32) -> anyhow::Result<()> {
+        crate::frozen_ticks::advance(host, ticks).await?;
+        self.sink.checkpoints.push(Checkpoint::GameTicks { ticks });
+        Ok(())
     }
 
     async fn restart<H: Host>(&mut self, host: &mut H) -> anyhow::Result<Observed> {
@@ -572,6 +658,9 @@ impl SettleSink {
                 }
             }
             Signal::Chat(_)
+            | Signal::BlockAck(_)
+            | Signal::Added(_)
+            | Signal::Removed(_)
             | Signal::Suggestions { .. }
             | Signal::Disconnected(_)
             | Signal::Closed
@@ -596,13 +685,17 @@ impl SettleSink {
         loop {
             let now = clock.now();
             let stop_at = idle_deadline.min(total_deadline);
-            if stop_at <= now {
+            let received = if self.quiet.is_zero() && now < total_deadline && stop_at <= now {
+                clock.try_recv()
+            } else if stop_at <= now {
                 if saw_event && idle_deadline > total_deadline {
                     anyhow::bail!("settling did not become quiet within {total_limit:?}");
                 }
                 break;
-            }
-            let event = match clock.recv_before(stop_at).await {
+            } else {
+                clock.recv_before(stop_at).await
+            };
+            let event = match received {
                 RecvOutcome::Event(event) => event,
                 RecvOutcome::Closed => break,
                 RecvOutcome::Timeout => {
@@ -613,6 +706,12 @@ impl SettleSink {
                 }
             };
             if matches!(event.signal, Signal::Packet(_)) && !self.in_sample(event.at) {
+                continue;
+            }
+            if matches!(
+                event.signal,
+                Signal::BlockAck(_) | Signal::Added(_) | Signal::Removed(_)
+            ) {
                 continue;
             }
             saw_event = true;
@@ -737,6 +836,8 @@ fn order_of(action: &Action) -> Option<(&str, Order)> {
         | Action::Suggest { .. }
         | Action::Console { .. }
         | Action::Wait { .. }
+        | Action::AwaitPacket { .. }
+        | Action::AdvanceTicks { .. }
         | Action::Sequence { .. }
         | Action::RestartServer {} => None,
     }
@@ -772,6 +873,9 @@ fn collect_sent(
             | Signal::Commands(_)
             | Signal::Suggestions { .. }
             | Signal::Swing(_)
+            | Signal::BlockAck(_)
+            | Signal::Added(_)
+            | Signal::Removed(_)
             | Signal::Animate(_)
             | Signal::Packet(_)
             | Signal::Closed
@@ -863,6 +967,16 @@ mod tests {
             self.base + self.offset
         }
 
+        fn try_recv(&mut self) -> RecvOutcome {
+            if self.queue.front().is_some_and(|(at, _)| *at <= self.offset)
+                && let Some((_, event)) = self.queue.pop_front()
+            {
+                self.delivered += 1;
+                return RecvOutcome::Event(event);
+            }
+            RecvOutcome::Timeout
+        }
+
         async fn recv_before(&mut self, deadline: time::Instant) -> RecvOutcome {
             if let Some(at_offset) = self.queue.front().map(|(at, _)| *at) {
                 let event_time = self.base + at_offset;
@@ -894,6 +1008,38 @@ mod tests {
 
     fn block_update_signal() -> Signal {
         Signal::Packet(PacketKind::BlockUpdate)
+    }
+
+    #[tokio::test]
+    async fn zero_quiet_window_drains_ready_packets() {
+        let (sender, mut events) = mpsc::unbounded_channel();
+        let mut sink = SettleSink::new(
+            Duration::ZERO,
+            Observe {
+                packet_order: true,
+                ..Observe::default()
+            },
+        );
+        sink.packet_sample_start = Some(time::Instant::now());
+        for client in ["Bob", "Charlie"] {
+            sender
+                .send(Event::now(client.to_owned(), block_update_signal()))
+                .unwrap();
+        }
+        sink.settle_with_clock(
+            Duration::ZERO,
+            FIRST_EVENT,
+            &mut LiveClock {
+                events: &mut events,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            sink.packets.len(),
+            2,
+            "both packets were ready before settling"
+        );
     }
 
     #[tokio::test]

@@ -35,12 +35,12 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
 };
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
-    ClientboundCommandSuggestions, ClientboundCommands, ClientboundEntityPositionSync,
-    ClientboundLogin, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundRespawn,
-    ClientboundSectionBlocksUpdate, ClientboundSetEntityData, ClientboundSetEquipment,
-    ClientboundSystemChatPacket, ClientboundTeleportEntity,
+    ClientboundAddEntity, ClientboundBlockChangedAck, ClientboundBlockUpdate,
+    ClientboundChunkBatchFinished, ClientboundCommandSuggestions, ClientboundCommands,
+    ClientboundEntityPositionSync, ClientboundLogin, ClientboundMoveEntityPos,
+    ClientboundMoveEntityPosRot, ClientboundPlayerPosition, ClientboundRemoveEntities,
+    ClientboundRespawn, ClientboundSectionBlocksUpdate, ClientboundSetEntityData,
+    ClientboundSetEquipment, ClientboundSystemChatPacket, ClientboundTeleportEntity,
 };
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -164,6 +164,9 @@ pub(crate) enum Signal {
         suggestions: Vec<String>,
     },
     Swing(CapturedSwing),
+    BlockAck(i32),
+    Added(String),
+    Removed(Vec<String>),
     Animate(AnimateObserved),
     Packet(PacketKind),
     Disconnected(Text),
@@ -320,7 +323,7 @@ pub(crate) async fn session(
     } = config;
     if load_signal == LoadSignal::Send
         && needs_world_acks(&observe)
-        && let Err(error) = io.send_packet(&ServerboundPlayerLoaded).await
+        && let Err(error) = automatic_reply(&mut io, &ServerboundPlayerLoaded).await
     {
         let signal = failure(&client, &error);
         let _ = events.send(Event::now(client, signal));
@@ -340,8 +343,10 @@ pub(crate) async fn session(
     let signal = loop {
         tokio::select! {
             frame = io.recv_frame() => {
-                let Ok((id, body)) = frame else {
-                    break Signal::Closed;
+                let (id, body) = match frame {
+                    Ok(frame) => frame,
+                    Err(error) if is_close(&error) => break Signal::Closed,
+                    Err(error) => break failure(&client, &error),
                 };
                 match read_game_packet(&mut io, &mut state, id, &body).await {
                     Ok(Some(
@@ -351,6 +356,9 @@ pub(crate) async fn session(
                         | Signal::Commands(_)
                         | Signal::Suggestions { .. }
                         | Signal::Swing(_)
+                        | Signal::BlockAck(_)
+                        | Signal::Added(_)
+                        | Signal::Removed(_)
                         | Signal::Animate(_)
                         | Signal::Packet(_)),
                     )) => {
@@ -385,7 +393,10 @@ pub(crate) async fn session(
                     && (!pending_orders.is_empty()
                         || matches!(
                             queued.order,
-                            Order::Attack(_) | Order::Interact { .. } | Order::SyncPosition
+                            Order::Attack(_)
+                                | Order::Interact { .. }
+                                | Order::SyncPosition
+                                | Order::UseItem { .. }
                         ))
                 {
                     pending_orders.push_back(queued);
@@ -721,8 +732,7 @@ async fn read_game_packet(
     if id == ClientboundKeepAlive::ID {
         let packet: ClientboundKeepAlive = decode(body)?;
         let payload = packet.0.payload;
-        io.send_packet(&ServerboundKeepAlive(KeepAlive { payload }))
-            .await?;
+        automatic_reply(io, &ServerboundKeepAlive(KeepAlive { payload })).await?;
     } else if id == ClientboundSystemChatPacket::ID {
         let packet: ClientboundSystemChatPacket = decode(body)?;
         if !packet.overlay {
@@ -767,9 +777,15 @@ async fn read_game_packet(
     } else if id == ClientboundAddEntity::ID {
         let packet: ClientboundAddEntity = decode(body)?;
         state.names.record_add_entity(&packet);
+        return Ok(Some(Signal::Added(
+            state.names.resolve_subject(packet.id.0),
+        )));
     } else if id == ClientboundRemoveEntities::ID {
         let packet: ClientboundRemoveEntities = decode(body)?;
-        state.names.remove_entities(&packet);
+        return Ok(Some(Signal::Removed(state.names.remove_entities(&packet))));
+    } else if id == ClientboundBlockChangedAck::ID {
+        let packet: ClientboundBlockChangedAck = decode(body)?;
+        return Ok(Some(Signal::BlockAck(packet.sequence.0)));
     } else if id == ClientboundTeleportEntity::ID {
         let packet: ClientboundTeleportEntity = decode(body)?;
         state.names.record_teleport(&packet);
@@ -793,12 +809,15 @@ async fn read_game_packet(
         state.awaiting_respawn_pos = state.tracks_pose;
     } else if state.tracks_pose && id == ClientboundPlayerPosition::ID {
         let packet: ClientboundPlayerPosition = decode(body)?;
-        io.send_packet(&state.pose.accept(&packet)).await?;
+        automatic_reply(io, &state.pose.accept(&packet)).await?;
         state.awaiting_respawn_pos = false;
     } else if needs_world_acks(state.observe) && id == ClientboundChunkBatchFinished::ID {
-        io.send_packet(&ServerboundChunkBatchReceived {
-            desired_chunks_per_tick: CHUNKS_PER_TICK,
-        })
+        automatic_reply(
+            io,
+            &ServerboundChunkBatchReceived {
+                desired_chunks_per_tick: CHUNKS_PER_TICK,
+            },
+        )
         .await?;
     } else if !state.observe.inventory {
         return Ok(None);
@@ -807,6 +826,15 @@ async fn read_game_packet(
         return Ok(Some(Signal::Menu(packet)));
     }
     Ok(None)
+}
+
+async fn automatic_reply<P>(io: &mut PacketIo<TcpStream>, packet: &P) -> anyhow::Result<()>
+where
+    P: Packet + Encode,
+{
+    time::timeout(WRITE_LIMIT, io.send_packet(packet))
+        .await
+        .context("automatic packet write timed out")?
 }
 
 fn packet_order_kind(id: i32) -> Option<PacketKind> {

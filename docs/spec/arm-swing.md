@@ -56,10 +56,12 @@ vanilla server of the version in `assets/minecraft/version.json` and on
 - `SWG-DEV-*`: intentional deviations from vanilla.
 - `SWG-E*`: verification experiments.
 
-### 0.4 Server tick order
+### 0.4 Observable tick boundaries
 
-In each server tick, the server handles client packets before it runs entity updates for that tick.
-A swing **trigger** in tick `T` therefore uses the cooldown state before tick `T` finishes.
+A swing **trigger** in tick `T` is subject to cooldown windows that cover `T`
+(`SWG-STA-003`) and to the same-tick limit (`SWG-STA-004`). When a block interaction
+starts a swing, its recipients see the swing packet before the associated block update
+(`SWG-DST-003`).
 
 ### 0.5 Artefacts cited
 
@@ -181,10 +183,11 @@ Provenance: `black_box_confirmed`. Kind: `semantic`. Confidence: `high`.
 Experiment: `SWG-E6`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
 (`punch_fatigue_unscaled_and_blocks_reswing`, `punch_haste_overrides_fatigue_sequence`,
 `punch_haste2_shortens_b10`, `punch_fatigue1_blocks_at_200ms`, `punch_fatigue3_blocks_at_300ms`,
-`punch_haste0_overrides_fatigue0`, `punch_baseline_b10_blocked_at_220ms`,
+`punch_haste0_overrides_fatigue4`, `punch_baseline_b10_blocked_at_220ms`,
 `punch_conduit2_shortens_b10`, `punch_conduit0_overrides_fatigue4_b6`, `pig_conduit0_b6_unlocked_at_t3`,
 `punch_haste6_conduit6_b20_max`, `punch_haste10_conduit2_b24`, `punch_haste2_conduit10_fatigue4_b24`,
-`punch_haste20_b6_clamp_unlocked`).
+`punch_haste20_b6_clamp_unlocked`, `pig_fatigue1_blocked_at_t5`, `pig_fatigue1_unlocked_at_t6`,
+`pig_haste10_conduit2_unlocked_at_t8`).
 
 ### SWG-STA-003: cross-tick cooldown window
 
@@ -372,10 +375,9 @@ Experiment: `SWG-E1`, `SWG-E5`; `tools/mcrs_minecraft_probe/traces/arm_swing.jso
 
 ### SWG-DST-003: intra-tick packet order
 
-Because the server processes packets before entity and block ticks (`section 0.4`), it queues
-`swing_animation` when it accepts the action. On `stab`, `sound` goes out before
-`swing_animation`. For drops and placements, `swing_animation` goes out before `set_equipment`
-and before `block_update` or `section_blocks_update` (`block-placing.md`, `PLC-PLA-003`).
+Each recipient that receives both packets for a `stab` sees `sound` before `swing_animation`.
+For drops and placements, recipients see `swing_animation` before the action's `set_equipment`,
+`block_update`, or `section_blocks_update` (`block-placing.md`, `PLC-PLA-003`).
 
 Provenance: `black_box_confirmed`. Kind: `wire`. Confidence: `high`.
 Experiment: `SWG-E2`, `SWG-E3`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
@@ -419,9 +421,9 @@ Experiment: `SWG-E2`, `SWG-E3`; `tools/mcrs_minecraft_probe/traces/arm_swing.jso
 ### SWG-DEV-003: ignored `punch` before load, in `spectator`, or while dead
 
 - **Rule:** `SWG-SRC-002`.
-- **Reference:** vanilla emits `swing_animation` on `punch` before the client loads, in `spectator`
-  mode, and while dead for `20` ticks. Trace steps: `punch_before_player_loaded`,
-  `spectator_sender_punch`, `dead_sender_punch_before_removal`.
+- **Reference:** vanilla emits `swing_animation` on `punch` in `spectator` mode and while
+  the dead player's corpse remains tracked. Trace steps: `spectator_sender_punch`,
+  `dead_sender_punch_before_removal`.
 - **Reason:** unloaded players, corpses, and `spectator` players must not animate for nearby players
   (owner decision on `#906`).
 - **Visible to the client:** yes, when a client sends `punch` under one of these conditions:
@@ -483,11 +485,12 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   1. Equip `wooden_spear` in the main hand of `Alice` (`equip_stab_spear`).
   2. Send `stab` from `Alice` with `packet_order` active (`stab_spear`).
   3. Send `use_item_on` with an off-hand `stone` block (`use_item_on_place_stone_offhand`).
-  4. Send two `use_item_on` block placements in one tick (`use_item_on_two_placements_order`).
+  4. Send two `use_item_on` block placements in sequence while world time is frozen
+     (`use_item_on_two_placements_order`).
   - Result (`stab_spear`): `Bob` and `Charlie` receive `sound` before `swing_animation`.
   - Result (`use_item_on_place_stone_offhand`, `use_item_on_two_placements_order`): `Bob` and
-    `Charlie` receive `swing_animation` before `block_update` and a single same-tick
-    `section_blocks_update` under `tick freeze`.
+    `Charlie` receive `swing_animation` before `block_update` and a single
+    `section_blocks_update` for the paired placements under `tick freeze`.
 - **SWG-E4** (`punch` preconditions):
   1. Apply `invisibility` to `Alice` (`setup_normal_preconditions_extras`).
   2. Send `punch` from `Alice` (`punch_invisibility`).
@@ -500,23 +503,24 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
 - **SWG-E5** (tracker boundary and dimensions):
   1. Set `Bob` to `spectator` mode (`set_spectator_observer`).
   2. Send `punch` from `Alice` (`spectator_observer_receives_punch`).
-  3. Equip `Alice` with a `duration = 100` stick, freeze server ticks, and teleport `Charlie` out
-     of tracker range (`move_charlie_out_of_range`).
+  3. Equip `Alice` with a `duration = 600` stick, teleport `Charlie` out of tracker range, and
+     wait for `Charlie` to receive Alice's `remove_entities` (`move_charlie_out_of_range`).
   4. Send `punch` from `Alice` (`punch_charlie_out_of_range`).
-  5. While ticks remain frozen and that `duration = 100` swing stays active, move `Charlie` back
-     within range and synchronize `Charlie` (`move_charlie_back_in_range`, `sync_charlie_back_in_range`).
-  6. Step past cooldown, unfreeze ticks, clear `Alice` main hand, and send a fresh `punch`
-     (`unfreeze_charlie_back_in_range`, `punch_charlie_back_in_range`).
+  5. Move `Charlie` back within range and synchronize his position. Wait for `Charlie` to receive
+     Alice's `add_entity` and send another punch to check that the cooldown still holds
+     (`move_charlie_back_in_range`).
+  6. Wait for cooldown to expire, clear `Alice`'s main hand, and send a fresh
+     `punch` (`clear_slow_charlie_equipment`, `punch_charlie_back_in_range`).
   7. Teleport `Charlie` to `minecraft:the_nether` (`move_charlie_to_nether`).
   8. Send `punch` from `Alice` (`punch_charlie_in_nether`).
   9. Send `punch` from `Alice` `150` ms after `kill Alice` (`dead_sender_punch_before_removal`).
   10. Send `punch` from dead `Alice` after `1200` ms (`dead_sender_punch_after_removal`).
   - Result (`spectator_observer_receives_punch`): `Bob` receives swings in `spectator` mode.
-  - Result (`punch_charlie_out_of_range`, `sync_charlie_back_in_range`,
+  - Result (`punch_charlie_out_of_range`, `move_charlie_back_in_range`,
     `punch_charlie_back_in_range`, `punch_charlie_in_nether`): `Charlie` sees zero swings while out
     of range or in `minecraft:the_nether`, and receives zero catch-up swings upon returning while
-    `Alice`'s `duration = 100` frozen swing is still active. The fresh post-unfreeze punch delivers
-    to both `Bob` and `Charlie`.
+    Alice's cooldown remains active. Neither observer receives a swing from the blocked punch
+    after Charlie starts tracking Alice. The fresh punch delivers to both observers.
   - Result (`dead_sender_punch_before_removal`, `dead_sender_punch_after_removal`): `Bob` gets a
     vanilla swing before corpse removal (`SWG-DEV-003`) and zero swings after removal.
 - **SWG-E6** (cooldown and status effect formulas):
@@ -529,7 +533,7 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   5. Run the `haste 2` sequence (`punch_haste2_shortens_b10`).
   6. Run the `mining_fatigue 1` step (`punch_fatigue1_blocks_at_200ms`).
   7. Run the `mining_fatigue 3` step (`punch_fatigue3_blocks_at_300ms`).
-  8. Run the `haste 0` and `mining_fatigue 4` sequence (`punch_haste0_overrides_fatigue0`).
+  8. Run the `haste 0` and `mining_fatigue 4` sequence (`punch_haste0_overrides_fatigue4`).
   9. Run the `B = 10` baseline blocked check at `220` ms (`punch_baseline_b10_blocked_at_220ms`),
      the `conduit_power 2` check on `B = 10` at `220` ms (`punch_conduit2_shortens_b10`), and the
      `conduit_power 0` + `mining_fatigue 4` override check on `B = 6`
@@ -556,6 +560,16 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   21. Start a `D = 10` swing on the frozen `pig` without effects (`freeze_pig_midwindow_noeffect`),
       apply `haste 20` at `T + 1` (`midwindow_step1_add_haste20`), and probe at `T + 2` and
       `T + 6` (`midwindow_blocked_at_t2`, `midwindow_unlocked_at_t6`).
+  22. With `mining_fatigue 1` and `B = 6`, send one player `punch` at frozen-world offsets
+      `0`, `5`, and `6`. After each punch, wait for the acknowledgement of a following
+      block-use packet on the same connection before advancing the world
+      (`punch_fatigue1_world_t0` through `punch_fatigue1_world_t6`).
+  23. Start a swing on the frozen pig with `mining_fatigue 1` and `B = 6`. Verify the world
+      time advances by five ticks, attempt a swing, advance one more tick, and try again
+      (`freeze_pig_fatigue1_b6` through `pig_fatigue1_unlocked_at_t6`).
+  24. Start a swing on the frozen pig with `haste 10`, `conduit_power 2`, and `B = 24`.
+      Verify the world time advances by eight ticks before attempting the next swing
+      (`freeze_pig_haste10_conduit2_b24` through `pig_haste10_conduit2_unlocked_at_t8`).
   - Result (`slow_swing_blocks_reswing_and_slot_switch`, `offhand_slow_blocks_mainhand_punch`): slot
     swaps keep cooldown (`duration = 6` recovery punch succeeds only after half duration while before
     full `duration = 60`), and both hands share one window.
@@ -569,6 +583,13 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
     `D` values unlock on `T + 1 + floor(D / 2)`; `D = 5` under `conduit_power 0` unlocks at `T + 3`
     where unscaled `B = 6` (`d6_blocked_at_t3`) still blocks, and adding `haste 20` at `T + 1` does
     not shorten a `D = 10` window started at `T`.
+  - Result (`pig_fatigue1_blocked_at_t5`, `pig_fatigue1_unlocked_at_t6`): observers see zero
+    packets at `T + 5` and one each at `T + 6`. This matches `D = 10`.
+  - Result (`pig_haste10_conduit2_unlocked_at_t8`): observers receive the second swing at `T + 8`.
+    Selecting `conduit_power 2` over the larger `haste 10` would block the attempt until `T + 11`.
+  - Result (`punch_fatigue1_world_t0`, `punch_fatigue1_world_t5`, `punch_fatigue1_world_t6`):
+    nearby observers receive a swing at each world offset. World stepping therefore fails to
+    isolate the same boundaries for player punches (`SWG-U3`).
 - **SWG-E7** (`player_action`, `use_item`, `use_item_on`, and `interact`):
   1. Send `drop_item` and `drop_all_items` with non-empty, empty, and `spectator` `main` hands
      (`drop_item_nonempty`, `drop_all_items_nonempty`, `drop_item_empty`,
@@ -576,8 +597,9 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   2. Send `swap_item_with_offhand` and the four block-destroy `player_action` codes
      (`swap_offhand_no_swing`, `start_destroy_no_swing`, `change_destroy_no_swing`,
      `abort_destroy_no_swing`, `stop_destroy_no_swing`).
-  3. Freeze ticks (`freeze_before_immediate_stab`), send `stab` on the same frozen tick as
-     equipping a `wooden_spear` (`stab_immediate_with_spear`), unfreeze
+  3. Freeze ticks (`freeze_before_immediate_stab`), verify the world clock is frozen, equip
+     a `wooden_spear`, send `stab`, and wait for Bob to receive Alice's swing
+     (`stab_immediate_with_spear`). Unfreeze
      (`unfreeze_after_immediate_stab`), and send `stab` on an off-hand spear, stick, and `spectator`
      spear (`stab_offhand_no_swing`, `stab_spear`, `stab_non_spear`, `stab_spectator_no_swing`).
   4. Run the `use_item` steps (`use_item_snowball_offhand`..`use_item_spectator_no_swing`), including
@@ -598,7 +620,7 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   - Result (`use_item_fishing_rod_cast`, `use_item_fishing_rod_reel`,
     `use_item_empty_map_observers_only`, `check_eat_food_level`,
     `use_item_eat_start_no_swing`..`use_item_spectator_no_swing`): instant uses emit **observer-only
-    swings**. The apple eat sequence confirms `foodLevel < 20` (`15`) beforehand, emits
+    swings**. The apple eat sequence confirms `foodLevel < 20` beforehand, emits
     `set_entity_data` and `sound` packets during continuous use without completing (`foodLevel` stays
     below `20`), and emits zero swings across start, continuous eat, and `release_use_item`.
     Continuous use and block breaks emit zero swings.
@@ -633,3 +655,11 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   packet batching within one tick handler invocation, or partial ticking while frozen is not yet
   separated; experiment: record `time query gametime` around same-tick batched vs separated punches
   with and without `tick freeze`.
+- **SWG-U2** (vanilla `punch` before client load): does an unloaded client cause
+  `swing_animation` when it punches? The deferred-join trace does not establish the state
+  of the 60-tick fallback when the server handles the packet. The mcrs gate is specified
+  in `SWG-SRC-002` and `SWG-DEV-003`.
+- **SWG-U3** (vanilla player cooldown tick boundary with `mining_fatigue 1`): what player tick
+  processes each isolated punch while world time is frozen? The packet acknowledgement bounds
+  input processing in world time. The world clock and player cooldown can advance differently
+  under `tick freeze`.

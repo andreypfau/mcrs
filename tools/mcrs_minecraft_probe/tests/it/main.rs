@@ -126,6 +126,7 @@ fn normalize_per_client_removes_cross_client_interleaving_while_preserving_order
             swing_bytes: None,
             animates: None,
             packets: Some(packets),
+            checkpoints: Vec::new(),
             player_file: None,
         };
         step.normalize_per_client();
@@ -151,7 +152,7 @@ fn normalize_per_client_removes_cross_client_interleaving_while_preserving_order
         vec![
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::Sound,
+                packet: PacketKind::SwingAnimation,
             },
             PacketObserved {
                 client: "Bob".to_owned(),
@@ -163,7 +164,7 @@ fn normalize_per_client_removes_cross_client_interleaving_while_preserving_order
             },
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::SwingAnimation,
+                packet: PacketKind::Sound,
             },
         ],
         vec![swing_charlie.clone(), swing_bob.clone()],
@@ -180,11 +181,11 @@ fn normalize_per_client_removes_cross_client_interleaving_while_preserving_order
             },
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::Sound,
+                packet: PacketKind::SwingAnimation,
             },
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::SwingAnimation,
+                packet: PacketKind::Sound,
             },
         ],
         vec![swing_bob.clone(), swing_charlie.clone()],
@@ -204,11 +205,11 @@ fn normalize_per_client_removes_cross_client_interleaving_while_preserving_order
             },
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::Sound,
+                packet: PacketKind::SwingAnimation,
             },
             PacketObserved {
                 client: "Charlie".to_owned(),
-                packet: PacketKind::SwingAnimation,
+                packet: PacketKind::Sound,
             },
         ]
     );

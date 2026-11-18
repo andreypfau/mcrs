@@ -105,10 +105,16 @@ impl EntityNames {
         self.positions.insert(id, Position::from(packet.pos));
     }
 
-    pub(crate) fn remove_entities(&mut self, packet: &ClientboundRemoveEntities) {
-        for entity_id in &packet.entity_ids {
-            self.detach_id(entity_id.0);
-        }
+    pub(crate) fn remove_entities(&mut self, packet: &ClientboundRemoveEntities) -> Vec<String> {
+        packet
+            .entity_ids
+            .iter()
+            .map(|entity_id| {
+                let name = self.resolve_subject(entity_id.0);
+                self.detach_id(entity_id.0);
+                name
+            })
+            .collect()
     }
 
     pub(crate) fn clear_world_entities(&mut self) {

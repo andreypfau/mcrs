@@ -1,4 +1,6 @@
-use crate::{AnimateObserved, CommandTree, MenuEvent, PlayerBan, SoundPlayed, SwingObserved};
+use crate::{
+    AnimateObserved, CommandTree, ExpectedPacket, MenuEvent, PlayerBan, SoundPlayed, SwingObserved,
+};
 use mcrs_minecraft_text::Text;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -35,8 +37,22 @@ pub struct StepTrace {
     pub animates: Option<Vec<AnimateObserved>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub packets: Option<Vec<PacketObserved>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoints: Vec<Checkpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_file: Option<BTreeMap<String, Option<String>>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Checkpoint {
+    Packet {
+        client: String,
+        packet: ExpectedPacket,
+    },
+    GameTicks {
+        ticks: u32,
+    },
 }
 
 impl StepTrace {

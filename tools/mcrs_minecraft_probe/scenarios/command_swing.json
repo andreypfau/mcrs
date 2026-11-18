@@ -132,10 +132,11 @@
       "sequence": {
         "steps": [
           { "punch": { "client": "Alice" } },
+          { "await_packet": { "client": "Bob", "packet": { "swing": { "subject": "Alice" } } } },
+          { "advance_ticks": { "ticks": 2 } },
           {
             "console": {
               "lines": [
-                "tick step 2",
                 "execute store result score Alice swing_res run swing Alice offhand stab 10",
                 "scoreboard players get Alice swing_res",
                 "tick unfreeze"
@@ -319,15 +320,12 @@
     },
     { "id": "wait_bob_return_invuln", "wait": { "ms": 3500 } },
     {
-      "id": "prep_dead_bob_cmd",
-      "console": {
-        "lines": [
-          "scoreboard players set Alice swing_res 99",
-          "kill Bob"
-        ]
-      }
+      "id": "wait_dead_bob_removal",
+      "sequence": { "steps": [
+        { "console": { "lines": ["scoreboard players set Alice swing_res 99", "kill Bob"] } },
+        { "await_packet": { "client": "Alice", "packet": { "remove_entity": { "subject": "Bob" } } } }
+      ] }
     },
-    { "id": "wait_dead_bob_removal", "wait": { "ms": 1500 } },
     { "id": "swing_dead_bob_past_removal", "command": { "client": "Alice", "line": "execute store result score Alice swing_res run swing Bob mainhand stab 6" } },
     { "id": "swing_dead_bob_score", "console": { "lines": ["scoreboard players get Alice swing_res"] } }
   ]

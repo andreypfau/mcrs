@@ -574,7 +574,8 @@ checks the sequence, so BRK-SEQ-005 breaks the block. Experiment E46.
 
 - **Rule**: PLC-PLA-007, PLC-INT-004, PLC-SEQ-002.
 - **Reference**: vanilla sends two `swing_animation` packets per recipient when `use_item_on` starts a
-  swing and bypasses cooldown for repeat triggers in the same tick.
+  swing. Both accepted placements in the frozen-world probe start swings
+  ([arm-swing.md](arm-swing.md), `SWG-E3`). `SWG-U1` records the open question about repeat triggers.
 - **Reason**: [arm-swing.md](arm-swing.md) (`SWG-DEV-001`, `SWG-DEV-002`) removes duplicate packets
   and caps swings at one per actor per tick (`#906`).
 - **Visible to the client**: yes, only through the raw packet count (`1` instead of `2`, or `0` on a
