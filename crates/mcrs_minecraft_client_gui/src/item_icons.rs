@@ -1,20 +1,15 @@
 use bevy::ecs::system::SystemParam;
 use bevy::math::IVec2;
 use bevy::prelude::*;
-use mcrs_minecraft_item_icon::{
-    IconMeshes, IconSources, ItemIcon, Overlays, StackOverlay, resolve,
-};
+use mcrs_minecraft_item_icon::{IconMeshes, IconSources, ItemIcon, Overlays, StackOverlay};
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_model::item_model_asset::DisplayContext;
 use mcrs_minecraft_model::item_model_bake::ItemModels;
-use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::scene::{GuiQuad, GuiScene, SceneIcon};
-
-const GUI: ItemModelContext = ItemModelContext::new(DisplayContext::Gui);
+use crate::slot_icon::SlotIcon;
 
 #[derive(SystemParam)]
 pub struct ItemIcons<'w> {
@@ -40,8 +35,8 @@ impl ItemIcons<'_> {
             models,
             registries: self.registries.as_deref().map(|registries| &**registries),
         };
-        let icon = resolve(view, &sources, &GUI);
-        Self::draw_icon(scene, origin, icon, StackOverlay::of(view), overlays);
+        let SlotIcon { icon, overlay } = SlotIcon::of(view, &sources);
+        Self::draw_icon(scene, origin, icon, overlay, overlays);
     }
 
     pub fn draw_icon(
