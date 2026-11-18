@@ -89,9 +89,12 @@ Section 10 lists the subjects that are out of scope.
   `immune_to_weakness`, `immune_to_freezing`, `immune_to_infested` and `immune_to_oozing`.
 - The damage types `magic`, `indirect_magic` and `wither`, and the damage tags
   `bypasses_armor` and `no_knockback`. The data pack has these.
-- The colour and the attribute modifiers of an effect kind are not in the data pack or in the
-  reports. The vanilla game holds them as code. Sections 5 and 7 state them as data, so a later
-  report can replace them.
+- `assets/mcrs/registry_definition/mob_effect.json`: the RGB colour of each effect kind, in the
+  value `{"color": <int>}` of its key. The task `dumpDefinitions` of `tools/vanilla-oracle` writes
+  this file. Section 5 states the same colours.
+- The attribute modifiers of an effect kind are not in the data pack or in the reports. The
+  vanilla game holds them as code. Section 7 states them as data, so a later report can replace
+  them.
 
 ## 1. The effect and the set of active effects
 
@@ -240,8 +243,12 @@ player file (EFX-SAV-001). The effects do not tick while the player is away.
 
 **EFX-INS-003** (`source_suggested`, wire, confidence: high). The table lists each effect kind
 with its network id and its colour. The network id is the VarInt of the packets in section 8. The
-registry report `minecraft:mob_effect` gives it. The colour is the RGB value that the particle of
-EFX-NET-005 uses.
+registry report `minecraft:mob_effect` gives it. The colour is the RGB value of the effect kind in
+the registry. Each effect kind has a colour. Only the particle `entity_effect` of EFX-NET-005
+carries the colour. The particles of `trial_omen` and `raid_omen` have no colour.
+`assets/mcrs/registry_definition/mob_effect.json` gives the colour. When the
+table and the file differ, the file is correct. `item-stack.md`, STK-SHP-063, uses the colour for
+the colour of a potion.
 
 | Id | Effect kind | Colour |
 |----|-------------|--------|
@@ -571,7 +578,8 @@ It is also the instant effect that acts each tick of its duration in EFX-ACT-004
 - **U3.** The respawn that keeps all player data (the return from the End) adds the effects of the old
   player to the new player. This occurs before the `respawn` packet. The client then gets blend packets before
   `respawn` and plain packets after it. EFX-NET-007 states only the packets after `respawn`.
-- **U4.** No artefact gives the colour, the category and the modifiers of an effect kind. Sections 5
-  and 7 state the values from the reference. A later report of the game can replace them.
+- **U4.** No artefact gives the category and the modifiers of an effect kind. Section 7 states the
+  modifiers from the reference. A later report of the game can replace them. The file
+  `assets/mcrs/registry_definition/mob_effect.json` gives the colour (section 0.5).
 - **U5.** The load of an effect does not start its modifier. A hand-edited file can have an effect and no modifier in `attributes`. The effect then has no
   attribute change until the effect changes or a hidden effect takes over. The owner must decide if the load must start the modifiers.

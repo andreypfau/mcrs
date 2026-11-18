@@ -486,6 +486,16 @@
     ]
   },
   {
+    "name": "potion_colors",
+    "task": "dumpPotionColors",
+    "outputs": [
+      {
+        "file": "potion_colors.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "block_faces",
     "task": "dumpBlockFaces",
     "outputs": [

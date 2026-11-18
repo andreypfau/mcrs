@@ -1,6 +1,8 @@
 use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ArgbColor;
 use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::BlockStateProperty;
@@ -10,6 +12,7 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomModelData;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::DyedColor;
+use mcrs_minecraft_item_stack::EffectInstance;
 use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
@@ -20,10 +23,12 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::LodestoneTracker;
 use mcrs_minecraft_item_stack::MaxStackSize;
+use mcrs_minecraft_item_stack::MobEffectId;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::PotionContents;
+use mcrs_minecraft_item_stack::PotionId;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::UndecodedValue;
 use mcrs_minecraft_item_table::DefinitionFile;
@@ -34,8 +39,10 @@ use mcrs_minecraft_model::item_model_asset::UnbakedItemModel;
 use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::item_model_eval::Evaluator;
 use mcrs_minecraft_model::stack_view::StackView;
+use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
+use serde::Deserialize;
 
 const ITEMS: [(&str, &str); 9] = [
     ("compass", r#""minecraft:max_stack_size": 64"#),
@@ -539,5 +546,61 @@ fn a_stack_view_evaluates_the_item_model_properties() {
     ];
     for (name, stack, model, expected) in cases {
         assert_eq!(evaluate(&stack, model), Some(expected), "{name}");
+    }
+}
+
+#[derive(Deserialize)]
+struct PotionColors {
+    default: i32,
+    cases: Vec<PotionColorCase>,
+}
+
+#[derive(Deserialize)]
+struct PotionColorCase {
+    potion: Option<Potion>,
+    custom_color: Option<i32>,
+    custom_effects: Vec<ObservedEffect>,
+    color: i32,
+}
+
+#[derive(Deserialize)]
+struct ObservedEffect {
+    id: MobEffect,
+    amplifier: u8,
+    show_particles: bool,
+}
+
+#[test]
+fn a_potion_tint_matches_the_game() {
+    let observed: PotionColors = serde_json::from_str(&fixture("potion_colors").text()).unwrap();
+    let model = tint(&format!(
+        r#"{{"type": "minecraft:potion", "default": {}}}"#,
+        observed.default
+    ));
+    for case in observed.cases {
+        let custom_effects = case
+            .custom_effects
+            .iter()
+            .map(|observed| {
+                let mut effect = EffectInstance::new(MobEffectId(observed.id.id().number()));
+                effect.amplifier = observed.amplifier;
+                effect.show_particles = observed.show_particles;
+                effect
+            })
+            .collect();
+        let stack = one(ARROW).set(PotionContents {
+            potion: case.potion.map(|potion| PotionId(potion.id().number())),
+            custom_color: case.custom_color,
+            custom_effects,
+            ..PotionContents::default()
+        });
+        assert_eq!(
+            evaluate(&stack, &model),
+            Some(Outcome::Tint(0xFF00_0000 | case.color.cast_unsigned())),
+            "{:?} {:?} {}",
+            case.potion,
+            case.custom_color,
+            case.custom_effects.len(),
+        );
     }
 }

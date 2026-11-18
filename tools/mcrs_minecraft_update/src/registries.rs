@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use serde::Deserialize;
+use serde::de::IgnoredAny;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,6 +71,34 @@ pub fn parse(text: &str) -> Result<Report, String> {
 pub fn read(path: &Path) -> Result<Report, String> {
     let text = fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
     parse(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+pub fn check_definition_keys(
+    report: &Report,
+    registry: &str,
+    definitions: &str,
+    json: &str,
+) -> Result<(), String> {
+    let table: BTreeMap<String, IgnoredAny> =
+        serde_json::from_str(json).map_err(|error| format!("{definitions}: {error}"))?;
+    let entries = &report
+        .get(registry)
+        .ok_or_else(|| format!("registries.json: no registry {registry}"))?
+        .entries;
+    let missing: Vec<&String> = entries
+        .keys()
+        .filter(|key| !table.contains_key(*key))
+        .collect();
+    let extra: Vec<&String> = table
+        .keys()
+        .filter(|key| !entries.contains_key(*key))
+        .collect();
+    if missing.is_empty() && extra.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "{definitions}: the keys differ from the registry {registry}: missing {missing:?}, extra {extra:?}"
+    ))
 }
 
 pub fn diff(old: &Report, new: &Report) -> Vec<Row> {

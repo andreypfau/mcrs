@@ -8,3 +8,7 @@ pub struct GuiVertex {
     pub color: [u8; 4],
     pub sprite: u32,
 }
+
+impl GuiVertex {
+    pub const ITEM_ATLAS_BIT: u32 = 1 << 29;
+}

@@ -29,6 +29,7 @@ mod gradle;
 mod keys;
 mod names;
 mod owners;
+mod potions;
 mod registries;
 mod release;
 #[cfg(test)]
@@ -339,14 +340,49 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
             .map(|krate| (*krate).to_owned())
             .collect(),
     )?;
-    let path = root.join(game_rules::DEFINITIONS);
-    let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
-    let rules = files
-        .get_mut(game_rules::ENUM_FILE)
-        .ok_or_else(|| format!("{}: not generated", game_rules::ENUM_FILE))?;
-    rules.push_str(&game_rules::definition_impl(&json)?);
-    *rules = keys::rustfmt(game_rules::ENUM_FILE, rules)?;
+    let appended = [
+        AppendedImpl {
+            registry: game_rules::REGISTRY,
+            definitions: game_rules::DEFINITIONS,
+            enum_file: game_rules::ENUM_FILE,
+            implementation: game_rules::definition_impl,
+        },
+        AppendedImpl {
+            registry: potions::POTION,
+            definitions: potions::POTION_DEFINITIONS,
+            enum_file: potions::POTION_ENUM_FILE,
+            implementation: potions::potion_effects_impl,
+        },
+        AppendedImpl {
+            registry: potions::MOB_EFFECT,
+            definitions: potions::EFFECT_DEFINITIONS,
+            enum_file: potions::EFFECT_ENUM_FILE,
+            implementation: potions::effect_colors_impl,
+        },
+    ];
+    for appended in appended {
+        let path = root.join(appended.definitions);
+        let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+        registries::check_definition_keys(
+            &registries,
+            appended.registry,
+            appended.definitions,
+            &json,
+        )?;
+        let source = files
+            .get_mut(appended.enum_file)
+            .ok_or_else(|| format!("{}: not generated", appended.enum_file))?;
+        source.push_str(&(appended.implementation)(&json)?);
+        *source = keys::rustfmt(appended.enum_file, source)?;
+    }
     Ok(files)
+}
+
+struct AppendedImpl {
+    registry: &'static str,
+    definitions: &'static str,
+    enum_file: &'static str,
+    implementation: fn(&str) -> Result<String, String>,
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {

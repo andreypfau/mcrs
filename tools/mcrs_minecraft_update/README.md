@@ -87,10 +87,12 @@ The steps, in order:
 7. Store `registries.json`, `packets.json` and `datapack.json` in
    `assets/mcrs/reports`, and replace `assets/mcrs/block_definition`,
    `assets/mcrs/item_definition` and `assets/mcrs/registry_definition` (the game
-   rules) with what the dump wrote, including the README of the block
-   definitions.
+   rules, the effects of each potion and the colour of each effect) with what
+   the dump wrote, including the README of the block definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
-   regenerate the registry key sources from the three reports.
+   regenerate the registry key sources from the three reports and the
+   definitions `game_rule.json`, `potion.json` and `mob_effect.json` of
+   `assets/mcrs/registry_definition`.
 9. Write `assets/mcrs/reports/creative_tabs.json` from a run of the game (see
    below).
 
@@ -158,8 +160,10 @@ cargo run -p mcrs_minecraft_update -- keys
 ```
 
 The update and the `names` command end by writing the registry key sources
-from `registries.json`, `datapack.json` and `names.json`; `keys` writes them
-from the stored reports alone. A source file the generator no longer produces
+from `registries.json`, `datapack.json` and `names.json`, and from
+`game_rule.json`, `potion.json` and `mob_effect.json` of
+`assets/mcrs/registry_definition`; `keys` writes them from the stored reports
+and definitions alone. A source file the generator no longer produces
 is deleted. Never edit a generated source by hand.
 
 `OWNERS` in `src/owners.rs` names, per registry, the crate that owns it and its
