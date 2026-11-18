@@ -63,7 +63,9 @@ const GLINT_BIT: u32 = 0x40000000u;
 const ALPHA_CUTOUT: f32 = 0.1;
 const GLINT_ROTATION: f32 = 0.17453292;
 const GLINT_SCALE: f32 = 8.0;
-const GLINT_ATLAS_PX: f32 = 2048.0;
+const ITEM_ATLAS_BIT: u32 = 0x20000000u;
+const BLOCK_ATLAS_PX: vec2<f32> = vec2<f32>(2048.0, 2048.0);
+const ITEM_ATLAS_PX: vec2<f32> = vec2<f32>(1024.0, 512.0);
 
 struct VertexIn {
     @location(0) pos: vec3<f32>,
@@ -143,7 +145,8 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
         discard;
     }
     if (in.sprite & GLINT_BIT) != 0u {
-        let scaled = in.uv * sprite_px(array) / GLINT_ATLAS_PX * GLINT_SCALE;
+        let atlas_px = select(BLOCK_ATLAS_PX, ITEM_ATLAS_PX, (in.sprite & ITEM_ATLAS_BIT) != 0u);
+        let scaled = in.uv * sprite_px(array) / atlas_px * GLINT_SCALE;
         let rotated = vec2<f32>(
             scaled.x * cos(GLINT_ROTATION) - scaled.y * sin(GLINT_ROTATION),
             scaled.x * sin(GLINT_ROTATION) + scaled.y * cos(GLINT_ROTATION),
