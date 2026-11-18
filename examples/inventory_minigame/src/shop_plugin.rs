@@ -24,12 +24,7 @@ use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
-use mcrs_minecraft_inventory_menu::MenuEntry;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::MenuOrder;
-use mcrs_minecraft_inventory_menu::MenuRange;
-use mcrs_minecraft_inventory_menu::Route;
-use mcrs_minecraft_inventory_menu::RouteWhen;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -39,10 +34,6 @@ use mcrs_minecraft_text::Text;
 use crate::OpenShop;
 
 const SHOP_SIZE: u16 = 27;
-const PLAYER_SIZE: u16 = 36;
-const SHOP_PART: u8 = 0;
-const PLAYER_PART: u8 = 1;
-const HOTBAR: u16 = 9;
 
 /// Opens a shop menu at [`OpenShop`]. The shop holds one icon for each offer, and pressing an
 /// offer entry gives the player the offered stack.
@@ -54,7 +45,7 @@ impl Plugin for ShopPlugin {
         let Some(count) = Count::new(1) else {
             return;
         };
-        let Some(layout) = shop_layout() else {
+        let Some(layout) = MenuLayout::of(MenuType::Generic9x3) else {
             return;
         };
         let offers = vec![Offer {
@@ -87,34 +78,6 @@ struct ShopMenu {
 struct Shop {
     layout: MenuLayout,
     offers: Vec<Offer>,
-}
-
-fn shop_layout() -> Option<MenuLayout> {
-    let shop = (0..SHOP_SIZE).map(|index| MenuEntry {
-        part: SHOP_PART,
-        index,
-    });
-    let player = (HOTBAR..PLAYER_SIZE)
-        .chain(0..HOTBAR)
-        .map(|index| MenuEntry {
-            part: PLAYER_PART,
-            index,
-        });
-    let entries = shop.chain(player).collect();
-    let total = SHOP_SIZE + PLAYER_SIZE;
-    let routes = vec![
-        Route {
-            from: MenuRange::new(0, SHOP_SIZE, MenuOrder::Ascending),
-            when: RouteWhen::Always,
-            to: MenuRange::new(SHOP_SIZE, total, MenuOrder::Descending),
-        },
-        Route {
-            from: MenuRange::new(SHOP_SIZE, total, MenuOrder::Ascending),
-            when: RouteWhen::Always,
-            to: MenuRange::new(0, SHOP_SIZE, MenuOrder::Ascending),
-        },
-    ];
-    MenuLayout::new(MenuType::Generic9x3, entries, routes)
 }
 
 fn open_shop(open: On<OpenShop>, shop: Res<Shop>, mut commands: Commands) {
@@ -153,7 +116,7 @@ fn mark_shop_menu(
     let Ok(parts) = menus.get(opened.menu) else {
         return;
     };
-    if let Some(holder) = parts.holder(0)
+    if let Some(holder) = parts.holder(MenuLayout::GENERIC_CONTAINER)
         && shop_holders.contains(holder)
     {
         commands.entity(opened.menu).insert(ShopMenu { holder });

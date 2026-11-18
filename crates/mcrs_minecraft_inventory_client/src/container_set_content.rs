@@ -4,7 +4,6 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
 
-use crate::RemoteMenu;
 use crate::local_inventory::LocalInventory;
 use crate::local_inventory::StackNames;
 
@@ -18,10 +17,7 @@ pub(crate) fn container_set_content(
     let (Some(packet), Some(names)) = (received.packet(), names.names()) else {
         return;
     };
-    if packet.container_id.0 != RemoteMenu::INVENTORY {
-        return;
-    }
-    let Some(menu) = inventory.inventory_menu() else {
+    let Some(menu) = inventory.menu_of(packet.container_id.0) else {
         return;
     };
     inventory.collect_entries(menu, packet.slot_data.len(), &mut entries);
@@ -37,7 +33,7 @@ pub(crate) fn container_set_content(
         }
     }
     inventory.set_state_id(menu, packet.state_seqno.0);
-    if inventory.shows_inventory_menu()
+    if inventory.is_open(menu)
         && let Err(error) =
             inventory.set(inventory.cursor(), &packet.carried_item, &names, &mut bytes)
     {

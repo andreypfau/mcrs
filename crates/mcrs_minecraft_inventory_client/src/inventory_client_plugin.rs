@@ -16,6 +16,7 @@ use crate::click_source::ClickSource;
 use crate::container_close::container_close;
 use crate::container_set_content::container_set_content;
 use crate::container_set_slot::container_set_slot;
+use crate::open_screen::open_screen;
 use crate::outbox::Outbox;
 use crate::outbox::outbox_has_packets;
 use crate::predict_click::ClickScratch;
@@ -79,6 +80,7 @@ impl Plugin for InventoryClientPlugin {
                         .run_if(outbox_has_packets),
                 ),
             )
+            .add_observer(open_screen)
             .add_observer(container_set_content)
             .add_observer(container_set_slot)
             .add_observer(set_cursor_item)

@@ -4,7 +4,6 @@ use mcrs_minecraft_client::test_support::connection;
 use mcrs_minecraft_client::test_support::count_server_answers;
 use mcrs_minecraft_client::test_support::creative_player;
 use mcrs_minecraft_client::test_support::give;
-use mcrs_minecraft_client::test_support::item_kind;
 use mcrs_minecraft_client::test_support::joined;
 use mcrs_minecraft_client::test_support::open;
 use mcrs_minecraft_client::test_support::player_slot;
@@ -14,16 +13,11 @@ use mcrs_minecraft_client::test_support::update_until;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
-use mcrs_minecraft_item_stack::Count;
-use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -31,24 +25,18 @@ use mcrs_minecraft_save::SaveLock;
 
 use crate::local_world::client;
 use crate::local_world::world_folder;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Item {
-    Stone,
-    Dirt,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Stack {
-    item: Item,
-    count: u8,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Entry {
-    entry: u16,
-    stack: Option<Stack>,
-}
+use crate::stacks::AGREED;
+use crate::stacks::Entry;
+use crate::stacks::Item;
+use crate::stacks::Stack;
+use crate::stacks::at;
+use crate::stacks::click;
+use crate::stacks::cursor;
+use crate::stacks::empty;
+use crate::stacks::held;
+use crate::stacks::on;
+use crate::stacks::stack_at;
+use crate::stacks::value;
 
 struct Row {
     name: &'static str,
@@ -60,40 +48,6 @@ struct Row {
     cursor: Option<Stack>,
     answers: ServerAnswers,
 }
-
-const fn held(item: Item, count: u8) -> Option<Stack> {
-    Some(Stack { item, count })
-}
-
-const fn at(entry: u16, item: Item, count: u8) -> Entry {
-    Entry {
-        entry,
-        stack: held(item, count),
-    }
-}
-
-const fn empty(entry: u16) -> Entry {
-    Entry { entry, stack: None }
-}
-
-const fn click(kind: ClickKind, button: u8, clicked: Clicked) -> Click {
-    Click {
-        kind,
-        button,
-        clicked,
-    }
-}
-
-const fn on(kind: ClickKind, button: u8, entry: u16) -> Click {
-    click(kind, button, Clicked::Entry(entry))
-}
-
-const AGREED: ServerAnswers = ServerAnswers {
-    slots: 0,
-    cursors: 0,
-    contents: 0,
-    player_slots: 0,
-};
 
 const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
 
@@ -353,38 +307,4 @@ fn switch_game_mode(app: &mut App, viewer: Entity, game_mode: GameMode) {
                 .get::<Abilities>(viewer)
                 .is_some_and(|abilities| abilities.instant_build == creative)
     });
-}
-
-fn kind(world: &World, item: Item) -> Kind {
-    let name = match item {
-        Item::Stone => "minecraft:stone",
-        Item::Dirt => "minecraft:dirt",
-    };
-    item_kind(world, name)
-}
-
-fn value(world: &World, stack: Option<Stack>) -> Option<ItemStack> {
-    let stack = stack?;
-    Some(ItemStack::new(
-        kind(world, stack.item),
-        Count::new(stack.count).unwrap(),
-    ))
-}
-
-fn stack_at(world: &World, holder: Entity, index: u16) -> Option<Stack> {
-    let stack = world.entity(world.get::<Slots>(holder)?.get(usize::from(index))?);
-    let found = *stack.get::<Kind>()?;
-    let item = [Item::Stone, Item::Dirt]
-        .into_iter()
-        .find(|item| kind(world, *item) == found)
-        .expect("the test gives only stone and dirt");
-    Some(Stack {
-        item,
-        count: stack.get::<Count>()?.get(),
-    })
-}
-
-fn cursor(world: &World, viewer: Entity) -> Option<Stack> {
-    let holders = world.get::<PlayerHolders>(viewer)?;
-    stack_at(world, holders.cursor, 0)
 }

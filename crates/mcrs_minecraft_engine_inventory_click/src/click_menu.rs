@@ -25,12 +25,14 @@ impl Menu for ClickMenu<'_> {
         self.parts.slot(self.layout.entry(index)?)
     }
 
-    fn quick_move_destinations(&self, source: u16) -> impl Iterator<Item = u16> {
+    fn quick_move_destinations(
+        &self,
+        source: u16,
+        holds_empty: impl Fn(u16) -> bool,
+    ) -> impl Iterator<Item = u16> {
         let buttons = self.buttons;
         let worn = self.slot(source).and_then(|slot| self.slots.worn(slot));
-        let holds_empty =
-            |index: u16| (self.slot(index)).is_some_and(|slot| self.slots.holds_empty(slot));
-        let route = (self.layout.routes(source)).find(|route| route.when.holds(worn, holds_empty));
+        let route = (self.layout.routes(source)).find(|route| route.when.holds(worn, &holds_empty));
         route
             .into_iter()
             .flat_map(|route| route.to.iter())

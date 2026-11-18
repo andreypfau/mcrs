@@ -23,6 +23,8 @@ pub struct MenuLayout {
 const PLAYER: u8 = 0;
 const CRAFT_GRID: u8 = 1;
 const CRAFT_RESULT: u8 = 2;
+const PLAYER_SLOTS: u16 = 36;
+const HOTBAR_SLOTS: u16 = 9;
 
 const fn player(index: u16) -> MenuEntry {
     MenuEntry {
@@ -142,6 +144,9 @@ fn fits(range: MenuRange, len: u16) -> bool {
 }
 
 impl MenuLayout {
+    pub const GENERIC_CONTAINER: u8 = 0;
+    pub const GENERIC_PLAYER: u8 = 1;
+
     pub const INVENTORY: MenuLayout = MenuLayout {
         kind: None,
         entries: Cow::Borrowed(&INVENTORY_ENTRIES),
@@ -171,6 +176,62 @@ impl MenuLayout {
             routes: Cow::Owned(routes),
             pick_up_all: mask(len),
         })
+    }
+
+    #[must_use]
+    pub fn of(kind: MenuType) -> Option<Self> {
+        let container = match kind {
+            MenuType::Generic9x1 | MenuType::Generic3x3 => 9,
+            MenuType::Generic9x2 => 18,
+            MenuType::Generic9x3 => 27,
+            MenuType::Generic9x4 => 36,
+            MenuType::Generic9x5 => 45,
+            MenuType::Generic9x6 => 54,
+            MenuType::Hopper => 5,
+            _ => return None,
+        };
+        Some(Self::generic(kind, container))
+    }
+
+    fn generic(kind: MenuType, container: u16) -> Self {
+        let len = container + PLAYER_SLOTS;
+        let entries = (0..container)
+            .map(|index| MenuEntry {
+                part: Self::GENERIC_CONTAINER,
+                index,
+            })
+            .chain(
+                (HOTBAR_SLOTS..PLAYER_SLOTS)
+                    .chain(0..HOTBAR_SLOTS)
+                    .map(|index| MenuEntry {
+                        part: Self::GENERIC_PLAYER,
+                        index,
+                    }),
+            )
+            .collect();
+        let routes = Vec::from([
+            always(
+                up(0, container),
+                MenuRange::new(container, len, MenuOrder::Descending),
+            ),
+            always(up(container, len), up(0, container)),
+        ]);
+        Self {
+            kind: Some(kind),
+            entries: Cow::Owned(entries),
+            routes: Cow::Owned(routes),
+            pick_up_all: mask(len),
+        }
+    }
+
+    #[must_use]
+    pub fn part_len(&self, part: u8) -> u16 {
+        self.entries
+            .iter()
+            .filter(|entry| entry.part == part)
+            .map(|entry| entry.index.saturating_add(1))
+            .max()
+            .unwrap_or(0)
     }
 
     #[must_use]

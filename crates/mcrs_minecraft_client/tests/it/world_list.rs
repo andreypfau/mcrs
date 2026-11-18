@@ -80,6 +80,7 @@ fn server() -> LocalServerPlugin {
         open_to_lan: false,
         settings: ServerSettings::default(),
         column_traces: None,
+        extend_server: |_| {},
     }
 }
 

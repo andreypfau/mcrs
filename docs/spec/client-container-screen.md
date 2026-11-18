@@ -99,8 +99,8 @@ In scope:
 Out of scope:
 
 - the press, the release and the keys that give one click, the prediction of a click, the
-  state id, the close by the player and the clientbound `container_close`:
-  `client-inventory.md`;
+  state id, the close by the player (CINV-CLS-004) and the clientbound `container_close`
+  (CINV-CLS-003): `client-inventory.md`;
 - the keyboard navigation between slots, and the narration of slots;
 - the draw of an item, of its count and of its damage bar in a slot;
 - the image of an item tooltip, for example the contents of a bundle, and the wheel on a bundle;
@@ -180,12 +180,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 ### CCS-MNU-003: The repeat of a quick move in a generic menu
 
 - **Inputs:** a quick move click on the menu index `s` of a generic menu. `S` is the slot of `s`.
-- **Behavior:** after the two steps of ITX-JAV-009, the click does the two steps again when each
-  of these conditions is true:
-  - the last two steps moved at least one item;
-  - `S` holds a stack with the item of the stack before the click.
-
-  The repeat stops at the first pass that moves no item.
+- **Behavior:** the repeat of a quick move of `inventory-transactions.md`, ITX-JAV-026, applies.
+  Each pass uses the destination list of CCS-MNU-002.
 - **Postconditions:** in normal play, a stack has a count not larger than its maximum stack size,
   and the first pass moves all items for which room exists. Thus the repeat changes the result
   only for a stack whose count is larger than its capacity in the destination.

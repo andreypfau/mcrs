@@ -74,8 +74,17 @@ impl LocalInventory<'_, '_> {
         self.player.2.iter().next()
     }
 
-    pub(crate) fn shows_inventory_menu(&self) -> bool {
-        shows_inventory_menu(self.player.2)
+    pub(crate) fn menu_of(&self, container_id: i32) -> Option<Entity> {
+        if container_id == RemoteMenu::INVENTORY {
+            return self.inventory_menu();
+        }
+        let open = self.player.2.open()?;
+        let (_, _, remote) = self.menus.get(open).ok()?;
+        (remote?.container_id() == container_id).then_some(open)
+    }
+
+    pub(crate) fn is_open(&self, menu: Entity) -> bool {
+        self.player.2.open() == Some(menu)
     }
 
     pub(crate) fn cursor(&self) -> SlotRef {
@@ -105,13 +114,15 @@ impl LocalInventory<'_, '_> {
     }
 
     pub(crate) fn set_state_id(&mut self, menu: Entity, state_id: i32) {
-        let remote = RemoteMenu::inventory(state_id);
         match self.menus.get_mut(menu) {
             Ok((_, _, Some(mut current))) => {
+                let remote = current.with_state_id(state_id);
                 current.set_if_neq(remote);
             }
             Ok((_, _, None)) => {
-                self.commands.entity(menu).insert(remote);
+                self.commands
+                    .entity(menu)
+                    .insert(RemoteMenu::inventory(state_id));
             }
             Err(_) => {}
         }

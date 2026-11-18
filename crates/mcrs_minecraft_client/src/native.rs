@@ -259,6 +259,7 @@ pub fn run() -> AppExit {
             open_to_lan: knobs.open_to_lan(),
             settings: knobs.server_settings(),
             column_traces,
+            extend_server: |_| {},
         };
         if let Some(game_directory) = &game_directory {
             app.add_plugins(mcrs_minecraft_client::world_list::WorldListPlugin {

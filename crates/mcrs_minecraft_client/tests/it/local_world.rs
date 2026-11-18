@@ -14,7 +14,11 @@ use mcrs_minecraft_server_settings::ServerSettings;
 use crate::boot::boot;
 
 pub(crate) fn client() -> App {
-    boot(|app| {
+    client_extending_server(|_| {})
+}
+
+pub(crate) fn client_extending_server(extend_server: fn(&mut App)) -> App {
+    boot(move |app| {
         app.add_plugins((
             ClientNetworkPlugin {
                 holds_vanilla_pack: true,
@@ -34,6 +38,7 @@ pub(crate) fn client() -> App {
                 open_to_lan: false,
                 settings: ServerSettings::default(),
                 column_traces: None,
+                extend_server,
             },
         ))
         .init_resource::<Time<Real>>()

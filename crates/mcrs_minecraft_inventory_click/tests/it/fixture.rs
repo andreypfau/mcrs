@@ -260,16 +260,18 @@ impl Menu for Window<'_> {
         menu_slot(index)
     }
 
-    fn quick_move_destinations(&self, source: u16) -> impl Iterator<Item = u16> {
+    fn quick_move_destinations(
+        &self,
+        source: u16,
+        holds_empty: impl Fn(u16) -> bool,
+    ) -> impl Iterator<Item = u16> {
         let player = self.0;
         let equip = menu_slot(source)
             .and_then(|slot| player.stack(slot).flatten())
             .and_then(|stack| stack.stack.equip);
-        let holds_empty =
-            |index: u16| menu_slot(index).is_some_and(|slot| player.stack(slot) == Some(None));
         MenuLayout::INVENTORY
             .routes(source)
-            .find(|route| route.when.holds(equip, holds_empty))
+            .find(|route| route.when.holds(equip, &holds_empty))
             .into_iter()
             .flat_map(|route| route.to.iter())
     }
