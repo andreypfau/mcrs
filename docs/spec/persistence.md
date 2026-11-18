@@ -575,7 +575,7 @@ A section compound has these keys:
 | `Y` | byte | 0 | always |
 | `block_states` | compound | one palette entry `minecraft:air` | when the section has blocks |
 | `biomes` | compound | one palette entry `minecraft:plains` | when the section has blocks |
-| `noise_biomes` | compound | none | only for a status below `minecraft:full` |
+| `noise_biomes` | compound | none | only for the statuses `minecraft:noise_biomes`, `minecraft:biomes` and `minecraft:terrain` |
 | `BlockLight` | byte array of 2048 | none | only when the light is not empty |
 | `SkyLight` | byte array of 2048 | none | only when the light is not empty |
 
@@ -598,8 +598,9 @@ A palette entry of `biomes` and of `noise_biomes` is a biome id.
 
 The array `data` holds the index of the palette entry for each cell, packed with no value across two
 longs. A block state container has 4096 cells in the order `y * 256 + z * 16 + x`. A biome container
-has 64 cells of 4 by 4 by 4 blocks, in the order `y * 16 + z * 4 + x`. A noise biome container has
-8 cells of 8 by 8 by 8 blocks, in the order `y * 4 + z * 2 + x`. Let `n` be the palette size. The
+has 4096 cells of one block, in the order `y * 256 + z * 16 + x`. A noise biome container has 64
+cells of 4 by 4 by 4 blocks, in the order `y * 16 + z * 4 + x`. `section-biomes.md`, BIO-SEC-001,
+states the two biome containers. Let `n` be the palette size. The
 `data` field is missing when `n` is 1. Else the bits for each cell are `ceil(log2(n))`. The minimum
 is 4 for block states. Biome containers and noise biome containers have no minimum. The game rejects a
 `data` array whose length does not match the bits that follow from `n`.
