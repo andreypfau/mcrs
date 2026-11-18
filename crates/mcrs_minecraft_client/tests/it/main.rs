@@ -8,6 +8,8 @@ mod boot;
 #[cfg(feature = "singleplayer")]
 mod container_menus;
 #[cfg(feature = "singleplayer")]
+mod creative_actions;
+#[cfg(feature = "singleplayer")]
 mod local_server;
 #[cfg(feature = "singleplayer")]
 mod local_world;

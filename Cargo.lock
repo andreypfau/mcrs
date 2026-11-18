@@ -4943,6 +4943,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_creative_content"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_creative_report",
+ "mcrs_minecraft_enchantment",
+ "mcrs_minecraft_engine_registries",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_potion",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_creative_report"
 version = "0.5.8"
 dependencies = [

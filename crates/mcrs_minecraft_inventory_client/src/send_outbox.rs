@@ -23,6 +23,7 @@ pub(crate) fn send_outbox(
             Outgoing::Click(packet) => connection.write_packet(&packet),
             Outgoing::Close(packet) => connection.write_packet(&packet),
             Outgoing::Action(packet) => connection.write_packet(&packet),
+            Outgoing::CreativeSlot(packet) => connection.write_packet(&packet),
         }
     }
 }

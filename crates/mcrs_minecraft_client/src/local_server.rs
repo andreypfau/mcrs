@@ -101,13 +101,13 @@ fn ready_to_open(waiting: Res<WaitingOpen>, running: Option<Res<LocalServerThrea
 }
 
 fn open_local_world(
-    settings: Res<Settings>,
-    running: Option<Res<LocalServerThread>>,
+    (settings, running): (Res<Settings>, Option<Res<LocalServerThread>>),
     mut waiting: ResMut<WaitingOpen>,
     mut opens: ResMut<Messages<OpenLocalWorld>>,
     (mut stopped, mut cancels): (MessageWriter<LocalServerStopped>, MessageWriter<CancelJoin>),
     weather: Option<ResMut<WeatherLevel>>,
     mut commands: Commands,
+    #[cfg(feature = "test-support")] tap: Option<Res<crate::test_support::CreativeSlotTap>>,
 ) {
     for open in opens.drain() {
         if waiting.0.is_none() {
@@ -131,12 +131,10 @@ fn open_local_world(
     if let Some(mut weather) = weather {
         weather.set_if_neq(saved_weather(&open.folder));
     }
-    match ServerThread::start(build_server(
-        settings.0.clone(),
-        open.folder,
-        open.lock,
-        host,
-    )) {
+    let build = build_server(settings.0.clone(), open.folder, open.lock, host);
+    #[cfg(feature = "test-support")]
+    let build = crate::test_support::tap_server(build, tap.as_deref());
+    match ServerThread::start(build) {
         Ok(thread) => {
             commands.insert_resource(LocalServerThread { thread, host });
             commands.insert_resource(LocalServer {
