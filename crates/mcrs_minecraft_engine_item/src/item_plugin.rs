@@ -55,15 +55,15 @@ pub struct ItemPersistencePlugin;
 
 impl Plugin for ItemPersistencePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ItemComponents>()
-            .init_resource::<RequestScratch>();
+        app.init_resource::<ItemComponents>();
     }
 }
 
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         let changed = common_conditions::any_match_filter::<HolderChanged>;
-        app.add_plugins(ItemPersistencePlugin)
+        app.init_resource::<ItemComponents>()
+            .init_resource::<RequestScratch>()
             .add_message::<Given>()
             .add_message::<RequestDrop>()
             .add_message::<RequestResult>()
