@@ -6,12 +6,12 @@ use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::shows_inventory_menu;
 
 pub fn creative_screen_shown(
-    screen: Res<Screen>,
+    screen: Option<Res<Screen>>,
     player: Query<(&Menus, Option<&Abilities>), With<Player>>,
 ) -> bool {
-    player
-        .single()
-        .is_ok_and(|(menus, abilities)| shows_creative_screen(*screen, menus, abilities))
+    player.single().is_ok_and(|(menus, abilities)| {
+        screen.is_some_and(|screen| shows_creative_screen(*screen, menus, abilities))
+    })
 }
 
 #[must_use]

@@ -4,9 +4,11 @@ use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_creative_content::OperatorCondition;
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_creative_report::CreativeReport;
+use mcrs_minecraft_engine_inventory_menu::MenuOf;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
@@ -24,6 +26,7 @@ use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::rl;
 
+use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_search_index::CreativeSearchIndex;
@@ -31,6 +34,7 @@ use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
+use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::TABLE;
 
 const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
@@ -463,7 +467,9 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource::<ItemTable>(*TABLE)
         .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
-        .init_resource::<ClientOptions>();
+        .insert_resource(Screen::Menu)
+        .init_resource::<ClientOptions>()
+        .add_systems(Update, mark_creative_screen.after(CreativeContentSystems));
     let player = app
         .world_mut()
         .spawn((
@@ -472,6 +478,7 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
             PermissionLevel::GAMEMASTERS,
         ))
         .id();
+    app.world_mut().spawn(MenuOf(player));
     app.update();
     let content = app.world().resource::<CreativeTabContent>();
     assert!(
@@ -493,15 +500,11 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         content.search_list().len() > search_without_operator,
         "the search list holds the operator stacks only with the condition"
     );
-    let selected = {
-        let world = app.world_mut();
-        world.resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
-            let content = world.resource::<CreativeTabContent>();
-            screen.select(OP_BLOCKS, content);
-            screen.selected()
-        })
-    };
-    assert_eq!(selected, OP_BLOCKS);
+    select(&mut app, OP_BLOCKS);
+    assert_eq!(
+        app.world().resource::<CreativeScreenState>().selected(),
+        OP_BLOCKS
+    );
 
     app.world_mut()
         .entity_mut(player)
@@ -518,4 +521,30 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         BUILDING_BLOCKS,
         "the deop moves the selection"
     );
+
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PermissionLevel::GAMEMASTERS);
+    app.update();
+    select(&mut app, OP_BLOCKS);
+    *app.world_mut().resource_mut::<Screen>() = Screen::None;
+    app.update();
+    for level in [PermissionLevel(0), PermissionLevel::GAMEMASTERS] {
+        app.world_mut().entity_mut(player).insert(level);
+        app.update();
+    }
+    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.update();
+    assert_eq!(
+        app.world().resource::<CreativeScreenState>().selected(),
+        OP_BLOCKS,
+        "a deop and a reop while the screen is closed keep the last tab"
+    );
+}
+
+fn select(app: &mut App, tab: CreativeTabIndex) {
+    app.world_mut()
+        .resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
+            screen.select(tab, world.resource::<CreativeTabContent>());
+        });
 }

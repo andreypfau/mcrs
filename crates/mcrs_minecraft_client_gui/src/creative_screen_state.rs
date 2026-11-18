@@ -57,7 +57,9 @@ impl CreativeScreenState {
         } else {
             CreativeTabIndex::FIRST
         };
-        self.apply_selection(tab, SearchReset::Clear, content);
+        self.search.set("");
+        self.match_search(content);
+        self.apply_selection(tab, SearchReset::Keep, content);
     }
 
     pub fn select(&mut self, tab: CreativeTabIndex, content: &CreativeTabContent) {

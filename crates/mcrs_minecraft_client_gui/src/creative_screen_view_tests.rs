@@ -27,6 +27,7 @@ use crate::creative_screen_tests::VANILLA;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::{ATLAS, MODELS, TABLE};
 use crate::scene::{GuiAtlas, GuiQuad, GuiScene, GuiSize, SceneIcon};
 use crate::slot_icon::SlotIconPlugin;
@@ -150,10 +151,11 @@ pub(crate) fn creative_app() -> App {
         .insert_resource(VANILLA.clone())
         .init_resource::<CreativeScreenState>()
         .init_resource::<Time<Real>>()
+        .add_observer(open_creative_screen)
         .add_systems(
             Update,
             (
-                open_creative_screen,
+                mark_creative_screen,
                 draw_creative_screen.run_if(creative_screen_shown),
             )
                 .chain(),

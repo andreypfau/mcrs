@@ -23,7 +23,6 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
 use crate::creative_screen_draw::{creative_sprites, draw_creative_screen};
-use crate::creative_screen_open::open_creative_screen;
 use crate::creative_screen_shown::{creative_screen_shown, shows_creative_screen};
 use crate::drag_preview::DragPreview;
 use crate::font::Font;
@@ -964,7 +963,6 @@ impl Plugin for GuiPlugin {
                     crate::menu_item_tooltip::request_menu_item_tooltip
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(not(creative_screen_shown)),
-                    open_creative_screen,
                     draw_creative_screen.run_if(creative_screen_shown),
                     crate::creative_item_tooltip::request_creative_item_tooltip
                         .run_if(resource_exists::<ItemTable>)

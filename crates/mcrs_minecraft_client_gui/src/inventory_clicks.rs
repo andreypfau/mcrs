@@ -28,6 +28,7 @@ use crate::close_menu_screen::close_menu_screen;
 use crate::creative_clicks::{self, CreativeClicks};
 use crate::creative_grid::CreativeGrid;
 use crate::creative_layout::CreativeLayout;
+use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_shown::shows_creative_screen;
 use crate::creative_tab_select::CreativeTabSelect;
 use crate::cursor_grab;
@@ -61,7 +62,7 @@ impl Plugin for InventoryClicksPlugin {
                     open_inventory.run_if(input_just_pressed(INVENTORY)),
                     follow_open_menu,
                     click_in_menu,
-                    mark_creative_screen,
+                    mark_creative_screen.after(CreativeContentSystems),
                 )
                     .chain()
                     .after(ClientNetworkSystems::Receive)

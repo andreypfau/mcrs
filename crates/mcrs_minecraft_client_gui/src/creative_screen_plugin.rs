@@ -9,6 +9,8 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_registries::CurrentRegistries;
 
+use crate::creative_screen_open::open_creative_screen;
+use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
@@ -25,11 +27,14 @@ impl Plugin for CreativeScreenPlugin {
         app.insert_resource(LoadedCreativeReport::embedded())
             .init_resource::<CreativeTabContent>()
             .init_resource::<CreativeScreenState>()
+            .add_observer(open_creative_screen)
             .add_systems(
                 Update,
                 (
                     rebuild_creative_content.run_if(creative_inputs_changed),
-                    follow_creative_content.run_if(resource_changed::<CreativeTabContent>),
+                    follow_creative_content
+                        .run_if(resource_changed::<CreativeTabContent>)
+                        .run_if(creative_screen_shown),
                 )
                     .chain()
                     .in_set(CreativeContentSystems)
