@@ -95,7 +95,17 @@ fn start(seed: u64) -> App {
     let deadline = Instant::now() + PATIENCE;
     while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
         assert!(Instant::now() < deadline, "never reached Playing");
+        assert!(
+            app.should_exit().is_none(),
+            "the app exited before Playing: {:?}",
+            app.should_exit()
+        );
         app.update();
+        assert!(
+            app.should_exit().is_none(),
+            "the app exited before Playing: {:?}",
+            app.should_exit()
+        );
     }
     runner::between_ticks(&mut app);
     app
@@ -164,14 +174,10 @@ fn main() {
     let booted = Instant::now();
     let mut app = start(args.seed);
     let label = label_of(&app);
-    let deadline = Instant::now() + PATIENCE;
-    while !cell(&mut app, label).contains_resource::<FillContext>() {
-        assert!(
-            Instant::now() < deadline,
-            "the generation context never loaded"
-        );
-        tick(&mut app);
-    }
+    assert!(
+        cell(&mut app, label).contains_resource::<FillContext>(),
+        "the generation context is missing from the cell world"
+    );
     let boot = booted.elapsed();
 
     let tickets = square(args.offset, args.side);
