@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use mcrs_minecraft_container_click::{ClickInput, Clicked, Gesture, StackPresence};
 
-use crate::creative_clicks::{self, CreativeGrid};
+use crate::creative_clicks;
+use crate::creative_grid::CreativeGrid;
 use crate::hover::Hover;
 use crate::menu_stacks::MenuStacks;
 use crate::modifiers::Modifiers;

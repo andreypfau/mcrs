@@ -33,7 +33,7 @@ impl Hover {
     pub(crate) fn takes_left_press(self) -> bool {
         matches!(
             self,
-            Self::RecipeBookButton | Self::Creative(CreativeHit::Tab(_))
+            Self::RecipeBookButton | Self::Creative(CreativeHit::Tab(_) | CreativeHit::ScrollBar)
         )
     }
 

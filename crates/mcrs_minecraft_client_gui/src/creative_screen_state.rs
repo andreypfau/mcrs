@@ -38,6 +38,7 @@ impl Default for CreativeScreenState {
         search.text_color = SEARCH_TEXT_COLOR;
         search.invert = false;
         search.can_lose_focus = false;
+        search.set_editing(true);
         Self {
             selected: CreativeTabIndex::FIRST,
             scroll: 0.0,

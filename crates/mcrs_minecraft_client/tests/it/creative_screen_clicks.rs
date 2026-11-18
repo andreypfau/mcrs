@@ -1,5 +1,6 @@
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
+use bevy::input::touch::TouchPhase;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
@@ -8,15 +9,17 @@ use mcrs_minecraft_client_gui::creative_screen_plugin::CreativeScreenPlugin;
 use mcrs_minecraft_client_gui::creative_screen_state::CreativeScreenState;
 use mcrs_minecraft_client_gui::creative_tab_content::CreativeTabContent;
 use mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin;
+use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction, MenuInput};
-use mcrs_minecraft_item_stack::{Kind, write_wire};
+use mcrs_minecraft_item_stack::{Kind, NameLookup, NameTable, write_wire};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::{CREATIVE_TABS, CreativeGeometry, CreativeTabIndex};
+use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::ProtoStack;
@@ -30,6 +33,11 @@ const GUI_SCALE: u32 = 2;
 const GUI_WIDTH: i32 = 640;
 const GUI_HEIGHT: i32 = 360;
 const ITEMS_TAB: usize = 0;
+const SCROLL_BAR_X: i32 = 181;
+const SCROLL_BAR_START: i32 = 20;
+const THUMB_TOP_END: i32 = 25;
+const THUMB_BOTTOM_END: i32 = 122;
+const SCROLL_BAR_LAST_ROW: i32 = 129;
 const NATURAL_BLOCKS_TAB: usize = 2;
 const SEARCH_TAB: usize = 6;
 const INVENTORY_TAB: usize = 13;
@@ -46,6 +54,7 @@ enum Pointer {
     Grid(u16),
     Hotbar(u16),
     Destroy,
+    ScrollBar(i32),
     Outside,
 }
 
@@ -56,6 +65,13 @@ enum Event {
     Release(MouseButton),
     Key(KeyCode),
     Lift(KeyCode),
+    Wheel(f32),
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Scroll {
+    Offset(f64),
+    FirstRow(i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +103,9 @@ struct Row {
     screen: Screen,
     entries: &'static [Entry],
     cursor: Option<Stack>,
+    scroll: Scroll,
+    search: &'static str,
+    shown_ids_contain: Option<&'static str>,
 }
 
 const fn row(name: &'static str, tab: usize) -> Row {
@@ -102,6 +121,9 @@ const fn row(name: &'static str, tab: usize) -> Row {
         screen: Screen::Menu,
         entries: &[],
         cursor: None,
+        scroll: Scroll::Offset(0.0),
+        search: "",
+        shown_ids_contain: None,
     }
 }
 
@@ -267,9 +289,146 @@ const ROWS: &[Row] = &[
     },
     Row {
         frames: &[&[Event::Key(KeyCode::KeyE)]],
+        search: "e",
         ..row(
-            "the inventory key does not close the search tab",
+            "the inventory key types its character in the search tab",
             SEARCH_TAB,
+        )
+    },
+    Row {
+        frames: &[&[over(Pointer::Grid(DIRT_SLOT)), Event::Wheel(-1.0)]],
+        scroll: Scroll::FirstRow(1),
+        ..row(
+            "one notch of the wheel moves the grid one row",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        frames: &[&[Event::Wheel(-1000.0)]],
+        scroll: Scroll::Offset(1.0),
+        ..row(
+            "the wheel stops at the end of the content",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        frames: &[
+            &[
+                over(Pointer::ScrollBar(SCROLL_BAR_START)),
+                Event::Press(LEFT),
+            ],
+            &[over(Pointer::ScrollBar(THUMB_BOTTOM_END))],
+            &[Event::Release(LEFT)],
+        ],
+        scroll: Scroll::Offset(1.0),
+        ..row(
+            "a drag of the thumb to its bottom end shows the last row",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        frames: &[
+            &[
+                over(Pointer::ScrollBar(SCROLL_BAR_START)),
+                Event::Press(LEFT),
+            ],
+            &[over(Pointer::ScrollBar(THUMB_BOTTOM_END))],
+            &[over(Pointer::ScrollBar(THUMB_TOP_END))],
+            &[Event::Release(LEFT)],
+            &[over(Pointer::ScrollBar(THUMB_BOTTOM_END))],
+        ],
+        ..row(
+            "a drag of the thumb to its top end shows the first row and the release ends the drag",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[
+                over(Pointer::ScrollBar(SCROLL_BAR_LAST_ROW)),
+                Event::Press(LEFT),
+            ],
+            &[Event::Release(LEFT)],
+        ],
+        cursor: stacks::held(Item::Stone, 10),
+        ..row(
+            "a press on the scroll bar neither moves the thumb nor clicks",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        frames: &[
+            &[Event::Wheel(-3.0)],
+            &[Event::Key(KeyCode::KeyD)],
+            &[Event::Key(KeyCode::KeyI)],
+            &[Event::Key(KeyCode::KeyA), Event::Key(KeyCode::KeyM)],
+        ],
+        search: "diam",
+        shown_ids_contain: Some("diam"),
+        ..row(
+            "the typed search text keeps only the matching stacks and shows the first row",
+            SEARCH_TAB,
+        )
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[
+                Event::Key(KeyCode::KeyD),
+                Event::Key(KeyCode::KeyI),
+                Event::Key(KeyCode::KeyA),
+                Event::Key(KeyCode::KeyM),
+            ],
+            &[
+                over(Pointer::ScrollBar(SCROLL_BAR_START)),
+                Event::Press(LEFT),
+            ],
+            &[over(Pointer::ScrollBar(THUMB_BOTTOM_END))],
+            &[Event::Release(LEFT)],
+        ],
+        cursor: stacks::held(Item::Stone, 10),
+        search: "diam",
+        ..row("a drag on the disabled scroll bar does nothing", SEARCH_TAB)
+    },
+    Row {
+        frames: &[
+            &[
+                Event::Key(KeyCode::KeyS),
+                Event::Key(KeyCode::KeyT),
+                Event::Key(KeyCode::KeyO),
+                Event::Key(KeyCode::KeyN),
+                Event::Key(KeyCode::KeyE),
+            ],
+            &[over(Pointer::Grid(0)), Event::Key(KeyCode::Digit1)],
+        ],
+        sent: &[sent(
+            Area::Grid(stacks::held(Item::Stone, 1)),
+            ClickKind::Swap,
+            0,
+            Clicked::Entry(0),
+        )],
+        entries: &[stacks::at(36, Item::Stone, 64)],
+        search: "stone",
+        ..row(
+            "a number key over a grid stack in the search tab swaps",
+            SEARCH_TAB,
+        )
+    },
+    Row {
+        frames: &[&[over(Pointer::Grid(0)), Event::Key(KeyCode::KeyF)]],
+        search: "f",
+        ..row(
+            "the off-hand key types its character in the search tab",
+            SEARCH_TAB,
+        )
+    },
+    Row {
+        frames: &[&[Event::Key(KeyCode::KeyT)]],
+        selected: SEARCH_TAB,
+        ..row(
+            "the chat key selects the search tab with an empty text",
+            ITEMS_TAB,
         )
     },
     Row {
@@ -351,11 +510,31 @@ fn gui_point(pointer: Pointer) -> IVec2 {
                 + IVec2::new(rect.x + rect.width / 2, rect.y + rect.height / 2);
         }
         Pointer::Outside => return IVec2::new(window.x - 10, window.y + 20),
+        Pointer::ScrollBar(y) => return IVec2::new(window.x + SCROLL_BAR_X, window.y + y),
         Pointer::Grid(slot) => CreativeGeometry::grid_slot(slot).unwrap(),
         Pointer::Hotbar(column) => CreativeGeometry::hotbar_slot(column).unwrap(),
         Pointer::Destroy => CreativeGeometry::DESTROY_SLOT,
     };
     IVec2::new(window.x + corner.x, window.y + corner.y) + 8
+}
+
+fn typed(code: KeyCode) -> Option<&'static str> {
+    [
+        (KeyCode::KeyA, "a"),
+        (KeyCode::KeyD, "d"),
+        (KeyCode::KeyE, "e"),
+        (KeyCode::KeyF, "f"),
+        (KeyCode::KeyI, "i"),
+        (KeyCode::KeyM, "m"),
+        (KeyCode::KeyN, "n"),
+        (KeyCode::KeyO, "o"),
+        (KeyCode::KeyS, "s"),
+        (KeyCode::KeyT, "t"),
+        (KeyCode::Digit1, "1"),
+        (KeyCode::Digit3, "3"),
+    ]
+    .into_iter()
+    .find_map(|(key, text)| (key == code).then_some(text))
 }
 
 fn record_actions(mut inputs: MessageReader<MenuInput>, mut sent: ResMut<SentActions>) {
@@ -374,6 +553,7 @@ fn add_input(app: &mut App) {
             frozen_ticks: None,
             advanced_tooltips: false,
         })
+        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
         .init_resource::<SentActions>()
         .add_systems(Last, record_actions);
     app.world_mut()
@@ -391,7 +571,10 @@ fn play(app: &mut App, frame: &[Event]) {
             key_code,
             logical_key: Key::Unidentified(NativeKey::Unidentified),
             state,
-            text: None,
+            text: (state == ButtonState::Pressed)
+                .then(|| typed(key_code))
+                .flatten()
+                .map(Into::into),
             repeat: false,
             window,
         };
@@ -417,6 +600,15 @@ fn play(app: &mut App, frame: &[Event]) {
             }
             Event::Lift(code) => {
                 world.write_message(key(code, ButtonState::Released));
+            }
+            Event::Wheel(y) => {
+                world.write_message(MouseWheel {
+                    unit: MouseScrollUnit::Line,
+                    x: 0.0,
+                    y,
+                    window,
+                    phase: TouchPhase::Moved,
+                });
             }
         }
     }
@@ -487,8 +679,12 @@ fn set_up(world: &mut LocalWorld, row: &Row) {
         .app
         .world_mut()
         .resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
-            let tab = CreativeTabIndex::new(row.tab).expect("a creative tab");
-            screen.select(tab, world.resource::<CreativeTabContent>());
+            let content = world.resource::<CreativeTabContent>();
+            screen.open(content);
+            screen.select(
+                CreativeTabIndex::new(row.tab).expect("a creative tab"),
+                content,
+            );
         });
     if row.server_cursor.is_some() {
         send_server_cursor(world, row.server_cursor);
@@ -524,6 +720,57 @@ fn sent_of(world: &World, action: &MenuAction) -> Option<Sent> {
         area,
         click: *click,
     })
+}
+
+fn assert_scroll_and_search(world: &World, row: &Row) {
+    let screen = world.resource::<CreativeScreenState>();
+    let content = world.resource::<CreativeTabContent>();
+    match row.scroll {
+        Scroll::Offset(offset) => assert!(
+            (screen.scroll() - offset).abs() < 1e-9,
+            "{}: the scroll offset {} is not {offset}",
+            row.name,
+            screen.scroll()
+        ),
+        Scroll::FirstRow(first) => {
+            assert_eq!(
+                screen.first_row(content),
+                first,
+                "{}: the first row",
+                row.name
+            );
+        }
+    }
+    assert_eq!(
+        screen.search_box().text(),
+        row.search,
+        "{}: the search text",
+        row.name
+    );
+    let Some(part) = row.shown_ids_contain else {
+        return;
+    };
+    let shown = screen.content(content);
+    let items = world.resource::<ItemTable>();
+    let ids: Vec<String> = (0..shown.len())
+        .filter_map(|index| shown.get(index))
+        .map(|stack| {
+            items
+                .name(NameTable::Item, stack.kind.0)
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert!(
+        ids.iter().any(|id| id == "minecraft:diamond"),
+        "{}: the content {ids:?} holds the diamond",
+        row.name
+    );
+    assert!(
+        ids.iter().all(|id| id.contains(part)),
+        "{}: each stack of {ids:?} contains {part}",
+        row.name
+    );
 }
 
 fn assert_server_holds(world: &mut LocalWorld, row: &Row) {
@@ -581,6 +828,7 @@ fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_sta
             "{}: the screen",
             row.name
         );
+        assert_scroll_and_search(app_world, row);
         world.assert_after_round_trip(row.name, Some(AGREED), row.entries, row.cursor);
         if row.cursor.is_none() {
             assert_server_holds(&mut world, row);

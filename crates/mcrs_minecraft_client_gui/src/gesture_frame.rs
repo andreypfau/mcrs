@@ -9,7 +9,8 @@ use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_click::{DragKind, DragStage};
 use mcrs_minecraft_inventory_client::{CreativeClick, MenuAction, MenuInput};
 
-use crate::creative_clicks::{self, CreativeGrid};
+use crate::creative_clicks;
+use crate::creative_grid::CreativeGrid;
 use crate::drag_preview::DragPreview;
 use crate::hover::Hover;
 use crate::last_press::LastPress;

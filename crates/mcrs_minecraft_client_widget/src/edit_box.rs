@@ -168,6 +168,10 @@ impl EditBox {
         self.editing
     }
 
+    pub fn set_editing(&mut self, editing: bool) {
+        self.editing = editing;
+    }
+
     pub fn set_max_length(&mut self, max: usize, unit: LengthUnit) -> bool {
         self.max_length = max;
         self.unit = unit;
