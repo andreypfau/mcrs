@@ -1,11 +1,33 @@
 use std::num::NonZeroU32;
 
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_mesh::DrawKind;
 use mcrs_minecraft_render::sky::SkyEffects;
 
 use crate::config::{Knobs, reject};
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use crate::dev::join_menu;
 
 impl Knobs {
+    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+    pub fn join_menu_server(&self) -> Option<fn(&mut bevy::app::App)> {
+        let spec = self.knob("MENU")?;
+        MenuType::read(spec.trim())
+            .and_then(join_menu::join_menu_server)
+            .or_else(|| {
+                reject(
+                    "MENU",
+                    spec,
+                    "expected a generic menu type such as generic_9x3 or hopper",
+                )
+            })
+    }
+
+    pub fn play_at_start(&self) -> bool {
+        self.flag("PLAY", false)
+    }
+
     pub fn hot_clocks(&self) -> bool {
         self.flag("HOT", false)
     }

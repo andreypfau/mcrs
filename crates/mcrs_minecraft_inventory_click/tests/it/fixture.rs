@@ -238,6 +238,10 @@ impl Slots for Player {
         rule.filter.place(offer)
     }
 
+    fn same_holder(&self, left: HeldSlot, right: HeldSlot) -> bool {
+        left.holder == right.holder
+    }
+
     fn equal(&self, left: Item, right: Item) -> bool {
         left == right
     }

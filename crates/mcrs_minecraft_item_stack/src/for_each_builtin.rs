@@ -13,6 +13,7 @@ macro_rules! for_each_builtin {
             Lore => "lore",
             Rarity => "rarity",
             Enchantments => "enchantments",
+            StoredEnchantments => "stored_enchantments",
             AttributeModifiers => "attribute_modifiers",
             TooltipDisplay => "tooltip_display",
             RepairCost => "repair_cost",
@@ -41,6 +42,7 @@ macro_rules! for_each_builtin {
             Container => "container",
             Bees => "bees",
             ContainerLoot => "container_loot",
+            PaintingVariant => "painting/variant",
         }
     };
 }

@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_item_tooltip"
+description = "The parts of an item tooltip as text values, from an item stack, the item table and the inputs the caller fills"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_entity_attribute.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_text.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+serde.workspace = true
+serde_json.workspace = true

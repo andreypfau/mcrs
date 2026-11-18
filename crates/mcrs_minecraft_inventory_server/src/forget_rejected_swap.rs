@@ -12,7 +12,7 @@ use mcrs_minecraft_inventory_player::OFF_HAND;
 
 use crate::MenuSync;
 use crate::menu_slots::MenuSlots;
-use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
+use mcrs_minecraft_vanilla_inventory::RequestPurpose;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 pub(crate) fn forget_rejected_swap(
@@ -25,7 +25,7 @@ pub(crate) fn forget_rejected_swap(
         return;
     };
     if result.id.source != requests.source
-        || result.id.serial != HAND_SWAP_REQUEST
+        || result.id.serial != RequestPurpose::HandSwap.serial()
         || result.outcome.is_ok()
     {
         return;

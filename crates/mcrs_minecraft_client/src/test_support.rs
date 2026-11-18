@@ -1,7 +1,11 @@
 use std::path::Path;
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 use std::time::Duration;
 use std::time::Instant;
 
+use bevy::platform::cell::SyncCell;
 use bevy::prelude::*;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::session::LocalWorldOrigin;
@@ -16,6 +20,7 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_stack::write_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientConnection;
@@ -24,6 +29,7 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::Decode;
+use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
@@ -79,6 +85,68 @@ pub fn count_server_answers(app: &mut App) {
                 feedback.0 += 1;
             },
         );
+}
+
+#[derive(Resource)]
+pub struct CreativeSlotTap(Sender<ServerboundSetCreativeModeSlot>);
+
+#[derive(Resource)]
+struct CreativeSlotReceiver(SyncCell<Receiver<ServerboundSetCreativeModeSlot>>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReceivedCreativeSlot {
+    pub slot: i16,
+    pub stack: Option<ItemStack>,
+}
+
+pub fn record_creative_slots(app: &mut App) {
+    let (sender, receiver) = mpsc::channel();
+    app.insert_resource(CreativeSlotTap(sender))
+        .insert_resource(CreativeSlotReceiver(SyncCell::new(receiver)));
+}
+
+pub fn received_creative_slots(world: &mut World) -> Vec<ReceivedCreativeSlot> {
+    let packets: Vec<ServerboundSetCreativeModeSlot> = world
+        .resource_mut::<CreativeSlotReceiver>()
+        .0
+        .get()
+        .try_iter()
+        .collect();
+    let names = RegistryNames::new(
+        world.resource::<CurrentRegistries>(),
+        world.resource::<ItemTable>(),
+    );
+    packets
+        .into_iter()
+        .map(|packet| {
+            let mut bytes = Vec::new();
+            packet.item.encode(&mut bytes).unwrap();
+            ReceivedCreativeSlot {
+                slot: packet.slot,
+                stack: read_wire_with_length(&mut bytes.as_slice(), &names).unwrap(),
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn tap_server<E>(
+    build: impl FnOnce() -> Result<App, E> + Send + 'static,
+    tap: Option<&CreativeSlotTap>,
+) -> impl FnOnce() -> Result<App, E> + Send + 'static {
+    let sender = tap.map(|tap| tap.0.clone());
+    move || {
+        let mut app = build()?;
+        if let Some(sender) = sender {
+            app.add_observer(
+                move |received: On<Received<ServerboundSetCreativeModeSlot>>| {
+                    if let Some(packet) = received.packet() {
+                        sender.send(packet).ok();
+                    }
+                },
+            );
+        }
+        Ok(app)
+    }
 }
 
 pub fn open(app: &mut App, folder: &Path) {

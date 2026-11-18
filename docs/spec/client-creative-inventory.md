@@ -397,7 +397,7 @@ is fixed for the version, and CCI-TAB-001 states it.
 - **Behavior:** the client builds the tab list of an items tab from its `tab_list`, and the
   search list from its `search_list`. For each of the two lists, it does these steps:
   1. The client replaces the span of each group of the list by the stacks of that group for the
-     world (CCI-CNT-003).
+     world (CCI-CNT-003). A group with no span in the list gives no stack (CCI-CNT-003, step 6).
   2. The client decodes each other stack with the registries of the world. When the decode fails,
      the client removes the stack (CCI-DEV-004).
   3. The client removes each stack when the enabled features do not contain all the feature flags
@@ -426,6 +426,8 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
   4. Each stack of a group has the count 1 and the item of the group. It also has the component
      of the group, with the value of the second table below.
   5. When the registry `Q` or the tag does not exist in the world, the group gives no stack.
+  6. When a list of the report has no stack of a group for that list, the group gives no stack
+     in that list. The span is the only place of a group (step 2).
 
 | # | Tab | List | Item | `Q` | Elements | Order |
 |---|-----|------|------|-----|----------|-------|
@@ -447,6 +449,8 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
 | 7 | `minecraft:stored_enchantments` | `{e: L}` | one, with `L` the `max_level` of `e` |
 | 8 | `minecraft:stored_enchantments` | `{e: L}` | one for each `L` from 1 to the `max_level` of `e`, in the order from the smallest `L` |
 
+The level `L` of a stored enchantment has the range `1..255` (`item-stack.md`, STK-SHP-015). A value of `L` out of this range gives no stack.
+
 - **Definitions:** the values of the column "Order":
   - registry: the order of the numeric ids of `Q`. For a data-pack registry, this is the order of
     the `registry_data` packet. For a static registry, this is the order of the protocol ids in
@@ -461,12 +465,14 @@ Provenance: `source_suggested`; `design` for steps 2 and 5. Kind: semantic; devi
   - A data pack that adds an enchantment adds its enchanted books to the tab
     `minecraft:ingredients` and to the search tab.
   - The creative report needs no change for such a data pack.
+  - A creative report from a run with an empty tag `minecraft:goat_horns` gives no goat horn. This
+    is also true in a world in which that tag has elements (CCI-DEV-010).
   - A stack of the report that is in no group is a fixed stack, for example the ominous banner of
     `minecraft:functional_blocks`. Its banner patterns are ids of `minecraft:banner_pattern`, so
     its decode can fail (CCI-CNT-002, step 2).
 
-Provenance: `source_suggested`; `design` for steps 1 and 2. Kind: semantic. Confidence: medium.
-Experiment: CCI-EXP-003.
+Provenance: `source_suggested`; `design` for steps 1, 2 and 6. Kind: semantic; deviation for
+step 6. Confidence: medium. Experiment: CCI-EXP-003.
 
 ### CCI-CNT-004: The feature flags of a stack
 
@@ -654,7 +660,9 @@ states the result of each click kind in the creative screen.
      count of the drop is 1 for button 0, and the maximum stack size of `S` for each other button.
      `C` does not change.
   5. The click kind is quick craft: no result. A grid slot is never a slot of a drag.
-  6. The click kind is pick up or quick move: the first true row of this table gives the result.
+  6. The click kind is pick up all: no result. The creative screen does not permit pick up all
+     from a grid slot (CCI-LAY-003, step 8). Thus it never makes this click on a grid slot.
+  7. The click kind is pick up or quick move: the first true row of this table gives the result.
 
 | # | Condition | Result on `C` |
 |---|-----------|---------------|
@@ -673,6 +681,9 @@ states the result of each click kind in the creative screen.
     stack. A right click there deletes one item of it.
   - A click on a grid slot sends no packet, except the creative drop of step 4 and the packets of
     step 2.
+  - A double click of the left button on a grid slot gathers no stacks. The release gives a pick
+    up click, or a quick move click with Shift (CCS-DBL-002, step 1, and CCS-DBL-003, step 2).
+    With an empty cursor, the press gives row d, and the release gives row b or row a.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CCI-EXP-007.
 
@@ -1162,6 +1173,21 @@ None.
 - **Test:** a differential test does not compare the thumb after a change of the content to 37
   to 45 stacks.
 
+### CCI-DEV-010: A group with no span in the creative report
+
+- **Rule:** CCI-CNT-003, step 6.
+- **Reference:** the vanilla client gives each group a fixed place in each list. The data does not
+  change that place. Thus the stacks of a group show at that place when its registry `Q` or its
+  tag has elements in the world.
+- **Reason:** the creative report is the only source of the order of a list (CCI-CNT-001). Without
+  a span, the report gives no place for the group. The client must not select a place that the
+  report does not give.
+- **Visible to the client:** yes, only with a creative report from a run in which the group gave
+  no stack in that list, for example with an empty tag `minecraft:goat_horns`.
+- **Bug reference:** none.
+- **Test:** a differential test uses only a creative report that has a span for each group of each
+  list.
+
 ---
 
 ## 12. Unresolved
@@ -1241,11 +1267,13 @@ These experiments have not run.
   4. Press the key 3 over a stone.
   5. Shift and left click the slot 1 of the hotbar row.
   6. Select the survival inventory tab. Shift and left click the destroy slot.
+  7. Select an items tab. Double click a stone in a grid slot with the left button. Left click
+     the slot 2 of the hotbar row.
 
   Expected result, without the packets that the test of CCI-DEV-001 ignores: step 2 sends
   `set_creative_mode_slot` 36 with 1 stone. Step 3 sends 37 with 64 stone. Step 4 sends 38 with
   64 stone. Step 5 sends 37 with the empty stack. Step 6 sends 36 and 38, each with the empty
-  stack. No step sends `container_click`.
+  stack. Step 7 sends 38 with 2 stone. No step sends `container_click`.
 - **CCI-EXP-008** (`tools/mcrs_minecraft_client_recorder` with `tools/vanilla-server`). The
   creative drop. Rules: CCI-CLK-003 and CCI-SYN-003.
   1. Shift and left-click a stone. Right-click outside the screen. Left click outside the screen.

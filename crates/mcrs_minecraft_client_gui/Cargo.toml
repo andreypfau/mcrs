@@ -24,21 +24,30 @@ mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_inventory_client.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_creative_content.workspace = true
+mcrs_minecraft_creative_report.workspace = true
 mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine_inventory_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity_render.workspace = true
 mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_inventory_click.workspace = true
 mcrs_minecraft_inventory_menu = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_icon = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_tooltip.workspace = true
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_menu_geometry.workspace = true
 mcrs_minecraft_model.workspace = true
@@ -88,5 +97,7 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 [dev-dependencies]
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_inventory_file.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
+mcrs_test_alloc.workspace = true

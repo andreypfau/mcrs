@@ -9,15 +9,23 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
+use crate::creative_item_tooltip::request_creative_item_tooltip;
+use crate::creative_screen_draw::{creative_sprites, draw_creative_screen};
+use crate::creative_screen_shown::{creative_screen_shown, shows_creative_screen};
+use crate::drag_preview::DragPreview;
 use crate::font::Font;
 use crate::font_definition::FontOptions;
 use crate::font_glyph::{
@@ -28,19 +36,27 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
-use crate::inventory_screen::inventory_screen;
-use crate::item_decorations::{Decorated, WHITE, decorations};
-use crate::item_resolve::{GuiVertex, ItemRenderLayers};
+use crate::item_decorations::{CountLabel, Decorated, WHITE, decorations};
+use crate::item_icons::{ItemIcons, build_icon_meshes};
 use crate::language::ClientLanguage;
 use crate::menu_draw;
-use crate::player_stacks::PlayerStacks;
+use crate::menu_label_text::MenuLabelText;
+use crate::menu_screen::{
+    MenuContents, background_extent, background_region, menu_backgrounds, menu_screen,
+};
+use crate::menu_stacks::MenuStacks;
+use crate::slot_icon::SlotIcon;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item_icon::{
+    GuiVertex, IconLayer, IconMeshes, ItemIcon, Overlays, StackOverlay,
+};
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
+use mcrs_minecraft_model::item_model_bake::ItemModels;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -94,9 +110,9 @@ pub enum GuiQuad {
         color: u32,
         weight: Weight,
     },
-    Item {
+    Icon {
         origin: IVec2,
-        stack: Entity,
+        index: usize,
     },
     Highlight {
         rect: IRect,
@@ -116,7 +132,15 @@ pub struct GuiScene {
     pub size: GuiSize,
     pub cursor: IVec2,
     pub quads: Vec<GuiQuad>,
+    pub icons: Vec<SceneIcon>,
     pub tooltip: Tooltip,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneIcon {
+    pub icon: ItemIcon,
+    pub overlay: StackOverlay,
+    pub overlays: Overlays,
 }
 
 #[derive(Resource, Clone, Copy)]
@@ -136,7 +160,7 @@ const MISSING_GLYPH: &str = "font/missing";
 const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
-const GUI_TEXTURES: [&str; 18] = [
+const GUI_TEXTURES: [&str; 17] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
@@ -149,7 +173,6 @@ const GUI_TEXTURES: [&str; 18] = [
     "container/slot/shield",
     "recipe_book/button",
     "recipe_book/button_highlighted",
-    "container/inventory",
     "container/gamemode_switcher",
     "gamemode_switcher/slot",
     "gamemode_switcher/selection",
@@ -159,7 +182,7 @@ const GUI_TEXTURES: [&str; 18] = [
 
 fn texture_path(name: &str) -> String {
     match name {
-        "container/inventory" | "container/gamemode_switcher" => {
+        "container/gamemode_switcher" => {
             format!("minecraft/textures/gui/{name}.png")
         }
         "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
@@ -209,12 +232,6 @@ impl GuiAtlasData {
                     .map_err(|error| error.to_string())?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
-                "container/inventory" => images.push((
-                    Packed::Named(name),
-                    crop(&pixels, width, 176, 166),
-                    176,
-                    166,
-                )),
                 "container/gamemode_switcher" => images.push((
                     Packed::Named(name),
                     crop(&pixels, width, SWITCHER_WIDTH, SWITCHER_HEIGHT),
@@ -223,6 +240,36 @@ impl GuiAtlasData {
                 )),
                 _ => images.push((Packed::Named(name), pixels, width, height)),
             }
+        }
+        for name in creative_sprites() {
+            load_image(
+                pack,
+                name,
+                &texture_path(name),
+                Ok(Scaling::Stretch),
+                &mut images,
+            );
+        }
+        let mut backgrounds = Vec::new();
+        for texture in menu_backgrounds() {
+            let Some(name) = background_region(texture) else {
+                continue;
+            };
+            if backgrounds.contains(&name) {
+                continue;
+            }
+            backgrounds.push(name);
+            let path = format!("{}/{}", texture.namespace(), texture.path());
+            let (pixels, width, height) =
+                decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                    .map_err(|error| error.to_string())?;
+            let extent = background_extent(texture).min(UVec2::new(width, height));
+            images.push((
+                Packed::Named(name),
+                crop(&pixels, width, extent.x, extent.y),
+                extent.x,
+                extent.y,
+            ));
         }
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
@@ -548,6 +595,7 @@ fn begin_gui_frame(
         .map(gui_point)
         .map_or(IVec2::new(-1, -1), menu_draw::point);
     scene.quads.clear();
+    scene.icons.clear();
     scene.tooltip.clear();
 }
 
@@ -559,26 +607,79 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
     crate::tooltip::draw(&scene.tooltip, scene.size, &atlas.0, &mut scene.quads);
 }
 
-fn draw_screens(
+#[derive(Default)]
+pub(crate) struct ScreenStacks {
+    inventory: MenuStacks,
+    open: MenuStacks,
+    labels: MenuLabelText,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each access is its own parameter"
+)]
+pub(crate) fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
-    menus: Query<(&MenuLayout, &MenuParts)>,
+    player: Query<(
+        &PlayerHolders,
+        &Menus,
+        &Selected,
+        Option<&PlayerGameMode>,
+        Option<&Abilities>,
+    )>,
+    menus: Query<(&MenuLayout, &MenuParts, Option<Ref<MenuTitle>>)>,
     holders: Query<&Slots>,
+    atlas: Option<Res<GuiAtlas>>,
+    language: Option<Res<ClientLanguage>>,
+    drag: Option<Res<DragPreview>>,
+    icons: Query<&SlotIcon>,
+    mut stacks: Local<ScreenStacks>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((player, player_menus, selected, mode)) = player.single() else {
+    let stacks = &mut *stacks;
+    let Ok((player, player_menus, selected, mode, abilities)) = player.single() else {
         return;
     };
-    let Some(stacks) = PlayerStacks::of_player(player, player_menus, &menus, &holders) else {
+    let occupant = |slot: SlotRef| holders.get(slot.holder).ok()?.get(usize::from(slot.index));
+    let icon_of = |stack| icons.get(stack).ok().copied();
+    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator)
+        && let Some((layout, parts, _)) =
+            (player_menus.iter().next()).and_then(|menu| menus.get(menu).ok())
+    {
+        stacks
+            .inventory
+            .collect(layout, parts, player.cursor, occupant);
+        hotbar(scene, selected.0, &stacks.inventory, icon_of);
+    }
+    let Some(open) = player_menus.open() else {
         return;
     };
-    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
-        hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
+    let Ok((layout, parts, title)) = menus.get(open) else {
+        return;
+    };
+    if let Some(language) = language {
+        stacks.labels.follow(open, title, language.into());
     }
-    if *screen == Screen::Inventory {
-        inventory_screen(scene.size, scene.cursor, &stacks, &mut scene.quads);
+    if *screen != Screen::Menu || shows_creative_screen(*screen, player_menus, abilities) {
+        return;
     }
+    let (Some(atlas), Some(geometry)) = (atlas, MenuGeometry::of_layout(layout)) else {
+        return;
+    };
+    stacks.open.collect(layout, parts, player.cursor, occupant);
+    let no_drag = DragPreview::default();
+    menu_screen(
+        scene,
+        geometry,
+        MenuContents {
+            stacks: &stacks.open,
+            drag: drag.as_deref().unwrap_or(&no_drag),
+        },
+        &stacks.labels,
+        &atlas.0,
+        icon_of,
+    );
 }
 
 pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
@@ -598,8 +699,7 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
-    layers: Query<&ItemRenderLayers>,
-    counts: Query<&Count>,
+    icons: ItemIcons,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut cache: ResMut<GlyphCache>,
@@ -624,14 +724,19 @@ fn build_gui_batch(
     let mut expanded = Vec::with_capacity(scene.quads.len() * 2);
     for quad in &scene.quads {
         match *quad {
-            GuiQuad::Item { origin, stack } => {
+            GuiQuad::Icon { origin, index } => {
                 expanded.push(*quad);
-                let Ok(count) = counts.get(stack) else {
+                let Some(entry) = scene.icons.get(index) else {
                     continue;
                 };
+                let count = match entry.overlays {
+                    Overlays::Stack => CountLabel::Plain(entry.overlay.count),
+                    Overlays::Capped => CountLabel::Capped(entry.overlay.count),
+                    _ => continue,
+                };
                 let decorated = Decorated {
-                    count: count.get(),
-                    damage: layers.get(stack).ok().and_then(|layers| layers.damage),
+                    count,
+                    damage: entry.overlay.durability,
                 };
                 decorations(origin, &decorated, &atlas.font, &mut expanded);
             }
@@ -639,33 +744,17 @@ fn build_gui_batch(
         }
     }
     let mut flat_start = None;
-    let close_flat = |start: &mut Option<u32>, end: u32, draws: &mut Vec<GuiDraw>| {
-        if let Some(begin) = start.take()
-            && begin != end
-        {
-            draws.push(GuiDraw {
-                range: begin..end,
-                kind: GuiDrawKind::Flat,
-            });
-        }
-    };
     for quad in expanded {
         let vertices = &mut batch.vertices;
         match quad {
-            GuiQuad::Item { origin, stack } => {
+            GuiQuad::Icon { origin, index } => {
                 let end = vertices.len() as u32;
                 close_flat(&mut flat_start, end, &mut batch.draws);
-                let Ok(layers) = layers.get(stack) else {
+                let (Some(entry), Some(meshes)) = (scene.icons.get(index), icons.meshes()) else {
                     continue;
                 };
-                push_item_layers(vertices, layers, origin);
-                let after = vertices.len() as u32;
-                if after != end {
-                    batch.draws.push(GuiDraw {
-                        range: end..after,
-                        kind: GuiDrawKind::Item,
-                    });
-                }
+                push_icon(vertices, &entry.icon, meshes, origin);
+                push_item_draw(end, vertices, &mut batch.draws);
             }
             GuiQuad::Highlight { rect, invert } => {
                 let end = vertices.len() as u32;
@@ -734,23 +823,48 @@ fn build_gui_batch(
     batch.glyphs.extend_from_slice(cache.resident());
 }
 
-fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, origin: IVec2) {
-    for layer in &layers.layers {
-        let glint = if layer.foil { GLINT_BIT } else { 0 };
-        for quad in layer.vertices.as_chunks::<4>().0 {
-            let shifted = |v: &GuiVertex| GuiVertex {
-                pos: [
-                    v.pos[0] + origin.x as f32,
-                    v.pos[1] + origin.y as f32,
-                    v.pos[2],
-                ],
-                sprite: v.sprite | glint,
-                ..*v
-            };
-            let [a, b, c, d] = quad.each_ref().map(shifted);
-            vertices.extend([a, b, c, a, c, d]);
+fn close_flat(start: &mut Option<u32>, end: u32, draws: &mut Vec<GuiDraw>) {
+    if let Some(begin) = start.take()
+        && begin != end
+    {
+        draws.push(GuiDraw {
+            range: begin..end,
+            kind: GuiDrawKind::Flat,
+        });
+    }
+}
+
+fn push_item_draw(start: u32, vertices: &[GuiVertex], draws: &mut Vec<GuiDraw>) {
+    let after = vertices.len() as u32;
+    if after != start {
+        draws.push(GuiDraw {
+            range: start..after,
+            kind: GuiDrawKind::Item,
+        });
+    }
+}
+
+fn push_icon(vertices: &mut Vec<GuiVertex>, icon: &ItemIcon, meshes: &IconMeshes, origin: IVec2) {
+    let glint = if icon.foil() { GLINT_BIT } else { 0 };
+    for IconLayer { model, tints } in icon.layers() {
+        for quad in meshes.get(*model).into_iter().flatten() {
+            push_item_quad(vertices, &quad.tinted(tints), origin, glint);
         }
     }
+}
+
+fn push_item_quad(vertices: &mut Vec<GuiVertex>, quad: &[GuiVertex; 4], origin: IVec2, glint: u32) {
+    let shifted = |v: &GuiVertex| GuiVertex {
+        pos: [
+            v.pos[0] + origin.x as f32,
+            v.pos[1] + origin.y as f32,
+            v.pos[2],
+        ],
+        sprite: v.sprite | glint,
+        ..*v
+    };
+    let [a, b, c, d] = quad.each_ref().map(shifted);
+    vertices.extend([a, b, c, a, c, d]);
 }
 
 fn push_flat_quad(
@@ -806,7 +920,7 @@ fn push_flat_quad(
                 colors: [color; 4],
             }
         }
-        GuiQuad::Item { .. }
+        GuiQuad::Icon { .. }
         | GuiQuad::Highlight { .. }
         | GuiQuad::Clip { .. }
         | GuiQuad::EndClip
@@ -833,15 +947,27 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .init_resource::<GlyphCache>()
+            .add_plugins(crate::creative_screen_plugin::CreativeScreenPlugin)
             .add_observer(spawn_inventory_figure)
             .init_resource::<crate::title_draw::TitleScreenState>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
+                Update,
+                build_icon_meshes.run_if(resource_exists_and_changed::<ItemModels>),
+            )
+            .add_systems(
                 PostUpdate,
                 (
                     begin_gui_frame,
                     draw_screens,
+                    crate::menu_item_tooltip::request_menu_item_tooltip
+                        .run_if(resource_exists::<ItemTable>)
+                        .run_if(not(creative_screen_shown)),
+                    draw_creative_screen.run_if(creative_screen_shown),
+                    request_creative_item_tooltip
+                        .run_if(resource_exists::<ItemTable>)
+                        .run_if(creative_screen_shown),
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
@@ -864,7 +990,7 @@ impl Plugin for GuiPlugin {
                         .after(begin_gui_frame)
                         .before(EntitySlotSystems)
                         .run_if(resource_exists::<FigureView>.and_then(
-                            resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
+                            resource_equals(Screen::Menu).or_else(resource_changed::<Screen>),
                         )),
                 ),
             );
@@ -900,7 +1026,66 @@ mod tests {
     }
 
     mod jar {
+        use bevy::ecs::system::RunSystemOnce;
+        use mcrs_minecraft_item_icon::{IconSources, resolve};
+        use mcrs_minecraft_item_stack::{Count, ItemStack, Kind, NameLookup, NameTable};
+        use mcrs_minecraft_model::item_model_asset::DisplayContext;
+        use mcrs_minecraft_model::item_model_context::ItemModelContext;
+        use mcrs_minecraft_model::stack_view::StackView;
+        use mcrs_minecraft_resource::ResourceLocation;
+
         use super::*;
+        use crate::menu_test_app::{ATLAS, MODELS, TABLE};
+
+        #[test]
+        fn a_stack_overlay_draws_the_count_beside_an_icon() {
+            let location = ResourceLocation::read("minecraft:stone").unwrap();
+            let kind = Kind(TABLE.id(NameTable::Item, location).unwrap());
+            let stack = ItemStack::new(kind, Count::new(17).unwrap());
+            let view = StackView {
+                stack: &stack,
+                table: &TABLE,
+            };
+            let sources = IconSources {
+                models: &MODELS,
+                registries: None,
+            };
+            let icon = resolve(view, &sources, &ItemModelContext::new(DisplayContext::Gui));
+            for (overlays, glyph_vertices) in [(Overlays::Stack, 24), (Overlays::None, 0)] {
+                let mut scene = GuiScene::default();
+                ItemIcons::draw_icon(
+                    &mut scene,
+                    IVec2::ZERO,
+                    icon,
+                    StackOverlay::of(view),
+                    overlays,
+                );
+                let mut world = World::new();
+                world.insert_resource(scene);
+                world.insert_resource(GuiAtlas(Arc::clone(&ATLAS)));
+                world.insert_resource(Time::<Real>::default());
+                world.insert_resource(GuiConfig {
+                    scale: 1,
+                    cursor: None,
+                    frozen_ticks: Some(0),
+                    advanced_tooltips: false,
+                });
+                world.init_resource::<GlyphCache>();
+                world.init_resource::<GuiBatch>();
+                world.run_system_once(build_gui_batch).unwrap();
+                let batch = world.resource::<GuiBatch>();
+                let flat: usize = batch
+                    .draws
+                    .iter()
+                    .filter(|draw| draw.kind == GuiDrawKind::Flat)
+                    .map(|draw| draw.range.len())
+                    .sum();
+                assert_eq!(
+                    flat, glyph_vertices,
+                    "{overlays:?}: two digits with their shadows, two triangles each"
+                );
+            }
+        }
 
         #[test]
         fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
@@ -910,6 +1095,12 @@ mod tests {
                 .filter(|n| **n != "misc/enchanted_glint_item")
             {
                 assert!(atlas.regions.contains_key(name), "{name}");
+            }
+            for texture in menu_backgrounds() {
+                assert!(
+                    background_region(texture).is_some_and(|name| atlas.regions.contains_key(name)),
+                    "{texture:?}"
+                );
             }
             assert_eq!(atlas.region("hud/hotbar").size(), IVec2::new(182, 22));
             assert_eq!(

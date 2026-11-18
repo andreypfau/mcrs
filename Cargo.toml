@@ -155,6 +155,7 @@ mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_loot_condition = { path = "crates/mcrs_minecraft_loot_condition" }
 mcrs_minecraft_loot_table = { path = "crates/mcrs_minecraft_loot_table" }
 mcrs_minecraft_item_key = { path = "crates/mcrs_minecraft_item_key" }
+mcrs_minecraft_menu_key = { path = "crates/mcrs_minecraft_menu_key" }
 mcrs_minecraft_potion = { path = "crates/mcrs_minecraft_potion" }
 mcrs_minecraft_block_transformer = { path = "crates/mcrs_minecraft_block_transformer" }
 mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated_pot_pattern" }
@@ -221,8 +222,10 @@ mcrs_minecraft_inventory_client_view = { path = "crates/mcrs_minecraft_inventory
 mcrs_minecraft_inventory_client = { path = "crates/mcrs_minecraft_inventory_client" }
 mcrs_minecraft_inventory_click = { path = "crates/mcrs_minecraft_inventory_click" }
 mcrs_minecraft_creative_report = { path = "crates/mcrs_minecraft_creative_report" }
+mcrs_minecraft_creative_content = { path = "crates/mcrs_minecraft_creative_content" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
+mcrs_minecraft_item_tooltip = { path = "crates/mcrs_minecraft_item_tooltip" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
 mcrs_minecraft_engine_inventory_menu = { path = "crates/mcrs_minecraft_engine_inventory_menu" }
 mcrs_minecraft_engine_inventory_click = { path = "crates/mcrs_minecraft_engine_inventory_click" }
@@ -237,6 +240,7 @@ mcrs_minecraft_client_widget = { path = "crates/mcrs_minecraft_client_widget" }
 mcrs_minecraft_fog = { path = "crates/mcrs_minecraft_fog" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
+mcrs_minecraft_item_icon = { path = "crates/mcrs_minecraft_item_icon" }
 mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
 mcrs_minecraft_block_entity_oracle = { path = "tools/mcrs_minecraft_block_entity_oracle" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }

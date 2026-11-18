@@ -57,8 +57,16 @@ pub(crate) struct KeyedEntry<'a, N> {
     pub(crate) value: N,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WireOnly {
+    Refuse,
+    Skip,
+}
+
 pub(crate) trait SavedSink {
     type Node;
+
+    const WIRE_ONLY: WireOnly;
 
     fn leaf(&self, leaf: Leaf<'_>) -> Self::Node;
 

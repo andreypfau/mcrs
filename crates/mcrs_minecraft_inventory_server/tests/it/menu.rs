@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Encode;
 

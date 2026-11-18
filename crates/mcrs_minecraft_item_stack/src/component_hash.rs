@@ -24,6 +24,7 @@ use crate::saved_sink::MapKey;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 use crate::saved_sink::TAG_MARKER;
+use crate::saved_sink::WireOnly;
 
 pub(crate) fn component_hash<L: NameLookup>(
     value: &Builtin,
@@ -64,6 +65,8 @@ impl HashSink<'_> {
 
 impl SavedSink for HashSink<'_> {
     type Node = NodeHash;
+
+    const WIRE_ONLY: WireOnly = WireOnly::Refuse;
 
     fn leaf(&self, leaf: Leaf<'_>) -> NodeHash {
         match leaf {

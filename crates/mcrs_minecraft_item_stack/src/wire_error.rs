@@ -115,7 +115,7 @@ impl fmt::Display for WireError {
             Self::UnnamedId(table) => write!(formatter, "a numeric id has no name in {table:?}"),
             Self::SavedValueOnly => formatter
                 .write_str("the patch holds an undecoded saved component, which has no wire form"),
-            Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
+            Self::TooDeep => formatter.write_str("the saved form of the stack is nested too deep"),
             Self::QuotaExceeded => formatter.write_str("the network NBT exceeds its budget"),
         }
     }

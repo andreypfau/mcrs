@@ -69,12 +69,15 @@ specification.
 | `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. The take filter (INV-SLT-004) and the spectator check read it. | one projection system of the client world, in the fixed tick and in each frame |
 | `Abilities` on the client | authoritative truth: the abilities of the last `player_abilities` packet or game mode change. Its `instant_build` is the creative flag, which gives infinite materials to a predicted click (CINV-PRD-001) and the creative flag of a gesture. | the observers of `GameModePlugin` in the client world |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
-| `MenuInput` | temporal fact: one click or one close of a viewer, in the order of the inputs | a bot, a GUI or a screen |
+| `MenuInput` | temporal fact: one click, one creative click or one close of a viewer, in the order of the inputs | a bot, a GUI or a screen |
 | `HandInput` | temporal fact: one press of the drop key or the swap key outside a screen | a bot or the key input of the client |
 | `MenuDrag` | authoritative truth: the drag in progress on one menu | `MenuClicks`; `MenuClickPlugin` inserts it when the menu opens and resets it when a menu of the viewer closes |
 | predicted slot content | the content of the holder after the commit; no second copy | the client edge |
 | state id of a remote menu | authoritative truth of the client edge | the client edge only |
 | hovered slot, tooltip | derived state; computed in each frame | the screens crate |
+| `CreativeContent` | materialized derived state: the tab lists and the search list of the creative screen, built from the creative report, the registries, the tags, the enabled features and the operator condition. A build decodes about 4000 stacks. It runs again only when one of these inputs changes (CCI-CNT-005), never in a tick. | the creative screen; one system builds it again |
+| content of the selected creative tab | derived state: an items tab shows a slice of `CreativeContent`. The search tab shows the stacks of the search list that `SearchQuery::matches`, computed again when the search text or `CreativeContent` changes: one pass over about 2300 stacks. | the creative screen |
+| creative drop counter | authoritative truth of the client edge (CCI-SYN-003) | a creative action adds 20; one `FixedUpdate` system subtracts 1 while the counter is above 0 |
 
 The client stores no predicted click. A prediction changes the holders directly. A correction
 replaces the content of one slot. Thus no list of pending clicks exists, and no state can resync.
@@ -88,6 +91,7 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 | `container_click` | 3, data, `no_std` | the click value; `Click::from_input` (a gesture to a click); its codec behind the feature `wire` |
 | `inventory_menu` | 3, data | the layout, the menu entries |
 | `inventory_click` | 3, rules, `no_std` | a click to operations |
+| `creative_content` | 3, rules | the tab lists and the search list of the creative screen, and the match of the search text |
 | `inventory_transaction` | 3, rules | the planner of a request |
 | `inventory_client_view` | 3 | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | the inventory of a player file |
@@ -185,6 +189,8 @@ pub struct PlayerItemFilePlugin;
 | `Click::from_input` | `container_click` | Makes a click from a gesture of a pointer or a key. |
 | `MenuClicks`, `MenuClicker`, `MenuClickError`, `MenuDrag`, `MenuClickPlugin` | `engine_inventory_click` | Turns a click of a viewer into one request on the open menu. |
 | `MenuInput { viewer, action }`, `MenuAction::{Click, Close}` | `inventory_client` | The one way to click in and to close the open menu on the client. |
+| `MenuAction::Creative(CreativeClick)`, `CreativeClick { area, click }`, `CreativeArea::{Grid, Hotbar, Inventory, Destroy}` | `inventory_client` | One click in the creative screen: the area of the screen and the click of the gesture. The client edge applies it to the holders and sends a `set_creative_mode_slot` packet for each changed entry. |
+| `CreativeContent`, `SessionInputs`, `OperatorCondition`, `SearchQuery` | `creative_content` | The tab lists and the search list from the creative report and the session, and the search match, with no Bevy. |
 | `HandInput { viewer, action }` | `inventory_client` | The drop key and the swap key outside a screen. |
 | `InventoryClientSet::{Predict, Send}` | `inventory_client` | The sets of the prediction and of the send, in `Update` for `MenuInput` and in `FixedUpdate` for `HandInput`. A writer of an input runs before `Predict`. |
 | `RemoteMenu` | `inventory_client` | A menu that the server opened, with its container id and the last state id of the server, as raw packet values. |

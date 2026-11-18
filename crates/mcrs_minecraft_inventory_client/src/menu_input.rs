@@ -3,7 +3,7 @@ use bevy_ecs::message::Message;
 
 use crate::MenuAction;
 
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Message, Clone, Debug, PartialEq)]
 pub struct MenuInput {
     pub viewer: Entity,
     pub action: MenuAction,

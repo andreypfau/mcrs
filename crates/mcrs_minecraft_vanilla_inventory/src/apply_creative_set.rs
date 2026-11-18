@@ -17,9 +17,9 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+use crate::RequestPurpose;
 use crate::VanillaInventoryRequests;
 use crate::insert_stack::max_stack_size;
-use crate::request_ids::CREATIVE_REQUEST;
 
 pub(crate) fn apply_creative_set(
     In((player, slot, stack)): In<(Entity, SlotRef, Option<ItemStack>)>,
@@ -41,7 +41,7 @@ pub(crate) fn apply_creative_set(
     let spawned = stack.map(|stack| commands.spawn_stack(stack).id());
     let id = RequestId {
         source: requests.source,
-        serial: CREATIVE_REQUEST,
+        serial: RequestPurpose::Creative.serial(),
     };
     commands
         .entity(player)

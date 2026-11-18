@@ -2,6 +2,14 @@ use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item_icon::Overlays;
+use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChangeGameMode;
@@ -10,8 +18,9 @@ use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 use crate::cursor_grab::grab;
 use crate::debug_screen_overlay::{DebugModifier, toggle_overlay};
 use crate::font::{Span, draw_centered_text};
+use crate::item_icons::ItemIcons;
 use crate::language::ClientLanguage;
-use crate::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
+use crate::scene::{GuiAtlas, GuiScene, sprite};
 use mcrs_minecraft_client_world::chat::ChatMessage;
 use mcrs_minecraft_client_world::game_mode::{LocalGameMode, PermissionLevel};
 use mcrs_minecraft_client_world::player::Player;
@@ -27,7 +36,14 @@ const ICONS: [GameMode; 4] = [
     GameMode::Adventure,
     GameMode::Spectator,
 ];
+const ICON_ITEMS: [Item; ICONS.len()] = [
+    Item::GrassBlock,
+    Item::IronSword,
+    Item::BuriedTreasureMap,
+    Item::EnderEye,
+];
 const SLOT_SIZE: i32 = 26;
+const ICON_INSET: i32 = 5;
 const SLOT_AREA_PADDED: i32 = 31;
 const ALL_SLOTS_WIDTH: i32 = ICONS.len() as i32 * SLOT_AREA_PADDED - 5;
 const WHITE: u32 = 0xFFFF_FFFF;
@@ -134,65 +150,81 @@ fn switch_game_mode(
     }
 }
 
+type IconStacks = [Option<ItemStack>; ICONS.len()];
+
+fn icon_stacks(table: &ItemTable) -> IconStacks {
+    ICON_ITEMS.map(|item| {
+        let id = table.id(NameTable::Item, item.location())?;
+        Some(ItemStack::new(Kind(id), Count::new(1)?))
+    })
+}
+
 pub fn draw(
     screen: Res<Screen>,
     atlas: Option<Res<GuiAtlas>>,
     language: Option<Res<ClientLanguage>>,
+    table: Option<Res<ItemTable>>,
+    icons: ItemIcons,
+    mut stacks: Local<IconStacks>,
     mut scene: ResMut<GuiScene>,
 ) {
+    if let Some(table) = table.filter(DetectChanges::is_changed) {
+        *stacks = icon_stacks(&table);
+    }
     let Screen::GameModeSwitcher(selected) = *screen else {
         return;
     };
     let (Some(atlas), Some(language)) = (atlas, language) else {
         return;
     };
-    let scene = &mut *scene;
-    switcher(
-        scene.size.width,
-        scene.size.height,
-        selected,
-        &atlas,
-        &language,
-        &mut scene.quads,
-    );
+    switcher(&mut scene, selected, &atlas, &language, &icons, &stacks);
 }
 
 fn switcher(
-    width: i32,
-    height: i32,
+    scene: &mut GuiScene,
     selected: GameMode,
     atlas: &GuiAtlas,
     language: &ClientLanguage,
-    out: &mut Vec<GuiQuad>,
+    icons: &ItemIcons,
+    stacks: &IconStacks,
 ) {
     let font = &atlas.0.font;
-    let (cx, cy) = (width / 2, height / 2);
-    out.push(sprite(
+    let (cx, cy) = (scene.size.width / 2, scene.size.height / 2);
+    scene.quads.push(sprite(
         IVec2::new(cx - 62, cy - SLOT_AREA_PADDED - 27),
         IVec2::new(125, 75),
         "container/gamemode_switcher",
     ));
     let name = [Span::new(language.get(selected.translation_key()), WHITE)];
-    draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, &name, out);
+    draw_centered_text(
+        font,
+        cx,
+        cy - SLOT_AREA_PADDED - 20,
+        &name,
+        &mut scene.quads,
+    );
     let key = vec![Span::new(language.get(SWITCH_KEY_NAME), AQUA)];
     let hint = language.translate("debug.gamemodes.select_next", WHITE, &[key]);
-    draw_centered_text(font, cx, cy + 5, &hint, out);
-    for (index, &mode) in ICONS.iter().enumerate() {
+    draw_centered_text(font, cx, cy + 5, &hint, &mut scene.quads);
+    for (index, (&mode, stack)) in ICONS.iter().zip(stacks).enumerate() {
         let at = IVec2::new(
             cx - ALL_SLOTS_WIDTH / 2 + index as i32 * SLOT_AREA_PADDED,
             cy - SLOT_AREA_PADDED,
         );
-        out.push(sprite(
+        scene.quads.push(sprite(
             at,
             IVec2::splat(SLOT_SIZE),
             "gamemode_switcher/slot",
         ));
         if mode == selected {
-            out.push(sprite(
+            scene.quads.push(sprite(
                 at,
                 IVec2::splat(SLOT_SIZE),
                 "gamemode_switcher/selection",
             ));
+        }
+        if let Some(stack) = stack {
+            icons.draw_stack(scene, at + ICON_INSET, stack, Overlays::None);
         }
     }
 }
@@ -296,6 +328,101 @@ mod tests {
         assert_eq!(*app.world().resource::<Screen>(), Screen::None);
         assert!(!overlay(&app));
         assert!(!app.world().resource::<Messages<ChatMessage>>().is_empty());
+    }
+
+    mod jar {
+        use std::sync::Arc;
+
+        use mcrs_minecraft_item_icon::{IconSources, StackOverlay, resolve};
+        use mcrs_minecraft_model::item_model_asset::DisplayContext;
+        use mcrs_minecraft_model::item_model_context::ItemModelContext;
+        use mcrs_minecraft_model::resource_set::ResourceSet;
+        use mcrs_minecraft_model::stack_view::StackView;
+        use mcrs_minecraft_resource::ResourceLocation;
+
+        use super::*;
+        use crate::menu_test_app::{ATLAS, MODELS, TABLE};
+        use crate::scene::{GuiQuad, GuiSize, SceneIcon};
+
+        fn expected_icon(name: &str) -> SceneIcon {
+            let location = ResourceLocation::read(name).unwrap();
+            let kind = Kind(TABLE.id(NameTable::Item, location).unwrap());
+            let stack = ItemStack::new(kind, Count::new(1).unwrap());
+            let view = StackView {
+                stack: &stack,
+                table: &TABLE,
+            };
+            let sources = IconSources {
+                models: &MODELS,
+                registries: None,
+            };
+            SceneIcon {
+                icon: resolve(view, &sources, &ItemModelContext::new(DisplayContext::Gui)),
+                overlay: StackOverlay {
+                    count: 1,
+                    durability: None,
+                },
+                overlays: Overlays::None,
+            }
+        }
+
+        #[test]
+        fn the_switcher_draws_the_icon_stack_of_each_entry_over_its_slot() {
+            let mut app = App::new();
+            app.insert_resource(Screen::GameModeSwitcher(GameMode::Survival))
+                .insert_resource(GuiScene {
+                    size: GuiSize {
+                        width: 427,
+                        height: 240,
+                        scale: 1,
+                    },
+                    ..GuiScene::default()
+                })
+                .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
+                .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+                .insert_resource(*TABLE)
+                .insert_resource(MODELS.clone())
+                .add_systems(Update, draw);
+            app.update();
+
+            let scene = app.world().resource::<GuiScene>();
+            let items = [
+                "minecraft:grass_block",
+                "minecraft:iron_sword",
+                "minecraft:buried_treasure_map",
+                "minecraft:ender_eye",
+            ];
+            assert_eq!(scene.icons, items.map(expected_icon));
+            let slot = |x: i32, region| sprite(IVec2::new(x, 89), IVec2::splat(26), region);
+            let icon = |x: i32, index| GuiQuad::Icon {
+                origin: IVec2::new(x + 5, 94),
+                index,
+            };
+            let drawn: Vec<GuiQuad> = scene
+                .quads
+                .iter()
+                .copied()
+                .filter(|quad| match quad {
+                    GuiQuad::Sprite { region, .. } => region.starts_with("gamemode_switcher/"),
+                    GuiQuad::Icon { .. } => true,
+                    _ => false,
+                })
+                .collect();
+            assert_eq!(
+                drawn,
+                [
+                    slot(154, "gamemode_switcher/slot"),
+                    icon(154, 0),
+                    slot(185, "gamemode_switcher/slot"),
+                    slot(185, "gamemode_switcher/selection"),
+                    icon(185, 1),
+                    slot(216, "gamemode_switcher/slot"),
+                    icon(216, 2),
+                    slot(247, "gamemode_switcher/slot"),
+                    icon(247, 3),
+                ]
+            );
+        }
     }
 
     fn mode(current: GameMode, previous: Option<GameMode>) -> LocalGameMode {

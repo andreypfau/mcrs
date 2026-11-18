@@ -10,7 +10,9 @@ use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
 use mcrs_minecraft_client_world::game_mode::GameModePlugin;
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
 use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
+use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_game_mode::{Abilities, GameMode, PlayerGameMode};
+use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_protocol::{Bounded, WritePacket};
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -60,7 +62,7 @@ pub(crate) fn world_folder(name: &str) -> PathBuf {
     folder
 }
 
-const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
+pub(crate) const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
 
 pub(crate) struct LocalWorld {
     pub(crate) app: App,
@@ -183,5 +185,22 @@ impl LocalWorld {
         let lock = SaveLock::take(&self.folder).expect("the server released the world");
         drop(lock);
         fs::remove_dir_all(&self.folder).ok();
+    }
+}
+
+pub(crate) fn discard_thrown_items(server: &mut App) {
+    server
+        .world_mut()
+        .get_resource_or_init::<DimensionBuilders>()
+        .add(add_item_discard);
+}
+
+fn add_item_discard(_: &World, _: &DimensionBuild<'_>, dimension: &mut SubApp) {
+    dimension.add_systems(FixedUpdate, discard_items);
+}
+
+fn discard_items(items: Query<Entity, With<ItemEntity>>, mut commands: Commands) {
+    for item in &items {
+        commands.entity(item).despawn();
     }
 }

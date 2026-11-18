@@ -5,6 +5,7 @@ use mcrs_minecraft_client_world::local_motion::LocalMotion;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_client_world::session::InSession;
+use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{EntityViews, FigureFrame, FigureView, FramePosed};
 use mcrs_minecraft_entity_visual::{
@@ -16,7 +17,7 @@ use mcrs_minecraft_pose::{Dimensions, Pose};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use uuid::Uuid;
 
-use crate::inventory_screen;
+use crate::menu_screen;
 use crate::scene::{GuiScene, window_framebuffer};
 
 const GUI_UNITS_PER_BLOCK: f32 = 30.0;
@@ -72,24 +73,28 @@ pub(crate) fn pose_inventory_figure(
     screen: Res<Screen>,
     scene: Res<GuiScene>,
     window: Single<&Window, With<PrimaryWindow>>,
-    player: Query<(&SyncedData, Option<&LocalMotion>), With<Player>>,
+    player: Query<(&SyncedData, Option<&LocalMotion>, Option<&Menus>), With<Player>>,
     mut figures: Query<
         (&mut Living, &mut Motion, &mut SyncedData),
         (With<InventoryFigure>, Without<Player>),
     >,
     mut view: ResMut<FigureView>,
 ) {
-    let invisible = player.iter().any(|(data, _)| data.is_invisible());
-    if *screen != Screen::Inventory || invisible {
+    let invisible = player.iter().any(|(data, ..)| data.is_invisible());
+    let inventory_open = player
+        .iter()
+        .filter_map(|(.., menus)| menus)
+        .any(|menus| menus.open().is_some() && menus.open() == menus.iter().next());
+    if *screen != Screen::Menu || !inventory_open || invisible {
         view.set_if_neq(FigureView(None));
         return;
     }
     let pose = player
         .iter()
-        .find_map(|(_, motion)| motion)
+        .find_map(|(_, motion, _)| motion)
         .map_or(Pose::Standing, |motion| motion.0.pose);
     let points = figure_points(
-        inventory_screen::window_corner(scene.size),
+        menu_screen::inventory_window_corner(scene.size),
         pose.player_dimensions(),
     );
     let angles = figure_angles(points.eye, scene.cursor.as_vec2());
@@ -184,7 +189,7 @@ pub(crate) fn figure_lights(tilt_degrees: f32) -> [Vec3; 2] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item_resolve::light_factor;
+    use mcrs_minecraft_item_icon::light_factor;
 
     const ORIGIN: IVec2 = IVec2::new(125, 37);
 

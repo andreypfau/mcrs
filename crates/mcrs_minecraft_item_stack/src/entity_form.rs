@@ -26,6 +26,7 @@ use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::Neutral;
 use crate::OminousBottleAmplifier;
+use crate::PaintingVariant;
 use crate::PotionContents;
 use crate::Profile;
 use crate::Rarity;
@@ -92,6 +93,8 @@ impl EntityForm for ChargedProjectiles {}
 impl EntityForm for Container {}
 
 impl EntityForm for ContainerLoot {}
+
+impl EntityForm for PaintingVariant {}
 
 impl EntityForm for FireworkExplosion {}
 

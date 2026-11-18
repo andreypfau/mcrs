@@ -402,7 +402,7 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 ### CCS-DRG-003: The end of a drag
 
 - **Inputs:** a release of the drag button while a drag is open, with the drag set `D`, when
-  neither CCS-DBL-002 nor CCS-DBL-003 gives the result of the release.
+  the checks 1 to 3 of CCS-DRG-004 are false.
 - **Behavior:**
   1. When `D` has one or more entries, the client sends these clicks of the click kind quick
      craft (`inventory-transactions.md`, ITX-JAV-014 and ITX-JAV-015), in this order:
@@ -425,14 +425,34 @@ Confidence: medium.
 
 ### CCS-DRG-004: The cancel of a drag
 
-- **Inputs:** a release of a mouse button that is not the drag button while a drag is open.
-- **Behavior:**
-  1. The drag closes with an empty drag set. The client sends no click.
-  2. The next release of a mouse button sends no click.
-- **Postconditions:** a player starts a drag with the left button, presses the right button and
-  releases it. No item moves. The release of the left button then also sends nothing.
+- **Inputs:** a mouse release of the button `b` in a menu screen.
+- **Behavior:** the client does these checks in this order. The first check that is true gives
+  the result of the release:
+  1. The double click: the last mouse press was a double click, and `b` is the left button.
+     CCS-DBL-002 or CCS-DBL-003 then gives the result, unless its step 1 or step 2 continues
+     the release. The open drag closes.
+  2. The cancel: a drag is open, and `b` is not the drag button. The drag closes with an empty
+     drag set. The client sends no click.
+  3. The skip: the release is the first release after one of these events, with no mouse press
+     between them. The client sends no click.
+     - a cancel of check 2;
+     - a press that sent a click (`client-inventory.md`, CINV-GES-001);
+     - the open of the screen (`client-inventory.md`, CINV-GES-002, postconditions).
+  4. Else CCS-DRG-003 gives the result when a drag is open. With no open drag,
+     `client-inventory.md`, CINV-GES-002, step 5, gives it.
+- **Postconditions:**
+  - A cancel does not stop a double click, because check 1 comes before checks 2 and 3. Only the
+    next mouse press changes the double click (CCS-DBL-001).
+  - Example: a player double clicks a stone stack with the left button. The first press picks up
+    the stack, and the second press opens a drag. The player presses the right button, releases
+    it, and releases the left button. These three events send no click. The press of the right
+    button is not a double click, so check 1 is false at the last release.
+  - Example: a player presses the right button in the empty area and holds it down. The player
+    then double clicks a stone stack with the left button. The player releases the right button,
+    and the drag closes. The release of the left button on the stack sends pick up all.
+  - A release of the right button never gives a pick up all.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### CCS-DRG-005: The preview in an entry of the drag set
 
@@ -456,18 +476,36 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CCS-DRG-006: The count of the cursor during a drag
 
-- **Inputs:** a drag of kind `k` with a drag set `D` of `z` entries, `z` ≥ 2.
-- **Behavior:** the stack at the mouse (CCS-LAY-006) has the count `r`:
-  - For `k` = 2, `r` is `max(C)`.
-  - For `k` = 0 or 1, `r` is `count(C)` minus the sum of `p(X) − count(X)` over the entries `X`
-    of `D`. `p(X)` is the preview count of CCS-DRG-005.
+- **Inputs:** a drag of kind `k` with a drag set `D` of `z` entries. `C` is the cursor, and it
+  holds a stack.
+- **Behavior:** the stack at the mouse (CCS-LAY-006) has the item and the components of `C`. Its
+  count `r` is the first of these that applies:
+  1. When `z` is 0 or 1, `r` is `count(C)`. This is true for each kind.
+  2. When `k` is 2, `r` is `max(C)`. The entries of `D` and their stacks have no effect on `r`.
+  3. When `k` is 0 or 1, `r` is `count(C)` minus the sum of `p(X) − count(X)` over the entries
+     `X` of `D`. `p(X)` is the preview count of CCS-DRG-005.
 
-  When `r` is 0 or less, nothing draws at the mouse. The client computes `r` when an entry joins
-  `D` or leaves it.
-- **Postconditions:** example: the cursor holds 10 stone, kind 0, and three empty entries. The
-  mouse shows 1 stone. With `z` ≤ 1, the mouse shows the stack of the cursor.
+  When `r` is 0 or less, nothing draws at the mouse: no item and no count text. Else the count
+  text shows `r` when `r` is not 1. The count text has the usual form of a slot (section 0.5). The
+  yellow text of CCS-DRG-005 does not apply to the stack at the mouse.
+- **Postconditions:**
+  - The cursor does not change before the release. Only the stack at the mouse shows `r`.
+  - For `k` = 0 or 1, `r` is the count of the cursor after the release, when the stacks of the
+    client equal those of the server (ITX-JAV-018).
+  - For `k` = 2, `r` does not show the result of the release. ITX-JAV-020 states that result. With
+    two empty entries, the cursor holds the empty stack after the release.
+  - Example: the cursor holds 10 stone, kind 0, and three empty entries. The mouse shows 1 stone.
+  - Example: the cursor holds 4 stone, kind 0, and two empty entries. Nothing draws at the mouse.
+  - Example: the creative flag is on, and the cursor holds 10 stone, kind 2, two empty entries.
+    The mouse shows 64 stone. With one entry, the mouse shows 10 stone.
+  - Example: the cursor holds 1 diamond sword, kind 2, and two empty entries. The mouse shows the
+    sword with no count text, because `max(C)` is 1.
+- **Edge cases:** the vanilla client computes `r` only when an entry joins `D` or leaves it. When
+  the server changes `C` and `D` does not change, the vanilla client keeps the old `r`. This rule
+  does not specify `r` in that case.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: medium.
+Provenance: `source_suggested`. Kind: layout; unspecified for a change of `C` with no change of
+`D`. Confidence: medium.
 
 ### CCS-DRG-007: Shift and a drag
 
@@ -499,7 +537,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
      target entry.
 - **Postconditions:**
   - A third press within 250 ms of the second press is also a double click.
-  - The double click acts at the release of the button (CCS-DBL-002, CCS-DBL-003).
+  - Each mouse press in the screen sets the double click again. A press of another button is not
+    a double click (condition 2). A release does not change the double click, and a cancel of
+    CCS-DRG-004 does not change it.
+  - The double click acts at a release of the left button, in check 1 of CCS-DRG-004 (CCS-DBL-002,
+    CCS-DBL-003).
   - `client-widget.md`, WID-PTR-002, states the double click of the other screens.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
@@ -514,6 +556,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. Else the client sends one click on `S` with the click kind pick up all and the button 0.
      The click has no other condition in the client. ITX-JAV-011 states its result.
   3. The open drag then closes with no click. CCS-DRG-003 does not apply to this release.
+
+  CCS-DRG-004 states the order of the checks. This check is the first, so a cancel before the
+  release does not stop it.
 - **Postconditions:**
   - In normal play, the first press picks up the stack of `S`. The second press opens a drag
     with that cursor stack. The release then gathers the stacks with the same item and
@@ -708,7 +753,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 | `v` < 0 | `attribute.modifier.take.<op>` with `−d` and the attribute name | the colour of a decrease |
 | `v` = 0 | no part | |
 
-  `<op>` is the id of the operation (STK-SHP-003). The attribute name is the translation
+  `<op>` is the numeric id of the operation (STK-SHP-003): 0 for `add_value`, 1 for
+  `add_multiplied_base` and 2 for `add_multiplied_total`. The attribute name is the translation
   `attribute.name.<name>`, where `<name>` is the path of the attribute entry.
 
 | Attributes | Colour of an increase | Colour of a decrease |
@@ -788,12 +834,15 @@ key of the client takes at the GUI scale 2.
 - **E3** (proxy). Send `open_screen` while the chat screen is open, and while a chest screen is
   open. Expect CCS-OPN-001.
 - **E4.** Hold 10 stone. Drag with the left button over three empty slots. Take a screenshot
-  before the release. Read the clicks after the release. Expect CCS-DRG-001 to CCS-DRG-003,
-  CCS-DRG-005, CCS-DRG-006, CCS-LAY-005 and CCS-LAY-006.
+  before the release. Read the clicks after the release. Repeat with 4 stone over two slots. In
+  creative mode, repeat with the pick key and 10 stone over one slot and over two slots. Expect
+  CCS-DRG-001 to CCS-DRG-003, CCS-DRG-005, CCS-DRG-006, CCS-LAY-005 and CCS-LAY-006.
 - **E5.** Hold 64 stone. Drag with the right button over a slot with 63 stone and an empty slot.
   Take a screenshot before the release. Expect CCS-DRG-002 and CCS-DRG-005.
 - **E6.** Start a drag with the left button. Press and release the right button, then release the
-  left button. Expect CCS-DRG-004.
+  left button. Then hold the right button down in the empty area, double click a stone stack with
+  the left button, and release the right button and then the left button. Expect CCS-DRG-004,
+  CCS-DBL-001 and CCS-DBL-002.
 - **E7.** Hold a stack, press Shift and drag over one slot, then over three slots. Expect
   CCS-DRG-007.
 - **E8.** Double click a stack of 20 stone with three other stone stacks in the menu, at 200 ms
