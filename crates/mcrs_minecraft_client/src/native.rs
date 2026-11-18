@@ -197,6 +197,7 @@ pub fn run() -> AppExit {
         ClientPlugins(knobs.clone())
             .build()
             .set(ClientRegistriesPlugin {
+                defer_definitions: true,
                 local_corpus: Some(DirectoryPacks::new(
                     FileAssetReader::get_base_path().join(&assets),
                     data_pack.clone(),
@@ -284,9 +285,13 @@ pub fn run() -> AppExit {
             profile_id: None,
             view_distance,
         };
-        app.add_systems(Startup, move |mut requests: MessageWriter<JoinRequest>| {
-            requests.write(join.clone());
-        });
+        app.add_systems(
+            Update,
+            (move |mut requests: MessageWriter<JoinRequest>| {
+                requests.write(join.clone());
+            })
+            .run_if(resource_added::<mcrs_minecraft_block::definition::Blocks>),
+        );
     }
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();

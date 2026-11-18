@@ -43,6 +43,7 @@ pub fn boot(extra: impl FnOnce(&mut App)) -> App {
     })
     .add_plugins(ClientRegistriesPlugin {
         local_corpus: Some(test_packs()),
+        ..default()
     });
     extra(&mut app);
     app.finish();
