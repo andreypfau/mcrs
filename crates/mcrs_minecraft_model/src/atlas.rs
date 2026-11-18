@@ -149,6 +149,7 @@ impl SpriteRegistry {
                     .sprites
                     .extend(permutations.iter().map(|(sprite, _)| sprite.clone()));
                 self.item_atlas.directories.extend(sources.directories());
+                self.item_atlas.sprites.extend(sources.singles());
             }
             self.permutations.extend(permutations);
         }
@@ -439,6 +440,11 @@ enum AtlasSource {
     },
     #[serde(rename = "minecraft:directory", alias = "directory")]
     Directory { source: String, prefix: String },
+    #[serde(rename = "minecraft:single", alias = "single")]
+    Single {
+        resource: String,
+        sprite: Option<String>,
+    },
     #[serde(other)]
     Other,
 }
@@ -454,7 +460,20 @@ impl AtlasSources {
                 source: source.clone(),
                 prefix: prefix.clone(),
             }),
-            AtlasSource::PalettedPermutations { .. } | AtlasSource::Other => None,
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Single { .. }
+            | AtlasSource::Other => None,
+        })
+    }
+
+    fn singles(&self) -> impl Iterator<Item = String> + '_ {
+        self.sources.iter().filter_map(|source| match source {
+            AtlasSource::Single { resource, sprite } => {
+                Some(resource_id::full_id(sprite.as_ref().unwrap_or(resource)))
+            }
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Directory { .. }
+            | AtlasSource::Other => None,
         })
     }
 
