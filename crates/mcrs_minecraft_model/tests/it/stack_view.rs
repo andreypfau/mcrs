@@ -515,10 +515,13 @@ fn a_stack_view_evaluates_the_item_model_properties() {
             Outcome::Tint(0xFFF8_2423),
         ),
         (
-            "a night vision potion has the colour of its effect",
-            potion_stack(Potion::NightVision, vec![]),
+            "custom effects alone give the colour without a potion",
+            one(ARROW).set(PotionContents {
+                custom_effects: vec![effect(MobEffect::Speed, 0, true)],
+                ..PotionContents::default()
+            }),
             &potion,
-            Outcome::Tint(0xFFC2_FF66),
+            Outcome::Tint(0xFF33_EBFF),
         ),
         (
             "the effects of a potion mix by amplifier",
