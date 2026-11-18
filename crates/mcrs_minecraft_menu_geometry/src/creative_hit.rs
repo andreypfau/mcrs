@@ -1,8 +1,9 @@
+use crate::CreativeTabIndex;
 use crate::creative_geometry::HOTBAR_MENU_START;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CreativeHit {
-    Tab(usize),
+    Tab(CreativeTabIndex),
     GridSlot(u16),
     HotbarSlot(u16),
     InventoryEntry(u16),

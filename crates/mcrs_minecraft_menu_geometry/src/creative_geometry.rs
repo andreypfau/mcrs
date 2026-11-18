@@ -3,9 +3,9 @@ use mcrs_minecraft_client_widget::GuiRect;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
 
-use crate::CREATIVE_TABS;
 use crate::CreativeHit;
 use crate::CreativeTab;
+use crate::CreativeTabIndex;
 use crate::CreativeTabKind;
 use crate::VisibleTabs;
 use crate::grid::Grid;
@@ -175,7 +175,11 @@ impl CreativeGeometry {
     }
 
     #[must_use]
-    pub fn tab_under(window: GuiPoint, pointer: GuiPoint, visible: VisibleTabs) -> Option<usize> {
+    pub fn tab_under(
+        window: GuiPoint,
+        pointer: GuiPoint,
+        visible: VisibleTabs,
+    ) -> Option<CreativeTabIndex> {
         tab_at(local(window, pointer), visible, CreativeTab::hover_rect)
     }
 }
@@ -191,12 +195,9 @@ fn tab_at(
     local: GuiPoint,
     visible: VisibleTabs,
     area: fn(&CreativeTab) -> GuiRect,
-) -> Option<usize> {
-    CREATIVE_TABS
-        .iter()
-        .enumerate()
-        .find(|(index, tab)| visible.contains(*index) && area(tab).contains_point(local))
-        .map(|(index, _)| index)
+) -> Option<CreativeTabIndex> {
+    CreativeTabIndex::all()
+        .find(|tab| visible.contains(*tab) && area(tab.tab()).contains_point(local))
 }
 
 fn in_entry(corner: GuiPoint, local: GuiPoint) -> bool {

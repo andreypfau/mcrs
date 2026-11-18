@@ -3,13 +3,25 @@ use mcrs_minecraft_keys::creative_mode_tab;
 use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
 use mcrs_minecraft_menu_geometry::CreativeGeometry;
 use mcrs_minecraft_menu_geometry::CreativeHit;
+use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_menu_geometry::VisibleTabs;
 
-const BUILDING_BLOCKS: usize = 0;
-const COLORED_BLOCKS: usize = 1;
-const SEARCH: usize = 6;
-const INVENTORY: usize = 13;
+const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
+const COLORED_BLOCKS: CreativeTabIndex = tab(1);
+const SEARCH: CreativeTabIndex = tab(6);
+const INVENTORY: CreativeTabIndex = tab(13);
+
+#[expect(
+    clippy::panic,
+    reason = "a constant evaluation fails the build for an index out of the tab table"
+)]
+const fn tab(index: usize) -> CreativeTabIndex {
+    match CreativeTabIndex::new(index) {
+        Some(tab) => tab,
+        None => panic!("the creative tabs hold the index"),
+    }
+}
 
 #[test]
 fn the_tabs_follow_the_registry_order() {
@@ -57,9 +69,9 @@ fn the_slots_have_their_item_positions() {
 fn the_pointer_hits_one_part_of_the_screen() {
     use CreativeHit::*;
     use CreativeTabKind::*;
-    let all = (0..CREATIVE_TABS.len()).fold(VisibleTabs::always(), VisibleTabs::with);
-    let without_colored = (0..CREATIVE_TABS.len())
-        .filter(|&index| index != COLORED_BLOCKS)
+    let all = CreativeTabIndex::all().fold(VisibleTabs::always(), VisibleTabs::with);
+    let without_colored = CreativeTabIndex::all()
+        .filter(|&tab| tab != COLORED_BLOCKS)
         .fold(VisibleTabs::NONE, VisibleTabs::with);
     let window = CreativeGeometry::window(427, 240);
     assert_eq!(window, GuiPoint::new(116, 52));
@@ -109,7 +121,7 @@ fn the_pointer_hits_one_part_of_the_screen() {
 
 #[test]
 fn the_hover_rectangle_gives_the_tab_title() {
-    let all = (0..CREATIVE_TABS.len()).fold(VisibleTabs::always(), VisibleTabs::with);
+    let all = CreativeTabIndex::all().fold(VisibleTabs::always(), VisibleTabs::with);
     let window = GuiPoint::new(10, 40);
     let cases = [
         (2, -30, all, Some(BUILDING_BLOCKS)),

@@ -2,12 +2,11 @@ use std::ops::Range;
 
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::CustomName;
-use mcrs_minecraft_item_stack::ItemName;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_item_tooltip::item_name;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -94,14 +93,8 @@ impl CreativeSearchIndex {
     }
 
     fn push_name(&mut self, stack: &ItemStack, items: &ItemTable, language: &ClientLanguage) {
-        let name = match items.effective::<CustomName>(stack) {
-            Some(CustomName(text)) => Some(text),
-            None => items
-                .effective::<ItemName>(stack)
-                .map(|ItemName(text)| text),
-        };
-        if let Some(name) = name {
-            let part = search_part(&language.plain_text(name));
+        if let Some(name) = item_name(stack, items) {
+            let part = search_part(&language.plain_text(&name));
             if !part.is_empty() {
                 self.parts.push(part);
             }

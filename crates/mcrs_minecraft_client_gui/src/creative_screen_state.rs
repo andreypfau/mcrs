@@ -3,15 +3,14 @@ use mcrs_minecraft_client_widget::EditBox;
 use mcrs_minecraft_client_widget::LengthUnit;
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
 use mcrs_minecraft_menu_geometry::CreativeGeometry;
 use mcrs_minecraft_menu_geometry::CreativeTab;
+use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 
 use crate::creative_tab_content::CreativeTabContent;
 use crate::creative_tab_view::CreativeTabView;
 
-const FIRST_TAB: usize = 0;
 const SEARCH_MAX_LENGTH: usize = 50;
 const SEARCH_TEXT_COLOR: u32 = 0xFFFF_FFFF;
 
@@ -23,7 +22,7 @@ enum SearchReset {
 
 #[derive(Resource, Clone, Debug)]
 pub struct CreativeScreenState {
-    selected: usize,
+    selected: CreativeTabIndex,
     scroll: f64,
     content_len: usize,
     search: EditBox,
@@ -40,7 +39,7 @@ impl Default for CreativeScreenState {
         search.invert = false;
         search.can_lose_focus = false;
         Self {
-            selected: FIRST_TAB,
+            selected: CreativeTabIndex::FIRST,
             scroll: 0.0,
             content_len: 0,
             search,
@@ -55,12 +54,12 @@ impl CreativeScreenState {
         let tab = if content.visible_tabs().contains(self.selected) {
             self.selected
         } else {
-            FIRST_TAB
+            CreativeTabIndex::FIRST
         };
         self.apply_selection(tab, SearchReset::Clear, content);
     }
 
-    pub fn select(&mut self, tab: usize, content: &CreativeTabContent) {
+    pub fn select(&mut self, tab: CreativeTabIndex, content: &CreativeTabContent) {
         if !content.visible_tabs().contains(tab) {
             return;
         }
@@ -100,7 +99,7 @@ impl CreativeScreenState {
         if self.selected_tab().kind == CreativeTabKind::Items
             && content.tab_list(self.selected).is_empty()
         {
-            self.apply_selection(FIRST_TAB, SearchReset::Clear, content);
+            self.apply_selection(CreativeTabIndex::FIRST, SearchReset::Clear, content);
             return;
         }
         let before = CreativeGeometry::row_count(self.content_len);
@@ -116,14 +115,13 @@ impl CreativeScreenState {
     }
 
     #[must_use]
-    pub fn selected(&self) -> usize {
+    pub fn selected(&self) -> CreativeTabIndex {
         self.selected
     }
 
     #[must_use]
-    pub fn selected_tab(&self) -> CreativeTab {
-        let [first, ..] = CREATIVE_TABS;
-        CREATIVE_TABS.get(self.selected).copied().unwrap_or(first)
+    pub fn selected_tab(&self) -> &'static CreativeTab {
+        self.selected.tab()
     }
 
     #[must_use]
@@ -172,10 +170,12 @@ impl CreativeScreenState {
         self.content(content).get(index)
     }
 
-    fn apply_selection(&mut self, tab: usize, reset: SearchReset, content: &CreativeTabContent) {
-        if tab >= CREATIVE_TABS.len() {
-            return;
-        }
+    fn apply_selection(
+        &mut self,
+        tab: CreativeTabIndex,
+        reset: SearchReset,
+        content: &CreativeTabContent,
+    ) {
         self.selected = tab;
         if reset == SearchReset::Clear {
             self.search.set("");

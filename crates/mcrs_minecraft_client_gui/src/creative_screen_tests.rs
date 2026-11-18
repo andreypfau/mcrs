@@ -5,15 +5,20 @@ use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_creative_content::OperatorCondition;
+use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_creative_report::CreativeReport;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
+use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -21,18 +26,26 @@ use mcrs_minecraft_resource::rl;
 
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
+use crate::creative_search_index::CreativeSearchIndex;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::menu_test_app::TABLE;
 
-const BUILDING_BLOCKS: usize = 0;
-const COLORED_BLOCKS: usize = 1;
-const SAVED_HOTBARS: usize = 5;
-const SEARCH: usize = 6;
-const OP_BLOCKS: usize = 12;
-const SURVIVAL_INVENTORY: usize = 13;
+const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
+const COLORED_BLOCKS: CreativeTabIndex = tab(1);
+const SAVED_HOTBARS: CreativeTabIndex = tab(5);
+const SEARCH: CreativeTabIndex = tab(6);
+const OP_BLOCKS: CreativeTabIndex = tab(12);
+const SURVIVAL_INVENTORY: CreativeTabIndex = tab(13);
+
+const fn tab(index: usize) -> CreativeTabIndex {
+    match CreativeTabIndex::new(index) {
+        Some(tab) => tab,
+        None => panic!("the creative tabs hold the index"),
+    }
+}
 
 static REPORT: LazyLock<LoadedCreativeReport> = LazyLock::new(LoadedCreativeReport::embedded);
 
@@ -247,7 +260,7 @@ fn a_change_of_the_content_keeps_the_first_visible_row() {
 struct SelectRow {
     name: &'static str,
     steps: fn(&mut CreativeScreenState, &CreativeTabContent),
-    selected: usize,
+    selected: CreativeTabIndex,
     text: &'static str,
 }
 
@@ -405,6 +418,26 @@ fn the_search_text_filters_the_search_list_by_name_id_and_tag() {
 }
 
 #[test]
+fn the_search_finds_a_player_head_by_the_name_of_its_player() {
+    let id = TABLE
+        .id(NameTable::Item, rl!("minecraft:player_head"))
+        .expect("the player head is an item");
+    let head = ItemStack::new(Kind(id), Count::new(1).expect("a count above 0"));
+    let named = head
+        .clone()
+        .set(Profile::named("Steve").expect("a valid player name"));
+    let index = CreativeSearchIndex::build(
+        &[named, head],
+        &TABLE,
+        test_registries(),
+        Some(ClientLanguage::corpus()),
+    );
+    let query = SearchQuery::new("steve");
+    assert!(index.matches(0, &query), "the named head is found");
+    assert!(!index.matches(1, &query), "a head without a profile is not");
+}
+
+#[test]
 fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab() {
     let only_building_blocks = sized(10);
     let visible = only_building_blocks.visible_tabs();
@@ -416,7 +449,7 @@ fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab()
         (OP_BLOCKS, false),
         (SURVIVAL_INVENTORY, true),
     ] {
-        assert_eq!(visible.contains(tab), shown, "tab {tab}");
+        assert_eq!(visible.contains(tab), shown, "tab {}", tab.index());
     }
     assert!(
         VANILLA_OPERATOR.visible_tabs().contains(OP_BLOCKS),
@@ -430,17 +463,6 @@ fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab()
         VANILLA_OPERATOR.search_list().len() > VANILLA.search_list().len(),
         "the search list holds the operator stacks only with the condition"
     );
-
-    let mut state = opened(&VANILLA_OPERATOR);
-    state.select(OP_BLOCKS, &VANILLA_OPERATOR);
-    state.wheel(-1.0, &VANILLA_OPERATOR);
-    state.content_changed(&VANILLA);
-    assert_eq!(
-        state.selected(),
-        BUILDING_BLOCKS,
-        "a deop leaves the operator tab"
-    );
-    assert_scroll(state.scroll(), 0.0, "after the fallback");
 
     let mut state = opened(&VANILLA_OPERATOR);
     state.select(OP_BLOCKS, &VANILLA_OPERATOR);

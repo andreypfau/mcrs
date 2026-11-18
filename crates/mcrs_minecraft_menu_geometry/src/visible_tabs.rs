@@ -1,5 +1,6 @@
 use crate::CREATIVE_TABS;
 use crate::CreativeTab;
+use crate::CreativeTabIndex;
 use crate::CreativeTabKind;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -15,7 +16,7 @@ impl VisibleTabs {
         let mut tabs: &[CreativeTab] = &CREATIVE_TABS;
         while let [tab, rest @ ..] = tabs {
             if !matches!(tab.kind, CreativeTabKind::Items) {
-                visible = visible.with(index);
+                visible = visible.with_bit(index);
             }
             index += 1;
             tabs = rest;
@@ -24,18 +25,22 @@ impl VisibleTabs {
     }
 
     #[must_use]
-    pub const fn with(self, index: usize) -> Self {
-        match bit(index) {
-            Some(bit) => Self(self.0 | bit),
-            None => self,
-        }
+    pub const fn with(self, tab: CreativeTabIndex) -> Self {
+        self.with_bit(tab.index())
     }
 
     #[must_use]
-    pub const fn contains(self, index: usize) -> bool {
-        match bit(index) {
+    pub const fn contains(self, tab: CreativeTabIndex) -> bool {
+        match bit(tab.index()) {
             Some(bit) => self.0 & bit != 0,
             None => false,
+        }
+    }
+
+    const fn with_bit(self, index: usize) -> Self {
+        match bit(index) {
+            Some(bit) => Self(self.0 | bit),
+            None => self,
         }
     }
 }

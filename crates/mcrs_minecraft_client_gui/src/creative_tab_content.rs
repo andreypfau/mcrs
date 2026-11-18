@@ -6,7 +6,7 @@ use mcrs_minecraft_creative_report::CreativeReport;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
+use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_menu_geometry::VisibleTabs;
 use mcrs_minecraft_registries::Registries;
@@ -68,9 +68,10 @@ impl CreativeTabContent {
             inputs.language,
         );
         let mut visible = VisibleTabs::always();
-        for (index, tab) in CREATIVE_TABS.iter().enumerate() {
-            if tab.kind == CreativeTabKind::Items && !lists.tab_list(tab.id).is_empty() {
-                visible = visible.with(index);
+        for tab in CreativeTabIndex::all() {
+            if tab.tab().kind == CreativeTabKind::Items && !lists.tab_list(tab.tab().id).is_empty()
+            {
+                visible = visible.with(tab);
             }
         }
         Self {
@@ -82,11 +83,8 @@ impl CreativeTabContent {
     }
 
     #[must_use]
-    pub fn tab_list(&self, tab: usize) -> &[ItemStack] {
-        CREATIVE_TABS
-            .get(tab)
-            .map(|tab| self.lists.tab_list(tab.id))
-            .unwrap_or_default()
+    pub fn tab_list(&self, tab: CreativeTabIndex) -> &[ItemStack] {
+        self.lists.tab_list(tab.tab().id)
     }
 
     #[must_use]
