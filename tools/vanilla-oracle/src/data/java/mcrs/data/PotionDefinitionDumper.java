@@ -39,8 +39,6 @@ public final class PotionDefinitionDumper {
                 failure.printStackTrace();
             }
         }
-        write(root.resolve("mob_effect.json"), effects, "effects");
-
         JsonObject potions = new JsonObject();
         for (Identifier id : sortedKeys(BuiltInRegistries.POTION)) {
             try {
@@ -64,6 +62,10 @@ public final class PotionDefinitionDumper {
                 failure.printStackTrace();
             }
         }
+        if (!failed.isEmpty()) {
+            return failed;
+        }
+        write(root.resolve("mob_effect.json"), effects, "effects");
         write(root.resolve("potion.json"), potions, "potions");
         return failed;
     }
