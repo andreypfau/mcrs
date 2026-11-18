@@ -6203,6 +6203,8 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",

@@ -1,4 +1,4 @@
-use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation, ResourceLocationBuf};
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -8,7 +8,12 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_item::TrimMaterial;
 use mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
-use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
+use mcrs_minecraft_item::{ComponentPredicate, DyeColor, RgbInt};
+use mcrs_minecraft_item_stack::Builtin;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::SavedError;
+use mcrs_minecraft_item_stack::read_saved_component;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Named;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -532,7 +537,7 @@ impl Validate for SelectSwitch {
 #[derive(Debug, Clone)]
 pub struct ComponentSwitch {
     pub component: DataComponentType,
-    pub cases: Vec<Case<ItemComponentValue<Named>>>,
+    pub cases: Vec<Case<ComponentCase>>,
 }
 
 impl Serialize for ComponentSwitch {
@@ -563,16 +568,70 @@ impl<'de> Deserialize<'de> for ComponentSwitch {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ComponentCase {
+    pub saved: NbtTag,
+    pub value: Option<Builtin>,
+}
+
+impl PartialEq for ComponentCase {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.value, &other.value) {
+            (Some(value), Some(other)) => value == other,
+            _ => self.saved == other.saved,
+        }
+    }
+}
+
+impl Serialize for ComponentCase {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Serialize::serialize(&self.saved, s)
+    }
+}
+
+struct NoNames;
+
+impl NameLookup for NoNames {
+    fn id(&self, _: NameTable, _: ResourceLocation<'_>) -> Option<u16> {
+        None
+    }
+
+    fn name(&self, _: NameTable, _: u16) -> Option<ResourceLocation<'_>> {
+        None
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ComponentCaseSeed(DataComponentType);
+
+impl<'de> DeserializeSeed<'de> for ComponentCaseSeed {
+    type Value = ComponentCase;
+
+    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
+        let saved: NbtTag = Deserialize::deserialize(d)?;
+        let value = match read_saved_component(self.0.location(), &saved, &NoNames) {
+            Ok(value) => value,
+            Err(
+                SavedError::UnknownEntry { .. }
+                | SavedError::UnnamedId(_)
+                | SavedError::UnknownItem,
+            ) => None,
+            Err(error) => return Err(D::Error::custom(error)),
+        };
+        Ok(ComponentCase { saved, value })
+    }
+}
+
 struct CasesSeed(DataComponentType);
 
 impl<'de> DeserializeSeed<'de> for CasesSeed {
-    type Value = (DataComponentType, Vec<Case<ItemComponentValue<Named>>>);
+    type Value = (DataComponentType, Vec<Case<ComponentCase>>);
 
     fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
         struct Cases(DataComponentType);
 
         impl<'de> Visitor<'de> for Cases {
-            type Value = Vec<Case<ItemComponentValue<Named>>>;
+            type Value = Vec<Case<ComponentCase>>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a list of cases")
@@ -580,7 +639,7 @@ impl<'de> DeserializeSeed<'de> for CasesSeed {
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let mut out = Vec::new();
-                while let Some(case) = seq.next_element_seed(CaseSeed(self.0))? {
+                while let Some(case) = seq.next_element_seed(CaseSeed(ComponentCaseSeed(self.0)))? {
                     out.push(case);
                 }
                 Ok(out)
@@ -927,7 +986,8 @@ mod tests {
 
     #[test]
     fn the_component_switch_reads_its_cases_with_the_components_codec() {
-        use mcrs_minecraft_item::DyedColor;
+        use mcrs_minecraft_item_stack::ArgbColor;
+        use mcrs_minecraft_item_stack::DyedColor;
 
         let item = model(&format!(
             r#"{{"type": "minecraft:select", "property": "minecraft:component", "component": "minecraft:dyed_color", "cases": [{{"when": [255, [1.0, 0.0, 0.0]], "model": {LEAF}}}]}}"#
@@ -941,11 +1001,16 @@ mod tests {
             panic!("{:?}", item.model);
         };
         assert_eq!(switch.component, DataComponentType::DyedColor);
+        let values: Vec<Option<&Builtin>> = switch.cases[0]
+            .when
+            .iter()
+            .map(|case| case.value.as_ref())
+            .collect();
         assert_eq!(
-            switch.cases[0].when,
+            values,
             [
-                ItemComponentValue::DyedColor(DyedColor(RgbInt(255))),
-                ItemComponentValue::DyedColor(DyedColor(RgbInt(-65536))),
+                Some(&Builtin::DyedColor(DyedColor(ArgbColor(255)))),
+                Some(&Builtin::DyedColor(DyedColor(ArgbColor(-65536)))),
             ]
         );
     }

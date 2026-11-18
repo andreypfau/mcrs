@@ -13,7 +13,6 @@ use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_protocol_game::item::ItemModel;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
-use mcrs_minecraft_model::colormap::colormap_rgba;
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
 use mcrs_minecraft_model::item_model_eval::{EntityStack, Evaluator};
 use mcrs_minecraft_model_file::model_file::{DisplayTransform, GuiLight};
@@ -93,13 +92,10 @@ pub fn resolve<'a>(
         lookup,
     };
     let foil = stack.has_foil();
-    let grass = |temperature, downfall| {
-        colormap_rgba(models.grass_colormap.as_deref(), temperature, downfall)
-    };
     let evaluator = Evaluator {
         stack,
         registries,
-        grass: &grass,
+        grass_colormap: models.grass_colormap.as_deref(),
     };
     let mut layers = Vec::new();
     collect(&evaluator, item, &mut layers);
@@ -362,10 +358,6 @@ mod tests {
         world.get_mut::<StackRevision>(stack).unwrap().0 += 1;
     }
 
-    fn grass(temperature: f32, downfall: f32) -> Option<[f32; 4]> {
-        colormap_rgba(models().grass_colormap.as_deref(), temperature, downfall)
-    }
-
     fn eval<'w>(
         world: &'w World,
         stack: Entity,
@@ -378,7 +370,7 @@ mod tests {
                 lookup: move |child| world.get_entity(child).ok(),
             },
             registries: None,
-            grass: &grass,
+            grass_colormap: models().grass_colormap.as_deref(),
         }
     }
 
