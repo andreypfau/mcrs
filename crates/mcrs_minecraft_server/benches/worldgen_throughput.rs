@@ -111,6 +111,17 @@ fn start(seed: u64) -> App {
     app
 }
 
+fn process_cpu() -> Duration {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+    // SAFETY: `usage` is a valid, writable rusage and RUSAGE_SELF is a valid target.
+    let status = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+    assert_eq!(status, 0, "getrusage reads the usage of this process");
+    // SAFETY: getrusage returned 0, so it filled the struct.
+    let usage = unsafe { usage.assume_init() };
+    let micros = |time: libc::timeval| time.tv_sec as u64 * 1_000_000 + time.tv_usec as u64;
+    Duration::from_micros(micros(usage.ru_utime) + micros(usage.ru_stime))
+}
+
 fn tick(app: &mut App) {
     app.update();
     runner::between_ticks(app);
@@ -187,6 +198,7 @@ fn main() {
     let mut loading = world
         .get_mut::<ColumnLoading>(dim)
         .expect("the dimension loads columns");
+    let cpu_started = process_cpu();
     let started = Instant::now();
     for &column in &tickets {
         loading.add_ticket(column);
@@ -196,6 +208,11 @@ fn main() {
     loop {
         tick(&mut app);
         ticks += 1;
+        assert!(
+            app.should_exit().is_none(),
+            "the app exited while loading columns: {:?}",
+            app.should_exit()
+        );
         let done = loaded(cell(&mut app, label), &columns);
         if done == columns.len() {
             break;
@@ -207,6 +224,7 @@ fn main() {
         );
     }
     let wall = started.elapsed();
+    let cpu = process_cpu().saturating_sub(cpu_started);
 
     let count = columns.len() as f64;
     println!(
@@ -220,10 +238,10 @@ fn main() {
         boot.as_secs_f64()
     );
     println!(
-        "wall={:.0} ms  ticks={ticks}  {:.1} columns/s  {:.2} ms/column  {:.2} thread-ms/column",
+        "wall={:.0} ms  ticks={ticks}  {:.1} columns/s  {:.2} ms/column  {:.2} cpu-ms/column",
         wall.as_secs_f64() * 1e3,
         count / wall.as_secs_f64(),
         wall.as_secs_f64() * 1e3 / count,
-        wall.as_secs_f64() * 1e3 * threads as f64 / count,
+        cpu.as_secs_f64() * 1e3 / count,
     );
 }
