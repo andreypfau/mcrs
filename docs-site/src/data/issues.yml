@@ -5,9 +5,9 @@
 82: { state: wip }
 85: { state: works }
 102: { state: partial }
-129: { state: wip }
-130: { state: wip }
-131: { state: wip }
+129: { state: works }
+130: { state: partial }
+131: { state: partial }
 136: { state: wip }
 137: { state: wip }
 142: { state: wip }

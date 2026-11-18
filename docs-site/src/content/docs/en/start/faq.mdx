@@ -12,13 +12,14 @@ sources:
   - docs/clean-room.md
   - assets/minecraft/version.json
   - examples/README.md
+  - examples/inventory_bot_click/README.md
   - src/main.rs
   - issue:437
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -63,7 +64,7 @@ Not yet. They will exist, but there is no issue for them. Until then you build f
 
 ## Can I publish my own plugin as a crate, or use mcrs crates?
 
-Crates are not on crates.io, but you can depend on a git commit.[^321] Five small programs use the crates as a library, among them a status ping without Bevy and a checker for the loot tables of a data pack. They are in [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples). The minimal server, lobby and arena examples are not written yet.[^287] See [Crates overview](/docs/en/crates/overview/).
+Crates are not on crates.io, but you can depend on a git commit.[^321] Six small programs use the crates as a library, among them a status ping without Bevy, a checker for the loot tables of a data pack and a bot that clicks in its inventory without a window. They are in [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples). The minimal server, lobby and arena examples are not written yet.[^287] See [Crates overview](/docs/en/crates/overview/).
 
 ## How do I follow progress?
 

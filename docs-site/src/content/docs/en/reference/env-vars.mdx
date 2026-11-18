@@ -12,6 +12,7 @@ sources:
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client/src/dev/knobs.rs
   - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client/src/game_directory.rs
   - crates/mcrs_minecraft_client_options/src/client_options.rs
   - src/main.rs
   - docs/spec/proxy-forwarding.md
@@ -19,8 +20,8 @@ sources:
   - issue:278
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import Status from '~/components/Status.astro';
 
@@ -69,14 +70,15 @@ A client built with `singleplayer` has an integrated server, and that server als
 
 | Variable | Default | What it does | File |
 |---|---|---|---|
-| `MCRS_SERVER` | none | `host:port` of a server to join. Without it, a singleplayer build hosts its own server. | `native.rs` |
+| `MCRS_SERVER` | none | `host:port` of a server to join. Without it, a singleplayer build opens the title screen and hosts its own server for the world you pick. | `native.rs` |
+| `MCRS_GAME_DIR` | the data folder of the platform | The game directory, which holds the worlds in `saves`, `options.json`, `command_history.txt` and the `ops.json` of the integrated server. Without the variable the client takes `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows. When it finds no game directory, it keeps no options and no command history. | `game_directory.rs` |
 | `MCRS_USERNAME` | `Player` | Player name. | `config.rs` |
 | `MCRS_VIEW` | `96` | Render distance in columns, 2 to 96. Wins over the options file. | `config.rs` |
-| `MCRS_OPTIONS` | `options.json` in the world folder | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate` and `improved_transparency`. Unknown fields are an error. Without the variable, a client started with a world folder reads `options.json` there if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
+| `MCRS_OPTIONS` | `options.json` in the game directory | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate` and `improved_transparency`. Unknown fields are an error. Without the variable, the client reads `options.json` in the game directory if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
 | `MCRS_FULLSCREEN` | options file (off) | Take over a whole display. Wins over the options file. Ignored when `MCRS_RESOLUTION` is set. | `config.rs` |
 | `MCRS_OPEN_TO_LAN` | off | The integrated server listens on every interface and announces itself. There is no authentication, so anyone on the network can join under any name. | `config.rs` |
 | `MCRS_GUI_SCALE` | options file (`0`, auto) | Fixed GUI scale. Wins over the options file and the menu. | `config.rs` |
-| `MCRS_HISTORY` | none | File that keeps the command history. | `config.rs` |
+| `MCRS_HISTORY` | `command_history.txt` in the game directory | File that keeps the command history. | `config.rs` |
 | `MCRS_VSYNC` | options file (off) | Vertical sync. Off by default so frame times stay readable. Wins over the options file. | `config.rs` |
 | `MCRS_OCCLUSION` | on | Depth pyramid occlusion test. `0` draws every group that passes the frustum and cave graph. | `config.rs` |
 | `MCRS_CAVE` | on | Cave graph culling. | `config.rs` |
@@ -110,7 +112,7 @@ Do not set the variables in this section for normal play. They change on purpose
 | `MCRS_SKY` | all | Comma list of sky passes to draw: `disc,twilight,celestial,stars,clouds`. |
 | `MCRS_FLY`, `MCRS_TURN` | none | Scripted flight: the player flies forward at a sprint with this flying speed (the default ability is 0.05), and turns round once after `MCRS_TURN` seconds. |
 | `MCRS_TIME` | none | Pins every clock to a tick count. |
-| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen to open (`inventory`, `pause`, `options`, `video` or `accessibility`) and a cursor position, for scripted captures. |
+| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen to open (`title` by default, `none`, `inventory`, `pause`, `options`, `video` or `accessibility`) and a cursor position, for scripted captures. |
 | `MCRS_CAPTURE` | none | Write one screenshot to a `.png` path and exit. |
 | `MCRS_SCREENSHOT_DIR` | none | Directory for screenshots. |
 | `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Windowless scene capture directory, and a record of the vanilla client to take entities from. |

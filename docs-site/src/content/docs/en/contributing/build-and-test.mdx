@@ -20,8 +20,8 @@ sources:
   - scripts/hooks/run-checks
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -98,7 +98,7 @@ Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no 
 | `no-std` | {fact('crates_no_std')} packages must build for a target without std. |
 | `wasm32` | {fact('crates_wasm32')} packages must build for wasm32. |
 | `example-dependencies` | Each package under `examples/` obeys its normal dependency policy in `examples/dependencies.json`. A failure shows the dependency path. |
-| `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. The model bake and the entity renderer crates must not link the network, a client or a server, so a viewer works with no connection. The inventory gameplay crate must not depend on the packet edge. |
+| `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. The model bake and the entity renderer crates must not link the network, a client or a server, so a viewer works with no connection. The inventory gameplay crate must not depend on the packet edge. The inventory crates that a client uses (`mcrs_minecraft_engine_item`, `mcrs_minecraft_player_holders` and `mcrs_minecraft_inventory_client`) must not link a crate of the server. |
 
 ## Rewrite a stale blessed file with MCRS_BLESS
 

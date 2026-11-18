@@ -12,7 +12,9 @@ sources:
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client_jar/src/native.rs
   - crates/mcrs_minecraft_client/src/native.rs
-  - crates/mcrs_minecraft_client_gui/src/inventory_key.rs
+  - crates/mcrs_minecraft_client/src/game_directory.rs
+  - crates/mcrs_minecraft_client/src/hand_keys_plugin.rs
+  - crates/mcrs_minecraft_client_gui/src/inventory_clicks.rs
   - crates/mcrs_minecraft_client_gui/src/menu_screens_plugin.rs
   - crates/mcrs_minecraft_client_options/src/client_options.rs
   - crates/mcrs_minecraft_entity_render/src/main_world.rs
@@ -28,10 +30,13 @@ sources:
   - pr:799
   - pr:826
   - pr:945
+  - pr:974
+  - pr:1003
+  - pr:1004
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -52,8 +57,10 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | F3 overlay with frame and stage times | Works |
 | Chat with command suggestions | Works |
 | Breaking blocks in creative mode, and showing the block you aim at | Works |
+| Title screen and local worlds | Works in the native client. The client opens the title screen at start. Singleplayer lists the worlds in the `saves` folder of the game directory, creates a new world, deletes one and opens one, and Save and Quit to Title saves the world and returns to the title screen |
+| Inventory screen | Works. E opens it, and the mouse and the keys move stacks. The client predicts each click before the server answers, and the next packets of the server overwrite the prediction. Outside a screen Q drops one item of the selected stack, Control+Q drops the whole stack, and F swaps the hands |
 | Hotbar | Works. The mouse wheel and the keys 1 to 9 select a slot, and spectator mode shows no hotbar |
-| Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the world folder |
+| Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the game directory |
 | Joining the mcrs server or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
 
 ## What is missing
@@ -63,7 +70,7 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Sound | <Status issue={136} />. The client is silent |
 | Particles | <Status issue={137} /> |
 | Weather (rain, snow, lightning) | <Status issue={341} />. Today rain only dims the sun and the moon |
-| Inventory and container screens | <Status issue={521} /> covers the player inventory. E opens the inventory screen, which shows the stacks the server sends and the figure of your player, but a click does not move a stack yet. Clicks are <Status issue={129} />, container screens are <Status issue={130} />, and the creative inventory is <Status issue={131} /> |
+| Container screens and the creative inventory | The player inventory is <Status issue={521} />. Container screens are <Status issue={130} />. A client without a GUI already holds a container menu that the server opens, clicks in it and closes it, but the GUI does not draw one yet. The creative inventory is <Status issue={131} /> |
 | A web build | <Status issue={344} />. Chrome draws the world over WebGPU and over WebGL2. On WebGL2 the browser draws no mobs, and the CPU and GPU times of the web build are not measured yet |
 | Binary downloads | None yet. Releases are planned, and at this date no issue tracks them |
 
@@ -77,7 +84,7 @@ The client asks for 96 columns of view by default, where a column is a stack of 
 
 ## Build it from source to run it
 
-There is no binary download, so you build the client from source. The steps are short and live in the repository, so this page does not repeat them. Follow the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client takes a world folder and starts its own server for it. It reads textures and models from the official game jar, because the repository ships no Mojang art.
+There is no binary download, so you build the client from source. The steps are short and live in the repository, so this page does not repeat them. Follow the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client starts on the title screen and runs its own server for the world you pick there. The game directory holds the worlds in `saves`, the options and the command history. It is `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows, and `MCRS_GAME_DIR` sets another folder. A world folder given as the argument is selected in the world list when it lies in `saves`. The client reads textures and models from the official game jar, because the repository ships no Mojang art.
 
 <Aside type="caution" title="WIP">
 A detailed guide for players will come before the alpha. Until then, this page gives no steps that were not run on a clean machine.

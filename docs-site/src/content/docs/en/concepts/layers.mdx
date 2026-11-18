@@ -20,8 +20,8 @@ sources:
   - issue:288
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -43,7 +43,7 @@ mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each 
 
 Every crate lives under [`crates/`](https://github.com/andreypfau/mcrs/tree/main/crates). A crate specific to the game is named `mcrs_minecraft_<name>`. A crate for a concept that does not depend on the game is named `mcrs_<name>`, such as the engine core crates `mcrs_engine_cell`, `mcrs_engine_link`, `mcrs_engine_muxer` and `mcrs_engine_store`, or `mcrs_molang` and `mcrs_voxel`. The [crate map](/docs/en/crates/overview/) lists every crate with its layer.
 
-Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. CI holds some of the boundaries. The `layers` check in `xtask/src/checks.rs` fails when `mcrs_minecraft_protocol` or `mcrs_minecraft_network` links a game data crate, and when a model bake or the entity renderer links the network, a client or a server.
+Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. CI holds some of the boundaries. The `layers` check in `xtask/src/checks.rs` fails when `mcrs_minecraft_protocol` or `mcrs_minecraft_network` links a game data crate, when a model bake or the entity renderer links the network, a client or a server, and when an inventory crate that the client uses, such as `mcrs_minecraft_inventory_client`, links a crate of the server.
 
 ## Kernels hold the rules, drivers run them
 
@@ -57,7 +57,7 @@ If you come from Paper, think of a kernel as the logic of a vanilla system with 
 
 ## What "a set of parts" means today
 
-The project promises "Minecraft as a set of crates". This is how far that goes on 2026-11-17.
+The project promises "Minecraft as a set of crates". This is how far that goes on 2026-11-18.
 
 In CI, {fact('crates_no_bevy')} packages build without Bevy, and a check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. {fact('crates_no_std')} packages also build without std, for the target `wasm32v1-none`, and {fact('crates_wasm32')} build for a browser, for the target `wasm32-unknown-unknown`.
 
@@ -72,8 +72,9 @@ The first library examples live in [`examples/`](https://github.com/andreypfau/m
 | `player_attributes` | prints and edits the attributes in a player file without Bevy or the engine |
 | `loot_validate` | checks the loot tables of a data pack without the engine |
 | `inventory_minigame` | runs the inventory plugins without the packet edge of the inventory |
+| `inventory_bot_click` | joins a server as a bot without a window, a renderer or a GUI crate, and clicks in its inventory menu |
 
-There is still no proxy, bot, lobby or map renderer to copy. The planned `hello_server`, `lobby` and `arena` are the smallest servers that run the engine with no vanilla behaviour.[^287]
+There is still no proxy, lobby or map renderer to copy, and the one bot, `inventory_bot_click`, only runs a fixed script of inventory clicks. The planned `hello_server`, `lobby` and `arena` are the smallest servers that run the engine with no vanilla behaviour.[^287]
 
 The public API of layers 1 to 4 is not stable. Every `pub` item there will become a commitment to users, so it is being reviewed first.
 

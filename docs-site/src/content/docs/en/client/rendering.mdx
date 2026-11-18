@@ -17,16 +17,18 @@ sources:
   - crates/mcrs_minecraft_render/src/lib.rs
   - crates/mcrs_minecraft_render/src/render_path.rs
   - docs/spec/client-player-render.md
+  - assets/mcrs/entity/animations/player.animation.json
   - issue:330
   - issue:337
   - issue:344
   - pr:731
   - pr:769
   - pr:789
+  - pr:970
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -80,7 +82,7 @@ Only the full path of the mobs is built. The renderer runs the entity passes whe
 
 A mob that is far away does not need its full rig, the set of bones that poses the model. For each pair of a model and a texture, the renderer bakes a small set of views. A set has 16 yaws and 9 elevations at 64 by 64 texels and takes about 4.7 MB. A far mob is then drawn as an impostor, which is one quad that shows the nearest view. The renderer bakes a set lazily, when a model and a texture first appear on an active mob. Full rigs have a cap, and impostors have none. The note records the cost of each step and the choices that did not help.
 
-A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. A program with no server, such as a world viewer, adds a player with `host_living_entity` from `mcrs_minecraft_entity_visual`, moves it through its `Motion` component, and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
+A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. The server sends the pose of each player, and the client draws another player sneaking, swimming, crawling, sleeping, gliding or in a spin attack with the animations in `assets/mcrs/entity/animations/player.animation.json`. The camera and the ray that finds the target block follow the eye height of the pose of the local player.[^970] A program with no server, such as a world viewer, adds a player with `host_living_entity` from `mcrs_minecraft_entity_visual`, moves it through its `Motion` component, and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
 
 The inventory screen draws the local player through the same passes. The cull, the pose and the expand run a second time for this figure view, and `FigureDraw` draws its faces into a render pass of the host.
 
@@ -99,4 +101,5 @@ Two more pieces of work are planned: a bound on memory at 96 columns, and render
 [^330]: <Status issue={330} /> Tracks the measurement of the deferred renderer against the pre-restructure baseline.
 [^344]: <Status issue={344} /> Tracks a web client that reaches a steady frame.
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
+[^970]: <Status pr={970} state="works" /> Tracks the pose and the eye height of players on the server and the client.
 [^506]: <Status issue={506} /> Tracks rendering that embeds in a host app, which owns the window and the camera.

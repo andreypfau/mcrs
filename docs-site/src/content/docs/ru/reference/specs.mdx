@@ -3,7 +3,7 @@ title: Индекс спецификаций
 description: Где в docs/spec описан каждый домен игрового поведения, какой префикс id правил он использует и как читать метки происхождения.
 sidebar:
   order: 4
-translated_from: 19bc615fa
+translated_from: b9bf112d8
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -25,6 +25,7 @@ Id правила, например `CMD-TP-013`, состоит из префи
 |---|---|---|
 | Вход, статус, сжатие | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
 | Лимиты соединений и прокси | `connection-limits.md`, `proxy-forwarding.md`, `proxy-protocol.md` | `LIM-*`, `FWD-*`, `PXP-*` |
+| Бюджет NBT в пакете от клиента | `nbt-quota.md` | `NBQ-*` |
 | Протокол Bedrock | `bedrock-wire.md`, `bedrock-batch.md`, `bedrock-handshake.md`, `bedrock-game-packets.md` | `BEW-*`, `BEB-*`, `BEH-*`, `BEG-*` |
 | Whitelist, баны и операторы | `whitelist.md`, `bans.md`, `loopback-operators.md` | `WL`, `BAN`, `LOOP-*` |
 | Команды: парсер, дерево, права | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
@@ -45,6 +46,7 @@ Id правила, например `CMD-TP-013`, состоит из префи
 | Клиент: мир и сущности | `client-camera.md`, `client-fog.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CFOG-*`, `CENTS`, `CENT`, `CEREN`, `CPR` |
 | Клиент: виджеты GUI и текст | `client-widget.md`, `client-list.md`, `client-edit-box.md`, `client-font.md`, `client-gui-sprite.md`, `client-tooltip.md` | `WID-*`, `LIST-*`, `SCRL-*`, `TAB-*`, `EDIT-*`, `FONT`, `GSPR`, `TIP` |
 | Клиент: экраны, хотбар, чат, команды | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD` |
+| Клиент: инвентарь, экраны контейнеров, творческий инвентарь | `client-inventory.md`, `client-container-screen.md`, `client-creative-inventory.md` | `CINV-*`, `CCS-*`, `CCI-*` |
 | Модели блоков и свет | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md`, `client-sign-text.md` | `BMR`, `BFB`, `BEM`, `BSL`, `SIGN` |
 
 Большинство спецификаций перечисляют свои префиксы id в таблице ближе к началу. Если та таблица расходится с этой страницей, полным списком считайте таблицу в файле.

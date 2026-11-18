@@ -12,10 +12,14 @@ sources:
   - docs/clean-room.md
   - docs/spec/block-placing.md
   - docs/spec/teleport-confirmation.md
+  - docs/spec/nbt-quota.md
+  - docs/spec/client-inventory.md
+  - docs/spec/client-container-screen.md
+  - docs/spec/client-creative-inventory.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -37,6 +41,7 @@ A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests 
 |---|---|---|
 | Login, status, compression | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
 | Connection limits and proxies | `connection-limits.md`, `proxy-forwarding.md`, `proxy-protocol.md` | `LIM-*`, `FWD-*`, `PXP-*` |
+| NBT budget of a serverbound packet | `nbt-quota.md` | `NBQ-*` |
 | Bedrock protocol | `bedrock-wire.md`, `bedrock-batch.md`, `bedrock-handshake.md`, `bedrock-game-packets.md` | `BEW-*`, `BEB-*`, `BEH-*`, `BEG-*` |
 | Whitelist, bans and operators | `whitelist.md`, `bans.md`, `loopback-operators.md` | `WL`, `BAN`, `LOOP-*` |
 | Commands: parser, tree, permissions | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
@@ -57,6 +62,7 @@ A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests 
 | Client: world and entities | `client-camera.md`, `client-fog.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CFOG-*`, `CENTS`, `CENT`, `CEREN`, `CPR` |
 | Client: GUI widgets and text | `client-widget.md`, `client-list.md`, `client-edit-box.md`, `client-font.md`, `client-gui-sprite.md`, `client-tooltip.md` | `WID-*`, `LIST-*`, `SCRL-*`, `TAB-*`, `EDIT-*`, `FONT`, `GSPR`, `TIP` |
 | Client: screens, hotbar, chat, commands | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD` |
+| Client: inventory, container screens, creative inventory | `client-inventory.md`, `client-container-screen.md`, `client-creative-inventory.md` | `CINV-*`, `CCS-*`, `CCI-*` |
 | Block models and light | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md`, `client-sign-text.md` | `BMR`, `BFB`, `BEM`, `BSL`, `SIGN` |
 
 Most specs list their own id prefixes in a table near the top. When that table and this page differ, the table in the file is the full list.

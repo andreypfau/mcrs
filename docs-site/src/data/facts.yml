@@ -1,8 +1,8 @@
-crates: { value: 172, how: "find crates -mindepth 1 -maxdepth 1 -type d | wc -l" }
-crates_no_bevy: { value: 136, how: "length of NO_BEVY_PACKAGES in xtask/src/checks.rs" }
-crates_no_std: { value: 17, how: "length of NO_STD_PACKAGES in xtask/src/checks.rs" }
+crates: { value: 179, how: "find crates -mindepth 1 -maxdepth 1 -type d | wc -l" }
+crates_no_bevy: { value: 139, how: "length of NO_BEVY_PACKAGES in xtask/src/checks.rs" }
+crates_no_std: { value: 19, how: "length of NO_STD_PACKAGES in xtask/src/checks.rs" }
 crates_wasm32: { value: 11, how: "length of WASM32_PACKAGES in xtask/src/checks.rs" }
-fixtures: { value: 55, how: "jq length tools/fixtures.json" }
+fixtures: { value: 56, how: "jq length tools/fixtures.json" }
 root_commands: { value: 20, how: "count literal(NodeId::ROOT, ...) in crates/mcrs_minecraft_command_vanilla and crates/mcrs_minecraft_command_world, minus the alias tp (21 names)" }
-docs_commit: { value: "19bc615fa", how: "the origin/main commit that the last docs update checked against; move it with every update" }
-docs_commit_date: { value: "2026-11-17", how: "git show -s --format=%cs <docs_commit>" }
+docs_commit: { value: "b9bf112d8", how: "the origin/main commit that the last docs update checked against; move it with every update" }
+docs_commit_date: { value: "2026-11-18", how: "git show -s --format=%cs <docs_commit>" }

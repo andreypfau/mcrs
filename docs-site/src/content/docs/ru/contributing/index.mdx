@@ -3,7 +3,7 @@ title: Как внести вклад
 description: Выберите роль, узнайте правило clean-room, соберите проект и отправьте первый pull request.
 sidebar:
   order: 1
-translated_from: 19bc615fa
+translated_from: b9bf112d8
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -27,7 +27,7 @@ mcrs реализует поведение игры по спецификаци�
 
 Автор спецификации может читать любой источник. В спецификацию он записывает только поведение, то есть входы, выходы, порядок, время и константы. Исполнитель пишет код по этой спецификации и читает только четыре вещи: `docs/spec/`, публичную документацию о том, что видит игрок, артефакты, которые выдала игра, и код этого репозитория. Один человек не берет обе роли для одного поведения.
 
-Кроме того, в репозитории нет имен классов, методов и полей кода игры. Исключение сделано для восьми имен, которыми сообщество пользуется как обычными терминами: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` и `NumberProvider`.
+Кроме того, в репозитории нет имен классов, методов и полей кода игры. Исключение сделано для восьми имен, которыми сообщество пользуется как обычными терминами: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` и `NumberProvider`. Еще классы клиента может называть инструмент, который работает внутри игры и управляет ванильным клиентом, например `tools/vanilla-client`, но только те, которые он вызывает.
 
 Полные правила записаны в [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), а пересказ есть на странице [Clean-room на практике](/docs/ru/contributing/clean-room/).
 

@@ -19,8 +19,8 @@ sources:
   - issue:282
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 
 import Status from '~/components/Status.astro';
@@ -37,7 +37,7 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, entity attributes, the sprint attribute, the reach of creative mode, item entities, falling blocks, the drops and support of blocks, mob brains, item and inventory saving, block placement, world generation, lighting and the network.[^279]
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, the pose of players, entity attributes, the sprint attribute, the reach of creative mode, item entities, falling blocks, the drops and support of blocks, mob brains, item and inventory saving, block placement, world generation, lighting and the network.[^279]
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 

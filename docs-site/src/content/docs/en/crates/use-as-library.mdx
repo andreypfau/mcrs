@@ -17,8 +17,8 @@ sources:
   - issue:288
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -28,7 +28,7 @@ import Status from '~/components/Status.astro';
 You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Five library examples under `examples/` each have a test of their dependency tree.[^288] Minimal server, lobby and arena examples are planned.[^287]
+Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Six library examples under `examples/` each have a test of their dependency tree.[^288] Minimal server, lobby and arena examples are planned.[^287]
 </Aside>
 
 ## 1. Add a git dependency with a pinned rev

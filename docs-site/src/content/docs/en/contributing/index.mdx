@@ -22,8 +22,8 @@ sources:
   - pr:687
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -47,7 +47,7 @@ mcrs implements the behavior of the game from specifications and never from the 
 
 A specification author can read any source. The specification they write states behavior only, which means inputs, outputs, order, timing and constants. An implementer writes the code from that specification and reads only four things: `docs/spec/`, public player-facing documentation, artifacts the game produced, and the code of this repository. One person does not take both roles for the same behavior.
 
-The repository also holds no names of classes, methods or fields of the game's code. Eight names are exempt because the community uses them as common terms: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`.
+The repository also holds no names of classes, methods or fields of the game's code. Eight names are exempt because the community uses them as common terms: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`. A tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`, may also name the client classes it calls.
 
 The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [Clean-room in practice](/docs/en/contributing/clean-room/) retells them.
 
