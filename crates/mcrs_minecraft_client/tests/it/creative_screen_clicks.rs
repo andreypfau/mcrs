@@ -91,6 +91,9 @@ struct Sent {
 #[derive(Resource, Default)]
 struct SentActions(Vec<MenuAction>);
 
+#[derive(Resource, Default)]
+struct JustPressed(Vec<KeyCode>);
+
 struct Row {
     name: &'static str,
     tab: usize,
@@ -106,6 +109,7 @@ struct Row {
     scroll: Scroll,
     search: &'static str,
     shown_ids_contain: Option<&'static str>,
+    just_pressed: Option<&'static [KeyCode]>,
 }
 
 const fn row(name: &'static str, tab: usize) -> Row {
@@ -124,6 +128,7 @@ const fn row(name: &'static str, tab: usize) -> Row {
         scroll: Scroll::Offset(0.0),
         search: "",
         shown_ids_contain: None,
+        just_pressed: None,
     }
 }
 
@@ -416,6 +421,16 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        frames: &[&[Event::Key(KeyCode::KeyO), Event::Key(KeyCode::Escape)]],
+        screen: Screen::None,
+        search: "o",
+        just_pressed: Some(&[KeyCode::Escape]),
+        ..row(
+            "the search box keeps a typed key from the key bindings",
+            SEARCH_TAB,
+        )
+    },
+    Row {
         frames: &[&[over(Pointer::Grid(0)), Event::Key(KeyCode::KeyF)]],
         search: "f",
         ..row(
@@ -542,6 +557,10 @@ fn record_actions(mut inputs: MessageReader<MenuInput>, mut sent: ResMut<SentAct
         .extend(inputs.read().map(|input| input.action.clone()));
 }
 
+fn record_just_pressed(keys: Res<ButtonInput<KeyCode>>, mut seen: ResMut<JustPressed>) {
+    seen.0.extend(keys.get_just_pressed());
+}
+
 fn add_input(app: &mut App) {
     if !app.is_plugin_added::<InputPlugin>() {
         app.add_plugins(InputPlugin);
@@ -555,6 +574,8 @@ fn add_input(app: &mut App) {
         })
         .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
         .init_resource::<SentActions>()
+        .init_resource::<JustPressed>()
+        .add_systems(Update, record_just_pressed)
         .add_systems(Last, record_actions);
     app.world_mut()
         .spawn((Window::default(), CursorOptions::default(), PrimaryWindow));
@@ -800,6 +821,12 @@ fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_sta
             .resource_mut::<SentActions>()
             .0
             .clear();
+        world
+            .app
+            .world_mut()
+            .resource_mut::<JustPressed>()
+            .0
+            .clear();
         for frame in row.frames {
             play(&mut world.app, frame);
         }
@@ -829,6 +856,14 @@ fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_sta
             row.name
         );
         assert_scroll_and_search(app_world, row);
+        if let Some(keys) = row.just_pressed {
+            assert_eq!(
+                app_world.resource::<JustPressed>().0,
+                keys,
+                "{}: the keys that reach the key bindings",
+                row.name
+            );
+        }
         world.assert_after_round_trip(row.name, Some(AGREED), row.entries, row.cursor);
         if row.cursor.is_none() {
             assert_server_holds(&mut world, row);

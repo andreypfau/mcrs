@@ -1,4 +1,6 @@
 use bevy::ecs::system::SystemParam;
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::{ButtonState, InputSystems};
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
@@ -6,6 +8,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_creative_content::OperatorCondition;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -16,6 +19,7 @@ use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
+use crate::menu_input;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CreativeContentSystems;
@@ -28,6 +32,13 @@ impl Plugin for CreativeScreenPlugin {
             .init_resource::<CreativeTabContent>()
             .init_resource::<CreativeScreenState>()
             .add_observer(open_creative_screen)
+            .add_systems(
+                PreUpdate,
+                capture_search_keys
+                    .after(InputSystems)
+                    .run_if(resource_exists::<ButtonInput<KeyCode>>)
+                    .run_if(creative_screen_shown),
+            )
             .add_systems(
                 Update,
                 (
@@ -100,6 +111,22 @@ fn rebuild_creative_content(
         language: session.language.as_deref(),
         operator: session.operator(),
     });
+}
+
+fn capture_search_keys(
+    screen: Res<CreativeScreenState>,
+    mut keyboard: MessageReader<KeyboardInput>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+) {
+    if screen.selected_tab().kind != CreativeTabKind::Search {
+        keyboard.clear();
+        return;
+    }
+    for key in keyboard.read() {
+        if key.state == ButtonState::Pressed {
+            menu_input::capture_key(&mut keys, key.key_code);
+        }
+    }
 }
 
 fn follow_creative_content(

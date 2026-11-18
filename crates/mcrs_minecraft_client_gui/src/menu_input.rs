@@ -133,8 +133,8 @@ pub(crate) fn menu_keys(
         if key.state != ButtonState::Pressed {
             continue;
         }
-        if menu.widgets.captures_keyboard() && !CAPTURE_EXEMPT.contains(&key.key_code) {
-            input.keys.clear_just_pressed(key.key_code);
+        if menu.widgets.captures_keyboard() {
+            capture_key(&mut input.keys, key.key_code);
         }
         if key.key_code == KeyCode::Escape {
             out.write(MenuEvent::CloseRequested);
@@ -159,6 +159,12 @@ pub(crate) fn menu_keys(
             }
         }
         out.write_batch(events.drain(..).map(MenuEvent::Widget));
+    }
+}
+
+pub(crate) fn capture_key(keys: &mut ButtonInput<KeyCode>, code: KeyCode) {
+    if !CAPTURE_EXEMPT.contains(&code) {
+        keys.clear_just_pressed(code);
     }
 }
 
