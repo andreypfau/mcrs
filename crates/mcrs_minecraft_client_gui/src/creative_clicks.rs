@@ -68,7 +68,7 @@ pub(crate) fn target(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<Sta
 }
 
 pub(crate) fn is_empty_grid_slot(hit: CreativeHit, grid: Option<CreativeGrid>) -> bool {
-    matches!(hit, CreativeHit::GridSlot(_)) && target(hit, grid) == Some(StackPresence::Empty)
+    matches!(hit, CreativeHit::GridSlot(slot) if grid.and_then(|grid| grid.stack(slot)).is_none())
 }
 
 pub(crate) fn area(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<CreativeArea> {

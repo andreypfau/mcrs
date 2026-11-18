@@ -140,7 +140,7 @@ impl SearchPress {
 enum FrameEnd {
     Open,
     Closed,
-    SelectTab(CreativeTabIndex),
+    TabReleased(CreativeTabIndex),
     Search(SearchInput),
 }
 
@@ -479,7 +479,7 @@ fn play(
             }
             if let Some(tab) = hover.tab() {
                 frame.gesture.release = ReleaseRule::NoClick;
-                return FrameEnd::SelectTab(tab);
+                return FrameEnd::TabReleased(tab);
             }
         }
         match event {
@@ -488,7 +488,7 @@ fn play(
                 return FrameEnd::Closed;
             }
             ScreenEvent::SelectSearchTab => {
-                return FrameEnd::SelectTab(CreativeTabIndex::SEARCH);
+                return FrameEnd::TabReleased(CreativeTabIndex::SEARCH);
             }
             ScreenEvent::Press(button) => {
                 if button == MouseButton::Left
@@ -634,7 +634,7 @@ fn click_in_menu(
     for input in sent.drain(..) {
         inputs.write(input);
     }
-    if let FrameEnd::SelectTab(tab) = end {
+    if let FrameEnd::TabReleased(tab) = end {
         tabs.select(tab);
     }
     if matches!(end, FrameEnd::Closed) {

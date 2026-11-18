@@ -23,20 +23,20 @@ pub(crate) struct CreativeTabSelect<'w> {
 
 impl CreativeTabSelect<'_> {
     pub(crate) fn select(&mut self, tab: CreativeTabIndex) {
-        if let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) {
-            screen.select(tab, content);
-        }
+        self.with(|screen, content| screen.select(tab, content));
     }
 
     pub(crate) fn wheel(&mut self, vertical: f64) {
-        if let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) {
-            screen.wheel(vertical, content);
-        }
+        self.with(|screen, content| screen.wheel(vertical, content));
     }
 
     pub(crate) fn drag_scroll(&mut self, top: i32, mouse_y: f64) {
+        self.with(|screen, content| screen.drag_scroll(top, mouse_y, content));
+    }
+
+    fn with(&mut self, change: impl FnOnce(&mut CreativeScreenState, &CreativeTabContent)) {
         if let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) {
-            screen.drag_scroll(top, mouse_y, content);
+            change(screen, content);
         }
     }
 
