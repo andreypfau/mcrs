@@ -10,6 +10,7 @@ mod gbuffer;
 mod hiz;
 mod improved_transparency;
 mod layer;
+pub mod name_tag;
 mod panorama;
 mod pass;
 mod pipeline;
@@ -283,6 +284,7 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         embed_shaders(app);
         app.add_plugins(world_text::WorldTextPlugin);
+        app.add_plugins(name_tag::NameTagRenderPlugin);
 
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()

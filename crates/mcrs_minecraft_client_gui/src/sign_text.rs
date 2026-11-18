@@ -249,7 +249,6 @@ const OUTLINE_OFFSETS: [IVec2; 8] = [
 ];
 
 pub fn quads(font: &Font, lines: &[Line], matrix: &DMat4, paint: &Paint, out: &mut Vec<SignQuad>) {
-    let mut glyphs = Vec::new();
     for line in lines {
         let outline = paint
             .outline
@@ -257,50 +256,70 @@ pub fn quads(font: &Font, lines: &[Line], matrix: &DMat4, paint: &Paint, out: &m
             .flat_map(|color| OUTLINE_OFFSETS.map(|shift| (shift, 0.0, Some(color))));
         for (shift, lift, forced) in outline.chain([(IVec2::ZERO, LINE_LIFT, None)]) {
             let start = (line.origin + shift).as_vec2();
-            let mut x = start.x;
-            glyphs.clear();
-            for span in &line.spans {
-                let chars = span.text.chars().map(|ch| (ch, span.bold));
-                let color = forced.unwrap_or(span.color);
-                x = draw_glyphs(
-                    font,
-                    Vec2::new(x, start.y),
-                    chars,
-                    color,
-                    false,
-                    &mut glyphs,
-                );
-            }
-            for quad in &glyphs {
-                let GuiQuad::Glyph {
-                    pen,
-                    glyph,
-                    image,
-                    color,
-                    weight,
-                } = *quad
-                else {
-                    continue;
-                };
-                let rect = image.strike(pen, weight);
-                let corner = |x: f32, y: f32| {
-                    let point = DVec3::new(f64::from(x), f64::from(y), lift);
-                    matrix.transform_point3(point).as_vec3()
-                };
-                out.push(SignQuad {
-                    corners: [
-                        corner(rect.min.x, rect.min.y),
-                        corner(rect.max.x, rect.min.y),
-                        corner(rect.max.x, rect.max.y),
-                        corner(rect.min.x, rect.max.y),
-                    ],
-                    glyph,
-                    source: image.source,
-                    color,
-                    light: paint.light,
-                });
-            }
+            span_quads(
+                font,
+                &line.spans,
+                start,
+                forced,
+                lift,
+                (matrix, paint.light),
+                out,
+            );
         }
+    }
+}
+
+pub fn span_quads(
+    font: &Font,
+    spans: &[Span],
+    start: Vec2,
+    forced: Option<u32>,
+    lift: f64,
+    (matrix, light): (&DMat4, u32),
+    out: &mut Vec<SignQuad>,
+) {
+    let mut glyphs = Vec::new();
+    let mut x = start.x;
+    for span in spans {
+        let chars = span.text.chars().map(|ch| (ch, span.bold));
+        let color = forced.unwrap_or(span.color);
+        x = draw_glyphs(
+            font,
+            Vec2::new(x, start.y),
+            chars,
+            color,
+            false,
+            &mut glyphs,
+        );
+    }
+    for quad in &glyphs {
+        let GuiQuad::Glyph {
+            pen,
+            glyph,
+            image,
+            color,
+            weight,
+        } = *quad
+        else {
+            continue;
+        };
+        let rect = image.strike(pen, weight);
+        let corner = |x: f32, y: f32| {
+            let point = DVec3::new(f64::from(x), f64::from(y), lift);
+            matrix.transform_point3(point).as_vec3()
+        };
+        out.push(SignQuad {
+            corners: [
+                corner(rect.min.x, rect.min.y),
+                corner(rect.max.x, rect.min.y),
+                corner(rect.max.x, rect.max.y),
+                corner(rect.min.x, rect.max.y),
+            ],
+            glyph,
+            source: image.source,
+            color,
+            light,
+        });
     }
 }
 

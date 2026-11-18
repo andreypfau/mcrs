@@ -3,14 +3,9 @@ use mcrs_minecraft_registries::Named;
 
 pub type NameText = mcrs_minecraft_item::Text<Named>;
 
-/// The name that a host gives to an entity (CEREN-NAME-005). It acts as the custom name and, for
-/// a player, replaces the profile name. The host shows the name of a mob with
-/// `SyncedData::name_visible`.
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct NameTag(pub NameText);
 
-/// The name text of an entity: the name of the host, else the custom name of the server, else the
-/// profile name (CEREN-NAME-003, item 1). A mob passes no profile name.
 #[must_use]
 pub fn name_text<'a>(
     host: Option<&'a NameTag>,

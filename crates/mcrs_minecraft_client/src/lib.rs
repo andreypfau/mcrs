@@ -31,6 +31,7 @@ pub mod entities;
 pub mod frozen_clocks;
 #[cfg(not(target_family = "wasm"))]
 pub mod game_directory;
+mod glyph_page;
 pub mod hand_keys_plugin;
 pub mod input;
 pub mod light_volume;
