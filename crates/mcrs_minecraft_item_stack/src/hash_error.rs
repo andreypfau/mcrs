@@ -42,7 +42,7 @@ impl fmt::Display for HashError {
                 "a number of {} is out of range",
                 component.path()
             ),
-            Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
+            Self::TooDeep => formatter.write_str("the saved form of the stack is nested too deep"),
             Self::UnknownEntry { component, table } => write!(
                 formatter,
                 "the value of {} holds an id that has no name in {table:?}",

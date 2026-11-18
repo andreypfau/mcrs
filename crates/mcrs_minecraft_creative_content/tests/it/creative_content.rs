@@ -380,9 +380,11 @@ fn expected_stacks(expected: &[Expected], names: &RegistryNames<'_>) -> Vec<Item
                     .stacks()
                     .get(span.stacks.clone())
                     .expect("a span is inside its list");
-                stacks.extend(saved.iter().map(|saved| {
-                    read_saved(&with_int_levels(saved), names).expect("a stored stack decodes")
-                }));
+                stacks.extend(
+                    saved
+                        .iter()
+                        .map(|saved| read_saved(saved, names).expect("a stored stack decodes")),
+                );
             }
             Expected::Books {
                 enchantment,
@@ -416,32 +418,6 @@ fn book(enchantment: &str, level: i32) -> NbtCompound {
             ("components".to_owned(), NbtTag::Compound(components)),
         ],
     }
-}
-
-fn with_int_levels(saved: &NbtCompound) -> NbtCompound {
-    let mut saved = saved.clone();
-    for (key, value) in &mut saved.child_tags {
-        let NbtTag::Compound(components) = value else {
-            continue;
-        };
-        if key != "components" {
-            continue;
-        }
-        for (component, levels) in &mut components.child_tags {
-            let NbtTag::Compound(levels) = levels else {
-                continue;
-            };
-            if component != "minecraft:stored_enchantments" {
-                continue;
-            }
-            for (_, level) in &mut levels.child_tags {
-                if let NbtTag::Byte(byte) = *level {
-                    *level = NbtTag::Int(i32::from(byte));
-                }
-            }
-        }
-    }
-    saved
 }
 
 #[test]

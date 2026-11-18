@@ -194,7 +194,11 @@ const NO_BEVY_PACKAGES: [&str; 140] = [
 
 const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
 
-const STANDALONE_BAKE_PACKAGES: [&str; 2] = ["mcrs_minecraft_model", "mcrs_minecraft_model_file"];
+const STANDALONE_BAKE_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_model",
+    "mcrs_minecraft_model_file",
+    "mcrs_minecraft_item_icon",
+];
 
 const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_network",

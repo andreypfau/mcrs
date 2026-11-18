@@ -32,10 +32,12 @@ use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::Neutral;
 use mcrs_minecraft_item_stack::OminousBottleAmplifier;
+use mcrs_minecraft_item_stack::PaintingVariant;
 use mcrs_minecraft_item_stack::PotionContents;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RegistryValue;
 use mcrs_minecraft_item_stack::RepairCost;
+use mcrs_minecraft_item_stack::StoredEnchantments;
 use mcrs_minecraft_item_stack::SuspiciousStewEffects;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::TooltipDisplay;
@@ -311,7 +313,7 @@ fn the_prototypes_have_the_counts_of_the_specification() {
 
 #[test]
 fn the_prototypes_have_the_flat_values_of_the_specification() {
-    let cases: [(&str, usize, usize); 10] = [
+    let cases: [(&str, usize, usize); 12] = [
         (
             "STK-SHP-037 enchantment glint override",
             count(|prototype| prototype.get() == Some(&EnchantmentGlintOverride(true))),
@@ -369,6 +371,20 @@ fn the_prototypes_have_the_flat_values_of_the_specification() {
             "STK-SHP-056 bees",
             count(|prototype| prototype.get() == Some(&Bees(Vec::new()))),
             2,
+        ),
+        (
+            "STK-SHP-060 stored enchantments",
+            count(|prototype| {
+                prototype
+                    .get::<StoredEnchantments>()
+                    .is_some_and(|stored| stored.0.entries().is_empty())
+            }),
+            1,
+        ),
+        (
+            "STK-SHP-061 painting variant",
+            count(|prototype| prototype.get::<PaintingVariant>().is_some()),
+            0,
         ),
     ];
     for (rule, actual, expected) in cases {

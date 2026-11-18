@@ -1,9 +1,9 @@
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
-use crate::durability::Durability;
 use crate::font::{Font, Span, draw_text};
 use crate::scene::GuiQuad;
+use mcrs_minecraft_item_icon::Durability;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
 const BAR_BACK: u32 = 0xFF00_0000;
