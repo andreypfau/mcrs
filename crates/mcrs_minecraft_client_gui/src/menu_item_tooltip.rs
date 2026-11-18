@@ -299,8 +299,8 @@ mod tests {
     use mcrs_minecraft_entity_attribute::InstanceEdit;
     use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_inventory_file::PlayerItems;
-    use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
     use mcrs_minecraft_item_stack::{Count, CustomName, Kind, NameLookup, NameTable};
+    use mcrs_minecraft_menu_key::menu_keys::MenuType;
     use mcrs_minecraft_model::resource_set::ResourceSet;
     use mcrs_minecraft_player_holders::{PlayerHoldersPlugin, restore_holders};
     use mcrs_minecraft_resource::ResourceLocation;

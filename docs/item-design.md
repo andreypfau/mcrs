@@ -46,7 +46,8 @@ The layer numbers are those of `AGENTS.md`.
 | `mcrs_minecraft_inventory_transaction` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
 | `mcrs_minecraft_recipe` | 3, data | none | `Ingredient`; the keys of the recipe serializers, the recipe book categories, the recipe displays and the slot displays | `mcrs_minecraft_item_stack`, registries, wire |
-| `mcrs_minecraft_inventory_menu` | 3, data | none | `MenuType` and the keys of the menu registry; later the slot layout of each menu | resource |
+| `mcrs_minecraft_inventory_menu` | 3, data | none | the slot layout of each menu | `mcrs_minecraft_inventory_player`, `mcrs_minecraft_item_stack`, `mcrs_minecraft_menu_key` |
+| `mcrs_minecraft_menu_key` | 3, data | none | `MenuType` and the keys of the menu registry | registries, resource |
 | `mcrs_minecraft_item_key` | 3, data | none | the enum `Item` and the item tag keys | registries, resource |
 | `mcrs_minecraft_potion` | 3, data | none | the enum `Potion` and the potion tag keys | registries, resource |
 | `mcrs_minecraft_map_decoration` | 3, data | none | the enum `MapDecorationType` | registries |

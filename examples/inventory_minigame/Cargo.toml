@@ -24,6 +24,7 @@ mcrs_minecraft_inventory_file.workspace = true
 mcrs_minecraft_inventory_menu.workspace = true
 mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_vanilla_inventory.workspace = true
 

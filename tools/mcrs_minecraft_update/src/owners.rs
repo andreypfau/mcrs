@@ -548,7 +548,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:menu",
-        krate: "mcrs_minecraft_inventory_menu",
+        krate: "mcrs_minecraft_menu_key",
         value: ValueType::Enum("MenuType"),
     },
     Owner {
