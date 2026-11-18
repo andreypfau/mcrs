@@ -17,6 +17,8 @@ pub mod entry_frame;
 pub mod flight;
 #[cfg(target_os = "macos")]
 pub mod gputrace;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub mod join_menu;
 pub mod knobs;
 pub mod light_guard;
 pub mod raster;

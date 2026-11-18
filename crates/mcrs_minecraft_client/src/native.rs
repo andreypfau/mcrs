@@ -251,6 +251,10 @@ pub fn run() -> AppExit {
         };
         #[cfg(not(feature = "dev"))]
         let column_traces = None;
+        #[cfg(feature = "dev")]
+        let extend_server = knobs.join_menu_server().unwrap_or(|_| {});
+        #[cfg(not(feature = "dev"))]
+        let extend_server: fn(&mut App) = |_| {};
         let server = mcrs_minecraft_client::local_server::LocalServerPlugin {
             asset_path: assets.clone(),
             data_pack: data_pack.clone(),
@@ -259,7 +263,7 @@ pub fn run() -> AppExit {
             open_to_lan: knobs.open_to_lan(),
             settings: knobs.server_settings(),
             column_traces,
-            extend_server: |_| {},
+            extend_server,
         };
         if let Some(game_directory) = &game_directory {
             app.add_plugins(mcrs_minecraft_client::world_list::WorldListPlugin {
