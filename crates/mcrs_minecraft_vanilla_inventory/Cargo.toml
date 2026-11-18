@@ -42,6 +42,7 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_resource.workspace = true

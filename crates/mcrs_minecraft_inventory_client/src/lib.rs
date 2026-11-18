@@ -1,5 +1,6 @@
 mod apply_menu_inputs;
 mod clear_first_slot;
+mod click_purpose;
 mod click_source;
 mod close_menu;
 mod container_close;
@@ -8,6 +9,8 @@ mod container_set_slot;
 mod creative_area;
 mod creative_click;
 mod creative_drop_counter;
+mod creative_screen;
+mod empty_creative_cursor;
 mod hand_input;
 mod inventory_client_plugin;
 mod inventory_client_set;
@@ -29,9 +32,11 @@ mod set_player_inventory;
 
 pub use creative_area::CreativeArea;
 pub use creative_click::CreativeClick;
+pub use creative_screen::CreativeScreen;
 pub use hand_input::HandInput;
 pub use inventory_client_plugin::InventoryClientPlugin;
 pub use inventory_client_set::InventoryClientSet;
+pub use local_inventory::shows_inventory_menu;
 pub use menu_action::MenuAction;
 pub use menu_input::MenuInput;
 pub use remote_menu::RemoteMenu;

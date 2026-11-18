@@ -1,8 +1,7 @@
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use bevy::math::{DVec3, Mat4, Vec3};
+use bevy::math::{DVec3, Mat3, Mat4, Vec3};
 use bevy::prelude::Resource;
 use mcrs_minecraft_core::Direction;
 
@@ -14,6 +13,7 @@ use crate::item_model_asset::{
 };
 use crate::item_model_generator;
 use crate::item_model_transform::compose;
+use crate::model_id::ModelId;
 use crate::resource_set::ResourceSet;
 use mcrs_minecraft_model_file::face_bake::{self, VariantTransform};
 use mcrs_minecraft_model_file::model_file::{
@@ -26,24 +26,24 @@ pub struct ItemQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub dir: Direction,
+    pub normal: Vec3,
     pub sprite: u16,
     pub tint: Option<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BakedItemModel {
     pub quads: Vec<ItemQuad>,
     pub display: DisplayTransform,
     pub gui_light: GuiLight,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BakedNode {
     Empty,
     Model {
-        model: Arc<BakedItemModel>,
+        model: ModelId,
         tints: Vec<TintSource>,
-        transform: Mat4,
     },
     Composite(Vec<BakedNode>),
     Condition {
@@ -65,7 +65,7 @@ pub enum BakedNode {
     },
     Special {
         model: SpecialModel,
-        properties: Arc<BakedItemModel>,
+        properties: ModelId,
         transform: Mat4,
     },
     BundleSelectedItem,
@@ -82,14 +82,24 @@ impl BakedNode {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct ItemModels {
-    pub by_id: hashbrown::HashMap<ResourceLocationBuf, Arc<BakedNode>>,
-    pub missing: Arc<BakedNode>,
+    pub by_id: hashbrown::HashMap<ResourceLocationBuf, BakedNode>,
+    pub missing: BakedNode,
     pub grass_colormap: Option<Vec<u8>>,
+    models: Vec<BakedItemModel>,
 }
 
 impl ItemModels {
+    #[must_use]
+    pub fn model(&self, id: ModelId) -> Option<&BakedItemModel> {
+        self.models.get(id.index()?)
+    }
+
+    pub fn models(&self) -> impl Iterator<Item = (ModelId, &BakedItemModel)> {
+        (0..).map(ModelId).zip(&self.models)
+    }
+
     pub fn get(&self, id: &str) -> &BakedNode {
         ResourceLocation::read(id)
             .ok()
@@ -102,21 +112,25 @@ struct Baker<'a> {
     pack: &'a ResourceSet,
     resolver: ModelResolver<'a>,
     sprites: &'a mut SpriteRegistry,
-    models: HashMap<String, Arc<BakedItemModel>>,
-    missing: Arc<BakedItemModel>,
+    ids: HashMap<String, ModelId>,
+    folded: HashMap<FoldKey, ModelId>,
+    models: Vec<BakedItemModel>,
+    missing: ModelId,
 }
 
 pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
     sprites
         .load_atlases(pack)
         .map_err(|error| error.to_string())?;
-    let missing = Arc::new(missing_model(pack, sprites)?);
+    let missing = missing_model(pack, sprites)?;
     let mut baker = Baker {
         pack,
         resolver: ModelResolver::new(pack.files()),
         sprites,
-        models: HashMap::new(),
-        missing: missing.clone(),
+        ids: HashMap::new(),
+        folded: HashMap::new(),
+        models: vec![missing],
+        missing: ModelId(0),
     };
     let mut by_id = hashbrown::HashMap::new();
     for (id, bytes) in pack.entries("items", "json") {
@@ -125,16 +139,16 @@ pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<Item
             .node(&item.model, Mat4::IDENTITY)
             .map_err(|error| format!("items/{id}: {error}"))?;
         let location = ResourceLocationBuf::read(&id).map_err(|error| format!("{id}: {error}"))?;
-        by_id.insert(location, Arc::new(root));
+        by_id.insert(location, root);
     }
     Ok(ItemModels {
         by_id,
         grass_colormap: Some(load_colormap(pack, "grass").map_err(|error| error.to_string())?),
-        missing: Arc::new(BakedNode::Model {
-            model: missing,
+        missing: BakedNode::Model {
+            model: baker.missing,
             tints: Vec::new(),
-            transform: Mat4::IDENTITY,
-        }),
+        },
+        models: baker.models,
     })
 }
 
@@ -148,9 +162,10 @@ impl Baker<'_> {
                 transformation,
                 tints,
             } => BakedNode::Model {
-                model: self.model(model.as_str())?,
+                model: self.model(model.as_str()).and_then(|plain| {
+                    self.layer(plain, compose(parent, transformation.as_ref()))
+                })?,
                 tints: tints.clone(),
-                transform: compose(parent, transformation.as_ref()),
             },
             UnbakedItemModel::Composite {
                 models,
@@ -220,20 +235,36 @@ impl Baker<'_> {
             }
             UnbakedItemModel::Special {
                 base,
-                transformation,
                 model,
-            } => {
-                let baked = self.model(base.as_str())?;
-                BakedNode::Special {
-                    model: model.clone(),
-                    properties: Arc::new(BakedItemModel {
-                        quads: Vec::new(),
-                        display: baked.display,
-                        gui_light: baked.gui_light,
-                    }),
-                    transform: compose(parent, transformation.as_ref()),
-                }
-            }
+                transformation,
+            } => self.special(
+                base.as_str(),
+                model,
+                compose(parent, transformation.as_ref()),
+            )?,
+        })
+    }
+
+    fn special(
+        &mut self,
+        base: &str,
+        model: &SpecialModel,
+        transform: Mat4,
+    ) -> Result<BakedNode, String> {
+        let base = self.model(base)?;
+        let (display, gui_light) = base
+            .index()
+            .and_then(|index| self.models.get(index))
+            .map(|baked| (baked.display, baked.gui_light))
+            .ok_or_else(|| format!("{base:?} is not baked"))?;
+        Ok(BakedNode::Special {
+            model: model.clone(),
+            properties: self.push(BakedItemModel {
+                quads: Vec::new(),
+                display,
+                gui_light,
+            })?,
+            transform,
         })
     }
 
@@ -245,23 +276,98 @@ impl Baker<'_> {
         match fallback {
             Some(fallback) => self.node(fallback, transform),
             None => Ok(BakedNode::Model {
-                model: self.missing.clone(),
+                model: self.layer(self.missing, transform)?,
                 tints: Vec::new(),
-                transform,
             }),
         }
     }
 
-    fn model(&mut self, id: &str) -> Result<Arc<BakedItemModel>, String> {
-        if let Some(model) = self.models.get(id) {
-            return Ok(model.clone());
+    fn model(&mut self, id: &str) -> Result<ModelId, String> {
+        if let Some(model) = self.ids.get(id) {
+            return Ok(*model);
         }
         let pack = self.pack;
         let resolved = self.resolver.resolve(id);
-        let model = Arc::new(bake_model(pack, self.sprites, resolved)?);
-        self.models.insert(id.to_string(), model.clone());
+        let model = bake_model(pack, self.sprites, resolved)?;
+        let model = self.push(model)?;
+        self.ids.insert(id.to_string(), model);
         Ok(model)
     }
+
+    fn layer(&mut self, plain: ModelId, transform: Mat4) -> Result<ModelId, String> {
+        if transform == Mat4::IDENTITY {
+            return Ok(plain);
+        }
+        let key = FoldKey {
+            model: plain,
+            transform: transform.to_cols_array().map(f32::to_bits),
+        };
+        if let Some(model) = self.folded.get(&key) {
+            return Ok(*model);
+        }
+        let folded = plain
+            .index()
+            .and_then(|index| self.models.get(index))
+            .map(|model| transformed(model, transform))
+            .ok_or_else(|| format!("{plain:?} is not baked"))?;
+        let model = self.push(folded)?;
+        self.folded.insert(key, model);
+        Ok(model)
+    }
+
+    fn push(&mut self, model: BakedItemModel) -> Result<ModelId, String> {
+        let id = u32::try_from(self.models.len()).map_err(|error| error.to_string())?;
+        self.models.push(model);
+        Ok(ModelId(id))
+    }
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct FoldKey {
+    model: ModelId,
+    transform: [u32; 16],
+}
+
+fn transformed(model: &BakedItemModel, transform: Mat4) -> BakedItemModel {
+    let normals = Mat3::from_mat4(transform).inverse().transpose();
+    let mirrored = transform.determinant() < 0.0;
+    BakedItemModel {
+        quads: model
+            .quads
+            .iter()
+            .map(|quad| {
+                let normal = normals * quad.normal;
+                let mut positions = quad
+                    .positions
+                    .map(|position| transform.transform_point3(position));
+                let mut uvs = quad.uvs;
+                if mirrored {
+                    positions.reverse();
+                    uvs.reverse();
+                }
+                ItemQuad {
+                    positions,
+                    uvs,
+                    dir: nearest_direction(normal).unwrap_or(quad.dir),
+                    normal: normal.normalize_or(quad.normal),
+                    ..quad.clone()
+                }
+            })
+            .collect(),
+        display: model.display,
+        gui_light: model.gui_light,
+    }
+}
+
+fn nearest_direction(normal: Vec3) -> Option<Direction> {
+    if !normal.is_finite() || normal == Vec3::ZERO {
+        return None;
+    }
+    Direction::all().into_iter().max_by(|a, b| {
+        normal
+            .dot(a.normal().as_vec3())
+            .total_cmp(&normal.dot(b.normal().as_vec3()))
+    })
 }
 
 fn bake_model(
@@ -297,6 +403,7 @@ fn bake_model(
                 positions: face.positions,
                 uvs: face.uvs,
                 dir: face.direction,
+                normal: face.direction.normal().as_vec3(),
                 sprite,
                 tint: face.tint,
             });
@@ -320,6 +427,7 @@ pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQua
             positions: face.positions,
             uvs: face.uvs,
             dir: face.direction,
+            normal: face.direction.normal().as_vec3(),
             sprite,
             tint: face.tint,
         })
@@ -367,6 +475,76 @@ fn missing_model(
 mod tests {
     use super::*;
 
+    #[test]
+    fn an_id_out_of_range_names_no_model() {
+        let models = ItemModels {
+            by_id: hashbrown::HashMap::new(),
+            missing: BakedNode::Empty,
+            grass_colormap: None,
+            models: Vec::new(),
+        };
+        assert!(models.model(ModelId(0)).is_none());
+        assert!(models.model(ModelId(u32::MAX)).is_none());
+    }
+
+    #[test]
+    fn a_folded_face_turns_and_mirrors_with_its_transform() {
+        let model = BakedItemModel {
+            quads: vec![ItemQuad {
+                positions: [Vec3::ZERO, Vec3::Y, Vec3::new(1.0, 1.0, 0.0), Vec3::X],
+                uvs: [[0.0; 2]; 4],
+                dir: Direction::North,
+                normal: Direction::North.normal().as_vec3(),
+                sprite: 0,
+                tint: None,
+            }],
+            display: DisplayTransform::IDENTITY,
+            gui_light: GuiLight::Side,
+        };
+        let cases = [
+            (
+                Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2),
+                Direction::West,
+                Vec3::NEG_X,
+            ),
+            (
+                Mat4::from_rotation_y(30f32.to_radians()),
+                Direction::North,
+                Vec3::new(-0.5, 0.0, -(3f32.sqrt() / 2.0)),
+            ),
+            (
+                Mat4::from_scale(Vec3::new(2.0, -1.0, -1.0)),
+                Direction::South,
+                Vec3::Z,
+            ),
+            (
+                Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)),
+                Direction::North,
+                Vec3::NEG_Z,
+            ),
+            (
+                Mat4::from_translation(Vec3::ONE),
+                Direction::North,
+                Vec3::NEG_Z,
+            ),
+        ];
+        for (transform, dir, normal) in cases {
+            let quad = &transformed(&model, transform).quads[0];
+            assert_eq!(quad.dir, dir);
+            assert!(
+                quad.normal.abs_diff_eq(normal, 1e-6),
+                "{transform:?} turns the north normal to {normal}, not {}",
+                quad.normal
+            );
+            let [first, second, _, last] = quad.positions;
+            let winding = (second - first).cross(last - first);
+            assert!(
+                winding.dot(normal) > 0.0,
+                "{transform:?} keeps the vertex winding facing {normal}"
+            );
+        }
+    }
+
     mod jar {
         use super::*;
 
@@ -381,6 +559,35 @@ mod tests {
             an_unknown_id_is_the_missing_cube_without_display_transforms(&models);
             range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below(&models);
             a_composite_of_one_collapses_and_a_special_keeps_only_its_display(&models);
+            a_bed_foot_layer_carries_its_offset_in_the_vertices(&models);
+        }
+
+        #[test]
+        fn a_model_with_one_transform_is_baked_once_and_identity_reuses_the_plain_model() {
+            let pack = ResourceSet::corpus();
+            let mut sprites = SpriteRegistry::default();
+            sprites.load_atlases(pack).unwrap();
+            let mut baker = Baker {
+                pack,
+                resolver: ModelResolver::new(pack.files()),
+                sprites: &mut sprites,
+                ids: HashMap::new(),
+                folded: HashMap::new(),
+                models: vec![missing_model(pack, &mut SpriteRegistry::default()).unwrap()],
+                missing: ModelId(0),
+            };
+            let stick = baker.model("minecraft:item/stick").unwrap();
+            let offset = Mat4::from_translation(Vec3::Z);
+            let plain = baker.layer(stick, Mat4::IDENTITY).unwrap();
+            let moved = baker.layer(stick, offset).unwrap();
+            assert_eq!(baker.model("minecraft:item/stick").unwrap(), plain);
+            assert_eq!(baker.layer(stick, offset).unwrap(), moved);
+            assert_ne!(moved, plain);
+            assert_ne!(
+                baker.layer(stick, Mat4::from_translation(Vec3::X)).unwrap(),
+                moved
+            );
+            assert_eq!(baker.models.len(), 4);
         }
     }
 
@@ -398,13 +605,10 @@ mod tests {
     }
 
     fn a_generated_item_is_extruded_and_front_lit(models: &ItemModels) {
-        let BakedNode::Model {
-            model, transform, ..
-        } = models.get("minecraft:stick")
-        else {
+        let BakedNode::Model { model, .. } = models.get("minecraft:stick") else {
             panic!("stick is a plain model");
         };
-        assert_eq!(*transform, Mat4::IDENTITY);
+        let model = models.model(*model).unwrap();
         assert_eq!(model.gui_light, GuiLight::Front);
         assert!(model.quads.len() > 2);
         assert!(model.quads.iter().all(|q| q.tint == Some(0)));
@@ -415,6 +619,7 @@ mod tests {
         let BakedNode::Model { model, .. } = models.get("minecraft:no_such_item") else {
             panic!("missing is a plain model");
         };
+        let model = models.model(*model).unwrap();
         assert_eq!(model.quads.len(), 6);
         assert_eq!(model.display, DisplayTransform::IDENTITY);
         assert_eq!(model.gui_light, GuiLight::Side);
@@ -440,6 +645,34 @@ mod tests {
         assert_eq!(BakedNode::range_index(&[0.0, 0.5, 0.9], f32::NAN), None);
     }
 
+    fn a_bed_foot_layer_carries_its_offset_in_the_vertices(models: &ItemModels) {
+        let BakedNode::Composite(layers) = models.get("minecraft:red_bed") else {
+            panic!("a bed is two layers");
+        };
+        let bounds: Vec<(Vec3, Vec3)> = layers
+            .iter()
+            .map(|layer| {
+                let BakedNode::Model { model, .. } = layer else {
+                    panic!("a bed layer is a plain model");
+                };
+                let positions = models.model(*model).unwrap().quads.iter();
+                let positions: Vec<Vec3> = positions.flat_map(|quad| quad.positions).collect();
+                let min = positions.iter().fold(Vec3::INFINITY, |min, p| min.min(*p));
+                let max = positions
+                    .iter()
+                    .fold(Vec3::NEG_INFINITY, |max, p| max.max(*p));
+                (min, max)
+            })
+            .collect();
+        assert_eq!(
+            bounds,
+            [
+                (Vec3::ZERO, Vec3::new(1.0, 0.5625, 1.0)),
+                (Vec3::Z, Vec3::new(1.0, 0.5625, 2.0)),
+            ]
+        );
+    }
+
     fn a_composite_of_one_collapses_and_a_special_keeps_only_its_display(models: &ItemModels) {
         assert!(matches!(
             models.get("minecraft:shield"),
@@ -448,6 +681,6 @@ mod tests {
         let BakedNode::Special { properties, .. } = models.get("minecraft:conduit") else {
             panic!("conduit is special");
         };
-        assert!(properties.quads.is_empty());
+        assert!(models.model(*properties).unwrap().quads.is_empty());
     }
 }

@@ -202,7 +202,7 @@ pub fn run() -> AppExit {
                     data_pack.clone(),
                 )),
             })
-            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client_gui::item_resolve::ItemRenderPlugin)
+            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client_gui::slot_icon::SlotIconPlugin)
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
     )
@@ -251,6 +251,10 @@ pub fn run() -> AppExit {
         };
         #[cfg(not(feature = "dev"))]
         let column_traces = None;
+        #[cfg(feature = "dev")]
+        let extend_server = knobs.join_menu_server().unwrap_or(|_| {});
+        #[cfg(not(feature = "dev"))]
+        let extend_server: fn(&mut App) = |_| {};
         let server = mcrs_minecraft_client::local_server::LocalServerPlugin {
             asset_path: assets.clone(),
             data_pack: data_pack.clone(),
@@ -259,7 +263,7 @@ pub fn run() -> AppExit {
             open_to_lan: knobs.open_to_lan(),
             settings: knobs.server_settings(),
             column_traces,
-            extend_server: |_| {},
+            extend_server,
         };
         if let Some(game_directory) = &game_directory {
             app.add_plugins(mcrs_minecraft_client::world_list::WorldListPlugin {
@@ -295,13 +299,14 @@ pub fn run() -> AppExit {
             .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
     });
     app.add_plugins(chat_input::ChatScreenPlugin);
+    let preselected = world
+        .as_deref()
+        .filter(|_| local_world)
+        .and_then(|world| preselected_world(world, game_directory.as_ref()));
     app.add_plugins((
         MenuPlugin,
         MenuScreensPlugin {
-            preselected_world: world
-                .as_deref()
-                .filter(|_| local_world)
-                .and_then(|world| preselected_world(world, game_directory.as_ref())),
+            preselected_world: preselected.clone(),
             utc_offset,
             singleplayer: cfg!(feature = "singleplayer"),
         },
@@ -311,7 +316,18 @@ pub fn run() -> AppExit {
 
     app.add_plugins(ClientTerrainPlugin(terrain_limits(MAX_VIEW_DISTANCE)));
     #[cfg(feature = "dev")]
-    app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
+    {
+        use mcrs_minecraft_client::dev::play_world::{self, PlayAtStart};
+        app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
+        if let Some(folder_id) = preselected.filter(|_| knobs.play_at_start()) {
+            app.insert_resource(PlayAtStart { folder_id })
+                .add_systems(Startup, play_world::read_world_list)
+                .add_systems(
+                    Update,
+                    play_world::play_at_start.run_if(resource_exists::<PlayAtStart>),
+                );
+        }
+    }
 
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);

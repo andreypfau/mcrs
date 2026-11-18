@@ -21,7 +21,7 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 pub use mcrs_minecraft_entity_attribute::AttributeSnapshot;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};

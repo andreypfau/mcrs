@@ -4,6 +4,7 @@ use crate::deserializer::NbtReadHelper;
 use crate::encoding::NbtEncoding;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
+use crate::tag::deepest;
 use crate::{END_ID, Error, Nbt, get_nbt_string};
 use std::io::{Read, Seek, Write};
 use std::vec::IntoIter;
@@ -50,8 +51,7 @@ impl NbtCompound {
             }
 
             let name = get_nbt_string(reader)?;
-            let tag = NbtTag::deserialize_data(reader, tag_id)?;
-            child_tags.push((name, tag));
+            NbtTag::deserialize_data(reader, tag_id).map(|tag| child_tags.push((name, tag)))?;
         }
 
         Ok(NbtCompound {
@@ -70,6 +70,14 @@ impl NbtCompound {
         }
         w.write_u8(END_ID)?;
         Ok(())
+    }
+
+    #[must_use]
+    pub fn depth(&self, budget: u32) -> u32 {
+        let Some(budget) = budget.checked_sub(1) else {
+            return 1;
+        };
+        deepest(self.child_tags.iter().map(|(_, child)| child.depth(budget)))
     }
 
     pub fn matches(&self, actual: &NbtCompound) -> bool {
@@ -268,8 +276,9 @@ impl<'de> Deserialize<'de> for NbtCompound {
                 mut map: A,
             ) -> Result<Self::Value, A::Error> {
                 let mut compound = NbtCompound::new();
-                while let Some((key, value)) = map.next_entry::<String, NbtTag>()? {
-                    compound.put(&key, value);
+                while let Some(key) = map.next_key::<String>()? {
+                    map.next_value::<NbtTag>()
+                        .map(|value| compound.put(&key, value))?;
                 }
                 Ok(compound)
             }

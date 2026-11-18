@@ -188,7 +188,9 @@ fn shift_up(quads: &mut [GuiQuad], shift: i32) {
                 rect.max = rect.max.saturating_sub(offset);
             }
             GuiQuad::Glyph { pen, .. } => *pen -= offset.as_vec2(),
-            GuiQuad::Item { origin, .. } => *origin = origin.saturating_sub(offset),
+            GuiQuad::Icon { origin, .. } => {
+                *origin = origin.saturating_sub(offset);
+            }
             GuiQuad::EndClip => {}
         }
     }

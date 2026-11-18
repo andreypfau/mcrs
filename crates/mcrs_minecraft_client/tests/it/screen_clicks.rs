@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::input::mouse::MouseButtonInput;
 use bevy::input::{ButtonState, InputPlugin};
@@ -12,18 +14,25 @@ use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::{HandInput, MenuAction, MenuInput};
 use mcrs_minecraft_menu_geometry::MenuGeometry;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_player_holders::HandAction;
+use mcrs_minecraft_protocol::{Encode, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerClose;
 
-use crate::local_world::LocalWorld;
+use crate::container_menus;
+use crate::local_world::{self, LocalWorld};
 use crate::stacks::{self, AGREED, Entry, Item, Stack};
 
 const GUI_SCALE: u32 = 2;
 const SCRATCH_ENTRY: u16 = 9;
+const FRAME: Duration = Duration::from_millis(300);
 const WINDOW_CORNER: IVec2 = IVec2::new((640 - 176) / 2, (360 - 166) / 2);
 
 #[derive(Clone, Copy, Debug)]
 enum Pointer {
     Entry(u16),
+    ChestEntry(u16),
     EmptyArea,
     Outside,
     RecipeBookButton,
@@ -85,7 +94,7 @@ const fn row(name: &'static str) -> Row {
     Row {
         name,
         game_mode: GameMode::Creative,
-        screen: Screen::Inventory,
+        screen: Screen::Menu,
         grab: CursorGrabMode::Locked,
         given: &[],
         given_cursor: None,
@@ -314,6 +323,260 @@ const ROWS: &[Row] = &[
         ..row("Escape closes the inventory screen")
     },
     Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[over(12)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 0),
+            on(ClickKind::Drag, 1, 10),
+            on(ClickKind::Drag, 1, 11),
+            on(ClickKind::Drag, 1, 12),
+            outside(ClickKind::Drag, 2),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 3),
+            stacks::at(11, Item::Stone, 3),
+            stacks::at(12, Item::Stone, 3),
+        ],
+        cursor: stacks::held(Item::Stone, 1),
+        ..row("a left drag over three entries splits the cursor stack between them")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(RIGHT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 4),
+            on(ClickKind::Drag, 5, 10),
+            on(ClickKind::Drag, 5, 11),
+            outside(ClickKind::Drag, 6),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 1),
+            stacks::at(11, Item::Stone, 1),
+        ],
+        cursor: stacks::held(Item::Stone, 8),
+        ..row("a right drag puts one item in each entry")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Move(Pointer::RecipeBookButton), Event::Press(LEFT)],
+            &[Event::Release(RIGHT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 4),
+            on(ClickKind::Drag, 5, 10),
+            on(ClickKind::Drag, 5, 11),
+            outside(ClickKind::Drag, 6),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 1),
+            stacks::at(11, Item::Stone, 1),
+        ],
+        cursor: stacks::held(Item::Stone, 8),
+        ..row("a left press on the recipe book button keeps an open drag")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(MIDDLE)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(MIDDLE)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 8),
+            on(ClickKind::Drag, 9, 10),
+            on(ClickKind::Drag, 9, 11),
+            outside(ClickKind::Drag, 10),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 64),
+            stacks::at(11, Item::Stone, 64),
+        ],
+        ..row("a middle drag in creative fills each entry and empties the cursor")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Press(RIGHT), Event::Release(RIGHT)],
+            &[Event::Release(LEFT)],
+        ],
+        cursor: stacks::held(Item::Stone, 10),
+        ..row("a release of another button cancels a drag over two entries")
+    },
+    Row {
+        given: &[stacks::at(9, Item::Stone, 10)],
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[over(9), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+            &[over(10), Event::Release(RIGHT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUp, 1, 10)],
+        entries: &[stacks::empty(9), stacks::at(10, Item::Stone, 1)],
+        cursor: stacks::held(Item::Stone, 9),
+        ..row("only the first release after a press that sent a click is skipped")
+    },
+    Row {
+        given: &[stacks::at(9, Item::Stone, 10)],
+        frames: &[
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Move(Pointer::Outside), Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), outside(ClickKind::PickUp, 0)],
+        entries: &[stacks::empty(9), stacks::empty(10), stacks::empty(11)],
+        ..row("a drag opened by a double click adds no entry, also after a later press")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[Event::Key(SHIFT), over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 0),
+            on(ClickKind::Drag, 1, 10),
+            on(ClickKind::Drag, 1, 11),
+            outside(ClickKind::Drag, 2),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 5),
+            stacks::at(11, Item::Stone, 5),
+        ],
+        ..row("Shift has no effect on a drag over two entries")
+    },
+    Row {
+        given: &[stacks::at(10, Item::Stone, 5)],
+        given_cursor: stacks::held(Item::Dirt, 3),
+        frames: &[
+            &[Event::Key(SHIFT), over(10), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::QuickMove, 0, 10)],
+        entries: &[stacks::empty(10), stacks::at(36, Item::Stone, 5)],
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row("a Shift drag that joins no entry moves the stack under the pointer")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 10),
+            stacks::at(20, Item::Stone, 5),
+            stacks::at(30, Item::Stone, 3),
+        ],
+        frames: &[
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+            ],
+            &[],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUpAll, 0, 9)],
+        entries: &[stacks::empty(9), stacks::empty(20), stacks::empty(30)],
+        cursor: stacks::held(Item::Stone, 18),
+        ..row("a double click gathers the stacks of the cursor item")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 10),
+            stacks::at(20, Item::Stone, 5),
+            stacks::at(30, Item::Stone, 3),
+        ],
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[Event::Release(RIGHT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUpAll, 0, 9)],
+        entries: &[stacks::empty(9), stacks::empty(20), stacks::empty(30)],
+        cursor: stacks::held(Item::Stone, 18),
+        ..row("a double click gathers after a release of another button cancels its drag")
+    },
+    Row {
+        given: &[stacks::at(20, Item::Stone, 5)],
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[
+                Event::Move(Pointer::RecipeBookButton),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[over(9), Event::Release(LEFT)],
+            &[over(10), Event::Release(RIGHT)],
+        ],
+        sent: &[on(ClickKind::PickUpAll, 0, 9), on(ClickKind::PickUp, 1, 10)],
+        entries: &[stacks::empty(20), stacks::at(10, Item::Stone, 1)],
+        cursor: stacks::held(Item::Stone, 14),
+        ..row("the release after a double click release is not skipped")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 5),
+            stacks::at(20, Item::Stone, 7),
+        ],
+        given_cursor: stacks::held(Item::Dirt, 3),
+        frames: &[
+            &[
+                Event::Key(SHIFT),
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+            ],
+            &[],
+        ],
+        sent: &[
+            on(ClickKind::QuickMove, 0, 9),
+            on(ClickKind::QuickMove, 0, 20),
+            on(ClickKind::QuickMove, 0, 36),
+        ],
+        entries: &[
+            stacks::at(9, Item::Stone, 12),
+            stacks::empty(20),
+            stacks::empty(36),
+        ],
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row("a Shift double click moves each stack of the remembered item")
+    },
+    Row {
         screen: Screen::None,
         given: &[stacks::at(36, Item::Dirt, 5)],
         frames: &[&[Event::Key(KeyCode::KeyQ)]],
@@ -358,16 +621,20 @@ const ROWS: &[Row] = &[
 ];
 
 fn gui_point(pointer: Pointer) -> IVec2 {
-    WINDOW_CORNER
-        + match pointer {
-            Pointer::Entry(entry) => {
-                let corner = MenuGeometry::INVENTORY.entry(entry).unwrap();
-                IVec2::new(corner.x, corner.y) + 8
-            }
-            Pointer::EmptyArea => IVec2::new(7, 84),
-            Pointer::Outside => IVec2::new(-10, 20),
-            Pointer::RecipeBookButton => IVec2::new(104, 61),
+    let entry_centre = |geometry: MenuGeometry, entry| {
+        let window = geometry.window(640, 360);
+        let corner = geometry.entry(entry).unwrap();
+        IVec2::new(window.x + corner.x, window.y + corner.y) + 8
+    };
+    match pointer {
+        Pointer::Entry(entry) => entry_centre(MenuGeometry::INVENTORY, entry),
+        Pointer::ChestEntry(entry) => {
+            entry_centre(MenuGeometry::of(MenuType::Generic9x3).unwrap(), entry)
         }
+        Pointer::EmptyArea => WINDOW_CORNER + IVec2::new(7, 84),
+        Pointer::Outside => WINDOW_CORNER + IVec2::new(-10, 20),
+        Pointer::RecipeBookButton => WINDOW_CORNER + IVec2::new(104, 61),
+    }
 }
 
 fn pick_up(world: &mut LocalWorld, entry: u16) {
@@ -384,11 +651,13 @@ fn set_up(world: &mut LocalWorld, row: &Row) {
     let cleared: Vec<Entry> = (9..=45).map(stacks::empty).collect();
     world.give(&cleared);
     pick_up(world, SCRATCH_ENTRY);
+    world.give(&[stacks::empty(SCRATCH_ENTRY)]);
+    world.app.insert_resource(row.screen);
     if row.given_cursor.is_some() {
         world.give(&[stacks::holding(SCRATCH_ENTRY, row.given_cursor)]);
         pick_up(world, SCRATCH_ENTRY);
+        world.give(&[stacks::empty(SCRATCH_ENTRY)]);
     }
-    world.give(&[stacks::empty(SCRATCH_ENTRY)]);
     world.give(row.given);
     test_support::round_trip(&mut world.app);
     world.switch_game_mode(row.game_mode);
@@ -470,15 +739,21 @@ fn play(app: &mut App, frame: &[Event]) {
             }
         }
     }
+    app.world_mut()
+        .resource_mut::<Time<Real>>()
+        .advance_by(FRAME);
     app.update();
     app.world_mut().run_schedule(FixedUpdate);
 }
 
 #[test]
 fn each_gesture_gives_its_input_and_the_same_stacks_on_both_sides() {
-    let mut world = LocalWorld::join("screen-clicks", |_| {}, add_input);
+    let mut world = LocalWorld::join(
+        "screen-clicks",
+        local_world::discard_thrown_items,
+        add_input,
+    );
     for row in ROWS {
-        world.app.insert_resource(row.screen);
         let mut cursor = world
             .app
             .world_mut()
@@ -503,5 +778,114 @@ fn each_gesture_gives_its_input_and_the_same_stacks_on_both_sides() {
         );
         world.assert_after_round_trip(row.name, row.answers, row.entries, row.cursor);
     }
+    world.leave();
+}
+
+#[test]
+fn a_menu_that_the_server_opens_between_a_press_and_its_release_takes_no_click() {
+    let mut world = LocalWorld::join(
+        "chest-between-press-and-release",
+        container_menus::open_chest_on_command,
+        add_input,
+    );
+    let case = Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        ..row("a menu that the server opens between a press and its release")
+    };
+    world.app.insert_resource(Screen::Menu);
+    set_up(&mut world, &case);
+    world.clear_answers();
+    world.app.world_mut().resource_mut::<SentInputs>().0.clear();
+
+    play(&mut world.app, &[over(10), Event::Press(LEFT)]);
+    container_menus::open_chest(&mut world.app, world.viewer, 1);
+    play(
+        &mut world.app,
+        &[Event::Move(Pointer::ChestEntry(0)), Event::Release(LEFT)],
+    );
+    assert_eq!(
+        world.app.world().resource::<SentInputs>().0,
+        [],
+        "the release over the chest takes no click"
+    );
+    world.assert_after_round_trip(case.name, None, &[], stacks::held(Item::Stone, 10));
+    world.leave();
+}
+
+#[test]
+fn a_server_chest_opens_its_screen_takes_a_click_and_closes_it() {
+    let mut world = LocalWorld::join(
+        "chest-screen",
+        container_menus::open_chest_on_command,
+        add_input,
+    );
+    let viewer = world.viewer;
+    world.app.insert_resource(Screen::None);
+    let menu = container_menus::open_chest(&mut world.app, viewer, 1);
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::Menu,
+        "the screen after the open"
+    );
+
+    world.clear_answers();
+    play(
+        &mut world.app,
+        &[Event::Move(Pointer::ChestEntry(0)), Event::Press(LEFT)],
+    );
+    play(&mut world.app, &[Event::Release(LEFT)]);
+    assert_eq!(
+        world.app.world().resource::<SentInputs>().0,
+        [on(ClickKind::PickUp, 0, 0)],
+        "the input of a left click on the first chest entry"
+    );
+    world.assert_after_round_trip(
+        "a left click on the first chest entry",
+        Some(AGREED),
+        &[],
+        stacks::held(Item::Stone, 10),
+    );
+    assert_eq!(
+        container_menus::menu_stacks(world.app.world(), menu).first(),
+        Some(&None),
+        "the first chest entry after the click"
+    );
+
+    container_menus::close_on_server(&mut world.app);
+    test_support::update_until(&mut world.app, |app| {
+        *app.world().resource::<Screen>() == Screen::None
+    });
+    world.leave();
+}
+
+#[test]
+fn a_server_close_of_the_inventory_menu_closes_its_screen() {
+    let mut world = LocalWorld::join("inventory-server-close", |_| {}, add_input);
+    world.app.insert_resource(Screen::None);
+    play(&mut world.app, &[Event::Key(KeyCode::KeyE)]);
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::Menu,
+        "the screen after the inventory key"
+    );
+    let mut body = Vec::new();
+    ClientboundContainerClose {
+        container_id: VarInt(0),
+    }
+    .encode(&mut body)
+    .unwrap();
+    let viewer = world.viewer;
+    world
+        .app
+        .world_mut()
+        .trigger(Received::<ClientboundContainerClose>::new(
+            viewer,
+            body.into(),
+        ));
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::None,
+        "the screen after the close of the inventory menu by the server"
+    );
     world.leave();
 }

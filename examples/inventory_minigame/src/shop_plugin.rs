@@ -25,10 +25,10 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_text::Text;
 
 use crate::OpenShop;

@@ -197,6 +197,10 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
         }
     }
 
+    fn same_holder(&self, left: SlotRef, right: SlotRef) -> bool {
+        left.holder == right.holder
+    }
+
     fn equal(&self, left: StackHandle, right: StackHandle) -> bool {
         left.alike == right.alike
     }

@@ -10,7 +10,9 @@ use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
 use mcrs_minecraft_client_world::game_mode::GameModePlugin;
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
 use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
+use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_game_mode::{Abilities, GameMode, PlayerGameMode};
+use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_protocol::{Bounded, WritePacket};
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -79,8 +81,8 @@ impl LocalWorld {
         let mut app = local_client(extend_server, extra);
         test_support::count_server_answers(&mut app);
         test_support::open(&mut app, &folder);
-        test_support::update_until(&mut app, "the join", test_support::joined);
-        test_support::update_until(&mut app, "the inventory menu in creative mode", |app| {
+        test_support::update_until(&mut app, test_support::joined);
+        test_support::update_until(&mut app, |app| {
             app.world_mut().run_schedule(FixedUpdate);
             app.world().resource::<ServerAnswers>().contents > 0
                 && test_support::creative_player(app.world_mut()).is_some()
@@ -126,7 +128,7 @@ impl LocalWorld {
             command: Bounded(command),
         });
         let creative = game_mode == GameMode::Creative;
-        test_support::update_until(app, command, |app| {
+        test_support::update_until(app, |app| {
             let world = app.world();
             world.get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode))
                 && world
@@ -183,5 +185,22 @@ impl LocalWorld {
         let lock = SaveLock::take(&self.folder).expect("the server released the world");
         drop(lock);
         fs::remove_dir_all(&self.folder).ok();
+    }
+}
+
+pub(crate) fn discard_thrown_items(server: &mut App) {
+    server
+        .world_mut()
+        .get_resource_or_init::<DimensionBuilders>()
+        .add(add_item_discard);
+}
+
+fn add_item_discard(_: &World, _: &DimensionBuild<'_>, dimension: &mut SubApp) {
+    dimension.add_systems(FixedUpdate, discard_items);
+}
+
+fn discard_items(items: Query<Entity, With<ItemEntity>>, mut commands: Commands) {
+    for item in &items {
+        commands.entity(item).despawn();
     }
 }

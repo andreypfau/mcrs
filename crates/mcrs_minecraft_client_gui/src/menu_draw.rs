@@ -17,7 +17,7 @@ use crate::scene::{GuiAtlas, GuiAtlasData, GuiQuad, GuiScene, GuiSize};
 use crate::scroll_area_draw::{draw_scroll_area, draw_section_label_box};
 use crate::tab_bar_draw::draw_tab_bar;
 use crate::text::{self, Wrap};
-use crate::tooltip::Tooltip;
+use crate::tooltip::{LineGap, Tooltip};
 
 const GRADIENT_TOP: u32 = 0xC010_1010;
 const GRADIENT_BOTTOM: u32 = 0xD010_1010;
@@ -89,7 +89,7 @@ pub fn request_menu_tooltip(menu: &mut Menu, now_ms: u64, font: &Font, tooltip: 
     else {
         return;
     };
-    tooltip.request_widget(request, menu.widgets.focused(), |lines| {
+    tooltip.request_widget(request, menu.widgets.focused(), LineGap::Uniform, |lines| {
         text::wrap(&entry.text, TOOLTIP_WRAP_WIDTH, Wrap::Tooltip, font, lines);
     });
 }

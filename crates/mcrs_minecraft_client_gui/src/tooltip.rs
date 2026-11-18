@@ -7,12 +7,21 @@ use crate::scene::{GuiAtlasData, GuiQuad, GuiSize};
 
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
+const FIRST_LINE_GAP: i32 = 2;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LineGap {
+    #[default]
+    Uniform,
+    AfterFirst,
+}
 
 #[derive(Debug, Default)]
 pub struct Tooltip {
     lines: Vec<Vec<Span>>,
     at: IVec2,
     widget: Option<TooltipRequest>,
+    gap: LineGap,
     requested: bool,
 }
 
@@ -33,12 +42,28 @@ impl Tooltip {
         self.requested = true;
         self.at = at;
         self.widget = None;
+        self.gap = LineGap::Uniform;
+    }
+
+    pub fn request_lines(&mut self, at: IVec2, lines: &[Vec<Span>]) {
+        if self.requested || lines.is_empty() {
+            return;
+        }
+        if self.lines != lines {
+            self.lines.clear();
+            self.lines.extend_from_slice(lines);
+        }
+        self.requested = true;
+        self.at = at;
+        self.widget = None;
+        self.gap = LineGap::Uniform;
     }
 
     pub fn request_widget(
         &mut self,
         widget: TooltipRequest,
         focused: Option<WidgetId>,
+        gap: LineGap,
         lines: impl FnOnce(&mut Vec<Vec<Span>>),
     ) {
         let replaces = focused == Some(widget.widget);
@@ -56,6 +81,26 @@ impl Tooltip {
         self.lines.drain(..kept);
         self.requested = true;
         self.widget = Some(widget);
+        self.gap = gap;
+    }
+
+    pub fn request_widget_lines(
+        &mut self,
+        widget: TooltipRequest,
+        focused: Option<WidgetId>,
+        gap: LineGap,
+        lines: &[Vec<Span>],
+    ) {
+        if lines.is_empty() || (self.requested && focused != Some(widget.widget)) {
+            return;
+        }
+        if self.lines != lines {
+            self.lines.clear();
+            self.lines.extend_from_slice(lines);
+        }
+        self.requested = true;
+        self.widget = Some(widget);
+        self.gap = gap;
     }
 
     pub fn lines(&self) -> Option<&[Vec<Span>]> {
@@ -63,9 +108,22 @@ impl Tooltip {
     }
 }
 
-pub fn content_size(font: &Font, lines: &[Vec<Span>]) -> IVec2 {
+pub fn content_size(font: &Font, lines: &[Vec<Span>], gap: LineGap) -> IVec2 {
     let width = lines.iter().map(|line| font.width(line)).max().unwrap_or(0);
-    IVec2::new(width, LINE * lines.len() as i32 - 2)
+    let rows = LINE * lines.len() as i32;
+    let height = match gap {
+        LineGap::AfterFirst if lines.len() > 1 => rows,
+        LineGap::AfterFirst | LineGap::Uniform => rows - 2,
+    };
+    IVec2::new(width, height)
+}
+
+fn line_top(index: usize, gap: LineGap) -> i32 {
+    let shift = match gap {
+        LineGap::AfterFirst if index > 0 => FIRST_LINE_GAP,
+        LineGap::AfterFirst | LineGap::Uniform => 0,
+    };
+    LINE * index as i32 + shift
 }
 
 pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
@@ -84,7 +142,7 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
         return;
     };
     let font = &atlas.font;
-    let size = content_size(font, lines);
+    let size = content_size(font, lines, tooltip.gap);
     let at = match tooltip.widget {
         Some(widget) => {
             let origin = widget.origin(GuiExtent::new(size.x, size.y));
@@ -99,7 +157,7 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
     for (index, line) in lines.iter().enumerate() {
         font::draw_text(
             font,
-            IVec2::new(at.x, at.y + LINE * index as i32),
+            IVec2::new(at.x, at.y + line_top(index, tooltip.gap)),
             line,
             out,
         );
@@ -109,6 +167,21 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_height_of_each_gap() {
+        let font = Font::default();
+        let rows = |count: usize| vec![Vec::new(); count];
+        let heights = [
+            (LineGap::Uniform, 1, 8),
+            (LineGap::Uniform, 2, 18),
+            (LineGap::AfterFirst, 1, 8),
+            (LineGap::AfterFirst, 2, 20),
+        ];
+        for (gap, count, height) in heights {
+            assert_eq!(content_size(&font, &rows(count), gap).y, height);
+        }
+    }
 
     #[test]
     fn the_first_request_with_lines_wins_until_the_frame_clears() {
@@ -153,11 +226,21 @@ mod tests {
         let focused = Some(WidgetId(2));
         let mut tooltip = Tooltip::default();
         tooltip.request(IVec2::new(1, 1), line("hover"));
-        tooltip.request_widget(request(1), focused, line("hovered widget"));
-        tooltip.request_widget(request(2), focused, |_| {});
+        tooltip.request_widget(
+            request(1),
+            focused,
+            LineGap::Uniform,
+            line("hovered widget"),
+        );
+        tooltip.request_widget(request(2), focused, LineGap::Uniform, |_| {});
         assert_eq!(shown(&tooltip), Some((1, "hover".into())));
         assert_eq!(tooltip.widget, None);
-        tooltip.request_widget(request(2), focused, line("focused widget"));
+        tooltip.request_widget(
+            request(2),
+            focused,
+            LineGap::Uniform,
+            line("focused widget"),
+        );
         assert_eq!(shown(&tooltip), Some((1, "focused widget".into())));
         assert_eq!(tooltip.widget, Some(request(2)));
     }

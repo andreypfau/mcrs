@@ -37,4 +37,5 @@ tracing.workspace = true
 bytes.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_inventory_file.workspace = true
+mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_wire.workspace = true

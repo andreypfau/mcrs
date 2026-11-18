@@ -40,10 +40,10 @@ fn leaving_a_local_world_restores_the_title_world() {
     let title = resources_and_entities(&mut app);
 
     open(&mut app, &folder);
-    update_until(&mut app, "the join", joined);
+    update_until(&mut app, joined);
     app.world_mut().write_message(LeaveRequest);
     let mut result = None;
-    update_until(&mut app, "the save", |app| {
+    update_until(&mut app, |app| {
         result = stopped(app);
         result.is_some()
     });
@@ -56,7 +56,7 @@ fn leaving_a_local_world_restores_the_title_world() {
     );
 
     open(&mut app, &folder);
-    update_until(&mut app, "the second join", joined);
+    update_until(&mut app, joined);
     let players = app
         .world_mut()
         .query_filtered::<(), With<Player>>()
@@ -78,7 +78,7 @@ fn a_held_world_folder_starts_no_server() {
     let mut app = client();
     open(&mut app, &folder);
     let mut result = None;
-    update_until(&mut app, "the failed start", |app| {
+    update_until(&mut app, |app| {
         result = stopped(app);
         result.is_some()
     });
@@ -106,7 +106,7 @@ fn an_open_waits_for_the_running_server_and_a_further_open_is_refused() {
     open(&mut app, second);
     open(&mut app, third);
     let mut results = Vec::new();
-    update_until(&mut app, "an answer to each open", |app| {
+    update_until(&mut app, |app| {
         results.extend(
             app.world_mut()
                 .resource_mut::<Messages<LocalServerStopped>>()

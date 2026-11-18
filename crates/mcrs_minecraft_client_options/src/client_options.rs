@@ -27,6 +27,7 @@ pub struct ClientOptions {
     pub fullscreen: bool,
     pub max_framerate: u16,
     pub improved_transparency: bool,
+    pub operator_items_tab: bool,
 }
 
 impl Default for ClientOptions {
@@ -44,6 +45,7 @@ impl Default for ClientOptions {
             fullscreen: false,
             max_framerate: 120,
             improved_transparency: false,
+            operator_items_tab: false,
         }
     }
 }

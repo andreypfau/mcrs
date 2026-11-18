@@ -1,11 +1,12 @@
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2};
 
-use crate::durability::Durability;
 use crate::font::{Font, Span, draw_text};
 use crate::scene::GuiQuad;
+use mcrs_minecraft_item_icon::Durability;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
+const CAPPED: u32 = 0xFFFF_FF55;
 const BAR_BACK: u32 = 0xFF00_0000;
 
 pub fn bar_width(damage: i32, max_damage: i32) -> i32 {
@@ -19,8 +20,14 @@ pub fn bar_color(damage: i32, max_damage: i32) -> u32 {
     u32::from_be_bytes([0, r, g, b])
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CountLabel {
+    Plain(u8),
+    Capped(u8),
+}
+
 pub struct Decorated {
-    pub count: u8,
+    pub count: CountLabel,
     pub damage: Option<Durability>,
 }
 
@@ -36,11 +43,14 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
             color: 0xFF00_0000 | bar_color(damage, max_damage),
         });
     }
-    if stack.count != 1 {
-        let text = [Span::new(stack.count.to_string(), WHITE)];
-        let x = origin.x + 19 - 2 - font.width(&text);
-        draw_text(font, IVec2::new(x, origin.y + 6 + 3), &text, out);
-    }
+    let (count, color) = match stack.count {
+        CountLabel::Plain(1) => return,
+        CountLabel::Plain(count) => (count, WHITE),
+        CountLabel::Capped(count) => (count, CAPPED),
+    };
+    let text = [Span::new(count.to_string(), color)];
+    let x = origin.x + 19 - 2 - font.width(&text);
+    draw_text(font, IVec2::new(x, origin.y + 6 + 3), &text, out);
 }
 
 #[cfg(test)]
@@ -69,13 +79,14 @@ mod tests {
             an_undamaged_stack_shows_no_bar();
             the_bar_is_two_fills_at_the_slot_bottom();
             counts_are_right_aligned_with_a_shadow();
+            a_capped_count_shows_in_yellow_also_at_one();
         }
     }
 
     fn an_undamaged_stack_shows_no_bar() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 1,
+            count: CountLabel::Plain(1),
             damage: None,
         };
         decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
@@ -85,7 +96,7 @@ mod tests {
     fn the_bar_is_two_fills_at_the_slot_bottom() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 1,
+            count: CountLabel::Plain(1),
             damage: Some(Durability {
                 damage: 50,
                 max_damage: 100,
@@ -110,7 +121,7 @@ mod tests {
     fn counts_are_right_aligned_with_a_shadow() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 64,
+            count: CountLabel::Plain(64),
             damage: None,
         };
         decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
@@ -149,13 +160,35 @@ mod tests {
         );
         out.clear();
         let seven = Decorated {
-            count: 7,
+            count: CountLabel::Plain(7),
             damage: None,
         };
         decorations(IVec2::ZERO, &seven, corpus_font(), &mut out);
         assert_eq!(out.len(), 2);
         assert!(
             matches!(out[1], GuiQuad::Glyph { pen, glyph: '7', .. } if pen == Vec2::new(11.0, 9.0))
+        );
+    }
+
+    fn a_capped_count_shows_in_yellow_also_at_one() {
+        let mut out = Vec::new();
+        let stack = Decorated {
+            count: CountLabel::Capped(1),
+            damage: None,
+        };
+        decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
+        assert_eq!(out.len(), 2, "a shadow and the text of one glyph");
+        assert!(
+            matches!(
+                out[1],
+                GuiQuad::Glyph {
+                    glyph: '1',
+                    color: 0xFFFF_FF55,
+                    ..
+                }
+            ),
+            "the yellow text of a capped entry, {:?}",
+            out[1]
         );
     }
 }

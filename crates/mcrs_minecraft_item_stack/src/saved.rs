@@ -83,6 +83,8 @@ use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::OminousBottleAmplifier;
+use crate::PaintingVariant;
+use crate::PaintingVariantId;
 use crate::PatchEntry;
 use crate::PotionContents;
 use crate::PotionId;
@@ -96,6 +98,7 @@ use crate::SlotStack;
 use crate::SoundEventId;
 use crate::SoundEventRef;
 use crate::StewEffect;
+use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
@@ -107,12 +110,15 @@ use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
 use crate::check_saved_form::MAX_COUNT;
-use crate::check_saved_form::MAX_NESTING;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::entity_data::ENTITY_TYPE_KEY;
+use crate::nbt_depth::LIST_TEMPLATE_LEVELS;
+use crate::nbt_depth::SLOT_TEMPLATE_LEVELS;
+use crate::nbt_depth::STACK_LEVEL;
+use crate::nbt_depth::check_nbt_depth;
 use crate::saved_form::DISPLAY_DEFAULT;
 use crate::saved_form::DISPLAY_HIDDEN;
 use crate::saved_form::DISPLAY_OVERRIDE;
@@ -129,6 +135,7 @@ use crate::saved_text::read_text;
 use crate::tag_number::TagNumber;
 use crate::tag_sink::TagSink;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_nbt::MAX_DEPTH;
 
 const ID: &str = "id";
 const COUNT: &str = "count";
@@ -137,7 +144,9 @@ const SLOT: &str = "Slot";
 const AIR: &str = "air";
 
 pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemStack, SavedError> {
-    read_stack(saved, names, 0)
+    let stack = read_stack(saved, names, STACK_LEVEL)?;
+    check_nbt_depth(&stack, names).map_err(Fault::into_saved)?;
+    Ok(stack)
 }
 
 fn read_item<L: NameLookup>(id: &str, names: &L) -> Result<Kind, SavedError> {
@@ -178,7 +187,7 @@ fn read_stack<L: NameLookup>(
                 if key.is_repeated(patch.child_tags.get(..index).unwrap_or_default()) {
                     return Err(SavedError::RepeatedKey);
                 }
-                stack.put_entry(read_entry(key, value, names, depth)?);
+                read_entry(key, value, names, depth).map(|entry| stack.put_entry(entry))?;
             }
         }
         Some(_) => return Err(SavedError::BadPatch),
@@ -197,6 +206,7 @@ pub fn write_saved<L: NameLookup>(stack: &ItemStack, names: &L) -> Result<NbtCom
     if count > MAX_COUNT {
         return Err(SavedError::BadCount);
     }
+    check_nbt_depth(stack, names).map_err(Fault::into_saved)?;
     let mut saved = NbtCompound::new();
     saved.put(ID, NbtTag::String(item.to_string()));
     saved.put(COUNT, NbtTag::Int(i32::from(count)));
@@ -268,24 +278,36 @@ fn read_entry<L: NameLookup>(
     if builtin.is_none() && names.id(NameTable::ComponentType, name).is_none() {
         return Err(SavedError::UnknownComponentType);
     }
-    if key.kind == KeyKind::Removal {
-        if !matches!(value, NbtTag::Compound(_)) {
-            return Err(SavedError::BadRemovalValue);
+    match (key.kind, builtin) {
+        (KeyKind::Removal, _) => read_removal(builtin, name, value),
+        (KeyKind::Value, Some(component)) => {
+            read_value_at(component, value, names, depth).map(PatchEntry::Value)
         }
-        return Ok(match builtin {
-            Some(component) => PatchEntry::Removal(component),
-            None => PatchEntry::UndecodedRemoval(name.to_buf()),
-        });
+        (KeyKind::Value, None) => read_undecoded(name, value),
     }
-    match builtin {
-        Some(component) => Ok(PatchEntry::Value(read_value_at(
-            component, value, names, depth,
-        )?)),
-        None => Ok(PatchEntry::Undecoded(UndecodedValue {
-            name: name.to_buf(),
-            bytes: encode(value)?,
-        })),
+}
+
+#[inline(never)]
+fn read_removal(
+    builtin: Option<BuiltinKey>,
+    name: ResourceLocation<'_>,
+    value: &NbtTag,
+) -> Result<PatchEntry, SavedError> {
+    if !matches!(value, NbtTag::Compound(_)) {
+        return Err(SavedError::BadRemovalValue);
     }
+    Ok(match builtin {
+        Some(component) => PatchEntry::Removal(component),
+        None => PatchEntry::UndecodedRemoval(name.to_buf()),
+    })
+}
+
+#[inline(never)]
+fn read_undecoded(name: ResourceLocation<'_>, value: &NbtTag) -> Result<PatchEntry, SavedError> {
+    Ok(PatchEntry::Undecoded(UndecodedValue {
+        name: name.to_buf(),
+        bytes: encode(value)?,
+    }))
 }
 
 fn write_entry<L: NameLookup>(
@@ -340,7 +362,7 @@ pub(crate) fn read_value<L: NameLookup>(
     tag: &NbtTag,
     names: &L,
 ) -> Result<Builtin, SavedError> {
-    read_value_at(component, tag, names, 0)
+    read_value_at(component, tag, names, STACK_LEVEL)
 }
 
 fn read_value_at<L: NameLookup>(
@@ -354,6 +376,30 @@ fn read_value_at<L: NameLookup>(
         names,
         depth,
     };
+    match component {
+        BuiltinKey::ChargedProjectiles => {
+            let list = reader.list(tag)?;
+            if list.len() > ChargedProjectiles::MAX_PROJECTILES {
+                return Err(SavedError::OutOfRange(component));
+            }
+            reader
+                .templates(list)
+                .map(|stacks| Builtin::ChargedProjectiles(ChargedProjectiles(stacks)))
+        }
+        BuiltinKey::BundleContents => reader
+            .templates(reader.list(tag)?)
+            .map(|stacks| Builtin::BundleContents(BundleContents(stacks))),
+        BuiltinKey::Container => reader.container(tag).map(Builtin::Container),
+        _ => read_flat_value(&reader, tag),
+    }
+}
+
+#[inline(never)]
+fn read_flat_value<L: NameLookup>(
+    reader: &Reader<'_, L>,
+    tag: &NbtTag,
+) -> Result<Builtin, SavedError> {
+    let component = reader.component;
     Ok(match component {
         BuiltinKey::MaxStackSize => {
             Builtin::MaxStackSize(MaxStackSize(reader.int(tag, STACK_SIZE)?))
@@ -376,6 +422,12 @@ fn read_value_at<L: NameLookup>(
             Builtin::Rarity(rarity)
         }
         BuiltinKey::Enchantments => Builtin::Enchantments(reader.enchantments(tag)?),
+        BuiltinKey::StoredEnchantments => {
+            Builtin::StoredEnchantments(StoredEnchantments(reader.enchantments(tag)?))
+        }
+        BuiltinKey::PaintingVariant => Builtin::PaintingVariant(PaintingVariant(
+            PaintingVariantId(reader.entry(NameTable::PaintingVariant, reader.identifier(tag)?)?),
+        )),
         BuiltinKey::AttributeModifiers => {
             Builtin::AttributeModifiers(reader.attribute_modifiers(tag)?)
         }
@@ -403,15 +455,8 @@ fn read_value_at<L: NameLookup>(
             OminousBottleAmplifier(reader.int(tag, OMINOUS_AMPLIFIER)?),
         ),
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(tag)?)),
-        BuiltinKey::ChargedProjectiles => {
-            let list = reader.list(tag)?;
-            if list.len() > ChargedProjectiles::MAX_PROJECTILES {
-                return Err(SavedError::OutOfRange(component));
-            }
-            Builtin::ChargedProjectiles(ChargedProjectiles(reader.templates(list)?))
-        }
-        BuiltinKey::BundleContents => {
-            Builtin::BundleContents(BundleContents(reader.templates(reader.list(tag)?)?))
+        BuiltinKey::ChargedProjectiles | BuiltinKey::BundleContents | BuiltinKey::Container => {
+            return read_value_at(component, tag, reader.names, reader.depth);
         }
         BuiltinKey::FireworkExplosion => {
             Builtin::FireworkExplosion(reader.firework_explosion(tag)?)
@@ -420,7 +465,6 @@ fn read_value_at<L: NameLookup>(
         BuiltinKey::BannerPatterns => Builtin::BannerPatterns(BannerPatterns(
             reader.each(reader.list(tag)?, Reader::banner_layer)?,
         )),
-        BuiltinKey::Container => Builtin::Container(reader.container(tag)?),
         BuiltinKey::Bees => Builtin::Bees(Bees(reader.each(reader.list(tag)?, Reader::bee)?)),
         BuiltinKey::ContainerLoot => {
             let map = reader.map(tag)?;
@@ -949,14 +993,14 @@ impl<L: NameLookup> Reader<'_, L> {
     fn templates(&self, list: &[NbtTag]) -> Result<Vec<ItemStack>, SavedError> {
         let mut stacks: Vec<ItemStack> = Vec::new();
         for element in list {
-            stacks.push(self.template(element)?);
+            stacks.push(self.template(element, LIST_TEMPLATE_LEVELS)?);
         }
         Ok(stacks)
     }
 
-    fn template(&self, tag: &NbtTag) -> Result<ItemStack, SavedError> {
-        let depth = self.depth.saturating_add(1);
-        if depth > MAX_NESTING {
+    fn template(&self, tag: &NbtTag, levels: u32) -> Result<ItemStack, SavedError> {
+        let depth = self.depth.saturating_add(levels);
+        if depth > MAX_DEPTH {
             return Err(SavedError::TooDeep);
         }
         match tag {
@@ -976,7 +1020,7 @@ impl<L: NameLookup> Reader<'_, L> {
             let map = self.map(element)?;
             let slot = self.int(self.necessary(map, "slot")?, 0..=255)?;
             let slot = usize::try_from(slot).map_err(|_| SavedError::OutOfRange(self.component))?;
-            let item = self.template(self.necessary(map, "item")?)?;
+            let item = self.template(self.necessary(map, "item")?, SLOT_TEMPLATE_LEVELS)?;
             if slots.len() <= slot {
                 slots.resize(slot.saturating_add(1), None);
             }
