@@ -160,6 +160,30 @@ fn saved_form_at<S: SavedSink, L: NameLookup>(
         depth,
     };
     match value {
+        Builtin::ChargedProjectiles(ChargedProjectiles(projectiles)) => {
+            if projectiles.len() > ChargedProjectiles::MAX_PROJECTILES {
+                return Err(Fault::OutOfRange(walk.component));
+            }
+            sink.list(projectiles.iter(), |sink, stack| {
+                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
+            })
+        }
+        Builtin::BundleContents(BundleContents(stacks)) => sink
+            .list(stacks.iter(), |sink, stack| {
+                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
+            }),
+        Builtin::Container(container) => walk.container(sink, container),
+        _ => flat_saved_form(&walk, value, sink),
+    }
+}
+
+#[inline(never)]
+fn flat_saved_form<S: SavedSink, L: NameLookup>(
+    walk: &Walk<'_, L>,
+    value: &Builtin,
+    sink: &mut S,
+) -> Result<S::Node, Fault> {
+    match value {
         Builtin::MaxStackSize(MaxStackSize(size)) => walk.int(sink, *size, STACK_SIZE),
         Builtin::MaxDamage(MaxDamage(damage)) => walk.int(sink, *damage, POSITIVE),
         Builtin::Damage(Damage(damage)) => walk.int(sink, *damage, NOT_NEGATIVE),
@@ -215,24 +239,14 @@ fn saved_form_at<S: SavedSink, L: NameLookup>(
             walk.int(sink, *amplifier, OMINOUS_AMPLIFIER)
         }
         Builtin::Instrument(Instrument(instrument)) => walk.instrument(sink, instrument),
-        Builtin::ChargedProjectiles(ChargedProjectiles(projectiles)) => {
-            if projectiles.len() > ChargedProjectiles::MAX_PROJECTILES {
-                return Err(Fault::OutOfRange(walk.component));
-            }
-            sink.list(projectiles.iter(), |sink, stack| {
-                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
-            })
+        Builtin::ChargedProjectiles(_) | Builtin::BundleContents(_) | Builtin::Container(_) => {
+            saved_form_at(value, walk.names, sink, walk.depth)
         }
-        Builtin::BundleContents(BundleContents(stacks)) => sink
-            .list(stacks.iter(), |sink, stack| {
-                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
-            }),
         Builtin::FireworkExplosion(explosion) => walk.firework_explosion(sink, explosion),
         Builtin::Fireworks(fireworks) => walk.fireworks(sink, fireworks),
         Builtin::BannerPatterns(BannerPatterns(layers)) => {
             sink.list(layers.iter(), |sink, layer| walk.banner_layer(sink, layer))
         }
-        Builtin::Container(container) => walk.container(sink, container),
         Builtin::Bees(Bees(occupants)) => sink.list(occupants.iter(), |sink, occupant| {
             let entity_data = walk.entity_data(sink, &occupant.entity_data)?;
             Ok(sink.fields([
@@ -699,19 +713,14 @@ impl<L: NameLookup> Walk<'_, L> {
         if count > MAX_COUNT {
             return Err(Fault::OutOfRange(self.component));
         }
-        let count = (count != 1).then(|| sink.leaf(Leaf::Int(i32::from(count))));
-        let components = saved_patch(
+        saved_patch(
             stack,
             self.names,
             sink,
             depth,
             Fault::BadValue(self.component),
-        )?;
-        Ok(sink.fields([
-            Field::new("id", sink.leaf(Leaf::Name(item))),
-            Field::optional("count", count),
-            Field::optional("components", components),
-        ]))
+        )
+        .map(|components| template_fields(sink, item, count, components))
     }
 
     fn container<S: SavedSink>(
@@ -841,11 +850,25 @@ fn patch_entry<'entry, S: SavedSink, L: NameLookup>(
     depth: u32,
     unsaved: Fault,
 ) -> Result<KeyedEntry<'entry, S::Node>, Fault> {
+    match entry {
+        PatchEntry::Value(value) => {
+            let key = MapKey::Name(value.key().location().ok_or(unsaved)?);
+            saved_form_at(value, names, sink, depth).map(|value| KeyedEntry { key, value })
+        }
+        _ => flat_patch_entry(names, sink, entry, depth, unsaved),
+    }
+}
+
+#[inline(never)]
+fn flat_patch_entry<'entry, S: SavedSink, L: NameLookup>(
+    names: &L,
+    sink: &mut S,
+    entry: &'entry PatchEntry,
+    depth: u32,
+    unsaved: Fault,
+) -> Result<KeyedEntry<'entry, S::Node>, Fault> {
     Ok(match entry {
-        PatchEntry::Value(value) => KeyedEntry {
-            key: MapKey::Name(value.key().location().ok_or(unsaved)?),
-            value: saved_form_at(value, names, sink, depth)?,
-        },
+        PatchEntry::Value(_) => return patch_entry(names, sink, entry, depth, unsaved),
         PatchEntry::Removal(component) => KeyedEntry {
             key: MapKey::Removal(component.location().ok_or(unsaved)?),
             value: sink.fields([]),
@@ -872,6 +895,21 @@ fn patch_entry<'entry, S: SavedSink, L: NameLookup>(
         }
         PatchEntry::Custom(_) => return Err(unsaved),
     })
+}
+
+#[inline(never)]
+fn template_fields<S: SavedSink>(
+    sink: &S,
+    item: ResourceLocation<'_>,
+    count: u8,
+    components: Option<S::Node>,
+) -> S::Node {
+    let count = (count != 1).then(|| sink.leaf(Leaf::Int(i32::from(count))));
+    sink.fields([
+        Field::new("id", sink.leaf(Leaf::Name(item))),
+        Field::optional("count", count),
+        Field::optional("components", components),
+    ])
 }
 
 fn is_saved(entry: &PatchEntry, wire_only: WireOnly) -> bool {

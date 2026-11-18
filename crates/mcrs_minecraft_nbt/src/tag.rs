@@ -140,6 +140,18 @@ impl NbtTag {
         w: &mut WriteAdaptor<W, E>,
     ) -> serializer::Result<()> {
         match self {
+            NbtTag::List(list) => serialize_list(list, w),
+            NbtTag::Compound(compound) => compound.serialize_content(w),
+            _ => self.serialize_flat_data(w),
+        }
+    }
+
+    #[inline(never)]
+    fn serialize_flat_data<W: Write, E: NbtEncoding>(
+        &self,
+        w: &mut WriteAdaptor<W, E>,
+    ) -> serializer::Result<()> {
+        match self {
             NbtTag::End => {}
             NbtTag::Byte(byte) => w.write_i8(*byte)?,
             NbtTag::Short(short) => w.write_i16(*short)?,
@@ -155,25 +167,7 @@ impl NbtTag {
             NbtTag::String(string) => {
                 E::write_string(w, string)?;
             }
-            NbtTag::List(list) => {
-                let len = list.len();
-                let element_type = list_element_type(list)?;
-                w.write_u8(element_type)?;
-                E::write_collection_length(w, len)?;
-                for nbt_tag in list {
-                    if is_wrapped_list_element(element_type, nbt_tag) {
-                        w.write_u8(nbt_tag.get_type_id())?;
-                        E::write_string(w, "")?;
-                        nbt_tag.serialize_data(w)?;
-                        w.write_u8(END_ID)?;
-                    } else {
-                        nbt_tag.serialize_data(w)?;
-                    }
-                }
-            }
-            NbtTag::Compound(compound) => {
-                compound.serialize_content(w)?;
-            }
+            NbtTag::List(_) | NbtTag::Compound(_) => self.serialize_data(w)?,
             NbtTag::IntArray(int_array) => {
                 let len = int_array.len();
                 E::write_collection_length(w, len)?;
@@ -275,6 +269,18 @@ impl NbtTag {
         tag_id: u8,
     ) -> Result<NbtTag, Error> {
         match tag_id {
+            LIST_ID => deserialize_list(reader).map(NbtTag::List),
+            COMPOUND_ID => deserialize_compound(reader).map(NbtTag::Compound),
+            _ => Self::deserialize_flat_data(reader, tag_id),
+        }
+    }
+
+    #[inline(never)]
+    fn deserialize_flat_data<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
+        tag_id: u8,
+    ) -> Result<NbtTag, Error> {
+        match tag_id {
             END_ID => Ok(NbtTag::End),
             BYTE_ID => {
                 let byte = reader.get_i8()?;
@@ -306,31 +312,7 @@ impl NbtTag {
                 Ok(NbtTag::ByteArray(byte_array))
             }
             STRING_ID => Ok(NbtTag::String(get_nbt_string(reader)?)),
-            LIST_ID => {
-                let (tag_type_id, len) = read_list_header(reader)?;
-
-                reader.push_depth()?;
-                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
-                for _ in 0..len {
-                    list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
-                        NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
-                            match compound.child_tags.pop() {
-                                Some((_, tag)) => tag,
-                                None => NbtTag::Compound(compound),
-                            }
-                        }
-                        tag => tag,
-                    });
-                }
-                reader.pop_depth();
-                Ok(NbtTag::List(list))
-            }
-            COMPOUND_ID => {
-                reader.push_depth()?;
-                let compound = NbtCompound::deserialize_content(reader)?;
-                reader.pop_depth();
-                Ok(NbtTag::Compound(compound))
-            }
+            LIST_ID | COMPOUND_ID => Self::deserialize_data(reader, tag_id),
             INT_ARRAY_ID => {
                 let len = reader.read_array_length(4)?;
                 let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
@@ -490,8 +472,71 @@ pub fn deepest(levels: impl IntoIterator<Item = u32>) -> u32 {
     levels.into_iter().max().unwrap_or(0).saturating_add(1)
 }
 
+fn deserialize_list<R: Read + Seek, E: NbtEncoding>(
+    reader: &mut NbtReadHelper<R, E>,
+) -> Result<Vec<NbtTag>, Error> {
+    let (tag_type_id, len) = read_list_header(reader)?;
+    reader.push_depth()?;
+    let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
+    for _ in 0..len {
+        NbtTag::deserialize_data(reader, tag_type_id).map(|tag| list.push(unwrap_element(tag)))?;
+    }
+    reader.pop_depth();
+    Ok(list)
+}
+
+#[inline(never)]
+fn unwrap_element(tag: NbtTag) -> NbtTag {
+    match tag {
+        NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
+            match compound.child_tags.pop() {
+                Some((_, tag)) => tag,
+                None => NbtTag::Compound(compound),
+            }
+        }
+        tag => tag,
+    }
+}
+
+fn deserialize_compound<R: Read + Seek, E: NbtEncoding>(
+    reader: &mut NbtReadHelper<R, E>,
+) -> Result<NbtCompound, Error> {
+    reader.push_depth()?;
+    let compound = NbtCompound::deserialize_content(reader)?;
+    reader.pop_depth();
+    Ok(compound)
+}
+
 fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
     list_element_id(list).ok_or_else(|| Error::SerdeError("a list cannot hold TAG_End".to_string()))
+}
+
+fn serialize_list<W: Write, E: NbtEncoding>(
+    list: &[NbtTag],
+    w: &mut WriteAdaptor<W, E>,
+) -> serializer::Result<()> {
+    let element_type = list_element_type(list)?;
+    w.write_u8(element_type)?;
+    E::write_collection_length(w, list.len())?;
+    for nbt_tag in list {
+        if is_wrapped_list_element(element_type, nbt_tag) {
+            write_wrapper_header(nbt_tag, w)?;
+            nbt_tag.serialize_data(w)?;
+            w.write_u8(END_ID)?;
+        } else {
+            nbt_tag.serialize_data(w)?;
+        }
+    }
+    Ok(())
+}
+
+#[inline(never)]
+fn write_wrapper_header<W: Write, E: NbtEncoding>(
+    nbt_tag: &NbtTag,
+    w: &mut WriteAdaptor<W, E>,
+) -> serializer::Result<()> {
+    w.write_u8(nbt_tag.get_type_id())?;
+    E::write_string(w, "")
 }
 
 impl From<&str> for NbtTag {

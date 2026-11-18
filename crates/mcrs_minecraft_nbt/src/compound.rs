@@ -51,8 +51,7 @@ impl NbtCompound {
             }
 
             let name = get_nbt_string(reader)?;
-            let tag = NbtTag::deserialize_data(reader, tag_id)?;
-            child_tags.push((name, tag));
+            NbtTag::deserialize_data(reader, tag_id).map(|tag| child_tags.push((name, tag)))?;
         }
 
         Ok(NbtCompound {
@@ -277,8 +276,9 @@ impl<'de> Deserialize<'de> for NbtCompound {
                 mut map: A,
             ) -> Result<Self::Value, A::Error> {
                 let mut compound = NbtCompound::new();
-                while let Some((key, value)) = map.next_entry::<String, NbtTag>()? {
-                    compound.put(&key, value);
+                while let Some(key) = map.next_key::<String>()? {
+                    map.next_value::<NbtTag>()
+                        .map(|value| compound.put(&key, value))?;
                 }
                 Ok(compound)
             }

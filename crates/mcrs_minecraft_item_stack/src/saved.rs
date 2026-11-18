@@ -187,7 +187,7 @@ fn read_stack<L: NameLookup>(
                 if key.is_repeated(patch.child_tags.get(..index).unwrap_or_default()) {
                     return Err(SavedError::RepeatedKey);
                 }
-                stack.put_entry(read_entry(key, value, names, depth)?);
+                read_entry(key, value, names, depth).map(|entry| stack.put_entry(entry))?;
             }
         }
         Some(_) => return Err(SavedError::BadPatch),
@@ -278,24 +278,36 @@ fn read_entry<L: NameLookup>(
     if builtin.is_none() && names.id(NameTable::ComponentType, name).is_none() {
         return Err(SavedError::UnknownComponentType);
     }
-    if key.kind == KeyKind::Removal {
-        if !matches!(value, NbtTag::Compound(_)) {
-            return Err(SavedError::BadRemovalValue);
+    match (key.kind, builtin) {
+        (KeyKind::Removal, _) => read_removal(builtin, name, value),
+        (KeyKind::Value, Some(component)) => {
+            read_value_at(component, value, names, depth).map(PatchEntry::Value)
         }
-        return Ok(match builtin {
-            Some(component) => PatchEntry::Removal(component),
-            None => PatchEntry::UndecodedRemoval(name.to_buf()),
-        });
+        (KeyKind::Value, None) => read_undecoded(name, value),
     }
-    match builtin {
-        Some(component) => Ok(PatchEntry::Value(read_value_at(
-            component, value, names, depth,
-        )?)),
-        None => Ok(PatchEntry::Undecoded(UndecodedValue {
-            name: name.to_buf(),
-            bytes: encode(value)?,
-        })),
+}
+
+#[inline(never)]
+fn read_removal(
+    builtin: Option<BuiltinKey>,
+    name: ResourceLocation<'_>,
+    value: &NbtTag,
+) -> Result<PatchEntry, SavedError> {
+    if !matches!(value, NbtTag::Compound(_)) {
+        return Err(SavedError::BadRemovalValue);
     }
+    Ok(match builtin {
+        Some(component) => PatchEntry::Removal(component),
+        None => PatchEntry::UndecodedRemoval(name.to_buf()),
+    })
+}
+
+#[inline(never)]
+fn read_undecoded(name: ResourceLocation<'_>, value: &NbtTag) -> Result<PatchEntry, SavedError> {
+    Ok(PatchEntry::Undecoded(UndecodedValue {
+        name: name.to_buf(),
+        bytes: encode(value)?,
+    }))
 }
 
 fn write_entry<L: NameLookup>(
@@ -364,6 +376,30 @@ fn read_value_at<L: NameLookup>(
         names,
         depth,
     };
+    match component {
+        BuiltinKey::ChargedProjectiles => {
+            let list = reader.list(tag)?;
+            if list.len() > ChargedProjectiles::MAX_PROJECTILES {
+                return Err(SavedError::OutOfRange(component));
+            }
+            reader
+                .templates(list)
+                .map(|stacks| Builtin::ChargedProjectiles(ChargedProjectiles(stacks)))
+        }
+        BuiltinKey::BundleContents => reader
+            .templates(reader.list(tag)?)
+            .map(|stacks| Builtin::BundleContents(BundleContents(stacks))),
+        BuiltinKey::Container => reader.container(tag).map(Builtin::Container),
+        _ => read_flat_value(&reader, tag),
+    }
+}
+
+#[inline(never)]
+fn read_flat_value<L: NameLookup>(
+    reader: &Reader<'_, L>,
+    tag: &NbtTag,
+) -> Result<Builtin, SavedError> {
+    let component = reader.component;
     Ok(match component {
         BuiltinKey::MaxStackSize => {
             Builtin::MaxStackSize(MaxStackSize(reader.int(tag, STACK_SIZE)?))
@@ -419,15 +455,8 @@ fn read_value_at<L: NameLookup>(
             OminousBottleAmplifier(reader.int(tag, OMINOUS_AMPLIFIER)?),
         ),
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(tag)?)),
-        BuiltinKey::ChargedProjectiles => {
-            let list = reader.list(tag)?;
-            if list.len() > ChargedProjectiles::MAX_PROJECTILES {
-                return Err(SavedError::OutOfRange(component));
-            }
-            Builtin::ChargedProjectiles(ChargedProjectiles(reader.templates(list)?))
-        }
-        BuiltinKey::BundleContents => {
-            Builtin::BundleContents(BundleContents(reader.templates(reader.list(tag)?)?))
+        BuiltinKey::ChargedProjectiles | BuiltinKey::BundleContents | BuiltinKey::Container => {
+            return read_value_at(component, tag, reader.names, reader.depth);
         }
         BuiltinKey::FireworkExplosion => {
             Builtin::FireworkExplosion(reader.firework_explosion(tag)?)
@@ -436,7 +465,6 @@ fn read_value_at<L: NameLookup>(
         BuiltinKey::BannerPatterns => Builtin::BannerPatterns(BannerPatterns(
             reader.each(reader.list(tag)?, Reader::banner_layer)?,
         )),
-        BuiltinKey::Container => Builtin::Container(reader.container(tag)?),
         BuiltinKey::Bees => Builtin::Bees(Bees(reader.each(reader.list(tag)?, Reader::bee)?)),
         BuiltinKey::ContainerLoot => {
             let map = reader.map(tag)?;

@@ -170,6 +170,24 @@ pub(crate) fn read_value_at<L: NameLookup>(
         names,
         depth,
     };
+    match component {
+        BuiltinKey::ChargedProjectiles => reader
+            .list_templates(input, ChargedProjectiles::MAX_PROJECTILES)
+            .map(|stacks| Builtin::ChargedProjectiles(ChargedProjectiles(stacks))),
+        BuiltinKey::BundleContents => reader
+            .list_templates(input, usize::MAX)
+            .map(|stacks| Builtin::BundleContents(BundleContents(stacks))),
+        BuiltinKey::Container => reader.container(input).map(Builtin::Container),
+        _ => read_flat_value(&reader, input),
+    }
+}
+
+#[inline(never)]
+fn read_flat_value<L: NameLookup>(
+    reader: &Reader<'_, L>,
+    input: &mut &[u8],
+) -> Result<Builtin, WireError> {
+    let component = reader.component;
     Ok(match component {
         BuiltinKey::MaxStackSize => Builtin::MaxStackSize(MaxStackSize(reader.var_int(input)?)),
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.var_int(input)?)),
@@ -236,11 +254,8 @@ pub(crate) fn read_value_at<L: NameLookup>(
             Builtin::OminousBottleAmplifier(OminousBottleAmplifier(reader.var_int(input)?))
         }
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(input)?)),
-        BuiltinKey::ChargedProjectiles => Builtin::ChargedProjectiles(ChargedProjectiles(
-            reader.list_templates(input, ChargedProjectiles::MAX_PROJECTILES)?,
-        )),
-        BuiltinKey::BundleContents => {
-            Builtin::BundleContents(BundleContents(reader.list_templates(input, usize::MAX)?))
+        BuiltinKey::ChargedProjectiles | BuiltinKey::BundleContents | BuiltinKey::Container => {
+            return read_value_at(component, input, reader.names, reader.depth);
         }
         BuiltinKey::FireworkExplosion => {
             Builtin::FireworkExplosion(reader.firework_explosion(input)?)
@@ -257,7 +272,6 @@ pub(crate) fn read_value_at<L: NameLookup>(
         BuiltinKey::BannerPatterns => {
             Builtin::BannerPatterns(BannerPatterns(reader.list(input, Reader::banner_layer)?))
         }
-        BuiltinKey::Container => Builtin::Container(reader.container(input)?),
         BuiltinKey::Bees => Builtin::Bees(Bees(reader.list(input, Reader::bee)?)),
         BuiltinKey::ContainerLoot => reader.saved_form_as_nbt(input)?,
     })

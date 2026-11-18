@@ -136,12 +136,22 @@ pub(crate) fn read_patch<L: NameLookup>(
     let removals = frame_length(input)?;
     for _ in 0..values {
         let component = read_type(input, names)?;
-        let entry = match entries {
-            Entries::Bare => read_bare_value(input, names, &component, depth)?,
-            Entries::LengthPrefixed => read_prefixed_value(input, names, &component)?,
-        };
-        put_new(stack, entry, component.id)?;
+        match entries {
+            Entries::Bare => read_bare_value(input, names, &component, depth),
+            Entries::LengthPrefixed => read_prefixed_value(input, names, &component),
+        }
+        .and_then(|entry| put_new(stack, entry, component.id))?;
     }
+    read_removals(input, names, removals, stack)
+}
+
+#[inline(never)]
+fn read_removals<L: NameLookup>(
+    input: &mut &[u8],
+    names: &L,
+    removals: usize,
+    stack: &mut ItemStack,
+) -> Result<(), WireError> {
     for _ in 0..removals {
         let component = read_type(input, names)?;
         let entry = match component.builtin {
@@ -183,7 +193,7 @@ fn read_bare_value<L: NameLookup>(
 ) -> Result<PatchEntry, WireError> {
     let unsupported = WireError::UnsupportedComponentType(component.id);
     let key = component.builtin.ok_or(unsupported)?;
-    Ok(PatchEntry::Value(read_value_at(key, input, names, depth)?))
+    read_value_at(key, input, names, depth).map(PatchEntry::Value)
 }
 
 fn read_prefixed_value<L: NameLookup>(
