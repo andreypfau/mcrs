@@ -157,3 +157,7 @@ harness = false
 [[bench]]
 name = "random_ticks_save"
 harness = false
+
+[[bench]]
+name = "worldgen_throughput"
+harness = false
