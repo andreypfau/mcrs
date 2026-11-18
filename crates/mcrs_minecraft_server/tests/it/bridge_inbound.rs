@@ -1,5 +1,6 @@
 use crate::mock_connection;
 
+use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
@@ -15,10 +16,13 @@ use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::event::{Received, run_event_loop};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
-use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::{
+    ConnectionState, NetworkPlugin, ReceivedPacket, ServerSideConnection,
+};
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::decode::PacketDecoder;
@@ -28,7 +32,13 @@ use mcrs_minecraft_protocol::packets::table::{
     Row, configuration_serverbound, login_serverbound, row_of,
 };
 use mcrs_minecraft_protocol::packets::{configuration, game};
+use mcrs_minecraft_protocol::{Encode, VarInt};
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundEditBook, ServerboundSetCreativeModeSlot,
+};
 use mcrs_minecraft_protocol_game::table::game_serverbound;
+
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -497,4 +507,130 @@ fn frames_after_configuration_ack_use_the_configuration_table() {
     assert!(world.entity(socket).contains::<ServerSideConnection>());
     assert_eq!(world.resource::<DeliveredIds>().0, [7]);
     assert_eq!(game_counts(&world).failures_total(), 0);
+}
+
+fn var_int(value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(i32::try_from(value).unwrap())
+        .encode(&mut bytes)
+        .unwrap();
+    bytes
+}
+
+fn creative_slot_with_custom_data(length: usize) -> Vec<u8> {
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&i32::try_from(length).unwrap().to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    [
+        36i16.to_be_bytes().to_vec(),
+        var_int(1),
+        var_int(1),
+        var_int(1),
+        var_int(0),
+        var_int(0),
+        var_int(nbt.len()),
+        nbt,
+    ]
+    .concat()
+}
+
+fn edit_book_of(pages: usize) -> Vec<u8> {
+    let mut bytes = [var_int(0), var_int(pages)].concat();
+    for _ in 0..pages {
+        bytes.extend_from_slice(&[1, b'x']);
+    }
+    bytes.push(0);
+    bytes
+}
+
+fn plugin_dispatcher(bytes: u64) -> PacketDispatcher {
+    let mut app = App::new();
+    app.add_plugins(NetworkPlugin {
+        address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+        announce_on_lan: false,
+        nbt_budget: NbtBudget {
+            bytes,
+            tags: 262_144,
+        },
+        ..Default::default()
+    });
+    let mut dispatcher = app
+        .world_mut()
+        .remove_resource::<PacketDispatcher>()
+        .expect("the network plugin inserts the dispatcher");
+    dispatcher.set_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND);
+    dispatcher
+}
+
+#[test]
+fn a_packet_past_the_nbt_budget_of_the_plugin_disconnects_and_is_not_delivered() {
+    let creative = row_of(game_serverbound::NAMES, "set_creative_mode_slot").unwrap();
+    let edit_book = row_of(game_serverbound::NAMES, "edit_book").unwrap();
+    let decoder = "io.netty.handler.codec.DecoderException";
+    for (budget, id, body, delivered) in [
+        (
+            33_554_432,
+            creative,
+            creative_slot_with_custom_data(2_097_148),
+            true,
+        ),
+        (
+            1_000_000,
+            creative,
+            creative_slot_with_custom_data(2_097_148),
+            false,
+        ),
+        (33_554_432, edit_book, edit_book_of(101), false),
+    ] {
+        let mut world = build_inbound_world();
+        world.insert_resource(plugin_dispatcher(budget));
+        world.init_resource::<DeliveredIds>();
+        world.add_observer(deliver::<ServerboundSetCreativeModeSlot>(creative));
+        world.add_observer(deliver::<ServerboundEditBook<'static>>(edit_book));
+        let (raw, mut outgoing, tx) = mock_connection::make_mock_raw_connection_full();
+        let socket = world
+            .spawn((
+                ServerSideConnection { raw: Box::new(raw) },
+                ConnectionState::Game,
+                InboundPacketRate::default(),
+                OutboundQueue::default(),
+            ))
+            .id();
+        tx.try_send(frame(id, &body)).unwrap();
+
+        run_inbound(&mut world);
+
+        let name = game_serverbound::NAMES[id as usize];
+        let connected = world.entity(socket).contains::<ServerSideConnection>();
+        if delivered {
+            assert_eq!(world.resource::<DeliveredIds>().0, [id], "{name} {budget}");
+            assert!(connected, "{name} {budget} keeps the connection");
+            continue;
+        }
+        assert_eq!(
+            world.resource::<DeliveredIds>().0,
+            [0; 0],
+            "{name} {budget}"
+        );
+        assert!(!connected, "{name} {budget} is still connected");
+        let mut frames = PacketDecoder::new();
+        while let Ok(blob) = outgoing.try_recv() {
+            frames.queue_bytes(BytesMut::from(&blob[..]));
+        }
+        let received: Vec<_> = std::iter::from_fn(|| frames.try_next_packet().unwrap()).collect();
+        let [received] = received.as_slice() else {
+            panic!("{name} {budget}: {received:?}");
+        };
+        assert_eq!(
+            disconnect_reason(ConnectionState::Game, &received.body),
+            serde_json::json!({
+                "translate": "disconnect.genericReason",
+                "with": [format!(
+                    "Internal Exception: {decoder}: Failed to decode packet 'serverbound/minecraft:{name}'"
+                )],
+            }),
+            "{name} {budget}"
+        );
+    }
 }

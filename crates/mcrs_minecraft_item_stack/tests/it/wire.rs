@@ -50,9 +50,12 @@ use mcrs_minecraft_item_stack::write_saved;
 use mcrs_minecraft_item_stack::write_wire;
 use mcrs_minecraft_item_stack::write_wire_not_empty;
 use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_nbt::NbtBudget;
+use mcrs_minecraft_nbt::NbtQuotaExceeded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::with_nbt_budget;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
@@ -1074,12 +1077,16 @@ fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
         (container_of_two(1_048_572), true),
         (container_of_two(1_048_573), false),
     ];
+    let budget = NbtBudget {
+        bytes: 2_097_152,
+        tags: 262_144,
+    };
     for (index, (bytes, passes)) in cases.iter().enumerate() {
-        let read = read_all(bytes, read_wire);
+        let read = with_nbt_budget(budget, || read_all(bytes, read_wire));
         if *passes {
-            assert!(matches!(read, Ok(Some(_))), "{index}");
+            assert!(matches!(read, Ok(Ok(Some(_)))), "{index}");
         } else {
-            assert_eq!(read, Err(WireError::QuotaExceeded), "{index}");
+            assert_eq!(read, Err(NbtQuotaExceeded), "{index}");
         }
     }
 }

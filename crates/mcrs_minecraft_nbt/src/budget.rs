@@ -12,7 +12,7 @@ pub struct NbtBudget {
 impl Default for NbtBudget {
     fn default() -> Self {
         Self {
-            bytes: 2_097_152,
+            bytes: 33_554_432,
             tags: 262_144,
         }
     }

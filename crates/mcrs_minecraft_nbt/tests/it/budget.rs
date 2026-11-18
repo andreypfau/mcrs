@@ -12,6 +12,11 @@ use crate::declared_lengths::largest_request;
 
 const A_MEGABYTE: usize = 1 << 20;
 
+const VECTOR_BUDGET: NbtBudget = NbtBudget {
+    bytes: 2_097_152,
+    tags: 262_144,
+};
+
 fn sized(kind: &[u8], declared: i32, data: usize) -> Vec<u8> {
     let mut bytes = kind.to_vec();
     bytes.extend_from_slice(&declared.to_be_bytes());
@@ -48,16 +53,15 @@ fn the_reader_vectors_pass_up_to_the_budget_and_stop_one_past_it() {
         } else {
             Err(NbtQuotaExceeded)
         };
-        let default = NbtBudget::default();
-        assert_eq!(as_tag(default, bytes), expected, "{index}");
-        assert_eq!(split(default, bytes), expected, "{index}");
+        assert_eq!(as_tag(VECTOR_BUDGET, bytes), expected, "{index}");
+        assert_eq!(split(VECTOR_BUDGET, bytes), expected, "{index}");
     }
 }
 
 #[test]
 fn a_truncated_array_past_the_budget_is_a_quota_error_and_not_an_allocation() {
     let bytes = sized(&[INT_ARRAY_ID], i32::MAX, 0);
-    let (read, largest) = largest_request(|| as_tag(NbtBudget::default(), &bytes));
+    let (read, largest) = largest_request(|| as_tag(VECTOR_BUDGET, &bytes));
     assert_eq!(read, Err(NbtQuotaExceeded));
     assert!(largest < A_MEGABYTE, "{largest}");
 }

@@ -1,5 +1,5 @@
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_nbt::NbtBudget;
+use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
@@ -167,6 +167,10 @@ impl TableCounts {
                 format!("{}: {error:#}", self.name(id)),
             ),
         };
+        Err(self.fail(row, cause, detail))
+    }
+
+    fn fail(&mut self, row: Option<i32>, cause: String, detail: String) -> Malformed {
         let count = match row {
             None => Some(&mut self.unknown),
             Some(id) => usize::try_from(id)
@@ -177,10 +181,10 @@ impl TableCounts {
             *count += 1;
             *count == 1
         });
-        Err(Malformed {
+        Malformed {
             cause,
             log: first.then(|| format!("inbound packet: {:?} {detail}", self.table.state)),
-        })
+        }
     }
 
     fn decode_failure(&self, id: i32) -> String {
@@ -302,7 +306,7 @@ impl PacketDispatcher {
         }
     }
 
-    pub fn set_nbt_budget(&mut self, budget: NbtBudget) {
+    pub(crate) fn set_nbt_budget(&mut self, budget: NbtBudget) {
         self.nbt_budget = budget;
     }
 
@@ -333,10 +337,11 @@ impl PacketDispatcher {
                 })
                 .is_ok();
                 match recorded {
-                    Ok(_) if !fits => Err(Malformed {
-                        cause: counts.decode_failure(id),
-                        log: None,
-                    }),
+                    Ok(_) if !fits => {
+                        let cause = counts.decode_failure(id);
+                        let detail = format!("{}: {NbtQuotaExceeded}", counts.name(id));
+                        Err(counts.fail(Some(id), cause, detail))
+                    }
                     recorded => recorded,
                 }
             }
@@ -444,6 +449,10 @@ mod tests {
     fn the_network_nbt_of_one_packet_shares_one_budget_and_a_refusal_is_logged_once() {
         let mut counts = PacketDispatcher::serverbound()
             .with_play(PlayTable::new(&game_serverbound::TABLE, two_nbt));
+        counts.set_nbt_budget(NbtBudget {
+            bytes: 2_097_152,
+            tags: 262_144,
+        });
         let fits = two_arrays(1_048_576);
         let over = two_arrays(1_048_577);
         for _ in 0..2 {
@@ -477,7 +486,17 @@ mod tests {
             "{}",
             swallowed.cause
         );
-        assert_eq!(swallowed.log, None);
+        let line = swallowed.log.expect("the first failure of a row is logged");
+        assert!(line.contains("exceeds its budget"), "{line}");
+        assert_eq!(
+            counts
+                .dispatch(ConnectionState::Game, 1, &over)
+                .expect_err("a swallowed quota error is still a refusal")
+                .log,
+            None
+        );
+        let failures = counts.counts(ConnectionState::Game).unwrap().failures(1);
+        assert_eq!(failures, 2, "each refusal is counted under its row");
 
         counts.set_nbt_budget(NbtBudget {
             bytes: 1_000_000,
