@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::model_file_error::ModelFileError;
 use crate::resource_id::full_id;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GuiLight {
     Front,
     #[default]

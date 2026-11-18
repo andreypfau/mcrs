@@ -215,3 +215,67 @@ impl Evaluator<'_> {
         }
     }
 }
+
+#[must_use]
+pub fn condition_reads_context(property: &ConditionProperty) -> bool {
+    match property {
+        ConditionProperty::Damaged
+        | ConditionProperty::Broken
+        | ConditionProperty::HasComponent { .. }
+        | ConditionProperty::Component(_)
+        | ConditionProperty::CustomModelData { .. } => false,
+        ConditionProperty::UsingItem
+        | ConditionProperty::Selected
+        | ConditionProperty::Carried
+        | ConditionProperty::ExtendedView
+        | ConditionProperty::KeybindDown { .. }
+        | ConditionProperty::ViewEntity
+        | ConditionProperty::FishingRodCast
+        | ConditionProperty::BundleHasSelectedItem => true,
+    }
+}
+
+#[must_use]
+pub fn select_reads_context(switch: &SelectSwitch) -> bool {
+    match switch {
+        SelectSwitch::TrimMaterial { .. }
+        | SelectSwitch::DisplayContext { .. }
+        | SelectSwitch::BlockState { .. }
+        | SelectSwitch::ChargeType { .. }
+        | SelectSwitch::CustomModelData { .. }
+        | SelectSwitch::Component(_) => false,
+        SelectSwitch::MainHand { .. }
+        | SelectSwitch::LocalTime { .. }
+        | SelectSwitch::ContextEntityType { .. }
+        | SelectSwitch::ContextDimension { .. } => true,
+    }
+}
+
+#[must_use]
+pub fn range_reads_context(property: &RangeProperty) -> bool {
+    match property {
+        RangeProperty::Damage { .. }
+        | RangeProperty::Count { .. }
+        | RangeProperty::CustomModelData { .. }
+        | RangeProperty::BundleFullness => false,
+        RangeProperty::Cooldown
+        | RangeProperty::CrossbowPull
+        | RangeProperty::UseDuration { .. }
+        | RangeProperty::UseCycle { .. }
+        | RangeProperty::Time { .. }
+        | RangeProperty::Compass { .. } => true,
+    }
+}
+
+#[must_use]
+pub fn tint_reads_context(source: &TintSource) -> bool {
+    match source {
+        TintSource::Constant { .. }
+        | TintSource::Dye { .. }
+        | TintSource::Potion { .. }
+        | TintSource::Firework { .. }
+        | TintSource::Grass { .. }
+        | TintSource::CustomModelData { .. } => false,
+        TintSource::Team { .. } => true,
+    }
+}

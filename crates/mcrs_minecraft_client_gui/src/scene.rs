@@ -32,7 +32,7 @@ use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::item_decorations::{Decorated, WHITE, decorations};
-use crate::item_resolve::{GuiVertex, ItemRenderLayers};
+use crate::item_resolve::ItemRenderLayers;
 use crate::language::ClientLanguage;
 use crate::menu_draw;
 use crate::menu_label_text::MenuLabelText;
@@ -44,6 +44,7 @@ use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item_icon::GuiVertex;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 

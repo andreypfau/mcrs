@@ -19,7 +19,6 @@ pub mod debug_screen;
 pub mod debug_screen_overlay;
 mod delete_world_screen;
 mod disconnected_screen;
-pub mod durability;
 mod edit_box_draw;
 mod follow_create_world;
 mod follow_list_answer;
