@@ -1,0 +1,66 @@
+{
+ "scene": "sign_sides",
+ "version": "26.4-snapshot-7",
+ "frames": [
+  {
+   "image": "inside_south.png",
+   "camera": {
+    "position": [
+     0.5,
+     -59.000000114440915,
+     0.47
+    ],
+    "yaw": 0.0,
+    "pitch": 0.0,
+    "fov": 70.0,
+    "partial_tick": 1.0
+   },
+   "entities": []
+  },
+  {
+   "image": "inside_north.png",
+   "camera": {
+    "position": [
+     0.5,
+     -59.000000114440915,
+     0.53
+    ],
+    "yaw": -180.0,
+    "pitch": 0.0,
+    "fov": 70.0,
+    "partial_tick": 1.0
+   },
+   "entities": []
+  },
+  {
+   "image": "near_front.png",
+   "camera": {
+    "position": [
+     0.5,
+     -59.000000114440915,
+     0.624
+    ],
+    "yaw": -180.0,
+    "pitch": 0.0,
+    "fov": 70.0,
+    "partial_tick": 1.0
+   },
+   "entities": []
+  },
+  {
+   "image": "near_back.png",
+   "camera": {
+    "position": [
+     0.5,
+     -59.000000114440915,
+     0.376
+    ],
+    "yaw": 0.0,
+    "pitch": 0.0,
+    "fov": 70.0,
+    "partial_tick": 1.0
+   },
+   "entities": []
+  }
+ ]
+}
