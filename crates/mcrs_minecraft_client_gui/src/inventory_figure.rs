@@ -16,7 +16,7 @@ use mcrs_minecraft_pose::{Dimensions, Pose};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use uuid::Uuid;
 
-use crate::inventory_screen::origin;
+use crate::inventory_screen::window_corner;
 use crate::scene::{GuiScene, window_framebuffer};
 
 const GUI_UNITS_PER_BLOCK: f32 = 30.0;
@@ -88,7 +88,7 @@ pub(crate) fn pose_inventory_figure(
         .iter()
         .find_map(|(_, motion)| motion)
         .map_or(Pose::Standing, |motion| motion.0.pose);
-    let points = figure_points(origin(scene.size), pose.player_dimensions());
+    let points = figure_points(window_corner(scene.size), pose.player_dimensions());
     let angles = figure_angles(points.eye, scene.cursor.as_vec2());
     let frame = FigureFrame {
         clip_from_figure: clip_from_figure(
