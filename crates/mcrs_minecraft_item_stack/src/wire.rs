@@ -13,8 +13,12 @@ use crate::NameTable;
 use crate::PatchEntry;
 use crate::UndecodedWireValue;
 use crate::WireError;
+use crate::check_saved_form::check_count;
 use crate::check_saved_form::check_saved_form;
+use crate::nbt_depth::STACK_LEVEL;
+use crate::nbt_depth::check_nbt_depth;
 use crate::saved::is_air;
+use crate::saved_form::Fault;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
 use crate::wire_value::read_value_at;
@@ -47,7 +51,7 @@ pub fn read_wire_with_length<L: NameLookup>(
 ) -> Result<Option<ItemStack>, WireError> {
     let stack = read_frame(input, names, Entries::LengthPrefixed)?;
     if let Some(stack) = &stack {
-        check_saved_form(stack, names)?;
+        check_count(stack)?;
     }
     Ok(stack)
 }
@@ -112,10 +116,13 @@ fn read_budgeted_frame<L: NameLookup>(
     let item = names
         .name(NameTable::Item, kind)
         .ok_or(WireError::UnknownItem)?;
-    let air = is_air(item);
     let mut stack = ItemStack::new(Kind(kind), count);
-    read_patch(input, names, entries, 0, &mut stack)?;
-    Ok((!air).then_some(stack))
+    read_patch(input, names, entries, STACK_LEVEL, &mut stack)?;
+    if is_air(item) {
+        return Ok(None);
+    }
+    check_nbt_depth(&stack, names).map_err(Fault::into_wire)?;
+    Ok(Some(stack))
 }
 
 pub(crate) fn read_patch<L: NameLookup>(
@@ -193,10 +200,12 @@ fn read_prefixed_value<L: NameLookup>(
         let mut value_input = bytes;
         let bad_length = WireError::BadLength(component.id);
         let value =
-            read_value_at(key, &mut value_input, names, 0).map_err(|error| match error {
-                WireError::UnexpectedEnd => bad_length,
-                other => other,
-            })?;
+            read_value_at(key, &mut value_input, names, STACK_LEVEL).map_err(
+                |error| match error {
+                    WireError::UnexpectedEnd => bad_length,
+                    other => other,
+                },
+            )?;
         if !value_input.is_empty() {
             return Err(bad_length);
         }
@@ -264,7 +273,7 @@ fn write_present<L: NameLookup>(
     check_saved_form(stack, names)?;
     put_var_int(output, i32::from(stack.count.get()));
     put_var_int(output, i32::from(stack.kind.0));
-    write_patch(stack, names, entries, 0, output)
+    write_patch(stack, names, entries, STACK_LEVEL, output)
 }
 
 pub(crate) fn write_patch<L: NameLookup>(

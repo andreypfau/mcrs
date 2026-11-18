@@ -20,11 +20,14 @@ use crate::saved_sink::MapKey;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
 use crate::saved_sink::TAG_MARKER;
+use crate::saved_sink::WireOnly;
 
 pub(crate) struct TagSink;
 
 impl SavedSink for TagSink {
     type Node = NbtTag;
+
+    const WIRE_ONLY: WireOnly = WireOnly::Refuse;
 
     fn leaf(&self, leaf: Leaf<'_>) -> NbtTag {
         match leaf {

@@ -46,6 +46,8 @@ use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::OminousBottleAmplifier;
+use crate::PaintingVariant;
+use crate::PaintingVariantId;
 use crate::PatchEntry;
 use crate::PotionContents;
 use crate::RegistryValue;
@@ -54,6 +56,7 @@ use crate::SavedError;
 use crate::SlotGroup;
 use crate::SoundEventRef;
 use crate::StewEffect;
+use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
@@ -62,12 +65,14 @@ use crate::Trim;
 use crate::Unbreakable;
 use crate::WireError;
 use crate::check_saved_form::MAX_COUNT;
-use crate::check_saved_form::MAX_NESTING;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
 use crate::lore::MAX_LINES;
+use crate::nbt_depth::LIST_TEMPLATE_LEVELS;
+use crate::nbt_depth::SLOT_TEMPLATE_LEVELS;
+use crate::nbt_depth::STACK_LEVEL;
 use crate::saved::decode;
 use crate::saved::is_air;
 use crate::saved_sink::Field;
@@ -76,6 +81,8 @@ use crate::saved_sink::Leaf;
 use crate::saved_sink::MapKey;
 use crate::saved_sink::NamedEntry;
 use crate::saved_sink::SavedSink;
+use crate::saved_sink::WireOnly;
+use mcrs_minecraft_nbt::MAX_DEPTH;
 
 pub(crate) const DISPLAY_DEFAULT: &str = "default";
 pub(crate) const DISPLAY_HIDDEN: &str = "hidden";
@@ -138,7 +145,7 @@ pub(crate) fn saved_form<S: SavedSink, L: NameLookup>(
     names: &L,
     sink: &mut S,
 ) -> Result<S::Node, Fault> {
-    saved_form_at(value, names, sink, 0)
+    saved_form_at(value, names, sink, STACK_LEVEL)
 }
 
 fn saved_form_at<S: SavedSink, L: NameLookup>(
@@ -163,7 +170,13 @@ fn saved_form_at<S: SavedSink, L: NameLookup>(
         Builtin::Unbreakable(Unbreakable) => Ok(sink.fields([])),
         Builtin::ItemModel(model) => Ok(sink.leaf(Leaf::Name(model.get()))),
         Builtin::Rarity(rarity) => Ok(sink.leaf(Leaf::String(rarity.name()))),
-        Builtin::Enchantments(enchantments) => walk.enchantments(sink, enchantments),
+        Builtin::Enchantments(enchantments)
+        | Builtin::StoredEnchantments(StoredEnchantments(enchantments)) => {
+            walk.enchantments(sink, enchantments)
+        }
+        Builtin::PaintingVariant(PaintingVariant(PaintingVariantId(id))) => {
+            walk.entry(sink, NameTable::PaintingVariant, *id)
+        }
         Builtin::AttributeModifiers(modifiers) => walk.attribute_modifiers(sink, modifiers),
         Builtin::TooltipDisplay(display) => walk.tooltip_display(sink, display),
         Builtin::Food(food) => walk.food(sink, food),
@@ -206,11 +219,14 @@ fn saved_form_at<S: SavedSink, L: NameLookup>(
             if projectiles.len() > ChargedProjectiles::MAX_PROJECTILES {
                 return Err(Fault::OutOfRange(walk.component));
             }
-            sink.list(projectiles.iter(), |sink, stack| walk.template(sink, stack))
+            sink.list(projectiles.iter(), |sink, stack| {
+                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
+            })
         }
-        Builtin::BundleContents(BundleContents(stacks)) => {
-            sink.list(stacks.iter(), |sink, stack| walk.template(sink, stack))
-        }
+        Builtin::BundleContents(BundleContents(stacks)) => sink
+            .list(stacks.iter(), |sink, stack| {
+                walk.template(sink, stack, LIST_TEMPLATE_LEVELS)
+            }),
         Builtin::FireworkExplosion(explosion) => walk.firework_explosion(sink, explosion),
         Builtin::Fireworks(fireworks) => walk.fireworks(sink, fireworks),
         Builtin::BannerPatterns(BannerPatterns(layers)) => {
@@ -665,9 +681,14 @@ impl<L: NameLookup> Walk<'_, L> {
         }
     }
 
-    fn template<S: SavedSink>(&self, sink: &mut S, stack: &ItemStack) -> Result<S::Node, Fault> {
-        let depth = self.depth.saturating_add(1);
-        if depth > MAX_NESTING {
+    fn template<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        stack: &ItemStack,
+        levels: u32,
+    ) -> Result<S::Node, Fault> {
+        let depth = self.depth.saturating_add(levels);
+        if depth > MAX_DEPTH {
             return Err(Fault::TooDeep);
         }
         let item = self.name(NameTable::Item, stack.kind.0)?;
@@ -679,58 +700,18 @@ impl<L: NameLookup> Walk<'_, L> {
             return Err(Fault::OutOfRange(self.component));
         }
         let count = (count != 1).then(|| sink.leaf(Leaf::Int(i32::from(count))));
-        let mut entries = stack
-            .patch()
-            .iter()
-            .filter(|entry| is_saved(entry))
-            .peekable();
-        let components = if entries.peek().is_some() {
-            Some(sink.keyed_map(entries, |sink, entry| self.patch_entry(sink, entry, depth))?)
-        } else {
-            None
-        };
+        let components = saved_patch(
+            stack,
+            self.names,
+            sink,
+            depth,
+            Fault::BadValue(self.component),
+        )?;
         Ok(sink.fields([
             Field::new("id", sink.leaf(Leaf::Name(item))),
             Field::optional("count", count),
             Field::optional("components", components),
         ]))
-    }
-
-    fn patch_entry<'entry, S: SavedSink>(
-        &self,
-        sink: &mut S,
-        entry: &'entry PatchEntry,
-        depth: u32,
-    ) -> Result<KeyedEntry<'entry, S::Node>, Fault> {
-        let bad = Fault::BadValue(self.component);
-        Ok(match entry {
-            PatchEntry::Value(value) => KeyedEntry {
-                key: MapKey::Name(value.key().location().ok_or(bad)?),
-                value: saved_form_at(value, self.names, sink, depth)?,
-            },
-            PatchEntry::Removal(component) => KeyedEntry {
-                key: MapKey::Removal(component.location().ok_or(bad)?),
-                value: sink.fields([]),
-            },
-            PatchEntry::Undecoded(value) => {
-                let tag = decode(&value.bytes).map_err(|_| bad)?;
-                KeyedEntry {
-                    key: MapKey::Name(value.name.as_location()),
-                    value: sink.tag(&tag).ok_or(bad)?,
-                }
-            }
-            PatchEntry::UndecodedRemoval(name) => KeyedEntry {
-                key: MapKey::Removal(name.as_location()),
-                value: sink.fields([]),
-            },
-            PatchEntry::UndecodedWire(value) => {
-                return Err(Fault::WireValueOnly {
-                    component: self.component,
-                    component_type: value.component(),
-                });
-            }
-            PatchEntry::Custom(_) => return Err(bad),
-        })
     }
 
     fn container<S: SavedSink>(
@@ -742,7 +723,7 @@ impl<L: NameLookup> Walk<'_, L> {
         let filled = slots.filter_map(|(slot, stack)| Some((slot, stack.as_ref()?)));
         sink.list(filled, |sink, (slot, stack)| {
             let slot = i32::try_from(slot).map_err(|_| Fault::OutOfRange(self.component))?;
-            let item = self.template(sink, stack)?;
+            let item = self.template(sink, stack, SLOT_TEMPLATE_LEVELS)?;
             Ok(sink.fields([
                 Field::new("slot", sink.leaf(Leaf::Int(slot))),
                 Field::new("item", item),
@@ -832,6 +813,74 @@ impl<L: NameLookup> Walk<'_, L> {
     }
 }
 
-fn is_saved(entry: &PatchEntry) -> bool {
-    !matches!(entry, PatchEntry::Custom(_))
+pub(crate) fn saved_patch<S: SavedSink, L: NameLookup>(
+    stack: &ItemStack,
+    names: &L,
+    sink: &mut S,
+    depth: u32,
+    unsaved: Fault,
+) -> Result<Option<S::Node>, Fault> {
+    let mut entries = stack
+        .patch()
+        .iter()
+        .filter(|entry| is_saved(entry, S::WIRE_ONLY))
+        .peekable();
+    if entries.peek().is_none() {
+        return Ok(None);
+    }
+    sink.keyed_map(entries, |sink, entry| {
+        patch_entry(names, sink, entry, depth, unsaved)
+    })
+    .map(Some)
+}
+
+fn patch_entry<'entry, S: SavedSink, L: NameLookup>(
+    names: &L,
+    sink: &mut S,
+    entry: &'entry PatchEntry,
+    depth: u32,
+    unsaved: Fault,
+) -> Result<KeyedEntry<'entry, S::Node>, Fault> {
+    Ok(match entry {
+        PatchEntry::Value(value) => KeyedEntry {
+            key: MapKey::Name(value.key().location().ok_or(unsaved)?),
+            value: saved_form_at(value, names, sink, depth)?,
+        },
+        PatchEntry::Removal(component) => KeyedEntry {
+            key: MapKey::Removal(component.location().ok_or(unsaved)?),
+            value: sink.fields([]),
+        },
+        PatchEntry::Undecoded(value) => {
+            let tag = decode(&value.bytes).map_err(|_| Fault::TooDeep)?;
+            KeyedEntry {
+                key: MapKey::Name(value.name.as_location()),
+                value: sink.tag(&tag).ok_or(unsaved)?,
+            }
+        }
+        PatchEntry::UndecodedRemoval(name) => KeyedEntry {
+            key: MapKey::Removal(name.as_location()),
+            value: sink.fields([]),
+        },
+        PatchEntry::UndecodedWire(value) => {
+            return Err(match unsaved {
+                Fault::BadValue(component) => Fault::WireValueOnly {
+                    component,
+                    component_type: value.component(),
+                },
+                other => other,
+            });
+        }
+        PatchEntry::Custom(_) => return Err(unsaved),
+    })
+}
+
+fn is_saved(entry: &PatchEntry, wire_only: WireOnly) -> bool {
+    match entry {
+        PatchEntry::Custom(_) => false,
+        PatchEntry::UndecodedWire(_) => wire_only == WireOnly::Refuse,
+        PatchEntry::Value(_)
+        | PatchEntry::Removal(_)
+        | PatchEntry::Undecoded(_)
+        | PatchEntry::UndecodedRemoval(_) => true,
+    }
 }

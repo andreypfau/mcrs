@@ -4,6 +4,7 @@ use crate::deserializer::NbtReadHelper;
 use crate::encoding::NbtEncoding;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
+use crate::tag::deepest;
 use crate::{END_ID, Error, Nbt, get_nbt_string};
 use std::io::{Read, Seek, Write};
 use std::vec::IntoIter;
@@ -70,6 +71,14 @@ impl NbtCompound {
         }
         w.write_u8(END_ID)?;
         Ok(())
+    }
+
+    #[must_use]
+    pub fn depth(&self, budget: u32) -> u32 {
+        let Some(budget) = budget.checked_sub(1) else {
+            return 1;
+        };
+        deepest(self.child_tags.iter().map(|(_, child)| child.depth(budget)))
     }
 
     pub fn matches(&self, actual: &NbtCompound) -> bool {

@@ -96,6 +96,15 @@ impl Hash for NbtTag {
 }
 
 impl NbtTag {
+    #[must_use]
+    pub fn depth(&self, budget: u32) -> u32 {
+        match self {
+            NbtTag::Compound(compound) => compound.depth(budget),
+            NbtTag::List(list) => list_depth(list, budget),
+            _ => 0,
+        }
+    }
+
     pub fn matches(&self, actual: &NbtTag) -> bool {
         match (self, actual) {
             (NbtTag::Compound(expected), NbtTag::Compound(actual)) => expected.matches(actual),
@@ -152,19 +161,13 @@ impl NbtTag {
                 w.write_u8(element_type)?;
                 E::write_collection_length(w, len)?;
                 for nbt_tag in list {
-                    match nbt_tag {
-                        NbtTag::Compound(compound)
-                            if element_type == COMPOUND_ID && !is_wrapper(compound) =>
-                        {
-                            compound.serialize_content(w)?
-                        }
-                        _ if element_type == COMPOUND_ID => {
-                            w.write_u8(nbt_tag.get_type_id())?;
-                            E::write_string(w, "")?;
-                            nbt_tag.serialize_data(w)?;
-                            w.write_u8(END_ID)?;
-                        }
-                        _ => nbt_tag.serialize_data(w)?,
+                    if is_wrapped_list_element(element_type, nbt_tag) {
+                        w.write_u8(nbt_tag.get_type_id())?;
+                        E::write_string(w, "")?;
+                        nbt_tag.serialize_data(w)?;
+                        w.write_u8(END_ID)?;
+                    } else {
+                        nbt_tag.serialize_data(w)?;
                     }
                 }
             }
@@ -446,20 +449,49 @@ fn is_wrapper(compound: &NbtCompound) -> bool {
     matches!(compound.child_tags.as_slice(), [(key, _)] if key.is_empty())
 }
 
-fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
+fn is_wrapped_list_element(element_type: u8, element: &NbtTag) -> bool {
+    element_type == COMPOUND_ID
+        && !matches!(element, NbtTag::Compound(compound) if !is_wrapper(compound))
+}
+
+fn list_element_id(list: &[NbtTag]) -> Option<u8> {
     let mut element_type = END_ID;
     for tag in list {
         let id = tag.get_type_id();
         if id == END_ID {
-            return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
+            return None;
         }
         if element_type == END_ID {
             element_type = id;
         } else if element_type != id {
-            return Ok(COMPOUND_ID);
+            return Some(COMPOUND_ID);
         }
     }
-    Ok(element_type)
+    Some(element_type)
+}
+
+fn list_depth(list: &[NbtTag], budget: u32) -> u32 {
+    let Some(budget) = budget.checked_sub(1) else {
+        return 1;
+    };
+    let element_type = list_element_id(list).unwrap_or(END_ID);
+    deepest(list.iter().map(|element| {
+        let levels = element.depth(budget);
+        if is_wrapped_list_element(element_type, element) {
+            levels.saturating_add(1)
+        } else {
+            levels
+        }
+    }))
+}
+
+#[must_use]
+pub fn deepest(levels: impl IntoIterator<Item = u32>) -> u32 {
+    levels.into_iter().max().unwrap_or(0).saturating_add(1)
+}
+
+fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
+    list_element_id(list).ok_or_else(|| Error::SerdeError("a list cannot hold TAG_End".to_string()))
 }
 
 impl From<&str> for NbtTag {

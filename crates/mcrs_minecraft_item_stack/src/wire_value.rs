@@ -78,6 +78,8 @@ use crate::ModifierDisplay;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::OminousBottleAmplifier;
+use crate::PaintingVariant;
+use crate::PaintingVariantId;
 use crate::PotionContents;
 use crate::PotionId;
 use crate::Profile;
@@ -88,6 +90,7 @@ use crate::SlotGroup;
 use crate::SoundEventId;
 use crate::SoundEventRef;
 use crate::StewEffect;
+use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
 use crate::Tool;
 use crate::ToolRule;
@@ -98,8 +101,9 @@ use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::WireError;
 use crate::check_saved_form::MAX_COUNT;
-use crate::check_saved_form::MAX_NESTING;
 use crate::lore::MAX_LINES;
+use crate::nbt_depth::LIST_TEMPLATE_LEVELS;
+use crate::nbt_depth::SLOT_TEMPLATE_LEVELS;
 use crate::saved;
 use crate::saved::is_air;
 use crate::saved_form::Fault;
@@ -112,6 +116,7 @@ use crate::wire::write_patch;
 use crate::wire_text::read_text;
 use crate::wire_text::write_text;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_nbt::MAX_DEPTH;
 
 const DISPLAY_DEFAULT: i32 = 0;
 const DISPLAY_HIDDEN: i32 = 1;
@@ -122,6 +127,15 @@ const INLINE_VALUE: i32 = 0;
 
 pub(crate) fn put_var_int(output: &mut Vec<u8>, value: i32) {
     let _ = VarInt(value).encode(output);
+}
+
+fn write_enchantments(enchantments: &Enchantments, output: &mut Vec<u8>) -> Result<(), WireError> {
+    put_length(output, enchantments.entries().len())?;
+    for entry in enchantments.entries() {
+        put_var_int(output, i32::from(entry.enchantment.0));
+        put_var_int(output, i32::from(entry.level.get()));
+    }
+    Ok(())
 }
 
 fn write_registry_reference(output: &mut Vec<u8>, id: u16) {
@@ -172,6 +186,10 @@ pub(crate) fn read_value_at<L: NameLookup>(
         }
         BuiltinKey::Rarity => Builtin::Rarity(reader.list_entry(input, &Rarity::ALL)?),
         BuiltinKey::Enchantments => Builtin::Enchantments(reader.enchantments(input)?),
+        BuiltinKey::StoredEnchantments => {
+            Builtin::StoredEnchantments(StoredEnchantments(reader.enchantments(input)?))
+        }
+        BuiltinKey::PaintingVariant => Builtin::PaintingVariant(reader.painting_variant(input)?),
         BuiltinKey::AttributeModifiers => {
             Builtin::AttributeModifiers(reader.attribute_modifiers(input)?)
         }
@@ -219,13 +237,11 @@ pub(crate) fn read_value_at<L: NameLookup>(
         }
         BuiltinKey::Instrument => Builtin::Instrument(Instrument(reader.instrument(input)?)),
         BuiltinKey::ChargedProjectiles => Builtin::ChargedProjectiles(ChargedProjectiles(
-            reader.templates(input, ChargedProjectiles::MAX_PROJECTILES, Reader::template)?,
+            reader.list_templates(input, ChargedProjectiles::MAX_PROJECTILES)?,
         )),
-        BuiltinKey::BundleContents => Builtin::BundleContents(BundleContents(reader.templates(
-            input,
-            usize::MAX,
-            Reader::template,
-        )?)),
+        BuiltinKey::BundleContents => {
+            Builtin::BundleContents(BundleContents(reader.list_templates(input, usize::MAX)?))
+        }
         BuiltinKey::FireworkExplosion => {
             Builtin::FireworkExplosion(reader.firework_explosion(input)?)
         }
@@ -241,12 +257,7 @@ pub(crate) fn read_value_at<L: NameLookup>(
         BuiltinKey::BannerPatterns => {
             Builtin::BannerPatterns(BannerPatterns(reader.list(input, Reader::banner_layer)?))
         }
-        BuiltinKey::Container => {
-            let slots = reader.templates(input, Container::MAX_SLOTS, |reader, input| {
-                reader.optional(input, Reader::template)
-            })?;
-            Builtin::Container(Container::new(slots).ok_or(WireError::OutOfRange(component))?)
-        }
+        BuiltinKey::Container => Builtin::Container(reader.container(input)?),
         BuiltinKey::Bees => Builtin::Bees(Bees(reader.list(input, Reader::bee)?)),
         BuiltinKey::ContainerLoot => reader.saved_form_as_nbt(input)?,
     })
@@ -322,11 +333,25 @@ impl<L: NameLookup> Reader<'_, L> {
             .map_err(|error| WireError::of_saved(error, self.component))
     }
 
+    fn painting_variant(&self, input: &mut &[u8]) -> Result<PaintingVariant, WireError> {
+        let id = self.registry_form(input, NameTable::PaintingVariant)?;
+        Ok(PaintingVariant(PaintingVariantId(id.ok_or(self.bad())?)))
+    }
+
+    fn container(&self, input: &mut &[u8]) -> Result<Container, WireError> {
+        let slots = self.templates(input, Container::MAX_SLOTS, |reader, input| {
+            reader.optional(input, |reader, input| {
+                reader.template(input, SLOT_TEMPLATE_LEVELS)
+            })
+        })?;
+        Container::new(slots).ok_or(WireError::OutOfRange(self.component))
+    }
+
     fn enchantments(&self, input: &mut &[u8]) -> Result<Enchantments, WireError> {
         let count = self.length(input)?;
         let mut entries: Vec<EnchantmentLevel> = Vec::with_capacity(count.min(input.len()));
         for _ in 0..count {
-            let enchantment = EnchantmentId(self.id(input, NameTable::Enchantment)?);
+            let enchantment = EnchantmentId(self.known_id(input, NameTable::Enchantment)?);
             let level = u8::try_from(self.var_int(input)?).map_err(|_| self.bad())?;
             let level = NonZeroU8::new(level).ok_or(WireError::OutOfRange(self.component))?;
             match entries
@@ -577,9 +602,15 @@ impl<L: NameLookup> Reader<'_, L> {
         self.list(input, read)
     }
 
-    fn template(&self, input: &mut &[u8]) -> Result<ItemStack, WireError> {
-        let depth = self.depth.saturating_add(1);
-        if depth > MAX_NESTING {
+    fn list_templates(&self, input: &mut &[u8], max: usize) -> Result<Vec<ItemStack>, WireError> {
+        self.templates(input, max, |reader, input| {
+            reader.template(input, LIST_TEMPLATE_LEVELS)
+        })
+    }
+
+    fn template(&self, input: &mut &[u8], levels: u32) -> Result<ItemStack, WireError> {
+        let depth = self.depth.saturating_add(levels);
+        if depth > MAX_DEPTH {
             return Err(WireError::TooDeep);
         }
         let kind = u16::try_from(self.var_int(input)?).map_err(|_| WireError::UnknownItem)?;
@@ -771,12 +802,9 @@ pub(crate) fn write_value<L: NameLookup>(
         Builtin::Unbreakable(Unbreakable) => {}
         Builtin::ItemModel(model) => writer.identifier(model.get(), output)?,
         Builtin::Rarity(rarity) => writer.list_id(&Rarity::ALL, *rarity, output)?,
-        Builtin::Enchantments(enchantments) => {
-            put_length(output, enchantments.entries().len())?;
-            for entry in enchantments.entries() {
-                put_var_int(output, i32::from(entry.enchantment.0));
-                put_var_int(output, i32::from(entry.level.get()));
-            }
+        Builtin::Enchantments(enchantments)
+        | Builtin::StoredEnchantments(StoredEnchantments(enchantments)) => {
+            write_enchantments(enchantments, output)?;
         }
         Builtin::AttributeModifiers(modifiers) => writer.attribute_modifiers(modifiers, output)?,
         Builtin::TooltipDisplay(display) => {
@@ -845,9 +873,10 @@ pub(crate) fn write_value<L: NameLookup>(
         Builtin::OminousBottleAmplifier(OminousBottleAmplifier(amplifier)) => {
             put_var_int(output, *amplifier);
         }
+        Builtin::PaintingVariant(variant) => write_registry_reference(output, variant.0.0),
         Builtin::Instrument(Instrument(instrument)) => writer.instrument(instrument, output)?,
         Builtin::ChargedProjectiles(value) => writer.charged_projectiles(value, output)?,
-        Builtin::BundleContents(value) => writer.list(&value.0, output, Writer::template)?,
+        Builtin::BundleContents(value) => writer.list(&value.0, output, Writer::list_template)?,
         Builtin::FireworkExplosion(explosion) => writer.firework_explosion(explosion, output)?,
         Builtin::Fireworks(fireworks) => writer.fireworks(fireworks, output)?,
         Builtin::BannerPatterns(value) => writer.list(&value.0, output, Writer::banner_layer)?,
@@ -1120,9 +1149,18 @@ impl<L: NameLookup> Writer<'_, L> {
         }
     }
 
-    fn template(&self, stack: &ItemStack, output: &mut Vec<u8>) -> Result<(), WireError> {
-        let depth = self.depth.saturating_add(1);
-        if depth > MAX_NESTING {
+    fn list_template(&self, stack: &ItemStack, output: &mut Vec<u8>) -> Result<(), WireError> {
+        self.template(stack, output, LIST_TEMPLATE_LEVELS)
+    }
+
+    fn template(
+        &self,
+        stack: &ItemStack,
+        output: &mut Vec<u8>,
+        levels: u32,
+    ) -> Result<(), WireError> {
+        let depth = self.depth.saturating_add(levels);
+        if depth > MAX_DEPTH {
             return Err(WireError::TooDeep);
         }
         let item = self
@@ -1150,13 +1188,15 @@ impl<L: NameLookup> Writer<'_, L> {
             projectiles,
             ChargedProjectiles::MAX_PROJECTILES,
             output,
-            Self::template,
+            Self::list_template,
         )
     }
 
     fn container(&self, container: &Container, output: &mut Vec<u8>) -> Result<(), WireError> {
         self.list(container.slots(), output, |writer, slot, output| {
-            writer.optional(slot.as_ref(), output, Self::template)
+            writer.optional(slot.as_ref(), output, |writer, stack, output| {
+                writer.template(stack, output, SLOT_TEMPLATE_LEVELS)
+            })
         })
     }
 

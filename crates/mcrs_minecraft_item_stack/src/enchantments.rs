@@ -10,6 +10,8 @@ use crate::entity_form::EntityForm;
 pub struct Enchantments(Cow<'static, [EnchantmentLevel]>);
 
 impl Enchantments {
+    pub(crate) const EMPTY: Self = Self(Cow::Borrowed(&[]));
+
     #[must_use]
     pub fn new(entries: impl IntoIterator<Item = EnchantmentLevel>) -> Option<Self> {
         let mut entries: Vec<EnchantmentLevel> = entries.into_iter().collect();
@@ -24,7 +26,7 @@ impl Enchantments {
 }
 
 impl Neutral for Enchantments {
-    const NEUTRAL: &'static Self = &Self(Cow::Borrowed(&[]));
+    const NEUTRAL: &'static Self = &Self::EMPTY;
 }
 
 impl EntityForm for Enchantments {
