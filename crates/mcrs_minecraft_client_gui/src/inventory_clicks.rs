@@ -62,8 +62,8 @@ impl Plugin for InventoryClicksPlugin {
                 (
                     open_inventory.run_if(input_just_pressed(INVENTORY)),
                     follow_open_menu,
-                    click_in_menu,
                     mark_creative_screen.after(CreativeContentSystems),
+                    click_in_menu,
                 )
                     .chain()
                     .after(ClientNetworkSystems::Receive)

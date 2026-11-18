@@ -11,10 +11,11 @@ use mcrs_minecraft_client_gui::creative_tab_content::CreativeTabContent;
 use mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin;
 use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_engine_registries::RegistryNames;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{Abilities, GameMode};
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction, MenuInput};
 use mcrs_minecraft_item_stack::{Kind, NameLookup, NameTable, write_wire};
 use mcrs_minecraft_item_table::ItemTable;
@@ -67,6 +68,13 @@ enum Event {
     Key(KeyCode),
     Lift(KeyCode),
     Wheel(f32),
+    Creative(CreativeFlag),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CreativeFlag {
+    On,
+    Off,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -544,6 +552,29 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        frames: &[
+            &[Event::Wheel(-1.0)],
+            &[Event::Creative(CreativeFlag::Off)],
+            &[
+                Event::Creative(CreativeFlag::On),
+                over(Pointer::Grid(DIRT_SLOT)),
+                Event::Press(LEFT),
+            ],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[sent(
+            Area::Grid(stacks::held(Item::Dirt, 1)),
+            ClickKind::PickUp,
+            0,
+            Clicked::Entry(DIRT_SLOT),
+        )],
+        cursor: stacks::held(Item::Dirt, 1),
+        ..row(
+            "a click in the frame that turns the creative flag on uses the opened creative screen",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
         given_cursor: stacks::held(Item::Stone, 5),
         frames: &[&[Event::Key(KeyCode::Escape)]],
         screen: Screen::None,
@@ -681,6 +712,13 @@ fn play(app: &mut App, frame: &[Event]) {
                     window,
                     phase: TouchPhase::Moved,
                 });
+            }
+            Event::Creative(flag) => {
+                let mut abilities = world
+                    .query_filtered::<&mut Abilities, With<Player>>()
+                    .single_mut(world)
+                    .unwrap();
+                abilities.instant_build = flag == CreativeFlag::On;
             }
         }
     }
