@@ -370,8 +370,9 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 ### CINV-PKT-006: A click that changes nothing
 
-- **Inputs:** a click whose local result is equal to the stacks before the click. Two examples: a
-  click whose request has a rejection (CINV-PRD-002), and a click whose request has no operation.
+- **Inputs:** a click whose local result is equal to the stacks before the click. Three examples: a
+  click whose request has a rejection (CINV-PRD-002), a click whose request has no operation, and
+  a click of a spectator (CINV-PRD-003).
 - **Behavior:** the client sends the click. By CINV-PKT-004 and CINV-PKT-005, the list of changed
   slots is empty, and the cursor field holds the cursor stack before the click.
 - **Postconditions:** the server applies its own request. When its result differs from the stacks
@@ -409,7 +410,8 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 ### CINV-PRD-001: The client applies the click to its own stacks
 
 - **Inputs:** a click, the stacks of the entries of the open menu, the cursor stack, the creative
-  flag and the HUD game mode.
+  flag and the HUD game mode. The local player is not a spectator. CINV-PRD-003 states the click of
+  a spectator.
 - **Behavior:**
   1. The client makes the request of the click with the rules of `inventory-transactions.md`,
      ITX-JAV-006 to ITX-JAV-013, from its own stacks.
@@ -438,6 +440,34 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 Provenance: `design`. Kind: semantic. Confidence: high. Reason: a request applies in full or not
 at all (ITX-ATM-002), on the client as on the server.
+
+### CINV-PRD-003: A click of a spectator
+
+- **Observer:** a player who sees the inventory screen, and the server that reads the click.
+- **Inputs:** a press of `key.inventory` in a world with no open screen, or a gesture in the
+  inventory screen. The local player is a spectator at the time of the press or the gesture.
+- **Behavior:**
+  1. A press of `key.inventory` opens the inventory screen also for a spectator.
+  2. Each gesture of section 1 gives the same click as for a local player who is not a spectator.
+  3. The client does not apply the click to its own stacks. The local result is the stacks before
+     the click.
+  4. The client sends the click as CINV-PKT-006 states. The list of changed slots is empty. The
+     cursor field holds the cursor stack before the click.
+- **Postconditions:**
+  - A vanilla server changes no slot. It sends a `container_set_content` with each entry, the
+    cursor stack and its state id (ITX-JAV-001, check 2, and INV-SYN-005).
+  - The client applies that packet (CINV-RCV-002). The inventory screen shows no change of a stack
+    at any time.
+  - The server can hold a game mode that is not spectator, for example after a change of the game
+    mode that the client has not received yet. The server then applies the click. It sends each
+    stack that differs from the claim of the click (ITX-JAV-004). The client applies these packets.
+  - A gesture after a change of the game mode follows the new game mode.
+
+Provenance: `design`. Kind: deviation (CINV-DEV-003). Confidence: high. Steps 1 and 2, the send of
+the click in step 4, and the first postcondition: `source_suggested`, kind client agreement.
+Reason: a vanilla server never applies the click of a spectator. A local result then shows stacks
+that the server does not hold until its answer arrives. The hand actions of section 7 also have no
+local result for a spectator.
 
 ---
 
@@ -843,6 +873,21 @@ None.
 - **Test:** a differential test does not use a stack with a component whose type is not a saved
   type.
 
+### CINV-DEV-003: A click of a spectator
+
+- **Rule:** CINV-PRD-003.
+- **Reference:** the vanilla client applies the click of a spectator to its own stacks, as for
+  each other player. The click carries the changed slots and the cursor stack of that local result.
+  The `container_set_content` of the server then puts back the stacks before the click.
+- **Reason:** a spectator cannot change a slot on a vanilla server (ITX-JAV-001, check 2). The
+  local result shows a stack in a place that the server does not fill.
+- **Visible to the client:** yes. With the reference, the player sees the stack move, and the stack
+  goes back after one round trip. With CINV-PRD-003, the player sees no change. On the wire, the
+  claim of the click is empty.
+- **Bug reference:** none.
+- **Test:** a differential test does not compare the changed slots and the cursor field of a click
+  of a spectator. It does not compare the stacks of the screen before the answer of the server.
+
 ---
 
 ## 11. Unresolved
@@ -893,3 +938,10 @@ These experiments have not run.
   the stone, and no `set_cursor_item`. Open the inventory screen. Expect the stone in the player
   inventory and the empty cursor stack. Do the steps again with Escape in place of E
   (CINV-CLS-004).
+- **E9** (recorder, vanilla client). Put 10 stone in `P[9]`, and change the player to spectator
+  mode. Press E. Expect the inventory screen. Press the left button on the entry with the menu
+  index 9. Then put the pointer on that entry and press the key 1. Record the serverbound packets
+  and the clientbound packets of the next two ticks. Expect a `container_click` with pick up, slot
+  index 9 and button 0, and a `container_click` with swap, slot index 9 and button 0. Expect a
+  `container_set_content` after each click, with the 10 stone in the entry 9 and the empty cursor
+  stack (CINV-PRD-003, steps 1 and 2, and the first postcondition).
