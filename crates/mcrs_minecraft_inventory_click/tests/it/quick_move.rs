@@ -70,10 +70,10 @@ fn itx_jav_009_inv_mnu_004_quick_move_cases() {
                 vec![split(entry(9), entry(5), 1)],
             ),
             case(
-                "row 3: the one armour destination takes up to its capacity",
-                Player::new().with(9, pumpkin(0, 10)),
+                "ITX-JAV-026: a second pass routes the rest of the pumpkins to the hotbar",
+                Player::new().with(9, pumpkin(0, 64)),
                 9,
-                vec![split(entry(9), entry(5), 1)],
+                vec![split(entry(9), entry(5), 1), split(entry(9), entry(36), 63)],
             ),
             case(
                 "row 1: the craft result goes to the last entry first",

@@ -1,5 +1,5 @@
 mod apply_menu_inputs;
-mod clear_craft_result;
+mod clear_first_slot;
 mod click_source;
 mod close_menu;
 mod container_close;
@@ -8,9 +8,11 @@ mod container_set_slot;
 mod hand_input;
 mod inventory_client_plugin;
 mod inventory_client_set;
+mod leave_container_menu;
 mod local_inventory;
 mod menu_action;
 mod menu_input;
+mod open_screen;
 mod outbox;
 mod outgoing;
 mod predict_click;

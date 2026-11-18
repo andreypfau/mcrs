@@ -11,12 +11,7 @@ use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_inventory_menu::MenuEntry;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::MenuOrder;
-use mcrs_minecraft_inventory_menu::MenuRange;
-use mcrs_minecraft_inventory_menu::Route;
-use mcrs_minecraft_inventory_menu::RouteWhen;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Encode;
@@ -36,34 +31,13 @@ use crate::fixture::holders;
 use crate::fixture::put;
 use crate::fixture::stacks;
 
-const CHEST: u8 = 0;
-const PLAYER: u8 = 1;
-
-fn chest_layout() -> MenuLayout {
-    let chest = (0..27).map(|index| MenuEntry { part: CHEST, index });
-    let main = (9..36).chain(0..9).map(|index| MenuEntry {
-        part: PLAYER,
-        index,
-    });
-    let route = |from: (u16, u16), to: (u16, u16)| Route {
-        from: MenuRange::new(from.0, from.1, MenuOrder::Ascending),
-        when: RouteWhen::Always,
-        to: MenuRange::new(to.0, to.1, MenuOrder::Ascending),
-    };
-    MenuLayout::new(
-        MenuType::Generic9x3,
-        chest.chain(main).collect(),
-        vec![route((0, 27), (27, 63)), route((27, 63), (0, 27))],
-    )
-    .expect("a valid chest layout")
-}
-
 fn open_chest(world: &mut World, player: Entity, chest: Entity, buttons: MenuButtons) {
     let parts = MenuParts::new([chest, player]).expect("two parts");
-    world
-        .commands()
-        .entity(player)
-        .open_menu(chest_layout(), parts, buttons);
+    world.commands().entity(player).open_menu(
+        MenuLayout::of(MenuType::Generic9x3).expect("a generic menu"),
+        parts,
+        buttons,
+    );
     world.flush();
 }
 
@@ -175,10 +149,17 @@ fn inv_mnu_009_010_open_screen_carries_the_title_of_the_opener_or_the_empty_text
         let mut viewer = world.commands();
         let mut viewer = viewer.entity(player);
         match title {
-            Some(title) => {
-                viewer.open_titled_menu(chest_layout(), parts, MenuButtons::default(), title)
-            }
-            None => viewer.open_menu(chest_layout(), parts, MenuButtons::default()),
+            Some(title) => viewer.open_titled_menu(
+                MenuLayout::of(MenuType::Generic9x3).expect("a generic menu"),
+                parts,
+                MenuButtons::default(),
+                title,
+            ),
+            None => viewer.open_menu(
+                MenuLayout::of(MenuType::Generic9x3).expect("a generic menu"),
+                parts,
+                MenuButtons::default(),
+            ),
         };
         world.flush();
 
@@ -187,8 +168,13 @@ fn inv_mnu_009_010_open_screen_carries_the_title_of_the_opener_or_the_empty_text
             .drain()
             .collect();
         let mut sent_title = Vec::new();
+        let mut sent_type = Vec::new();
         for packet in &packets {
             if let PacketPayload::OpenScreen(screen) = &packet.data {
+                screen
+                    .menu_type
+                    .encode(&mut sent_type)
+                    .expect("a menu type encodes");
                 screen
                     .title
                     .encode(&mut sent_title)
@@ -196,6 +182,7 @@ fn inv_mnu_009_010_open_screen_carries_the_title_of_the_opener_or_the_empty_text
             }
         }
         assert_eq!(sent_title, expected);
+        assert_eq!(sent_type, [2]);
     }
 }
 

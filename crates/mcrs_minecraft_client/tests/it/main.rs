@@ -6,6 +6,8 @@
 )]
 mod boot;
 #[cfg(feature = "singleplayer")]
+mod container_menus;
+#[cfg(feature = "singleplayer")]
 mod local_server;
 #[cfg(feature = "singleplayer")]
 mod local_world;
@@ -13,5 +15,7 @@ mod local_world;
 mod menu_clicks;
 mod session;
 mod sky;
+#[cfg(feature = "singleplayer")]
+mod stacks;
 #[cfg(feature = "singleplayer")]
 mod world_list;

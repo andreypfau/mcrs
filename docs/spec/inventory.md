@@ -212,6 +212,12 @@ for that armour slot.
 | 6 | `S` is one of `M[36]` through `M[44]`. | `M[9]` up to `M[35]` |
 | 7 | `S` is `M[45]`. | `M[9]` up to `M[44]` |
 
+The repeat of a quick move (`inventory-transactions.md`, ITX-JAV-026) applies to each row,
+also to `M[0]`. Each pass uses the first row whose condition is true at the start of that pass.
+For example, `M[9]` holds 64 carved pumpkins, and `A(head)` and the hotbar hold the empty stack.
+The first pass uses row 3 and puts 1 carved pumpkin in `A(head)`. The second pass uses row 5 and
+puts 63 carved pumpkins in `M[36]`.
+
 Rows 3 and 4 do not read `allowed_entities`. When the place filter of the one destination
 refuses, the click moves no item. Section 11, U4, asks the owner about the kind of this result.
 Deviation D4 of `inventory-transactions.md` does not show in

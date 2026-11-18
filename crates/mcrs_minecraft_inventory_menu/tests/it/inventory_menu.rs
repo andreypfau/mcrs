@@ -232,3 +232,56 @@ fn a_new_layout_refuses_too_many_entries_and_routes_outside_its_entries() {
         }
     }
 }
+
+#[test]
+fn ccs_mnu_001_002_generic_menus_hold_the_container_then_the_player_inventory() {
+    const CONTAINER: u8 = 0;
+    const PLAYER_PART: u8 = 1;
+    let cases = [
+        (MenuType::Generic9x1, 9),
+        (MenuType::Generic9x2, 18),
+        (MenuType::Generic9x3, 27),
+        (MenuType::Generic9x4, 36),
+        (MenuType::Generic9x5, 45),
+        (MenuType::Generic9x6, 54),
+        (MenuType::Generic3x3, 9),
+        (MenuType::Hopper, 5),
+    ];
+    for (kind, n) in cases {
+        let layout = MenuLayout::of(kind).expect("a generic menu type has a layout");
+        assert_eq!(layout.kind(), Some(kind), "{kind:?}");
+        assert_eq!(layout.len(), n + 36, "{kind:?}");
+        let entries = [
+            (0, Some(entry(CONTAINER, 0))),
+            (n - 1, Some(entry(CONTAINER, n - 1))),
+            (n, Some(entry(PLAYER_PART, 9))),
+            (n + 26, Some(entry(PLAYER_PART, 35))),
+            (n + 27, Some(entry(PLAYER_PART, 0))),
+            (n + 35, Some(entry(PLAYER_PART, 8))),
+            (n + 36, None),
+        ];
+        for (index, expected) in entries {
+            assert_eq!(layout.entry(index), expected, "{kind:?} entry {index}");
+        }
+        let destinations = |source: u16| -> Vec<Vec<u16>> {
+            layout
+                .routes(source)
+                .map(|route| {
+                    assert_eq!(route.when, RouteWhen::Always, "{kind:?}");
+                    route.to.iter().collect()
+                })
+                .collect()
+        };
+        let to_player: Vec<u16> = (n..n + 36).rev().collect();
+        let to_container: Vec<u16> = (0..n).collect();
+        assert_eq!(destinations(n - 1), [to_player], "{kind:?}");
+        assert_eq!(destinations(n + 35), [to_container], "{kind:?}");
+        assert!(layout.permits_pick_up_all(0), "{kind:?}");
+        assert!(layout.permits_pick_up_all(n + 35), "{kind:?}");
+        assert!(layout.permits_drag(n + 35), "{kind:?}");
+        assert_eq!(layout.part_len(CONTAINER), n, "{kind:?}");
+        assert_eq!(layout.part_len(PLAYER_PART), 36, "{kind:?}");
+        assert_eq!(layout.part_len(2), 0, "{kind:?}");
+    }
+    assert_eq!(MenuLayout::of(MenuType::Crafting), None);
+}

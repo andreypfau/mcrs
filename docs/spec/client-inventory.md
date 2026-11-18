@@ -38,6 +38,7 @@ and does not state them again.
 - **Mouse position**: as `client-tooltip.md`, section 0.1, defines it. The pointer is at the mouse
   position.
 - **Edit box**: as `client-edit-box.md`, section 0.1, defines it.
+- **Menu screen**, **container part**: as `client-container-screen.md`, section 0.1, defines them.
 - **Inventory screen**: the screen of the vanilla client that shows the inventory menu. A press
   of `key.inventory` opens it.
 - **Recipe book**: the panel of the vanilla client that lists the recipes of the player beside the
@@ -96,7 +97,7 @@ rules need.
 | `CINV-PRD` | the local result of a click |
 | `CINV-RCV` | the slot packets of the server |
 | `CINV-HSH` | the hashed stack of an unhashable stack |
-| `CINV-CLS` | the close of the inventory menu |
+| `CINV-CLS` | the close of a menu |
 | `CINV-HND` | the drop and the hand swap outside a screen |
 | `CINV-LAY` | the window area, the entry areas and the pointer index of the inventory screen |
 | `CINV-DEV` | intentional deviations |
@@ -112,7 +113,7 @@ In scope:
 - the packets `container_set_slot`, `container_set_content`, `set_cursor_item` and
   `set_player_inventory` in the client;
 - the hashed stack of an unhashable stack;
-- the close of the inventory menu by the client and by the server;
+- the close of the inventory menu and of another menu, by the client and by the server;
 - the drop key and the swap key outside a screen;
 - the window area, the entry areas and the pointer index of the inventory screen while the
   recipe book does not show, and the area of the recipe book button.
@@ -382,8 +383,9 @@ click changes nothing.
 
 ### CINV-PKT-007: The order of the clicks and the close
 
-- **Inputs:** two or more events that each give a click or a close of CINV-CLS-001, in one frame or
-  in more frames. A tick of CINV-CLS-001 is an event at the time when the client runs it.
+- **Inputs:** two or more events that each give a click or a close of CINV-CLS-001 or CINV-CLS-004,
+  in one frame or in more frames. A tick of these rules is an event at the time when the client
+  runs it.
 - **Behavior:**
   1. The client handles each event at once, in the order of the events.
   2. The client sends the `container_click` packets and the `container_close` packet in the order
@@ -391,10 +393,10 @@ click changes nothing.
   3. The client makes the local result of a click before it sends the click.
   4. The local result of a click is the start of the next click.
   5. When a click comes before a close, the client makes the local result of the click before the
-     close. CINV-CLS-002 then applies to that local result.
+     close. CINV-CLS-002 or CINV-CLS-004 then applies to that local result.
 - **Postconditions:**
   - The server applies the clicks and the close in the same order (ITX-MOD-005, INV-CLS-001).
-  - After a close, no event gives a click until the inventory screen opens again. A gesture that
+  - After a close, no event gives a click until the inventory screen or a menu screen opens again. A gesture that
     the close interrupts gives no click. An example is a mouse press with a cursor stack, then a
     key event of `key.inventory` before the mouse release.
 
@@ -570,7 +572,7 @@ component. A claim that matches no stack always gets the stack of the server.
 
 ---
 
-## 6. The close of the inventory menu
+## 6. The close of a menu
 
 ### CINV-CLS-001: The client closes the inventory menu
 
@@ -623,11 +625,39 @@ a stack in a slot that the server does not fill.
   2. The open menu becomes the inventory menu.
   3. The client sends no `container_close`.
   4. When the open menu was the inventory menu, CINV-CLS-002 states the stacks.
-  5. When the open menu was another menu, the cursor stack becomes the empty stack (INV-SYN-009).
+  5. When the open menu was another menu, steps 3 and 4 of CINV-CLS-004 state the stacks.
 - **Postconditions:** a server can close the inventory screen of the player with the container
   id 0. A vanilla server never does this (INV-CLS-002).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
+
+### CINV-CLS-004: The client closes another menu
+
+- **Observer:** the server that reads the serverbound packets, and a player who sees the HUD.
+- **Inputs:** a menu other than the inventory menu is the open menu, and its menu screen is open.
+  One of the events of CINV-CLS-001 occurs. A key event then occurs in the menu screen in place of
+  the inventory screen.
+- **Behavior:**
+  1. The client sends the serverbound `container_close` packet with the container id of the open
+     menu. This is the container id of the `open_screen` packet that opened the menu (CCS-OPN-001).
+  2. The client closes the menu screen. No screen is then open.
+  3. The cursor stack becomes the empty stack (INV-SYN-009).
+  4. The client discards the stacks of the container part. It does not move a stack of the
+     container part or the cursor stack into the player inventory.
+  5. The open menu becomes the inventory menu. The stacks of the player inventory do not change.
+- **Postconditions:**
+  - The vanilla server then does the steps of INV-CLS-001. It sends no packet as an answer to
+    `container_close` (INV-CLS-002).
+  - The comparison sends a `container_set_slot` with the container id 0 for each entry that the
+    old cursor stack fills. It sends no `set_cursor_item` (INV-SYN-009). The client applies these
+    packets (section 4).
+  - At a close, the client does not compute the insert rule of INV-INS-001. Until these packets
+    arrive, no slot of the player inventory shows the stack that was in the cursor.
+
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Reason: the server
+decides where each stack goes (INV-CLS-004, INV-INS-003). After the close, the client view of the
+cursor on the server is the empty stack (INV-SYN-009). The cursor stack of the client must agree
+with it.
 
 ---
 
@@ -856,3 +886,10 @@ These experiments have not run.
   the stone, and a `set_cursor_item` with the empty stack. Open the screen again and put 5 dirt in
   the cursor. Press the left button on an empty entry, and press E before the release. Expect a
   `container_close` and no `container_click` (CINV-PKT-007).
+- **E8** (recorder, vanilla client, vanilla server). Put 5 stone in the slot 0 of a chest, and open
+  the chest. Press the left button on that entry, then press E. Record the serverbound
+  `container_close` and the clientbound packets of the next two ticks. Expect the container id of
+  the `open_screen` packet, a `container_set_slot` with the container id 0 for the entry that gets
+  the stone, and no `set_cursor_item`. Open the inventory screen. Expect the stone in the player
+  inventory and the empty cursor stack. Do the steps again with Escape in place of E
+  (CINV-CLS-004).

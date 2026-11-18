@@ -95,6 +95,7 @@ fn bot() -> App {
             open_to_lan: false,
             settings: ServerSettings::default(),
             column_traces: None,
+            extend_server: |_| {},
         },
     ));
     count_server_answers(&mut app);

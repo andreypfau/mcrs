@@ -45,6 +45,9 @@ refers to its rules by id.
 - **Clicked slot**: the slot that a `container_click` packet names.
 - **Menu**: the ordered set of slots that a player has open. A later specification defines it.
 - **Drag**: the sequence of `container_click` packets of the click kind quick craft.
+- **Result slot**: a slot of a menu whose stack the menu makes from other slots, for example the
+  slot of the craft result. A take from a result slot can give the slot a new stack.
+- **Pass**: one execution of the two steps of a quick move (ITX-JAV-009).
 
 ### 0.2 Provenance
 
@@ -504,7 +507,27 @@ the operations in two steps:
    and `cap(D, S)`.
 
 Deviation D4 applies to the place filter in step 1. A `split` with `n` of 0 or less is not in the list. The
-destination order of each menu, and the repeat of a quick move, are not in this document.
+destination order of each menu is not in this document. ITX-JAV-026 states the repeat of a quick
+move.
+
+**ITX-JAV-026** (`source_suggested`, semantic). The repeat of a quick move applies to each menu.
+This includes the inventory menu, the slot of its craft result and each other result slot. After
+a pass, the click does one more pass when each of these conditions is true:
+
+- the last pass moved at least one item;
+- `S` holds a stack with the item of the stack before the click.
+
+The second condition compares only the item, not the components. Each pass gets the destination
+list again from the specification of the menu, with the stacks at the start of that pass. A pass
+after the first does not examine `take(S)` again. The repeat stops after the first pass for which
+a condition is false.
+
+On a slot that is not a result slot, a pass changes the stack of `S` only by the items that it
+moves. Thus each destination gets at most one `split` in all passes of one click. A pass after
+the first moves items only when step 2 of the pass before it moved fewer items than `count(S)`,
+because `cap(D, S)` was smaller. On a result slot, the specification of that slot states how the
+slot gets a new stack after a take. Thus each pass on a result slot can move items again. See open
+question Q2.
 
 **ITX-JAV-010** (`source_suggested`, semantic). Swap with a hotbar key uses the slot `H` of the
 player that the button names. When `S` is the slot `H`, the click gives no operation. Thus no
@@ -812,9 +835,11 @@ reason.
 
 ## 11. Unresolved
 
-- **Q2**: ITX-MOD-004. Is 128 the maximum for the number of operations? The repeat of a quick
-  move on a result slot can need a larger number. It can also use more than one
-  request.
+- **Q2**: ITX-MOD-004 and ITX-JAV-026. Is 128 the maximum for the number of operations? On a slot
+  that is not a result slot, the repeat gives at most one `split` to each destination. On a result
+  slot, each pass also takes a new result, so one click can need more than 128 operations. Does
+  such a click use one request for each pass? The specification of the result slots owns the
+  answer.
 - **Q5**: ITX-BED-001. The public documentation gives the fields of each action and not its
   conditions. Does a `Take` to a slot that holds a different stack fail, and with which result?
   Does a `Swap` join two equal stacks?
