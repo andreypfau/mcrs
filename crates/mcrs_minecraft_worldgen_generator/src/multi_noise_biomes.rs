@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::ids::require_registry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
+use mcrs_minecraft_biome::climate::{ClimateCursor, ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome::{
@@ -119,8 +119,8 @@ impl MultiNoiseBiomeTable {
     }
 
     #[inline]
-    pub fn biome_at_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<u8> {
-        self.table.find_value_from(target, last).copied()
+    pub fn cursor(&self) -> ClimateCursor<'_, u8> {
+        self.table.cursor()
     }
 
     pub fn len(&self) -> usize {

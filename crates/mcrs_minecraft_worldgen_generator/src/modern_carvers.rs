@@ -343,7 +343,7 @@ impl CarverBiomeTable {
             SourceBiomes::Climate(table) => {
                 let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * points];
                 router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
-                let mut last = None;
+                let mut cursor = table.cursor();
                 for dx in 0..TILE {
                     for dz in 0..TILE {
                         let at = volume.index_unchecked(dx, 0, dz);
@@ -355,7 +355,7 @@ impl CarverBiomeTable {
                             values[4 * points + at],
                             values[5 * points + at],
                         );
-                        if let Some(slot) = table.find_slot_from(target, &mut last) {
+                        if let Some(slot) = cursor.find_slot(target) {
                             slots[(dx * TILE + dz) as usize] =
                                 u16::try_from(slot).expect("a climate table fits in u16 slots");
                         }

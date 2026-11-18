@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -274,34 +276,46 @@ where
     tree
 }
 
-fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
-    let (Some(&start), Some(&count)) = (tree.children_start.get(at), tree.children_count.get(at))
-    else {
-        return best;
-    };
-    let children = start as usize..start as usize + count as usize;
+struct Children<'t> {
+    range: Range<usize>,
+    distances: [i64; CHILDREN_PER_NODE],
+    counts: &'t [u32],
+    values: &'t [u32],
+}
+
+#[inline]
+fn children<'t>(tree: &'t Tree, at: usize, target: &Coords) -> Option<Children<'t>> {
+    let start = *tree.children_start.get(at)? as usize;
+    let range = start..start + *tree.children_count.get(at)? as usize;
     let mut distances = [0i64; CHILDREN_PER_NODE];
-    let (Some(distances), Some(offsets), Some(counts), Some(values)) = (
-        distances.get_mut(..count as usize),
-        tree.offset.get(children.clone()),
-        tree.children_count.get(children.clone()),
-        tree.value.get(children.clone()),
-    ) else {
-        return best;
-    };
-    distances.copy_from_slice(offsets);
+    distances
+        .get_mut(..range.len())?
+        .copy_from_slice(tree.offset.get(range.clone())?);
     for ((min, max), &target) in tree.min.iter().zip(&tree.max).zip(target) {
-        let (Some(min), Some(max)) = (min.get(children.clone()), max.get(children.clone())) else {
-            return best;
-        };
+        let (min, max) = (min.get(range.clone())?, max.get(range.clone())?);
         for ((total, &min), &max) in distances.iter_mut().zip(min).zip(max) {
             let distance = (target - max + 1).max(min - target).max(0);
             *total += distance * distance;
         }
     }
+    Some(Children {
+        counts: tree.children_count.get(range.clone())?,
+        values: tree.value.get(range.clone())?,
+        range,
+        distances,
+    })
+}
+
+fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
+    let Some(children) = children(tree, at, target) else {
+        return best;
+    };
     let mut best = best;
-    for (((child, &distance), &grandchildren), &value) in
-        children.zip(distances.iter()).zip(counts).zip(values)
+    for (((child, &distance), &grandchildren), &value) in children
+        .range
+        .zip(&children.distances)
+        .zip(children.counts)
+        .zip(children.values)
     {
         if best.map_or(i64::MAX, |(_, nearest)| nearest) <= distance {
             continue;
@@ -318,6 +332,175 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
         }
     }
     best
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Nearest {
+    Unique { slot: u32, distance: i64 },
+    Tied { distance: i64 },
+}
+
+impl Nearest {
+    fn distance(self) -> i64 {
+        match self {
+            Nearest::Unique { distance, .. } | Nearest::Tied { distance } => distance,
+        }
+    }
+
+    fn at_distance(self, distance: i64) -> Self {
+        match self {
+            Nearest::Unique { slot, .. } => Nearest::Unique { slot, distance },
+            Nearest::Tied { .. } => Nearest::Tied { distance },
+        }
+    }
+}
+
+fn search_unique(tree: &Tree, at: usize, target: &Coords, best: &mut Option<Nearest>) {
+    let Some(children) = children(tree, at, target) else {
+        return;
+    };
+    for (((child, &distance), &grandchildren), &value) in children
+        .range
+        .zip(&children.distances)
+        .zip(children.counts)
+        .zip(children.values)
+    {
+        let nearest = best.map_or(i64::MAX, Nearest::distance);
+        if nearest < distance {
+            continue;
+        }
+        if grandchildren != 0 {
+            search_unique(tree, child, target, best);
+        } else if distance < nearest {
+            *best = Some(Nearest::Unique {
+                slot: value,
+                distance,
+            });
+        } else if let Some(best) = best {
+            *best = Nearest::Tied { distance };
+        }
+    }
+}
+
+const NEUTRAL_DEPTH: Parameter = Parameter { min: 0, max: 1 };
+
+const NEUTRAL_DEPTH_TARGET: i64 = 0;
+
+const MAX_DEPTH_GROUPS: usize = 8;
+
+#[derive(Debug, Clone)]
+struct DepthGroup {
+    depth: Parameter,
+    tree: Tree,
+}
+
+fn depth_groups<T>(values: &[(ParameterPoint, T)]) -> Vec<DepthGroup> {
+    let mut depths: Vec<Parameter> = Vec::new();
+    for (point, _) in values {
+        if !depths.contains(&point.depth) {
+            if depths.len() == MAX_DEPTH_GROUPS {
+                return Vec::new();
+            }
+            depths.push(point.depth);
+        }
+    }
+    depths
+        .into_iter()
+        .filter_map(|depth| {
+            let leaves = values
+                .iter()
+                .enumerate()
+                .filter(|(_, (point, _))| point.depth == depth)
+                .map(|(slot, (point, _))| Node::Leaf {
+                    space: ParameterPoint {
+                        depth: NEUTRAL_DEPTH,
+                        ..*point
+                    }
+                    .space(),
+                    value: slot as u32,
+                })
+                .collect();
+            let root = match build_node(leaves, CHILDREN_PER_NODE)? {
+                leaf @ Node::Leaf { .. } => Node::SubTree {
+                    space: *leaf.space(),
+                    children: vec![leaf],
+                },
+                subtree @ Node::SubTree { .. } => subtree,
+            };
+            Some(DepthGroup {
+                depth,
+                tree: flatten(root),
+            })
+        })
+        .collect()
+}
+
+fn column_of(target: TargetPoint) -> TargetPoint {
+    TargetPoint {
+        depth: NEUTRAL_DEPTH_TARGET,
+        ..target
+    }
+}
+
+fn group_nearest(
+    groups: &[DepthGroup],
+    column: TargetPoint,
+) -> [Option<Nearest>; MAX_DEPTH_GROUPS] {
+    let coords = column.coords();
+    let mut nearest = [None; MAX_DEPTH_GROUPS];
+    for (best, group) in nearest.iter_mut().zip(groups) {
+        search_unique(&group.tree, 0, &coords, best);
+    }
+    nearest
+}
+
+#[derive(Debug, Clone)]
+pub struct ClimateCursor<'a, T> {
+    list: &'a ParameterList<T>,
+    last: Option<usize>,
+    column: Option<TargetPoint>,
+    nearest: Option<[Option<Nearest>; MAX_DEPTH_GROUPS]>,
+}
+
+impl<'a, T> ClimateCursor<'a, T> {
+    pub fn find_value(&mut self, target: TargetPoint) -> Option<&'a T> {
+        let slot = self.find_slot(target)?;
+        self.list.values.get(slot).map(|(_, value)| value)
+    }
+
+    pub fn find_slot(&mut self, target: TargetPoint) -> Option<usize> {
+        let list = self.list;
+        let column = column_of(target);
+        if list.depth_groups.is_empty() || self.column != Some(column) {
+            self.column = Some(column);
+            self.nearest = None;
+            return list.nearest_from(target, &mut self.last);
+        }
+        let nearest = self
+            .nearest
+            .get_or_insert_with(|| group_nearest(&list.depth_groups, column));
+        let mut best: Option<Nearest> = None;
+        for (group, nearest) in list.depth_groups.iter().zip(nearest.iter()) {
+            let Some(nearest) = nearest else {
+                continue;
+            };
+            let depth = group.depth.distance(target.depth);
+            let distance = nearest.distance() + depth * depth;
+            best = match best {
+                Some(best) if distance > best.distance() => Some(best),
+                Some(best) if distance == best.distance() => Some(Nearest::Tied { distance }),
+                _ => Some(nearest.at_distance(distance)),
+            };
+        }
+        match best {
+            Some(Nearest::Unique { slot, .. }) => {
+                let slot = slot as usize;
+                self.last = Some(slot);
+                Some(slot)
+            }
+            Some(Nearest::Tied { .. }) | None => list.nearest_from(target, &mut self.last),
+        }
+    }
 }
 
 const CHILDREN_PER_NODE: usize = 19;
@@ -429,6 +612,7 @@ fn build_node<T>(mut children: Vec<Node<T>>, children_per_node: usize) -> Option
 pub struct ParameterList<T> {
     values: Vec<(ParameterPoint, T)>,
     tree: Tree,
+    depth_groups: Vec<DepthGroup>,
 }
 
 impl<T> ParameterList<T> {
@@ -444,7 +628,12 @@ impl<T> ParameterList<T> {
         let tree = build_node(leaves, CHILDREN_PER_NODE)
             .map(flatten)
             .unwrap_or_default();
-        ParameterList { values, tree }
+        let depth_groups = depth_groups(&values);
+        ParameterList {
+            values,
+            tree,
+            depth_groups,
+        }
     }
 
     pub fn map_values<U>(&self, mut f: impl FnMut(&T) -> U) -> ParameterList<U> {
@@ -455,6 +644,7 @@ impl<T> ParameterList<T> {
                 .map(|(point, value)| (*point, f(value)))
                 .collect(),
             tree: self.tree.clone(),
+            depth_groups: self.depth_groups.clone(),
         }
     }
 
@@ -469,6 +659,7 @@ impl<T> ParameterList<T> {
                 .map(|(point, value)| Some((*point, f(value)?)))
                 .collect::<Option<_>>()?,
             tree: self.tree.clone(),
+            depth_groups: self.depth_groups.clone(),
         })
     }
 
@@ -484,16 +675,20 @@ impl<T> ParameterList<T> {
         self.values.is_empty()
     }
 
+    pub fn cursor(&self) -> ClimateCursor<'_, T> {
+        ClimateCursor {
+            list: self,
+            last: None,
+            column: None,
+            nearest: None,
+        }
+    }
+
     pub fn find_value(&self, target: TargetPoint) -> Option<&T> {
-        self.find_value_from(target, &mut None)
+        self.cursor().find_value(target)
     }
 
-    pub fn find_value_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<&T> {
-        let slot = self.find_slot_from(target, last)?;
-        self.values.get(slot).map(|(_, value)| value)
-    }
-
-    pub fn find_slot_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<usize> {
+    fn nearest_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<usize> {
         let coords = target.coords();
         let seed = last.and_then(|slot| {
             let (point, _) = self.values.get(slot)?;
@@ -648,13 +843,13 @@ mod tests {
                 .collect(),
         );
         let mut checked = 0;
-        let mut last = None;
+        let mut cursor = table.cursor();
         for step in 0..2000 {
             let target = TargetPoint::new(next(), next(), next(), next(), next(), next());
             let indexed = if step % 2 == 0 {
                 *table.find_value(target).unwrap()
             } else {
-                *table.find_value_from(target, &mut last).unwrap()
+                *cursor.find_value(target).unwrap()
             };
             let scanned = *table.find_value_brute_force(target).unwrap();
             if indexed != scanned {
@@ -667,6 +862,80 @@ mod tests {
             checked += 1;
         }
         assert_eq!(checked, 2000);
+    }
+
+    #[test]
+    fn a_column_cursor_finds_the_slot_of_the_warm_started_search() {
+        let table = crate::overworld_preset::overworld_parameter_list();
+        assert!(
+            !table.depth_groups.is_empty(),
+            "the overworld list has few distinct depths, so the grouped search is on"
+        );
+        let mut rng = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            ((rng >> 11) as f32 / (1u64 << 53) as f32) * 2.4 - 1.2
+        };
+        let mut cursor = table.cursor();
+        let mut last = None;
+        let mut grouped = 0;
+        for _ in 0..300 {
+            let (temperature, humidity, continentalness, erosion, weirdness) =
+                (next(), next(), next(), next(), next());
+            let mut depths: Vec<f32> = (0..40).map(|step| step as f32 * 0.05 - 0.5).collect();
+            depths.push(next());
+            depths.push(0.0);
+            depths.push(1.0);
+            for depth in depths {
+                let target = TargetPoint::new(
+                    temperature,
+                    humidity,
+                    continentalness,
+                    erosion,
+                    depth,
+                    weirdness,
+                );
+                let expected = table.nearest_from(target, &mut last);
+                grouped += usize::from(cursor.column == Some(column_of(target)));
+                assert_eq!(cursor.find_slot(target), expected);
+            }
+        }
+        assert!(
+            grouped > 10_000,
+            "the grouped path answered {grouped} lookups"
+        );
+    }
+
+    #[test]
+    fn a_tie_inside_a_depth_group_keeps_the_warm_started_answer() {
+        let at = |temperature: i64| ParameterPoint {
+            temperature: Parameter {
+                min: temperature,
+                max: temperature,
+            },
+            ..point(0.0, 0.0)
+        };
+        let table = ParameterList::new(vec![(at(-5000), "cold"), (at(5001), "warm")]);
+        let target = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assert_eq!(
+            table.values()[0].0.fitness(target),
+            table.values()[1].0.fitness(target),
+            "the two entries are equally far from the middle"
+        );
+        for lead in [-0.4, 0.4] {
+            let mut cursor = table.cursor();
+            let mut last = None;
+            for temperature in [lead, 0.0, 0.0] {
+                let target = TargetPoint::new(temperature, 0.0, 0.0, 0.0, 0.0, 0.0);
+                assert_eq!(
+                    cursor.find_slot(target),
+                    table.nearest_from(target, &mut last),
+                    "after a lead at {lead}"
+                );
+            }
+        }
     }
 
     #[test]

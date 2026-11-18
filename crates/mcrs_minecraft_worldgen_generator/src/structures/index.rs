@@ -646,7 +646,7 @@ fn plane_admits(
     );
     let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * cells];
     router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
-    let mut last = None;
+    let mut cursor = table.cursor();
     (0..cells)
         .map(|at| {
             let target = TargetPoint::new(
@@ -657,9 +657,9 @@ fn plane_admits(
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            table
-                .biome_at_from(target, &mut last)
-                .is_some_and(|biome| preferred.contains(usize::from(biome)))
+            cursor
+                .find_value(target)
+                .is_some_and(|&biome| preferred.contains(usize::from(biome)))
         })
         .collect()
 }
