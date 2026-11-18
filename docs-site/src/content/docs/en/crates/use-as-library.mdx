@@ -68,7 +68,7 @@ If Bevy shows up for a crate from the no-Bevy list, that is a bug in mcrs, so pl
 
 ## What does not work yet
 
-You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Among the protocol, network and game data crates the known case is `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
+You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Among the protocol, network and game data crates the known case is `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`. A git dependency works because Cargo checks out the whole repository.[^321]
 
 The same issue lists error types as the second blocker. The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching on the text.
 

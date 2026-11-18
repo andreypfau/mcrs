@@ -39,7 +39,7 @@ A cell owns a box of a world, and a player who walks out of the box moves to the
 
 ## Register the component and add the plugin to every world
 
-The server moves a player between worlds as a snapshot. When the player leaves a world for another dimension or another cell, the old world captures the registered components of the player and despawns the entity, and the new world applies the snapshot to a new entity. The same registry decides what goes into the player file. A component that is not registered stays in the old world and is despawned with the old entity.[^159]
+The server moves a player between worlds as a snapshot. When the player leaves a world for another dimension or another cell, the old world captures the registered components of the player and despawns the entity, and the new world applies the snapshot to a new entity. The same registry decides what goes into the player file.[^159]
 
 Register the component in the `build` of your plugin with `register_persisted`, and add the plugin with `add_persistence_plugin`. Both come from the trait `PersistedAppExt` of `mcrs_minecraft_engine`:[^pr744]
 
@@ -59,7 +59,7 @@ Use `TravelOnly` for state that belongs to the connection and not to the save. T
 
 <Example file="crates/mcrs_minecraft_engine/src/persistence.rs" from=".register_persisted::<ShiftKey>(SHIFT_KEY_KEYS, PersistScope::TravelOnly);" title="The shift key travels and never reaches the file" />
 
-The registry works for players only. The server runs it on player entities, so it neither saves nor carries a component of any other entity.
+The server uses this registry to save and carry player components only.
 
 ## Save another shape, or write the codec yourself
 

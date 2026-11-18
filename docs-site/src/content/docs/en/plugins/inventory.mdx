@@ -119,7 +119,7 @@ The holder of the shop has `SlotPolicy::locked()`. A click on a button entry mov
 
 `examples/inventory_minigame` is one headless app. Its `main.rs` adds `ItemPlugin`, `VanillaInventoryPlugin`, `KitPlugin`, `ArenaRulesPlugin` and `ShopPlugin` to one `App` with `add_plugins`. The crate links no packet edge, so there is no client and no packet. The integration test stands in for them. It spawns a `Player`, triggers `EnterGame` and `OpenShop`, sends requests with `HolderCommandsExt::request` and writes `EntryPressed` by hand.
 
-The test checks the claims of this page. A take from the locked slot fails with `Reason::TakeDenied`, and a take from slot 10 commits. A frozen player gets `Refusal::Denied` with the source of the arena plugin, which differs from the vanilla source. Pressing the offer gives the stack, and the shop holder goes away with the shop menu. The [README of the example](https://github.com/andreypfau/mcrs/blob/main/examples/inventory_minigame/README.md) lists the commands that run the app and the test.
+A take from the locked slot fails with `Reason::TakeDenied`, and a take from slot 10 commits. A frozen player gets `Refusal::Denied` with the source of the arena plugin, which differs from the vanilla source. Pressing the offer gives the stack, and the shop holder goes away with the shop menu. The [README of the example](https://github.com/andreypfau/mcrs/blob/main/examples/inventory_minigame/README.md) lists the commands that run the app and the test.
 
 A server has no such single world. Its plugin `VanillaItemEntityPlugin` adds a dimension builder that puts the item engine, `VanillaInventoryPlugin` and the packet edge into every dimension world.
 
