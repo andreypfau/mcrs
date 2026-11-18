@@ -25,6 +25,7 @@ fn apply_entry(synced: &mut SyncedData, data: Option<&EntityTypeData>, entry: &M
         (SHARED_FLAGS, MetaDataValue::Byte(flags)) => synced.shared_flags = *flags as u8,
         (CUSTOM_NAME, MetaDataValue::OptionalText(name)) => {
             synced.upside_down = name.as_ref().is_some_and(is_upside_down_name);
+            synced.custom_name.clone_from(name);
         }
         (NAME_VISIBLE, MetaDataValue::Boolean(visible)) => synced.name_visible = *visible,
         (POSE, MetaDataValue::Pose(pose)) => synced.pose = *pose,
@@ -111,6 +112,9 @@ mod tests {
             &[entry(2, MetaDataValue::OptionalText(None))],
         );
         assert!(!data.upside_down, "a removed name is not upside down");
+        assert_eq!(data.custom_name, None, "a removed name clears the tag text");
+        apply_entity_data(&mut data, type_data, &[name(Text::text("Pig"))]);
+        assert_eq!(data.custom_name, Some(Text::text("Pig")));
     }
 
     #[test]

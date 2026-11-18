@@ -36,6 +36,7 @@ pub mod input;
 pub mod light_volume;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 pub mod local_server;
+pub mod name_tag;
 pub mod options;
 #[cfg(not(target_family = "wasm"))]
 mod options_file;
