@@ -3,13 +3,13 @@ use alloc::vec::Vec;
 
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 
 use crate::MenuEntry;
 use crate::MenuOrder;
 use crate::MenuRange;
 use crate::Route;
 use crate::RouteWhen;
-use crate::menu_keys::MenuType;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]

@@ -1,5 +1,6 @@
 mod apply_menu_inputs;
 mod clear_first_slot;
+mod click_purpose;
 mod click_source;
 mod close_menu;
 mod container_close;

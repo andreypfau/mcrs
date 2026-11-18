@@ -4414,6 +4414,7 @@ dependencies = [
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_light_render",
  "mcrs_minecraft_menu_geometry",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
@@ -4531,6 +4532,7 @@ dependencies = [
  "mcrs_minecraft_item_tooltip",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_menu_geometry",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",
@@ -5814,6 +5816,7 @@ dependencies = [
  "mcrs_minecraft_inventory_transaction",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_network",
  "mcrs_minecraft_player_holders",
  "mcrs_minecraft_protocol",
@@ -5848,8 +5851,7 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_item_stack",
- "mcrs_minecraft_registries",
- "mcrs_minecraft_resource",
+ "mcrs_minecraft_menu_key",
 ]
 
 [[package]]
@@ -5865,6 +5867,7 @@ dependencies = [
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_text",
  "mcrs_minecraft_vanilla_inventory",
 ]
@@ -5912,6 +5915,7 @@ dependencies = [
  "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_player_holders",
@@ -6252,6 +6256,15 @@ dependencies = [
  "mcrs_minecraft_client_widget",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_menu_key",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_menu_key"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]
 
@@ -6573,9 +6586,9 @@ dependencies = [
  "mcrs_minecraft_command_tree",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
- "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_keys",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
@@ -6653,9 +6666,9 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
- "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_pose",
@@ -6768,12 +6781,12 @@ dependencies = [
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_rule",
- "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_map_decoration",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_potion",
  "mcrs_minecraft_predicate",
@@ -7252,6 +7265,7 @@ dependencies = [
  "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
+ "mcrs_minecraft_menu_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_player_holders",
  "mcrs_minecraft_pose",
