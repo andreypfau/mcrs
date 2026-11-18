@@ -52,7 +52,7 @@ pub(crate) fn regenerates(paths: &[String]) -> bool {
     paths.iter().any(|path| {
         is_marked(path)
             || path.starts_with("assets/mcrs/reports/")
-            || path == "assets/mcrs/registry_definition/game_rule.json"
+            || path.starts_with("assets/mcrs/registry_definition/")
             || path.starts_with("tools/mcrs_minecraft_update/")
             || path == "Cargo.lock"
             || path == "Cargo.toml"
@@ -155,6 +155,7 @@ mod tests {
             ("crates/mcrs_minecraft_keys/src/lib.rs", true),
             ("crates/mcrs_minecraft_registry_catalog/src/lib.rs", true),
             ("assets/mcrs/reports/names.json", true),
+            ("assets/mcrs/registry_definition/potion.json", true),
             ("tools/mcrs_minecraft_update/src/owners.rs", true),
             ("Cargo.lock", true),
             ("Cargo.toml", true),

@@ -21,6 +21,7 @@ pub mod item_model_generator;
 pub mod item_model_transform;
 pub mod model_id;
 pub mod resource_set;
+pub mod sprite_atlas;
 pub mod sprite_error;
 pub mod stack_view;
 pub mod vanilla_source;

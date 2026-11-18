@@ -6322,6 +6322,7 @@ dependencies = [
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_potion",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_molang",
@@ -6548,6 +6549,7 @@ dependencies = [
 name = "mcrs_minecraft_potion"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]

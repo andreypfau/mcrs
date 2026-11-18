@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec3};
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, ItemQuad};
+use mcrs_minecraft_model::sprite_atlas::SpriteAtlas;
 
 use crate::gui_vertex::GuiVertex;
 use crate::icon_layer::IconLayer;
@@ -49,11 +50,15 @@ fn pose(quad: &ItemQuad, matrix: Mat4, normals: Mat3, lights: [Vec3; 2]) -> Icon
         .map(|position| matrix.transform_point3(position));
     let [first, second, third, fourth] = positions;
     let [uv_first, uv_second, uv_third, uv_fourth] = quad.uvs;
+    let atlas = match quad.atlas {
+        SpriteAtlas::Item => GuiVertex::ITEM_ATLAS_BIT,
+        SpriteAtlas::Block => 0,
+    };
     let vertex = |position: Vec3, uv: [f32; 2]| GuiVertex {
         pos: position.to_array(),
         uv,
         color: [u8::MAX; 4],
-        sprite: u32::from(quad.sprite),
+        sprite: u32::from(quad.sprite) | atlas,
     };
     let mut vertices = [
         vertex(first, uv_first),

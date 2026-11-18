@@ -1,0 +1,566 @@
+{
+  "minecraft:awkward": {
+    "effects": []
+  },
+  "minecraft:fire_resistance": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:fire_resistance",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:freezing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 900,
+        "id": "minecraft:freezing",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:harming": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1,
+        "id": "minecraft:instant_damage",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:healing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1,
+        "id": "minecraft:instant_health",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:infested": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:infested",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:invisibility": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:invisibility",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:leaping": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:jump_boost",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_fire_resistance": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:fire_resistance",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_freezing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:freezing",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_invisibility": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:invisibility",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_leaping": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:jump_boost",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_night_vision": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:night_vision",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_poison": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:poison",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_regeneration": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:regeneration",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_slow_falling": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 4800,
+        "id": "minecraft:slow_falling",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_slowness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 4800,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_strength": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:strength",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_swiftness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:speed",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_turtle_master": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 3,
+        "duration": 800,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      },
+      {
+        "ambient": false,
+        "amplifier": 2,
+        "duration": 800,
+        "id": "minecraft:resistance",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_water_breathing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 9600,
+        "id": "minecraft:water_breathing",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:long_weakness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 4800,
+        "id": "minecraft:weakness",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:luck": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 6000,
+        "id": "minecraft:luck",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:mundane": {
+    "effects": []
+  },
+  "minecraft:night_vision": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:night_vision",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:oozing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:oozing",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:poison": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 900,
+        "id": "minecraft:poison",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:regeneration": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 900,
+        "id": "minecraft:regeneration",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:slow_falling": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:slow_falling",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:slowness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strength": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:strength",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_harming": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 1,
+        "id": "minecraft:instant_damage",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_healing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 1,
+        "id": "minecraft:instant_health",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_leaping": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 1800,
+        "id": "minecraft:jump_boost",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_poison": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 432,
+        "id": "minecraft:poison",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_regeneration": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 450,
+        "id": "minecraft:regeneration",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_slowness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 3,
+        "duration": 400,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_strength": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 1800,
+        "id": "minecraft:strength",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_swiftness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 1,
+        "duration": 1800,
+        "id": "minecraft:speed",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:strong_turtle_master": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 5,
+        "duration": 400,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      },
+      {
+        "ambient": false,
+        "amplifier": 3,
+        "duration": 400,
+        "id": "minecraft:resistance",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:swiftness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:speed",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:thick": {
+    "effects": []
+  },
+  "minecraft:turtle_master": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 3,
+        "duration": 400,
+        "id": "minecraft:slowness",
+        "show_icon": true,
+        "show_particles": true
+      },
+      {
+        "ambient": false,
+        "amplifier": 2,
+        "duration": 400,
+        "id": "minecraft:resistance",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:water": {
+    "effects": []
+  },
+  "minecraft:water_breathing": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:water_breathing",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:weakness": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 1800,
+        "id": "minecraft:weakness",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:weaving": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:weaving",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  },
+  "minecraft:wind_charged": {
+    "effects": [
+      {
+        "ambient": false,
+        "amplifier": 0,
+        "duration": 3600,
+        "id": "minecraft:wind_charged",
+        "show_icon": true,
+        "show_particles": true
+      }
+    ]
+  }
+}
