@@ -2,7 +2,7 @@
 title: Dimensions are separate worlds
 description: Why every dimension is its own Bevy world, how plugins reach it, and what moves between worlds as messages.
 sidebar:
-  order: 7
+  order: 8
 kind: explanation
 audience: [jvm, rust]
 stability: changing
@@ -13,7 +13,6 @@ sources:
   - crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs
   - crates/mcrs_engine_cell/src/sub_app_world.rs
   - crates/mcrs_minecraft_engine/src/persisted_registry.rs
-  - crates/mcrs_minecraft_server/tests/it/persistence.rs
   - issue:159
   - issue:280
   - issue:357
@@ -74,9 +73,7 @@ A system of one dimension cannot reach another world, so the server cannot move 
 
 At the end of the tick, the old world takes the carried state of the player, despawns the player and hands a departure to the host. The player arrives in the new world on the next tick. The rules are in the section "Change of dimension" of [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
 
-<Aside type="caution" title="Your player components stay behind unless you register them">
-The carried state holds only the player components that are registered for persistence. A component that is not registered stays in the old world and is despawned with the old entity. If your plugin adds a component to players and the component has to travel, call `app.register_persisted::<T>(keys, scope)` in the `build` of the plugin, and add the plugin with `app.add_persistence_plugin(plugin)`, which builds it in the main app and in every dimension world. The component needs `Serialize` and `Deserialize`, because the carried state keeps it as NBT under the keys you give. With `PersistScope::TravelOnly` the component only moves with the player, and with `PersistScope::Persisted` the server also writes it to the player file.[^159]
-</Aside>
+The carried state holds only the player components that are registered for persistence, and [Keep a player component across restarts and moves](/docs/en/plugins/persisted-components/) shows how to register yours.[^159]
 
 The same document describes how commands work across worlds. A command runs in one world. Its effects on other worlds are messages, and the host forwards them between ticks. The page [Add a command](/docs/en/plugins/commands/) shows how a handler writes such an effect.
 
