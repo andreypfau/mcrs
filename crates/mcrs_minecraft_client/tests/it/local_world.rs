@@ -60,7 +60,7 @@ pub(crate) fn world_folder(name: &str) -> PathBuf {
     folder
 }
 
-const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
+pub(crate) const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
 
 pub(crate) struct LocalWorld {
     pub(crate) app: App,

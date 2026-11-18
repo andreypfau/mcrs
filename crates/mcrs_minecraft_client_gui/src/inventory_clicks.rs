@@ -265,7 +265,7 @@ impl ReleaseRule {
             && clicked != Clicked::Nowhere
             && (matches!(button, MouseButton::Left | MouseButton::Right)
                 || (binding == ButtonBinding::PickItem && input.creative));
-        *self = match (click, *self) {
+        *self = match (&click, *self) {
             (Some(_), _) => Self::NoClick,
             (None, Self::Drag { .. }) => *self,
             (None, _) if opens_drag => Self::Drag { button: number },

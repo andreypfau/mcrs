@@ -1,8 +1,11 @@
 use mcrs_minecraft_container_click::Click;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+use crate::CreativeClick;
+
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum MenuAction {
     Click(Click),
+    Creative(CreativeClick),
     Close,
 }
