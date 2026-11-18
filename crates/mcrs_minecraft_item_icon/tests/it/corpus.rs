@@ -19,7 +19,6 @@ use mcrs_minecraft_model::atlas::SpriteRegistry;
 use mcrs_minecraft_model::item_model_asset::DisplayContext;
 use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all};
 use mcrs_minecraft_model::item_model_context::ItemModelContext;
-use mcrs_minecraft_model::item_model_eval::Evaluator;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -94,13 +93,4 @@ pub fn session_sources() -> IconSources<'static> {
 
 pub fn icon(stack: &ItemStack) -> ItemIcon {
     resolve(view(stack), &sources(), &GUI)
-}
-
-pub fn eval(stack: &ItemStack) -> Evaluator<'_> {
-    Evaluator {
-        stack: view(stack),
-        registries: None,
-        grass_colormap: MODELS.grass_colormap.as_deref(),
-        context: GUI,
-    }
 }

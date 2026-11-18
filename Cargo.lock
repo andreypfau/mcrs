@@ -5984,7 +5984,6 @@ dependencies = [
  "mcrs_minecraft_creative_report",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_game_registries",
- "mcrs_minecraft_item",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_model",

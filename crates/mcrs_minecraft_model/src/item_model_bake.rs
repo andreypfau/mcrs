@@ -26,6 +26,7 @@ pub struct ItemQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub dir: Direction,
+    pub normal: Vec3,
     pub sprite: u16,
     pub tint: Option<u32>,
 }
@@ -65,6 +66,7 @@ pub enum BakedNode {
     Special {
         model: SpecialModel,
         properties: ModelId,
+        transform: Mat4,
     },
     BundleSelectedItem,
 }
@@ -160,10 +162,9 @@ impl Baker<'_> {
                 transformation,
                 tints,
             } => BakedNode::Model {
-                model: self.layer(
-                    Source::Named(model.as_str()),
-                    compose(parent, transformation.as_ref()),
-                )?,
+                model: self.model(model.as_str()).and_then(|plain| {
+                    self.layer(plain, compose(parent, transformation.as_ref()))
+                })?,
                 tints: tints.clone(),
             },
             UnbakedItemModel::Composite {
@@ -232,22 +233,38 @@ impl Baker<'_> {
                     fallback: Box::new(self.fallback(fallback.as_deref(), transform)?),
                 }
             }
-            UnbakedItemModel::Special { base, model, .. } => {
-                let base = self.model(base.as_str())?;
-                let (display, gui_light) = base
-                    .index()
-                    .and_then(|index| self.models.get(index))
-                    .map(|baked| (baked.display, baked.gui_light))
-                    .ok_or_else(|| format!("{base:?} is not baked"))?;
-                BakedNode::Special {
-                    model: model.clone(),
-                    properties: self.push(BakedItemModel {
-                        quads: Vec::new(),
-                        display,
-                        gui_light,
-                    })?,
-                }
-            }
+            UnbakedItemModel::Special {
+                base,
+                model,
+                transformation,
+            } => self.special(
+                base.as_str(),
+                model,
+                compose(parent, transformation.as_ref()),
+            )?,
+        })
+    }
+
+    fn special(
+        &mut self,
+        base: &str,
+        model: &SpecialModel,
+        transform: Mat4,
+    ) -> Result<BakedNode, String> {
+        let base = self.model(base)?;
+        let (display, gui_light) = base
+            .index()
+            .and_then(|index| self.models.get(index))
+            .map(|baked| (baked.display, baked.gui_light))
+            .ok_or_else(|| format!("{base:?} is not baked"))?;
+        Ok(BakedNode::Special {
+            model: model.clone(),
+            properties: self.push(BakedItemModel {
+                quads: Vec::new(),
+                display,
+                gui_light,
+            })?,
+            transform,
         })
     }
 
@@ -259,7 +276,7 @@ impl Baker<'_> {
         match fallback {
             Some(fallback) => self.node(fallback, transform),
             None => Ok(BakedNode::Model {
-                model: self.layer(Source::Missing, transform)?,
+                model: self.layer(self.missing, transform)?,
                 tints: Vec::new(),
             }),
         }
@@ -277,37 +294,22 @@ impl Baker<'_> {
         Ok(model)
     }
 
-    fn layer(&mut self, source: Source<&str>, transform: Mat4) -> Result<ModelId, String> {
+    fn layer(&mut self, plain: ModelId, transform: Mat4) -> Result<ModelId, String> {
         if transform == Mat4::IDENTITY {
-            return match source {
-                Source::Missing => Ok(self.missing),
-                Source::Named(id) => self.model(id),
-            };
+            return Ok(plain);
         }
         let key = FoldKey {
-            source: match source {
-                Source::Missing => Source::Missing,
-                Source::Named(id) => Source::Named(id.to_string()),
-            },
+            model: plain,
             transform: transform.to_cols_array().map(f32::to_bits),
         };
         if let Some(model) = self.folded.get(&key) {
             return Ok(*model);
         }
-        let plain = match source {
-            Source::Missing => Some(self.missing),
-            Source::Named(id) => self.ids.get(id).copied(),
-        };
-        let plain = plain.and_then(|plain| self.models.get(plain.index()?));
-        let folded = match (plain, source) {
-            (Some(plain), _) => transformed(plain, transform),
-            (None, Source::Named(id)) => {
-                let pack = self.pack;
-                let resolved = self.resolver.resolve(id);
-                transformed(&bake_model(pack, self.sprites, resolved)?, transform)
-            }
-            (None, Source::Missing) => return Err("the missing model is not baked".to_string()),
-        };
+        let folded = plain
+            .index()
+            .and_then(|index| self.models.get(index))
+            .map(|model| transformed(model, transform))
+            .ok_or_else(|| format!("{plain:?} is not baked"))?;
         let model = self.push(folded)?;
         self.folded.insert(key, model);
         Ok(model)
@@ -320,15 +322,9 @@ impl Baker<'_> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Source<Name> {
-    Missing,
-    Named(Name),
-}
-
 #[derive(PartialEq, Eq, Hash)]
 struct FoldKey {
-    source: Source<String>,
+    model: ModelId,
     transform: [u32; 16],
 }
 
@@ -342,7 +338,8 @@ fn transformed(model: &BakedItemModel, transform: Mat4) -> BakedItemModel {
                 positions: quad
                     .positions
                     .map(|position| transform.transform_point3(position)),
-                dir: nearest_direction(normals * quad.dir.normal().as_vec3()).unwrap_or(quad.dir),
+                dir: nearest_direction(normals * quad.normal).unwrap_or(quad.dir),
+                normal: (normals * quad.normal).normalize_or(quad.normal),
                 ..quad.clone()
             })
             .collect(),
@@ -395,6 +392,7 @@ fn bake_model(
                 positions: face.positions,
                 uvs: face.uvs,
                 dir: face.direction,
+                normal: face.direction.normal().as_vec3(),
                 sprite,
                 tint: face.tint,
             });
@@ -418,6 +416,7 @@ pub(super) fn element_quads(element: Element, sprite: u16) -> Result<Vec<ItemQua
             positions: face.positions,
             uvs: face.uvs,
             dir: face.direction,
+            normal: face.direction.normal().as_vec3(),
             sprite,
             tint: face.tint,
         })
@@ -484,6 +483,7 @@ mod tests {
                 positions: [Vec3::ZERO; 4],
                 uvs: [[0.0; 2]; 4],
                 dir: Direction::North,
+                normal: Direction::North.normal().as_vec3(),
                 sprite: 0,
                 tint: None,
             }],
@@ -494,15 +494,32 @@ mod tests {
             (
                 Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2),
                 Direction::West,
+                Vec3::NEG_X,
+            ),
+            (
+                Mat4::from_rotation_y(30f32.to_radians()),
+                Direction::North,
+                Vec3::new(-0.5, 0.0, -(3f32.sqrt() / 2.0)),
             ),
             (
                 Mat4::from_scale(Vec3::new(2.0, -1.0, -1.0)),
                 Direction::South,
+                Vec3::Z,
             ),
-            (Mat4::from_translation(Vec3::ONE), Direction::North),
+            (
+                Mat4::from_translation(Vec3::ONE),
+                Direction::North,
+                Vec3::NEG_Z,
+            ),
         ];
-        for (transform, expected) in cases {
-            assert_eq!(transformed(&model, transform).quads[0].dir, expected);
+        for (transform, dir, normal) in cases {
+            let quad = &transformed(&model, transform).quads[0];
+            assert_eq!(quad.dir, dir);
+            assert!(
+                quad.normal.abs_diff_eq(normal, 1e-6),
+                "{transform:?} turns the north normal to {normal}, not {}",
+                quad.normal
+            );
         }
     }
 
@@ -537,7 +554,7 @@ mod tests {
                 models: vec![missing_model(pack, &mut SpriteRegistry::default()).unwrap()],
                 missing: ModelId(0),
             };
-            let stick = Source::Named("minecraft:item/stick");
+            let stick = baker.model("minecraft:item/stick").unwrap();
             let offset = Mat4::from_translation(Vec3::Z);
             let plain = baker.layer(stick, Mat4::IDENTITY).unwrap();
             let moved = baker.layer(stick, offset).unwrap();
@@ -547,10 +564,6 @@ mod tests {
             assert_ne!(
                 baker.layer(stick, Mat4::from_translation(Vec3::X)).unwrap(),
                 moved
-            );
-            assert_eq!(
-                baker.layer(Source::Missing, Mat4::IDENTITY).unwrap(),
-                ModelId(0)
             );
             assert_eq!(baker.models.len(), 4);
         }

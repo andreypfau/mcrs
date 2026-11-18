@@ -50,7 +50,6 @@ fn reach(node: &BakedNode) -> Reach {
 
 #[test]
 fn no_vanilla_item_model_exceeds_the_caps_of_an_icon() {
-    let mut largest = Reach::default();
     for (id, node) in &MODELS.by_id {
         let item = reach(node);
         assert!(
@@ -59,17 +58,9 @@ fn no_vanilla_item_model_exceeds_the_caps_of_an_icon() {
             item.layers,
             item.tints
         );
-        largest.layers = largest.layers.max(item.layers);
-        largest.tints = largest.tints.max(item.tints);
     }
     assert!(
         MODELS.by_id.len() > 1000,
         "the corpus holds the vanilla items"
-    );
-    println!(
-        "items {}, at most {} layers and {} tints",
-        MODELS.by_id.len(),
-        largest.layers,
-        largest.tints
     );
 }

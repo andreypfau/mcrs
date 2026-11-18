@@ -1024,7 +1024,71 @@ mod tests {
     }
 
     mod jar {
+        use bevy::ecs::system::RunSystemOnce;
+        use mcrs_minecraft_engine_registries::test_item_table;
+        use mcrs_minecraft_item_icon::{IconSources, resolve};
+        use mcrs_minecraft_item_stack::{ItemStack, Kind, NameLookup, NameTable};
+        use mcrs_minecraft_model::atlas::SpriteRegistry;
+        use mcrs_minecraft_model::item_model_asset::DisplayContext;
+        use mcrs_minecraft_model::item_model_bake::bake_all;
+        use mcrs_minecraft_model::item_model_context::ItemModelContext;
+        use mcrs_minecraft_model::stack_view::StackView;
+        use mcrs_minecraft_resource::ResourceLocation;
+
         use super::*;
+        use crate::menu_test_app::ATLAS;
+
+        #[test]
+        fn a_stack_overlay_draws_the_count_beside_an_icon() {
+            let table = test_item_table();
+            let models = bake_all(ResourceSet::corpus(), &mut SpriteRegistry::default()).unwrap();
+            let location = ResourceLocation::read("minecraft:stone").unwrap();
+            let kind = Kind(table.id(NameTable::Item, location).unwrap());
+            let stack = ItemStack::new(kind, Count::new(17).unwrap());
+            let view = StackView {
+                stack: &stack,
+                table: &table,
+            };
+            let sources = IconSources {
+                models: &models,
+                registries: None,
+            };
+            let icon = resolve(view, &sources, &ItemModelContext::new(DisplayContext::Gui));
+            for (overlays, glyph_vertices) in [(Overlays::Stack, 24), (Overlays::None, 0)] {
+                let mut scene = GuiScene::default();
+                ItemIcons::draw_icon(
+                    &mut scene,
+                    IVec2::ZERO,
+                    icon,
+                    StackOverlay::of(view),
+                    overlays,
+                );
+                let mut world = World::new();
+                world.insert_resource(scene);
+                world.insert_resource(GuiAtlas(Arc::clone(&ATLAS)));
+                world.insert_resource(Time::<Real>::default());
+                world.insert_resource(GuiConfig {
+                    scale: 1,
+                    cursor: None,
+                    frozen_ticks: Some(0),
+                    advanced_tooltips: false,
+                });
+                world.init_resource::<GlyphCache>();
+                world.init_resource::<GuiBatch>();
+                world.run_system_once(build_gui_batch).unwrap();
+                let batch = world.resource::<GuiBatch>();
+                let flat: usize = batch
+                    .draws
+                    .iter()
+                    .filter(|draw| draw.kind == GuiDrawKind::Flat)
+                    .map(|draw| draw.range.len())
+                    .sum();
+                assert_eq!(
+                    flat, glyph_vertices,
+                    "{overlays:?}: two digits with their shadows, two triangles each"
+                );
+            }
+        }
 
         #[test]
         fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
