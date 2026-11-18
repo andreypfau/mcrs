@@ -130,6 +130,7 @@ mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_inventory_menu.workspace = true
+mcrs_minecraft_item_entity = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_menu_geometry.workspace = true
 mcrs_minecraft_menu_key.workspace = true

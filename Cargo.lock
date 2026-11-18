@@ -4407,6 +4407,7 @@ dependencies = [
  "mcrs_minecraft_inventory_client",
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_lang",
