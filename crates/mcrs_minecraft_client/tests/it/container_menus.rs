@@ -50,6 +50,8 @@ use crate::stacks::stack_at;
 
 const OPEN_CHEST: &str = "chest";
 
+const CLOSE_MENU: &str = "closemenu";
+
 const CHEST_SIZE: u16 = 27;
 
 const MENU_ENTRIES: u16 = 63;
@@ -245,7 +247,7 @@ fn replace_the_open_menu(app: &mut App, viewer: Entity) {
     assert_eq!(chest, sent, "the container of the new menu");
 }
 
-fn open_chest(app: &mut App, viewer: Entity, container_id: i32) -> Entity {
+pub(crate) fn open_chest(app: &mut App, viewer: Entity, container_id: i32) -> Entity {
     connection(app.world_mut()).write_packet(&ServerboundChatCommand {
         command: Bounded(OPEN_CHEST),
     });
@@ -280,7 +282,7 @@ fn container_holder(world: &World, menu: Entity) -> Entity {
         .unwrap()
 }
 
-fn menu_stacks(world: &World, menu: Entity) -> Vec<Option<Stack>> {
+pub(crate) fn menu_stacks(world: &World, menu: Entity) -> Vec<Option<Stack>> {
     let layout = world.get::<MenuLayout>(menu).unwrap();
     let parts = world.get::<MenuParts>(menu).unwrap();
     (0..layout.len())
@@ -291,7 +293,7 @@ fn menu_stacks(world: &World, menu: Entity) -> Vec<Option<Stack>> {
         .collect()
 }
 
-fn open_chest_on_command(server: &mut App) {
+pub(crate) fn open_chest_on_command(server: &mut App) {
     server
         .world_mut()
         .get_resource_or_init::<DimensionBuilders>()
@@ -307,13 +309,15 @@ fn open_chest_for_player(
     items: Res<ItemTable>,
     mut commands: Commands,
 ) {
-    if received
-        .packet()
-        .is_none_or(|packet| packet.command.0 != OPEN_CHEST)
-    {
-        return;
-    }
     let player = received.entity;
+    match received.packet().map(|packet| packet.command.0) {
+        Some(OPEN_CHEST) => {}
+        Some(CLOSE_MENU) => {
+            commands.entity(player).close_menu();
+            return;
+        }
+        _ => return,
+    }
     let chest = commands.spawn(Slots::new(usize::from(CHEST_SIZE))).id();
     for entry in CHEST {
         let stack = entry.stack.unwrap();
@@ -329,4 +333,10 @@ fn open_chest_for_player(
         MenuButtons::default(),
         MenuTitle(Text::text("Chest")),
     );
+}
+
+pub(crate) fn close_on_server(app: &mut App) {
+    connection(app.world_mut()).write_packet(&ServerboundChatCommand {
+        command: Bounded(CLOSE_MENU),
+    });
 }

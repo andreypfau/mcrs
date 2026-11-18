@@ -9,12 +9,15 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
@@ -28,12 +31,13 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
-use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
 use crate::menu_draw;
-use crate::player_stacks::PlayerStacks;
+use crate::menu_label_text::MenuLabelText;
+use crate::menu_screen::{background_extent, background_region, menu_backgrounds, menu_screen};
+use crate::menu_stacks::MenuStacks;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_widget::GuiPoint;
@@ -136,7 +140,7 @@ const MISSING_GLYPH: &str = "font/missing";
 const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
-const GUI_TEXTURES: [&str; 18] = [
+const GUI_TEXTURES: [&str; 17] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
@@ -149,7 +153,6 @@ const GUI_TEXTURES: [&str; 18] = [
     "container/slot/shield",
     "recipe_book/button",
     "recipe_book/button_highlighted",
-    "container/inventory",
     "container/gamemode_switcher",
     "gamemode_switcher/slot",
     "gamemode_switcher/selection",
@@ -159,7 +162,7 @@ const GUI_TEXTURES: [&str; 18] = [
 
 fn texture_path(name: &str) -> String {
     match name {
-        "container/inventory" | "container/gamemode_switcher" => {
+        "container/gamemode_switcher" => {
             format!("minecraft/textures/gui/{name}.png")
         }
         "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
@@ -209,12 +212,6 @@ impl GuiAtlasData {
                     .map_err(|error| error.to_string())?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
-                "container/inventory" => images.push((
-                    Packed::Named(name),
-                    crop(&pixels, width, 176, 166),
-                    176,
-                    166,
-                )),
                 "container/gamemode_switcher" => images.push((
                     Packed::Named(name),
                     crop(&pixels, width, SWITCHER_WIDTH, SWITCHER_HEIGHT),
@@ -223,6 +220,27 @@ impl GuiAtlasData {
                 )),
                 _ => images.push((Packed::Named(name), pixels, width, height)),
             }
+        }
+        let mut backgrounds = Vec::new();
+        for texture in menu_backgrounds() {
+            let Some(name) = background_region(texture) else {
+                continue;
+            };
+            if backgrounds.contains(&name) {
+                continue;
+            }
+            backgrounds.push(name);
+            let path = format!("{}/{}", texture.namespace(), texture.path());
+            let (pixels, width, height) =
+                decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                    .map_err(|error| error.to_string())?;
+            let extent = background_extent(texture).min(UVec2::new(width, height));
+            images.push((
+                Packed::Named(name),
+                crop(&pixels, width, extent.x, extent.y),
+                extent.x,
+                extent.y,
+            ));
         }
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
@@ -559,26 +577,67 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
     crate::tooltip::draw(&scene.tooltip, scene.size, &atlas.0, &mut scene.quads);
 }
 
+#[derive(Default)]
+struct ScreenStacks {
+    inventory: MenuStacks,
+    open: MenuStacks,
+    labels: MenuLabelText,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each access is its own parameter"
+)]
 fn draw_screens(
     screen: Res<Screen>,
     player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
-    menus: Query<(&MenuLayout, &MenuParts)>,
+    menus: Query<(&MenuLayout, &MenuParts, Option<Ref<MenuTitle>>)>,
     holders: Query<&Slots>,
+    atlas: Option<Res<GuiAtlas>>,
+    language: Option<Res<ClientLanguage>>,
+    mut stacks: Local<ScreenStacks>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
+    let stacks = &mut *stacks;
     let Ok((player, player_menus, selected, mode)) = player.single() else {
         return;
     };
-    let Some(stacks) = PlayerStacks::of_player(player, player_menus, &menus, &holders) else {
+    let occupant = |slot: SlotRef| holders.get(slot.holder).ok()?.get(usize::from(slot.index));
+    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator)
+        && let Some((layout, parts, _)) =
+            (player_menus.iter().next()).and_then(|menu| menus.get(menu).ok())
+    {
+        stacks
+            .inventory
+            .collect(layout, parts, player.cursor, occupant);
+        hotbar(scene.size, selected.0, &stacks.inventory, &mut scene.quads);
+    }
+    let Some(open) = player_menus.open() else {
         return;
     };
-    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
-        hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
+    let Ok((layout, parts, title)) = menus.get(open) else {
+        return;
+    };
+    if let Some(language) = language {
+        stacks.labels.follow(open, title, language.into());
     }
-    if *screen == Screen::Menu {
-        inventory_screen(scene.size, scene.cursor, &stacks, &mut scene.quads);
+    if *screen != Screen::Menu {
+        return;
     }
+    let (Some(atlas), Some(geometry)) = (atlas, MenuGeometry::of_layout(layout)) else {
+        return;
+    };
+    stacks.open.collect(layout, parts, player.cursor, occupant);
+    menu_screen(
+        scene.size,
+        scene.cursor,
+        geometry,
+        &stacks.open,
+        &stacks.labels,
+        &atlas.0,
+        &mut scene.quads,
+    );
 }
 
 pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
@@ -910,6 +969,12 @@ mod tests {
                 .filter(|n| **n != "misc/enchanted_glint_item")
             {
                 assert!(atlas.regions.contains_key(name), "{name}");
+            }
+            for texture in menu_backgrounds() {
+                assert!(
+                    background_region(texture).is_some_and(|name| atlas.regions.contains_key(name)),
+                    "{texture:?}"
+                );
             }
             assert_eq!(atlas.region("hud/hotbar").size(), IVec2::new(182, 22));
             assert_eq!(

@@ -1,6 +1,7 @@
 use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_widget::GuiRect;
 use mcrs_minecraft_container_click::Clicked;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
@@ -75,6 +76,14 @@ impl MenuGeometry {
                 TITLE,
             )),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn of_layout(layout: &MenuLayout) -> Option<Self> {
+        match layout.kind() {
+            None => Some(Self::INVENTORY),
+            Some(kind) => Self::of(kind),
         }
     }
 

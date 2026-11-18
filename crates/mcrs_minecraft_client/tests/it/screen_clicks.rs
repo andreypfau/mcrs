@@ -11,9 +11,14 @@ use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::{HandInput, MenuAction, MenuInput};
+use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_player_holders::HandAction;
+use mcrs_minecraft_protocol::{Encode, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerClose;
 
+use crate::container_menus;
 use crate::local_world::LocalWorld;
 use crate::stacks::{self, AGREED, Entry, Item, Stack};
 
@@ -24,6 +29,7 @@ const WINDOW_CORNER: IVec2 = IVec2::new((640 - 176) / 2, (360 - 166) / 2);
 #[derive(Clone, Copy, Debug)]
 enum Pointer {
     Entry(u16),
+    ChestEntry(u16),
     EmptyArea,
     Outside,
     RecipeBookButton,
@@ -358,16 +364,20 @@ const ROWS: &[Row] = &[
 ];
 
 fn gui_point(pointer: Pointer) -> IVec2 {
-    WINDOW_CORNER
-        + match pointer {
-            Pointer::Entry(entry) => {
-                let corner = MenuGeometry::INVENTORY.entry(entry).unwrap();
-                IVec2::new(corner.x, corner.y) + 8
-            }
-            Pointer::EmptyArea => IVec2::new(7, 84),
-            Pointer::Outside => IVec2::new(-10, 20),
-            Pointer::RecipeBookButton => IVec2::new(104, 61),
+    let entry_centre = |geometry: MenuGeometry, entry| {
+        let window = geometry.window(640, 360);
+        let corner = geometry.entry(entry).unwrap();
+        IVec2::new(window.x + corner.x, window.y + corner.y) + 8
+    };
+    match pointer {
+        Pointer::Entry(entry) => entry_centre(MenuGeometry::INVENTORY, entry),
+        Pointer::ChestEntry(entry) => {
+            entry_centre(MenuGeometry::of(MenuType::Generic9x3).unwrap(), entry)
         }
+        Pointer::EmptyArea => WINDOW_CORNER + IVec2::new(7, 84),
+        Pointer::Outside => WINDOW_CORNER + IVec2::new(-10, 20),
+        Pointer::RecipeBookButton => WINDOW_CORNER + IVec2::new(104, 61),
+    }
 }
 
 fn pick_up(world: &mut LocalWorld, entry: u16) {
@@ -503,5 +513,114 @@ fn each_gesture_gives_its_input_and_the_same_stacks_on_both_sides() {
         );
         world.assert_after_round_trip(row.name, row.answers, row.entries, row.cursor);
     }
+    world.leave();
+}
+
+#[test]
+fn a_menu_that_the_server_opens_between_a_press_and_its_release_takes_no_click() {
+    let mut world = LocalWorld::join(
+        "chest-between-press-and-release",
+        container_menus::open_chest_on_command,
+        add_input,
+    );
+    let case = Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        ..row("a menu that the server opens between a press and its release")
+    };
+    world.app.insert_resource(Screen::Menu);
+    set_up(&mut world, &case);
+    world.clear_answers();
+    world.app.world_mut().resource_mut::<SentInputs>().0.clear();
+
+    play(&mut world.app, &[over(10), Event::Press(LEFT)]);
+    container_menus::open_chest(&mut world.app, world.viewer, 1);
+    play(
+        &mut world.app,
+        &[Event::Move(Pointer::ChestEntry(0)), Event::Release(LEFT)],
+    );
+    assert_eq!(
+        world.app.world().resource::<SentInputs>().0,
+        [],
+        "the release over the chest takes no click"
+    );
+    world.assert_after_round_trip(case.name, None, &[], stacks::held(Item::Stone, 10));
+    world.leave();
+}
+
+#[test]
+fn a_server_chest_opens_its_screen_takes_a_click_and_closes_it() {
+    let mut world = LocalWorld::join(
+        "chest-screen",
+        container_menus::open_chest_on_command,
+        add_input,
+    );
+    let viewer = world.viewer;
+    world.app.insert_resource(Screen::None);
+    let menu = container_menus::open_chest(&mut world.app, viewer, 1);
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::Menu,
+        "the screen after the open"
+    );
+
+    world.clear_answers();
+    play(
+        &mut world.app,
+        &[Event::Move(Pointer::ChestEntry(0)), Event::Press(LEFT)],
+    );
+    play(&mut world.app, &[Event::Release(LEFT)]);
+    assert_eq!(
+        world.app.world().resource::<SentInputs>().0,
+        [on(ClickKind::PickUp, 0, 0)],
+        "the input of a left click on the first chest entry"
+    );
+    world.assert_after_round_trip(
+        "a left click on the first chest entry",
+        Some(AGREED),
+        &[],
+        stacks::held(Item::Stone, 10),
+    );
+    assert_eq!(
+        container_menus::menu_stacks(world.app.world(), menu).first(),
+        Some(&None),
+        "the first chest entry after the click"
+    );
+
+    container_menus::close_on_server(&mut world.app);
+    test_support::update_until(&mut world.app, "the close of the server", |app| {
+        *app.world().resource::<Screen>() == Screen::None
+    });
+    world.leave();
+}
+
+#[test]
+fn a_server_close_of_the_inventory_menu_closes_its_screen() {
+    let mut world = LocalWorld::join("inventory-server-close", |_| {}, add_input);
+    world.app.insert_resource(Screen::None);
+    play(&mut world.app, &[Event::Key(KeyCode::KeyE)]);
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::Menu,
+        "the screen after the inventory key"
+    );
+    let mut body = Vec::new();
+    ClientboundContainerClose {
+        container_id: VarInt(0),
+    }
+    .encode(&mut body)
+    .unwrap();
+    let viewer = world.viewer;
+    world
+        .app
+        .world_mut()
+        .trigger(Received::<ClientboundContainerClose>::new(
+            viewer,
+            body.into(),
+        ));
+    assert_eq!(
+        *world.app.world().resource::<Screen>(),
+        Screen::None,
+        "the screen after the close of the inventory menu by the server"
+    );
     world.leave();
 }
