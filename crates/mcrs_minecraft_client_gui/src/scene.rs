@@ -32,6 +32,7 @@ use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::item_decorations::{Decorated, WHITE, decorations};
+use crate::item_icons::{ItemIcons, build_icon_meshes};
 use crate::item_resolve::ItemRenderLayers;
 use crate::language::ClientLanguage;
 use crate::menu_draw;
@@ -44,8 +45,11 @@ use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_item_icon::GuiVertex;
+use mcrs_minecraft_item_icon::{
+    GuiVertex, IconLayer, IconMeshes, ItemIcon, Overlays, StackOverlay,
+};
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
+use mcrs_minecraft_model::item_model_bake::ItemModels;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -103,6 +107,10 @@ pub enum GuiQuad {
         origin: IVec2,
         stack: Entity,
     },
+    Icon {
+        origin: IVec2,
+        index: usize,
+    },
     Highlight {
         rect: IRect,
         invert: bool,
@@ -121,7 +129,15 @@ pub struct GuiScene {
     pub size: GuiSize,
     pub cursor: IVec2,
     pub quads: Vec<GuiQuad>,
+    pub icons: Vec<SceneIcon>,
     pub tooltip: Tooltip,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneIcon {
+    pub icon: ItemIcon,
+    pub overlay: StackOverlay,
+    pub overlays: Overlays,
 }
 
 #[derive(Resource, Clone, Copy)]
@@ -567,6 +583,7 @@ fn begin_gui_frame(
         .map(gui_point)
         .map_or(IVec2::new(-1, -1), menu_draw::point);
     scene.quads.clear();
+    scene.icons.clear();
     scene.tooltip.clear();
 }
 
@@ -660,6 +677,7 @@ fn build_gui_batch(
     atlas: Option<Res<GuiAtlas>>,
     layers: Query<&ItemRenderLayers>,
     counts: Query<&Count>,
+    icons: ItemIcons,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut cache: ResMut<GlyphCache>,
@@ -695,20 +713,23 @@ fn build_gui_batch(
                 };
                 decorations(origin, &decorated, &atlas.font, &mut expanded);
             }
+            GuiQuad::Icon { origin, index } => {
+                expanded.push(*quad);
+                let Some(entry) = scene.icons.get(index) else {
+                    continue;
+                };
+                if entry.overlays == Overlays::Stack {
+                    let decorated = Decorated {
+                        count: entry.overlay.count,
+                        damage: entry.overlay.durability,
+                    };
+                    decorations(origin, &decorated, &atlas.font, &mut expanded);
+                }
+            }
             other => expanded.push(other),
         }
     }
     let mut flat_start = None;
-    let close_flat = |start: &mut Option<u32>, end: u32, draws: &mut Vec<GuiDraw>| {
-        if let Some(begin) = start.take()
-            && begin != end
-        {
-            draws.push(GuiDraw {
-                range: begin..end,
-                kind: GuiDrawKind::Flat,
-            });
-        }
-    };
     for quad in expanded {
         let vertices = &mut batch.vertices;
         match quad {
@@ -719,13 +740,16 @@ fn build_gui_batch(
                     continue;
                 };
                 push_item_layers(vertices, layers, origin);
-                let after = vertices.len() as u32;
-                if after != end {
-                    batch.draws.push(GuiDraw {
-                        range: end..after,
-                        kind: GuiDrawKind::Item,
-                    });
-                }
+                push_item_draw(end, vertices, &mut batch.draws);
+            }
+            GuiQuad::Icon { origin, index } => {
+                let end = vertices.len() as u32;
+                close_flat(&mut flat_start, end, &mut batch.draws);
+                let (Some(entry), Some(meshes)) = (scene.icons.get(index), icons.meshes()) else {
+                    continue;
+                };
+                push_icon(vertices, &entry.icon, meshes, origin);
+                push_item_draw(end, vertices, &mut batch.draws);
             }
             GuiQuad::Highlight { rect, invert } => {
                 let end = vertices.len() as u32;
@@ -794,23 +818,57 @@ fn build_gui_batch(
     batch.glyphs.extend_from_slice(cache.resident());
 }
 
+fn close_flat(start: &mut Option<u32>, end: u32, draws: &mut Vec<GuiDraw>) {
+    if let Some(begin) = start.take()
+        && begin != end
+    {
+        draws.push(GuiDraw {
+            range: begin..end,
+            kind: GuiDrawKind::Flat,
+        });
+    }
+}
+
+fn push_item_draw(start: u32, vertices: &[GuiVertex], draws: &mut Vec<GuiDraw>) {
+    let after = vertices.len() as u32;
+    if after != start {
+        draws.push(GuiDraw {
+            range: start..after,
+            kind: GuiDrawKind::Item,
+        });
+    }
+}
+
 fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, origin: IVec2) {
     for layer in &layers.layers {
         let glint = if layer.foil { GLINT_BIT } else { 0 };
         for quad in layer.vertices.as_chunks::<4>().0 {
-            let shifted = |v: &GuiVertex| GuiVertex {
-                pos: [
-                    v.pos[0] + origin.x as f32,
-                    v.pos[1] + origin.y as f32,
-                    v.pos[2],
-                ],
-                sprite: v.sprite | glint,
-                ..*v
-            };
-            let [a, b, c, d] = quad.each_ref().map(shifted);
-            vertices.extend([a, b, c, a, c, d]);
+            push_item_quad(vertices, quad, origin, glint);
         }
     }
+}
+
+fn push_icon(vertices: &mut Vec<GuiVertex>, icon: &ItemIcon, meshes: &IconMeshes, origin: IVec2) {
+    let glint = if icon.foil() { GLINT_BIT } else { 0 };
+    for IconLayer { model, tints } in icon.layers() {
+        for quad in meshes.get(*model).into_iter().flatten() {
+            push_item_quad(vertices, &quad.tinted(tints), origin, glint);
+        }
+    }
+}
+
+fn push_item_quad(vertices: &mut Vec<GuiVertex>, quad: &[GuiVertex; 4], origin: IVec2, glint: u32) {
+    let shifted = |v: &GuiVertex| GuiVertex {
+        pos: [
+            v.pos[0] + origin.x as f32,
+            v.pos[1] + origin.y as f32,
+            v.pos[2],
+        ],
+        sprite: v.sprite | glint,
+        ..*v
+    };
+    let [a, b, c, d] = quad.each_ref().map(shifted);
+    vertices.extend([a, b, c, a, c, d]);
 }
 
 fn push_flat_quad(
@@ -867,6 +925,7 @@ fn push_flat_quad(
             }
         }
         GuiQuad::Item { .. }
+        | GuiQuad::Icon { .. }
         | GuiQuad::Highlight { .. }
         | GuiQuad::Clip { .. }
         | GuiQuad::EndClip
@@ -897,6 +956,11 @@ impl Plugin for GuiPlugin {
             .init_resource::<crate::title_draw::TitleScreenState>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
+            .add_systems(
+                Update,
+                build_icon_meshes
+                    .run_if(resource_exists::<ItemModels>.and_then(resource_changed::<ItemModels>)),
+            )
             .add_systems(
                 PostUpdate,
                 (

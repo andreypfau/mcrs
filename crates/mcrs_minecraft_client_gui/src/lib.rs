@@ -40,6 +40,7 @@ pub mod hotbar;
 pub mod inventory_clicks;
 pub mod inventory_figure;
 pub mod item_decorations;
+pub mod item_icons;
 pub mod item_key_codes;
 pub mod item_resolve;
 pub mod language;

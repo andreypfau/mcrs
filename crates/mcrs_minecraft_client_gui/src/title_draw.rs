@@ -156,6 +156,7 @@ fn fade(quad: &mut GuiQuad, alpha: u32) {
             scale(bottom);
         }
         GuiQuad::Item { .. }
+        | GuiQuad::Icon { .. }
         | GuiQuad::Figure { .. }
         | GuiQuad::Highlight { .. }
         | GuiQuad::Clip { .. }
