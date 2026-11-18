@@ -187,11 +187,11 @@ fn main() {
     let mut loading = world
         .get_mut::<ColumnLoading>(dim)
         .expect("the dimension loads columns");
+    let started = Instant::now();
     for &column in &tickets {
         loading.add_ticket(column);
     }
 
-    let started = Instant::now();
     let mut ticks = 0u64;
     loop {
         tick(&mut app);
