@@ -14471,7 +14471,7 @@
       "observed": {
         "console": {
           "output": [
-            "Alice has the following entity data: 9"
+            "Alice has the following entity data: 15"
           ]
         }
       },
@@ -22705,6 +22705,8 @@
           "console_output": [
             "Set Bob's game mode to Creative Mode",
             "Replaced 1 slot(s) on Alice with [Stick]",
+            "Applied 1 effect(s) to Alice",
+            "Applied 1 effect(s) to Charlie",
             "Teleported Charlie to 600.500000, 100.000000, 0.500000"
           ]
         }
@@ -22753,7 +22755,19 @@
       "swing_bytes": {
         "canonical": true
       },
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "packet": {
+            "client": "Bob",
+            "packet": {
+              "swing": {
+                "subject": "Alice"
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "id": "move_charlie_back_in_range",
@@ -22768,6 +22782,26 @@
       "swings": [],
       "animates": [],
       "checkpoints": [
+        {
+          "packet": {
+            "client": "Charlie",
+            "packet": {
+              "player_position": {
+                "block_center": [
+                  4,
+                  100,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          "player_ticks": {
+            "client": "Charlie",
+            "at_least": 6
+          }
+        },
         {
           "packet": {
             "client": "Charlie",
@@ -22788,14 +22822,24 @@
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "player_ticks": {
+            "client": "Alice",
+            "at_least": 301
+          }
+        }
+      ]
     },
     {
       "id": "clear_slow_charlie_equipment",
       "observed": {
         "console": {
           "output": [
-            "Replaced 1 slot(s) on Alice with [Air]"
+            "Replaced 1 slot(s) on Alice with [Air]",
+            "Removed 1 effect(s) from Alice",
+            "Removed 1 effect(s) from Charlie"
           ],
           "chat": [
             {
@@ -22839,6 +22883,78 @@
                             ]
                           }
                         ]
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Alice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Alice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            278005000,
+                            -707248403,
+                            -1814916367,
+                            -1817188393
+                          ],
+                          "name": "Alice"
+                        },
+                        "insertion": "Alice"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Charlie",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Charlie "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            -495720832,
+                            -2133444894,
+                            -1736649182,
+                            -1478998954
+                          ],
+                          "name": "Charlie"
+                        },
+                        "insertion": "Charlie"
                       }
                     ]
                   }
@@ -22897,6 +23013,78 @@
               }
             },
             {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Alice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Alice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            278005000,
+                            -707248403,
+                            -1814916367,
+                            -1817188393
+                          ],
+                          "name": "Alice"
+                        },
+                        "insertion": "Alice"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Charlie",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Charlie "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            -495720832,
+                            -2133444894,
+                            -1736649182,
+                            -1478998954
+                          ],
+                          "name": "Charlie"
+                        },
+                        "insertion": "Charlie"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
               "client": "Charlie",
               "text": {
                 "translate": "chat.type.admin",
@@ -22937,6 +23125,78 @@
                             ]
                           }
                         ]
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Alice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Alice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            278005000,
+                            -707248403,
+                            -1814916367,
+                            -1817188393
+                          ],
+                          "name": "Alice"
+                        },
+                        "insertion": "Alice"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.specific.success.single",
+                    "with": [
+                      1,
+                      {
+                        "text": "Charlie",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell Charlie "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            -495720832,
+                            -2133444894,
+                            -1736649182,
+                            -1478998954
+                          ],
+                          "name": "Charlie"
+                        },
+                        "insertion": "Charlie"
                       }
                     ]
                   }
@@ -23465,67 +23725,19 @@
     {
       "id": "d5_step_2",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "d5_blocked_at_t2",
@@ -23643,67 +23855,19 @@
     {
       "id": "d5_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d5_unlocked_at_t3",
@@ -23840,67 +24004,19 @@
     {
       "id": "clear_d5",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_d6",
@@ -24037,67 +24153,19 @@
     {
       "id": "d6_step_3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 3 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 3
+          }
+        }
+      ]
     },
     {
       "id": "d6_blocked_at_t3",
@@ -24215,67 +24283,19 @@
     {
       "id": "d6_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d6_unlocked_at_t4",
@@ -24412,67 +24432,19 @@
     {
       "id": "clear_d6",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_d7",
@@ -24609,67 +24581,19 @@
     {
       "id": "d7_step_3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 3 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 3
+          }
+        }
+      ]
     },
     {
       "id": "d7_blocked_at_t3",
@@ -24787,67 +24711,19 @@
     {
       "id": "d7_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d7_unlocked_at_t4",
@@ -24984,67 +24860,19 @@
     {
       "id": "clear_d7",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_d12",
@@ -25181,67 +25009,19 @@
     {
       "id": "d12_step_6",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 6 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      6
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      6
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      6
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 6
+          }
+        }
+      ]
     },
     {
       "id": "d12_blocked_at_t6",
@@ -25359,67 +25139,19 @@
     {
       "id": "d12_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d12_unlocked_at_t7",
@@ -25556,67 +25288,19 @@
     {
       "id": "clear_d12",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_d1",
@@ -25753,67 +25437,19 @@
     {
       "id": "d1_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d1_unlocked_at_t1",
@@ -25950,67 +25586,19 @@
     {
       "id": "clear_d1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 2 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      2
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_d2",
@@ -26147,67 +25735,19 @@
     {
       "id": "d2_step_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d2_blocked_at_t1",
@@ -26325,67 +25865,19 @@
     {
       "id": "d2_step_2",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "d2_unlocked_at_t2",
@@ -26861,67 +26353,19 @@
     {
       "id": "conduit0_b6_step_3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 3 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 3
+          }
+        }
+      ]
     },
     {
       "id": "pig_conduit0_b6_unlocked_at_t3",
@@ -27058,167 +26502,22 @@
     {
       "id": "clear_pig_conduit0_b6",
       "observed": {
-        "console": {
-          "output": [
-            "Removed every effect from Pig",
-            "Stepping 4 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.effect.clear.everything.success.single",
-                    "with": [
-                      {
-                        "translate": "entity.minecraft.pig",
-                        "hover_event": {
-                          "action": "show_entity",
-                          "id": "minecraft:pig",
-                          "uuid": [
-                            0,
-                            0,
-                            0,
-                            9
-                          ],
-                          "name": {
-                            "translate": "entity.minecraft.pig"
-                          }
-                        },
-                        "insertion": "00000000-0000-0000-0000-000000000009"
-                      }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.effect.clear.everything.success.single",
-                    "with": [
-                      {
-                        "translate": "entity.minecraft.pig",
-                        "hover_event": {
-                          "action": "show_entity",
-                          "id": "minecraft:pig",
-                          "uuid": [
-                            0,
-                            0,
-                            0,
-                            9
-                          ],
-                          "name": {
-                            "translate": "entity.minecraft.pig"
-                          }
-                        },
-                        "insertion": "00000000-0000-0000-0000-000000000009"
-                      }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.effect.clear.everything.success.single",
-                    "with": [
-                      {
-                        "translate": "entity.minecraft.pig",
-                        "hover_event": {
-                          "action": "show_entity",
-                          "id": "minecraft:pig",
-                          "uuid": [
-                            0,
-                            0,
-                            0,
-                            9
-                          ],
-                          "name": {
-                            "translate": "entity.minecraft.pig"
-                          }
-                        },
-                        "insertion": "00000000-0000-0000-0000-000000000009"
-                      }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Removed every effect from Pig"
           ]
         }
       },
       "swings": [],
-      "animates": []
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 4
+          }
+        }
+      ]
     },
     {
       "id": "freeze_pig_midwindow_noeffect",
@@ -27404,23 +26703,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -27454,23 +26736,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -27490,23 +26755,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
                     ]
                   }
                 ],
@@ -27554,7 +26802,7 @@
       "animates": []
     },
     {
-      "id": "midwindow_step4_unlock",
+      "id": "midwindow_step3_t5",
       "observed": {
         "sent": {
           "disconnects": []
@@ -27565,36 +26813,19 @@
       "checkpoints": [
         {
           "game_ticks": {
-            "ticks": 4
+            "ticks": 3
           }
         }
       ]
     },
     {
-      "id": "midwindow_unlocked_at_t6",
+      "id": "midwindow_blocked_at_t5",
       "observed": {
         "console": {
           "output": [
             "Made Pig swing an arm"
           ],
           "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
             {
               "client": "Alice",
               "text": {
@@ -27621,23 +26852,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
                     ]
                   }
                 ],
@@ -27685,9 +26899,122 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
+                    "translate": "commands.swing.success.single",
                     "with": [
-                      4
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "midwindow_step1_t6",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": [],
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "midwindow_unlocked_at_t6",
+      "observed": {
+        "console": {
+          "output": [
+            "Made Pig swing an arm"
+          ],
+          "chat": [
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
                     ]
                   }
                 ],
@@ -28040,23 +27367,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      5
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -28090,23 +27400,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      5
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -28126,23 +27419,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      5
                     ]
                   }
                 ],
@@ -28221,23 +27497,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -28271,23 +27530,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -28307,23 +27549,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
                     ]
                   }
                 ],
@@ -28407,7 +27632,7 @@
       ]
     },
     {
-      "id": "freeze_pig_haste10_conduit2_b24",
+      "id": "freeze_pig_haste0_fatigue4_b6",
       "observed": {
         "console": {
           "output": [
@@ -28417,23 +27642,6 @@
             "Made Pig swing an arm"
           ],
           "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
             {
               "client": "Alice",
               "text": {
@@ -28561,23 +27769,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
                     ]
                   }
                 ],
@@ -28726,9 +27917,726 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
+                    "translate": "commands.effect.clear.everything.success.single",
                     "with": [
-                      4
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": [
+        {
+          "client": "Alice",
+          "subject": "minecraft:pig",
+          "hand": "main",
+          "animation": "stab",
+          "duration": 6
+        },
+        {
+          "client": "Bob",
+          "subject": "minecraft:pig",
+          "hand": "main",
+          "animation": "stab",
+          "duration": 6
+        }
+      ],
+      "swing_bytes": {
+        "canonical": true,
+        "shared_across_recipients": true
+      },
+      "animates": []
+    },
+    {
+      "id": "pig_haste0_fatigue4_step2",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": [],
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "pig_haste0_fatigue4_blocked_at_t2",
+      "observed": {
+        "console": {
+          "output": [
+            "Made Pig swing an arm"
+          ],
+          "chat": [
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "pig_haste0_fatigue4_step1",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": [],
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "pig_haste0_fatigue4_unlocked_at_t3",
+      "observed": {
+        "console": {
+          "output": [
+            "Made Pig swing an arm"
+          ],
+          "chat": [
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Charlie",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": [
+        {
+          "client": "Alice",
+          "subject": "minecraft:pig",
+          "hand": "off",
+          "animation": "whack",
+          "duration": 1
+        },
+        {
+          "client": "Bob",
+          "subject": "minecraft:pig",
+          "hand": "off",
+          "animation": "whack",
+          "duration": 1
+        }
+      ],
+      "swing_bytes": {
+        "canonical": true,
+        "shared_across_recipients": true
+      },
+      "animates": []
+    },
+    {
+      "id": "clear_pig_haste0_fatigue4",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": [],
+      "animates": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "freeze_pig_haste10_conduit2_b24",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed every effect from Pig",
+            "Applied 1 effect(s) to Pig",
+            "Applied 1 effect(s) to Pig",
+            "Made Pig swing an arm"
+          ],
+          "chat": [
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.everything.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Alice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.clear.everything.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.effect.give.success.single",
+                    "with": [
+                      1,
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "Bob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.swing.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            0,
+                            0,
+                            0,
+                            9
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "00000000-0000-0000-0000-000000000009"
+                      }
                     ]
                   }
                 ],
@@ -28927,23 +28835,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      8
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -28977,23 +28868,6 @@
                 "with": [
                   "Server",
                   {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      8
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
                     "translate": "commands.swing.success.single",
                     "with": [
                       {
@@ -29013,23 +28887,6 @@
                         },
                         "insertion": "00000000-0000-0000-0000-000000000009"
                       }
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Charlie",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      8
                     ]
                   }
                 ],

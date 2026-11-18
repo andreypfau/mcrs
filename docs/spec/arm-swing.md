@@ -59,7 +59,7 @@ vanilla server of the version in `assets/minecraft/version.json` and on
 ### 0.4 Observable tick boundaries
 
 A swing **trigger** in tick `T` is subject to cooldown windows that cover `T`
-(`SWG-STA-003`) and to the same-tick limit (`SWG-STA-004`). When a block interaction
+(`SWG-STA-003`, `SWG-STA-005`) and to the same-tick limit (`SWG-STA-004`). When a block interaction
 starts a swing, its recipients see the swing packet before the associated block update
 (`SWG-DST-003`).
 
@@ -183,17 +183,18 @@ Provenance: `black_box_confirmed`. Kind: `semantic`. Confidence: `high`.
 Experiment: `SWG-E6`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
 (`punch_fatigue_unscaled_and_blocks_reswing`, `punch_haste_overrides_fatigue_sequence`,
 `punch_haste2_shortens_b10`, `punch_fatigue1_blocks_at_200ms`, `punch_fatigue3_blocks_at_300ms`,
-`punch_haste0_overrides_fatigue4`, `punch_baseline_b10_blocked_at_220ms`,
+`pig_haste0_fatigue4_blocked_at_t2`, `pig_haste0_fatigue4_unlocked_at_t3`,
+`punch_baseline_b10_blocked_at_220ms`,
 `punch_conduit2_shortens_b10`, `punch_conduit0_overrides_fatigue4_b6`, `pig_conduit0_b6_unlocked_at_t3`,
 `punch_haste6_conduit6_b20_max`, `punch_haste10_conduit2_b24`, `punch_haste2_conduit10_fatigue4_b24`,
 `punch_haste20_b6_clamp_unlocked`, `pig_fatigue1_blocked_at_t5`, `pig_fatigue1_unlocked_at_t6`,
 `pig_haste10_conduit2_unlocked_at_t8`).
 
-### SWG-STA-003: cross-tick cooldown window
+### SWG-STA-003: observed cross-tick cooldown window on a pig
 
-When a swing starts at tick `T` with **effective duration** `D >= 0`, it sets a **cooldown window**
-fixed at tick `T`. That window covers ticks `T + 1` to `T + floor(D / 2)`. The server must ignore
-**triggers** in those ticks and emit no `swing_animation`. Changing the held slot or adding dig-speed
+When a pig starts a swing at tick `T` with **effective duration** `D >= 0`, it sets a
+**cooldown window** fixed at tick `T`. That window covers ticks `T + 1` to `T + floor(D / 2)`.
+The server must ignore **triggers** in those ticks and emit no `swing_animation`. Adding dig-speed
 status effects after tick `T` must not shorten that window.
 
 A **trigger** can start a new swing from tick `T + 1 + floor(D / 2)` onward. Examples: `D = 1`
@@ -202,10 +203,11 @@ unlocks tick `T + 4`, and `D = 12` unlocks tick `T + 7`.
 
 Provenance: `black_box_confirmed`. Kind: `semantic`. Confidence: `high`.
 Experiment: `SWG-E6`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
-(`slow_swing_blocks_reswing_and_slot_switch`, `d1_unlocked_at_t1`,
+(`d1_unlocked_at_t1`,
 `d2_blocked_at_t1`, `d2_unlocked_at_t2`, `d5_blocked_at_t2`, `d5_unlocked_at_t3`,
 `d6_blocked_at_t3`, `d6_unlocked_at_t4`, `d7_blocked_at_t3`, `d7_unlocked_at_t4`,
-`d12_blocked_at_t6`, `d12_unlocked_at_t7`, `midwindow_blocked_at_t2`, `midwindow_unlocked_at_t6`).
+`d12_blocked_at_t6`, `d12_unlocked_at_t7`, `midwindow_blocked_at_t2`,
+`midwindow_blocked_at_t5`, `midwindow_unlocked_at_t6`).
 
 ### SWG-STA-004: at most one swing per actor in one tick
 
@@ -214,6 +216,15 @@ When a swing starts at tick `T`, the server must ignore later **triggers** for *
 
 Provenance: `design` (owner decision on `#906`). Kind: `deviation`. Confidence: `high`.
 
+### SWG-STA-005: cross-tick cooldown window in mcrs
+
+Mcrs applies the cooldown window in `SWG-STA-003` to every **actor**. For a player it uses the
+player's simulation ticks. Switching the held slot after the swing starts preserves that window.
+The player observations in `SWG-E6` record suppression and recovery. The exact vanilla player
+punch boundaries remain open in `SWG-U3`.
+
+Provenance: `design`. Kind: `semantic`. Confidence: `high`.
+
 ---
 
 ## 4. Swing sources and preconditions
@@ -221,7 +232,7 @@ Provenance: `design` (owner decision on `#906`). Kind: `deviation`. Confidence: 
 ### SWG-SRC-001: serverbound `minecraft:punch` (`46`)
 
 `punch` starts an **observer-only swing** with `main` and `minecraft:attack_animation` when no
-active **cooldown window** (`SWG-STA-003`) or same-tick limit (`SWG-STA-004`) blocks **actor**, and
+active **cooldown window** (`SWG-STA-005`) or same-tick limit (`SWG-STA-004`) blocks **actor**, and
 all of these conditions hold for **actor**:
 
 - **actor** is alive;
@@ -247,7 +258,7 @@ Provenance: `design` (owner decision on `#906`). Kind: `deviation`. Confidence: 
 
 ### SWG-SRC-003: serverbound `minecraft:player_action`
 
-Subject to the **cooldown window** (`SWG-STA-003`) and same-tick (`SWG-STA-004`) gating on **actor**,
+Subject to the **cooldown window** (`SWG-STA-005`) and same-tick (`SWG-STA-004`) gating on **actor**,
 `player_action` starts a swing only for these status codes:
 
 1. `drop_item` (`5`) and `drop_all_items` (`4`): non-spectator players whose `main` hand is not
@@ -279,7 +290,7 @@ Experiment: `SWG-E8`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
 
 ### SWG-SRC-005: serverbound `minecraft:use_item` (`67`)
 
-Subject to the **cooldown window** (`SWG-STA-003`) and same-tick (`SWG-STA-004`) gating on **actor**,
+Subject to the **cooldown window** (`SWG-STA-005`) and same-tick (`SWG-STA-004`) gating on **actor**,
 `use_item` starts a swing for the **hand** in the packet with `minecraft:interact_animation` when the
 item use finishes an instant action:
 
@@ -296,7 +307,7 @@ Experiment: `SWG-E7`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
 
 ### SWG-SRC-006: serverbound `minecraft:use_item_on` (`66`)
 
-Subject to the **cooldown window** (`SWG-STA-003`) and same-tick (`SWG-STA-004`) gating on **actor**,
+Subject to the **cooldown window** (`SWG-STA-005`) and same-tick (`SWG-STA-004`) gating on **actor**,
 `use_item_on` starts a swing for the **hand** in the packet with `minecraft:interact_animation` when
 the block or item use succeeds:
 
@@ -317,15 +328,15 @@ Experiment: `SWG-E7`; `tools/mcrs_minecraft_probe/traces/arm_swing.json`
 
 ### SWG-SRC-007: packet count on `use_item_on` (`66`)
 
-When an accepted `use_item_on` action starts a swing (`SWG-STA-003`, `SWG-STA-004`), the server
-must send one `swing_animation` packet to each **recipient** (`SWG-DEV-001`). If `SWG-STA-003` or
+When an accepted `use_item_on` action starts a swing (`SWG-STA-005`, `SWG-STA-004`), the server
+must send one `swing_animation` packet to each **recipient** (`SWG-DEV-001`). If `SWG-STA-005` or
 `SWG-STA-004` blocks a new swing, `use_item_on` still takes effect while emitting `0` swing packets.
 
 Provenance: `design`. Kind: `deviation`. Confidence: `high`.
 
 ### SWG-SRC-008: serverbound `minecraft:interact` (`26`)
 
-Subject to the **cooldown window** (`SWG-STA-003`) and same-tick (`SWG-STA-004`) gating on **actor**,
+Subject to the **cooldown window** (`SWG-STA-005`) and same-tick (`SWG-STA-004`) gating on **actor**,
 `interact` starts a swing for the **hand** in the packet with `minecraft:interact_animation` when the
 entity interaction succeeds:
 
@@ -506,10 +517,12 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   3. Equip `Alice` with a `duration = 600` stick, teleport `Charlie` out of tracker range, and
      wait for `Charlie` to receive Alice's `remove_entities` (`move_charlie_out_of_range`).
   4. Send `punch` from `Alice` (`punch_charlie_out_of_range`).
-  5. Move `Charlie` back within range and synchronize his position. Wait for `Charlie` to receive
-     Alice's `add_entity` and send another punch to check that the cooldown still holds
+  5. Move `Charlie` back within range. Wait until he accepts the return `player_position` and his
+     Luck duration decreases by at least six ticks. Send position synchronization, then wait for
+     `Charlie` to receive Alice's `add_entity`. Send another punch to check that the cooldown still holds
      (`move_charlie_back_in_range`).
-  6. Wait for cooldown to expire, clear `Alice`'s main hand, and send a fresh
+  6. After the tracking check, measure at least 301 additional player ticks from Alice's
+     decreasing Luck duration. Clear `Alice`'s main hand and send a fresh
      `punch` (`clear_slow_charlie_equipment`, `punch_charlie_back_in_range`).
   7. Teleport `Charlie` to `minecraft:the_nether` (`move_charlie_to_nether`).
   8. Send `punch` from `Alice` (`punch_charlie_in_nether`).
@@ -533,7 +546,8 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   5. Run the `haste 2` sequence (`punch_haste2_shortens_b10`).
   6. Run the `mining_fatigue 1` step (`punch_fatigue1_blocks_at_200ms`).
   7. Run the `mining_fatigue 3` step (`punch_fatigue3_blocks_at_300ms`).
-  8. Run the `haste 0` and `mining_fatigue 4` sequence (`punch_haste0_overrides_fatigue4`).
+  8. Run the wall-clock player observation with `haste 0` and `mining_fatigue 4`
+     (`punch_haste0_overrides_fatigue4`).
   9. Run the `B = 10` baseline blocked check at `220` ms (`punch_baseline_b10_blocked_at_220ms`),
      the `conduit_power 2` check on `B = 10` at `220` ms (`punch_conduit2_shortens_b10`), and the
      `conduit_power 0` + `mining_fatigue 4` override check on `B = 6`
@@ -558,8 +572,9 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   20. Probe the frozen `pig` for `B = 6` with `conduit_power 0` and `mining_fatigue 4` (`D = 5`)
       at `T + 3` (`freeze_pig_conduit0_b6`, `pig_conduit0_b6_unlocked_at_t3`).
   21. Start a `D = 10` swing on the frozen `pig` without effects (`freeze_pig_midwindow_noeffect`),
-      apply `haste 20` at `T + 1` (`midwindow_step1_add_haste20`), and probe at `T + 2` and
-      `T + 6` (`midwindow_blocked_at_t2`, `midwindow_unlocked_at_t6`).
+      apply `haste 20` at `T + 1` (`midwindow_step1_add_haste20`), and probe at `T + 2`,
+      `T + 5`, and `T + 6` (`midwindow_blocked_at_t2`, `midwindow_blocked_at_t5`,
+      `midwindow_unlocked_at_t6`).
   22. With `mining_fatigue 1` and `B = 6`, send one player `punch` at frozen-world offsets
       `0`, `5`, and `6`. After each punch, wait for the acknowledgement of a following
       block-use packet on the same connection before advancing the world
@@ -567,7 +582,10 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   23. Start a swing on the frozen pig with `mining_fatigue 1` and `B = 6`. Verify the world
       time advances by five ticks, attempt a swing, advance one more tick, and try again
       (`freeze_pig_fatigue1_b6` through `pig_fatigue1_unlocked_at_t6`).
-  24. Start a swing on the frozen pig with `haste 10`, `conduit_power 2`, and `B = 24`.
+  24. Start a swing on the frozen pig with `haste 0`, `mining_fatigue 4`, and `B = 6`.
+      Verify the two-tick and one-tick advances before probing at `T + 2` and `T + 3`
+      (`freeze_pig_haste0_fatigue4_b6` through `pig_haste0_fatigue4_unlocked_at_t3`).
+  25. Start a swing on the frozen pig with `haste 10`, `conduit_power 2`, and `B = 24`.
       Verify the world time advances by eight ticks before attempting the next swing
       (`freeze_pig_haste10_conduit2_b24` through `pig_haste10_conduit2_unlocked_at_t8`).
   - Result (`slow_swing_blocks_reswing_and_slot_switch`, `offhand_slow_blocks_mainhand_punch`): slot
@@ -587,6 +605,8 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
     packets at `T + 5` and one each at `T + 6`. This matches `D = 10`.
   - Result (`pig_haste10_conduit2_unlocked_at_t8`): observers receive the second swing at `T + 8`.
     Selecting `conduit_power 2` over the larger `haste 10` would block the attempt until `T + 11`.
+  - Result (`pig_haste0_fatigue4_blocked_at_t2`, `pig_haste0_fatigue4_unlocked_at_t3`):
+    observers see zero packets at `T + 2` and one each at `T + 3`, matching `D = 5`.
   - Result (`punch_fatigue1_world_t0`, `punch_fatigue1_world_t5`, `punch_fatigue1_world_t6`):
     nearby observers receive a swing at each world offset. World stepping therefore fails to
     isolate the same boundaries for player punches (`SWG-U3`).
@@ -659,7 +679,7 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/arm_swing.jso
   `swing_animation` when it punches? The deferred-join trace does not establish the state
   of the 60-tick fallback when the server handles the packet. The mcrs gate is specified
   in `SWG-SRC-002` and `SWG-DEV-003`.
-- **SWG-U3** (vanilla player cooldown tick boundary with `mining_fatigue 1`): what player tick
+- **SWG-U3** (exact vanilla player punch cooldown boundaries): what player tick
   processes each isolated punch while world time is frozen? The packet acknowledgement bounds
   input processing in world time. The world clock and player cooldown can advance differently
-  under `tick freeze`.
+  under `tick freeze`. This matters for the `mining_fatigue 1` boundary at `T + 5` and `T + 6`.

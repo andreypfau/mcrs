@@ -176,11 +176,11 @@ Provenance: `black_box_confirmed` (`tools/mcrs_minecraft_probe/traces/command_sw
   `duration` sends unscaled `B` (`SWG-CMP-003`). Status effects (`haste`, `mining_fatigue`,
   `conduit_power`) scale **effective duration** `D` via `SWG-STA-002` (`arm-swing.md`).
 - For each target `E` that `CMD-SWG-005` keeps, in order:
-  1. The server checks the cooldown state (`SWG-STA-003`) and the same-tick intentional deviation
-     limit (`SWG-STA-004`, `CMD-SWG-DEV-001`) of `E`.
+  1. The server checks the cooldown state of `E` (`SWG-STA-005`) and the same-tick limit
+     (`SWG-STA-004`, `CMD-SWG-DEV-001`).
   2. When neither blocks `E`, `E` starts one swing on that tick (`CMD-SWG-DEV-001`). The server
      computes `D` with `SWG-STA-002` and starts a **cooldown window** on ticks `T + 1` to
-     `T + floor(D / 2)` (`SWG-STA-003`). It then emits a **self-included swing** with wire duration
+     `T + floor(D / 2)` (`SWG-STA-005`). It then emits a **self-included swing** with wire duration
      `B` (`SWG-PKT-001`, `SWG-CMP-003`, `SWG-DST-001`).
 - **Cooldown properties:**
   - Even animation `none` starts that **cooldown window** on ticks `T + 1` to `T + floor(D / 2)`.
@@ -202,7 +202,8 @@ Provenance: `black_box_confirmed` (`tools/mcrs_minecraft_probe/traces/command_sw
 `cmd_c2_blocked_at_t3`, `cmd_c2_unlocked_at_t4`, `cmd_f4_blocked_at_t8`, `cmd_f4_unlocked_at_t9`,
 `swing_haste_default`, `swing_haste_explicit`, `swing_fatigue_explicit`, `swing_conduit_explicit`,
 `swing_spectator_self`, `swing_cross_dimension_target`, `wait_dead_bob_removal`, `swing_dead_bob_past_removal`,
-`swing_dead_bob_score`) for cooldown, effect scaling, and delivery.
+`swing_dead_bob_score`) for cooldown, effect scaling, and delivery. The exact tick measurements
+cover pig targets (`SWG-STA-003`). The mcrs timing for players follows `SWG-STA-005`.
 Kind: `semantic, wire`. Confidence: `high`.
 
 Same-tick per-actor repeat suppression follows `SWG-STA-004` (`CMD-SWG-DEV-001`). Provenance:
@@ -314,7 +315,8 @@ All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/command_swing
   2. Run the `none 40` and `punch` sequence (`swing_none_blocks_later_punch`).
   3. Run the slow `/swing` and `punch` sequence (`swing_cooldown_blocks_later_punch`).
   4. Freeze ticks (`equip_slow_stick_alice`) and send `punch`. Wait for Bob to receive
-     Alice's `swing_animation` and confirm two ticks elapsed on the frozen world's game clock.
+     Alice's `swing_animation`, run `tick step 2`, and use `time query gametime` to verify
+     that the frozen world's game clock advanced by two ticks.
      Then run `/swing` with `execute store result` and read the score before unfreezing
      (`punch_cooldown_blocks_later_swing`).
   5. Reset `swing_res` (`99`), start a slow `punch` cooldown on `Alice`

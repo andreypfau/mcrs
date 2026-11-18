@@ -9,6 +9,7 @@ mod menu_view;
 mod offline_player_uuid;
 mod player_action_status;
 mod player_ban;
+mod player_ticks;
 mod pose;
 mod run;
 mod scenario;

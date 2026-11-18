@@ -57,9 +57,10 @@ A scenario is a JSON file in `scenarios/`.
 | `"attack": { "client", "target" }` | the client sends `attack` against the nearest tracked entity matching `target` |
 | `"interact": { "client", "target", "hand", "secondary" }` | the client sends `interact` against `target`; optional `secondary` defaults to `false` |
 | `"wait": { "ms": <n> }` | the driver waits `ms` milliseconds and settles events |
-| `"await_packet": { "client": "<name>", "packet": { "swing": { "subject": "<name>" } } }` | waits up to ten seconds for a matching packet received since the step began. Packet predicates also include `add_entity` and `remove_entity` with `subject`, and `block_ack` with `sequence`. A swing predicate requires `observe.swing` |
-| `"advance_ticks": { "ticks": <n> }` | verifies the server is frozen, steps the world by `n` ticks, and waits until the reported game time advances by exactly `n`. With zero ticks, it checks that world time holds |
-| `"sequence": { "steps": [...] }` | runs inner `send_loaded`, `sync_position`, `click`, `close`, `select_slot`, `player_action`, `creative_slot`, `use_block`, `punch`, `punch_burst`, `use_item`, `use_item_on`, `attack`, `interact`, `client_main_arm`, `punch_extra_byte`, `console`, `wait`, `await_packet`, and `advance_ticks` in order, then settles events once at the end |
+| `"await_packet": { "client": "<name>", "packet": { "swing": { "subject": "<name>" } } }` | waits up to ten seconds for a matching packet received since the step began. A swing predicate requires `observe.swing`. Other predicates are `add_entity` and `remove_entity` with `subject`, `block_ack` with `sequence`, and `player_position` with `block_center: [x, y, z]` |
+| `"advance_ticks": { "ticks": <n> }` | within five seconds verifies the server is frozen, steps the world by `n` ticks, and waits until the reported game time advances by exactly `n`. With zero ticks, it checks that world time holds |
+| `"await_player_ticks": { "client": "<name>", "ticks": <n> }` | waits up to 30 seconds for the player's timed Luck effect to decrease by at least `n` ticks. Give the player Luck beforehand and allow enough duration for both samples |
+| `"sequence": { "steps": [...] }` | runs inner `send_loaded`, `sync_position`, `click`, `close`, `select_slot`, `player_action`, `creative_slot`, `use_block`, `punch`, `punch_burst`, `use_item`, `use_item_on`, `attack`, `interact`, `client_main_arm`, `punch_extra_byte`, `console`, `wait`, `await_packet`, `advance_ticks`, and `await_player_ticks` in order, then settles events once at the end |
 | `"restart_server": {}` | the driver closes the connection of each client; then the host stops the server, which saves the world, and starts it again on the same world and port. A later step of such a client needs a new `join` |
 
 A click has these fields:
@@ -166,9 +167,13 @@ With `observe.packet_order` and `"packet_order": true` on a step, the step also 
 `section_blocks_update`, `set_equipment`, and `set_entity_data`, grouped by client and preserving
 arrival order within each client.
 
-`await_packet` and `advance_ticks` add successful checkpoints to the step's `checkpoints`
-in action order. Packet checkpoints identify the receiving client and the matched predicate.
-Game-tick checkpoints store the verified world-time delta. A failed checkpoint stops the recording.
+`await_packet`, `advance_ticks`, and `await_player_ticks` add successful checkpoints to the step's
+`checkpoints` in action order. Packet checkpoints identify the receiving client and the matched
+predicate. A `player_position` predicate matches the accepted position at `x + 0.5, y, z + 0.5`
+after the probe writes the teleport acknowledgement. A packet read while waiting for a different
+predicate stays available to later checkpoints within the step. Game-tick checkpoints store the
+verified world-time delta. Player-tick checkpoints store the minimum measured interval. A failed
+checkpoint stops the recording.
 
 A step with `read_player_file` has `player_file`: each named field as SNBT text, with the keys of
 each compound in order. A field that the file does not have is `null`.

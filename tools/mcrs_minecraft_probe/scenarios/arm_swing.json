@@ -1128,29 +1128,40 @@
         { "console": { "lines": [
           "gamemode creative Bob",
           "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:600}]",
+          "effect give Alice minecraft:luck 120 0 true",
+          "effect give Charlie minecraft:luck 120 0 true",
           "tp Charlie 600 100 0"
         ] } },
         { "await_packet": { "client": "Charlie", "packet": { "remove_entity": { "subject": "Alice" } } } }
       ] }
     },
     { "id": "wait_out_of_range", "wait": { "ms": 1000 } },
-    { "id": "punch_charlie_out_of_range", "punch": { "client": "Alice" } },
+    {
+      "id": "punch_charlie_out_of_range",
+      "sequence": { "steps": [
+        { "punch": { "client": "Alice" } },
+        { "await_packet": { "client": "Bob", "packet": { "swing": { "subject": "Alice" } } } }
+      ] }
+    },
     {
       "id": "move_charlie_back_in_range",
       "sequence": { "steps": [
         { "console": { "lines": ["tp Charlie 4 100 0"] } },
-        { "wait": { "ms": 300 } },
+        { "await_packet": { "client": "Charlie", "packet": { "player_position": { "block_center": [4, 100, 0] } } } },
+        { "await_player_ticks": { "client": "Charlie", "ticks": 6 } },
         { "sync_position": "Charlie" },
         { "await_packet": { "client": "Charlie", "packet": { "add_entity": { "subject": "Alice" } } } },
         { "punch": { "client": "Alice" } }
       ] }
     },
-    { "id": "wait_back_in_range", "wait": { "ms": 16000 } },
+    { "id": "wait_back_in_range", "await_player_ticks": { "client": "Alice", "ticks": 301 } },
     {
       "id": "clear_slow_charlie_equipment",
       "console": {
         "lines": [
-          "item replace entity Alice weapon.mainhand with minecraft:air"
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect clear Alice minecraft:luck",
+          "effect clear Charlie minecraft:luck"
         ]
       }
     },
@@ -1174,52 +1185,52 @@
         ]
       }
     },
-    { "id": "d5_step_2", "console": { "lines": ["tick step 2"] } },
+    { "id": "d5_step_2", "advance_ticks": { "ticks": 2 } },
     { "id": "d5_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "d5_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d5_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d5_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_d5", "console": { "lines": ["tick step 2"] } },
+    { "id": "clear_d5", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_d6",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 6"] }
     },
-    { "id": "d6_step_3", "console": { "lines": ["tick step 3"] } },
+    { "id": "d6_step_3", "advance_ticks": { "ticks": 3 } },
     { "id": "d6_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "d6_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d6_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d6_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_d6", "console": { "lines": ["tick step 2"] } },
+    { "id": "clear_d6", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_d7",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 7"] }
     },
-    { "id": "d7_step_3", "console": { "lines": ["tick step 3"] } },
+    { "id": "d7_step_3", "advance_ticks": { "ticks": 3 } },
     { "id": "d7_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "d7_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d7_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d7_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_d7", "console": { "lines": ["tick step 2"] } },
+    { "id": "clear_d7", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_d12",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 12"] }
     },
-    { "id": "d12_step_6", "console": { "lines": ["tick step 6"] } },
+    { "id": "d12_step_6", "advance_ticks": { "ticks": 6 } },
     { "id": "d12_blocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "d12_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d12_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d12_unlocked_at_t7", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_d12", "console": { "lines": ["tick step 2"] } },
+    { "id": "clear_d12", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_d1",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 1"] }
     },
-    { "id": "d1_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d1_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d1_unlocked_at_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_d1", "console": { "lines": ["tick step 2"] } },
+    { "id": "clear_d1", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_d2",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 2"] }
     },
-    { "id": "d2_step_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "d2_step_1", "advance_ticks": { "ticks": 1 } },
     { "id": "d2_blocked_at_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "d2_step_2", "console": { "lines": ["tick step 1"] } },
+    { "id": "d2_step_2", "advance_ticks": { "ticks": 1 } },
     { "id": "d2_unlocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
     {
       "id": "freeze_pig_conduit0_b6",
@@ -1232,9 +1243,15 @@
         ]
       }
     },
-    { "id": "conduit0_b6_step_3", "console": { "lines": ["tick step 3"] } },
+    { "id": "conduit0_b6_step_3", "advance_ticks": { "ticks": 3 } },
     { "id": "pig_conduit0_b6_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "clear_pig_conduit0_b6", "console": { "lines": ["effect clear @e[type=minecraft:pig,limit=1]", "tick step 4"] } },
+    {
+      "id": "clear_pig_conduit0_b6",
+      "sequence": { "steps": [
+        { "console": { "lines": ["effect clear @e[type=minecraft:pig,limit=1]"] } },
+        { "advance_ticks": { "ticks": 4 } }
+      ] }
+    },
     {
       "id": "freeze_pig_midwindow_noeffect",
       "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 10"] }
@@ -1249,9 +1266,11 @@
     { "id": "midwindow_step1_t2", "advance_ticks": { "ticks": 1 } },
     { "id": "midwindow_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
     {
-      "id": "midwindow_step4_unlock",
-      "advance_ticks": { "ticks": 4 }
+      "id": "midwindow_step3_t5",
+      "advance_ticks": { "ticks": 3 }
     },
+    { "id": "midwindow_blocked_at_t5", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "midwindow_step1_t6", "advance_ticks": { "ticks": 1 } },
     { "id": "midwindow_unlocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
     {
       "id": "clear_pig_midwindow",
@@ -1272,6 +1291,20 @@
     { "id": "pig_fatigue1_step1", "advance_ticks": { "ticks": 1 } },
     { "id": "pig_fatigue1_unlocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
     { "id": "clear_pig_fatigue1", "advance_ticks": { "ticks": 4 } },
+    {
+      "id": "freeze_pig_haste0_fatigue4_b6",
+      "console": { "lines": [
+        "effect clear @e[type=minecraft:pig,limit=1]",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:haste 60 0",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:mining_fatigue 60 4",
+        "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+      ] }
+    },
+    { "id": "pig_haste0_fatigue4_step2", "advance_ticks": { "ticks": 2 } },
+    { "id": "pig_haste0_fatigue4_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "pig_haste0_fatigue4_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "pig_haste0_fatigue4_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_pig_haste0_fatigue4", "advance_ticks": { "ticks": 2 } },
     {
       "id": "freeze_pig_haste10_conduit2_b24",
       "console": { "lines": [

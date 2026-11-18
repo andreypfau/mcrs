@@ -27,6 +27,30 @@ struct Clients {
     events: UnboundedReceiver<Event>,
     next_suggest_id: i32,
     step_start: time::Instant,
+    packet_evidence: Vec<Event>,
+    early_terminals: Vec<Event>,
+}
+
+impl Clients {
+    fn new(
+        tracks_pose: bool,
+        known_players: Vec<String>,
+        quiet: Duration,
+        observe: Observe,
+    ) -> Self {
+        let (events_in, events) = mpsc::unbounded_channel();
+        Self {
+            tracks_pose,
+            known_players,
+            sink: SettleSink::new(quiet, observe),
+            events_in,
+            events,
+            next_suggest_id: 1,
+            step_start: time::Instant::now(),
+            packet_evidence: Vec::new(),
+            early_terminals: Vec::new(),
+        }
+    }
 }
 
 struct SettleSink {
@@ -107,6 +131,7 @@ pub(crate) fn is_sequence_step(action: &Action) -> bool {
                 | Action::Console { .. }
                 | Action::AwaitPacket { .. }
                 | Action::AdvanceTicks { .. }
+                | Action::AwaitPlayerTicks { .. }
         )
 }
 
@@ -116,21 +141,19 @@ pub async fn run<H: Host>(
     quiet: Duration,
     host: &mut H,
 ) -> anyhow::Result<Trace> {
-    let (events_in, events) = mpsc::unbounded_channel();
     let tracks_pose =
         client::needs_world_acks(&scenario.observe) || crate::scenario::needs_pose(&scenario.steps);
-    let mut clients = Clients {
+    let mut clients = Clients::new(
         tracks_pose,
-        known_players: collect_players(scenario),
-        sink: SettleSink::new(quiet, scenario.observe.clone()),
-        events_in,
-        events,
-        next_suggest_id: 1,
-        step_start: time::Instant::now(),
-    };
+        collect_players(scenario),
+        quiet,
+        scenario.observe.clone(),
+    );
     let mut steps = Vec::with_capacity(scenario.steps.len());
     for step in &scenario.steps {
         clients.step_start = time::Instant::now();
+        clients.packet_evidence.clear();
+        clients.early_terminals.clear();
         clients.sink.packet_sample_start =
             (scenario.observe.packet_order && step.packet_order).then_some(clients.step_start);
         let observed = clients
@@ -260,11 +283,15 @@ impl Clients {
             }
             Action::AwaitPacket { client, packet } => {
                 self.await_packet(client, packet).await?;
-                collect_sent(&[], &[], Vec::new())
+                self.finish_checkpoint().await
             }
             Action::AdvanceTicks { ticks } => {
                 self.advance_ticks(host, *ticks).await?;
-                collect_sent(&[], &[], Vec::new())
+                self.finish_checkpoint().await
+            }
+            Action::AwaitPlayerTicks { client, ticks } => {
+                self.await_player_ticks(host, client, *ticks).await?;
+                self.finish_checkpoint().await
             }
             Action::Sequence { steps } => self.sequence(steps, host).await,
             Action::RestartServer {} => self.restart(host).await,
@@ -322,6 +349,7 @@ impl Clients {
                 | Signal::BlockAck(_)
                 | Signal::Added(_)
                 | Signal::Removed(_)
+                | Signal::PositionAccepted(_)
                 | Signal::Animate(_)
                 | Signal::Packet(_) => continue,
                 Signal::Disconnected(reason) => Some(reason),
@@ -374,6 +402,7 @@ impl Clients {
                 | Signal::BlockAck(_)
                 | Signal::Added(_)
                 | Signal::Removed(_)
+                | Signal::PositionAccepted(_)
                 | Signal::Animate(_)
                 | Signal::Packet(_)
                 | Signal::Closed
@@ -514,6 +543,9 @@ impl Clients {
                         self.await_packet(client, packet).await?
                     }
                     Action::AdvanceTicks { ticks } => self.advance_ticks(host, *ticks).await?,
+                    Action::AwaitPlayerTicks { client, ticks } => {
+                        self.await_player_ticks(host, client, *ticks).await?;
+                    }
                     _ => anyhow::bail!("unsupported action inside sequence"),
                 }
             }
@@ -522,44 +554,89 @@ impl Clients {
         collect_sent(&senders, &events, console_output)
     }
 
+    async fn finish_checkpoint(&mut self) -> anyhow::Result<Observed> {
+        let events = self.settle(self.sink.quiet).await?;
+        collect_sent(&[], &events, Vec::new())
+    }
+
     async fn await_packet(&mut self, client: &str, packet: &ExpectedPacket) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.sink.orders.contains_key(client),
+            "{client} is not connected"
+        );
+        self.wait_for_evidence(client, packet).await?;
+        self.sink.checkpoints.push(Checkpoint::Packet {
+            client: client.to_owned(),
+            packet: packet.clone(),
+        });
+        Ok(())
+    }
+
+    async fn wait_for_evidence(
+        &mut self,
+        client: &str,
+        packet: &ExpectedPacket,
+    ) -> anyhow::Result<()> {
+        if let Some(index) = self
+            .packet_evidence
+            .iter()
+            .position(|event| matches_packet(event, client, packet))
+        {
+            self.packet_evidence.remove(index);
+            return Ok(());
+        }
         let deadline = time::Instant::now() + FIRST_EVENT;
         while time::Instant::now() < deadline
             && let Ok(Some(event)) = time::timeout_at(deadline, self.events.recv()).await
         {
-            let matches = event.client == client
-                && event.at >= self.step_start
-                && match (&event.signal, packet) {
-                    (Signal::Swing(swing), ExpectedPacket::Swing { subject }) => {
-                        &swing.observed.subject == subject
-                    }
-                    (Signal::BlockAck(received), ExpectedPacket::BlockAck { sequence }) => {
-                        received == sequence
-                    }
-                    (Signal::Added(added), ExpectedPacket::AddEntity { subject }) => {
-                        added == subject
-                    }
-                    (Signal::Removed(removed), ExpectedPacket::RemoveEntity { subject }) => {
-                        removed.contains(subject)
-                    }
-                    _ => false,
-                };
+            let is_fresh = event.at >= self.step_start && event.at < deadline;
+            let matches = is_fresh && matches_packet(&event, client, packet);
             match event.signal {
                 Signal::Failed(error) => anyhow::bail!("{} session failed: {error}", event.client),
                 Signal::Disconnected(_) | Signal::Closed => {
-                    anyhow::bail!("{} disconnected while waiting for {packet:?}", event.client)
+                    self.sink.orders.remove(&event.client);
+                    if event.client == client {
+                        anyhow::bail!("{client} disconnected while waiting for {packet:?}");
+                    }
+                    self.early_terminals.push(event);
                 }
-                other => self.sink.record_non_terminal(event.client, other, event.at),
+                other => {
+                    if is_fresh
+                        && !matches
+                        && let Some(signal) = checkpoint_evidence(&other)
+                    {
+                        self.packet_evidence.push(Event {
+                            client: event.client.clone(),
+                            signal,
+                            at: event.at,
+                        });
+                    }
+                    self.sink.record_non_terminal(event.client, other, event.at);
+                }
             }
             if matches {
-                self.sink.checkpoints.push(Checkpoint::Packet {
-                    client: client.to_owned(),
-                    packet: packet.clone(),
-                });
                 return Ok(());
             }
         }
         anyhow::bail!("{client} did not receive {packet:?}")
+    }
+
+    async fn await_player_ticks<H: Host>(
+        &mut self,
+        host: &mut H,
+        client: &str,
+        ticks: u32,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.sink.orders.contains_key(client),
+            "{client} is not connected"
+        );
+        crate::player_ticks::wait_at_least(host, client, ticks).await?;
+        self.sink.checkpoints.push(Checkpoint::PlayerTicks {
+            client: client.to_owned(),
+            at_least: ticks,
+        });
+        Ok(())
     }
 
     async fn advance_ticks<H: Host>(&mut self, host: &mut H, ticks: u32) -> anyhow::Result<()> {
@@ -618,10 +695,49 @@ impl Clients {
         let mut clock = LiveClock {
             events: &mut self.events,
         };
-        self.sink
+        let events = self
+            .sink
             .settle_with_clock(first_limit, Duration::from_secs(10), &mut clock)
-            .await
+            .await?;
+        let mut early = mem::take(&mut self.early_terminals);
+        early.extend(events);
+        Ok(early)
     }
+}
+
+fn matches_packet(event: &Event, client: &str, packet: &ExpectedPacket) -> bool {
+    event.client == client
+        && match (&event.signal, packet) {
+            (Signal::Swing(swing), ExpectedPacket::Swing { subject }) => {
+                &swing.observed.subject == subject
+            }
+            (Signal::BlockAck(received), ExpectedPacket::BlockAck { sequence }) => {
+                received == sequence
+            }
+            (Signal::Added(added), ExpectedPacket::AddEntity { subject }) => added == subject,
+            (Signal::Removed(removed), ExpectedPacket::RemoveEntity { subject }) => {
+                removed.contains(subject)
+            }
+            (
+                Signal::PositionAccepted(accepted),
+                ExpectedPacket::PlayerPosition { block_center },
+            ) => {
+                let [x, y, z] = block_center.map(f64::from);
+                *accepted == mcrs_minecraft_protocol_game::Position::new(x + 0.5, y, z + 0.5)
+            }
+            _ => false,
+        }
+}
+
+fn checkpoint_evidence(signal: &Signal) -> Option<Signal> {
+    Some(match signal {
+        Signal::Swing(swing) => Signal::Swing(swing.clone()),
+        Signal::BlockAck(sequence) => Signal::BlockAck(*sequence),
+        Signal::Added(subject) => Signal::Added(subject.clone()),
+        Signal::Removed(subjects) => Signal::Removed(subjects.clone()),
+        Signal::PositionAccepted(position) => Signal::PositionAccepted(*position),
+        _ => return None,
+    })
 }
 
 impl SettleSink {
@@ -661,6 +777,7 @@ impl SettleSink {
             | Signal::BlockAck(_)
             | Signal::Added(_)
             | Signal::Removed(_)
+            | Signal::PositionAccepted(_)
             | Signal::Suggestions { .. }
             | Signal::Disconnected(_)
             | Signal::Closed
@@ -710,7 +827,10 @@ impl SettleSink {
             }
             if matches!(
                 event.signal,
-                Signal::BlockAck(_) | Signal::Added(_) | Signal::Removed(_)
+                Signal::BlockAck(_)
+                    | Signal::Added(_)
+                    | Signal::Removed(_)
+                    | Signal::PositionAccepted(_)
             ) {
                 continue;
             }
@@ -838,6 +958,7 @@ fn order_of(action: &Action) -> Option<(&str, Order)> {
         | Action::Wait { .. }
         | Action::AwaitPacket { .. }
         | Action::AdvanceTicks { .. }
+        | Action::AwaitPlayerTicks { .. }
         | Action::Sequence { .. }
         | Action::RestartServer {} => None,
     }
@@ -876,6 +997,7 @@ fn collect_sent(
             | Signal::BlockAck(_)
             | Signal::Added(_)
             | Signal::Removed(_)
+            | Signal::PositionAccepted(_)
             | Signal::Animate(_)
             | Signal::Packet(_)
             | Signal::Closed
@@ -893,6 +1015,80 @@ fn collect_sent(
 mod tests {
     use super::*;
     use crate::{ProbeHand, SwingAnimationKind};
+    use mcrs_minecraft_protocol_game::Position;
+    use mcrs_minecraft_text::Text;
+
+    #[tokio::test]
+    async fn checkpoints_keep_early_packets_and_unrelated_disconnects() {
+        let mut clients = Clients::new(true, Vec::new(), Duration::ZERO, Observe::default());
+        let (bob_orders, _bob) = mpsc::unbounded_channel();
+        let (charlie_orders, _charlie) = mpsc::unbounded_channel();
+        let (dan_orders, _dan) = mpsc::unbounded_channel();
+        clients.sink.orders.insert("Bob".to_owned(), bob_orders);
+        clients
+            .sink
+            .orders
+            .insert("Charlie".to_owned(), charlie_orders);
+        clients.sink.orders.insert("Dan".to_owned(), dan_orders);
+        let arrival = [
+            Event::now(
+                "Bob".to_owned(),
+                Signal::Swing(entry("Bob", "Alice", 1, 6, 1)),
+            ),
+            Event::now(
+                "Charlie".to_owned(),
+                Signal::PositionAccepted(Position::new(600.5, 100.0, 0.5)),
+            ),
+            Event::now(
+                "Dan".to_owned(),
+                Signal::Disconnected(Text::text("server disconnect")),
+            ),
+            Event::now(
+                "Charlie".to_owned(),
+                Signal::PositionAccepted(Position::new(4.5, 100.0, 0.5)),
+            ),
+            Event::now(
+                "Charlie".to_owned(),
+                Signal::Swing(entry("Charlie", "Alice", 1, 6, 1)),
+            ),
+        ];
+        for event in arrival {
+            clients.events_in.send(event).unwrap();
+        }
+        let position = ExpectedPacket::PlayerPosition {
+            block_center: [4, 100, 0],
+        };
+        clients.await_packet("Charlie", &position).await.unwrap();
+        assert!(
+            !clients.sink.orders.contains_key("Dan"),
+            "the stale position cannot finish the wait before Dan's disconnect"
+        );
+        let swing = ExpectedPacket::Swing {
+            subject: "Alice".to_owned(),
+        };
+        clients.await_packet("Bob", &swing).await.unwrap();
+        let observed = clients.finish_checkpoint().await.unwrap();
+        assert_eq!(
+            observed,
+            Observed::Sent {
+                disconnects: vec![Disconnect {
+                    client: "Dan".to_owned(),
+                    reason: Text::text("server disconnect")
+                }],
+                console_output: Vec::new(),
+            }
+        );
+        assert_eq!(
+            clients
+                .sink
+                .swings
+                .iter()
+                .map(|swing| swing.observed.client.as_str())
+                .collect::<Vec<_>>(),
+            ["Bob", "Charlie"],
+            "evidence is recorded once and settling records the later observer"
+        );
+    }
 
     fn entry(
         client: &str,

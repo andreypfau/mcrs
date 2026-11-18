@@ -101,7 +101,7 @@ packets applicable to it, in this order when present: `sound`, `swing_animation`
 state. An observer does not get an acknowledgement or a refresh. For several placements in one tick,
 the observer gets each delivered `sound` and `swing_animation` before the block states
 ([arm-swing.md](arm-swing.md), `SWG-DST-003`). An observer holding the chunk without tracking the
-placer, or a repeat placement blocked by cooldown or the same-tick cap (`SWG-STA-003`, `SWG-STA-004`),
+placer, or a repeat placement blocked by cooldown or the same-tick cap (`SWG-STA-005`, `SWG-STA-004`),
 omits `swing_animation`.
 
 **PLC-PLA-004** (`black_box_confirmed`, semantic). The placer does not get `sound` or `swing_animation`
@@ -125,7 +125,7 @@ hand (`0` main, `1` off). It sends the type and duration from `minecraft:interac
 ([arm-swing.md](arm-swing.md), `SWG-CMP-002`). Observers that do not track the placer receive no
 packet ([arm-swing.md](arm-swing.md), `SWG-DST-001`). Single-packet emission when cooldown and tick
 rules allow a swing follows DEV-3 (`design`, `deviation`; [arm-swing.md](arm-swing.md), `SWG-SRC-007`,
-`SWG-STA-003`, `SWG-STA-004`).
+`SWG-STA-005`, `SWG-STA-004`).
 
 **PLC-PLA-008** (`black_box_confirmed`, semantic). In creative mode, the held item does not change. The
 placer gets no slot packet, and an observer gets no `set_equipment`.
@@ -384,7 +384,7 @@ and its level changes. For another player, the result is a refresh and one ackno
 refresh and one acknowledgement. Other packets of the block can come before or after the refresh.
 Observers that track the actor receive `swing_animation` when cooldown and tick rules allow a swing
 ([arm-swing.md](arm-swing.md), `SWG-SRC-006`, `SWG-DST-001`), with single-packet emission under
-DEV-3 (`design`, `deviation`; `SWG-SRC-007`, `SWG-STA-003`, `SWG-STA-004`).
+DEV-3 (`design`, `deviation`; `SWG-SRC-007`, `SWG-STA-005`, `SWG-STA-004`).
 
 **PLC-INT-005** (`source_suggested_black_box_confirmed`, semantic). In spectator mode, a block with a
 screen opens it and no block changes. A chest is the tested case. On a portal block, the
@@ -536,7 +536,7 @@ one acknowledgement. It carries the highest sequence of those requests, whicheve
 
 **PLC-SEQ-002** (`black_box_confirmed`, semantic). Each request gets its own refresh. Each placement
 gets its own `sound` for an observer. Under DEV-3 (`design`, `deviation`), a tracking observer gets
-one `swing_animation` only when [arm-swing.md](arm-swing.md) (`SWG-SRC-007`, `SWG-STA-003`,
+one `swing_animation` only when [arm-swing.md](arm-swing.md) (`SWG-SRC-007`, `SWG-STA-005`,
 `SWG-STA-004`) starts a swing. Block states that change in one tick use `PLC-PLA-002`.
 
 **PLC-SEQ-003** (`black_box_confirmed`, semantic). Requests about 200 ms apart each get their own

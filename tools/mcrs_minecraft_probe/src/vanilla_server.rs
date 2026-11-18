@@ -79,6 +79,18 @@ impl VanillaServer {
     }
 
     pub(crate) fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>> {
+        self.console_before(lines, Instant::now() + CONSOLE_LIMIT)
+    }
+
+    pub(crate) fn console_before(
+        &mut self,
+        lines: &[String],
+        deadline: Instant,
+    ) -> anyhow::Result<Vec<String>> {
+        anyhow::ensure!(
+            Instant::now() < deadline,
+            "console deadline already expired"
+        );
         self.marker += 1;
         let start_marker = format!("mcrs-probe-{:016x}-start-{}", self.nonce, self.marker);
         let end_marker = format!("mcrs-probe-{:016x}-end-{}", self.nonce, self.marker);
@@ -88,17 +100,20 @@ impl VanillaServer {
         }
         writeln!(self.input, "say {end_marker}")?;
         self.input.flush()?;
-        let deadline = Instant::now() + CONSOLE_LIMIT;
         let mut started = false;
         let mut replies = Vec::new();
         while Instant::now() < deadline {
-            let line = match self.output.recv_timeout(Duration::from_secs(1)) {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let line = match self.output.recv_timeout(remaining) {
                 Ok(line) => line,
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => {
                     bail!("the server ended before it printed `{end_marker}`")
                 }
             };
+            if Instant::now() >= deadline {
+                break;
+            }
             println!("server: {line}");
             if !started {
                 if matches_say_marker(&line, &start_marker) {
@@ -113,7 +128,7 @@ impl VanillaServer {
                 replies.push(reply.to_owned());
             }
         }
-        bail!("the server did not print `{end_marker}` in {CONSOLE_LIMIT:?}")
+        bail!("the server did not print `{end_marker}` before the console deadline")
     }
 
     pub(crate) fn stop(mut self) -> anyhow::Result<()> {

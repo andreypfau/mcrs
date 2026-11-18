@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use vanilla_server::VanillaServer;
 
@@ -95,6 +95,14 @@ impl Host for VanillaHost {
 
     fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>> {
         self.server.console(lines)
+    }
+
+    fn console_before(
+        &mut self,
+        lines: &[String],
+        deadline: Instant,
+    ) -> anyhow::Result<Vec<String>> {
+        self.server.console_before(lines, deadline)
     }
 
     fn restart_server(&mut self) -> anyhow::Result<()> {

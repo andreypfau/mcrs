@@ -50,7 +50,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundPlayerAction, ServerboundPlayerLoaded, ServerboundPunch, ServerboundSetCarriedItem,
     ServerboundSetCreativeModeSlot, ServerboundUseItem, ServerboundUseItemOn,
 };
-use mcrs_minecraft_protocol_game::{Direction, Hand, LpVec3};
+use mcrs_minecraft_protocol_game::{Direction, Hand, LpVec3, Position};
 use mcrs_minecraft_text::Text;
 use mcrs_voxel::BlockPos;
 use std::collections::VecDeque;
@@ -167,6 +167,7 @@ pub(crate) enum Signal {
     BlockAck(i32),
     Added(String),
     Removed(Vec<String>),
+    PositionAccepted(Position),
     Animate(AnimateObserved),
     Packet(PacketKind),
     Disconnected(Text),
@@ -359,6 +360,7 @@ pub(crate) async fn session(
                         | Signal::BlockAck(_)
                         | Signal::Added(_)
                         | Signal::Removed(_)
+                        | Signal::PositionAccepted(_)
                         | Signal::Animate(_)
                         | Signal::Packet(_)),
                     )) => {
@@ -808,9 +810,7 @@ async fn read_game_packet(
         state.pose.clear_accepted();
         state.awaiting_respawn_pos = state.tracks_pose;
     } else if state.tracks_pose && id == ClientboundPlayerPosition::ID {
-        let packet: ClientboundPlayerPosition = decode(body)?;
-        automatic_reply(io, &state.pose.accept(&packet)).await?;
-        state.awaiting_respawn_pos = false;
+        return accept_position(io, state, body).await.map(Some);
     } else if needs_world_acks(state.observe) && id == ClientboundChunkBatchFinished::ID {
         automatic_reply(
             io,
@@ -826,6 +826,18 @@ async fn read_game_packet(
         return Ok(Some(Signal::Menu(packet)));
     }
     Ok(None)
+}
+
+async fn accept_position(
+    io: &mut PacketIo<TcpStream>,
+    state: &mut SessionState<'_>,
+    body: &[u8],
+) -> anyhow::Result<Signal> {
+    let packet: ClientboundPlayerPosition = decode(body)?;
+    let acceptance = state.pose.accept(&packet);
+    automatic_reply(io, &acceptance).await?;
+    state.awaiting_respawn_pos = false;
+    Ok(Signal::PositionAccepted(acceptance.position))
 }
 
 async fn automatic_reply<P>(io: &mut PacketIo<TcpStream>, packet: &P) -> anyhow::Result<()>

@@ -4157,50 +4157,19 @@
     {
       "id": "tick_pig_cmd_1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "try_pig_cmd_t1",
@@ -4285,50 +4254,19 @@
     {
       "id": "tick_pig_cmd_2",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "try_pig_cmd_t2",
@@ -4413,50 +4351,19 @@
     {
       "id": "tick_pig_cmd_3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "try_pig_cmd_t3",
@@ -4541,50 +4448,19 @@
     {
       "id": "tick_pig_cmd_4",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "try_pig_cmd_t4",
@@ -4688,50 +4564,19 @@
     {
       "id": "clear_pig_cmd_cd",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 4 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 4
+          }
+        }
+      ]
     },
     {
       "id": "cmd_haste2_pig_d10",
@@ -4905,50 +4750,19 @@
     {
       "id": "cmd_h2_step3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 3 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 3
+          }
+        }
+      ]
     },
     {
       "id": "cmd_h2_blocked_at_t3",
@@ -5033,50 +4847,19 @@
     {
       "id": "cmd_h2_step1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "cmd_h2_unlocked_at_t4",
@@ -5180,50 +4963,19 @@
     {
       "id": "cmd_h2_clear",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 4 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 4
+          }
+        }
+      ]
     },
     {
       "id": "cmd_conduit2_pig_d10",
@@ -5463,50 +5215,19 @@
     {
       "id": "cmd_c2_step3",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 3 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      3
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 3
+          }
+        }
+      ]
     },
     {
       "id": "cmd_c2_blocked_at_t3",
@@ -5591,50 +5312,19 @@
     {
       "id": "cmd_c2_step1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "cmd_c2_unlocked_at_t4",
@@ -5738,50 +5428,19 @@
     {
       "id": "cmd_c2_clear",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 4 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      4
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 4
+          }
+        }
+      ]
     },
     {
       "id": "cmd_fatigue4_pig_d6",
@@ -6021,50 +5680,19 @@
     {
       "id": "cmd_f4_step8",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 8 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      8
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      8
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 8
+          }
+        }
+      ]
     },
     {
       "id": "cmd_f4_blocked_at_t8",
@@ -6149,50 +5777,19 @@
     {
       "id": "cmd_f4_step1",
       "observed": {
-        "console": {
-          "output": [
-            "Stepping 1 tick(s)"
-          ],
-          "chat": [
-            {
-              "client": "Alice",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            },
-            {
-              "client": "Bob",
-              "text": {
-                "translate": "chat.type.admin",
-                "with": [
-                  "Server",
-                  {
-                    "translate": "commands.tick.step.success",
-                    "with": [
-                      1
-                    ]
-                  }
-                ],
-                "color": "gray",
-                "italic": true
-              }
-            }
-          ]
+        "sent": {
+          "disconnects": []
         }
       },
       "command_trees": [],
-      "swings": []
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
     },
     {
       "id": "cmd_f4_unlocked_at_t9",

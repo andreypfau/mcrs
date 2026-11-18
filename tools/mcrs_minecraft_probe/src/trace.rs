@@ -53,6 +53,10 @@ pub enum Checkpoint {
     GameTicks {
         ticks: u32,
     },
+    PlayerTicks {
+        client: String,
+        at_least: u32,
+    },
 }
 
 impl StepTrace {

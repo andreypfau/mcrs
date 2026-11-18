@@ -328,6 +328,10 @@ pub enum Action {
     AdvanceTicks {
         ticks: u32,
     },
+    AwaitPlayerTicks {
+        client: String,
+        ticks: u32,
+    },
     Sequence {
         steps: Vec<Action>,
     },
@@ -341,6 +345,7 @@ pub enum ExpectedPacket {
     BlockAck { sequence: i32 },
     AddEntity { subject: String },
     RemoveEntity { subject: String },
+    PlayerPosition { block_center: [i32; 3] },
 }
 
 #[expect(
@@ -357,7 +362,13 @@ pub(crate) fn needs_pose(steps: &[Step]) -> bool {
 
 fn action_uses_pose(action: &Action) -> bool {
     match action {
-        Action::Attack { .. } | Action::Interact { .. } | Action::UseItem { .. } => true,
+        Action::Attack { .. }
+        | Action::Interact { .. }
+        | Action::UseItem { .. }
+        | Action::AwaitPacket {
+            packet: ExpectedPacket::PlayerPosition { .. },
+            ..
+        } => true,
         Action::Sequence { steps } => steps.iter().any(action_uses_pose),
         _ => false,
     }

@@ -48,6 +48,7 @@ pub struct SwingObserved {
     pub duration: i32,
 }
 
+#[derive(Clone)]
 pub(crate) struct CapturedSwing {
     pub(crate) observed: SwingObserved,
     pub(crate) entity_id: i32,

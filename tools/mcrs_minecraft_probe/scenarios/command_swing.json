@@ -169,15 +169,15 @@
         ]
       }
     },
-    { "id": "tick_pig_cmd_1", "console": { "lines": ["tick step 1"] } },
+    { "id": "tick_pig_cmd_1", "advance_ticks": { "ticks": 1 } },
     { "id": "try_pig_cmd_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
-    { "id": "tick_pig_cmd_2", "console": { "lines": ["tick step 1"] } },
+    { "id": "tick_pig_cmd_2", "advance_ticks": { "ticks": 1 } },
     { "id": "try_pig_cmd_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
-    { "id": "tick_pig_cmd_3", "console": { "lines": ["tick step 1"] } },
+    { "id": "tick_pig_cmd_3", "advance_ticks": { "ticks": 1 } },
     { "id": "try_pig_cmd_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
-    { "id": "tick_pig_cmd_4", "console": { "lines": ["tick step 1"] } },
+    { "id": "tick_pig_cmd_4", "advance_ticks": { "ticks": 1 } },
     { "id": "try_pig_cmd_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
-    { "id": "clear_pig_cmd_cd", "console": { "lines": ["tick step 4"] } },
+    { "id": "clear_pig_cmd_cd", "advance_ticks": { "ticks": 4 } },
     {
       "id": "cmd_haste2_pig_d10",
       "console": {
@@ -188,11 +188,11 @@
         ]
       }
     },
-    { "id": "cmd_h2_step3", "console": { "lines": ["tick step 3"] } },
+    { "id": "cmd_h2_step3", "advance_ticks": { "ticks": 3 } },
     { "id": "cmd_h2_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "cmd_h2_step1", "console": { "lines": ["tick step 1"] } },
+    { "id": "cmd_h2_step1", "advance_ticks": { "ticks": 1 } },
     { "id": "cmd_h2_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "cmd_h2_clear", "console": { "lines": ["tick step 4"] } },
+    { "id": "cmd_h2_clear", "advance_ticks": { "ticks": 4 } },
     {
       "id": "cmd_conduit2_pig_d10",
       "console": {
@@ -203,11 +203,11 @@
         ]
       }
     },
-    { "id": "cmd_c2_step3", "console": { "lines": ["tick step 3"] } },
+    { "id": "cmd_c2_step3", "advance_ticks": { "ticks": 3 } },
     { "id": "cmd_c2_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "cmd_c2_step1", "console": { "lines": ["tick step 1"] } },
+    { "id": "cmd_c2_step1", "advance_ticks": { "ticks": 1 } },
     { "id": "cmd_c2_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "cmd_c2_clear", "console": { "lines": ["tick step 4"] } },
+    { "id": "cmd_c2_clear", "advance_ticks": { "ticks": 4 } },
     {
       "id": "cmd_fatigue4_pig_d6",
       "console": {
@@ -218,9 +218,9 @@
         ]
       }
     },
-    { "id": "cmd_f4_step8", "console": { "lines": ["tick step 8"] } },
+    { "id": "cmd_f4_step8", "advance_ticks": { "ticks": 8 } },
     { "id": "cmd_f4_blocked_at_t8", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
-    { "id": "cmd_f4_step1", "console": { "lines": ["tick step 1"] } },
+    { "id": "cmd_f4_step1", "advance_ticks": { "ticks": 1 } },
     { "id": "cmd_f4_unlocked_at_t9", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
     {
       "id": "unfreeze_pig_cmd_cd",
