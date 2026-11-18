@@ -21,6 +21,7 @@ pub mod gputrace;
 pub mod join_menu;
 pub mod knobs;
 pub mod light_guard;
+pub mod play_world;
 pub mod raster;
 pub mod traces;
 #[cfg(feature = "telemetry-tracy")]

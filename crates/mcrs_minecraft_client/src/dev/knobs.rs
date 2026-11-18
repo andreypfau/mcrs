@@ -24,6 +24,10 @@ impl Knobs {
             })
     }
 
+    pub fn play_at_start(&self) -> bool {
+        self.flag("PLAY", false)
+    }
+
     pub fn hot_clocks(&self) -> bool {
         self.flag("HOT", false)
     }
