@@ -63,6 +63,7 @@ const GLINT_BIT: u32 = 0x40000000u;
 const ALPHA_CUTOUT: f32 = 0.1;
 const GLINT_ROTATION: f32 = 0.17453292;
 const GLINT_SCALE: f32 = 8.0;
+const GLINT_SPRITE_PX: f32 = 16.0;
 const ITEM_ATLAS_BIT: u32 = 0x20000000u;
 const BLOCK_ATLAS_PX: vec2<f32> = vec2<f32>(2048.0, 2048.0);
 const ITEM_ATLAS_PX: vec2<f32> = vec2<f32>(1024.0, 512.0);
@@ -101,15 +102,6 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
     }
 }
 
-fn sprite_px(array: u32) -> vec2<f32> {
-    switch array {
-        case 1u: { return vec2<f32>(textureDimensions(atlas1)); }
-        case 2u: { return vec2<f32>(textureDimensions(atlas2)); }
-        case 3u: { return vec2<f32>(textureDimensions(atlas3)); }
-        default: { return vec2<f32>(textureDimensions(atlas0)); }
-    }
-}
-
 fn sample_sprite(entry: SpriteEntry, uv: vec2<f32>) -> vec4<f32> {
     let array = entry.array_layer >> 16u;
     if entry.animation == STILL {
@@ -139,14 +131,13 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
         return vec4<f32>(to_linear(color.rgb), color.a);
     }
     let entry = sprite_entry(in.sprite & 0xFFFFu);
-    let array = entry.array_layer >> 16u;
     var color = sample_sprite(entry, in.uv) * in.color;
     if color.a < ALPHA_CUTOUT {
         discard;
     }
     if (in.sprite & GLINT_BIT) != 0u {
         let atlas_px = select(BLOCK_ATLAS_PX, ITEM_ATLAS_PX, (in.sprite & ITEM_ATLAS_BIT) != 0u);
-        let scaled = in.uv * sprite_px(array) / atlas_px * GLINT_SCALE;
+        let scaled = in.uv * GLINT_SPRITE_PX / atlas_px * GLINT_SCALE;
         let rotated = vec2<f32>(
             scaled.x * cos(GLINT_ROTATION) - scaled.y * sin(GLINT_ROTATION),
             scaled.x * sin(GLINT_ROTATION) + scaled.y * cos(GLINT_ROTATION),
