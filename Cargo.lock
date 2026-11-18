@@ -6256,6 +6256,7 @@ dependencies = [
  "mcrs_minecraft_client_widget",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_menu_key",
  "mcrs_minecraft_resource",
 ]
