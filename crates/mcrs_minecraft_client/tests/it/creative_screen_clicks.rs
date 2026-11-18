@@ -54,6 +54,7 @@ enum Pointer {
     Tab(usize),
     Grid(u16),
     Hotbar(u16),
+    Inventory(u16),
     Destroy,
     ScrollBar(i32),
     SearchBox,
@@ -543,6 +544,38 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        given: &[
+            stacks::at(9, Item::Stone, 10),
+            stacks::at(10, Item::Stone, 10),
+        ],
+        given_cursor: stacks::held(Item::Dirt, 3),
+        frames: &[
+            &[
+                Event::Key(SHIFT),
+                over(Pointer::Inventory(9)),
+                Event::Press(LEFT),
+            ],
+            &[Event::Release(LEFT)],
+            &[Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            sent(Area::Inventory, ClickKind::QuickMove, 0, Clicked::Entry(9)),
+            sent(Area::Inventory, ClickKind::QuickMove, 0, Clicked::Entry(10)),
+            sent(Area::Inventory, ClickKind::QuickMove, 0, Clicked::Entry(36)),
+        ],
+        entries: &[
+            stacks::at(9, Item::Stone, 20),
+            stacks::empty(10),
+            stacks::empty(36),
+        ],
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row(
+            "a shift double click on an inventory stack with a carried stack moves each alike stack",
+            INVENTORY_TAB,
+        )
+    },
+    Row {
         frames: &[&[Event::Key(KeyCode::KeyT), Event::Key(KeyCode::KeyE)]],
         selected: SEARCH_TAB,
         search: "e",
@@ -610,6 +643,7 @@ fn gui_point(pointer: Pointer) -> IVec2 {
         }
         Pointer::Grid(slot) => CreativeGeometry::grid_slot(slot).unwrap(),
         Pointer::Hotbar(column) => CreativeGeometry::hotbar_slot(column).unwrap(),
+        Pointer::Inventory(entry) => CreativeGeometry::inventory_entry(entry).unwrap(),
         Pointer::Destroy => CreativeGeometry::DESTROY_SLOT,
     };
     IVec2::new(window.x + corner.x, window.y + corner.y) + 8

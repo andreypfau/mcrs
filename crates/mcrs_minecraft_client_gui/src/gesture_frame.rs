@@ -49,7 +49,7 @@ pub(crate) struct GestureFrame<'a, 'w, 's> {
 }
 
 impl GestureFrame<'_, '_, '_> {
-    fn send(&mut self, click: Click) {
+    fn remember_quick_move(&mut self, click: Click) {
         if click.kind == ClickKind::QuickMove
             && let Clicked::Entry(index) = click.clicked
         {
@@ -57,6 +57,10 @@ impl GestureFrame<'_, '_, '_> {
                 .zip(self.items.as_deref_mut())
                 .and_then(|(stack, items)| items.to_value(stack));
         }
+    }
+
+    fn send(&mut self, click: Click) {
+        self.remember_quick_move(click);
         let action = match self.grid {
             Some(_) => creative_clicks::entry_click(click),
             None => MenuAction::Click(click),
@@ -79,6 +83,9 @@ impl GestureFrame<'_, '_, '_> {
         let Some(area) = creative_clicks::area(hit, self.grid) else {
             return false;
         };
+        if hit.menu_index().is_some() {
+            self.remember_quick_move(click);
+        }
         self.sent.push(MenuInput {
             viewer: self.viewer.entity,
             action: MenuAction::Creative(CreativeClick { area, click }),
