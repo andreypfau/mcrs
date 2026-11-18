@@ -117,6 +117,11 @@ fn too_long(message: &str) -> Option<TooLong> {
     })
 }
 
+fn unknown_id(message: &str) -> Option<String> {
+    let id: u32 = message.strip_prefix("No value with id ")?.parse().ok()?;
+    Some(format!("has no id {id}"))
+}
+
 fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     match (kind, text) {
         (DataComponentType::AdditionalTradeCost, n) => {
@@ -268,7 +273,7 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 110);
+    assert_eq!(checked, 118);
 }
 
 #[test]
@@ -315,16 +320,19 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
                 "{kind:?} on {}: {error:#} is not {expected:?}",
                 row.wire
             ),
-            None => assert!(
-                format!("{error:#}").contains(&row.error),
-                "{kind:?} on {}: {error:#} is not {}",
-                row.wire,
-                row.error
-            ),
+            None => {
+                let expected = unknown_id(&row.error).unwrap_or_else(|| row.error.clone());
+                assert!(
+                    format!("{error:#}").contains(&expected),
+                    "{kind:?} on {}: {error:#} is not {}",
+                    row.wire,
+                    row.error
+                );
+            }
         }
         checked += 1;
     }
-    assert_eq!(checked, 8);
+    assert_eq!(checked, 10);
 }
 
 #[test]
@@ -385,5 +393,5 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 38);
+    assert_eq!(checked, 40);
 }

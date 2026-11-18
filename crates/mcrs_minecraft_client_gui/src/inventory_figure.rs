@@ -189,7 +189,7 @@ pub(crate) fn figure_lights(tilt_degrees: f32) -> [Vec3; 2] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item_resolve::light_factor;
+    use mcrs_minecraft_item_icon::light_factor;
 
     const ORIGIN: IVec2 = IVec2::new(125, 37);
 
