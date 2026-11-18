@@ -9,6 +9,8 @@ mod container_set_slot;
 mod creative_area;
 mod creative_click;
 mod creative_drop_counter;
+mod creative_screen;
+mod empty_creative_cursor;
 mod hand_input;
 mod inventory_client_plugin;
 mod inventory_client_set;
@@ -30,6 +32,7 @@ mod set_player_inventory;
 
 pub use creative_area::CreativeArea;
 pub use creative_click::CreativeClick;
+pub use creative_screen::CreativeScreen;
 pub use hand_input::HandInput;
 pub use inventory_client_plugin::InventoryClientPlugin;
 pub use inventory_client_set::InventoryClientSet;

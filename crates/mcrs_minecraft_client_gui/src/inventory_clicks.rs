@@ -33,6 +33,7 @@ use crate::follow_open_menu::follow_open_menu;
 use crate::gesture_frame::{self, GestureFrame};
 use crate::hover::Hover;
 use crate::item_key_codes;
+use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_gesture::MenuGesture;
 use crate::menu_screen;
 use crate::menu_stacks::MenuStacks;
@@ -54,6 +55,7 @@ impl Plugin for InventoryClicksPlugin {
                     open_inventory.run_if(input_just_pressed(INVENTORY)),
                     follow_open_menu,
                     click_in_menu,
+                    mark_creative_screen,
                 )
                     .chain()
                     .after(ClientNetworkSystems::Receive)
@@ -373,7 +375,7 @@ fn click_in_menu(
                 viewer: &viewer,
                 targets: view.as_ref(),
                 items: items.as_mut(),
-                grid: creative.grid(),
+                grid: creative.grid().filter(|_| layout.is_some()),
                 gesture,
                 sent,
             };

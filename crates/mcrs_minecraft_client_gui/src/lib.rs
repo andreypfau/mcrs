@@ -63,6 +63,7 @@ mod last_press;
 mod level_loading_screen;
 pub mod light_levels;
 pub mod loaded_creative_report;
+mod mark_creative_screen;
 pub mod menu;
 mod menu_cursor;
 pub mod menu_draw;

@@ -56,9 +56,13 @@ impl GestureFrame<'_, '_, '_> {
                 .zip(self.items.as_deref_mut())
                 .and_then(|(stack, items)| items.to_value(stack));
         }
+        let action = match self.grid {
+            Some(_) => creative_clicks::entry_click(click),
+            None => MenuAction::Click(click),
+        };
         self.sent.push(MenuInput {
             viewer: self.viewer.entity,
-            action: MenuAction::Click(click),
+            action,
         });
     }
 

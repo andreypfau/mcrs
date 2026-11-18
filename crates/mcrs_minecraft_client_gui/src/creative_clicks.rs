@@ -1,8 +1,8 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_client_widget::GuiPoint;
-use mcrs_minecraft_container_click::{Clicked, StackPresence};
-use mcrs_minecraft_inventory_client::CreativeArea;
+use mcrs_minecraft_container_click::{Click, Clicked, StackPresence};
+use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction};
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_menu_geometry::{
     CreativeGeometry, CreativeHit, CreativeTabIndex, CreativeTabKind, VisibleTabs,
@@ -91,6 +91,13 @@ pub(crate) fn clicked(hit: CreativeHit) -> Clicked {
         | CreativeHit::SearchBox
         | CreativeHit::Empty => hit.menu_index().map_or(Clicked::Nowhere, Clicked::Entry),
     }
+}
+
+pub(crate) fn entry_click(click: Click) -> MenuAction {
+    MenuAction::Creative(CreativeClick {
+        area: CreativeArea::Inventory,
+        click,
+    })
 }
 
 pub(crate) fn permits_drag(hit: CreativeHit) -> bool {

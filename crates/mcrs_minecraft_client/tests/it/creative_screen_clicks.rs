@@ -11,10 +11,17 @@ use mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction, MenuInput};
-use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::{Kind, write_wire};
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::{CREATIVE_TABS, CreativeGeometry, CreativeTabIndex};
+use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_protocol::{Decode, Encode};
+use mcrs_minecraft_protocol_game::ProtoStack;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::local_world::LocalWorld;
 use crate::stacks::{self, AGREED, Entry, Item, Stack};
@@ -73,9 +80,11 @@ struct Row {
     tab: usize,
     given: &'static [Entry],
     given_cursor: Option<Stack>,
+    server_cursor: Option<Stack>,
     frames: &'static [&'static [Event]],
     sent: &'static [Sent],
     selected: usize,
+    screen: Screen,
     entries: &'static [Entry],
     cursor: Option<Stack>,
 }
@@ -86,9 +95,11 @@ const fn row(name: &'static str, tab: usize) -> Row {
         tab,
         given: &[],
         given_cursor: None,
+        server_cursor: None,
         frames: &[],
         sent: &[],
         selected: tab,
+        screen: Screen::Menu,
         entries: &[],
         cursor: None,
     }
@@ -261,6 +272,74 @@ const ROWS: &[Row] = &[
             SEARCH_TAB,
         )
     },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(Pointer::Hotbar(0)), Event::Press(LEFT)],
+            &[over(Pointer::Hotbar(1))],
+            &[over(Pointer::Hotbar(2))],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            sent(Area::Inventory, ClickKind::Drag, 0, Clicked::Outside),
+            sent(Area::Inventory, ClickKind::Drag, 1, Clicked::Entry(37)),
+            sent(Area::Inventory, ClickKind::Drag, 1, Clicked::Entry(38)),
+            sent(Area::Inventory, ClickKind::Drag, 2, Clicked::Outside),
+        ],
+        entries: &[
+            stacks::at(37, Item::Stone, 5),
+            stacks::at(38, Item::Stone, 5),
+        ],
+        ..row(
+            "a left drag over the hotbar row splits the cursor stack with creative clicks",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        frames: &[
+            &[over(Pointer::Grid(STONE_SLOT)), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+            &[Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            sent(
+                Area::Grid(stacks::held(Item::Stone, 1)),
+                ClickKind::PickUp,
+                0,
+                Clicked::Entry(STONE_SLOT),
+            ),
+            sent(
+                Area::Grid(stacks::held(Item::Stone, 1)),
+                ClickKind::PickUp,
+                0,
+                Clicked::Entry(STONE_SLOT),
+            ),
+        ],
+        cursor: stacks::held(Item::Stone, 2),
+        ..row(
+            "a double click on a grid slot takes one item at the press and one at the release",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 5),
+        frames: &[&[Event::Key(KeyCode::Escape)]],
+        screen: Screen::None,
+        ..row(
+            "the close of the creative screen deletes the cursor stack",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
+    Row {
+        given_cursor: stacks::held(Item::Dirt, 3),
+        server_cursor: stacks::held(Item::Stone, 5),
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row(
+            "the creative screen ignores the cursor stack of the server",
+            NATURAL_BLOCKS_TAB,
+        )
+    },
 ];
 
 fn gui_point(pointer: Pointer) -> IVec2 {
@@ -369,7 +448,32 @@ fn creative_click(world: &mut LocalWorld, area: CreativeArea, count: u8) {
     world.app.update();
 }
 
+fn send_server_cursor(world: &mut LocalWorld, stack: Option<Stack>) {
+    let app_world = world.app.world();
+    let value = stacks::value(app_world, stack);
+    let names = RegistryNames::new(
+        app_world.resource::<CurrentRegistries>(),
+        app_world.resource::<ItemTable>(),
+    );
+    let mut bytes = Vec::new();
+    write_wire(value.as_ref(), &names, &mut bytes).unwrap();
+    let contents = ProtoStack::decode(&mut bytes.as_slice()).unwrap();
+    let mut body = Vec::new();
+    ClientboundSetCursorItem { contents }
+        .encode(&mut body)
+        .unwrap();
+    let viewer = world.viewer;
+    world
+        .app
+        .world_mut()
+        .trigger(Received::<ClientboundSetCursorItem>::new(
+            viewer,
+            body.into(),
+        ));
+}
+
 fn set_up(world: &mut LocalWorld, row: &Row) {
+    world.app.insert_resource(Screen::Menu);
     creative_click(world, CreativeArea::Destroy, 1);
     if let Some(stack) = row.given_cursor {
         let shown = stacks::value(world.app.world(), stacks::held(stack.item, 1));
@@ -386,6 +490,9 @@ fn set_up(world: &mut LocalWorld, row: &Row) {
             let tab = CreativeTabIndex::new(row.tab).expect("a creative tab");
             screen.select(tab, world.resource::<CreativeTabContent>());
         });
+    if row.server_cursor.is_some() {
+        send_server_cursor(world, row.server_cursor);
+    }
 }
 
 fn stack_of(world: &World, kind: Kind, count: u8) -> Stack {
@@ -395,9 +502,13 @@ fn stack_of(world: &World, kind: Kind, count: u8) -> Stack {
     }
 }
 
-fn sent_of(world: &World, action: &MenuAction) -> Sent {
-    let MenuAction::Creative(CreativeClick { area, click }) = action else {
-        panic!("the creative screen sends only creative clicks, not {action:?}");
+fn sent_of(world: &World, action: &MenuAction) -> Option<Sent> {
+    let (area, click) = match action {
+        MenuAction::Creative(CreativeClick { area, click }) => (area, click),
+        MenuAction::Close => return None,
+        MenuAction::Click(_) | _ => {
+            panic!("the creative screen sends only creative clicks, not {action:?}")
+        }
     };
     let area = match area {
         CreativeArea::Grid(shown) => Area::Grid(
@@ -409,10 +520,10 @@ fn sent_of(world: &World, action: &MenuAction) -> Sent {
         CreativeArea::Inventory => Area::Inventory,
         CreativeArea::Destroy => Area::Destroy,
     };
-    Sent {
+    Some(Sent {
         area,
         click: *click,
-    }
+    })
 }
 
 fn assert_server_holds(world: &mut LocalWorld, row: &Row) {
@@ -452,7 +563,7 @@ fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_sta
         play(&mut world.app, &held);
         let app_world = world.app.world();
         let sent: Vec<Sent> = (app_world.resource::<SentActions>().0.iter())
-            .map(|action| sent_of(app_world, action))
+            .filter_map(|action| sent_of(app_world, action))
             .collect();
         assert_eq!(sent, row.sent, "{}: the inputs", row.name);
         assert_eq!(
@@ -466,7 +577,7 @@ fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_sta
         );
         assert_eq!(
             *app_world.resource::<Screen>(),
-            Screen::Menu,
+            row.screen,
             "{}: the screen",
             row.name
         );
