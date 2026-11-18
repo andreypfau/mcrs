@@ -137,7 +137,7 @@ pub fn resolve(
         layers: layers
             .into_iter()
             .map(|layer| RenderLayer {
-                vertices: gui_vertices(layer.model, layer.transform, &layer.tints, gui_light),
+                vertices: gui_vertices(layer.model, &layer.tints, gui_light),
                 foil,
             })
             .collect(),
@@ -151,7 +151,6 @@ pub fn resolve(
 
 struct Layer<'m> {
     model: &'m BakedItemModel,
-    transform: Mat4,
     tints: Vec<u32>,
 }
 
@@ -163,24 +162,16 @@ fn collect<'m>(
 ) {
     match node {
         BakedNode::Empty | BakedNode::BundleSelectedItem => {}
-        BakedNode::Model {
+        BakedNode::Model { model, tints } => out.extend(models.model(*model).map(|model| Layer {
             model,
-            tints,
-            transform,
-        } => out.extend(models.model(*model).map(|model| Layer {
-            model,
-            transform: *transform,
             tints: tints.iter().map(|tint| evaluator.tint(tint)).collect(),
         })),
-        BakedNode::Special {
-            properties,
-            transform,
-            ..
-        } => out.extend(models.model(*properties).map(|model| Layer {
-            model,
-            transform: *transform,
-            tints: Vec::new(),
-        })),
+        BakedNode::Special { properties, .. } => {
+            out.extend(models.model(*properties).map(|model| Layer {
+                model,
+                tints: Vec::new(),
+            }))
+        }
         BakedNode::Composite(children) => {
             for child in children {
                 collect(evaluator, models, child, out);
@@ -229,7 +220,7 @@ fn collect<'m>(
     }
 }
 
-fn gui_matrix(model: &BakedItemModel, local: Mat4) -> Mat4 {
+fn gui_matrix(model: &BakedItemModel) -> Mat4 {
     let display = model.display;
     let centre = Mat4::from_translation(Vec3::splat(-0.5));
     let posed = if display == DisplayTransform::IDENTITY {
@@ -249,7 +240,6 @@ fn gui_matrix(model: &BakedItemModel, local: Mat4) -> Mat4 {
     Mat4::from_translation(Vec3::new(8.0, 8.0, 0.0))
         * Mat4::from_scale(Vec3::new(16.0, -16.0, 16.0))
         * posed
-        * local
 }
 
 const LIGHT_0: Vec3 = Vec3::new(0.2, 1.0, -0.7);
@@ -273,13 +263,8 @@ pub fn light_factor(normal: Vec3, lights: [Vec3; 2]) -> f32 {
     (diffuse * 0.6 + 0.4).min(1.0)
 }
 
-fn gui_vertices(
-    model: &BakedItemModel,
-    local: Mat4,
-    tints: &[u32],
-    gui_light: GuiLight,
-) -> Vec<GuiVertex> {
-    let matrix = gui_matrix(model, local);
+fn gui_vertices(model: &BakedItemModel, tints: &[u32], gui_light: GuiLight) -> Vec<GuiVertex> {
+    let matrix = gui_matrix(model);
     let normals = Mat3::from_mat4(matrix).inverse().transpose();
     let lights = light_directions(gui_light);
     let mut vertices = Vec::with_capacity(model.quads.len() * 4);
