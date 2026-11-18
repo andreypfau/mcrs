@@ -851,7 +851,7 @@ fn a_server_chest_opens_its_screen_takes_a_click_and_closes_it() {
     );
 
     container_menus::close_on_server(&mut world.app);
-    test_support::update_until(&mut world.app, "the close of the server", |app| {
+    test_support::update_until(&mut world.app, |app| {
         *app.world().resource::<Screen>() == Screen::None
     });
     world.leave();

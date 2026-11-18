@@ -27,7 +27,7 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::local_world::LocalWorld;
+use crate::local_world::{self, LocalWorld};
 use crate::stacks::{self, AGREED, Entry, Item, Stack};
 
 const GUI_SCALE: u32 = 2;
@@ -947,7 +947,11 @@ fn assert_server_holds(world: &mut LocalWorld, row: &Row) {
 #[test]
 fn each_gesture_on_the_creative_screen_gives_its_creative_click_and_the_same_stacks_on_both_sides()
 {
-    let mut world = LocalWorld::join("creative-screen-clicks", |_| {}, add_input);
+    let mut world = LocalWorld::join(
+        "creative-screen-clicks",
+        local_world::discard_thrown_items,
+        add_input,
+    );
     world.app.insert_resource(Screen::Menu);
     world.switch_game_mode(GameMode::Creative);
     for row in ROWS {

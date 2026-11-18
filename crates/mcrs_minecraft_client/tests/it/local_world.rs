@@ -81,8 +81,8 @@ impl LocalWorld {
         let mut app = local_client(extend_server, extra);
         test_support::count_server_answers(&mut app);
         test_support::open(&mut app, &folder);
-        test_support::update_until(&mut app, "the join", test_support::joined);
-        test_support::update_until(&mut app, "the inventory menu in creative mode", |app| {
+        test_support::update_until(&mut app, test_support::joined);
+        test_support::update_until(&mut app, |app| {
             app.world_mut().run_schedule(FixedUpdate);
             app.world().resource::<ServerAnswers>().contents > 0
                 && test_support::creative_player(app.world_mut()).is_some()
@@ -128,7 +128,7 @@ impl LocalWorld {
             command: Bounded(command),
         });
         let creative = game_mode == GameMode::Creative;
-        test_support::update_until(app, command, |app| {
+        test_support::update_until(app, |app| {
             let world = app.world();
             world.get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode))
                 && world
