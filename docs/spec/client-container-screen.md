@@ -180,12 +180,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 ### CCS-MNU-003: The repeat of a quick move in a generic menu
 
 - **Inputs:** a quick move click on the menu index `s` of a generic menu. `S` is the slot of `s`.
-- **Behavior:** after the two steps of ITX-JAV-009, the click does the two steps again when each
-  of these conditions is true:
-  - the last two steps moved at least one item;
-  - `S` holds a stack with the item of the stack before the click.
-
-  The repeat stops at the first pass that moves no item.
+- **Behavior:** the repeat of a quick move of `inventory-transactions.md`, ITX-JAV-026, applies.
+  Each pass uses the destination list of CCS-MNU-002.
 - **Postconditions:** in normal play, a stack has a count not larger than its maximum stack size,
   and the first pass moves all items for which room exists. Thus the repeat changes the result
   only for a stack whose count is larger than its capacity in the destination.
