@@ -25,9 +25,10 @@ sources:
   - pr:769
   - pr:789
   - pr:970
+  - crates/mcrs_minecraft_client_gui/src/inventory_figure.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 
@@ -84,7 +85,7 @@ A mob that is far away does not need its full rig, the set of bones that poses t
 
 A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. The server sends the pose of each player, and the client draws another player sneaking, swimming, crawling, sleeping, gliding or in a spin attack with the animations in `assets/mcrs/entity/animations/player.animation.json`. The camera and the ray that finds the target block follow the eye height of the pose of the local player.[^970] A program with no server, such as a world viewer, adds a player with `host_living_entity` from `mcrs_minecraft_entity_visual`, moves it through its `Motion` component, and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
 
-The inventory screen draws the local player through the same passes. The cull, the pose and the expand run a second time for this figure view, and `FigureDraw` draws its faces into a render pass of the host.
+The survival inventory screen draws the local player through the same passes. The cull, the pose and the expand run a second time for this figure view, and `FigureDraw` draws its faces into a render pass of the host.
 
 ## Where the rules are
 

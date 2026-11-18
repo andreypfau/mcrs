@@ -43,9 +43,28 @@ sources:
   - pr:945
   - pr:958
   - pr:969
+  - pr:1008
+  - pr:1015
+  - pr:1016
+  - pr:1018
+  - pr:1020
+  - pr:1024
+  - pr:1025
+  - pr:1029
+  - pr:1030
+  - pr:1037
+  - pr:1038
+  - crates/mcrs_minecraft_item_stack/tests/it/wire.rs
+  - crates/mcrs_minecraft_client/tests/it/creative_actions.rs
+  - crates/mcrs_minecraft_vanilla_inventory/src/request_purpose.rs
+  - crates/mcrs_minecraft_vanilla_inventory/tests/it/commands.rs
+  - crates/mcrs_minecraft_client/tests/it/menu_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/local_world.rs
+  - crates/mcrs_minecraft_inventory_click/tests/it/drag.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 
@@ -56,7 +75,7 @@ This page is the change log of mcrs. Each entry says what was merged, what chang
 
 ## Since v0.5.8 (no tag yet)
 
-This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1098 commits and merged 348 pull requests. 246 of the pull requests are from andreypfau, and 102 are from 13 other people.
+This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1112 commits and merged 363 pull requests. 261 of the pull requests are from andreypfau, and 102 are from 13 other people.
 
 ### Merged
 
@@ -74,14 +93,18 @@ This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1098 co
 - Menus are data. A plugin opens a menu with a title and button entries over any holder, and a press on a button entry arrives as a message (<Status pr={977} state="works" />). An equippable item enters its armour slot by a click and by a quick move, and an enchantment that locks armour keeps it there outside creative mode (<Status pr={986} state="works" />, <Status pr={988} state="works" />). Each plugin denies inventory requests with a request source of its own (<Status pr={988} state="works" />).
 - The server tracks the pose of each player and sends it to the other players. The box and the eye height of a player follow the pose, the camera of the client follows the eye height, and the client draws other players sneaking, swimming, crawling, sleeping, gliding and in a spin attack (<Status pr={970} state="works" />).
 - The item stack has typed values for 19 more data components, among them the dyed colour, trims, potions, custom data, bundles, containers, fireworks, banner patterns and bees (<Status pr={992} state="works" />, <Status pr={993} state="works" />).
+- Enchanted books and painting variants have typed components with saved, wire and hashed forms. The client can send them from creative content. Stack readers and writers reject a saved NBT tree deeper than 512 levels; inline painting variants are still refused (<Status pr={1018} state="works" />).
 - The server limits the NBT that one serverbound packet or one stack may carry, by charged bytes and by tags, and it disconnects a client whose packet goes over the limit (<Status pr={1006} state="works" />).
 - Loot tables evaluate every condition, every number provider, weighted entries, and the count, damage, enchantment and attribute modifiers of items (<Status pr={841} state="works" />, <Status pr={850} state="works" />, <Status pr={857} state="works" />, <Status pr={862} state="works" />, <Status pr={866} state="works" />). The item, block, entity and location predicates match (<Status pr={838} state="works" />, <Status pr={843} state="works" />, <Status pr={847} state="works" />, <Status pr={854} state="works" />, <Status pr={858} state="works" />).
 - Entities have attributes with modifiers on the server and on the client, and the server sends them to the client (<Status pr={783} state="works" />, <Status pr={788} state="works" />, <Status pr={793} state="works" />). Cows, sheep and chickens get the goals of the pig (<Status pr={773} state="works" />).
 - The server accepts players forwarded by Velocity modern forwarding (<Status pr={855} state="works" />) and the PROXY protocol from trusted upstreams (<Status pr={927} state="works" />). It limits the number of players, the joins per address, the join rate and the packet rate (<Status pr={939} state="works" />). A player who joins from a loopback address is an operator only on the local profile, and the server binary uses the public one (<Status pr={933} state="works" />).
 - The client has a pause menu and option screens. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs (<Status pr={747} state="works" />, <Status pr={748} state="works" />, <Status pr={757} state="works" />, <Status pr={760} state="works" />).
 - The client opens a title screen at start. Singleplayer lists the worlds of the game directory, creates, deletes and opens one, and Save and Quit to Title saves the world (<Status pr={974} state="works" />).
-- In the client, E opens the player inventory with the stacks of the server and the figure of the player (<Status pr={780} state="works" />, <Status pr={789} state="works" />), and the mouse wheel and the keys 1 to 9 select a hotbar slot (<Status pr={945} state="works" />).
+- Outside creative mode, E opens the player inventory with the stacks of the server and the figure of the player (<Status pr={780} state="works" />, <Status pr={789} state="works" />), and the mouse wheel and the keys 1 to 9 select a hotbar slot (<Status pr={945} state="works" />).
 - The client keeps the stacks of the local player in the same item holders as the server and draws the item icons from them (<Status pr={991} state="works" />, <Status pr={996} state="works" />). A client without a GUI predicts and sends its clicks and holds the container menus that the server opens (<Status pr={994} state="works" />, <Status pr={1003} state="works" />). In the inventory screen the mouse and the keys move stacks, and outside a screen Q drops and F swaps the hands (<Status pr={1004} state="works" />).
+- The client draws the eight generic container screens a server opens, with resource-pack textures, titles and slots (<Status pr={1016} state="works" />). Menu screens preview a drag and gather stacks with a double click, including the Shift variants (<Status pr={1025} state="works" />), and show an item tooltip on hover (<Status pr={1024} state="works" />).
+- In creative mode E opens the creative inventory with tabs, scrolling, text and tag search, the hotbar row and the survival inventory tab with a destroy slot (<Status pr={1029} state="works" />, <Status pr={1046} state="works" />). Its tab lists come from the generated report and the session, and a client without a GUI can send creative clicks (<Status pr={1008} state="works" />).
+- F3+F4 shows the game modes with item icons (<Status pr={1020} state="works" />). Hotbar, menu and cursor icons use that same item icon path, and a registry change refreshes a trimmed item icon (<Status pr={1030} state="works" />).
 - The client inventory, the container screens and the creative inventory have specifications (<Status pr={975} state="works" />, <Status pr={978} state="works" />), and a recording of the vanilla client confirms what the client changes on a drop and a hand swap (<Status pr={976} state="works" />). The update tool writes the stacks of each creative tab from a run of the game, and `mcrs_minecraft_creative_report` reads them (<Status pr={1002} state="works" />).
 - The client draws the fog of the world with an Improved Transparency option (<Status pr={771} state="works" />), only the sections inside the render distance (<Status pr={762} state="works" />), the text of signs (<Status pr={698} state="works" />), every glyph of the default font (<Status pr={701} state="works" />), and players with the skin of their profile (<Status pr={758} state="works" />).
 - The client moves the local player with the movement kernel of the server (<Status pr={807} state="works" />), and it moves items, falling blocks, primed TNT and experience orbs between two updates of the server (<Status pr={805} state="works" />).
@@ -114,6 +137,9 @@ A plugin here is Rust code that is compiled into the server.
 - `PlayerHolders`, the slot policy of the player holders and the restore systems moved to the new crate `mcrs_minecraft_player_holders`, and `PlayerItemFilePlugin` moved to `mcrs_minecraft_vanilla_inventory` (<Status pr={983} state="works" />). `Click`, `ClickKind` and `Clicked` moved to the new crate `mcrs_minecraft_container_click`, and `ServerboundContainerClick` carries them in one `click` field (<Status pr={985} state="works" />). `PlayerGameMode` moved to `mcrs_minecraft_game_mode` (<Status pr={988} state="works" />).
 - The plain value `MenuLayout` replaces `InventoryMenu` and `MenuSlot`, and `close_menu` of `MenuCommandsExt` replaces the one of `PlayerInventoryCommandsExt` (<Status pr={977} state="works" />). `PlayerItemsRestored` is removed (<Status pr={986} state="works" />).
 - `RequestSource` has a private field, so a plugin gets one only from `allocate_request_source`, and `RequestId` is `{ source, serial }` (<Status pr={988} state="works" />).
+- `MenuType` and the menu registry key moved from `mcrs_minecraft_inventory_menu` to `mcrs_minecraft_menu_key`. `RequestPurpose` and its `serial()` replace the five `*_REQUEST` constants of `mcrs_minecraft_vanilla_inventory`. The play-state packet crate no longer links the inventory layout or rules (<Status pr={1037} state="works" />).
+- Baked item model nodes hold a `ModelId`, and `Evaluator` takes an `ItemModelContext` value (<Status pr={1015} state="works" />). `MenuAction::Creative` carries a stack, so `MenuAction` and `MenuInput` no longer implement `Copy` or `Eq` (<Status pr={1008} state="works" />).
+- `Screen::Menu` replaces `Screen::Inventory` (<Status pr={1016} state="works" />). `SlotIconPlugin` and `SlotIcon` replace the removed `ItemRenderPlugin` and per-entity `ItemRenderLayers` (<Status pr={1030} state="works" />).
 - `ItemPlugin` takes no item table, and `ItemTable` is a resource that exists while stacks can be made (<Status pr={991} state="works" />). `mcrs_minecraft_item` lost the stack-as-entity model: `Held`, `Holds`, `SlotTable`, `StackRevision`, `DroppedItem` and `Thrower` (<Status pr={996} state="works" />).
 - The fixed width, height and eye height of a player are gone, and the server reads them from the pose (<Status pr={970} state="works" />).
 
@@ -127,6 +153,9 @@ A plugin here is Rust code that is compiled into the server.
 - A plugin opens a menu over any holder with `open_menu` or `open_titled_menu` of `MenuCommandsExt` and reads `EntryPressed`, `MenuOpened` and `MenuClosed` (<Status pr={977} state="works" />). `MenuLayout::of` builds the generic container menus (<Status pr={1003} state="works" />).
 - A plugin gets a request source of its own with `allocate_request_source`, and a denial names the source of the plugin that denied it (<Status pr={988} state="works" />).
 - A client or a bot clicks and closes a menu with `MenuInput` and drops or swaps the hands with `HandInput` of `mcrs_minecraft_inventory_client`, and `Click::from_input` turns a mouse gesture into a click (<Status pr={994} state="works" />). `LocalServerPlugin::extend_server` adds plugins to the local server of the client (<Status pr={1003} state="works" />).
+- `mcrs_minecraft_creative_content` builds and filters creative tab lists without Bevy, and `mcrs_minecraft_item_tooltip` appends the text parts of a tooltip from caller-supplied inputs (<Status pr={1008} state="works" />, <Status pr={1024} state="works" />). `mcrs_minecraft_item_icon` resolves a stack into an `ItemIcon` value without a client or server dependency; `models_over_caps` reports model keys that exceed its layer or tint limits (<Status pr={1020} state="works" />, <Status pr={1038} state="works" />).
+- `mcrs_minecraft_nbt` has `depth_of`, `NbtTag::depth` and `NbtCompound::depth` to measure NBT depth (<Status pr={1018} state="works" />).
+- `DragSplit`, `DragEntry` and `EntryPreview` expose drag preview counts in `mcrs_minecraft_inventory_click`, and `shift_double_click_moves` selects matching entries for the Shift gesture. Implementations of `Slots` now supply `same_holder` (<Status pr={1025} state="works" />).
 - `ServerThread` runs a server App on its own thread, and its owner asks it to save and stop (<Status pr={969} state="works" />).
 - A program with no server adds a player with `host_living_entity` and gives it a model and a skin with `PlayerModel` and `PlayerSkin` (<Status pr={758} state="works" />).
 
@@ -134,7 +163,7 @@ A plugin here is Rust code that is compiled into the server.
 
 - There is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
-- The client draws no container screen and no creative inventory (<Status issue={130} />, <Status issue={131} />).
+- The creative screen has no saved hotbars (<Status issue={1032} />) and no player figure in the survival inventory tab (<Status issue={1043} />). [The client today](/docs/en/client/overview/#what-is-missing) lists the other screen, icon and tooltip limits.
 
 ## v0.5.8, 2026-10-14
 

@@ -52,9 +52,16 @@ sources:
   - issue:130
   - issue:131
   - issue:521
+  - crates/mcrs_minecraft_menu_key/src/menu_keys.rs
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs
+  - pr:1016
+  - pr:1025
+  - pr:1024
+  - pr:1046
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 
@@ -105,7 +112,7 @@ The plugin allocates its source in `build`, keeps it in the resource `ArenaRules
 
 ## Open a menu of your own
 
-A menu is data. `MenuLayout` in `mcrs_minecraft_inventory_menu`, a crate without Bevy, lists the entries of a menu, and each entry points to a slot of one part. `MenuLayout::of(MenuType::Generic9x3)` gives a chest with three rows: 27 entries of part 0 (`GENERIC_CONTAINER`), then the 36 player slots as part 1 (`GENERIC_PLAYER`). `MenuLayout::new(kind, entries, routes)` builds any other layout, where a route says where a shift-click moves a stack. It returns `None` above 128 entries or for a route outside the menu.[^pr977]
+A menu is data. `MenuLayout` in `mcrs_minecraft_inventory_menu`, a crate without Bevy, lists the entries of a menu, and each entry points to a slot of one part. `MenuType` comes from `mcrs_minecraft_menu_key::menu_keys`. `MenuLayout::of(MenuType::Generic9x3)` gives a chest with three rows: 27 entries of part 0 (`GENERIC_CONTAINER`), then the 36 player slots as part 1 (`GENERIC_PLAYER`). `MenuLayout::new(kind, entries, routes)` builds any other layout, where a route says where a shift-click moves a stack. It returns `None` above 128 entries or for a route outside the menu.[^pr977]
 
 `MenuCommandsExt` opens a menu on the player with `open_menu` or `open_titled_menu`. Both take the layout, the holders of the parts in `MenuParts` and the button entries in `MenuButtons`. The shop of the example opens over a new holder with 27 slots and one offer.
 
@@ -129,7 +136,7 @@ So the players, their slot policies, `RequestCheck` and `EntryPressed` live in t
 
 ## Not there yet
 
-The mcrs client takes clicks in its inventory screen.[^129] It holds, clicks and closes a container menu that the server opens, but draws no container screen yet, so its player does not see your menu.[^130] It has no creative inventory screen.[^131] The player inventory issue stays open until a vanilla client and the mcrs client move, split, drag and swap stacks in agreement with the server, and the inventory survives a rejoin.[^521]
+The mcrs client takes clicks in its inventory screen.[^129] It draws the eight generic container screens with item tooltips, drag previews and double clicks, so a player sees a menu your plugin opens.[^130] In creative mode the inventory key opens the creative screen with tabs, scrolling, search and stack clicks.[^131] The remaining screen limits are on [The client today](/docs/en/client/overview/#what-is-missing). The player inventory issue still covers agreement with a vanilla client and persistence across a rejoin.[^521]
 
 Next: [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/) has the table of Paper events and what mcrs has for them. [Intercept chat](/docs/en/plugins/chat-event/) shows the other events a plugin can cancel.
 

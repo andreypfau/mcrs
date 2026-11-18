@@ -27,14 +27,14 @@
 - id: client
   title: { en: Client and rendering, ru: Клиент и рендер }
   works:
-    en: "Terrain, sky, clouds, fog, light, mobs, players with skins and poses, sign text, the F3 overlay, chat, the title screen with the list of local worlds, the pause menu and the options screens, the inventory screen with clicks by mouse and keys, the hotbar, block breaking in creative. Render distance 96 columns by default, and the video settings change it."
-    ru: "Рельеф, небо, облака, туман, свет, мобы, игроки со скинами и позами, текст табличек, оверлей F3, чат, титульный экран со списком локальных миров, меню паузы и экраны настроек, экран инвентаря с кликами мышью и клавишами, хотбар, ломание блоков в креативе. Дальность по умолчанию 96 колонок, ее меняют настройки графики."
+    en: "Terrain, sky, clouds, fog, light, mobs, players with skins and poses, sign text, the F3 overlay, chat, the title screen with the list of local worlds, the pause menu and the options screens, the inventory and eight generic container screens with mouse and key clicks, drag previews, double clicks and item tooltips, the creative inventory with tabs, scrolling and search, the hotbar, block breaking in creative. Render distance 96 columns by default, and the video settings change it."
+    ru: "Рельеф, небо, облака, туман, свет, мобы, игроки со скинами и позами, текст табличек, оверлей F3, чат, титульный экран со списком локальных миров, меню паузы и экраны настроек, экран инвентаря и восемь типовых экранов контейнеров с кликами мышью и клавишами, предпросмотром перетаскивания, двойными кликами и подсказками предметов, творческий инвентарь со вкладками, прокруткой и поиском, хотбар, ломание блоков в креативе. Дальность по умолчанию 96 колонок, ее меняют настройки графики."
   missing:
-    en: "The web build loads a world on WebGPU and WebGL2, but it does not reach a steady frame yet. No sound, particles or weather. No container screens and no creative inventory yet."
-    ru: "Веб-сборка загружает мир на WebGPU и WebGL2, но стабильного кадра пока не держит. Нет звука, частиц и погоды. Экранов контейнеров и творческого инвентаря пока нет."
+    en: "The web build loads a world on WebGPU and WebGL2, but it does not reach a steady frame yet. No sound, particles or weather. Creative saved hotbars and the player figure in the creative survival tab are missing. Special item models draw no icon. Item tooltips lack enchantment lines and italics, and can undercount components."
+    ru: "Веб-сборка загружает мир на WebGPU и WebGL2, но стабильного кадра пока не держит. Нет звука, частиц и погоды. Нет сохраненных творческих хотбаров и фигурки игрока во вкладке инвентаря выживания творческого экрана. Особые модели предметов не рисуют значок. В подсказках предметов нет строк зачарований и курсива, а число компонентов может быть занижено."
   state: partial
-  issues: [337, 344, 130, 131]
-  evidence: "crates/mcrs_minecraft_client"
+  issues: [337, 344, 130, 131, 1032, 1043, 1021, 1022, 1023]
+  evidence: "crates/mcrs_minecraft_client/tests/it/screen_clicks.rs; crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs; crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs"
   verified: 2026-11-18
 
 - id: protocol
@@ -79,14 +79,14 @@
 - id: gameplay
   title: { en: Gameplay, ru: Геймплей }
   works:
-    en: "Join, chat with a cancellable event before broadcast, game modes, block placing, block breaking in creative and by hand in survival, block drops from loot tables, item entities and their pickup, the player inventory with armour slots, menus that a plugin opens as data, the pose of players, falling blocks, removal of blocks that lose their support, random ticks and block events."
-    ru: "Вход, чат с отменяемым событием до рассылки, режимы игры, установка блоков, ломание блоков в креативе и рукой в выживании, дроп блоков по таблицам лута, предметы на земле и их подбор, инвентарь игрока со слотами брони, меню, которые плагин открывает как данные, поза игроков, падающие блоки, разрушение блоков без опоры, случайные тики и блочные события."
+    en: "Join, chat with a cancellable event before broadcast, game modes, block placing, block breaking in creative and by hand in survival, block drops from loot tables, item entities and their pickup, the player inventory with armour slots, menus that a plugin opens as data, creative clicks from the client, the pose of players, falling blocks, removal of blocks that lose their support, random ticks and block events."
+    ru: "Вход, чат с отменяемым событием до рассылки, режимы игры, установка блоков, ломание блоков в креативе и рукой в выживании, дроп блоков по таблицам лута, предметы на земле и их подбор, инвентарь игрока со слотами брони, меню, которые плагин открывает как данные, творческие клики клиента, поза игроков, падающие блоки, разрушение блоков без опоры, случайные тики и блочные события."
   missing:
     en: "Crafting, combat, redstone, fluids, plant growth, trading, bosses. A tool digs no faster than an empty hand. No survival loop yet."
     ru: "Крафт, бой, редстоун, жидкости, рост растений, торговля, боссы. Инструмент копает не быстрее пустой руки. Цикла выживания пока нет."
   state: partial
   issues: [182, 190]
-  evidence: "crates/mcrs_minecraft_server/tests/it/chat.rs"
+  evidence: "crates/mcrs_minecraft_server/tests/it/chat.rs; crates/mcrs_minecraft_client/tests/it/creative_actions.rs"
   verified: 2026-11-18
 
 - id: commands
@@ -171,7 +171,7 @@
   title: { en: Crates as a library, ru: Крейты как библиотека }
   works:
     en: "{crates} crates. CI checks that {crates_no_bevy} packages build without Bevy, {crates_no_std} without std and {crates_wasm32} for wasm32. Six library examples in examples/, each with a check of its dependency tree, among them a status ping and a player file viewer without Bevy and an inventory bot without a window."
-    ru: "{crates} крейт. CI проверяет, что {crates_no_bevy} пакетов собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32. Шесть примеров библиотеки в examples/, у каждого проверяется дерево зависимостей, среди них status ping и просмотр файла игрока без Bevy и бот инвентаря без окна."
+    ru: "{crates} крейта. CI проверяет, что {crates_no_bevy} пакета собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32. Шесть примеров библиотеки в examples/, у каждого проверяется дерево зависимостей, среди них status ping и просмотр файла игрока без Bevy и бот инвентаря без окна."
   missing:
     en: "Nothing is published on crates.io, the server, lobby and arena examples are not written, and the API is not stable."
     ru: "На crates.io ничего не опубликовано, примеров сервера, лобби и арены нет, API не стабилен."

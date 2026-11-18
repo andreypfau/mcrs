@@ -14,9 +14,13 @@ sources:
   - crates/mcrs_minecraft_client/src/game_directory.rs
   - crates/mcrs_minecraft_client_options/src/client_options.rs
   - issue:278
+  - crates/mcrs_minecraft_client/src/dev/join_menu.rs
+  - crates/mcrs_minecraft_client/src/dev/play_world.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_tab_content.rs
+  - issue:1033
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 import Status from '~/components/Status.astro';
@@ -41,7 +45,7 @@ A client built with `singleplayer` has an integrated server, and that server als
 | `MCRS_GAME_DIR` | the data folder of the platform | The game directory, which holds the worlds in `saves`, `options.json`, `command_history.txt` and the `ops.json` of the integrated server. Without the variable the client takes `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows. When it finds no game directory, it keeps no options and no command history. | `game_directory.rs` |
 | `MCRS_USERNAME` | `Player` | Player name. | `config.rs` |
 | `MCRS_VIEW` | `96` | Render distance in columns, 2 to 96. Wins over the options file. | `config.rs` |
-| `MCRS_OPTIONS` | `options.json` in the game directory | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate` and `improved_transparency`. Unknown fields are an error. Without the variable, the client reads `options.json` in the game directory if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
+| `MCRS_OPTIONS` | `options.json` in the game directory | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate`, `improved_transparency` and `operator_items_tab`. Unknown fields are an error. Without the variable, the client reads `options.json` in the game directory if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
 | `MCRS_FULLSCREEN` | options file (off) | Take over a whole display. Wins over the options file. Ignored when `MCRS_RESOLUTION` is set. | `config.rs` |
 | `MCRS_OPEN_TO_LAN` | off | The integrated server listens on every interface and announces itself. There is no authentication, so anyone on the network can join under any name. | `config.rs` |
 | `MCRS_GUI_SCALE` | options file (`0`, auto) | Fixed GUI scale. Wins over the options file and the menu. | `config.rs` |
@@ -56,6 +60,8 @@ A client built with `singleplayer` has an integrated server, and that server als
 | `MCRS_ARENA` | 192,640,512 (web: 32,208,80) | Arena sizes in MB for quads, models and faces, as `quads,models,faces`. | `config.rs` |
 | `MCRS_JAR_WORKERS` | crate default | Download workers in the online test of the client jar crate. | [`native.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_client_jar/src/native.rs) |
 | `MCRS_CERT` | none | Certificate hash for a web client joining a server. Web build only. | `config.rs` |
+
+`operator_items_tab` defaults to `false`. Set it to `true` in the options file to allow the Operator Items tab when the player has operator permission. Controls has no button for this option yet.[^1033]
 
 ## Measurement knobs
 
@@ -80,6 +86,8 @@ Do not set the variables in this section for normal play. They change on purpose
 | `MCRS_FLY`, `MCRS_TURN` | none | Scripted flight: the player flies forward at a sprint with this flying speed (the default ability is 0.05), and turns round once after `MCRS_TURN` seconds. |
 | `MCRS_TIME` | none | Pins every clock to a tick count. |
 | `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen to open (`title` by default, `none`, `inventory`, `pause`, `options`, `video` or `accessibility`) and a cursor position, for scripted captures. |
+| `MCRS_MENU` | none | Native singleplayer build with `dev` only. Opens a sample container after joining: `generic_9x1` through `generic_9x6`, `generic_3x3` or `hopper`. |
+| `MCRS_PLAY` | off | Native build with `dev` only. `1` starts the world folder given as the argument when it belongs to the game directory's `saves` list. |
 | `MCRS_CAPTURE` | none | Write one screenshot to a `.png` path and exit. |
 | `MCRS_SCREENSHOT_DIR` | none | Directory for screenshots. |
 | `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Windowless scene capture directory, and a record of the vanilla client to take entities from. |
@@ -87,3 +95,5 @@ Do not set the variables in this section for normal play. They change on purpose
 The client reads all of these in `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` and `scene_capture.rs`.
 
 [^278]: <Status issue={278} /> The decision to configure the server only through its plugin.
+
+[^1033]: <Status issue={1033} /> Tracks the Operator Items Tab button in Controls.

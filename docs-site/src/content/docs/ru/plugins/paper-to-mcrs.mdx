@@ -3,7 +3,7 @@ title: Paper и Minestom в терминах mcrs
 description: Таблица соответствий от понятий Paper, Velocity и Minestom к mcrs и Bevy, с состоянием каждой строки.
 sidebar:
   order: 4
-translated_from: b9bf112d8
+translated_from: 79dd5940a
 ---
 
 import Status from '~/components/Status.astro';
@@ -39,7 +39,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `PlayerJoinEvent`, `PlayerQuitEvent` | Внутренние сообщения шины `InboundPlayerSpawn` и `InboundPlayerDespawn` | <Status issue={283} /> | Публичного события пока нет. Публичные события входа и выхода запланированы |
 | `BlockBreakEvent`, `BlockPlaceEvent` | Публичное сообщение `UseItemOnRequest` для установки и публичный набор `BlockBreakSet`, после которого ставится своя система | <Status issue={283} /> | Отменяемых событий пока нет. Запрос на ломание внутренний, а отклонить установку можно, только заменив `VanillaBlockPlacePlugin`. Подробнее на странице [Встроиться в установку, ломание и дроп блоков](/docs/ru/plugins/blocks/) |
 | `InventoryClickEvent`, `setCancelled(true)` | Наблюдатель `RequestCheck`, который вызывает `deny(Denial { source, code })`, или `Gate` в `SlotPolicy` держателя | <Status pr={846} state="works" /> | Клик приходит как запрос к инвентарю. В отказе указан источник запросов плагина. Клик по кнопке меню приходит как `EntryPressed`. Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
-| `Bukkit.createInventory`, `openInventory` | Значение `MenuLayout`, например `MenuLayout::of(MenuType::Generic9x3)`, поверх сущности-держателя со `Slots`, открытое через `open_titled_menu` из `MenuCommandsExt` | <Status pr={977} state="works" /> | Записи-кнопки из `MenuButtons` не двигают стек и пишут `EntryPressed`. `close_menu` заменяет `closeInventory`. Экран контейнера клиент mcrs пока не рисует (<Status issue={130} />). Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
+| `Bukkit.createInventory`, `openInventory` | Значение `MenuLayout`, например `MenuLayout::of(MenuType::Generic9x3)`, поверх сущности-держателя со `Slots`, открытое через `open_titled_menu` из `MenuCommandsExt` | <Status pr={977} state="works" /> | Записи-кнопки из `MenuButtons` не двигают стек и пишут `EntryPressed`. `close_menu` заменяет `closeInventory`. Клиент mcrs рисует восемь типовых экранов контейнеров и принимает в них клики (<Status issue={130} />). Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
 | `ProtocolLib`, слушатели пакетов | `On<Received<P>>` над типизированными игровыми пакетами | <Status state="partial" /> | Типизирована примерно половина пакетов, см. README. Единый путь типизированного приема: <Status issue={57} /> |
 | Дерево `EventNode` в Minestom | Дерева событий нет, есть только наблюдатели и расписания Bevy | <Status state="undecided" /> | Issue нет. Этот паттерн не копируйте |
 

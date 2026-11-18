@@ -33,9 +33,23 @@ sources:
   - pr:974
   - pr:1003
   - pr:1004
+  - crates/mcrs_minecraft_client_gui/src/menu_screen.rs
+  - crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_draw.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_input.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_open.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_tab_content.rs
+  - crates/mcrs_minecraft_client_gui/src/slot_icon.rs
+  - crates/mcrs_minecraft_client_gui/src/game_mode_switcher.rs
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_item_tooltip_tests.rs
+  - pr:1024
+  - pr:1046
+  - pr:1030
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 
@@ -58,7 +72,10 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Chat with command suggestions | Works |
 | Breaking blocks in creative mode, and showing the block you aim at | Works |
 | Title screen and local worlds | Works in the native client. The client opens the title screen at start. Singleplayer lists the worlds in the `saves` folder of the game directory, creates a new world, deletes one and opens one, and Save and Quit to Title saves the world and returns to the title screen |
-| Inventory screen | Works. E opens it, and the mouse and the keys move stacks. The client predicts each click before the server answers, and the next packets of the server overwrite the prediction. Outside a screen Q drops one item of the selected stack, Control+Q drops the whole stack, and F swaps the hands |
+| Inventory screen | <Status issue={129} />. E opens it in survival mode. Mouse and key clicks move stacks, a drag previews the split before release, and a double click gathers matching stacks. Shift+double click quick moves matching stacks. The client predicts each click before the server answers, and server packets overwrite the prediction. Outside a screen Q drops one item, Control+Q drops the whole selected stack, and F swaps the hands |
+| Container screens | <Status issue={130} />. The client draws the generic menus a server opens: `generic_9x1` through `generic_9x6`, `generic_3x3` and `hopper`, with resource-pack textures, the title, slots and item tooltips. The same clicks, drags and double clicks work in them |
+| Creative inventory | <Status issue={131} />. E opens the creative screen in creative mode. It has tabs, a scrollable item grid, text and tag search, the hotbar row, a survival inventory tab and a destroy slot. Clicks take, place, clone, destroy and drop stacks |
+| Game mode switcher | F3+F4 shows the four game modes with their item icons |
 | Hotbar | Works. The mouse wheel and the keys 1 to 9 select a slot, and spectator mode shows no hotbar |
 | Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the game directory |
 | Joining the mcrs server or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
@@ -70,7 +87,10 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Sound | <Status issue={136} />. The client is silent |
 | Particles | <Status issue={137} /> |
 | Weather (rain, snow, lightning) | <Status issue={341} />. Today rain only dims the sun and the moon |
-| Container screens and the creative inventory | The player inventory is <Status issue={521} />. Container screens are <Status issue={130} />. A client without a GUI already holds a container menu that the server opens, clicks in it and closes it, but the GUI does not draw one yet. The creative inventory is <Status issue={131} /> |
+| Creative inventory details | Saved hotbars have no content (<Status issue={1032} />), and the survival inventory tab has no player figure (<Status issue={1043} />). A drag or a double click in the creative hotbar can gather from the whole inventory (<Status issue={1041} />) |
+| Creative session settings | The client assumes only the `minecraft:vanilla` feature flag (<Status issue={1031} />). The operator tab option has no button in Controls (<Status issue={1033} />); [Client variables](/docs/en/client/env-vars/) describes the file setting |
+| Item icons | Special models such as chests and shields draw no icon. Dynamic icons such as clocks and compasses do not refresh while their slot stays unchanged (<Status issue={1036} />) |
+| Item tooltips | Enchantment lines are missing (<Status issue={1021} />), renamed items and lore have no italics (<Status issue={1022} />), and the advanced component count can be low (<Status issue={1023} />). Disabled-item warnings and map summaries are not filled in yet, and creative stew tooltips do not list effects |
 | A web build | <Status issue={344} />. Chrome draws the world over WebGPU and over WebGL2. On WebGL2 the browser draws no mobs, and the CPU and GPU times of the web build are not measured yet |
 | Binary downloads | None yet. Releases are planned, and at this date no issue tracks them |
 

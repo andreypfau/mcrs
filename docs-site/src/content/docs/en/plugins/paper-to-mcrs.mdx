@@ -29,9 +29,11 @@ sources:
   - issue:159
   - pr:855
   - pr:927
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_menu_geometry/src/menu_geometry.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 
@@ -68,7 +70,7 @@ No row is a drop-in replacement, because mcrs has no Bukkit-like API, as [This i
 | `PlayerJoinEvent`, `PlayerQuitEvent` | Internal bus messages `InboundPlayerSpawn` and `InboundPlayerDespawn` | <Status issue={283} /> | Not a public event yet. Public join and leave events are planned |
 | `BlockBreakEvent`, `BlockPlaceEvent` | The public message `UseItemOnRequest` for a placement, and the public set `BlockBreakSet` to order a system after the breaks | <Status issue={283} /> | No cancellable event yet. The break request is internal, and a placement can be refused only by replacing `VanillaBlockPlacePlugin`. See [Hook into block placing, breaking and drops](/docs/en/plugins/blocks/) |
 | `InventoryClickEvent`, `setCancelled(true)` | An observer of `RequestCheck` that calls `deny(Denial { source, code })`, or a `Gate` in the `SlotPolicy` of the holder | <Status pr={846} state="works" /> | A click arrives as an inventory request. The denial carries the request source of your plugin. A click on a menu button arrives as `EntryPressed`. See [Inventory](/docs/en/plugins/inventory/) |
-| `Bukkit.createInventory`, `openInventory` | A `MenuLayout` value, such as `MenuLayout::of(MenuType::Generic9x3)`, over a holder entity with `Slots`, opened with `open_titled_menu` of `MenuCommandsExt` | <Status pr={977} state="works" /> | Button entries in `MenuButtons` move no stack and write `EntryPressed`. `close_menu` replaces `closeInventory`. The mcrs client draws no container screen yet (<Status issue={130} />). See [Inventory](/docs/en/plugins/inventory/) |
+| `Bukkit.createInventory`, `openInventory` | A `MenuLayout` value, such as `MenuLayout::of(MenuType::Generic9x3)`, over a holder entity with `Slots`, opened with `open_titled_menu` of `MenuCommandsExt` | <Status pr={977} state="works" /> | Button entries in `MenuButtons` move no stack and write `EntryPressed`. `close_menu` replaces `closeInventory`. The mcrs client draws the eight generic container screens and takes clicks in them (<Status issue={130} />). See [Inventory](/docs/en/plugins/inventory/) |
 | `ProtocolLib`, packet listeners | `On<Received<P>>` over the typed game packets | <Status state="partial" /> | About half of the packets are typed, see the README. One typed receive path: <Status issue={57} /> |
 | Minestom `EventNode` tree | No event tree, only Bevy observers and schedules | <Status state="undecided" /> | There is no issue. Do not copy the pattern |
 

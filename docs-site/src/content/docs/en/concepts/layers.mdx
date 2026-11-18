@@ -20,7 +20,7 @@ sources:
   - issue:288
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
@@ -43,7 +43,7 @@ mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each 
 
 Every crate lives under [`crates/`](https://github.com/andreypfau/mcrs/tree/main/crates). A crate specific to the game is named `mcrs_minecraft_<name>`. A crate for a concept that does not depend on the game is named `mcrs_<name>`, such as the engine core crates `mcrs_engine_cell`, `mcrs_engine_link`, `mcrs_engine_muxer` and `mcrs_engine_store`, or `mcrs_molang` and `mcrs_voxel`. The [crate map](/docs/en/crates/overview/) lists every crate with its layer.
 
-Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. CI holds some of the boundaries. The `layers` check in `xtask/src/checks.rs` fails when `mcrs_minecraft_protocol` or `mcrs_minecraft_network` links a game data crate, when a model bake or the entity renderer links the network, a client or a server, and when an inventory crate that the client uses, such as `mcrs_minecraft_inventory_client`, links a crate of the server.
+Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. CI checks some boundaries through `layers` in `xtask/src/checks.rs`. The check keeps game data out of `mcrs_minecraft_protocol` and `mcrs_minecraft_network`, and keeps the network, client and server out of model baking, item icons and entity rendering. It also rejects inventory layout or rules in `mcrs_minecraft_protocol_game`, and server crates in the inventory crates a client uses, such as `mcrs_minecraft_inventory_client`.
 
 ## Kernels hold the rules, drivers run them
 

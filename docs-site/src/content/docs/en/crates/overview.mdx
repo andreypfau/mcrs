@@ -16,9 +16,25 @@ sources:
   - docs/inventory-client-design.md
   - issue:321
   - issue:288
+  - crates/mcrs_minecraft_creative_content/Cargo.toml
+  - crates/mcrs_minecraft_item_tooltip/Cargo.toml
+  - crates/mcrs_minecraft_item_icon/Cargo.toml
+  - crates/mcrs_minecraft_menu_key/Cargo.toml
+  - crates/mcrs_minecraft_creative_content/src/creative_content.rs
+  - crates/mcrs_minecraft_creative_content/src/search_query.rs
+  - crates/mcrs_minecraft_item_tooltip/src/append_tooltip_parts.rs
+  - crates/mcrs_minecraft_item_icon/src/resolve.rs
+  - crates/mcrs_minecraft_item_icon/src/icon_meshes.rs
+  - crates/mcrs_minecraft_creative_content/tests/it/creative_content.rs
+  - crates/mcrs_minecraft_model/tests/it/evaluator.rs
+  - crates/mcrs_minecraft_item_icon/tests/it/resolve.rs
+  - crates/mcrs_minecraft_item_tooltip/tests/it/tooltip_parts.rs
+  - crates/mcrs_minecraft_client_gui/src/slot_icon.rs
+  - crates/mcrs_minecraft_protocol_game/tests/it/inventory_packets.rs
+  - crates/mcrs_minecraft_player_holders/tests/it/holders.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
@@ -34,7 +50,7 @@ A script made the crate tables from `cargo metadata` and the three lists in [`xt
 
 ## How to read the tables
 
-The crates are grouped by the layers in [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md#layers). CI checks only some parts of the layer rule. The wire and network crates must not link game data. The crates that bake models or draw entities must not link the network, a client or a server, so that a viewer works without a connection. `mcrs_minecraft_vanilla_inventory` must not depend on the packet edge of the inventory. `mcrs_minecraft_engine_item`, `mcrs_minecraft_player_holders` and `mcrs_minecraft_inventory_client` must not link the server-only crates `mcrs_minecraft_engine`, `mcrs_minecraft_engine_server`, `mcrs_minecraft_save` and `mcrs_minecraft_server`, so that a client can use them.
+The crates are grouped by the layers in [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md#layers). CI checks only some parts of the layer rule. The wire and network crates must not link game data. The crates that bake models, resolve item icons or draw entities must not link the network, a client or a server, so that a viewer works without a connection. The play-state packets in `mcrs_minecraft_protocol_game` must not link the inventory layout or click, player-slot and transaction rules; their menu keys come from `mcrs_minecraft_menu_key`. `mcrs_minecraft_vanilla_inventory` must not depend on the packet edge of the inventory. `mcrs_minecraft_engine_item`, `mcrs_minecraft_player_holders` and `mcrs_minecraft_inventory_client` must not link the server-only crates `mcrs_minecraft_engine`, `mcrs_minecraft_engine_server`, `mcrs_minecraft_save` and `mcrs_minecraft_server`, so that a client can use them.
 
 The layer of a crate is not stored anywhere in the code. It was assigned by hand from the layer list in AGENTS.md and the crate description, and no check confirms it, so use it as a guide.
 
@@ -62,6 +78,8 @@ The table below names the crates to start with for five kinds of project. None o
 | A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is tracked in <Status issue={299} />. The generator itself matches vanilla in parity tests on reference seeds |
 
 "The crates exist" means that they build in this repository. None of them promises a stable API, and only four crates have a README.
+
+For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_content` builds the tab and search lists without Bevy, and `SearchQuery` filters them. `append_tooltip_parts` in `mcrs_minecraft_item_tooltip` appends text parts to your buffer. In the rendering layer, `resolve` in `mcrs_minecraft_item_icon` returns an `ItemIcon` value from a stack, and `IconMeshes` holds the meshes for drawing it. These crates use no client or server crate.
 
 ## All crates by layer
 
@@ -125,6 +143,7 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_command_registry` | The registries and the block table that a host lends to the command arguments | yes | - | - |
 | `mcrs_minecraft_command_tree` | The nodes of the command tree that the commands packet carries | yes | - | - |
 | `mcrs_minecraft_container_click` | The content of a container click as a plain value: the click kind, the button and the clicked menu entry, with its wire codec | yes | yes | - |
+| `mcrs_minecraft_creative_content` | Creative tab lists and the search list built from the report and the session registries, tags, feature flags and operator condition | yes | - | - |
 | `mcrs_minecraft_creative_report` | The creative report: the stacks of each items tab of the creative screen and the feature flags of each item | yes | - | - |
 | `mcrs_minecraft_damage` | The hit procedure of a living entity without Bevy: the damage cooldown, the health change, the start of the death and the hit record | yes | - | - |
 | `mcrs_minecraft_datapack` | The data pack stack: pack selection, pack.mcmeta, overlays, filters and the files each pack contributes | - | - | - |
@@ -146,7 +165,7 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_inventory_click` | The operations of a Java Edition menu click: pick up, quick move, swap with a hotbar key, clone, throw, drag and pick up all | yes | yes | - |
 | `mcrs_minecraft_inventory_client_view` | The state id of a menu and the server's view of the stacks that the client holds | yes | - | - |
 | `mcrs_minecraft_inventory_file` | The stacks of a player and its selected slot, read from and written to the player file | yes | - | - |
-| `mcrs_minecraft_inventory_menu` | The keys of the menu registry and the menu layout as a plain value: entries, quick-move routes, pick up all and drag permits | yes | - | - |
+| `mcrs_minecraft_inventory_menu` | The menu layout as a plain value: entries, quick-move routes, pick up all and drag permits | yes | - | - |
 | `mcrs_minecraft_inventory_player` | The slots of a player: their indices, slot limits and filters, and the insert rule | yes | yes | - |
 | `mcrs_minecraft_inventory_transaction` | The planner of an atomic inventory request: split, merge, swap and drop over slots, applied in full or rejected with a reason | yes | yes | - |
 | `mcrs_minecraft_item` | Items, item data components, the component patch, the persistent item stack, enchantments and armour trims | yes | - | - |
@@ -154,6 +173,7 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_item_key` | The keys of the item registry and of its tags | yes | - | - |
 | `mcrs_minecraft_item_stack` | Item stack values: the kind, the count, the component patch and the item component types | yes | - | - |
 | `mcrs_minecraft_item_table` | The prototype of each item kind and the effective components of an item stack | yes | - | - |
+| `mcrs_minecraft_item_tooltip` | Item tooltip text parts from a stack, the item table and inputs supplied by the caller | yes | - | - |
 | `mcrs_minecraft_jukebox_song` | The value of the jukebox song registry | yes | - | - |
 | `mcrs_minecraft_lang` | A language file of the game: translation patterns by key, and the filler of their placeholders | yes | - | - |
 | `mcrs_minecraft_light_color` | Light colours of block states and the light a held item emits | yes | - | - |
@@ -162,7 +182,8 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_loot_condition` | The loot context, the loot conditions and the context number providers, baked and evaluated | yes | - | - |
 | `mcrs_minecraft_loot_table` | Loot tables as a data pack writes them, baked by id and evaluated | - | - | - |
 | `mcrs_minecraft_map_decoration` | The keys of the map decoration type registry | yes | - | - |
-| `mcrs_minecraft_menu_geometry` | The geometry of a menu screen as data: the window area, the entry areas and the entry under the pointer | yes | yes | - |
+| `mcrs_minecraft_menu_geometry` | Menu and creative screen geometry as data: backgrounds, labels, tabs, entry areas, scrolling and hit tests | yes | - | - |
+| `mcrs_minecraft_menu_key` | The keys of the menu registry | yes | - | - |
 | `mcrs_minecraft_mob_control` | The per-tick controls of a mob without Bevy: the path follower of a straight route, the move control, the jump control, the look control and the body rotation | yes | - | - |
 | `mcrs_minecraft_move_predict` | The movement checks with a world: the prediction of each client tick of a player from the physics model | yes | - | - |
 | `mcrs_minecraft_move_validate` | The movement checks without a world: one serverbound packet, and the stream of one connection | yes | - | - |
@@ -253,6 +274,7 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_entity_render` | GPU-driven entity rendering: persistent slots, the entity cull, the pose and expand passes and the gbuffer draw of the face records | - | - | - |
 | `mcrs_minecraft_entity_visual` | The state of an entity that a viewer draws: placement and interpolation, age, head and body yaw, walk, hurt and death, entity data and equipment, the tick that advances them and the values of one frame | - | - | - |
 | `mcrs_minecraft_fog` | The fog parameters of one frame of the client: the fog colour and the fog distances | yes | yes | - |
+| `mcrs_minecraft_item_icon` | An item icon as a value, with the GUI-posed shaded meshes it draws | - | - | - |
 | `mcrs_minecraft_light_render` | Coloured block light for the lighting pass: a paged light volume propagated on the GPU | - | - | - |
 | `mcrs_minecraft_mesh` | Section meshing: greedy cube faces, fluids, block models, the packed quad layout and the buffer arena | yes | - | - |
 | `mcrs_minecraft_model` | Block and item models baked from a Minecraft resource pack: the pack, model files, sprite atlas, block catalog and item model trees | - | - | - |
@@ -270,7 +292,7 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_chat_client` | The client chat screen without rendering: the input box, the history, client-side command suggestions, hint lines and the chat log | yes | - | - |
 | `mcrs_minecraft_client` | Minecraft client: window, asset corpus, environment registries and the voxel renderer | - | - | - |
 | `mcrs_minecraft_client_entity` | The packet side of the client entities that the server adds: the packets that add, move and change an entity, and the network id of each entity | - | - | - |
-| `mcrs_minecraft_client_gui` | The GUI of a Minecraft client: hotbar, inventory and chat screens, game mode switcher, slot item models and the F3 debug screen | - | - | - |
+| `mcrs_minecraft_client_gui` | The client GUI: hotbar, inventory, container, creative and chat screens, game mode switcher, item icons and tooltips, and the F3 debug screen | - | - | - |
 | `mcrs_minecraft_client_options` | The options a user sets on the client, with their ranges and their JSON form | yes | - | - |
 | `mcrs_minecraft_client_widget` | The widgets of the client GUI without rendering: rectangles, layout, pointer and keyboard input, focus and widget state | yes | yes | - |
 | `mcrs_minecraft_client_world` | The world state of a Minecraft client without a window or a renderer: session registries, columns, the local player, game mode and chat | - | - | - |

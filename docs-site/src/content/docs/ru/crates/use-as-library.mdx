@@ -3,7 +3,7 @@ title: Использование крейтов в своем проекте
 description: Как подключить крейт mcrs через git-зависимость с закрепленным rev и nightly-компилятором. Публикация на crates.io пока не работает.
 sidebar:
   order: 3
-translated_from: b9bf112d8
+translated_from: 79dd5940a
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -37,7 +37,7 @@ Cargo находит крейт по имени внутри репозитор�
 
 Крейты разложены по слоям, от сетевого протокола в слое 1 до приложений в слое 7. Ниже слоя 4 Bevy - необязательная feature, поэтому `default-features = false` в строке зависимости выше не пускает его в вашу сборку.
 
-CI проверяет {fact('crates_no_bevy')} имен пакетов командой `cargo check --no-default-features`. Список лежит в `NO_BEVY_PACKAGES` в [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), а в [карте крейтов](/docs/ru/crates/overview/) отмечен каждый из этих пакетов.
+CI проверяет {fact('crates_no_bevy')} имени пакетов командой `cargo check --no-default-features`. Список лежит в `NO_BEVY_PACKAGES` в [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), а в [карте крейтов](/docs/ru/crates/overview/) отмечен каждый из этих пакетов.
 
 Слою 4 и выше Bevy нужен. В нижних слоях известно одно исключение, `mcrs_minecraft_assets`: по README ему нужен Bevy, даже если default features отключены.
 

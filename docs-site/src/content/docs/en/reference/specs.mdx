@@ -16,9 +16,10 @@ sources:
   - docs/spec/client-inventory.md
   - docs/spec/client-container-screen.md
   - docs/spec/client-creative-inventory.md
+  - docs/spec/client-game-mode-switcher.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
+  commit: 79dd5940a
   date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
@@ -61,7 +62,7 @@ A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests 
 | Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
 | Client: world and entities | `client-camera.md`, `client-fog.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CFOG-*`, `CENTS`, `CENT`, `CEREN`, `CPR` |
 | Client: GUI widgets and text | `client-widget.md`, `client-list.md`, `client-edit-box.md`, `client-font.md`, `client-gui-sprite.md`, `client-tooltip.md` | `WID-*`, `LIST-*`, `SCRL-*`, `TAB-*`, `EDIT-*`, `FONT`, `GSPR`, `TIP` |
-| Client: screens, hotbar, chat, commands | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD` |
+| Client: screens, hotbar, chat, commands | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md`, `client-game-mode-switcher.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD`, `CGMS-*` |
 | Client: inventory, container screens, creative inventory | `client-inventory.md`, `client-container-screen.md`, `client-creative-inventory.md` | `CINV-*`, `CCS-*`, `CCI-*` |
 | Block models and light | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md`, `client-sign-text.md` | `BMR`, `BFB`, `BEM`, `BSL`, `SIGN` |
 
