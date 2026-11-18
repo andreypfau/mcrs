@@ -6036,6 +6036,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_item_tooltip"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_profile",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_jukebox_song"
 version = "0.5.8"
 dependencies = [

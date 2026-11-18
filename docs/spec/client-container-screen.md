@@ -753,7 +753,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 | `v` < 0 | `attribute.modifier.take.<op>` with `−d` and the attribute name | the colour of a decrease |
 | `v` = 0 | no part | |
 
-  `<op>` is the id of the operation (STK-SHP-003). The attribute name is the translation
+  `<op>` is the numeric id of the operation (STK-SHP-003): 0 for `add_value`, 1 for
+  `add_multiplied_base` and 2 for `add_multiplied_total`. The attribute name is the translation
   `attribute.name.<name>`, where `<name>` is the path of the attribute entry.
 
 | Attributes | Colour of an increase | Colour of a decrease |

@@ -31,7 +31,8 @@ impl BuiltinKey {
         self as usize
     }
 
-    pub(crate) fn location(self) -> Option<ResourceLocation<'static>> {
+    #[must_use]
+    pub fn location(self) -> Option<ResourceLocation<'static>> {
         ResourceLocation::new(NAMESPACE, self.path()).ok()
     }
 
