@@ -185,6 +185,6 @@ fn ien_spn_007_the_creative_drop_counter_limits_a_burst() {
     assert_eq!(
         dropped(world).len(),
         75,
-        "the counter is 1479 one tick later"
+        "one tick later the counter is below 1480 and admits one more drop"
     );
 }
