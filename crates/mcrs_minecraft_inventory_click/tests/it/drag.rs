@@ -1,11 +1,9 @@
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::Drag;
-use mcrs_minecraft_inventory_click::DragEntry;
 use mcrs_minecraft_inventory_click::DragKind;
 use mcrs_minecraft_inventory_click::DragSplit;
 use mcrs_minecraft_inventory_click::EntryPreview;
-use mcrs_minecraft_inventory_click::Slots;
 use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::fixture::CURSOR;
@@ -13,6 +11,7 @@ use crate::fixture::HeldSlot;
 use crate::fixture::Operation;
 use crate::fixture::Player;
 use crate::fixture::Stack;
+use crate::fixture::Window;
 use crate::fixture::apply;
 use crate::fixture::dirt;
 use crate::fixture::entry;
@@ -314,6 +313,8 @@ struct PreviewRow {
     player: Player,
     kind: u8,
     slots: &'static [u16],
+    previews: &'static [u8],
+    cursor: u8,
     capped: Option<u16>,
 }
 
@@ -329,6 +330,17 @@ fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
             player: Player::new().carrying(stone(10)),
             kind: SPLIT,
             slots: &[9, 10, 11],
+            previews: &[3, 3, 3],
+            cursor: 1,
+            capped: None,
+        },
+        PreviewRow {
+            name: "drag kind 0 of 4 stone over two empty entries leaves nothing at the mouse",
+            player: Player::new().carrying(stone(4)),
+            kind: SPLIT,
+            slots: &[9, 10],
+            previews: &[2, 2],
+            cursor: 0,
             capped: None,
         },
         PreviewRow {
@@ -336,6 +348,8 @@ fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
             player: Player::new().carrying(stone(64)).with(9, stone(63)),
             kind: SINGLE,
             slots: &[9, 10],
+            previews: &[64, 1],
+            cursor: 62,
             capped: None,
         },
         PreviewRow {
@@ -343,16 +357,20 @@ fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
             player: Player::new().carrying(stone(64)).with(9, stone(60)),
             kind: SPLIT,
             slots: &[9, 10],
+            previews: &[64, 32],
+            cursor: 28,
             capped: Some(9),
         },
         PreviewRow {
-            name: "drag kind 2 in creative mode fills each entry",
+            name: "drag kind 2 in creative mode fills each entry and shows the maximum at the mouse",
             player: Player::new()
                 .creative()
                 .carrying(stone(5))
                 .with(9, stone(10)),
             kind: FULL,
             slots: &[9, 10],
+            previews: &[64, 64],
+            cursor: 64,
             capped: Some(9),
         },
     ];
@@ -365,25 +383,23 @@ fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
             max: carried.max,
             size: u32::try_from(row.slots.len()).expect("a row has few entries"),
         };
-        let drag_entry = |index: u16| DragEntry {
-            held: count(row.player.at(index)),
-            cap: row
-                .player
-                .load(entry(index))
-                .expect("each row names a loaded entry")
-                .limit
-                .min(carried.max),
+        let drag_entry = |index: u16| {
+            mcrs_minecraft_inventory_click::joins_drag(&Window(&row.player), &row.player, index)
+                .expect("each entry joins the drag")
         };
-        let ops = drag(&row.player, row.kind, &entries(row.slots));
-        let after = apply(&row.player, &ops);
-        for &index in row.slots {
+        let after = apply(
+            &row.player,
+            &drag(&row.player, row.kind, &entries(row.slots)),
+        );
+        for (&index, &expected) in row.slots.iter().zip(row.previews) {
             let preview = split
                 .entry(drag_entry(index))
                 .expect("a drag of two or more entries shows a preview");
+            assert_eq!(preview.count(), expected, "{}: entry {index}", row.name);
             assert_eq!(
                 count(after.at(index)),
-                preview.count(),
-                "{}: entry {index}",
+                expected,
+                "{}: entry {index} after the release",
                 row.name
             );
             assert_eq!(
@@ -393,9 +409,67 @@ fn ccs_drg_005_006_preview_counts_equal_the_end_of_the_drag() {
                 row.name
             );
         }
+        let cursor = split.cursor(row.slots.iter().copied().map(drag_entry));
+        assert_eq!(cursor, row.cursor, "{}: the stack at the mouse", row.name);
         if kind != DragKind::Full {
-            let cursor = split.cursor(row.slots.iter().copied().map(drag_entry));
-            assert_eq!(count(after.cursor_stack()), cursor, "{}: cursor", row.name);
+            assert_eq!(
+                count(after.cursor_stack()),
+                row.cursor,
+                "{}: the cursor after the release",
+                row.name
+            );
         }
+    }
+}
+
+struct MembershipRow {
+    name: &'static str,
+    player: Player,
+    joins: bool,
+    stays: bool,
+}
+
+#[test]
+fn ccs_drg_002_005_an_entry_that_refuses_the_item_stays_in_the_drag_but_does_not_join_it() {
+    let rows = [
+        MembershipRow {
+            name: "an empty entry",
+            player: Player::new().carrying(stone(10)),
+            joins: true,
+            stays: true,
+        },
+        MembershipRow {
+            name: "an entry that refuses the cursor item",
+            player: Player::new().carrying(stone(10)).refusing(9),
+            joins: false,
+            stays: true,
+        },
+        MembershipRow {
+            name: "an entry with another item",
+            player: Player::new().carrying(stone(10)).with(9, dirt(3)),
+            joins: false,
+            stays: false,
+        },
+        MembershipRow {
+            name: "an empty cursor",
+            player: Player::new(),
+            joins: false,
+            stays: false,
+        },
+    ];
+    for row in rows {
+        let window = Window(&row.player);
+        assert_eq!(
+            mcrs_minecraft_inventory_click::joins_drag(&window, &row.player, 9).is_some(),
+            row.joins,
+            "{}: joins",
+            row.name
+        );
+        assert_eq!(
+            mcrs_minecraft_inventory_click::stays_in_drag(&window, &row.player, 9).is_some(),
+            row.stays,
+            "{}: stays",
+            row.name
+        );
     }
 }
