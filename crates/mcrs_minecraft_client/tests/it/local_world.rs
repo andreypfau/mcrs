@@ -7,7 +7,6 @@ use mcrs_minecraft_client_world::chat::ClientChatPlugin;
 use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
 use mcrs_minecraft_client_world::game_mode::GameModePlugin;
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
-use mcrs_minecraft_client_world::inventory_packets::InventoryPacketsPlugin;
 use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_server_settings::ServerSettings;
@@ -23,7 +22,6 @@ pub(crate) fn client() -> App {
             },
             ColumnCachePlugin::default(),
             GameModePlugin,
-            InventoryPacketsPlugin,
             ClientEntityPlugin,
             ClientChatPlugin {
                 command_history: None,

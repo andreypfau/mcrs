@@ -285,7 +285,6 @@ pub fn run() -> AppExit {
     }
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
-    app.add_plugins(mcrs_minecraft_client_world::inventory_packets::InventoryPacketsPlugin);
     app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_key::InventoryKeyPlugin);
