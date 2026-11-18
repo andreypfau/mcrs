@@ -365,10 +365,17 @@ fn search_unique(tree: &Tree, at: usize, target: &Coords, best: &mut Option<Near
         .zip(children.counts)
         .zip(children.values)
     {
-        let nearest = best.map_or(i64::MAX, Nearest::distance);
-        if nearest < distance {
+        let pruned = match *best {
+            Some(Nearest::Unique {
+                distance: nearest, ..
+            }) => nearest < distance,
+            Some(Nearest::Tied { distance: nearest }) => nearest <= distance,
+            None => false,
+        };
+        if pruned {
             continue;
         }
+        let nearest = best.map_or(i64::MAX, Nearest::distance);
         if grandchildren != 0 {
             search_unique(tree, child, target, best);
         } else if distance < nearest {
@@ -469,12 +476,20 @@ impl<'a, T> ClimateCursor<'a, T> {
     }
 
     pub fn find_slot(&mut self, target: TargetPoint) -> Option<usize> {
+        let Some(slot) = self.grouped_slot(target) else {
+            return self.list.nearest_from(target, &mut self.last);
+        };
+        self.last = Some(slot);
+        Some(slot)
+    }
+
+    fn grouped_slot(&mut self, target: TargetPoint) -> Option<usize> {
         let list = self.list;
         let column = column_of(target);
         if list.depth_groups.is_empty() || self.column != Some(column) {
             self.column = Some(column);
             self.nearest = None;
-            return list.nearest_from(target, &mut self.last);
+            return None;
         }
         let nearest = self
             .nearest
@@ -492,13 +507,9 @@ impl<'a, T> ClimateCursor<'a, T> {
                 _ => Some(nearest.at_distance(distance)),
             };
         }
-        match best {
-            Some(Nearest::Unique { slot, .. }) => {
-                let slot = slot as usize;
-                self.last = Some(slot);
-                Some(slot)
-            }
-            Some(Nearest::Tied { .. }) | None => list.nearest_from(target, &mut self.last),
+        match best? {
+            Nearest::Unique { slot, .. } => Some(slot as usize),
+            Nearest::Tied { .. } => None,
         }
     }
 }
@@ -898,7 +909,7 @@ mod tests {
                     weirdness,
                 );
                 let expected = table.nearest_from(target, &mut last);
-                grouped += usize::from(cursor.column == Some(column_of(target)));
+                grouped += usize::from(cursor.clone().grouped_slot(target).is_some());
                 assert_eq!(cursor.find_slot(target), expected);
             }
         }
