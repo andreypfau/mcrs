@@ -53,7 +53,7 @@ pub(crate) fn creative_sprites() -> impl Iterator<Item = &'static str> {
     clippy::too_many_arguments,
     reason = "a Bevy system: each access is its own parameter"
 )]
-pub fn draw_creative_screen(
+pub(crate) fn draw_creative_screen(
     player: Query<(&PlayerHolders, &Menus), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts)>,
     holders: Query<&Slots>,
@@ -65,6 +65,7 @@ pub fn draw_creative_screen(
     icons: ItemIcons,
     slot_icons: Query<&'static SlotIcon>,
     mut stacks: Local<MenuStacks>,
+    mut text_tooltip: Local<CreativeTextTooltip>,
     mut scene: ResMut<GuiScene>,
 ) {
     let (Some(atlas), Some(language)) = (atlas, language) else {
@@ -79,6 +80,9 @@ pub fn draw_creative_screen(
     stacks.collect(layout, parts, player.cursor, |slot| {
         holders.get(slot.holder).ok()?.get(usize::from(slot.index))
     });
+    if language.is_changed() {
+        text_tooltip.shown = None;
+    }
     let frame = CreativeFrame {
         state: &creative,
         content: &content,
@@ -88,7 +92,40 @@ pub fn draw_creative_screen(
         language: &language,
         now_ms: menu_clock(&time),
     };
-    creative_screen(&frame, &icons, &mut scene);
+    creative_screen(&frame, &icons, &mut text_tooltip, &mut scene);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TextTarget {
+    Tab(CreativeTabIndex),
+    DestroySlot,
+}
+
+impl TextTarget {
+    fn key(self) -> &'static str {
+        match self {
+            Self::Tab(tab) => tab.tab().title_key,
+            Self::DestroySlot => DESTROY_SLOT_KEY,
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct CreativeTextTooltip {
+    shown: Option<TextTarget>,
+    lines: Vec<Vec<Span>>,
+}
+
+impl CreativeTextTooltip {
+    fn request(&mut self, target: TextTarget, language: &ClientLanguage, scene: &mut GuiScene) {
+        if self.shown != Some(target) {
+            self.lines.clear();
+            self.lines
+                .push(vec![Span::new(language.get(target.key()), WHITE)]);
+            self.shown = Some(target);
+        }
+        scene.tooltip.request_lines(scene.cursor, &self.lines);
+    }
 }
 
 struct CreativeFrame<'a> {
@@ -107,7 +144,12 @@ impl CreativeFrame<'_> {
     }
 }
 
-fn creative_screen(frame: &CreativeFrame, icons: &ItemIcons, scene: &mut GuiScene) {
+fn creative_screen(
+    frame: &CreativeFrame,
+    icons: &ItemIcons,
+    text_tooltip: &mut CreativeTextTooltip,
+    scene: &mut GuiScene,
+) {
     let window = CreativeGeometry::window(scene.size.width, scene.size.height);
     let top_left = menu_draw::point(window);
     let state = frame.state;
@@ -167,9 +209,11 @@ fn creative_screen(frame: &CreativeFrame, icons: &ItemIcons, scene: &mut GuiScen
             &mut scene.quads,
         );
     }
-    draw_slots(frame, icons, scene, window, tab.kind);
-    request_tab_tooltip(frame, scene, window);
-    request_destroy_tooltip(frame, scene, window, tab.kind);
+    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
+    let hit = CreativeGeometry::hit(window, pointer, tab.kind, visible);
+    draw_slots(frame, icons, scene, window, tab.kind, hit);
+    request_tab_tooltip(frame, text_tooltip, scene, window);
+    request_destroy_tooltip(frame, text_tooltip, scene, hit);
     if let Some(slot) = frame
         .stacks
         .carried()
@@ -207,10 +251,9 @@ fn draw_slots(
     scene: &mut GuiScene,
     window: GuiPoint,
     kind: CreativeTabKind,
+    hit: CreativeHit,
 ) {
     let top_left = menu_draw::point(window);
-    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
-    let hit = CreativeGeometry::hit(window, pointer, kind, frame.content.visible_tabs());
     let highlight = slot_corner(hit).map(|corner| top_left + menu_draw::point(corner));
     if let Some(at) = highlight {
         scene
@@ -275,33 +318,30 @@ fn draw_entry(frame: &CreativeFrame, at: IVec2, index: u16, scene: &mut GuiScene
     }
 }
 
-fn request_tab_tooltip(frame: &CreativeFrame, scene: &mut GuiScene, window: GuiPoint) {
+fn request_tab_tooltip(
+    frame: &CreativeFrame,
+    text_tooltip: &mut CreativeTextTooltip,
+    scene: &mut GuiScene,
+    window: GuiPoint,
+) {
     let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
     let Some(tab) = CreativeGeometry::tab_under(window, pointer, frame.content.visible_tabs())
     else {
         return;
     };
-    let title = frame.language.get(tab.tab().title_key);
-    scene.tooltip.request(scene.cursor, |lines| {
-        lines.push(vec![Span::new(title, WHITE)]);
-    });
+    text_tooltip.request(TextTarget::Tab(tab), frame.language, scene);
 }
 
 fn request_destroy_tooltip(
     frame: &CreativeFrame,
+    text_tooltip: &mut CreativeTextTooltip,
     scene: &mut GuiScene,
-    window: GuiPoint,
-    kind: CreativeTabKind,
+    hit: CreativeHit,
 ) {
-    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
-    let hit = CreativeGeometry::hit(window, pointer, kind, frame.content.visible_tabs());
     if hit != CreativeHit::DestroySlot || frame.stacks.carried().is_some() {
         return;
     }
-    let text = frame.language.get(DESTROY_SLOT_KEY);
-    scene.tooltip.request(scene.cursor, |lines| {
-        lines.push(vec![Span::new(text, WHITE)]);
-    });
+    text_tooltip.request(TextTarget::DestroySlot, frame.language, scene);
 }
 
 fn highlight_sprite(at: IVec2, region: &'static str) -> GuiQuad {

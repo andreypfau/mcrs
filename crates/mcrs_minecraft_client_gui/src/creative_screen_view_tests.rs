@@ -390,3 +390,38 @@ fn the_open_clears_the_search_and_the_scroll_and_keeps_the_tab() {
     let state = &app.world().resource::<CreativeScreenState>();
     assert_eq!(state.search_box().text(), "", "each open clears the search");
 }
+
+#[test]
+fn a_steady_frame_over_a_tab_draws_its_title_without_allocation() {
+    let mut app = creative_app();
+    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    draw(&mut app);
+    let (_, colored_blocks) = TABS[1].sprite("unselected");
+    let world = app.world_mut();
+    world.resource_mut::<GuiScene>().cursor = colored_blocks.center();
+    let system = world.register_system(draw_creative_screen);
+    let frame = |world: &mut World| {
+        let mut scene = world.resource_mut::<GuiScene>();
+        scene.quads.clear();
+        scene.icons.clear();
+        scene.tooltip.clear();
+        world.run_system(system).unwrap();
+    };
+    frame(world);
+    frame(world);
+    let before = mcrs_test_alloc::allocations();
+    frame(world);
+    let allocations = mcrs_test_alloc::allocations() - before;
+    assert_eq!(allocations, 0, "the pointer stays over the same tab");
+    let scene = app.world().resource::<GuiScene>();
+    let lines = scene
+        .tooltip
+        .lines()
+        .expect("the hovered tab shows its title");
+    let title: Vec<&str> = lines
+        .iter()
+        .flatten()
+        .map(|span| span.text.as_str())
+        .collect();
+    assert_eq!(title, ["Colored Blocks"]);
+}

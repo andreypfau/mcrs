@@ -15,10 +15,10 @@ mod creative_item_tooltip;
 #[cfg(test)]
 mod creative_item_tooltip_tests;
 mod creative_layout;
-pub mod creative_screen_draw;
-pub mod creative_screen_open;
+mod creative_screen_draw;
+mod creative_screen_open;
 pub mod creative_screen_plugin;
-pub mod creative_screen_shown;
+mod creative_screen_shown;
 pub mod creative_screen_state;
 #[cfg(test)]
 mod creative_screen_tests;

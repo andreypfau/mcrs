@@ -45,6 +45,20 @@ impl Tooltip {
         self.gap = LineGap::Uniform;
     }
 
+    pub fn request_lines(&mut self, at: IVec2, lines: &[Vec<Span>]) {
+        if self.requested || lines.is_empty() {
+            return;
+        }
+        if self.lines != lines {
+            self.lines.clear();
+            self.lines.extend_from_slice(lines);
+        }
+        self.requested = true;
+        self.at = at;
+        self.widget = None;
+        self.gap = LineGap::Uniform;
+    }
+
     pub fn request_widget(
         &mut self,
         widget: TooltipRequest,
