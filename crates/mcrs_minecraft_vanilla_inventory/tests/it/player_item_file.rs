@@ -18,6 +18,7 @@ use mcrs_minecraft_engine::write_player;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_registries::RegistriesNotInstalled;
 use mcrs_minecraft_engine_registries::test_item_table;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
@@ -542,5 +543,5 @@ fn an_item_table_without_installed_registries_is_a_startup_error() {
         &mut bevy_ecs::world::World::new(),
         test_item_table(),
     );
-    assert!(result.is_err());
+    assert_eq!(result, Err(RegistriesNotInstalled));
 }
