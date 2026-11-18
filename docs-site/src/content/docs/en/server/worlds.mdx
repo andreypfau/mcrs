@@ -25,11 +25,18 @@ sources:
   - crates/mcrs_minecraft_save/src/level.rs
   - crates/mcrs_minecraft_save/src/save_lock.rs
   - crates/mcrs_minecraft_server/tests/it/player_file.rs
+  - crates/mcrs_minecraft_server/src/vanilla_blocks.rs
+  - crates/mcrs_minecraft_loot_table/src/loot_tables.rs
+  - crates/mcrs_minecraft_loot_table/src/loot_issue.rs
+  - examples/loot_validate/README.md
+  - examples/loot_validate/src/main.rs
   - issue:316
   - issue:388
   - pr:624
-  - pr:745
+  - pr:744
+  - pr:850
   - pr:851
+  - pr:862
   - pr:969
 verified:
   snapshot: 26.4-snapshot-7
@@ -108,6 +115,8 @@ cargo run -p mcrs_minecraft_game_registries --example check_pack -- "<data pack 
 
 The directory must hold `pack.mcmeta` and `data/`, and the usage line of the tool says the same.
 
+A block drops what its loot table yields, and the server looks the table up by name among the tables of all loaded packs, so a table under the same name in a local pack changes the drop. When each dimension world starts, the server checks the tables and writes every problem to the log as an error, such as an unknown item, a missing table or a table that refers back to itself. The example [`loot_validate`](https://github.com/andreypfau/mcrs/blob/main/examples/loot_validate/README.md) runs the same check without a server and prints each problem on its own line.
+
 The server cannot reload a pack while it runs, so you restart it after you change one. `/reload` and live enabling of packs are planned.[^316] The plan is that a reload replaces the data at a tick boundary and refuses changes that the saved world depends on, such as the height of a dimension type.
 
 There is no source yet for how the server treats a `datapacks` folder inside a world folder, so this page makes no claim about it.
@@ -115,5 +124,5 @@ There is no source yet for how the server treats a `datapacks` folder inside a w
 [^969]: <Status pr={969} state="works" /> Makes a new world in a folder without `level.dat` and locks the world folder.
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
 [^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
-[^745]: <Status pr={745} state="works" /> Gives the player file a complete codec and saves the components that plugins register.
+[^745]: <Status pr={744} state="works" /> Gives the player file a complete codec and saves the components that plugins register.
 [^316]: <Status issue={316} /> Plans the reload of data packs while the server runs.

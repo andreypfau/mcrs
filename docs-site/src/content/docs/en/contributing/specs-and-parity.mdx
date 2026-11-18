@@ -15,7 +15,12 @@ sources:
   - tools/fixtures.json
   - tools/captures.json
   - tools/vanilla-oracle/README.md
+  - tools/mcrs_minecraft_probe/README.md
+  - tools/mcrs_minecraft_probe/src/run.rs
+  - crates/mcrs_minecraft_server/tests/it/probe_bans.rs
   - xtask/src/parity/rules.rs
+  - pr:723
+  - pr:864
 verified:
   snapshot: 26.4-snapshot-7
   commit: b9bf112d8
@@ -83,6 +88,8 @@ cargo run -p mcrs_minecraft_update -- recapture <fixture name>
 ```
 
 The section "Experiments" of `docs/spec/README.md` names two more tools for a run against the game. `tools/mcrs_minecraft_client_recorder` records a vanilla client that the input agent of `tools/vanilla-client` plays, and `tools/vanilla-server` starts the vanilla server for a script.
+
+`tools/mcrs_minecraft_probe` plays an experiment of a spec as a scenario file, which is a list of steps of scripted clients such as a join, a command or a container click, and writes a trace of what each client observed at each step. Its binary records the trace against the vanilla dedicated server on a new flat world, as [its README](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_probe/README.md) describes. A test of the mcrs server plays the ban scenario on an embedded server and compares each step with the vanilla trace, except the steps that `traces/bans.mcrs.json` lists as known differences with a reason.
 
 <Aside type="danger" title="The oracle knows the game's code">
 The sources of `tools/vanilla-oracle` call the game's code directly. An implementer must not read them. Read the fixture and the capture procedure next to it (`*_capture_procedure.md`), which describe what is captured and not how the game computes it. A specification author may read the oracle.

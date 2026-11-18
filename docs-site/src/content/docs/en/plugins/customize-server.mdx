@@ -2,7 +2,7 @@
 title: Remove and replace vanilla parts
 description: Build your own server from the MinecraftServerPlugins group, disable members, pass settings as plugin fields.
 sidebar:
-  order: 8
+  order: 9
 kind: how-to
 audience: [jvm, rust]
 stability: changing
@@ -13,6 +13,11 @@ sources:
   - crates/mcrs_minecraft_server/tests/it/client_join.rs
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
   - crates/mcrs_minecraft_engine_server/src/require.rs
+  - crates/mcrs_minecraft_engine_server/src/server_thread.rs
+  - crates/mcrs_minecraft_engine_server/src/shutdown.rs
+  - crates/mcrs_minecraft_client/src/local_server.rs
+  - pr:969
+  - pr:1003
   - issue:278
   - issue:279
   - issue:281
@@ -59,6 +64,8 @@ That test also calls `MinecraftServerPlugins::embedded()`. It gives a server tha
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
 
+To host such a server in your own program, pass a closure that builds the app to `ServerThread::start` from `mcrs_minecraft_engine_server`, and the server runs on a thread of its own. `address()` returns the address once the server listens, `request_shutdown()` asks the server to disconnect the players, save the world and exit, and `finish()` asks the same and waits for the thread to end. The client starts its singleplayer server this way, and the field `extend_server` of its `LocalServerPlugin` takes a function that adds your own plugins to that server.
+
 ## Settings are plugin fields
 
 The binary reads its settings from the environment and turns them into plugin fields in `src/main.rs`:
@@ -85,7 +92,7 @@ The plan also names a test. One dimension runs on the empty source and another o
 Saving chunks to disk is a separate topic.
 </Aside>
 
-Next: [Add a command](/docs/en/plugins/commands/).
+Next: [Add a command](/docs/en/plugins/commands/), or [change how blocks are placed, broken and dropped](/docs/en/plugins/blocks/).
 
 [^279]: <Status issue={279} /> Splits the server plugin into a group of removable plugins.
 [^282]: <Status issue={282} /> Moves vanilla gameplay out of the server crate into removable plugins.

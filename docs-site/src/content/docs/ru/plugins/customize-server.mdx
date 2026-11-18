@@ -2,7 +2,7 @@
 title: Убрать и заменить ванильные части
 description: Соберите свой сервер из группы MinecraftServerPlugins, отключайте ее члены, передавайте настройки полями плагинов.
 sidebar:
-  order: 8
+  order: 9
 translated_from: b9bf112d8
 ---
 
@@ -42,6 +42,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
 
+Чтобы запустить такой сервер в своей программе, передайте в `ServerThread::start` из `mcrs_minecraft_engine_server` замыкание, которое собирает приложение, и сервер заработает в отдельном потоке. `address()` возвращает адрес, как только сервер начал слушать, `request_shutdown()` просит сервер отключить игроков, сохранить мир и завершиться, а `finish()` просит о том же и ждет, пока поток закончится. Так клиент запускает свой сервер одиночной игры, а в поле `extend_server` его `LocalServerPlugin` передают функцию, которая добавляет на этот сервер собственные плагины.
+
 ## Настройки - это поля плагинов
 
 Бинарник читает настройки из окружения и превращает их в поля плагинов в `src/main.rs`:
@@ -68,7 +70,7 @@ import { Aside } from '@astrojs/starlight/components';
 Сохранение чанков на диск - отдельная тема.
 </Aside>
 
-Дальше: [Добавить команду](/docs/ru/plugins/commands/).
+Дальше: [Добавить команду](/docs/ru/plugins/commands/) или [изменить то, как блоки ставятся, ломаются и выпадают](/docs/ru/plugins/blocks/).
 
 [^279]: <Status issue={279} /> Делит плагин сервера на группу плагинов, которые можно убрать.
 [^282]: <Status issue={282} /> Переносит ванильный геймплей из крейта сервера в убираемые плагины.

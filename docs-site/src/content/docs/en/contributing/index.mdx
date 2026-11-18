@@ -20,6 +20,7 @@ sources:
   - .github/workflows/checks.yml
   - .github/ISSUE_TEMPLATE/task.yml
   - pr:687
+  - pr:832
 verified:
   snapshot: 26.4-snapshot-7
   commit: b9bf112d8
@@ -74,6 +75,8 @@ cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
 These three commands come from the [README Development section](https://github.com/andreypfau/mcrs/blob/main/README.md#development). They need the `cargo-nextest` runner installed, and the first run downloads the game's client jar to get the data pack.
+
+The section "Working discipline" of [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) sets the scope of a pull request. One issue is one pull request, and a new subsystem gets a design note with its crate names, layers and migration path before its first code pull request. Split a pull request that adds more than about 3k lines, not counting generated data, or that spans more than one crate group, such as the `mcrs_minecraft_worldgen_*` crates, and keep a `refactor` pull request free of behavior changes.
 
 <Aside type="caution" title="WIP">
 The detailed setup guide is not written yet. It will appear before the alpha for players. Until then use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and the technical notes linked from this section.

@@ -55,6 +55,8 @@ cargo nextest run --profile full    # плюс исчерпывающие про
 
 Эти три команды взяты из [раздела Development в README](https://github.com/andreypfau/mcrs/blob/main/README.md#development). Для них нужен установленный раннер `cargo-nextest`, а первый запуск скачивает клиентский jar игры, чтобы достать из него датапак.
 
+Границы pull request задает раздел "Working discipline" в [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md). Одна issue - это один pull request, а новая подсистема получает заметку по дизайну с именами крейтов, слоями и путем миграции до своего первого PR с кодом. PR, который добавляет больше примерно 3k строк без учета сгенерированных данных или задевает больше одной группы крейтов, например крейты `mcrs_minecraft_worldgen_*`, делят на части, а PR с типом `refactor` не меняет поведения.
+
 <Aside type="caution" title="WIP">
 Подробного гайда по настройке пока нет. Он появится к альфе для игроков. До тех пор пользуйтесь [Quick start в README](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) и техническими заметками, на которые ссылается этот раздел.
 </Aside>
