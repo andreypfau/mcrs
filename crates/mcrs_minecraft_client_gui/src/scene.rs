@@ -16,7 +16,6 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
@@ -35,7 +34,6 @@ use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::item_decorations::{CountLabel, Decorated, WHITE, decorations};
 use crate::item_icons::{ItemIcons, build_icon_meshes};
-use crate::item_resolve::ItemRenderLayers;
 use crate::language::ClientLanguage;
 use crate::menu_draw;
 use crate::menu_label_text::MenuLabelText;
@@ -43,6 +41,7 @@ use crate::menu_screen::{
     MenuContents, background_extent, background_region, menu_backgrounds, menu_screen,
 };
 use crate::menu_stacks::MenuStacks;
+use crate::slot_icon::SlotIcon;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_widget::GuiPoint;
@@ -106,11 +105,6 @@ pub enum GuiQuad {
         image: GlyphImage,
         color: u32,
         weight: Weight,
-    },
-    Item {
-        origin: IVec2,
-        stack: Entity,
-        count: Option<CountLabel>,
     },
     Icon {
         origin: IVec2,
@@ -601,7 +595,7 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 }
 
 #[derive(Default)]
-struct ScreenStacks {
+pub(crate) struct ScreenStacks {
     inventory: MenuStacks,
     open: MenuStacks,
     labels: MenuLabelText,
@@ -611,7 +605,7 @@ struct ScreenStacks {
     clippy::too_many_arguments,
     reason = "a Bevy system: each access is its own parameter"
 )]
-fn draw_screens(
+pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
     menus: Query<(&MenuLayout, &MenuParts, Option<Ref<MenuTitle>>)>,
@@ -619,6 +613,7 @@ fn draw_screens(
     atlas: Option<Res<GuiAtlas>>,
     language: Option<Res<ClientLanguage>>,
     drag: Option<Res<DragPreview>>,
+    icons: Query<&SlotIcon>,
     mut stacks: Local<ScreenStacks>,
     mut scene: ResMut<GuiScene>,
 ) {
@@ -628,6 +623,7 @@ fn draw_screens(
         return;
     };
     let occupant = |slot: SlotRef| holders.get(slot.holder).ok()?.get(usize::from(slot.index));
+    let icon_of = |stack| icons.get(stack).ok().copied();
     if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator)
         && let Some((layout, parts, _)) =
             (player_menus.iter().next()).and_then(|menu| menus.get(menu).ok())
@@ -635,7 +631,7 @@ fn draw_screens(
         stacks
             .inventory
             .collect(layout, parts, player.cursor, occupant);
-        hotbar(scene.size, selected.0, &stacks.inventory, &mut scene.quads);
+        hotbar(scene, selected.0, &stacks.inventory, icon_of);
     }
     let Some(open) = player_menus.open() else {
         return;
@@ -655,8 +651,7 @@ fn draw_screens(
     stacks.open.collect(layout, parts, player.cursor, occupant);
     let no_drag = DragPreview::default();
     menu_screen(
-        scene.size,
-        scene.cursor,
+        scene,
         geometry,
         MenuContents {
             stacks: &stacks.open,
@@ -664,7 +659,7 @@ fn draw_screens(
         },
         &stacks.labels,
         &atlas.0,
-        &mut scene.quads,
+        icon_of,
     );
 }
 
@@ -685,8 +680,6 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
-    layers: Query<&ItemRenderLayers>,
-    counts: Query<&Count>,
     icons: ItemIcons,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
@@ -712,38 +705,21 @@ fn build_gui_batch(
     let mut expanded = Vec::with_capacity(scene.quads.len() * 2);
     for quad in &scene.quads {
         match *quad {
-            GuiQuad::Item {
-                origin,
-                stack,
-                count,
-            } => {
-                expanded.push(*quad);
-                let Some(count) = count.or_else(|| {
-                    counts
-                        .get(stack)
-                        .ok()
-                        .map(|count| CountLabel::Plain(count.get()))
-                }) else {
-                    continue;
-                };
-                let decorated = Decorated {
-                    count,
-                    damage: layers.get(stack).ok().and_then(|layers| layers.damage),
-                };
-                decorations(origin, &decorated, &atlas.font, &mut expanded);
-            }
             GuiQuad::Icon { origin, index } => {
                 expanded.push(*quad);
                 let Some(entry) = scene.icons.get(index) else {
                     continue;
                 };
-                if entry.overlays == Overlays::Stack {
-                    let decorated = Decorated {
-                        count: CountLabel::Plain(entry.overlay.count),
-                        damage: entry.overlay.durability,
-                    };
-                    decorations(origin, &decorated, &atlas.font, &mut expanded);
-                }
+                let count = match entry.overlays {
+                    Overlays::Stack => CountLabel::Plain(entry.overlay.count),
+                    Overlays::Capped => CountLabel::Capped(entry.overlay.count),
+                    _ => continue,
+                };
+                let decorated = Decorated {
+                    count,
+                    damage: entry.overlay.durability,
+                };
+                decorations(origin, &decorated, &atlas.font, &mut expanded);
             }
             other => expanded.push(other),
         }
@@ -752,15 +728,6 @@ fn build_gui_batch(
     for quad in expanded {
         let vertices = &mut batch.vertices;
         match quad {
-            GuiQuad::Item { origin, stack, .. } => {
-                let end = vertices.len() as u32;
-                close_flat(&mut flat_start, end, &mut batch.draws);
-                let Ok(layers) = layers.get(stack) else {
-                    continue;
-                };
-                push_item_layers(vertices, layers, origin);
-                push_item_draw(end, vertices, &mut batch.draws);
-            }
             GuiQuad::Icon { origin, index } => {
                 let end = vertices.len() as u32;
                 close_flat(&mut flat_start, end, &mut batch.draws);
@@ -858,15 +825,6 @@ fn push_item_draw(start: u32, vertices: &[GuiVertex], draws: &mut Vec<GuiDraw>) 
     }
 }
 
-fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, origin: IVec2) {
-    for layer in &layers.layers {
-        let glint = if layer.foil { GLINT_BIT } else { 0 };
-        for quad in layer.vertices.as_chunks::<4>().0 {
-            push_item_quad(vertices, quad, origin, glint);
-        }
-    }
-}
-
 fn push_icon(vertices: &mut Vec<GuiVertex>, icon: &ItemIcon, meshes: &IconMeshes, origin: IVec2) {
     let glint = if icon.foil() { GLINT_BIT } else { 0 };
     for IconLayer { model, tints } in icon.layers() {
@@ -943,8 +901,7 @@ fn push_flat_quad(
                 colors: [color; 4],
             }
         }
-        GuiQuad::Item { .. }
-        | GuiQuad::Icon { .. }
+        GuiQuad::Icon { .. }
         | GuiQuad::Highlight { .. }
         | GuiQuad::Clip { .. }
         | GuiQuad::EndClip
@@ -1046,7 +1003,7 @@ mod tests {
     mod jar {
         use bevy::ecs::system::RunSystemOnce;
         use mcrs_minecraft_item_icon::{IconSources, resolve};
-        use mcrs_minecraft_item_stack::{ItemStack, Kind, NameLookup, NameTable};
+        use mcrs_minecraft_item_stack::{Count, ItemStack, Kind, NameLookup, NameTable};
         use mcrs_minecraft_model::item_model_asset::DisplayContext;
         use mcrs_minecraft_model::item_model_context::ItemModelContext;
         use mcrs_minecraft_model::stack_view::StackView;
