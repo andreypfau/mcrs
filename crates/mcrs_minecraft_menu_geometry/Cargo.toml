@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_menu_geometry"
+description = "The geometry of a menu screen as data: the window area, the entry areas and the entry under the pointer"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_client_widget.workspace = true
+mcrs_minecraft_container_click.workspace = true

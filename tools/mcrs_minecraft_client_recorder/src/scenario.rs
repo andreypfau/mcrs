@@ -150,7 +150,7 @@ impl Step {
 }
 
 fn check_input(text: &str) -> anyhow::Result<()> {
-    const KEYS: [&str; 9] = [
+    const KEYS: [&str; 13] = [
         "forward",
         "backward",
         "left",
@@ -160,6 +160,10 @@ fn check_input(text: &str) -> anyhow::Result<()> {
         "sprint",
         "use",
         "leave_bed",
+        "drop",
+        "swap_hands",
+        "inventory",
+        "close",
     ];
     let words: Vec<&str> = text.split_whitespace().collect();
     let [tick, keys, rotation @ ..] = &words[..] else {
@@ -167,8 +171,14 @@ fn check_input(text: &str) -> anyhow::Result<()> {
     };
     tick.parse::<u32>()?;
     let keys = *keys;
-    if keys != "none" && !keys.split(',').all(|key| KEYS.contains(&key)) {
-        bail!("the keys are `none` or a comma list of {KEYS:?}");
+    let known = |key: &str| {
+        KEYS.contains(&key)
+            || key
+                .strip_prefix("click:")
+                .is_some_and(|slot| slot.parse::<u16>().is_ok())
+    };
+    if keys != "none" && !keys.split(',').all(known) {
+        bail!("the keys are `none` or a comma list of {KEYS:?} and `click:<slot>`");
     }
     match rotation {
         [] => {}

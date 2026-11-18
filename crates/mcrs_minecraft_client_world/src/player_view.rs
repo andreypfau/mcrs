@@ -158,8 +158,12 @@ fn on_login(event: On<Received<ClientboundLogin>>, mut commands: Commands) {
 mod tests {
     use super::*;
     use crate::test_session::Server;
+    use bevy::ecs::message::Messages;
     use bevy::ecs::prelude::{DetectChangesMut, Entity, With};
-    use mcrs_minecraft_network::client::{ClientNetworkPlugin, finish_configuration};
+    use mcrs_minecraft_network::client::{
+        ClientNetworkPlugin, ClientSession, ConnectionEnd, ConnectionEnded, JoinRequest,
+        LeaveRequest, finish_configuration,
+    };
     use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
     use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
     use mcrs_minecraft_protocol::{Decode, Packet};
@@ -190,10 +194,6 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((
             ClientNetworkPlugin {
-                server: listener.local_addr().unwrap(),
-                username: "Steve".to_owned(),
-                profile_id: None,
-                view_distance,
                 holds_vanilla_pack: false,
                 play: None,
             },
@@ -201,7 +201,18 @@ mod tests {
         ))
         .insert_resource(RequestedViewDistance(view_distance))
         .init_resource::<Time<Real>>();
+        join(&mut app, listener, view_distance);
         app
+    }
+
+    fn join(app: &mut App, listener: &TcpListener, view_distance: u8) {
+        app.world_mut().write_message(JoinRequest {
+            server: listener.local_addr().unwrap(),
+            username: "Steve".to_owned(),
+            profile_id: None,
+            view_distance,
+        });
+        app.update();
     }
 
     fn spawned_connection(app: &mut App) -> Entity {
@@ -276,5 +287,29 @@ mod tests {
                 server.assert_next_information(configured, sent);
             }
         }
+    }
+
+    #[test]
+    fn a_leave_ends_the_session_and_a_second_join_connects_again() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut app = client(&listener, 8);
+        let _first = Server::join(&listener);
+        spawned_connection(&mut app);
+
+        app.world_mut().write_message(LeaveRequest);
+        app.update();
+        let ended: Vec<_> = app
+            .world_mut()
+            .resource_mut::<Messages<ConnectionEnded>>()
+            .drain()
+            .map(|ended| ended.reason)
+            .collect();
+        assert!(matches!(ended[..], [ConnectionEnd::Left]), "{ended:?}");
+        let mut sessions = app.world_mut().query::<&ClientSession>();
+        assert_eq!(sessions.iter(app.world()).count(), 0);
+
+        join(&mut app, &listener, 8);
+        let _second = Server::join(&listener);
+        spawned_connection(&mut app);
     }
 }

@@ -19,7 +19,10 @@ use crate::persistence;
 use crate::player_dimension_change::receive_transfers;
 use crate::player_order::{OrderedPlayer, obey_orders};
 use crate::player_sprinting::{PlayerSprinting, handle_player_command};
+use crate::pose_systems::PoseSystems;
+use crate::publish_pose::{OwnPoseEntries, publish_pose};
 use crate::send_own_attributes::{OwnAttributesSet, send_own_attributes};
+use crate::shift_key::{ShiftKey, handle_interact, handle_player_input};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
@@ -29,6 +32,7 @@ use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_pose::Pose;
 
 pub struct DimPlayerPlugin;
 
@@ -58,6 +62,27 @@ impl Plugin for DimPlayerPlugin {
             tracing::error!("a player does not require its sprint state: {error}");
         }
         app.add_observer(handle_player_command);
+        if let Err(error) = app.try_register_required_components::<Player, ShiftKey>() {
+            tracing::error!("a player does not require its shift key state: {error}");
+        }
+        if let Err(error) = app.try_register_required_components::<Player, Pose>() {
+            tracing::error!("a player does not require its pose: {error}");
+        }
+        if let Err(error) = app.try_register_required_components::<Player, OwnPoseEntries>() {
+            tracing::error!("a player does not require its own pose entries: {error}");
+        }
+        app.add_observer(handle_player_input);
+        app.add_observer(handle_interact);
+        app.configure_sets(
+            FixedUpdate,
+            (
+                PoseSystems::Select.in_set(TickSet::Simulate),
+                PoseSystems::Publish
+                    .in_set(TickSet::Project)
+                    .before(OwnAttributesSet),
+            ),
+        );
+        app.add_systems(FixedUpdate, publish_pose.in_set(PoseSystems::Publish));
         app.add_systems(
             FixedPreUpdate,
             receive_transfers

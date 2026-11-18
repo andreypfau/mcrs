@@ -54,7 +54,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
-| `Player`, `Entity` как объекты | Id `Entity` плюс компоненты `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | У игрока три идентификатора: `Entity` из Bevy, `PlayerSession`, который живет между измерениями, и сетевой id (<Status issue={158} />) |
+| `Player`, `Entity` как объекты | Id `Entity` плюс компоненты `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" /> | У игрока три идентификатора: `Entity` из Bevy, `PlayerSession`, который живет между измерениями, и сетевой id (<Status issue={158} />) |
 | `player.sendMessage(Component)` | Сообщение `OutboundPlayerPacket`, собранное через `bus::to` и хелпер `system_chat` | <Status state="partial" /> | Это низкий уровень, и `player.send()` нет |
 | `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` внутри измерения | <Status state="partial" /> | Игроки живут в мирах измерений, общей коллекции нет (<Status issue={154} />) |
 | `world.getBlockAt(..).setType(..)` | Сообщение `BlockSetRequest` и API томов `WorldView` | <Status state="partial" /> | Работает внутри одного измерения. Единый API доступа к миру - это <Status issue={486} /> |

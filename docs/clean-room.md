@@ -45,6 +45,9 @@ from the original game, or from modifications of the game, by accident.
 - Text that says code is a port, a transcription or a mirror of the game's code.
 - A test, a tool or a script that reads the game's code.
 
+A tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`,
+names the classes of the client that it calls; this is permitted for that tool only.
+
 ### Community terms
 
 The community of the game uses some names of the game's code as common terms. These names are

@@ -5,7 +5,6 @@ use mcrs_minecraft_command_argument_entity::{Candidate, EntityBounds};
 use mcrs_minecraft_command_engine::{CommandTargets, PlayerEntry, SourceState};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_text::{IntoText, Text};
@@ -21,6 +20,13 @@ impl EntityView<'_> {
         match self {
             Self::Player(player) => player.transform.translation,
             Self::Mob { view, .. } => view.position(),
+        }
+    }
+
+    pub(crate) fn eye_height(&self) -> f64 {
+        match self {
+            Self::Player(player) => f64::from(player.dimensions.eye_height),
+            Self::Mob { view, .. } => f64::from(view.mob.kind.eye_height),
         }
     }
 
@@ -86,7 +92,10 @@ impl Candidate for EntityView<'_> {
 
     fn bounding_box(&self) -> EntityBounds {
         let (width, height) = match self {
-            Self::Player(_) => (PLAYER_WIDTH, PLAYER_HEIGHT),
+            Self::Player(player) => (
+                f64::from(player.dimensions.width),
+                f64::from(player.dimensions.height),
+            ),
             Self::Mob { view, .. } => (
                 f64::from(view.mob.kind.width),
                 f64::from(view.mob.kind.height),

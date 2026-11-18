@@ -9,12 +9,11 @@ use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, offline_player_uuid};
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::{Knobs, TerrainLimits};
 use crate::{ClientPlugins, ClientTerrainPlugin, vanilla};
-use mcrs_minecraft_client_gui::inventory_figure::inventory_figure;
 use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::{local_player, player};
 
@@ -127,28 +126,30 @@ pub fn run() {
 
     match server(&knobs) {
         Some(server) => {
-            let view_distance = knobs.view_distance();
             app.add_plugins(ClientNetworkPlugin {
+                holds_vanilla_pack: false,
+                play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+            });
+            let join = JoinRequest {
                 server,
                 username: knobs.username(),
                 profile_id: None,
-                view_distance,
-                holds_vanilla_pack: false,
-                play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+                view_distance: knobs.view_distance(),
+            };
+            app.add_systems(Startup, move |mut requests: MessageWriter<JoinRequest>| {
+                requests.write(join.clone());
             });
             app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
             app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
         }
-        None => warn!(
-            "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \
-             The server logs both at startup."
-        ),
-    }
-    let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
-    player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
-    let local_uuid = offline_player_uuid(&knobs.username());
-    if let Some(figure) = inventory_figure(local_uuid) {
-        app.world_mut().spawn(figure);
+        None => {
+            warn!(
+                "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \
+                 The server logs both at startup."
+            );
+            let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
+            app.world_mut().spawn(player::player_at(SPAWN, yaw, pitch));
+        }
     }
     app.run();
 }

@@ -29,7 +29,12 @@ impl CommandHistoryFile {
 
 fn write_history(path: PathBuf, file: String) -> Task<()> {
     IoTaskPool::get().spawn(async move {
-        if let Err(error) = std::fs::write(&path, file) {
+        let written = match path.parent() {
+            Some(folder) => std::fs::create_dir_all(folder),
+            None => Ok(()),
+        }
+        .and_then(|()| std::fs::write(&path, file));
+        if let Err(error) = written {
             warn!("cannot write {}: {error}", path.display());
         }
     })
@@ -60,8 +65,10 @@ mod tests {
 
     #[test]
     fn saves_during_a_write_leave_the_file_with_the_newest_history() {
-        let path =
-            std::env::temp_dir().join(format!("mcrs-command-history-{}.txt", std::process::id()));
+        let folder =
+            std::env::temp_dir().join(format!("mcrs-command-history-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        let path = folder.join("command_history.txt");
         let mut app = App::new();
         app.add_plugins(bevy::app::TaskPoolPlugin::default())
             .insert_resource(CommandHistoryFile {
@@ -95,7 +102,7 @@ mod tests {
                 .is_none()
         );
         let written = std::fs::read_to_string(&path);
-        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir_all(&folder);
         assert_eq!(written.unwrap(), "/a\n/b\n/c\n");
     }
 }

@@ -21,3 +21,7 @@ pub(crate) fn build_client_tables(
     };
     commands.insert_resource(ClientTables(Tables::new(collision_table(&blocks, &tags))));
 }
+
+pub(crate) fn clear_client_tables(mut commands: Commands) {
+    commands.remove_resource::<ClientTables>();
+}

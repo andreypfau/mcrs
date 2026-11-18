@@ -11,6 +11,7 @@ use mcrs_minecraft_item_stack::BlockSet;
 use mcrs_minecraft_item_stack::BlockTagId;
 use mcrs_minecraft_item_stack::Builtin;
 use mcrs_minecraft_item_stack::BuiltinKey;
+use mcrs_minecraft_item_stack::BundleContents;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
@@ -49,9 +50,12 @@ use mcrs_minecraft_item_stack::write_saved;
 use mcrs_minecraft_item_stack::write_wire;
 use mcrs_minecraft_item_stack::write_wire_not_empty;
 use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_nbt::NbtBudget;
+use mcrs_minecraft_nbt::NbtQuotaExceeded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::with_nbt_budget;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
@@ -61,6 +65,8 @@ use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
+use crate::common::GoldenSet;
+use crate::common::golden_cases;
 use crate::common::same;
 use crate::common::stack;
 use crate::common::unhex;
@@ -69,13 +75,16 @@ use crate::common::var_int;
 const AIR: u16 = 0;
 const STONE: u16 = 1;
 
-const ITEMS: [(u16, &str); 6] = [
+const ITEMS: [(u16, &str); 9] = [
     (0, "air"),
     (1, "stone"),
+    (678, "shulker_box"),
     (1030, "apple"),
+    (1032, "arrow"),
     (1035, "diamond"),
     (1036, "emerald"),
     (1073, "diamond_sword"),
+    (1418, "firework_rocket"),
 ];
 
 struct Names;
@@ -93,6 +102,20 @@ impl Names {
             NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
             NameTable::ComponentType => indexed(&COMPONENT_TYPES),
             NameTable::MapDecorationType => indexed(&["player", "red_x", "target_x", "banner_red"]),
+            NameTable::SoundEvent => vec![
+                (50, "item.armor.equip_generic"),
+                (52, "item.armor.equip_iron"),
+                (653, "entity.item.break"),
+                (999, "item.shears.snip"),
+            ],
+            NameTable::EntityType => vec![(11, "bee"), (30, "cow"), (103, "pig"), (156, "zombie")],
+            NameTable::EntityTypeTag => indexed(&["skeletons"]),
+            NameTable::MobEffect => indexed(&["speed", "slowness", "haste"]),
+            NameTable::Potion => indexed(&["water"]),
+            NameTable::TrimMaterial => indexed(&["amethyst"]),
+            NameTable::TrimPattern => indexed(&["bolt", "coast"]),
+            NameTable::Instrument => vec![(4, "ponder_goat_horn")],
+            NameTable::BannerPattern => vec![(4, "creeper")],
             _ => Vec::new(),
         }
     }
@@ -391,19 +414,66 @@ fn saved(snbt: &str) -> NbtCompound {
 }
 
 #[test]
+fn nested_templates_stop_at_170_levels() {
+    let wire = |levels: usize| {
+        unhex(&format!(
+            "{}01 01 00 00",
+            "01 01 01 00 34 01 ".repeat(levels)
+        ))
+    };
+    let deepest = read_wire(&mut wire(170).as_slice(), &Names)
+        .expect("170 levels of templates are allowed")
+        .expect("the stack is not air");
+    assert_eq!(
+        read_wire(&mut wire(171).as_slice(), &Names).err(),
+        Some(WireError::TooDeep)
+    );
+
+    let mut output = Vec::new();
+    write_wire(Some(&deepest), &Names, &mut output).expect("170 levels have a wire form");
+    assert_eq!(output, wire(170));
+    let saved_deepest = write_saved(&deepest, &Names).expect("170 levels have a saved form");
+    assert_eq!(read_saved(&saved_deepest, &Names).as_ref(), Ok(&deepest));
+    assert!(
+        hash(&deepest).is_ok_and(|hashed| hashed.is_some()),
+        "170 levels have a hash"
+    );
+
+    let mut patch = NbtCompound::new();
+    patch.put(
+        "minecraft:bundle_contents",
+        NbtTag::List(vec![NbtTag::Compound(saved_deepest)]),
+    );
+    let mut saved_too_deep = saved(r#"{id:"minecraft:stone"}"#);
+    saved_too_deep.put("components", NbtTag::Compound(patch));
+    assert_eq!(
+        read_saved(&saved_too_deep, &Names).err(),
+        Some(SavedError::TooDeep)
+    );
+
+    let too_deep = stack(STONE, 1).set(BundleContents(vec![deepest]));
+    assert_eq!(
+        write_wire(Some(&too_deep), &Names, &mut Vec::new()),
+        Err(WireError::TooDeep)
+    );
+    assert_eq!(write_saved(&too_deep, &Names), Err(SavedError::TooDeep));
+    assert_eq!(hash(&too_deep).err(), Some(HashError::TooDeep));
+}
+
+#[test]
 fn each_error_names_the_rule_that_the_input_breaks() {
     type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
     let bare: Read = read_wire;
     let prefixed: Read = read_wire_with_length;
-    let reads: [(&str, Read, WireError); 11] = [
+    let reads: [(&str, Read, WireError); 14] = [
         ("01", bare, WireError::UnexpectedEnd),
         ("01 01 ffffffff0f 00", bare, WireError::Malformed),
         ("01 e807 00 00", bare, WireError::UnknownItem),
         ("01 01 01 00 7a", bare, WireError::UnknownComponentType(122)),
         (
-            "01 01 01 00 00 0a00",
+            "01 01 01 00 3c 0a00",
             bare,
-            WireError::UnsupportedComponentType(ComponentType(0)),
+            WireError::UnsupportedComponentType(ComponentType(60)),
         ),
         (
             "01 01 01 00 06 63",
@@ -431,12 +501,33 @@ fn each_error_names_the_rule_that_the_input_breaks() {
             WireError::OutOfRange(BuiltinKey::Enchantments),
         ),
         (
+            "01 01 01 00 35 01 01 00 00 00",
+            bare,
+            WireError::UnknownEntry {
+                component: BuiltinKey::PotionContents,
+                table: NameTable::Potion,
+            },
+        ),
+        (
+            "01 01 01 00 37 01 03 05",
+            bare,
+            WireError::UnknownEntry {
+                component: BuiltinKey::SuspiciousStewEffects,
+                table: NameTable::MobEffect,
+            },
+        ),
+        (
             "01 01 01 00 0d 03 01 09 01",
             prefixed,
             WireError::UnknownEntry {
                 component: BuiltinKey::Enchantments,
                 table: NameTable::Enchantment,
             },
+        ),
+        (
+            "01 01 01 00 47 8002 00",
+            bare,
+            WireError::OutOfRange(BuiltinKey::Fireworks),
         ),
     ];
     for (bytes, read, expected) in reads {
@@ -448,11 +539,11 @@ fn each_error_names_the_rule_that_the_input_breaks() {
         );
     }
 
-    let with_custom_data = saved(r#"{id:"stone",components:{"minecraft:custom_data":{x:1}}}"#);
+    let with_entity_data = saved(r#"{id:"stone",components:{"minecraft:entity_data":{x:1}}}"#);
     let writes: [(ItemStack, WireError); 2] = [
         (stack(999, 1), WireError::UnnamedId(NameTable::Item)),
         (
-            read_saved(&with_custom_data, &Names).expect("a saved stack with custom data"),
+            read_saved(&with_entity_data, &Names).expect("a saved stack with entity data"),
             WireError::SavedValueOnly,
         ),
     ];
@@ -466,12 +557,12 @@ fn each_error_names_the_rule_that_the_input_breaks() {
         Err(WireError::UnregisteredType)
     );
 
-    let wire_only = read_all(&unhex("01 01 01 00 00 02 0a00"), read_wire_with_length)
-        .expect("custom data with a length prefix")
+    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+        .expect("entity data with a length prefix")
         .expect("a stone");
     assert_eq!(
         write_saved(&wire_only, &Names),
-        Err(SavedError::WireValueOnly(ComponentType(0)))
+        Err(SavedError::WireValueOnly(ComponentType(60)))
     );
 }
 
@@ -487,7 +578,7 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 9] = [
+const DECODED_PLAIN: [&str; 28] = [
     "max_stack_size",
     "max_damage",
     "damage",
@@ -497,6 +588,25 @@ const DECODED_PLAIN: [&str; 9] = [
     "map_id",
     "map_decorations",
     "profile",
+    "dyed_color",
+    "custom_model_data",
+    "enchantment_glint_override",
+    "block_state",
+    "lodestone_tracker",
+    "trim",
+    "potion_contents",
+    "custom_data",
+    "suspicious_stew_effects",
+    "ominous_bottle_amplifier",
+    "instrument",
+    "charged_projectiles",
+    "bundle_contents",
+    "firework_explosion",
+    "fireworks",
+    "banner_patterns",
+    "container",
+    "bees",
+    "container_loot",
 ];
 
 fn assert_same_component(kind: &str, written: &[u8], expected: &[u8], header: usize) {
@@ -564,6 +674,17 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         let mut saved = saved(r#"{id:"minecraft:stone"}"#);
         saved.put("components", NbtTag::Compound(patch));
         let from_saved = read_saved(&saved, &Names).expect("the game saved a valid component");
+        if write_wire(Some(&from_saved), &Names, &mut Vec::new())
+            == Err(WireError::OutOfRange(BuiltinKey::LodestoneTracker))
+        {
+            assert_ne!(
+                read,
+                Some(from_saved),
+                "STK-SHP-039: the game wrote low bits"
+            );
+            decoded += 1;
+            continue;
+        }
 
         assert_eq!(
             read_all(&bare, read_wire),
@@ -575,7 +696,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (40, 48));
+    assert_eq!((decoded, kept), (89, 46));
 }
 
 #[derive(Deserialize)]
@@ -606,6 +727,46 @@ fn with_one_component(kind: &str, component: &str) -> Vec<u8> {
     [unhex("01 01 01 00"), vec![type_id], unhex(component)].concat()
 }
 
+const TYPED_KINDS: [(&str, BuiltinKey); 7] = [
+    ("profile", BuiltinKey::Profile),
+    ("potion_contents", BuiltinKey::PotionContents),
+    ("container", BuiltinKey::Container),
+    ("bees", BuiltinKey::Bees),
+    ("charged_projectiles", BuiltinKey::ChargedProjectiles),
+    ("fireworks", BuiltinKey::Fireworks),
+    ("bundle_contents", BuiltinKey::BundleContents),
+];
+
+fn typed_kind(kind: &str) -> Option<BuiltinKey> {
+    TYPED_KINDS
+        .iter()
+        .find(|(path, _)| *path == kind)
+        .map(|(_, key)| *key)
+}
+
+#[test]
+fn a_container_drops_the_empty_slots_at_its_end() {
+    let cases = [
+        ("02 01 8808 01 00 00 00", "01 01 8808 01 00 00"),
+        (
+            "02 01 8808 01 00 00 01 8808 01 00 00",
+            "02 01 8808 01 00 00 01 8808 01 00 00",
+        ),
+        ("03 00 01 8808 01 00 00 00", "02 00 01 8808 01 00 00"),
+        ("02 00 00", "00"),
+    ];
+    for (input, expected) in cases {
+        let read = read_all(&with_one_component("container", input), read_wire)
+            .expect("a valid container")
+            .expect("a stone");
+        assert_eq!(
+            hex(&wire(Some(&read))),
+            hex(&with_one_component("container", expected)),
+            "{input}"
+        );
+    }
+}
+
 #[test]
 fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_back() {
     let golden: DecodeGolden =
@@ -613,7 +774,7 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
 
     let mut decoded = 0;
     for case in &golden.decodes {
-        if case.kind != "profile" {
+        if typed_kind(&case.kind).is_none() {
             continue;
         }
         let bare = with_one_component(&case.kind, &case.wire);
@@ -638,23 +799,101 @@ fn the_own_wire_forms_that_the_game_decoded_read_to_its_saved_form_and_write_bac
         assert_eq!(read_saved(&written, &Names), Ok(from_json), "{}", case.wire);
         decoded += 1;
     }
-    assert_eq!(decoded, 2);
+    assert_eq!(decoded, 6);
 
     let mut rejected = 0;
     for case in &golden.decode_errors {
-        if case.kind != "profile" {
+        let Some(key) = typed_kind(&case.kind) else {
             continue;
-        }
+        };
+        let expected = match key {
+            BuiltinKey::Container | BuiltinKey::ChargedProjectiles | BuiltinKey::Fireworks => {
+                WireError::OutOfRange(key)
+            }
+            BuiltinKey::BundleContents => WireError::EmptyStack,
+            _ => WireError::BadValue(key),
+        };
         let bare = with_one_component(&case.kind, &case.wire);
-        assert_eq!(
-            read_all(&bare, read_wire),
-            Err(WireError::BadValue(BuiltinKey::Profile)),
-            "{}",
-            case.wire
-        );
+        assert_eq!(read_all(&bare, read_wire), Err(expected), "{}", case.wire);
         rejected += 1;
     }
-    assert_eq!(rejected, 1);
+    assert_eq!(rejected, 6);
+}
+
+#[test]
+fn the_equippable_components_that_the_game_wrote_read_and_write_back_in_the_saved_and_the_wire_form()
+ {
+    let golden = fixture("item_registry_refs").text();
+    let mut is_equippable = false;
+    let mut nbt: Option<NbtTag> = None;
+    let mut checked = 0;
+    for line in golden.lines() {
+        if let Some(sample) = line.strip_prefix("sample minecraft:") {
+            is_equippable = sample.starts_with("equippable ");
+            nbt = None;
+        } else if !is_equippable {
+            continue;
+        } else if let Some(bytes) = line.strip_prefix("  nbt ") {
+            let bytes = unhex(bytes);
+            nbt = Some(
+                NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(bytes)))
+                    .expect("the golden holds one NBT value"),
+            );
+        } else if let Some(component) = line.strip_prefix("  wire ") {
+            let nbt = nbt
+                .take()
+                .expect("the sample has its NBT before its wire form");
+            let bare = with_one_component("equippable", component);
+            let read = read_all(&bare, read_wire).expect("the game wrote it");
+            assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{component}");
+
+            let mut patch = NbtCompound::new();
+            patch.put("minecraft:equippable", nbt);
+            let mut stone = saved(r#"{id:"minecraft:stone"}"#);
+            stone.put("components", NbtTag::Compound(patch.clone()));
+            let from_saved = read_saved(&stone, &Names).expect("the game saved a valid component");
+            assert_eq!(read, Some(from_saved.clone()), "{component}");
+
+            let written = write_saved(&from_saved, &Names).expect("the component has a saved form");
+            assert!(
+                written
+                    .get("components")
+                    .is_some_and(|written| same(written, &NbtTag::Compound(patch))),
+                "{component}"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 5);
+}
+
+#[test]
+fn the_records_and_holders_that_the_game_wrote_read_and_write_back_in_the_saved_and_the_wire_form()
+{
+    for golden in golden_cases(GoldenSet::Changed) {
+        let case = golden.case;
+        let kind = golden.kind;
+        let nbt = NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(unhex(&golden.nbt))))
+            .expect("the golden holds one NBT value");
+        let bare = with_one_component(kind, &golden.wire);
+        let read = read_all(&bare, read_wire).expect("the game wrote it");
+        assert_eq!(hex(&wire(read.as_ref())), hex(&bare), "{case}");
+
+        let mut patch = NbtCompound::new();
+        patch.put(&format!("minecraft:{kind}"), nbt);
+        let mut stone = saved(r#"{id:"minecraft:stone"}"#);
+        stone.put("components", NbtTag::Compound(patch.clone()));
+        let from_saved = read_saved(&stone, &Names).expect("the game saved a valid component");
+        assert_eq!(read, Some(from_saved.clone()), "{case}");
+
+        let written = write_saved(&from_saved, &Names).expect("the component has a saved form");
+        assert!(
+            written
+                .get("components")
+                .is_some_and(|written| same(written, &NbtTag::Compound(patch))),
+            "{case}"
+        );
+    }
 }
 
 #[test]
@@ -804,5 +1043,50 @@ fn a_named_colour_equals_its_rgb_value_and_keeps_its_spelling() {
             .expect("the stack is not empty");
         assert_eq!(hash(&from_saved), hash(stack), "{spelling}");
         assert_eq!(hash(&from_wire), hash(stack), "{spelling}");
+    }
+}
+
+fn stone_with(kind: &str, value: &[u8]) -> Vec<u8> {
+    let type_id = COMPONENT_TYPES
+        .iter()
+        .position(|path| *path == kind)
+        .expect("the kind has a type id");
+    let type_id = u8::try_from(type_id).expect("the type ids are below 128");
+    [unhex("01 01 01 00"), vec![type_id], value.to_vec()].concat()
+}
+
+fn byte_array_under_a(length: usize) -> Vec<u8> {
+    let declared = i32::try_from(length).expect("the test lengths fit in 32 bits");
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&declared.to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    stone_with("custom_data", &nbt)
+}
+
+fn container_of_two(length: usize) -> Vec<u8> {
+    let template = [unhex("01 8808 01"), byte_array_under_a(length).split_off(2)].concat();
+    stone_with("container", &[vec![2], template.clone(), template].concat())
+}
+
+#[test]
+fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
+    let cases = [
+        (byte_array_under_a(2_097_148), true),
+        (byte_array_under_a(2_097_149), false),
+        (container_of_two(1_048_572), true),
+        (container_of_two(1_048_573), false),
+    ];
+    let budget = NbtBudget {
+        bytes: 2_097_152,
+        tags: 262_144,
+    };
+    for (index, (bytes, passes)) in cases.iter().enumerate() {
+        let read = with_nbt_budget(budget, || read_all(bytes, read_wire));
+        if *passes {
+            assert!(matches!(read, Ok(Ok(Some(_)))), "{index}");
+        } else {
+            assert_eq!(read, Err(NbtQuotaExceeded), "{index}");
+        }
     }
 }

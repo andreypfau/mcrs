@@ -1,22 +1,74 @@
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_entity::SPRINT_MODIFIER;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{EntityTypeData, SPRINT_MODIFIER};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, AttributeModifier, HomeSlot, Instance, InstanceModifier, Modifier, fold,
 };
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_entity_visual::SyncedData;
+use mcrs_minecraft_game_mode::{Abilities, GameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{MotionAttributes, PlayerState, SprintSpeed};
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundRespawn};
+use mcrs_minecraft_pose::Pose;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundLogin, ClientboundRespawn, ClientboundSetEntityData,
+};
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
+use mcrs_minecraft_protocol_game::entity_data_index::POSE;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::abilities::{self, Abilities};
-use crate::local_player::Sprint;
+use crate::abilities;
+use crate::apply_entity_data::apply_entity_data;
+use crate::joined_game::JoinedGame;
+use crate::local_player::{LastSentInput, Sprint};
 use crate::player::Player;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct LocalMotion(pub PlayerState);
+
+#[must_use]
+pub fn eye_height(motion: Option<&LocalMotion>) -> f32 {
+    motion.map_or(Pose::Standing.player_dimensions().eye_height, |motion| {
+        let scale = motion.0.attributes.scale as f32;
+        motion.0.pose.player_dimensions().scaled(scale).eye_height
+    })
+}
+
+pub(crate) fn on_set_entity_data(
+    event: On<Received<ClientboundSetEntityData<'static>>>,
+    connections: Query<&JoinedGame>,
+    mut player: Query<(&mut LocalMotion, &mut SyncedData), With<Player>>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == packet.entity_id.0);
+    if !own {
+        return;
+    }
+    let Ok((motion, mut synced)) = player.single_mut() else {
+        return;
+    };
+    apply_entity_data(
+        &mut synced,
+        EntityTypeData::of(EntityType::Player),
+        &packet.metadata.0,
+    );
+    let sends_pose = packet
+        .metadata
+        .0
+        .iter()
+        .any(|entry| entry.index == POSE && matches!(entry.value, MetaDataValue::Pose(_)));
+    if sends_pose {
+        motion
+            .map_unchanged(|motion| &mut motion.0.pose)
+            .set_if_neq(synced.pose);
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Speeds {
@@ -50,11 +102,20 @@ fn spawned(
     mut commands: Commands,
 ) {
     if let Ok((player, transform)) = player.single() {
-        let state = PlayerState {
+        commands.entity(player).insert((
+            LocalMotion::spawned(mode, transform.translation),
+            SyncedData::default(),
+            LastSentInput::default(),
+        ));
+    }
+}
+
+impl LocalMotion {
+    pub(crate) fn spawned(mode: GameMode, position: DVec3) -> Self {
+        Self(PlayerState {
             flight0: abilities::flight_after_change(mode, false),
-            ..PlayerState::new(transform.translation)
-        };
-        commands.entity(player).insert(LocalMotion(state));
+            ..PlayerState::new(position)
+        })
     }
 }
 

@@ -4,6 +4,7 @@ use crate::{
     Click, CommandTree, ConnectionState, MenuPacket, Observe, PredictedStack, SoundPlayed,
 };
 use anyhow::Context;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::SwitchMode;
 use mcrs_minecraft_network::join::Configuration;
@@ -287,12 +288,20 @@ async fn send_order(
                 .state_id(container)
                 .checked_add(click.state_id_offset)
                 .context("the state id offset overflows")?;
+            let clicked = Clicked::from(click.slot);
+            anyhow::ensure!(
+                i16::try_from(clicked).ok() == Some(click.slot),
+                "the slot {} has no click on the wire",
+                click.slot
+            );
             io.send_packet(&ServerboundContainerClick {
                 container_id: VarInt(container),
                 state_seqno: VarInt(state_id),
-                slot_index: click.slot,
-                button: click.button,
-                container_input: click.mode.into(),
+                click: mcrs_minecraft_container_click::Click {
+                    kind: click.mode.into(),
+                    button: click.button,
+                    clicked,
+                },
                 changed_slots: Bounded(changed_slots),
                 carried_item: click.carried.map(PredictedStack::hashed),
             })

@@ -3,6 +3,7 @@ use bevy::prelude::Resource;
 use crate::font::Span;
 use mcrs_minecraft_lang::{EN_US, Language, Piece};
 use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_text::{Text, TextTypes};
 
 #[derive(Resource, Debug, Default)]
 pub struct ClientLanguage(Language);
@@ -20,6 +21,10 @@ impl ClientLanguage {
 
     pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
         self.0.get(key)
+    }
+
+    pub fn plain_text<I: TextTypes>(&self, text: &Text<I>) -> String {
+        mcrs_minecraft_text_flatten::plain_text(&self.0, text)
     }
 
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {

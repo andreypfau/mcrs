@@ -21,6 +21,8 @@ use crate::tooltip::Tooltip;
 
 const GRADIENT_TOP: u32 = 0xC010_1010;
 const GRADIENT_BOTTOM: u32 = 0xD010_1010;
+const ERROR_GRADIENT_TOP: u32 = 0xFF40_2020;
+const ERROR_GRADIENT_BOTTOM: u32 = 0xFF50_1010;
 const BACKGROUND_TILE: i32 = 32;
 const SEPARATOR_HEIGHT: i32 = 2;
 const ELLIPSIS: &str = "...";
@@ -146,6 +148,11 @@ fn draw_background(
             top: GRADIENT_TOP,
             bottom: GRADIENT_BOTTOM,
         }),
+        MenuBackground::ErrorGradient => out.push(GuiQuad::FillGradient {
+            rect: screen,
+            top: ERROR_GRADIENT_TOP,
+            bottom: ERROR_GRADIENT_BOTTOM,
+        }),
         MenuBackground::Texture => {
             let tile = IVec2::splat(BACKGROUND_TILE);
             atlas.tile(background, screen, IVec2::ZERO, tile, out);
@@ -155,10 +162,10 @@ fn draw_background(
         return;
     };
     let tops = [
-        (header, separators.header_height - 2),
-        (footer, size.height - separators.footer_height),
+        separators.header_height.map(|height| (header, height - 2)),
+        Some((footer, size.height - separators.footer_height)),
     ];
-    for (texture, top) in tops {
+    for (texture, top) in tops.into_iter().flatten() {
         let rect = IRect::new(0, top, size.width, top + SEPARATOR_HEIGHT);
         let tile = IVec2::new(BACKGROUND_TILE, SEPARATOR_HEIGHT);
         atlas.tile(texture, rect, IVec2::new(0, top), tile, out);

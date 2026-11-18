@@ -66,7 +66,7 @@ const STATE_DYING: u32 = 16u;
 const STATE_HIDDEN_SHIFT: u32 = 16u;
 
 struct InputRecord {
-    values: array<f32, 16>,
+    values: array<f32, 32>,
     clips: array<vec2<u32>, 4>,
 }
 

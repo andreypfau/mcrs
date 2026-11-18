@@ -1,6 +1,9 @@
+use crate::abilities;
 use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
+use mcrs_minecraft_inventory_client::InventoryClientSet;
+use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundRespawn,
@@ -17,7 +20,7 @@ pub struct LocalGameMode {
 }
 
 impl LocalGameMode {
-    fn spawned(info: &PlayerSpawnInfo) -> Self {
+    pub(crate) fn spawned(info: &PlayerSpawnInfo) -> Self {
         Self {
             current: info.game_mode,
             previous: info.prev_game_mode.0,
@@ -59,6 +62,20 @@ impl Plugin for GameModePlugin {
         app.add_observer(on_respawn);
         app.add_observer(on_game_event);
         app.add_observer(on_entity_event);
+        app.add_observer(abilities::on_login);
+        app.add_observer(abilities::on_respawn);
+        app.add_observer(abilities::on_game_event);
+        app.add_observer(abilities::on_player_abilities);
+        app.add_systems(
+            FixedUpdate,
+            project_player_game_mode.before(InventoryClientSet::Predict),
+        );
+        app.add_systems(
+            Update,
+            project_player_game_mode
+                .after(ClientNetworkSystems::Receive)
+                .before(InventoryClientSet::Predict),
+        );
     }
 }
 
@@ -100,6 +117,17 @@ fn on_game_event(
     {
         let next = mode.changed_to(changed);
         mode.set_if_neq(next);
+    }
+}
+
+fn project_player_game_mode(
+    mut players: Query<(Entity, &LocalGameMode), Changed<LocalGameMode>>,
+    mut commands: Commands,
+) {
+    for (player, mode) in &mut players {
+        commands
+            .entity(player)
+            .try_insert(PlayerGameMode(mode.current));
     }
 }
 

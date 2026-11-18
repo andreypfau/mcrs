@@ -87,7 +87,7 @@ pub fn split_wire<'a>(r: &mut &'a [u8]) -> Result<&'a [u8]> {
     }
     let mut cursor = Cursor::new(input);
     let mut reader = NbtReadHelper::new(&mut cursor);
-    reader.skip_bytes(1).map_err(Error::other)?;
+    reader.read_root_kind().map_err(Error::other)?;
     NbtTag::skip_data(&mut reader, tag_id).map_err(Error::other)?;
     let end =
         usize::try_from(cursor.position()).map_err(|_| Error::from(ErrorKind::UnexpectedEnd))?;

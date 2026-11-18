@@ -5,7 +5,7 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::SavedError;
 
-pub(crate) const REMOVAL_MARKER: char = '!';
+pub(crate) const REMOVAL_MARKER: &str = "!";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KeyKind {

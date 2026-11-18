@@ -9,7 +9,7 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::{StaticSystemParam, SystemParam};
 use mcrs_command::{Argument, ArgumentHandle, Contains};
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
+use mcrs_minecraft_pose::Pose;
 
 #[derive(SystemParam)]
 pub struct CommandContext<'w, 's, S: CommandSet> {
@@ -35,12 +35,18 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
             tracing::error!(dimension = ?state.dimension, "a command source names no running dimension");
             return Err(CommandFailure::failed());
         };
+        let eye_height = state
+            .player
+            .and_then(|player| self.targets.player(player))
+            .map_or(Pose::Standing.player_dimensions().eye_height, |entry| {
+                entry.dimensions.eye_height
+            });
         Ok(Source {
             position: state.position,
             yaw: state.yaw,
             pitch: state.pitch,
             anchor: state.anchor,
-            eye_height: Some(PLAYER_EYE_HEIGHT),
+            eye_height: Some(f64::from(eye_height)),
             dimension,
             ..Source::new(state.level, self.lookup())
         })

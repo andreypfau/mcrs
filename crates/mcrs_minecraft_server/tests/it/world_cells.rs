@@ -13,7 +13,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
@@ -34,7 +34,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
 };
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, Kind};

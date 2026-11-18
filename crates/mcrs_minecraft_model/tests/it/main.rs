@@ -8,3 +8,4 @@ mod block_entity_parity;
 mod block_face_parity;
 mod block_model_parity;
 mod client_pack;
+mod stack_view;

@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_inventory_client::InventoryClientSet;
 use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::ClientConnection;
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundSetHeldSlot};
@@ -24,10 +26,20 @@ impl Plugin for HotbarSyncPlugin {
             .add_observer(on_set_held_slot)
             .add_systems(
                 FixedUpdate,
-                send_selected_slot
-                    .in_set(SendSelectedSlot)
-                    .before(LocalPlayerTick)
-                    .run_if(any_with_component::<ClientConnection>),
+                (
+                    send_selected_slot
+                        .in_set(SendSelectedSlot)
+                        .before(LocalPlayerTick)
+                        .run_if(any_with_component::<ClientConnection>),
+                    project_selected,
+                )
+                    .before(InventoryClientSet::Predict),
+            )
+            .add_systems(
+                Update,
+                project_selected
+                    .after(ClientNetworkSystems::Receive)
+                    .before(InventoryClientSet::Predict),
             );
     }
 }
@@ -81,6 +93,15 @@ fn send_selected_slot(
     *last_sent = LastSentHotbarSlot(selected.0);
 }
 
+fn project_selected(
+    mut players: Query<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
+    mut commands: Commands,
+) {
+    for (player, slot) in &mut players {
+        commands.entity(player).try_insert(Selected(slot.0));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,7 +143,9 @@ mod tests {
         use super::*;
         use crate::joined_game::JoinedGame;
         use crate::test_session::{OWN_PLAYER, Server, receive};
-        use mcrs_minecraft_network::client::{ClientNetworkPlugin, finish_configuration};
+        use mcrs_minecraft_network::client::{
+            ClientNetworkPlugin, JoinRequest, finish_configuration,
+        };
         use mcrs_minecraft_protocol::{Decode, Packet};
         use mcrs_minecraft_protocol_game::serverbound::ServerboundClientTickEnd;
         use std::net::TcpListener;
@@ -151,14 +174,17 @@ mod tests {
             app.add_plugins((
                 HotbarSyncPlugin,
                 ClientNetworkPlugin {
-                    server: listener.local_addr().unwrap(),
-                    username: "Steve".to_owned(),
-                    profile_id: None,
-                    view_distance: 8,
                     holds_vanilla_pack: false,
                     play: None,
                 },
             ));
+            app.world_mut().write_message(JoinRequest {
+                server: listener.local_addr().unwrap(),
+                username: "Steve".to_owned(),
+                profile_id: None,
+                view_distance: 8,
+            });
+            app.update();
             let (mut server, _information) = Server::join(&listener);
             let connection = (0..1000)
                 .find_map(|_| {

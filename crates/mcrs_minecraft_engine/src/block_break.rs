@@ -1,4 +1,3 @@
-use crate::ability::PlayerGameMode;
 use crate::advance_digs::{advance_digs, any_digger};
 use crate::block_action_ack::BlockActionAck;
 use crate::break_session::{ActiveDig, BreakSession, Crack, DelayedBreak};
@@ -9,6 +8,7 @@ use crate::dig_rate::{dig_rate, harvests};
 use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
+use crate::player_dimensions::PlayerBody;
 use crate::use_item_on_request::{UseItemOnRequest, handle_use_item_on};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -35,8 +35,9 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -52,7 +53,6 @@ use smallvec::SmallVec;
 
 pub struct BlockBreakPlugin;
 
-const STANDING_EYE_HEIGHT: f64 = 1.62;
 const BREAK_EVENT: i32 = 2001;
 const EXTINGUISH_EVENT: i32 = 1009;
 const HIGHEST_STAYING_LEVEL: i32 = 8;
@@ -158,8 +158,9 @@ pub fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     eye.distance_squared(nearest) < limit * limit
 }
 
-pub fn eye_position(player: DVec3) -> DVec3 {
-    player + DVec3::new(0.0, STANDING_EYE_HEIGHT, 0.0)
+#[must_use]
+pub fn eye_position(player: DVec3, dimensions: Dimensions) -> DVec3 {
+    player + DVec3::new(0.0, f64::from(dimensions.eye_height), 0.0)
 }
 
 pub(crate) fn observed(
@@ -377,7 +378,7 @@ fn break_blocks(
     mut players: Query<(
         &Owner,
         &PlayerGameMode,
-        Option<&AttributeInstances>,
+        PlayerBody,
         &InDimension,
         &Transform,
         &ClientOnGround,
@@ -398,14 +399,14 @@ fn break_blocks(
     };
     broken.clear();
     for request in requests.read() {
-        let Ok((&Owner(session), mode, attributes, dimension, transform, &on_ground, mut digging)) =
+        let Ok((&Owner(session), mode, body, dimension, transform, &on_ground, mut digging)) =
             players.get_mut(request.entity)
         else {
             continue;
         };
         let pos = request.block_pos;
-        let eye = eye_position(transform.translation);
-        let limit = reach(attributes);
+        let eye = eye_position(transform.translation, body.dimensions());
+        let limit = reach(body.attributes);
         if !limit.is_some_and(|limit| in_reach(eye, pos, limit)) {
             let aborts = request.action == PlayerAction::AbortDestroyBlock;
             if mode.0 == GameMode::Survival && aborts && digging.dig.is_some() {
@@ -560,7 +561,10 @@ fn handle_player_action(
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_pose::Pose;
+
     use super::*;
+    use crate::player_dimensions::player_dimensions;
 
     const CREATIVE_LIMIT: f64 = 6.0;
 
@@ -625,10 +629,13 @@ mod tests {
     }
 
     #[test]
-    fn a_standing_eye_is_above_the_position() {
+    fn the_eye_of_a_crouching_player_is_at_its_f32_eye_height() {
         assert_eq!(
-            eye_position(DVec3::new(1.0, 2.0, 3.0)),
-            DVec3::new(1.0, 2.0 + STANDING_EYE_HEIGHT, 3.0)
+            eye_position(
+                DVec3::new(1.0, 2.0, 3.0),
+                player_dimensions(Pose::Crouching, None)
+            ),
+            DVec3::new(1.0, 2.0 + f64::from(1.27_f32), 3.0)
         );
     }
 }

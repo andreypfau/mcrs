@@ -1,8 +1,12 @@
+use std::num::NonZeroU8;
+
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::ClickKind;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
@@ -16,10 +20,14 @@ use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_inventory_server::MenuSync;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
+use mcrs_minecraft_item_stack::EnchantmentId;
+use mcrs_minecraft_item_stack::EnchantmentLevel;
+use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::Equippable;
+use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
@@ -28,12 +36,12 @@ use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_protocol_game::item::ContainerInput;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
@@ -43,6 +51,7 @@ use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
 use crate::fixture::dropped;
+use crate::fixture::first_menu_sync;
 use crate::fixture::holders;
 use crate::fixture::saved;
 use crate::fixture::stacks;
@@ -92,9 +101,10 @@ fn on_wire(hashed: Option<&mcrs_minecraft_item_stack::HashedStack>) -> Option<Ha
 }
 
 pub(crate) struct Packet {
+    container_id: i32,
     state_id: i32,
     slot: i16,
-    input: ContainerInput,
+    kind: ClickKind,
     button: u8,
     changed: Vec<(u16, Option<HashedStack>)>,
     carried: Option<HashedStack>,
@@ -103,12 +113,28 @@ pub(crate) struct Packet {
 impl Packet {
     pub(crate) fn pick_up(state_id: i32, slot: u16) -> Self {
         Self {
+            container_id: 0,
             state_id,
             slot: i16::try_from(slot).expect("a menu index"),
-            input: ContainerInput::Pickup,
+            kind: ClickKind::PickUp,
             button: 0,
             changed: Vec::new(),
             carried: None,
+        }
+    }
+
+    pub(crate) fn drag_start(state_id: i32) -> Self {
+        Self {
+            slot: -999,
+            kind: ClickKind::Drag,
+            ..Self::pick_up(state_id, 0)
+        }
+    }
+
+    pub(crate) fn pick_up_all(state_id: i32, slot: u16) -> Self {
+        Self {
+            kind: ClickKind::PickUpAll,
+            ..Self::pick_up(state_id, slot)
         }
     }
 
@@ -121,15 +147,22 @@ impl Packet {
         self.carried = carried;
         self
     }
+
+    pub(crate) fn in_container(mut self, container_id: i32) -> Self {
+        self.container_id = container_id;
+        self
+    }
 }
 
 pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     let packet = ServerboundContainerClick {
-        container_id: VarInt(0),
+        container_id: VarInt(packet.container_id),
         state_seqno: VarInt(packet.state_id),
-        slot_index: packet.slot,
-        button: packet.button,
-        container_input: packet.input,
+        click: Click {
+            kind: packet.kind,
+            button: packet.button,
+            clicked: Clicked::from(packet.slot),
+        },
         changed_slots: packet.changed.into(),
         carried_item: packet.carried,
     };
@@ -142,7 +175,7 @@ pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     world.flush();
 }
 
-fn summary(stack: &ProtoStack<Wire>) -> String {
+pub(crate) fn summary(stack: &ProtoStack<Wire>) -> String {
     if stack.is_empty() {
         "empty".to_owned()
     } else {
@@ -170,17 +203,15 @@ pub(crate) fn sent(world: &mut World) -> Vec<String> {
             PacketPayload::SetCursorItem(cursor) => {
                 Some(format!("cursor {}", summary(&cursor.contents)))
             }
+            PacketPayload::OpenScreen(screen) => Some(format!("open {}", screen.container_id.0)),
+            PacketPayload::ContainerClose(close) => Some(format!("close {}", close.container_id.0)),
             _ => None,
         })
         .collect()
 }
 
 fn state_id(world: &World, player: Entity) -> u16 {
-    world
-        .get::<MenuSync>(player)
-        .expect("a joined player has a client view")
-        .state_id()
-        .get()
+    first_menu_sync(world, player).state_id().get()
 }
 
 #[test]
@@ -298,7 +329,7 @@ fn ien_spn_001_a_throw_click_drops_an_item_entity() {
     let world = app.world_mut();
     let player = joined(world);
     let throw = Packet {
-        input: ContainerInput::Throw,
+        kind: ClickKind::Throw,
         button: 1,
         ..Packet::pick_up(1, HOTBAR_0)
     }
@@ -342,7 +373,7 @@ fn itx_mod_005_a_drag_after_a_click_applies_in_the_same_tick() {
     let drag = |slot: i16, button: u8, changed: Vec<(u16, Option<HashedStack>)>, carried: i32| {
         Packet {
             slot,
-            input: ContainerInput::QuickCraft,
+            kind: ClickKind::Drag,
             button,
             ..Packet::pick_up(1, HOTBAR_0)
         }
@@ -424,7 +455,7 @@ fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
             policy.set(9, refuses_place);
         }
         let quick_move = Packet {
-            input: ContainerInput::QuickMove,
+            kind: ClickKind::QuickMove,
             ..Packet::pick_up(1, HOTBAR_0)
         }
         .claiming(vec![(HOTBAR_0, None), (9, claim(STONE, 5))], None);
@@ -434,5 +465,121 @@ fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
 
         assert_eq!(stacks(world, player), case.inventory, "{}", case.name);
         assert_eq!(sent(world), case.sent, "{}", case.name);
+    }
+}
+
+#[test]
+fn inv_slt_003_a_helmet_enters_the_head_slot_by_a_click_and_by_a_quick_move() {
+    const HEAD_ENTRY: u16 = 5;
+    const FROM: u16 = 9;
+    fn place(state_id: i32) -> Vec<Packet> {
+        vec![
+            Packet::pick_up(state_id, FROM),
+            Packet::pick_up(state_id, HEAD_ENTRY),
+        ]
+    }
+    fn quick_move(state_id: i32) -> Vec<Packet> {
+        vec![Packet {
+            kind: ClickKind::QuickMove,
+            ..Packet::pick_up(state_id, FROM)
+        }]
+    }
+    let paths: [(&str, fn(i32) -> Vec<Packet>); 2] =
+        [("pick up and place", place), ("quick move", quick_move)];
+    for (name, packets) in paths {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        let helmet = ItemStack::new(STONE, Count::new(1).expect("a count above 0"))
+            .set(Equippable::new(EquippableSlot::Head));
+        world.commands().spawn_stack(helmet).put_at(player, FROM);
+        world.flush();
+        world.run_schedule(FixedUpdate);
+        sent(world);
+        let state = i32::from(state_id(world, player));
+
+        for packet in packets(state) {
+            click(world, player, packet);
+        }
+        world.run_schedule(FixedUpdate);
+
+        assert_eq!(
+            stacks(world, player),
+            [(0, STONE, 5), (39, STONE, 1)],
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn inv_slt_004_a_locked_armour_stack_leaves_the_head_slot_only_in_creative_mode() {
+    const HEAD_ENTRY: u16 = 5;
+    const HEAD: u16 = 39;
+    struct Case {
+        name: &'static str,
+        enchantment: &'static str,
+        game_mode: Option<GameMode>,
+        inventory: Vec<(usize, Kind, u8)>,
+    }
+    let locked = || vec![(0, STONE, 5), (39, STONE, 1)];
+    let taken = || vec![(0, STONE, 5)];
+    let cases = [
+        Case {
+            name: "a curse in survival mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: Some(GameMode::Survival),
+            inventory: locked(),
+        },
+        Case {
+            name: "a curse without a game mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: None,
+            inventory: locked(),
+        },
+        Case {
+            name: "a curse in creative mode",
+            enchantment: "minecraft:binding_curse",
+            game_mode: Some(GameMode::Creative),
+            inventory: taken(),
+        },
+        Case {
+            name: "an enchantment without the effect",
+            enchantment: "minecraft:protection",
+            game_mode: Some(GameMode::Survival),
+            inventory: taken(),
+        },
+    ];
+    for case in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        match case.game_mode {
+            Some(game_mode) => world.entity_mut(player).insert(PlayerGameMode(game_mode)),
+            None => world.entity_mut(player).remove::<PlayerGameMode>(),
+        };
+        let id = world
+            .resource::<CurrentRegistries>()
+            .id_of(
+                ResourceLocation::read("minecraft:enchantment").expect("a registry name"),
+                ResourceLocation::read(case.enchantment).expect("an enchantment name"),
+            )
+            .expect("the data pack has the enchantment");
+        let enchantment = EnchantmentLevel {
+            enchantment: EnchantmentId(id),
+            level: NonZeroU8::MIN,
+        };
+        let helmet = ItemStack::new(STONE, Count::new(1).expect("a count above 0"))
+            .set(Equippable::new(EquippableSlot::Head))
+            .set(Enchantments::new([enchantment]).expect("one enchantment"));
+        world.commands().spawn_stack(helmet).put_at(player, HEAD);
+        world.flush();
+        world.run_schedule(FixedUpdate);
+        sent(world);
+        let state = i32::from(state_id(world, player));
+
+        click(world, player, Packet::pick_up(state, HEAD_ENTRY));
+        world.run_schedule(FixedUpdate);
+
+        assert_eq!(stacks(world, player), case.inventory, "{}", case.name);
     }
 }

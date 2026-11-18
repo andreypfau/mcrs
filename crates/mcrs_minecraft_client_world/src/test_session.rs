@@ -42,12 +42,13 @@ use std::time::Duration;
 
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::{AIR, Column, ColumnStore, Extent, Section};
+use crate::game_mode::GameModePlugin;
 use crate::game_packets::GAME_CLIENTBOUND;
 use crate::joined_game::JoinedGame;
 use crate::local_motion::LocalMotion;
 use crate::local_player::LocalPlayerPlugin;
 use crate::movement_input::MovementInput;
-use crate::player::spawn_player;
+use crate::player::player_at;
 
 pub(crate) const FLOOR_TOP: f64 = 16.0;
 pub(crate) const OWN_PLAYER: i32 = 7;
@@ -113,11 +114,11 @@ pub(crate) struct TestSession {
 impl TestSession {
     pub(crate) fn new(position: DVec3) -> Self {
         let mut app = App::new();
-        app.add_plugins(LocalPlayerPlugin);
+        app.add_plugins((GameModePlugin, LocalPlayerPlugin));
         let blocks = TestBlocks::new();
         app.insert_resource(stone_floor(&blocks))
             .insert_resource(ClientPhysicsTables(Tables::new(blocks.table)));
-        let player = spawn_player(app.world_mut(), position, 0.0, 0.0);
+        let player = app.world_mut().spawn(player_at(position, 0.0, 0.0)).id();
         let connection = app
             .world_mut()
             .spawn((

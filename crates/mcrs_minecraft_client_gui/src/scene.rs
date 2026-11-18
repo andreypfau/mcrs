@@ -2,17 +2,20 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use bevy::ecs::resource::IsResource;
-use bevy::ecs::world::EntityRef;
-use bevy::math::{IRect, IVec2, Rect, UVec2};
+use bevy::math::{DVec2, IRect, IVec2, Rect, UVec2};
 use bevy::prelude::*;
 use bevy::render::RenderApp;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
-use mcrs_minecraft_item::{
-    ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
-};
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_game_mode::PlayerGameMode;
+use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
 use crate::font::Font;
@@ -24,15 +27,16 @@ use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
-use crate::inventory_figure::pose_inventory_figure;
+use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
+use crate::menu_draw;
+use crate::player_stacks::PlayerStacks;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
-use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
@@ -81,6 +85,7 @@ pub enum GuiQuad {
     Texels {
         rect: IRect,
         texels: Rect,
+        color: u32,
     },
     Glyph {
         pen: Vec2,
@@ -128,6 +133,7 @@ const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
 const MISSING_GLYPH: &str = "font/missing";
+const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
 const GUI_TEXTURES: [&str; 18] = [
@@ -221,10 +227,6 @@ impl GuiAtlasData {
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
             let (width, height) = page.size();
-            if width > ATLAS_WIDTH {
-                error!("font page {source}: {width} pixels wide, the atlas holds {ATLAS_WIDTH}");
-                continue;
-            }
             images.push((Packed::Page(source), page.pixels().to_vec(), width, height));
         }
         images.push((Packed::Named(BLANK), vec![255; 16], 2, 2));
@@ -240,11 +242,25 @@ impl GuiAtlasData {
             MISSING_GLYPH_SIZE.0,
             MISSING_GLYPH_SIZE.1,
         ));
+        let (cache_width, cache_height) = (
+            (glyph_cache::COLUMNS * CELL) as u32,
+            (glyph_cache::ROWS * CELL) as u32,
+        );
+        images.push((
+            Packed::Named(GLYPH_CACHE),
+            vec![0; (cache_width * cache_height * 4) as usize],
+            cache_width,
+            cache_height,
+        ));
         images.sort_by_key(|(name, _, _, height)| (std::cmp::Reverse(*height), *name));
+        let atlas_width = images
+            .iter()
+            .map(|(_, _, width, _)| *width)
+            .fold(ATLAS_WIDTH, u32::max);
         let (mut x, mut y, mut row) = (0u32, 0u32, 0u32);
         let mut placed = Vec::new();
         for (name, pixels, width, height) in images {
-            if x + width > ATLAS_WIDTH {
+            if x + width > atlas_width {
                 x = 0;
                 y += row;
                 row = 0;
@@ -257,16 +273,15 @@ impl GuiAtlasData {
             x += width;
             row = row.max(height);
         }
-        let glyph_origin = IVec2::new(0, (y + row) as i32);
-        let atlas_height = (y + row + (glyph_cache::ROWS * CELL) as u32).next_power_of_two();
-        let mut pixels = vec![0u8; (ATLAS_WIDTH * atlas_height * 4) as usize];
+        let atlas_height = (y + row).next_power_of_two();
+        let mut pixels = vec![0u8; (atlas_width * atlas_height * 4) as usize];
         let mut regions = HashMap::new();
         let mut page_origins = Vec::new();
         for (name, source, rect) in placed {
             let width = rect.width() as usize;
             for (line, source_row) in source.chunks_exact(width * 4).enumerate() {
                 let start =
-                    ((rect.min.y as usize + line) * ATLAS_WIDTH as usize + rect.min.x as usize) * 4;
+                    ((rect.min.y as usize + line) * atlas_width as usize + rect.min.x as usize) * 4;
                 if let Some(target) = pixels.get_mut(start..start + width * 4) {
                     target.copy_from_slice(source_row);
                 }
@@ -298,12 +313,15 @@ impl GuiAtlasData {
             }
         }
         let missing_glyph = regions.get(MISSING_GLYPH).copied().unwrap_or_default();
+        let glyph_origin = regions
+            .get(GLYPH_CACHE)
+            .map_or(IVec2::ZERO, |region| region.min);
         let chat_modified = regions
             .get("icon/chat_modified")
             .copied()
             .unwrap_or_default();
         Ok(Self {
-            width: ATLAS_WIDTH,
+            width: atlas_width,
             height: atlas_height,
             pixels,
             regions,
@@ -398,12 +416,6 @@ fn load_image(
     let bytes = pack.get(path)?;
     let loaded = scaling.and_then(|scaling| {
         let image = decode_png(bytes, path).map_err(|error| error.to_string())?;
-        if image.1 > ATLAS_WIDTH {
-            return Err(format!(
-                "{} pixels wide, the atlas holds {ATLAS_WIDTH}",
-                image.1
-            ));
-        }
         Ok((scaling, image))
     });
     match loaded {
@@ -512,19 +524,29 @@ pub(crate) fn window_framebuffer(window: &Window) -> UVec2 {
     )
 }
 
+pub(crate) fn gui_pointer(window: &Window, config: &GuiConfig, scale: u32) -> Option<DVec2> {
+    if let Some(cursor) = config.cursor {
+        return Some(cursor.as_dvec2());
+    }
+    let scale = f64::from(scale.max(1));
+    window
+        .physical_cursor_position()
+        .map(|cursor| cursor.as_dvec2() / scale)
+}
+
+pub(crate) fn gui_point(at: DVec2) -> GuiPoint {
+    GuiPoint::new(at.x.floor() as i32, at.y.floor() as i32)
+}
+
 fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
 ) {
     scene.size = GuiSize::of(window_framebuffer(&window), config.scale);
-    scene.cursor = config.cursor.unwrap_or_else(|| {
-        window
-            .physical_cursor_position()
-            .map_or(IVec2::new(-1, -1), |p| {
-                (p / scene.size.scale as f32).floor().as_ivec2()
-            })
-    });
+    scene.cursor = gui_pointer(&window, &config, scene.size.scale)
+        .map(gui_point)
+        .map_or(IVec2::new(-1, -1), menu_draw::point);
     scene.quads.clear();
     scene.tooltip.clear();
 }
@@ -539,18 +561,23 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 
 fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&SlotTable, &SelectedHotbarSlot, Option<&LocalGameMode>), With<Player>>,
+    player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
+    menus: Query<(&MenuLayout, &MenuParts)>,
+    holders: Query<&Slots>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected, mode)) = player.single() else {
+    let Ok((player, player_menus, selected, mode)) = player.single() else {
         return;
     };
-    if mode.is_none_or(|mode| mode.current != GameMode::Spectator) {
-        hotbar(scene.size, selected.0, slots, &mut scene.quads);
+    let Some(stacks) = PlayerStacks::of_player(player, player_menus, &menus, &holders) else {
+        return;
+    };
+    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
+        hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
     }
     if *screen == Screen::Inventory {
-        inventory_screen(scene.size, scene.cursor, slots, &mut scene.quads);
+        inventory_screen(scene.size, scene.cursor, &stacks, &mut scene.quads);
     }
 }
 
@@ -572,7 +599,7 @@ fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
     layers: Query<&ItemRenderLayers>,
-    stacks: Query<EntityRef, (With<ItemStack>, Without<IsResource>)>,
+    counts: Query<&Count>,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut cache: ResMut<GlyphCache>,
@@ -599,12 +626,12 @@ fn build_gui_batch(
         match *quad {
             GuiQuad::Item { origin, stack } => {
                 expanded.push(*quad);
-                let Ok(stack) = stacks.get(stack) else {
+                let Ok(count) = counts.get(stack) else {
                     continue;
                 };
                 let decorated = Decorated {
-                    count: stack.get::<ItemStack>().map_or(1, |stack| stack.count),
-                    damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
+                    count: count.get(),
+                    damage: layers.get(stack).ok().and_then(|layers| layers.damage),
                 };
                 decorations(origin, &decorated, &atlas.font, &mut expanded);
             }
@@ -749,10 +776,14 @@ fn push_flat_quad(
             uv: blank,
             colors: [color; 4],
         },
-        GuiQuad::Texels { rect, texels } => AtlasQuad {
+        GuiQuad::Texels {
+            rect,
+            texels,
+            color,
+        } => AtlasQuad {
             rect: rect.as_rect(),
             uv: atlas.texel_uv(texels),
-            colors: [WHITE; 4],
+            colors: [color; 4],
         },
         GuiQuad::FillGradient { rect, top, bottom } => AtlasQuad {
             rect: rect.as_rect(),
@@ -802,6 +833,8 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .init_resource::<GlyphCache>()
+            .add_observer(spawn_inventory_figure)
+            .init_resource::<crate::title_draw::TitleScreenState>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
@@ -812,19 +845,28 @@ impl Plugin for GuiPlugin {
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
+                    crate::message_screen::draw.run_if(|screen: Res<Screen>| {
+                        matches!(*screen, Screen::Message(_) | Screen::CreateWorld(_))
+                    }),
+                    crate::title_draw::draw.run_if(resource_equals(Screen::Title)),
                     draw_tooltip,
+                    crate::title_draw::fade_title.run_if(resource_equals(Screen::Title)),
                     build_gui_batch,
                 )
                     .chain(),
             )
             .add_systems(
                 PostUpdate,
-                pose_inventory_figure
-                    .after(begin_gui_frame)
-                    .before(EntitySlotSystems)
-                    .run_if(resource_exists::<FigureView>.and_then(
-                        resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
-                    )),
+                (
+                    crate::panorama_view::project_panorama_view
+                        .run_if(resource_exists::<mcrs_minecraft_render::PanoramaView>),
+                    pose_inventory_figure
+                        .after(begin_gui_frame)
+                        .before(EntitySlotSystems)
+                        .run_if(resource_exists::<FigureView>.and_then(
+                            resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
+                        )),
+                ),
             );
     }
 }
@@ -910,6 +952,7 @@ mod tests {
                 let corner = GuiQuad::Texels {
                     rect: IRect::from_corners(at, at + 3),
                     texels: Rect::from_corners(texel.as_vec2(), (texel + 3).as_vec2()),
+                    color: WHITE,
                 };
                 assert!(out.contains(&corner), "{corner:?} in {out:?}");
             }

@@ -10,7 +10,8 @@ use crate::split_nbt::split_nbt;
 
 pub(crate) fn read_text(input: &mut &[u8], component: BuiltinKey) -> Result<Text, WireError> {
     let mut tag = split_nbt(input, component)?;
-    let text = Text::decode(&mut tag).map_err(|error| WireError::of_value(&error, component))?;
+    let text = mcrs_minecraft_nbt::without_nbt_budget(|| Text::decode(&mut tag))
+        .map_err(|error| WireError::of_value(&error, component))?;
     if !tag.is_empty() {
         return Err(WireError::BadValue(component));
     }

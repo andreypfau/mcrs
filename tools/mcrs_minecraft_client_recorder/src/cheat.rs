@@ -6,6 +6,7 @@ use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::packets::table::game_serverbound;
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerInputFlags;
@@ -23,6 +24,7 @@ pub(crate) enum Module {
     StartFallFlying,
     NoShiftInput,
     ShiftBeforeLoaded,
+    Remove(&'static str),
 }
 
 const SPEED: f64 = 1.5;
@@ -42,7 +44,15 @@ impl FromStr for Module {
             "start_fall_flying" => Self::StartFallFlying,
             "no_shift_input" => Self::NoShiftInput,
             "shift_before_loaded" => Self::ShiftBeforeLoaded,
-            _ => bail!("no cheat module `{text}`"),
+            _ => match text.strip_prefix("remove:") {
+                Some(packet) => {
+                    match game_serverbound::NAMES.iter().find(|name| **name == packet) {
+                        Some(name) => Self::Remove(name),
+                        None => bail!("no serverbound packet `{packet}`"),
+                    }
+                }
+                None => bail!("no cheat module `{text}`"),
+            },
         })
     }
 }
@@ -116,7 +126,14 @@ impl Cheat {
                 .encode_with_id(&mut early)?;
                 Some(vec![early, unchanged()?])
             }
-            (Module::StartFallFlying | Module::NoShiftInput | Module::ShiftBeforeLoaded, _) => None,
+            (Module::Remove(packet), name) if name == packet => Some(Vec::new()),
+            (
+                Module::StartFallFlying
+                | Module::NoShiftInput
+                | Module::ShiftBeforeLoaded
+                | Module::Remove(_),
+                _,
+            ) => None,
             _ => self
                 .moved(name, original)
                 .map(|body| with_id(id, &body))

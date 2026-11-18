@@ -1757,7 +1757,7 @@ fn anchor_of(server: &mut PlayServer, uuid: Uuid) -> Entity {
 }
 
 fn mode_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> GameMode {
-    use mcrs_minecraft_engine::ability::PlayerGameMode;
+    use mcrs_minecraft_game_mode::PlayerGameMode;
     let player = server.player_in(dim, anchor).unwrap();
     server
         .world_in(dim)

@@ -20,7 +20,6 @@ use mcrs_minecraft_engine::network_id;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundPlayerLookAt, LookAtEntity};
 use mcrs_minecraft_text::{IntoText, Text};
@@ -368,13 +367,15 @@ fn facing(
     match facing {
         Facing::Position(position) => Some((position, None)),
         Facing::Player { player, at: part } => {
+            let target = worlds.targets().player(player)?;
             let position = if player == victim {
                 at
             } else {
-                worlds.targets().player(player)?.transform.translation
+                target.transform.translation
             };
+            let eye_height = f64::from(target.dimensions.eye_height);
             Some((
-                mcrs_minecraft_command::anchored(part, position, PLAYER_EYE_HEIGHT),
+                mcrs_minecraft_command::anchored(part, position, eye_height),
                 Some(LookAtEntity {
                     id: VarInt(network_id::player_network_id(player)),
                     anchor: part,
@@ -393,6 +394,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         return;
     };
     let (origin, current) = (victim.dimension, victim.transform);
+    let eye_height = f64::from(victim.dimensions.eye_height);
     let from = Pose {
         position: current.translation,
         look: current.rotation.into(),
@@ -421,7 +423,7 @@ pub(crate) fn apply(worlds: &mut Worlds, TeleportPlayer { player, to }: Teleport
         .facing
         .and_then(|target| facing(worlds, player, to.position, target));
     if let Some((target, _)) = facing {
-        let eyes = mcrs_minecraft_command::anchored(to.anchor, to.position, PLAYER_EYE_HEIGHT);
+        let eyes = mcrs_minecraft_command::anchored(to.anchor, to.position, eye_height);
         let look = mcrs_minecraft_command_argument::rotation_toward(eyes, target);
         transform.rotation = Rotation::new(look.yaw, look.pitch);
     }

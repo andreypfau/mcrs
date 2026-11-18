@@ -7,7 +7,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, PacketPayload};
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
@@ -22,7 +21,7 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -61,12 +60,7 @@ fn own_update(packet: &PacketPayload) -> Option<OwnUpdate> {
     };
     let mut rest: &[u8] = bytes;
     let id = VarInt::decode(&mut rest).unwrap();
-    assert_eq!(
-        id.0,
-        ClientboundUpdateAttributes::ID,
-        "only attributes are sent"
-    );
-    Some(decode_update(rest))
+    (id.0 == ClientboundUpdateAttributes::ID).then(|| decode_update(rest))
 }
 
 fn decode_update(mut rest: &[u8]) -> OwnUpdate {

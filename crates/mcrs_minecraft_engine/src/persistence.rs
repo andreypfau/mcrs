@@ -10,7 +10,7 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::{AttributeInstances, SavedAttributes};
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -21,7 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 use tracing::error;
 
-use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::ability::{PlayerFlying, PlayerOpLevel};
 use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
 use crate::carried_attributes::CarriedAttributes;
@@ -37,6 +37,7 @@ use crate::persisted_registry::{
 };
 use crate::player_sprinting::PlayerSprinting;
 use crate::player_state::{Ints, PlayerFileState, player_state_keys};
+use crate::shift_key::ShiftKey;
 use crate::teleport::TeleportState;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -57,6 +58,7 @@ const TELEPORT_KEYS: &[&str] = &["mcrs:teleport"];
 const SAVED_ATTRIBUTES_KEYS: &[&str] = &["attributes"];
 const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
+const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
 
 pub struct PlayerPersistencePlugin;
@@ -103,7 +105,8 @@ impl Plugin for PlayerPersistencePlugin {
                 CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
             )
-            .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly);
+            .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly)
+            .register_persisted::<ShiftKey>(SHIFT_KEY_KEYS, PersistScope::TravelOnly);
     }
 }
 

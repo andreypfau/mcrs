@@ -1,10 +1,6 @@
 pub mod component;
 pub mod definition;
 pub mod dialog;
-#[cfg(feature = "bevy")]
-pub mod dropped;
-#[cfg(feature = "bevy")]
-pub mod effective;
 pub mod enchantment;
 #[rustfmt::skip]
 pub mod consume_effect_type_keys;
@@ -53,18 +49,13 @@ pub mod trim_pattern_keys;
 pub mod harness;
 pub mod hash_ops;
 #[cfg(feature = "bevy")]
-pub mod held;
-#[cfg(feature = "bevy")]
 pub mod inventory;
 mod item_hover_map;
-#[cfg(feature = "bevy")]
 pub mod item_stack;
 pub mod kind;
 pub mod patch;
 pub mod recipe;
 pub mod stack;
-#[cfg(feature = "bevy")]
-pub mod value;
 mod wire;
 
 pub use component::*;
@@ -72,45 +63,11 @@ pub use component::*;
 pub use definition::Items;
 pub use definition::{ItemDefinitions, ItemEntry, ItemTableError};
 #[cfg(feature = "bevy")]
-pub use dropped::{DroppedItem, Thrower};
-#[cfg(feature = "bevy")]
-pub use effective::{
-    children, component_value, damage_value, has_component, has_non_default, is_damageable,
-    is_damaged, is_stackable, max_damage, max_stack_size,
-};
-#[cfg(feature = "bevy")]
-pub use held::{Held, Holds, SlotTable};
-#[cfg(feature = "bevy")]
 pub use inventory::{LAST_HOTBAR_SLOT, SelectedHotbarSlot, slots};
 pub use item_hover_map::ItemHoverMap;
-#[cfg(feature = "bevy")]
-pub use item_stack::{ItemStack, StackRevision};
+pub use item_stack::ItemStack;
 pub use kind::{ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
-#[cfg(feature = "bevy")]
-pub use value::{StackError, item_of, same_item_same_components, stack_to_slot, stack_to_value};
 
 pub type Text<M = mcrs_minecraft_registries::Resolved> = mcrs_minecraft_text::Text<Template<M>>;
-
-#[cfg(feature = "bevy")]
-mod bevy {
-    use bevy_ecs::component::{Component, Mutable, StorageType};
-
-    use crate::component::*;
-
-    macro_rules! impl_component {
-        ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
-            $(impl_component!(@one $ty);)*
-        };
-        (@one Profile) => {};
-        (@one $ty:ident) => {
-            impl Component for $ty {
-                const STORAGE_TYPE: StorageType = StorageType::Table;
-                type Mutability = Mutable;
-            }
-        };
-    }
-
-    crate::for_each_data_component!(impl_component);
-}

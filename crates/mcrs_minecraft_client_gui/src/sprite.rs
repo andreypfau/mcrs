@@ -5,6 +5,7 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+use crate::item_decorations::WHITE;
 use crate::scene::GuiQuad;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -172,6 +173,7 @@ impl GuiSprite {
                     out.push(GuiQuad::Texels {
                         rect: target,
                         texels: self.texels,
+                        color: WHITE,
                     });
                 }
             }
@@ -248,6 +250,7 @@ impl GuiSprite {
         GuiQuad::Texels {
             rect,
             texels: Rect::from_corners(texel(part.min), texel(part.max)),
+            color: WHITE,
         }
     }
 }

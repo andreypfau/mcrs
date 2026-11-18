@@ -8,7 +8,6 @@ use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::definition::{BlockStateData, Blocks};
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::block_action_ack::BlockActionAck;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::client_on_ground::ClientOnGround;
@@ -33,7 +32,7 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, Kind};

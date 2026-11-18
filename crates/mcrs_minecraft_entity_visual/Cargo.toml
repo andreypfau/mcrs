@@ -15,6 +15,7 @@ mcrs_minecraft_pose.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 glam = { workspace = true, features = ["std"] }
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_key.workspace = true

@@ -52,8 +52,9 @@ fn table() -> ItemTable {
 fn app(table: ItemTable, players: u64) -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .insert_resource(table)
         .add_plugins((
-            ItemPlugin::new(table),
+            ItemPlugin::default(),
             VanillaInventoryPlugin,
             InventoryServerPlugin,
             InventoryPersistencePlugin,

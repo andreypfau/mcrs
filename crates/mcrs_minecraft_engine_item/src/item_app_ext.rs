@@ -6,7 +6,9 @@ use mcrs_minecraft_item_stack::CustomComponent;
 use crate::GateFn;
 use crate::GateId;
 use crate::RegisterError;
+use crate::RequestSource;
 use crate::item_components::ItemComponents;
+use crate::request_sources::RequestSources;
 use crate::slot_gates::SlotGates;
 
 pub trait ItemAppExt {
@@ -15,6 +17,8 @@ pub trait ItemAppExt {
     ) -> Result<&mut Self, RegisterError>;
 
     fn register_slot_gate(&mut self, gate: GateFn) -> Result<GateId, RegisterError>;
+
+    fn allocate_request_source(&mut self) -> Result<RequestSource, RegisterError>;
 }
 
 impl ItemAppExt for App {
@@ -34,5 +38,10 @@ impl ItemAppExt for App {
     fn register_slot_gate(&mut self, gate: GateFn) -> Result<GateId, RegisterError> {
         let mut gates = self.world_mut().get_resource_or_init::<SlotGates>();
         gates.register(gate)
+    }
+
+    fn allocate_request_source(&mut self) -> Result<RequestSource, RegisterError> {
+        let mut sources = self.world_mut().get_resource_or_init::<RequestSources>();
+        sources.allocate()
     }
 }

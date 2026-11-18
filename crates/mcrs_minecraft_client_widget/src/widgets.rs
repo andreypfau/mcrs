@@ -119,6 +119,19 @@ impl Widgets {
         refit(widget);
     }
 
+    pub fn select_row(&mut self, id: WidgetId, row: Option<usize>) {
+        let Some(index) = self.index(id) else {
+            return;
+        };
+        let rows = match self.widgets.get(index).map(|widget| &widget.kind) {
+            Some(WidgetKind::SelectionList(list)) => list.rows,
+            _ => return,
+        };
+        if row.is_none_or(|row| row < rows) {
+            self.select(index, row, &mut Vec::new());
+        }
+    }
+
     pub fn insert_row(&mut self, id: WidgetId, index: usize) {
         let Some(widget) = self.get_mut(id) else {
             return;

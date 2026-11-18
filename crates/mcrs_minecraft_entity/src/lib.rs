@@ -68,8 +68,4 @@ pub use precise_sync::PreciseSync;
 pub use sprint_modifier::SPRINT_MODIFIER;
 pub use variant_indices::VariantIndices;
 
-pub const PLAYER_WIDTH: f64 = 0.6;
-pub const PLAYER_HEIGHT: f64 = 1.8;
-pub const PLAYER_EYE_HEIGHT: f64 = 1.62;
-
 mcrs_minecraft_registries::resolve_as_is!(crate::damage_type::DamageType);

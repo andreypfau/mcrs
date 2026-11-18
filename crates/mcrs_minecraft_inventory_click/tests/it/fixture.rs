@@ -1,15 +1,14 @@
-use mcrs_minecraft_inventory_click::Click;
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::ClickKind;
+use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::ClickError;
-use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::ClickPlayer;
-use mcrs_minecraft_inventory_click::Clicked;
 use mcrs_minecraft_inventory_click::Drag;
 use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_click::Operations;
 use mcrs_minecraft_inventory_click::Slots;
-use mcrs_minecraft_inventory_menu::InventoryMenu;
-use mcrs_minecraft_inventory_menu::MenuRange;
-use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_menu::MenuEntry;
+use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::ArmourLock;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::EquipSlot;
@@ -31,7 +30,7 @@ pub struct Item {
 }
 
 pub type Stack = Option<Planned<Item>>;
-pub type Operation = Op<MenuSlot, Planned<Item>>;
+pub type Operation = Op<HeldSlot, Planned<Item>>;
 
 const PLAIN: Item = Item {
     components: 0,
@@ -108,13 +107,39 @@ pub struct Player {
     result: Stack,
     pub mode: PlayerMode,
     pub selected: u8,
-    refusing: Vec<MenuSlot>,
+    refusing: Vec<HeldSlot>,
 }
 
-pub const CURSOR: MenuSlot = MenuSlot::new(Holder::Cursor, 0);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct HeldSlot {
+    pub holder: Holder,
+    pub index: u16,
+}
 
-pub fn entry(index: u16) -> MenuSlot {
-    InventoryMenu::slot(index).expect("the test names an entry of the inventory menu")
+impl HeldSlot {
+    pub const fn new(holder: Holder, index: u16) -> Self {
+        Self { holder, index }
+    }
+}
+
+pub const CURSOR: HeldSlot = HeldSlot::new(Holder::Cursor, 0);
+
+fn held(entry: MenuEntry) -> Option<HeldSlot> {
+    let holder = match entry.part {
+        0 => Holder::Inventory,
+        1 => Holder::CraftGrid,
+        2 => Holder::CraftResult,
+        _ => return None,
+    };
+    Some(HeldSlot::new(holder, entry.index))
+}
+
+fn menu_slot(index: u16) -> Option<HeldSlot> {
+    MenuLayout::INVENTORY.entry(index).and_then(held)
+}
+
+pub fn entry(index: u16) -> HeldSlot {
+    menu_slot(index).expect("the test names an entry of the inventory menu")
 }
 
 impl Player {
@@ -150,7 +175,7 @@ impl Player {
         self
     }
 
-    pub fn stack(&self, slot: MenuSlot) -> Option<Stack> {
+    pub fn stack(&self, slot: HeldSlot) -> Option<Stack> {
         let index = usize::from(slot.index);
         match slot.holder {
             Holder::Inventory => self.inventory.get(index).copied(),
@@ -160,7 +185,7 @@ impl Player {
         }
     }
 
-    fn stack_mut(&mut self, slot: MenuSlot) -> &mut Stack {
+    fn stack_mut(&mut self, slot: HeldSlot) -> &mut Stack {
         let index = usize::from(slot.index);
         match slot.holder {
             Holder::Inventory => &mut self.inventory[index],
@@ -180,18 +205,18 @@ impl Player {
 }
 
 impl Slots for Player {
-    type Slot = MenuSlot;
+    type Slot = HeldSlot;
     type Stack = Item;
 
-    fn cursor(&self) -> MenuSlot {
+    fn cursor(&self) -> HeldSlot {
         CURSOR
     }
 
-    fn inventory(&self, index: u16) -> Option<MenuSlot> {
-        (index < Holder::Inventory.slot_count()).then_some(MenuSlot::new(Holder::Inventory, index))
+    fn inventory(&self, index: u16) -> Option<HeldSlot> {
+        (index < Holder::Inventory.slot_count()).then_some(HeldSlot::new(Holder::Inventory, index))
     }
 
-    fn load(&self, slot: MenuSlot) -> Option<Loaded<Item>> {
+    fn load(&self, slot: HeldSlot) -> Option<Loaded<Item>> {
         let rule = slot.holder.slot(slot.index)?;
         let stack = self.stack(slot)?;
         let lock = stack.map_or(ArmourLock::Free, |stack| stack.stack.lock);
@@ -202,7 +227,7 @@ impl Slots for Player {
         })
     }
 
-    fn place(&self, slot: MenuSlot, stack: Item) -> Filter {
+    fn place(&self, slot: HeldSlot, stack: Item) -> Filter {
         let Some(rule) = slot.holder.slot(slot.index) else {
             return Filter::Refuses;
         };
@@ -225,36 +250,38 @@ impl Slots for Player {
 pub struct Window<'a>(pub &'a Player);
 
 impl Menu for Window<'_> {
-    type Slot = MenuSlot;
+    type Slot = HeldSlot;
 
     fn entry_count(&self) -> u16 {
-        InventoryMenu::LEN
+        MenuLayout::INVENTORY.len()
     }
 
-    fn slot(&self, index: u16) -> Option<MenuSlot> {
-        InventoryMenu::slot(index)
+    fn slot(&self, index: u16) -> Option<HeldSlot> {
+        menu_slot(index)
     }
 
-    fn quick_move_destinations(&self, source: u16) -> impl Iterator<Item = u16> {
+    fn quick_move_destinations(
+        &self,
+        source: u16,
+        holds_empty: impl Fn(u16) -> bool,
+    ) -> impl Iterator<Item = u16> {
         let player = self.0;
-        let equip = InventoryMenu::slot(source)
+        let equip = menu_slot(source)
             .and_then(|slot| player.stack(slot).flatten())
             .and_then(|stack| stack.stack.equip);
-        let holds_empty = |index: u16| {
-            InventoryMenu::slot(index).is_some_and(|slot| player.stack(slot) == Some(None))
-        };
-        InventoryMenu::quick_move_destinations(source, equip, holds_empty)
+        MenuLayout::INVENTORY
+            .routes(source)
+            .find(|route| route.when.holds(equip, &holds_empty))
             .into_iter()
-            .flatten()
-            .flat_map(MenuRange::iter)
+            .flat_map(|route| route.to.iter())
     }
 
     fn permits_pick_up_all(&self, index: u16) -> bool {
-        InventoryMenu::permits_pick_up_all(index)
+        MenuLayout::INVENTORY.permits_pick_up_all(index)
     }
 
     fn permits_drag(&self, index: u16) -> bool {
-        InventoryMenu::permits_drag(index)
+        MenuLayout::INVENTORY.permits_drag(index)
     }
 }
 
@@ -316,15 +343,15 @@ pub fn apply(player: &Player, ops: &[Operation]) -> Player {
     after
 }
 
-pub fn split(from: MenuSlot, to: MenuSlot, count: u8) -> Operation {
+pub fn split(from: HeldSlot, to: HeldSlot, count: u8) -> Operation {
     Op::Split { from, to, count }
 }
 
-pub fn swap(left: MenuSlot, right: MenuSlot) -> Operation {
+pub fn swap(left: HeldSlot, right: HeldSlot) -> Operation {
     Op::Swap { left, right }
 }
 
-pub fn drop_from(from: MenuSlot, count: u8) -> Operation {
+pub fn drop_from(from: HeldSlot, count: u8) -> Operation {
     Op::Drop { from, count }
 }
 

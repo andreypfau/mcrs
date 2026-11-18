@@ -7,6 +7,7 @@ use crate::mob_report::MobReport;
 use crate::mob_trackers::MobTrackers;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
+use crate::player_entries::PlayerEntries;
 use crate::player_input::PlayerInput;
 use crate::player_list::{Dispatch, Member, PlayerList, ProfileNeed};
 use crate::player_spawn::PlayerSpawn;
@@ -25,7 +26,10 @@ use mcrs_minecraft_profile::Property;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::{Result, VarInt};
 use mcrs_minecraft_protocol_game::LpVec3;
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundRemoveEntities};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundAddEntity, ClientboundRemoveEntities, ClientboundSetEntityData,
+};
+use mcrs_minecraft_protocol_game::entity::Metadata;
 use std::collections::BTreeMap;
 use std::mem;
 use uuid::Uuid;
@@ -45,6 +49,7 @@ pub struct EntityCodec {
     dispatches: Vec<Dispatch>,
     mobs: MobTrackers,
     attributed: Vec<EntityId>,
+    posed: Vec<EntityId>,
 }
 
 #[derive(Debug)]
@@ -56,6 +61,8 @@ struct Subject {
     motion: Motion,
     game_mode: GameMode,
     attributes: SubjectAttributes,
+    entries: PlayerEntries,
+    sent_entries: PlayerEntries,
 }
 
 impl Subject {
@@ -103,6 +110,8 @@ impl EntityCodec {
                     mcrs_minecraft_entity::attribute_bases(EntityType::Player),
                     spawn.attributes.clone(),
                 ),
+                entries: spawn.entries,
+                sent_entries: spawn.entries,
             },
         );
     }
@@ -198,6 +207,12 @@ impl EntityCodec {
                     if let Some(state) = self.subjects.get_mut(&subject) {
                         state.attributes.record(attribute);
                         self.attributed.push(subject);
+                    }
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Entries(entries))) => {
+                    if let Some(state) = self.subjects.get_mut(&subject) {
+                        state.entries = *entries;
+                        self.posed.push(subject);
                     }
                 }
                 EntityEvent::Data(ReplicationData::Player(PlayerData::Left(packet))) => {
@@ -299,6 +314,13 @@ impl EntityCodec {
         chunks.push(delimiter.clone());
         chunks.extend(profile);
         chunks.push(add_player);
+        let entries = state.entries.changed_from(&PlayerEntries::default());
+        if !entries.is_empty() {
+            chunks.push(record(&ClientboundSetEntityData {
+                entity_id: wire_id(subject),
+                metadata: Metadata(entries),
+            })?);
+        }
         let mut attributes = BytesMut::new();
         state
             .attributes
@@ -333,6 +355,39 @@ impl EntityCodec {
                 continue;
             }
             let packet = bytes.freeze();
+            for &viewer in holds.holders(subject) {
+                delivery.owe(viewer, packet.clone());
+            }
+        }
+    }
+
+    fn send_entries(&mut self) {
+        let Self {
+            posed,
+            subjects,
+            holds,
+            delivery,
+            ..
+        } = self;
+        for subject in posed.drain(..) {
+            let Some(state) = subjects.get_mut(&subject) else {
+                continue;
+            };
+            let changed = state.entries.changed_from(&state.sent_entries);
+            state.sent_entries = state.entries;
+            if changed.is_empty() {
+                continue;
+            }
+            let packet = match record(&ClientboundSetEntityData {
+                entity_id: wire_id(subject),
+                metadata: Metadata(changed),
+            }) {
+                Ok(packet) => packet,
+                Err(error) => {
+                    tracing::warn!("the pose entries of a player did not encode: {error:#}");
+                    continue;
+                }
+            };
             for &viewer in holds.holders(subject) {
                 delivery.owe(viewer, packet.clone());
             }
@@ -478,6 +533,7 @@ impl ReplicationCodec for EntityCodec {
             }
         }
         self.send_attributes();
+        self.send_entries();
         self.mobs.finish_tick(tick, &self.holds, &mut self.delivery);
         if let Err(error) = self.update_list() {
             tracing::warn!("the player list did not encode: {error:#}");

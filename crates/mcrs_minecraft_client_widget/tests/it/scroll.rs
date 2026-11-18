@@ -236,3 +236,12 @@ fn an_offset_set_from_outside_or_by_new_bounds_stays_within_the_limits() {
         assert_eq!(offset(&screen), Some(expected), "{name}");
     }
 }
+
+#[test]
+fn hiding_an_area_drops_the_focus_of_its_member() {
+    let mut screen = scrolled_option_list();
+    press(&mut screen, 300.0, 40.0, PointerButton::Left);
+    assert_eq!(screen.focused(), Some(WidgetId(101)));
+    screen.hide(LIST, &mut Vec::new());
+    assert_eq!(screen.focused(), None);
+}

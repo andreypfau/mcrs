@@ -1,17 +1,22 @@
 use bevy::math::proj;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use mcrs_minecraft_client_world::local_motion::LocalMotion;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_client_world::session::InSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{EntityViews, FigureFrame, FigureView, FramePosed};
 use mcrs_minecraft_entity_visual::{
     EntityLight, HostLight, Living, Motion, Placement, SyncedData, host_living_entity,
 };
+use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_network::join::ServerProfile;
+use mcrs_minecraft_pose::{Dimensions, Pose};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use uuid::Uuid;
 
-use crate::inventory_screen::origin;
+use crate::inventory_screen;
 use crate::scene::{GuiScene, window_framebuffer};
 
 const GUI_UNITS_PER_BLOCK: f32 = 30.0;
@@ -44,24 +49,49 @@ pub fn inventory_figure(uuid: Uuid) -> Option<impl Bundle> {
     ))
 }
 
+pub(crate) fn spawn_inventory_figure(
+    event: On<Received<ClientboundLogin>>,
+    profiles: Query<&ServerProfile>,
+    figures: Query<(), With<InventoryFigure>>,
+    mut commands: Commands,
+) {
+    if !figures.is_empty() {
+        return;
+    }
+    let Some(figure) = profiles
+        .get(event.entity)
+        .ok()
+        .and_then(|profile| inventory_figure(profile.id))
+    else {
+        return;
+    };
+    commands.spawn((figure, InSession(event.entity)));
+}
+
 pub(crate) fn pose_inventory_figure(
     screen: Res<Screen>,
     scene: Res<GuiScene>,
     window: Single<&Window, With<PrimaryWindow>>,
-    player: Query<&SyncedData, With<Player>>,
-    mut figures: Query<(&mut Living, &mut Motion), With<InventoryFigure>>,
+    player: Query<(&SyncedData, Option<&LocalMotion>), With<Player>>,
+    mut figures: Query<
+        (&mut Living, &mut Motion, &mut SyncedData),
+        (With<InventoryFigure>, Without<Player>),
+    >,
     mut view: ResMut<FigureView>,
 ) {
-    let invisible = player.iter().any(SyncedData::is_invisible);
+    let invisible = player.iter().any(|(data, _)| data.is_invisible());
     if *screen != Screen::Inventory || invisible {
         view.set_if_neq(FigureView(None));
         return;
     }
-    let standing = FigureBox {
-        height: EntityTypeData::PLAYER.height,
-        eye_height: EntityTypeData::PLAYER.eye_height,
-    };
-    let points = figure_points(origin(scene.size), standing);
+    let pose = player
+        .iter()
+        .find_map(|(_, motion)| motion)
+        .map_or(Pose::Standing, |motion| motion.0.pose);
+    let points = figure_points(
+        inventory_screen::window_corner(scene.size),
+        pose.player_dimensions(),
+    );
     let angles = figure_angles(points.eye, scene.cursor.as_vec2());
     let frame = FigureFrame {
         clip_from_figure: clip_from_figure(
@@ -77,7 +107,8 @@ pub(crate) fn pose_inventory_figure(
     let body_yaw = -angles.turn;
     let head_yaw = 2.0 * body_yaw;
     let pitch = -angles.tilt;
-    for (mut living, motion) in &mut figures {
+    for (mut living, motion, data) in &mut figures {
+        data.map_unchanged(|data| &mut data.pose).set_if_neq(pose);
         if living.body_yaw != body_yaw || living.head_yaw != head_yaw {
             living.body_yaw = body_yaw;
             living.head_yaw = head_yaw;
@@ -86,12 +117,6 @@ pub(crate) fn pose_inventory_figure(
             .map_unchanged(|motion| &mut motion.current.pitch)
             .set_if_neq(pitch);
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct FigureBox {
-    pub(crate) height: f32,
-    pub(crate) eye_height: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -113,11 +138,11 @@ pub(crate) fn figure_rect(origin: IVec2) -> IRect {
 }
 
 #[must_use]
-pub(crate) fn figure_points(origin: IVec2, figure_box: FigureBox) -> FigurePoints {
+pub(crate) fn figure_points(origin: IVec2, dimensions: Dimensions) -> FigurePoints {
     let centre = origin.as_vec2() + CENTRE;
     let feet =
-        centre + Vec2::Y * (figure_box.height / 2.0 + FEET_DROP_BLOCKS) * GUI_UNITS_PER_BLOCK;
-    let eye = feet - Vec2::Y * figure_box.eye_height * GUI_UNITS_PER_BLOCK;
+        centre + Vec2::Y * (dimensions.height / 2.0 + FEET_DROP_BLOCKS) * GUI_UNITS_PER_BLOCK;
+    let eye = feet - Vec2::Y * dimensions.eye_height * GUI_UNITS_PER_BLOCK;
     FigurePoints { feet, eye }
 }
 
@@ -163,6 +188,29 @@ mod tests {
 
     const ORIGIN: IVec2 = IVec2::new(125, 37);
 
+    #[test]
+    fn the_figure_of_a_session_ends_with_the_session() {
+        let mut world = World::new();
+        world.add_observer(spawn_inventory_figure);
+        let session = world
+            .spawn(ServerProfile {
+                id: Uuid::nil(),
+                username: "host".to_owned(),
+            })
+            .id();
+        for _ in 0..2 {
+            world.trigger(Received::<ClientboundLogin>::new(
+                session,
+                Vec::new().into(),
+            ));
+            world.flush();
+        }
+        let mut figures = world.query_filtered::<(), With<InventoryFigure>>();
+        assert_eq!(figures.iter(&world).count(), 1, "a second login keeps it");
+        world.despawn(session);
+        assert_eq!(figures.iter(&world).count(), 0);
+    }
+
     fn near(actual: f32, expected: f32, tolerance: f32) -> bool {
         (actual - expected).abs() <= tolerance
     }
@@ -176,25 +224,11 @@ mod tests {
         );
 
         let poses = [
-            (
-                FigureBox {
-                    height: 1.8,
-                    eye_height: 1.62,
-                },
-                71.875,
-                23.275,
-            ),
-            (
-                FigureBox {
-                    height: 1.5,
-                    eye_height: 1.27,
-                },
-                67.375,
-                29.275,
-            ),
+            (Pose::Standing.player_dimensions(), 71.875, 23.275),
+            (Pose::Crouching.player_dimensions(), 67.375, 29.275),
         ];
-        for (figure_box, feet_y, eye_y) in poses {
-            let points = figure_points(ORIGIN, figure_box);
+        for (dimensions, feet_y, eye_y) in poses {
+            let points = figure_points(ORIGIN, dimensions);
             let expected = FigurePoints {
                 feet: Vec2::new(175.5, 37.0 + feet_y),
                 eye: Vec2::new(175.5, 37.0 + eye_y),
@@ -202,18 +236,11 @@ mod tests {
             assert!(
                 points.feet.abs_diff_eq(expected.feet, 1e-4)
                     && points.eye.abs_diff_eq(expected.eye, 1e-4),
-                "{figure_box:?}: {points:?} is not {expected:?}"
+                "{dimensions:?}: {points:?} is not {expected:?}"
             );
         }
 
-        let eye = figure_points(
-            ORIGIN,
-            FigureBox {
-                height: 1.8,
-                eye_height: 1.62,
-            },
-        )
-        .eye;
+        let eye = figure_points(ORIGIN, Pose::Standing.player_dimensions()).eye;
         let mice = [
             (Vec2::new(175.0, 60.0), -0.25, 0.14),
             (Vec2::new(215.0, 60.0), 15.58, 0.14),
@@ -234,14 +261,8 @@ mod tests {
     #[test]
     fn projection_puts_feet_on_their_pixel_and_light_on_screen() {
         let window = UVec2::new(854, 480);
-        let feet = figure_points(
-            ORIGIN,
-            FigureBox {
-                height: 1.8,
-                eye_height: 1.62,
-            },
-        )
-        .feet;
+        let standing = Pose::Standing.player_dimensions();
+        let feet = figure_points(ORIGIN, standing).feet;
         let upright = clip_from_figure(feet, 0.0, window, 2);
         let window_from_clip =
             |clip: Vec3| Vec2::new((clip.x + 1.0) / 2.0, (1.0 - clip.y) / 2.0) * window.as_vec2();
@@ -250,7 +271,7 @@ mod tests {
             feet_pixel.abs_diff_eq(Vec2::new(351.0, 217.75), 1e-3),
             "the feet are at {feet_pixel} window pixels"
         );
-        let eye_pixel = window_from_clip(upright.project_point3(Vec3::Y * 1.62));
+        let eye_pixel = window_from_clip(upright.project_point3(Vec3::Y * standing.eye_height));
         assert!(
             eye_pixel.abs_diff_eq(Vec2::new(351.0, 120.55), 1e-3),
             "the eye is at {eye_pixel} window pixels"
@@ -258,7 +279,7 @@ mod tests {
 
         let tilted = clip_from_figure(feet, 15.0, window, 2);
         let feet_depth = tilted.project_point3(Vec3::ZERO).z;
-        let top_depth = tilted.project_point3(Vec3::Y * 1.8).z;
+        let top_depth = tilted.project_point3(Vec3::Y * standing.height).z;
         assert!(
             top_depth < feet_depth,
             "a positive tilt moves the top away from the viewer: {top_depth} >= {feet_depth}"

@@ -16,6 +16,7 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_stack.workspace = true
@@ -23,6 +24,7 @@ mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_wire.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
@@ -35,3 +37,6 @@ tracing.workspace = true
 
 [features]
 test-support = ["mcrs_minecraft_game_registries/test-support"]
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }

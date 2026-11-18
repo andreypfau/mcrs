@@ -1,10 +1,11 @@
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
+use mcrs_minecraft_engine::ability::PlayerFlying;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::{UnreadablePlayerDat, load_player, write_player};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;

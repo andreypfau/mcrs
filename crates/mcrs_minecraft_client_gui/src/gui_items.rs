@@ -45,6 +45,7 @@ impl Plugin for GuiItemsPlugin {
                 Core3d,
                 draw_gui
                     .after(WorldPass::Forward)
+                    .after(mcrs_minecraft_render::PanoramaPass)
                     .after(FigureViewSystems)
                     .before(main_transparent_pass_3d)
                     .in_set(Core3dSystems::MainPass),

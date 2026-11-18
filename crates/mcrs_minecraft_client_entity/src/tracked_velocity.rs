@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_visual::{Age, ClientEntity, Living, Motion};
+use mcrs_minecraft_entity_visual::{Age, ClientEntity, Living, Motion, TickVelocity};
 
 use crate::ticked::ticked;
 
@@ -73,23 +73,38 @@ impl TrackedVelocity {
     }
 }
 
+#[expect(
+    clippy::type_complexity,
+    reason = "one query reads each part of an entity that its velocity tick needs"
+)]
 pub(crate) fn tick_velocities(
     mut entities: Query<
-        (&ClientEntity, Ref<Age>, &Motion, &mut TrackedVelocity),
+        (
+            &ClientEntity,
+            Ref<Age>,
+            &Motion,
+            &mut TrackedVelocity,
+            Option<&mut TickVelocity>,
+        ),
         (With<Living>, Without<MotionState>),
     >,
 ) {
-    for (client, age, motion, mut velocity) in &mut entities {
+    for (client, age, motion, mut velocity, tick_velocity) in &mut entities {
         if !ticked(&age) {
             continue;
         }
         let next = if client.kind == EntityType::Player {
-            velocity.approached()
+            Some(velocity.approached())
         } else if motion.interpolation.is_active() {
-            continue;
+            None
         } else {
-            velocity.decayed()
+            Some(velocity.decayed())
         };
-        velocity.set_if_neq(next);
+        if let Some(next) = next {
+            velocity.set_if_neq(next);
+        }
+        if let Some(mut tick_velocity) = tick_velocity {
+            tick_velocity.advance(velocity.value);
+        }
     }
 }

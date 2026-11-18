@@ -8,11 +8,11 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_block_support::BlockSupport;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
-use mcrs_minecraft_engine::{BlockBreakSet, eye_position, in_reach, reach};
+use mcrs_minecraft_engine::{BlockBreakSet, PlayerBody, eye_position, in_reach, reach};
 use mcrs_minecraft_engine_item::{Selected, Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -21,14 +21,13 @@ use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
-use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity_attribute::AttributeInstances;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol_game::Hand;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -72,7 +71,7 @@ const HIGHEST_CURSOR: f32 = 1.5;
 type PlacerItem<'a> = (
     &'a Owner,
     &'a PlayerGameMode,
-    Option<&'a AttributeInstances>,
+    PlayerBody,
     &'a InDimension,
     &'a Transform,
     Option<&'a PlayerOpLevel>,
@@ -92,7 +91,7 @@ type PlacerItem<'a> = (
 fn place_blocks(
     mut requests: MessageReader<UseItemOnRequest>,
     placers: Query<PlacerItem>,
-    bodies: Query<(&Transform, &PlayerGameMode), With<Player>>,
+    bodies: Query<(&Transform, &PlayerGameMode, PlayerBody), With<Player>>,
     stacks: Query<(&Kind, &Count)>,
     world: WorldView,
     definitions: Option<Res<Blocks>>,
@@ -114,24 +113,16 @@ fn place_blocks(
         if request.sequence.0 < 0 {
             continue;
         }
-        let Ok((
-            owner,
-            mode,
-            attributes,
-            dimension,
-            transform,
-            op_level,
-            teleport,
-            slots,
-            selected,
-        )) = placers.get(request.entity)
+        let Ok((owner, mode, body, dimension, transform, op_level, teleport, slots, selected)) =
+            placers.get(request.entity)
         else {
             continue;
         };
         let session = owner.0;
         let clicked = request.block_pos;
-        let eye = eye_position(transform.translation);
-        let limit = reach(attributes);
+        let dimensions = body.dimensions();
+        let eye = eye_position(transform.translation, dimensions);
+        let limit = reach(body.attributes);
         if !limit.is_some_and(|limit| in_reach(eye, clicked, limit))
             || !cursor_in_range(request.cursor.to_array())
         {
@@ -181,7 +172,7 @@ fn place_blocks(
                 mode: mode.0,
                 op_level: op_level.map_or(0, |level| level.clamped()),
                 held,
-                body: body_of(transform),
+                body: body_of(transform, dimensions),
             };
             let click = Click {
                 face: request.face,
@@ -191,8 +182,8 @@ fn place_blocks(
             };
             let others = bodies
                 .iter()
-                .filter(|(_, mode)| mode.0 != GameMode::Spectator)
-                .map(|(transform, _)| body_of(transform));
+                .filter(|(_, mode, ..)| mode.0 != GameMode::Spectator)
+                .map(|(transform, _, body)| body_of(transform, body.dimensions()));
             let spots = ((clicked, clicked_state), (adjacent, adjacent_state));
             let can_stay = |pos, state| {
                 support.as_deref().is_none_or(|support| {
@@ -239,12 +230,8 @@ struct Placer {
     body: Aabb,
 }
 
-fn body_of(transform: &Transform) -> Aabb {
-    Aabb::of_body(
-        transform.translation,
-        EntityTypeData::PLAYER.width,
-        EntityTypeData::PLAYER.height,
-    )
+fn body_of(transform: &Transform, dimensions: Dimensions) -> Aabb {
+    Aabb::of_body(transform.translation, dimensions.width, dimensions.height)
 }
 
 fn place(

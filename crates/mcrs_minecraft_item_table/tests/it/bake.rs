@@ -6,9 +6,21 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_fixtures::vanilla_dir;
 use mcrs_minecraft_item_stack::AttributeModifiers;
+use mcrs_minecraft_item_stack::BannerPatterns;
+use mcrs_minecraft_item_stack::Bees;
+use mcrs_minecraft_item_stack::BlockState;
+use mcrs_minecraft_item_stack::BlockStateProperty;
+use mcrs_minecraft_item_stack::BundleContents;
+use mcrs_minecraft_item_stack::ChargedProjectiles;
+use mcrs_minecraft_item_stack::Container;
 use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::Equippable;
+use mcrs_minecraft_item_stack::Fireworks;
 use mcrs_minecraft_item_stack::Food;
+use mcrs_minecraft_item_stack::Instrument;
+use mcrs_minecraft_item_stack::InstrumentId;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
 use mcrs_minecraft_item_stack::Kind;
@@ -19,8 +31,12 @@ use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::Neutral;
+use mcrs_minecraft_item_stack::OminousBottleAmplifier;
+use mcrs_minecraft_item_stack::PotionContents;
 use mcrs_minecraft_item_stack::Rarity;
+use mcrs_minecraft_item_stack::RegistryValue;
 use mcrs_minecraft_item_stack::RepairCost;
+use mcrs_minecraft_item_stack::SuspiciousStewEffects;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_item_stack::Unbreakable;
@@ -77,6 +93,26 @@ impl Registries {
             (
                 NameTable::BlockTag,
                 pack_table(&vanilla_dir().join("tags/block")),
+            ),
+            (NameTable::SoundEvent, static_table("minecraft:sound_event")),
+            (NameTable::EntityType, static_table("minecraft:entity_type")),
+            (NameTable::MobEffect, static_table("minecraft:mob_effect")),
+            (NameTable::Potion, static_table("minecraft:potion")),
+            (
+                NameTable::Instrument,
+                pack_table(&vanilla_dir().join("instrument")),
+            ),
+            (
+                NameTable::TrimMaterial,
+                pack_table(&vanilla_dir().join("trim_material")),
+            ),
+            (
+                NameTable::TrimPattern,
+                pack_table(&vanilla_dir().join("trim_pattern")),
+            ),
+            (
+                NameTable::EntityTypeTag,
+                pack_table(&vanilla_dir().join("tags/entity_type")),
             ),
         ]);
         Self { tables }
@@ -186,7 +222,7 @@ fn the_prototypes_have_the_counts_of_the_specification() {
             .get::<AttributeModifiers>()
             .map_or(0, |modifiers| modifiers.modifiers.len())
     };
-    let cases: [(&str, usize, usize); 19] = [
+    let cases: [(&str, usize, usize); 20] = [
         (
             "STK-SHP-006 max stack size",
             count(|prototype| prototype.get::<MaxStackSize>().is_some()),
@@ -262,10 +298,120 @@ fn the_prototypes_have_the_counts_of_the_specification() {
             }),
             17,
         ),
+        (
+            "STK-SHP-028 equippable",
+            count(|prototype| prototype.get::<Equippable>().is_some()),
+            84,
+        ),
     ];
     for (rule, actual, expected) in cases {
         assert_eq!(actual, expected, "{rule}");
     }
+}
+
+#[test]
+fn the_prototypes_have_the_flat_values_of_the_specification() {
+    let cases: [(&str, usize, usize); 10] = [
+        (
+            "STK-SHP-037 enchantment glint override",
+            count(|prototype| prototype.get() == Some(&EnchantmentGlintOverride(true))),
+            7,
+        ),
+        (
+            "STK-SHP-041 potion contents",
+            count(|prototype| prototype.get() == Some(&PotionContents::default())),
+            4,
+        ),
+        (
+            "STK-SHP-044 suspicious stew effects",
+            count(|prototype| prototype.get() == Some(&SuspiciousStewEffects(Vec::new()))),
+            1,
+        ),
+        (
+            "STK-SHP-045 ominous bottle amplifier",
+            count(|prototype| prototype.get() == Some(&OminousBottleAmplifier(0))),
+            1,
+        ),
+        (
+            "STK-SHP-052 charged projectiles",
+            count(|prototype| prototype.get() == Some(&ChargedProjectiles(Vec::new()))),
+            1,
+        ),
+        (
+            "STK-SHP-051 bundle contents",
+            count(|prototype| prototype.get() == Some(&BundleContents(Vec::new()))),
+            17,
+        ),
+        (
+            "STK-SHP-058 fireworks",
+            count(|prototype| {
+                prototype.get::<Fireworks>().is_some_and(|fireworks| {
+                    fireworks.flight_duration == 1 && fireworks.explosions.is_empty()
+                })
+            }),
+            1,
+        ),
+        (
+            "STK-SHP-059 banner patterns",
+            count(|prototype| prototype.get() == Some(&BannerPatterns(Vec::new()))),
+            17,
+        ),
+        (
+            "STK-SHP-053 container",
+            count(|prototype| {
+                prototype
+                    .get::<Container>()
+                    .is_some_and(|container| container.slots().is_empty())
+            }),
+            45,
+        ),
+        (
+            "STK-SHP-056 bees",
+            count(|prototype| prototype.get() == Some(&Bees(Vec::new()))),
+            2,
+        ),
+    ];
+    for (rule, actual, expected) in cases {
+        assert_eq!(actual, expected, "{rule}");
+    }
+}
+
+#[test]
+fn the_flat_prototypes_name_their_block_state_properties_and_their_instrument() {
+    let property = |name: &str, value: &str| BlockStateProperty {
+        name: name.to_owned(),
+        value: value.to_owned(),
+    };
+    let states = [
+        (property("copper_golem_pose", "standing"), 8),
+        (property("honey_level", "0"), 2),
+        (property("level", "15"), 1),
+        (property("mode", "start"), 1),
+    ];
+    for (expected, items) in states {
+        let actual = count(|prototype| {
+            prototype
+                .get::<BlockState>()
+                .is_some_and(|state| state.properties() == [expected.clone()])
+        });
+        assert_eq!(
+            actual, items,
+            "STK-SHP-038 {}={}",
+            expected.name, expected.value
+        );
+    }
+
+    let ponder = Registries::load()
+        .id(
+            NameTable::Instrument,
+            ResourceLocation::new("minecraft", "ponder_goat_horn").expect("a valid name"),
+        )
+        .expect("the pack has the instrument");
+    let horns = count(|prototype| {
+        prototype.get::<Instrument>()
+            == Some(&Instrument(RegistryValue::Reference(InstrumentId(ponder))))
+    });
+    assert_eq!(horns, 1, "STK-SHP-046");
 }
 
 #[test]
@@ -300,4 +446,27 @@ fn each_prototype_has_the_neutral_value_of_each_neutral_type() {
             .map(|model| model.get().to_string());
         assert_eq!(model.as_ref(), Some(identifier), "STK-SHP-012");
     }
+}
+
+macro_rules! typed_paths {
+    ($($name:ident => $path:literal),* $(,)?) => {
+        &[$($path),*]
+    };
+}
+
+#[test]
+fn the_bake_skips_no_type_that_the_item_stack_types() {
+    const TYPED: &[&str] = mcrs_minecraft_item_stack::for_each_builtin!(typed_paths);
+    let typed_but_skipped: Vec<String> = CORPUS
+        .baked
+        .skipped
+        .iter()
+        .map(|skipped| skipped.component.to_string())
+        .filter(|component| {
+            component
+                .strip_prefix("minecraft:")
+                .is_some_and(|path| TYPED.contains(&path))
+        })
+        .collect();
+    assert_eq!(typed_but_skipped, Vec::<String>::new());
 }

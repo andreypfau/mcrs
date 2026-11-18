@@ -132,8 +132,9 @@ pub fn app(settings: Settings) -> App {
     .insert_resource(PhysicsTables::new(TABLES.clone()))
     .init_resource::<GameTime>()
     .init_resource::<BirthClock>()
+    .insert_resource(test_item_table())
     .add_plugins((
-        ItemPlugin::new(test_item_table()),
+        ItemPlugin::default(),
         EntityMotionPlugin,
         EntityMotionReplicationPlugin,
         ItemEntityPlugin,

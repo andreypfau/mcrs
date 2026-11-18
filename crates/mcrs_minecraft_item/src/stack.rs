@@ -344,6 +344,9 @@ impl Decode<'_> for Template<Wire> {
             let item = WireId::<Item>::decode(r)?;
             let count = VarInt::decode(r)?.0;
             let components = ComponentPatch::decode(r)?;
+            if item.is_air() {
+                return Err(Error::invalid("Item must be non-empty"));
+            }
             Template::new(item, count, components).map_err(Error::invalid)
         })
     }

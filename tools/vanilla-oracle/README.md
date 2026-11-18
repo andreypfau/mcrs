@@ -75,6 +75,7 @@ These tasks live in the `data` source set, and `mcrs_minecraft_update` runs all 
 cd tools/vanilla-oracle
 ./gradlew dumpReports -PreportsOut=<dir> --console=plain --no-daemon
 ./gradlew dumpDefinitions -PdefinitionsOut=<dir> --console=plain --no-daemon
+./gradlew dumpCreativeTabs -PcreativeTabsOut=<file> --console=plain --no-daemon
 ./gradlew dumpGolden -Pgolden=<name> -PgoldenIn=<current file> -PgoldenOut=<dir> --console=plain --no-daemon
 ```
 
@@ -83,6 +84,9 @@ cd tools/vanilla-oracle
 - `dumpDefinitions` loads the vanilla data pack and writes one definition file per block and per
   item to `<dir>/block_definition` and `<dir>/item_definition`. The first directory holds the
   `README.md` that describes the format. The task stops if the game reports another world version.
+- `dumpCreativeTabs` loads the vanilla data pack and writes the creative report to `<file>`: the
+  tab list and the search list of each items tab with each feature flag on, once with the operator
+  view off to set `needs_operator` and once with it on for the lists.
 - `dumpGolden` rewrites one golden file of the Rust tests with what the codecs of the game produce.
   The file in the repository supplies the cases, and the game supplies each expected value. The task
   fails without `-Pgolden` and `-PgoldenIn`. `recapture <name>` fills in the properties and puts the
@@ -116,6 +120,13 @@ states their keys.
 
 The task opens a game window. The fixture `client_frames` copies the output to
 `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`.
+
+## Client recordings
+
+`recordInventoryE17` runs `tools/mcrs_minecraft_client_recorder/record.sh inventory_e17` with
+`AUTOPLAY=true` and `CHEAT=remove:player_action`. It needs `MINECRAFT_EULA=true` in the
+environment. The fixture `inventory_e17` copies the recordings to
+`tools/mcrs_minecraft_client_recorder/recordings/inventory/`.
 
 ## Fonts
 

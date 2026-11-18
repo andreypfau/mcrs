@@ -1,6 +1,9 @@
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_network::client::close_connection_later;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_game_mode::Abilities;
+use mcrs_minecraft_network::client::{ConnectionEnd, close_connection_later};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -9,6 +12,16 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
+
+use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::local_motion::LocalMotion;
+use crate::local_player::LastSentInput;
+use crate::player::{Player, player_at};
+use crate::session::InSession;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_entity_visual::SyncedData;
+use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_player_holders::restore_holders;
 
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
@@ -32,6 +45,7 @@ impl CurrentDimension {
 }
 
 pub(crate) fn add_observers(app: &mut App) {
+    app.world_mut().register_system_cached(restore_holders);
     app.add_observer(on_login)
         .add_observer(on_respawn)
         .add_observer(on_set_entity_data);
@@ -41,7 +55,9 @@ fn refuse_packet(commands: &mut Commands, connection: Entity, name: &str, error:
     close_connection_later(
         commands,
         connection,
-        format!("the server sent a {name} the client cannot read: {error:#}"),
+        ConnectionEnd::Lost(format!(
+            "the server sent a {name} the client cannot read: {error:#}"
+        )),
     );
 }
 
@@ -58,6 +74,7 @@ fn in_session(registries: Option<&Registries>, spawn: &PlayerSpawnInfo) -> anyho
 fn on_login(
     event: On<Received<ClientboundLogin>>,
     registries: Option<Res<CurrentRegistries>>,
+    players: Query<(), With<Player>>,
     mut commands: Commands,
 ) {
     let Some(login) = event.packet() else {
@@ -73,6 +90,24 @@ fn on_login(
                 },
                 CurrentDimension::of(&login.player_spawn_info),
             ));
+            if players.is_empty() {
+                let mode = login.player_spawn_info.game_mode;
+                let mut player = commands.spawn((
+                    player_at(DVec3::ZERO, 0.0, 0.0),
+                    Abilities::new(mode),
+                    LocalMotion::spawned(mode, DVec3::ZERO),
+                    SyncedData::default(),
+                    LastSentInput::default(),
+                    LocalGameMode::spawned(&login.player_spawn_info),
+                    PermissionLevel::default(),
+                    InSession(event.entity),
+                ));
+                if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
+                    player.insert(AttributeInstances::new(bases));
+                }
+                let player = player.id();
+                commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
+            }
         }
         Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),
     }

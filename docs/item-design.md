@@ -124,12 +124,13 @@ fn send_slots(mut stacks: Stacks, changed: Query<(Entity, &InSlot), Changed<Coun
 }
 ```
 
-Atomic request with its result. A system that handles many holders reads
+Atomic request with its result. The `source` comes from `app.allocate_request_source()` in the plugin build. A system that handles many holders reads
 `MessageReader<RequestResult>` as an alternative to the observer:
 
 ```rust
 let (from, to) = (SlotRef { holder: player, index: 0 }, SlotRef { holder: player, index: 9 });
-commands.entity(player).request(Request::new(RequestId(7)).split(from, to, 16).swap(to, from));
+let id = RequestId { source, serial: 7 };
+commands.entity(player).request(Request::new(id).split(from, to, 16).swap(to, from));
 
 fn on_result(result: On<RequestResult>) {          // app.add_observer(on_result)
     if let Err(rejected) = result.outcome {
@@ -150,7 +151,7 @@ impl CustomComponent for Soulbound {
     fn decode(bytes: &[u8]) -> Option<Self> { Some(Self(u64::from_le_bytes(bytes.try_into().ok()?))) }
 }
 
-app.add_plugins(ItemPlugin::new(table)).register_item_component::<Soulbound>()?;
+app.insert_resource(table).add_plugins(ItemPlugin::default()).register_item_component::<Soulbound>()?;
 
 let stack = ItemStack::new(kind, count).set(CustomName("Sting".into())).unset::<Lore>();
 let bytes = encode_wire(Some(&stack))?;            // the codec names come with the codec step

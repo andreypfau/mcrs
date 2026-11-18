@@ -8,6 +8,7 @@ use crate::body_turn;
 use crate::client_entity::ClientEntity;
 use crate::living::Living;
 use crate::motion::{Age, Motion};
+use crate::player_pose_ticks::PlayerPoseTicks;
 use crate::server_ticking::ServerTicking;
 use crate::synced_data::SyncedData;
 use crate::ticking_area::TickingArea;
@@ -101,9 +102,10 @@ pub(crate) fn tick_entities<A: TickingArea>(
         &mut Age,
         Option<&mut Living>,
         &SyncedData,
+        Option<&mut PlayerPoseTicks>,
     )>,
 ) {
-    for (entity, mut motion, mut age, living, data) in &mut entities {
+    for (entity, mut motion, mut age, living, data, pose_ticks) in &mut entities {
         if !in_ticking_area(area.as_deref(), motion.current.position) {
             continue;
         }
@@ -115,6 +117,11 @@ pub(crate) fn tick_entities<A: TickingArea>(
             data,
             ticking.tick_speed(),
         );
+        if let Some(mut pose_ticks) = pose_ticks
+            && in_ticking_area(area.as_deref(), motion.current.position)
+        {
+            pose_ticks.advance(data);
+        }
     }
 }
 

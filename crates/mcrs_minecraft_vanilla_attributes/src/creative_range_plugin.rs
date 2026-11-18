@@ -3,13 +3,12 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier, ModifierKind,
     ModifierOperation,
 };
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 use crate::attribute_sources::{AttributeSources, configure_attribute_sources};

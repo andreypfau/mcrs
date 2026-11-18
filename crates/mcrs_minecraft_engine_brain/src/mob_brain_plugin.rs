@@ -25,7 +25,7 @@ use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine::PlayerBody;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_physics::PhysicsTables;
@@ -42,7 +42,7 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::TagKey;
 
@@ -155,7 +155,16 @@ fn prepare<B>(
     world: WorldView,
     tables: Res<PhysicsTables>,
     mobs: Res<Mobs>,
-    players: Query<(&Owner, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
+    players: Query<
+        (
+            &Owner,
+            &EntityUuid,
+            &Transform,
+            Option<&PlayerGameMode>,
+            PlayerBody,
+        ),
+        With<Player>,
+    >,
     mut rows: ResMut<EntityRows>,
     mut ai: ResMut<MobAi<B>>,
 ) where
@@ -164,13 +173,13 @@ fn prepare<B>(
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    let table = PlayerTable::new(players.iter().map(|(owner, uuid, transform, mode)| {
+    let table = PlayerTable::new(players.iter().map(|(owner, uuid, transform, mode, body)| {
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
         PlayerRow {
             player: EntityId(u64::from(player_network_id(owner.0).cast_unsigned())),
             key: EntityKey(uuid.0.as_u128()),
             position: transform.translation,
-            eye_height: EntityTypeData::PLAYER.eye_height,
+            eye_height: body.dimensions().eye_height,
             flags: if spectator {
                 PlayerFlags::ALIVE.union(PlayerFlags::SPECTATOR)
             } else {

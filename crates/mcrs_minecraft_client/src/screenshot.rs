@@ -135,7 +135,17 @@ fn capture_scene(
     }
     let now = time.elapsed_secs();
     if now > SETTLE_TIMEOUT_SECS {
-        error!(path = %capture.0.display(), "the scene did not settle within 180 s");
+        let blockers = settling.settle.blockers();
+        error!(
+            path = %capture.0.display(),
+            blocking = ?blockers.names(),
+            unsettled_messages = blockers.unsettled_messages,
+            columns = blockers.columns,
+            queued = blockers.queued,
+            meshing = blockers.meshing,
+            uploads_waiting = blockers.uploads_waiting,
+            "the scene did not settle within 180 s"
+        );
         commands.write_message(AppExit::error());
         return;
     }

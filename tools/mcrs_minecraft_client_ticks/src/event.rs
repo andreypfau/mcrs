@@ -1,5 +1,8 @@
 use std::fmt;
 
+use crate::Click;
+use crate::Content;
+use crate::SlotChange;
 use crate::fields::Fields;
 use crate::fields::bad;
 use crate::fields::parse_value;
@@ -16,12 +19,18 @@ pub enum Event {
     Block(BlockChange),
     ChunkForgotten([i32; 2]),
     EntityData(EntityData),
+    Slot(SlotChange),
+    Content(Content),
+    Cursor(String),
     Input(Keys),
     Sprinting(bool),
     Command(String),
     Interact(bool),
     UseItem,
     ReleaseUseItem,
+    Action(String),
+    Click(Click),
+    Removed(Box<Event>),
     Move(Move),
     TickEnd,
 }
@@ -210,6 +219,9 @@ impl fmt::Display for Event {
                 }
                 write!(f, " {} {}", data.index, data.value)
             }
+            Self::Slot(change) => write!(f, "< slot {change}"),
+            Self::Content(content) => write!(f, "< content {content}"),
+            Self::Cursor(stack) => write!(f, "< cursor {stack}"),
             Self::Input(keys) => {
                 f.write_str("> input ")?;
                 write_flags(f, &{ *keys }.flags())
@@ -219,6 +231,12 @@ impl fmt::Display for Event {
             Self::Interact(secondary) => write!(f, "> interact {secondary}"),
             Self::UseItem => f.write_str("> use_item"),
             Self::ReleaseUseItem => f.write_str("> release_use_item"),
+            Self::Action(action) => write!(f, "> action {action}"),
+            Self::Click(click) => write!(f, "> click {click}"),
+            Self::Removed(event) => {
+                let text = event.to_string();
+                write!(f, "> removed {}", text.strip_prefix("> ").unwrap_or(&text))
+            }
             Self::Move(step) => {
                 f.write_str("> move ")?;
                 match step.position {
@@ -247,6 +265,9 @@ impl Event {
                 | Self::Interact(_)
                 | Self::UseItem
                 | Self::ReleaseUseItem
+                | Self::Action(_)
+                | Self::Click(_)
+                | Self::Removed(_)
                 | Self::Move(_)
                 | Self::TickEnd
         )
@@ -256,7 +277,13 @@ impl Event {
         let mut fields = Fields::new(line);
         let direction = fields.word("direction")?;
         let kind = fields.word("kind")?;
-        let event = match (direction, kind) {
+        let event = Self::parse_kind(direction, kind, &mut fields)?;
+        fields.end()?;
+        Ok(event)
+    }
+
+    fn parse_kind(direction: &str, kind: &str, fields: &mut Fields<'_>) -> Result<Self, String> {
+        Ok(match (direction, kind) {
             ("<", "teleport") => Self::Teleport(Teleport {
                 id: fields.value("id")?,
                 position: fields.array3("position")?,
@@ -271,7 +298,7 @@ impl Event {
             ("<", "explosion") => Self::Explosion(fields.array3("impulse")?),
             ("<", "abilities") => {
                 let mut abilities = Abilities::default();
-                parse_flags(&mut fields, "flags", &mut abilities.flags())?;
+                parse_flags(fields, "flags", &mut abilities.flags())?;
                 abilities.flying_speed = fields.value("flying_speed")?;
                 Self::Abilities(abilities)
             }
@@ -310,9 +337,12 @@ impl Event {
                 index: fields.value("index")?,
                 value: fields.word("value")?.to_owned(),
             }),
+            ("<", "slot") => Self::Slot(SlotChange::parse(fields)?),
+            ("<", "content") => Self::Content(Content::parse(fields)?),
+            ("<", "cursor") => Self::Cursor(fields.word("stack")?.to_owned()),
             (">", "input") => {
                 let mut keys = Keys::default();
-                parse_flags(&mut fields, "keys", &mut keys.flags())?;
+                parse_flags(fields, "keys", &mut keys.flags())?;
                 Self::Input(keys)
             }
             (">", "sprint") => Self::Sprinting(fields.value("sprint")?),
@@ -320,12 +350,16 @@ impl Event {
             (">", "interact") => Self::Interact(fields.value("secondary")?),
             (">", "use_item") => Self::UseItem,
             (">", "release_use_item") => Self::ReleaseUseItem,
-            (">", "move") => parse_move(&mut fields)?,
+            (">", "action") => Self::Action(fields.word("action")?.to_owned()),
+            (">", "click") => Self::Click(Click::parse(fields)?),
+            (">", "removed") => {
+                let kind = fields.word("kind")?;
+                Self::Removed(Box::new(Self::parse_kind(">", kind, fields)?))
+            }
+            (">", "move") => parse_move(fields)?,
             (">", "tick") => Self::TickEnd,
             _ => return Err(format!("unknown event `{direction} {kind}`")),
-        };
-        fields.end()?;
-        Ok(event)
+        })
     }
 }
 

@@ -128,6 +128,7 @@ impl MoveGuard {
                     self.pending_teleport = None;
                 }
             }
+            Serverbound::PlayerInput if !self.loaded => return Action::Drop,
             Serverbound::PlayerLoaded => self.loaded = true,
             Serverbound::Pong(id) => {
                 match self.probes.answer(id) {
@@ -146,7 +147,7 @@ impl MoveGuard {
                 }
                 return Action::EndTick(client_tick);
             }
-            Serverbound::VehicleMove(_) | Serverbound::Other => {}
+            Serverbound::VehicleMove(_) | Serverbound::PlayerInput | Serverbound::Other => {}
         }
         Action::Forward
     }

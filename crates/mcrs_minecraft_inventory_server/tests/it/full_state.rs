@@ -14,7 +14,6 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_inventory_client_view::SlotView;
-use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -30,6 +29,7 @@ use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
+use crate::fixture::first_menu_sync;
 use crate::fixture::restore;
 use crate::fixture::saved;
 
@@ -87,7 +87,69 @@ fn inv_sel_002_set_carried_item_selects_a_hotbar_slot_and_ignores_other_values()
 }
 
 #[test]
-fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
+fn inv_sel_003_set_held_slot_follows_a_server_change_and_never_answers_the_client() {
+    enum Change {
+        WriteSelected,
+        SetCarriedItem,
+    }
+    let cases = [
+        (Change::WriteSelected, vec![6]),
+        (Change::SetCarriedItem, vec![]),
+    ];
+    for (change, expected) in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = world.spawn((Player, Owner(SESSION))).id();
+        apply(world, player, &PersistedSnapshot::new());
+        world.run_schedule(FixedUpdate);
+        let joined = sent(world);
+        assert!(
+            matches!(
+                joined.as_slice(),
+                [
+                    PacketPayload::SetHeldSlot(_),
+                    PacketPayload::ContainerSetContent(_)
+                ]
+            ),
+            "the join sends the held slot and the content, not {joined:?}"
+        );
+        match change {
+            Change::WriteSelected => {
+                *world
+                    .get_mut::<Selected>(player)
+                    .expect("a restored player has a selected slot") = Selected(6);
+            }
+            Change::SetCarriedItem => {
+                let mut body = Vec::new();
+                ServerboundSetCarriedItem { slot: 6 }
+                    .encode(&mut body)
+                    .expect("the packet encodes");
+                world.trigger(Received::<ServerboundSetCarriedItem>::new(
+                    player,
+                    body.into(),
+                ));
+                world.flush();
+            }
+        }
+        let held = |world: &mut World| -> Vec<i32> {
+            world.run_schedule(FixedUpdate);
+            sent(world)
+                .iter()
+                .map(|packet| match packet {
+                    PacketPayload::SetHeldSlot(held) => held.slot.0,
+                    other => panic!("only set_held_slot packets, not {other:?}"),
+                })
+                .collect()
+        };
+
+        assert_eq!(held(world), expected, "the tick after the change");
+        assert_eq!(world.get::<Selected>(player), Some(&Selected(6)));
+        assert_eq!(held(world), Vec::<i32>::new(), "the next tick");
+    }
+}
+
+#[test]
+fn inv_syn_005_a_joined_player_gets_its_full_state_and_a_later_restore_sends_only_the_changes() {
     let mut app = app();
     let world = app.world_mut();
     let inventory = vec![
@@ -146,9 +208,7 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     );
     assert!(content.carried_item.is_empty(), "the file has no cursor");
 
-    let sync = world
-        .get::<MenuSync>(player)
-        .expect("a restored player has a client view");
+    let sync = first_menu_sync(world, player);
     assert_eq!(sync.state_id().get(), 1);
     let views: Vec<Option<&SlotView>> = [0, 5, 9, 36].map(|index| sync.view().entry(index)).into();
     assert_eq!(
@@ -163,21 +223,35 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     );
     assert_eq!(sync.view().cursor(), &SlotView::Stack(None));
 
+    let changed = vec![
+        ItemStackWithSlot {
+            slot: 0,
+            stack: saved("stone", 5),
+        },
+        ItemStackWithSlot {
+            slot: 9,
+            stack: saved("stone", 7),
+        },
+    ];
+    file.put(&["Inventory"], &changed).expect("the inventory");
+    file.put(&["SelectedItemSlot"], &6)
+        .expect("the selected slot");
     apply(world, player, &file);
     world.run_schedule(FixedUpdate);
     let packets = sent(world);
-    let content_ids: Vec<i32> = packets
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::ContainerSetContent(content) => Some(content.state_seqno.0),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        content_ids,
-        [2],
-        "a later restore sends under the next state id"
-    );
+    let mut held = Vec::new();
+    let mut slots = Vec::new();
+    for packet in &packets {
+        match packet {
+            PacketPayload::SetHeldSlot(packet) => held.push(packet.slot.0),
+            PacketPayload::ContainerSetSlot(set) => {
+                slots.push((set.slot, set.item.id.number(), set.item.count));
+            }
+            other => panic!("only set_held_slot and container_set_slot, not {other:?}"),
+        }
+    }
+    assert_eq!(held, [6], "the selected slot of the later restore");
+    assert_eq!(slots, [(9, 1, 7)], "only the changed entry P[9]");
 }
 
 #[test]

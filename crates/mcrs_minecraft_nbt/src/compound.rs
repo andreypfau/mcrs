@@ -24,12 +24,12 @@ impl NbtCompound {
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<(), Error> {
         loop {
-            let tag_id = reader.get_u8()?;
+            let tag_id = reader.read_entry_kind()?;
             if tag_id == END_ID {
                 break;
             }
 
-            let len = E::read_string_length(&mut reader.reader)?;
+            let len = reader.read_string_length()?;
             reader.skip_bytes(len as i64)?;
 
             NbtTag::skip_data(reader, tag_id)?;
@@ -44,7 +44,7 @@ impl NbtCompound {
         let mut child_tags = Vec::new();
 
         loop {
-            let tag_id = reader.get_u8()?;
+            let tag_id = reader.read_entry_kind()?;
             if tag_id == END_ID {
                 break;
             }

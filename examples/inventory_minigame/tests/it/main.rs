@@ -2,3 +2,4 @@
 
 mod arena_rules;
 mod kit;
+mod shop;

@@ -48,6 +48,22 @@ impl Widgets {
         self.settle_focus(before, now_ms, FocusEntry::Edit);
     }
 
+    pub fn hide(&mut self, id: WidgetId, events: &mut Vec<WidgetEvent>) {
+        let Some(index) = self.index(id) else {
+            return;
+        };
+        if let Some(widget) = self.widgets.get_mut(index) {
+            widget.visible = false;
+        }
+        if let Some(focused) = self.focused.filter(|focused| !self.accepts(*focused)) {
+            if let Some(edit) = self.edit_box_mut(focused) {
+                edit.editing = false;
+            }
+            self.focused = None;
+            events.push(WidgetEvent::FocusChanged { focused: None });
+        }
+    }
+
     pub fn key_press(
         &mut self,
         key: GuiKey,

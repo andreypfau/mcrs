@@ -4,13 +4,14 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
-use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
+use mcrs_minecraft_item::SelectedHotbarSlot;
 
 use crate::hotbar_sync::LastSentHotbarSlot;
 use crate::local_player::{LastSentMovement, Sprint};
+use crate::player_load::PlayerLoad;
 
 #[derive(Component)]
-#[require(LastSentHotbarSlot)]
+#[require(LastSentHotbarSlot, PlayerLoad)]
 pub struct Player;
 
 pub fn look_direction(yaw: f32, pitch: f32) -> Vec3 {
@@ -22,19 +23,16 @@ pub fn look_direction(yaw: f32, pitch: f32) -> Vec3 {
     )
 }
 
-pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) -> Entity {
+pub fn player_at(position: DVec3, yaw: f32, pitch: f32) -> impl Bundle {
     let physics =
         PhysicsTransform::from_translation(position).with_rotation(Rotation::new(yaw, pitch));
-    world
-        .spawn((
-            Player,
-            physics,
-            OldTransform(physics),
-            Velocity(DVec3::ZERO),
-            Sprint::default(),
-            LastSentMovement::default(),
-            SlotTable::fixed(slots::COUNT),
-            SelectedHotbarSlot::default(),
-        ))
-        .id()
+    (
+        Player,
+        physics,
+        OldTransform(physics),
+        Velocity(DVec3::ZERO),
+        Sprint::default(),
+        LastSentMovement::default(),
+        SelectedHotbarSlot::default(),
+    )
 }

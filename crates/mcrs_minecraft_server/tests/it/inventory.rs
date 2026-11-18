@@ -6,6 +6,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
@@ -20,10 +21,11 @@ use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::Direction;
-use mcrs_minecraft_protocol_game::item::{ContainerInput, DelimitedStack};
+use mcrs_minecraft_protocol_game::item::DelimitedStack;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundPlayerAction,
@@ -34,7 +36,6 @@ use mcrs_minecraft_save::{PlayerDat, read_player_dat};
 use mcrs_minecraft_server::{
     VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin, VanillaItemPlugin,
 };
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_item_entity::{Form, ItemEntityCommandsExt, Launch};
 use mcrs_voxel::BlockPos;
 
@@ -61,7 +62,7 @@ enum Sent {
     Click {
         slot: i16,
         button: u8,
-        input: ContainerInput,
+        input: ClickKind,
     },
     Close,
     Hand(PlayerAction),
@@ -77,7 +78,7 @@ const fn pick_up(slot: i16, button: u8) -> Sent {
     Sent::Click {
         slot,
         button,
-        input: ContainerInput::Pickup,
+        input: ClickKind::PickUp,
     }
 }
 
@@ -132,9 +133,11 @@ fn send(server: &mut PlayServer, anchor: Entity, sent: Sent) {
             &ServerboundContainerClick {
                 container_id: VarInt(0),
                 state_seqno: VarInt(0),
-                slot_index: slot,
-                button,
-                container_input: input,
+                click: Click {
+                    kind: input,
+                    button,
+                    clicked: Clicked::from(slot),
+                },
                 changed_slots: Vec::new().into(),
                 carried_item: None,
             },
@@ -311,7 +314,7 @@ fn inv_sav_003_a_rejoin_holds_the_inventory_of_the_leave() {
         Sent::Click {
             slot: 20,
             button: 4,
-            input: ContainerInput::Swap,
+            input: ClickKind::Swap,
         },
     );
     server.ticks(anchor, 2);

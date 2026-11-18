@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::block_keys::Block;
-use mcrs_minecraft_core::codec::{is_default, long_value};
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
 use mcrs_minecraft_resource::{ResourceKeyBuf, rl};
+use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
@@ -175,10 +176,75 @@ pub struct ContainerLoot {
     pub loot_table: ResourceKeyBuf<LootTable>,
     #[serde(
         default,
-        deserialize_with = "long_value",
+        deserialize_with = "seed_value",
         skip_serializing_if = "is_default"
     )]
     pub seed: i64,
+}
+
+fn seed_value<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    #[derive(PartialEq)]
+    enum Seed {
+        Json,
+        Nbt,
+    }
+
+    impl Visitor<'_> for Seed {
+        type Value = i64;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a number")
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<i64, E> {
+            Ok(v)
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<i64, E> {
+            Ok(v.cast_signed())
+        }
+
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<i64, E> {
+            let truncated = v.trunc();
+            Ok(
+                if self == Seed::Json && (-(2f64.powi(63))..2f64.powi(64)).contains(&truncated) {
+                    truncated as i128 as i64
+                } else {
+                    truncated as i64
+                },
+            )
+        }
+    }
+
+    let seed = if d.is_human_readable() {
+        Seed::Json
+    } else {
+        Seed::Nbt
+    };
+    d.deserialize_any(seed)
+}
+
+#[derive(Serialize)]
+struct ContainerLootWire<'a> {
+    #[serde(skip_serializing_if = "is_default")]
+    seed: i64,
+    loot_table: &'a ResourceKeyBuf<LootTable>,
+}
+
+impl Encode for ContainerLoot {
+    fn encode(&self, w: impl Write) -> Result<()> {
+        let wire = ContainerLootWire {
+            seed: self.seed,
+            loot_table: &self.loot_table,
+        };
+        mcrs_minecraft_nbt::encode_wire(&wire, w)
+    }
+}
+
+impl Decode<'_> for ContainerLoot {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        mcrs_minecraft_nbt::decode_wire(r)
+    }
 }
 
 impl Sample for ContainerLoot {
@@ -222,4 +288,4 @@ macro_rules! nbt_wire {
     )*};
 }
 
-nbt_wire!(MapDecorations, DebugStickState, Recipes, ContainerLoot);
+nbt_wire!(MapDecorations, DebugStickState, Recipes);

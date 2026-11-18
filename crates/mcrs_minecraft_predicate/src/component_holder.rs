@@ -1,23 +1,42 @@
 use mcrs_minecraft_item_stack::AttributeModifiers;
+use mcrs_minecraft_item_stack::BannerPatterns;
+use mcrs_minecraft_item_stack::Bees;
+use mcrs_minecraft_item_stack::BlockState;
 use mcrs_minecraft_item_stack::Builtin;
+use mcrs_minecraft_item_stack::BundleContents;
+use mcrs_minecraft_item_stack::ChargedProjectiles;
+use mcrs_minecraft_item_stack::Container;
+use mcrs_minecraft_item_stack::ContainerLoot;
+use mcrs_minecraft_item_stack::CustomData;
+use mcrs_minecraft_item_stack::CustomModelData;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::DyedColor;
+use mcrs_minecraft_item_stack::EnchantmentGlintOverride;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::FireworkExplosion;
+use mcrs_minecraft_item_stack::Fireworks;
 use mcrs_minecraft_item_stack::Food;
+use mcrs_minecraft_item_stack::Instrument;
 use mcrs_minecraft_item_stack::ItemComponent;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::LodestoneTracker;
 use mcrs_minecraft_item_stack::Lore;
 use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::MapId;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
+use mcrs_minecraft_item_stack::OminousBottleAmplifier;
+use mcrs_minecraft_item_stack::PotionContents;
 use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
+use mcrs_minecraft_item_stack::SuspiciousStewEffects;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::TooltipDisplay;
+use mcrs_minecraft_item_stack::Trim;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_table::ItemTable;
 
@@ -62,6 +81,33 @@ impl<'a> ComponentHolder<'a> {
             DataComponentType::MapId => self.effective::<MapId>().is_some(),
             DataComponentType::MapDecorations => self.effective::<MapDecorations>().is_some(),
             DataComponentType::Profile => self.effective::<Profile>().is_some(),
+            DataComponentType::DyedColor => self.effective::<DyedColor>().is_some(),
+            DataComponentType::CustomModelData => self.effective::<CustomModelData>().is_some(),
+            DataComponentType::EnchantmentGlintOverride => {
+                self.effective::<EnchantmentGlintOverride>().is_some()
+            }
+            DataComponentType::BlockState => self.effective::<BlockState>().is_some(),
+            DataComponentType::LodestoneTracker => self.effective::<LodestoneTracker>().is_some(),
+            DataComponentType::Trim => self.effective::<Trim>().is_some(),
+            DataComponentType::PotionContents => self.effective::<PotionContents>().is_some(),
+            DataComponentType::CustomData => self.effective::<CustomData>().is_some(),
+            DataComponentType::SuspiciousStewEffects => {
+                self.effective::<SuspiciousStewEffects>().is_some()
+            }
+            DataComponentType::OminousBottleAmplifier => {
+                self.effective::<OminousBottleAmplifier>().is_some()
+            }
+            DataComponentType::Instrument => self.effective::<Instrument>().is_some(),
+            DataComponentType::BannerPatterns => self.effective::<BannerPatterns>().is_some(),
+            DataComponentType::Bees => self.effective::<Bees>().is_some(),
+            DataComponentType::BundleContents => self.effective::<BundleContents>().is_some(),
+            DataComponentType::ChargedProjectiles => {
+                self.effective::<ChargedProjectiles>().is_some()
+            }
+            DataComponentType::Container => self.effective::<Container>().is_some(),
+            DataComponentType::ContainerLoot => self.effective::<ContainerLoot>().is_some(),
+            DataComponentType::FireworkExplosion => self.effective::<FireworkExplosion>().is_some(),
+            DataComponentType::Fireworks => self.effective::<Fireworks>().is_some(),
             _ => false,
         }
     }
@@ -86,6 +132,25 @@ impl<'a> ComponentHolder<'a> {
             Builtin::MapId(value) => self.effective() == Some(value),
             Builtin::MapDecorations(value) => self.effective() == Some(value),
             Builtin::Profile(value) => self.effective() == Some(value),
+            Builtin::DyedColor(value) => self.effective() == Some(value),
+            Builtin::CustomModelData(value) => self.effective() == Some(value),
+            Builtin::EnchantmentGlintOverride(value) => self.effective() == Some(value),
+            Builtin::BlockState(value) => self.effective() == Some(value),
+            Builtin::LodestoneTracker(value) => self.effective() == Some(value),
+            Builtin::Trim(value) => self.effective() == Some(value),
+            Builtin::PotionContents(value) => self.effective() == Some(value),
+            Builtin::CustomData(value) => self.effective() == Some(value),
+            Builtin::SuspiciousStewEffects(value) => self.effective() == Some(value),
+            Builtin::OminousBottleAmplifier(value) => self.effective() == Some(value),
+            Builtin::Instrument(value) => self.effective() == Some(value),
+            Builtin::BannerPatterns(value) => self.effective() == Some(value),
+            Builtin::Bees(value) => self.effective() == Some(value),
+            Builtin::BundleContents(value) => self.effective() == Some(value),
+            Builtin::ChargedProjectiles(value) => self.effective() == Some(value),
+            Builtin::Container(value) => self.effective() == Some(value),
+            Builtin::ContainerLoot(value) => self.effective() == Some(value),
+            Builtin::FireworkExplosion(value) => self.effective() == Some(value),
+            Builtin::Fireworks(value) => self.effective() == Some(value),
             _ => false,
         }
     }

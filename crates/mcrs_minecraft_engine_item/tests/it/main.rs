@@ -6,8 +6,6 @@ mod effective_state;
 mod equipped;
 mod fixture;
 mod placement;
-#[cfg(not(miri))]
-mod player_file;
 mod request;
 mod request_check;
 mod round_trip;

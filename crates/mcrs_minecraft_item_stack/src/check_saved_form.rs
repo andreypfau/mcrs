@@ -1,5 +1,9 @@
 use core::ops::RangeInclusive;
 
+use mcrs_minecraft_nbt::MAX_DEPTH;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
 use crate::ItemStack;
@@ -19,6 +23,10 @@ pub(crate) const MAX_COUNT: u8 = 99;
 pub(crate) const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
 pub(crate) const POSITIVE: RangeInclusive<i32> = 1..=i32::MAX;
 pub(crate) const STACK_SIZE: RangeInclusive<i32> = 1..=MAX_COUNT as i32;
+pub(crate) const OMINOUS_AMPLIFIER: RangeInclusive<i32> = 0..=4;
+pub(crate) const MAX_NESTING: u32 = MAX_DEPTH / NBT_LEVELS_OF_TEMPLATE;
+
+const NBT_LEVELS_OF_TEMPLATE: u32 = 3;
 
 pub(crate) fn check_saved_form<L: NameLookup>(
     stack: &ItemStack,
@@ -48,6 +56,18 @@ impl SavedSink for Check {
 
     fn profile(&mut self, profile: &Profile) -> Option<()> {
         profile.check().ok()
+    }
+
+    fn compound(&mut self, _: &NbtCompound) -> Option<()> {
+        Some(())
+    }
+
+    fn tag(&mut self, _: &NbtTag) -> Option<()> {
+        Some(())
+    }
+
+    fn entity_data(&mut self, _: &NbtCompound, _: ResourceLocation<'_>) -> Option<()> {
+        Some(())
     }
 
     fn fields(&self, _: impl IntoIterator<Item = Field<()>>) {}

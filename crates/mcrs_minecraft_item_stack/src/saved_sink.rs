@@ -1,3 +1,5 @@
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
@@ -8,7 +10,10 @@ pub(crate) const TAG_MARKER: &str = "#";
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Leaf<'a> {
+    Byte(i8),
     Int(i32),
+    Long(i64),
+    IntArray(&'a [i32]),
     Float(f32),
     Double(f64),
     Boolean(bool),
@@ -40,8 +45,15 @@ pub(crate) struct NamedEntry<'a> {
     pub(crate) value: Leaf<'a>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum MapKey<'a> {
+    String(&'a str),
+    Name(ResourceLocation<'a>),
+    Removal(ResourceLocation<'a>),
+}
+
 pub(crate) struct KeyedEntry<'a, N> {
-    pub(crate) key: &'a str,
+    pub(crate) key: MapKey<'a>,
     pub(crate) value: N,
 }
 
@@ -53,6 +65,16 @@ pub(crate) trait SavedSink {
     fn text(&mut self, text: &Text) -> Option<Self::Node>;
 
     fn profile(&mut self, profile: &Profile) -> Option<Self::Node>;
+
+    fn compound(&mut self, compound: &NbtCompound) -> Option<Self::Node>;
+
+    fn tag(&mut self, tag: &NbtTag) -> Option<Self::Node>;
+
+    fn entity_data(
+        &mut self,
+        data: &NbtCompound,
+        entity_type: ResourceLocation<'_>,
+    ) -> Option<Self::Node>;
 
     fn fields(&self, fields: impl IntoIterator<Item = Field<Self::Node>>) -> Self::Node;
 

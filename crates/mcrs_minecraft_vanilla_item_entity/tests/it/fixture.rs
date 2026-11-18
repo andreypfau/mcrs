@@ -98,8 +98,9 @@ pub fn app() -> App {
     .insert_resource(ids)
     .insert_resource(PhysicsTables::new(Tables::new(blocks.table)))
     .init_resource::<BirthClock>()
+    .insert_resource(*TABLE)
     .add_plugins((
-        ItemPlugin::new(*TABLE),
+        ItemPlugin::default(),
         EntityMotionPlugin,
         EntityMotionReplicationPlugin,
         ItemEntityPlugin,

@@ -3,6 +3,7 @@ use mcrs_minecraft_game_mode::GameMode;
 
 use crate::attribute_state::AttributeState;
 use crate::delta_base::Pose;
+use crate::player_entries::PlayerEntries;
 use crate::player_spawn::PlayerSpawn;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -13,4 +14,5 @@ pub enum PlayerData {
     Joined(Bytes),
     Left(Bytes),
     Attribute(AttributeState),
+    Entries(PlayerEntries),
 }

@@ -31,12 +31,12 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 pub const STONE: Kind = Kind(1);
@@ -69,7 +69,8 @@ pub fn app() -> App {
 pub fn gameplay_app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
-        .add_plugins((ItemPlugin::new(*TABLE), VanillaInventoryPlugin));
+        .insert_resource(*TABLE)
+        .add_plugins((ItemPlugin::default(), VanillaInventoryPlugin));
     app
 }
 

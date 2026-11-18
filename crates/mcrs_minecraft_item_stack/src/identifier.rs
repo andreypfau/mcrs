@@ -17,6 +17,10 @@ impl Identifier {
             Self::Owned(location) => location.as_location(),
         }
     }
+
+    pub(crate) fn borrow_static(&'static self) -> Self {
+        Self::Borrowed(self.as_location())
+    }
 }
 
 impl PartialEq for Identifier {

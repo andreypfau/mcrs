@@ -45,6 +45,9 @@ refers to its rules by id.
 - **Clicked slot**: the slot that a `container_click` packet names.
 - **Menu**: the ordered set of slots that a player has open. A later specification defines it.
 - **Drag**: the sequence of `container_click` packets of the click kind quick craft.
+- **Result slot**: a slot of a menu whose stack the menu makes from other slots, for example the
+  slot of the craft result. A take from a result slot can give the slot a new stack.
+- **Pass**: one execution of the two steps of a quick move (ITX-JAV-009).
 
 ### 0.2 Provenance
 
@@ -55,7 +58,7 @@ refers to its rules by id.
   most medium.
 - `documentation`: taken from public documentation of a protocol.
 - `design`: a choice of this project. The rule states the reason.
-- `unresolved`: not decided. Section 10 collects these items.
+- `unresolved`: not decided. Section 11 collects these items.
 
 ### 0.3 Artefacts cited
 
@@ -63,6 +66,12 @@ refers to its rules by id.
   `container_click`, `container_set_slot`, `container_set_content` and `set_cursor_item`.
 - The public protocol documentation of Bedrock Edition, repository
   `Mojang/bedrock-protocol-docs`, for protocol version 2225. Section 7 uses its names.
+- The recordings of experiment E17, in `tools/mcrs_minecraft_client_recorder/recordings/inventory/`.
+  A vanilla client plays each step with the input agent of `tools/vanilla-client`, against the
+  vanilla server. A recording gives an event for each serverbound packet, with the hashed stacks
+  of each click. It also marks each serverbound packet that the proxy removed. It gives the
+  clientbound packets of the step that the recorder decodes, with each slot packet of the
+  server. A rule cites a recording by its file name without the extension `.txt`.
 
 ### 0.4 ID prefixes
 
@@ -381,7 +390,7 @@ close:
 - a close at a dimension change (INV-CLS-003).
 
 Thus the cursor stack and the stacks of the craft grid always go where INV-CLS-001 states.
-Reason: decision of the owner (section 10). The player file does not hold the cursor and the
+Reason: decision of the owner. The player file does not hold the cursor and the
 craft grid (INV-SAV-001), so a denial at a leave would destroy them.
 
 The moves of a close also read no take filter (INV-CLS-005). They enter only a slot whose place
@@ -498,11 +507,32 @@ the operations in two steps:
    and `cap(D, S)`.
 
 Deviation D4 applies to the place filter in step 1. A `split` with `n` of 0 or less is not in the list. The
-destination order of each menu, and the repeat of a quick move, are not in this document.
+destination order of each menu is not in this document. ITX-JAV-026 states the repeat of a quick
+move.
+
+**ITX-JAV-026** (`source_suggested`, semantic). The repeat of a quick move applies to each menu.
+This includes the inventory menu, the slot of its craft result and each other result slot. After
+a pass, the click does one more pass when each of these conditions is true:
+
+- the last pass moved at least one item;
+- `S` holds a stack with the item of the stack before the click.
+
+The second condition compares only the item, not the components. Each pass gets the destination
+list again from the specification of the menu, with the stacks at the start of that pass. A pass
+after the first does not examine `take(S)` again. The repeat stops after the first pass for which
+a condition is false.
+
+On a slot that is not a result slot, a pass changes the stack of `S` only by the items that it
+moves. Thus each destination gets at most one `split` in all passes of one click. A pass after
+the first moves items only when step 2 of the pass before it moved fewer items than `count(S)`,
+because `cap(D, S)` was smaller. On a result slot, the specification of that slot states how the
+slot gets a new stack after a take. Thus each pass on a result slot can move items again. See open
+question Q2.
 
 **ITX-JAV-010** (`source_suggested`, semantic). Swap with a hotbar key uses the slot `H` of the
-player that the button names. The click gives the operations of the first row whose condition is
-true.
+player that the button names. When `S` is the slot `H`, the click gives no operation. Thus no
+slot changes, and the edge makes no `swap` that ITX-OP-011 rejects (ITX-JAV-003). In each other
+case, the click gives the operations of the first row whose condition is true.
 
 | # | Condition | Operations |
 |---|-----------|------------|
@@ -530,7 +560,9 @@ each condition of the list below is true, the edge adds `split(X, C, n)`. `n` is
 
 - `same(X, C)` is true, and `count(X)` is not larger than `max(C)`.
 - `take(X)` is true.
-- The menu permits pick up all from `X`. A later specification states this condition.
+- The menu permits pick up all from `X`. `inventory.md` (INV-MNU-005) and
+  `client-container-screen.md` (CCS-MNU-004) state this condition for their menus. A later
+  specification states it for each other menu.
 - In the first visit only: `count(X)` is not equal to `max(X)`.
 - `n` is equal to `count(X)`, or `place(X, X)` is true.
 
@@ -588,7 +620,9 @@ conditions is true:
 - `S` holds the empty stack, or `same(S, C)` is true and `count(S)` is not larger than `max(C)`;
 - `place(S, C)` is true;
 - the drag kind is 2, or `count(C)` is larger than the number of slots in the set;
-- the menu permits a drag to `S`. A later specification states this condition.
+- the menu permits a drag to `S`. `inventory.md` (INV-MNU-005) and `client-container-screen.md`
+  (CCS-MNU-004) state this condition for their menus. A later specification states it for each
+  other menu.
 
 A slot that is in the set does not enter it again. A stage 1 packet with a negative slot index
 adds no slot (deviation D1).
@@ -632,12 +666,20 @@ before the answer of the server comes. This table lists them for each packet tha
 | Packet of the client | What the client changes before the answer |
 |----------------------|-------------------------------------------|
 | `container_click` | each slot that the packet lists as changed, and the cursor (ITX-JAV-004) |
-| `player_action`, status 4 or 5 | `P[n]`, the selected slot: it removes the items of the drop (INV-SEL-004) |
-| `player_action`, status 7 | nothing; the client waits for the server |
+| `player_action`, status 4 | `P[n]`, the selected slot: it removes the items of the drop (INV-SEL-004) |
+| `player_action`, status 5 or 7 | as ITX-JAV-025 states |
 | `set_creative_mode_slot` | the slot of the packet (INV-CRE-004) |
 
 `P[n]` and `M[i]` are as `inventory.md`, section 0.5, states. The moves of a close are not in the
 table, because a plugin cannot deny them (ITX-ATM-012).
+
+**ITX-JAV-025** (`source_suggested_black_box_confirmed`, client agreement). Before the answer of
+the server, the vanilla client does this for a `player_action` packet:
+
+- status 5: it removes one item from `P[n]`, the selected slot (INV-SEL-004);
+- status 7: it changes neither `P[n]` nor `P[40]`.
+
+Recordings: `inventory_e17_drop` (status 5), `inventory_e17_swap` (status 7).
 
 **ITX-JAV-022** (`design`, client agreement). When a plugin denies a request of the Java edge, the
 server does what this table states. The comparison is that of INV-SYN-003.
@@ -646,7 +688,7 @@ server does what this table states. The comparison is that of INV-SYN-003.
 |-------|------------------|
 | a click (ITX-JAV-002) | The server does ITX-JAV-004, as after a rejection (ITX-JAV-005). The client gets each slot and the cursor that it changed. ITX-JAV-024 states the drag. |
 | a drop, status 4 or 5 (INV-SEL-004) | The client view of `P[n]` becomes not known. The comparison sends `P[n]`. |
-| the hand swap, status 7 (INV-SEL-005) | The server does INV-SEL-006, as after a rejection. The comparison sends `P[n]` and `P[40]`. The client changed neither slot (ITX-JAV-021), so the two packets carry the stacks that it holds. The use of an item does not stop. |
+| the hand swap, status 7 (INV-SEL-005) | The server does INV-SEL-006, as after a rejection. The comparison sends `P[n]` and `P[40]`. The client changed neither slot (ITX-JAV-025), so the two packets carry the stacks that it holds. The use of an item does not stop. |
 | a creative set (INV-CRE-004) | The client view of `M[i]` is the stack of the packet, as INV-CRE-006 states for a failed check. The comparison sends `M[i]` when the two stacks differ. |
 
 A denied request gives no dropped stack, so no item entity appears. The edge sends no other
@@ -759,11 +801,45 @@ reason.
   to the stacks of the server. With no such plugin, the server behaves as the reference.
 - **Test**: a differential test runs with no plugin that denies.
 
-## 10. Unresolved
+## 10. Experiments
 
-- **Q2**: ITX-MOD-004. Is 128 the maximum for the number of operations? The repeat of a quick
-  move on a result slot can need a larger number. It can also use more than one
-  request.
+- **E17** (recorder, run). The scenario `inventory_e17` of
+  `tools/mcrs_minecraft_client_recorder/scenarios/` gives the steps. The proxy removes each
+  `player_action` packet, so the server never gets it. In each part, `P[0]` is the selected slot.
+  The input agent makes each click with no mouse press and no mouse release.
+
+  Part 1 (`inventory_e17_drop`):
+  1. Put 10 stone in `P[0]`.
+  2. Press the drop key once.
+  3. Open the inventory.
+  4. Click with the primary button on `M[36]`.
+  5. Close the inventory.
+
+  Part 2 (`inventory_e17_swap`):
+  1. Put an iron helmet in `P[0]`.
+  2. Put a shield in `P[40]`.
+  3. Press the swap key once.
+  4. Open the inventory.
+  5. Click with the primary button on `M[45]`.
+  6. Close the inventory.
+
+  Results of part 1: the client sends status 5, and the click carries a cursor of 9 stone. Thus
+  the client removes the dropped item from `P[0]` before the answer (ITX-JAV-025). The server
+  holds 10 stone, so it sends the cursor stack (ITX-JAV-004).
+
+  Results of part 2: the client sends status 7, and the click carries the shield from `M[45]`.
+  Thus the client does not exchange the two slots. The server sends no correction.
+
+  At the close of each part, the cursor stack goes back as INV-CLS-001 states. In part 2, the
+  shield goes to `P[1]`, not to the empty off-hand slot (INV-INS-001).
+
+## 11. Unresolved
+
+- **Q2**: ITX-MOD-004 and ITX-JAV-026. Is 128 the maximum for the number of operations? On a slot
+  that is not a result slot, the repeat gives at most one `split` to each destination. On a result
+  slot, each pass also takes a new result, so one click can need more than 128 operations. Does
+  such a click use one request for each pass? The specification of the result slots owns the
+  answer.
 - **Q5**: ITX-BED-001. The public documentation gives the fields of each action and not its
   conditions. Does a `Take` to a slot that holds a different stack fail, and with which result?
   Does a `Swap` join two equal stacks?

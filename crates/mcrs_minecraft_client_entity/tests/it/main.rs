@@ -11,7 +11,7 @@ mod pig_walk;
 mod replay;
 mod simulated_step;
 
-use bevy_app::{App, FixedUpdate, PostUpdate};
+use bevy_app::{App, FixedUpdate, PostUpdate, Update};
 use bevy_ecs::entity::Entity;
 use glam::DVec3;
 use mcrs_minecraft_client_entity::{ClientEntityPlugin, NetworkEntities};
@@ -20,6 +20,7 @@ use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::{RenderInputs, RenderInputsQuery, ServerTicking};
 use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::client::{ConnectionEnd, close_connection_later};
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundAddEntity;
@@ -64,6 +65,14 @@ impl Client {
 
     pub fn tick(&mut self) {
         self.app.world_mut().run_schedule(FixedUpdate);
+    }
+
+    pub fn end_session(&mut self) {
+        let world = self.app.world_mut();
+        close_connection_later(&mut world.commands(), self.connection, ConnectionEnd::Left);
+        world.flush();
+        world.run_schedule(Update);
+        world.flush();
     }
 
     pub fn frame(&mut self) {

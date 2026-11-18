@@ -2,9 +2,12 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use mcrs_minecraft_client_gui::inventory_figure::InventoryFigure;
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{PlayerModel, PlayerSkin};
 use mcrs_minecraft_entity_visual::{ClientEntity, HostEntity};
+use mcrs_minecraft_network::client::ConnectionEnded;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_profile::{PlayerModelType, SkinTextures};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -18,10 +21,19 @@ pub struct PlayerSkinsPlugin;
 
 impl Plugin for PlayerSkinsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ProfileSkins>()
+        app.add_message::<ConnectionEnded>()
+            .init_resource::<ProfileSkins>()
             .add_observer(on_player_info_update)
             .add_observer(on_player_info_remove)
-            .add_systems(Update, dress_players);
+            .add_systems(
+                Update,
+                (
+                    clear_profile_skins
+                        .in_set(SessionSet::Clear)
+                        .run_if(session_boundary),
+                    dress_players.after(SessionSet::Clear),
+                ),
+            );
         #[cfg(not(target_family = "wasm"))]
         app.add_systems(Update, finish_downloads.after(dress_players));
     }
@@ -31,6 +43,11 @@ impl Plugin for PlayerSkinsPlugin {
 struct ProfileSkins {
     by_player: HashMap<u128, SkinTextures>,
     updated: Vec<u128>,
+}
+
+fn clear_profile_skins(mut skins: ResMut<ProfileSkins>) {
+    skins.by_player.clear();
+    skins.updated.clear();
 }
 
 fn on_player_info_update(

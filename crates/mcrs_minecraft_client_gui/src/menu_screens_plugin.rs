@@ -1,149 +1,228 @@
-use bevy::ecs::system::SystemParam;
 use bevy::input::InputSystems;
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
-use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::{
-    GuiExtent, GuiInput, GuiPoint, Widget, WidgetEvent, WidgetId, Widgets,
+use mcrs_minecraft_client_widget::{WidgetEvent, WidgetId};
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::{
+    AccessibilityParent, ControlsParent, CreateWorldParent, Screen,
 };
-use mcrs_minecraft_client_world::screen::{ControlsParent, Screen};
+use mcrs_minecraft_client_world::session::{LocalServerStopped, OpenLocalWorld};
+use mcrs_minecraft_client_world::world_list::{
+    CreateWorld, DeleteWorld, PlayWorld, ReadWorldList, WorldList, WorldStoreFailed, WorldTypes,
+};
+use mcrs_minecraft_network::client::{ConnectionEnded, LeaveRequest};
+use time::UtcOffset;
 
-use crate::accessibility_settings_screen::{
-    self, accessibility_settings_screen, fov_effects_tooltip,
-};
-use crate::controls_screen::{self, controls_screen};
+use crate::accessibility_settings_screen;
+use crate::controls_screen;
+use crate::create_world_screen::{self, NewWorldForm};
 use crate::cursor_grab::grab;
+use crate::delete_world_screen;
+use crate::disconnected_screen;
+use crate::follow_create_world::{follow_create_world, on_create_world};
+use crate::follow_list_answer::follow_list_answer;
+use crate::follow_menu_events::{DeleteTarget, follow_menu_events};
 use crate::language::ClientLanguage;
-use crate::menu::{Menu, MenuBackground};
+use crate::menu::Menu;
+use crate::menu_draw::WorldPresence;
 use crate::menu_event::MenuEvent;
-use crate::menu_input::{menu_clock, modifiers};
+use crate::menu_input::modifiers;
 use crate::menu_input_systems::MenuInputSystems;
 use crate::menu_options_systems::MenuOptionsSystems;
-use crate::mouse_settings_screen::{self, mouse_settings_screen};
+use crate::mouse_settings_screen;
 use crate::option_sub_screen;
-use crate::options_screen::{self, options_screen};
-use crate::pause_screen::{self, pause_screen};
-use crate::scene::{GuiAtlas, GuiScene, GuiSize, window_framebuffer};
-use crate::video_settings_screen::{self, video_settings_screen, wheel_gui_scale};
+use crate::options_screen;
+use crate::pause_screen;
+use crate::project_menu::{SingleplayerActive, max_gui_scale, project_menu};
+use crate::scene::GuiAtlas;
+use crate::select_world_screen;
+use crate::session_screens::{DisconnectReason, follow_session, show_failed_start};
+use crate::title_draw::TitleScreenState;
+use crate::title_screen;
+use crate::video_settings_screen::{self, wheel_gui_scale};
+use crate::world_entry::LocalOffset;
+use crate::world_list_error_screen;
+use crate::world_rows::{PreselectedWorld, project_world_rows};
 
 pub struct MenuScreensPlugin {
-    pub local_world: bool,
+    pub preselected_world: Option<String>,
+    pub utc_offset: UtcOffset,
+    pub singleplayer: bool,
 }
-
-#[derive(Resource)]
-struct LastButtonKey(&'static str);
 
 impl Plugin for MenuScreensPlugin {
     fn build(&self, app: &mut App) {
-        let last_key = if self.local_world {
-            "menu.returnToMenu"
-        } else {
-            "menu.disconnect"
-        };
-        app.insert_resource(LastButtonKey(last_key)).add_systems(
-            PreUpdate,
-            (
+        app.insert_resource(PreselectedWorld(self.preselected_world.clone()))
+            .insert_resource(LocalOffset(self.utc_offset))
+            .insert_resource(SingleplayerActive(self.singleplayer))
+            .init_resource::<DeleteTarget>()
+            .init_resource::<WorldList>()
+            .init_resource::<WorldTypes>()
+            .init_resource::<NewWorldForm>()
+            .init_resource::<TitleScreenState>()
+            .init_resource::<DisconnectReason>()
+            .add_message::<OpenLocalWorld>()
+            .add_message::<LocalServerStopped>()
+            .add_message::<ConnectionEnded>()
+            .add_message::<LeaveRequest>()
+            .add_message::<ReadWorldList>()
+            .add_message::<PlayWorld>()
+            .add_message::<DeleteWorld>()
+            .add_message::<CreateWorld>()
+            .add_message::<WorldStoreFailed>()
+            .add_systems(
+                PreUpdate,
                 (
-                    open_pause_screen.run_if(input_just_pressed(KeyCode::Escape)),
-                    ctrl_wheel_gui_scale
-                        .run_if(resource_equals(Screen::VideoSettings))
-                        .in_set(MenuOptionsSystems),
-                    project_menu.run_if(
-                        resource_exists::<GuiAtlas>
-                            .and_then(resource_exists::<ClientLanguage>)
-                            .and_then(resource_changed::<Screen>.or_else(resource_exists::<Menu>)),
-                    ),
-                )
-                    .chain()
-                    .after(InputSystems)
-                    .before(MenuInputSystems),
-                (
-                    write_menu_options.in_set(MenuOptionsSystems),
-                    follow_menu_events,
-                )
-                    .chain()
-                    .after(MenuInputSystems)
-                    .run_if(resource_exists::<Menu>),
-            ),
-        );
+                    (
+                        open_pause_screen.run_if(
+                            input_just_pressed(KeyCode::Escape)
+                                .and_then(any_with_component::<Player>),
+                        ),
+                        ctrl_wheel_gui_scale
+                            .run_if(resource_equals(Screen::VideoSettings))
+                            .in_set(MenuOptionsSystems),
+                        follow_session.run_if(
+                            not(resource_equals(Screen::None))
+                                .or_else(on_message::<ConnectionEnded>)
+                                .or_else(on_message::<LocalServerStopped>),
+                        ),
+                        project_menu.run_if(
+                            resource_exists::<GuiAtlas>
+                                .and_then(resource_exists::<ClientLanguage>)
+                                .and_then(
+                                    resource_changed::<Screen>.or_else(resource_exists::<Menu>),
+                                ),
+                        ),
+                    )
+                        .chain()
+                        .after(InputSystems)
+                        .before(MenuInputSystems),
+                    (
+                        follow_list_answer.run_if(resource_equals(Screen::SelectWorld)),
+                        project_world_rows.run_if(
+                            resource_equals(Screen::SelectWorld)
+                                .and_then(resource_exists::<GuiAtlas>)
+                                .and_then(resource_exists::<ClientLanguage>),
+                        ),
+                        write_menu_options.in_set(MenuOptionsSystems),
+                        show_failed_start.run_if(on_message::<WorldStoreFailed>),
+                        follow_create_world.run_if(on_create_world),
+                        follow_menu_events,
+                    )
+                        .chain()
+                        .after(MenuInputSystems)
+                        .run_if(resource_exists::<Menu>),
+                ),
+            );
     }
 }
 
-fn parent(screen: Screen) -> Screen {
+fn parent(screen: Screen, world: WorldPresence) -> Screen {
     match screen {
-        Screen::Options => Screen::Pause,
+        Screen::Options => match world {
+            WorldPresence::InWorld => Screen::Pause,
+            WorldPresence::NoWorld => Screen::Title,
+        },
+        Screen::AccessibilitySettings(AccessibilityParent::Title) => Screen::Title,
         Screen::VideoSettings
-        | Screen::AccessibilitySettings
+        | Screen::AccessibilitySettings(AccessibilityParent::Options)
         | Screen::Controls(ControlsParent::Options) => Screen::Options,
-        Screen::Controls(ControlsParent::AccessibilitySettings) => Screen::AccessibilitySettings,
+        Screen::Controls(ControlsParent::AccessibilitySettings(parent)) => {
+            Screen::AccessibilitySettings(parent)
+        }
         Screen::MouseSettings(parent) => Screen::Controls(parent),
+        Screen::SelectWorld | Screen::CreateWorld(CreateWorldParent::Title) => Screen::Title,
+        Screen::DeleteWorldConfirmation | Screen::CreateWorld(CreateWorldParent::SelectWorld) => {
+            Screen::SelectWorld
+        }
         Screen::None
+        | Screen::Title
         | Screen::Inventory
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
-        | Screen::Pause => Screen::None,
+        | Screen::Pause
+        | Screen::Message(_)
+        | Screen::LevelLoading
+        | Screen::Disconnected
+        | Screen::WorldListError => Screen::None,
     }
 }
 
-fn keeps_widgets(screen: Screen) -> bool {
-    matches!(
-        screen,
-        Screen::Options
-            | Screen::VideoSettings
-            | Screen::AccessibilitySettings
-            | Screen::Controls(_)
-            | Screen::MouseSettings(_)
-    )
-}
-
-fn kept_focus(left: Screen, screen: Screen) -> Option<WidgetId> {
-    match (left, screen) {
-        (Screen::VideoSettings, Screen::Options) => Some(options_screen::VIDEO),
-        (Screen::AccessibilitySettings, Screen::Options) => Some(options_screen::ACCESSIBILITY),
-        (Screen::Controls(_), Screen::Options) => Some(options_screen::CONTROLS),
-        (Screen::Controls(_), Screen::AccessibilitySettings) => {
-            Some(accessibility_settings_screen::CONTROLS)
-        }
-        (Screen::MouseSettings(_), Screen::Controls(_)) => Some(controls_screen::MOUSE_SETTINGS),
-        _ => None,
-    }
-}
-
-fn target(shown: Screen, widget: WidgetId) -> Option<Screen> {
+fn target(shown: Screen, widget: WidgetId, world: WorldPresence) -> Option<Screen> {
     match (shown, widget) {
-        (Screen::Pause, pause_screen::OPTIONS) => Some(Screen::Options),
+        (Screen::Pause, pause_screen::OPTIONS) | (Screen::Title, title_screen::OPTIONS) => {
+            Some(Screen::Options)
+        }
+        (Screen::Title, title_screen::ACCESSIBILITY) => {
+            Some(Screen::AccessibilitySettings(AccessibilityParent::Title))
+        }
         (Screen::Options, options_screen::VIDEO) => Some(Screen::VideoSettings),
-        (Screen::Options, options_screen::ACCESSIBILITY) => Some(Screen::AccessibilitySettings),
+        (Screen::Options, options_screen::ACCESSIBILITY) => {
+            Some(Screen::AccessibilitySettings(AccessibilityParent::Options))
+        }
         (Screen::Options, options_screen::CONTROLS) => {
             Some(Screen::Controls(ControlsParent::Options))
         }
-        (Screen::AccessibilitySettings, accessibility_settings_screen::CONTROLS) => {
-            Some(Screen::Controls(ControlsParent::AccessibilitySettings))
-        }
+        (Screen::AccessibilitySettings(parent), accessibility_settings_screen::CONTROLS) => Some(
+            Screen::Controls(ControlsParent::AccessibilitySettings(parent)),
+        ),
         (Screen::Controls(parent), controls_screen::MOUSE_SETTINGS) => {
             Some(Screen::MouseSettings(parent))
         }
+        (Screen::Disconnected, disconnected_screen::BACK)
+        | (Screen::WorldListError, world_list_error_screen::CANCEL)
+        | (Screen::SelectWorld, select_world_screen::BACK) => Some(Screen::Title),
+        (Screen::Title, title_screen::SINGLEPLAYER) => Some(Screen::SelectWorld),
+        (Screen::SelectWorld, select_world_screen::DELETE) => Some(Screen::DeleteWorldConfirmation),
+        (Screen::SelectWorld, select_world_screen::CREATE) => {
+            Some(Screen::CreateWorld(CreateWorldParent::SelectWorld))
+        }
+        (
+            Screen::DeleteWorldConfirmation,
+            delete_world_screen::DELETE | delete_world_screen::CANCEL,
+        ) => Some(Screen::SelectWorld),
         (Screen::Pause, pause_screen::BACK_TO_GAME)
         | (Screen::Options, options_screen::DONE)
+        | (Screen::CreateWorld(_), create_world_screen::CANCEL)
         | (
             Screen::VideoSettings
-            | Screen::AccessibilitySettings
+            | Screen::AccessibilitySettings(_)
             | Screen::Controls(_)
             | Screen::MouseSettings(_),
             option_sub_screen::DONE,
-        ) => Some(parent(shown)),
+        ) => Some(parent(shown, world)),
         _ => None,
     }
 }
 
-fn next_screen(shown: Screen, event: MenuEvent) -> Option<Screen> {
+pub(crate) fn next_screen(shown: Screen, event: MenuEvent, world: WorldPresence) -> Option<Screen> {
     match event {
-        MenuEvent::CloseRequested => Some(parent(shown)),
-        MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => target(shown, widget),
-        MenuEvent::Widget(_) => None,
+        MenuEvent::CloseRequested
+            if matches!(
+                shown,
+                Screen::Title
+                    | Screen::Message(_)
+                    | Screen::LevelLoading
+                    | Screen::Disconnected
+                    | Screen::WorldListError
+            ) =>
+        {
+            None
+        }
+        MenuEvent::CloseRequested => Some(parent(shown, world)),
+        MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => target(shown, widget, world),
+        MenuEvent::Widget(_) | MenuEvent::Confirmed => None,
+    }
+}
+
+pub(crate) fn world_presence(players: &Query<(), With<Player>>) -> WorldPresence {
+    if players.is_empty() {
+        WorldPresence::NoWorld
+    } else {
+        WorldPresence::InWorld
     }
 }
 
@@ -155,158 +234,6 @@ fn open_pause_screen(
         *screen = Screen::Pause;
         grab(&mut cursor, false);
     }
-}
-
-#[derive(SystemParam)]
-struct MenuSource<'w, 's> {
-    screen: Res<'w, Screen>,
-    scene: Res<'w, GuiScene>,
-    options: Res<'w, ClientOptions>,
-    language: Res<'w, ClientLanguage>,
-    atlas: Res<'w, GuiAtlas>,
-    last_key: Res<'w, LastButtonKey>,
-    time: Res<'w, Time<Real>>,
-    window: Single<'w, 's, &'static Window, With<PrimaryWindow>>,
-}
-
-fn max_gui_scale(window: &Window) -> u32 {
-    GuiSize::auto_scale(window_framebuffer(window))
-}
-
-fn screen_menu(
-    screen: Screen,
-    extent: GuiExtent,
-    input: GuiInput,
-    source: &MenuSource,
-) -> Option<Menu> {
-    let language = &*source.language;
-    let font = &source.atlas.0.font;
-    let options = &*source.options;
-    let (widgets, tooltips) = match screen {
-        Screen::Pause => (
-            widgets_of(
-                extent,
-                input,
-                pause_screen(extent, language, font, source.last_key.0)?,
-            )?,
-            Vec::new(),
-        ),
-        Screen::Options => (
-            widgets_of(
-                extent,
-                input,
-                options_screen(extent, language, font, options.fov)?,
-            )?,
-            Vec::new(),
-        ),
-        Screen::VideoSettings => (
-            widgets_of(
-                extent,
-                input,
-                video_settings_screen(
-                    extent,
-                    language,
-                    font,
-                    options,
-                    max_gui_scale(&source.window),
-                )?,
-            )?,
-            vec![video_settings_screen::improved_transparency_tooltip(
-                language,
-            )],
-        ),
-        Screen::AccessibilitySettings => (
-            widgets_of(
-                extent,
-                input,
-                accessibility_settings_screen(extent, language, font, options)?,
-            )?,
-            vec![fov_effects_tooltip(language)],
-        ),
-        Screen::Controls(_) => (
-            widgets_of(extent, input, controls_screen(extent, language, font)?)?,
-            Vec::new(),
-        ),
-        Screen::MouseSettings(_) => (
-            widgets_of(
-                extent,
-                input,
-                mouse_settings_screen(extent, language, font, options)?,
-            )?,
-            Vec::new(),
-        ),
-        Screen::None | Screen::Inventory | Screen::GameModeSwitcher(_) | Screen::Chat => {
-            return None;
-        }
-    };
-    let mut menu = Menu::new(widgets, MenuBackground::Texture);
-    menu.tooltips = tooltips;
-    Some(menu)
-}
-
-fn widgets_of(
-    extent: GuiExtent,
-    input: GuiInput,
-    list: impl IntoIterator<Item = Widget>,
-) -> Option<Widgets> {
-    let mut widgets = Widgets::new(extent, input);
-    for widget in list {
-        widgets.push(widget).ok()?;
-    }
-    Some(widgets)
-}
-
-fn project_menu(
-    source: MenuSource,
-    menu: Option<ResMut<Menu>>,
-    mut commands: Commands,
-    mut shown: Local<Screen>,
-    mut events: Local<Vec<WidgetEvent>>,
-) {
-    let screen = *source.screen;
-    let left = std::mem::replace(&mut *shown, screen);
-    let extent = GuiExtent::new(source.scene.size.width, source.scene.size.height);
-    let Some(mut menu) = menu else {
-        let cursor = source.scene.cursor;
-        let input = GuiInput::new(GuiPoint::new(cursor.x, cursor.y));
-        if let Some(mut built) = screen_menu(screen, extent, input, &source) {
-            built
-                .widgets
-                .focus_initial(None, menu_clock(&source.time), &mut events);
-            commands.insert_resource(built);
-        }
-        events.clear();
-        return;
-    };
-    let reopened = left != screen;
-    let rearranged = menu.widgets.screen() != extent
-        || source.options.is_changed()
-        || source.language.is_changed();
-    if !reopened && !rearranged {
-        return;
-    }
-    let Some(mut built) = screen_menu(screen, extent, menu.widgets.input(), &source) else {
-        commands.remove_resource::<Menu>();
-        return;
-    };
-    if reopened || !keeps_widgets(screen) {
-        built.widgets.focus_initial(
-            kept_focus(left, screen),
-            menu_clock(&source.time),
-            &mut events,
-        );
-        events.clear();
-        *menu = built;
-        return;
-    }
-    menu.widgets.set_screen(extent);
-    for placed in built.widgets.iter() {
-        menu.widgets.set_rect(placed.id(), placed.rect());
-        if let Some(widget) = menu.widgets.get_mut(placed.id()) {
-            widget.caption.clone_from(&placed.caption);
-        }
-    }
-    menu.tooltips = built.tooltips;
 }
 
 fn ctrl_wheel_gui_scale(
@@ -334,13 +261,17 @@ fn write_menu_options(
     mut menu: ResMut<Menu>,
     mut options: ResMut<ClientOptions>,
     keys: Res<ButtonInput<KeyCode>>,
-    window: Single<&Window, With<PrimaryWindow>>,
+    (window, players): (
+        Single<&Window, With<PrimaryWindow>>,
+        Query<(), With<Player>>,
+    ),
     mut changes: Local<Vec<WidgetEvent>>,
 ) {
+    let world = world_presence(&players);
     for event in events.read() {
         match *event {
             MenuEvent::Widget(change @ WidgetEvent::ValueChanged { .. }) => changes.push(change),
-            event if next_screen(*screen, event).is_some() => {
+            event if next_screen(*screen, event, world).is_some() => {
                 menu.widgets.apply_deferred(u64::MAX, &mut changes);
             }
             _ => {}
@@ -362,149 +293,60 @@ fn write_menu_options(
                 max_gui_scale(&window),
                 modifiers(&keys),
             ),
-            Screen::AccessibilitySettings => {
+            Screen::AccessibilitySettings(_) => {
                 accessibility_settings_screen::write_option(&mut next, widget);
             }
             Screen::MouseSettings(_) => mouse_settings_screen::write_option(&mut next, widget),
             Screen::None
+            | Screen::Title
             | Screen::Inventory
             | Screen::GameModeSwitcher(_)
             | Screen::Chat
             | Screen::Pause
-            | Screen::Controls(_) => {}
+            | Screen::Controls(_)
+            | Screen::Message(_)
+            | Screen::LevelLoading
+            | Screen::Disconnected
+            | Screen::WorldListError
+            | Screen::SelectWorld
+            | Screen::DeleteWorldConfirmation
+            | Screen::CreateWorld(_) => {}
         }
     }
     options.set_if_neq(next);
 }
 
-fn follow_menu_events(
-    mut events: MessageReader<MenuEvent>,
-    mut screen: ResMut<Screen>,
-    mut menu: ResMut<Menu>,
-    mut buttons: ResMut<ButtonInput<MouseButton>>,
-    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-    mut exit: MessageWriter<AppExit>,
-) {
-    let shown = *screen;
-    for event in events.read() {
-        if *screen != shown {
-            continue;
-        }
-        if let MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) = *event
-            && (shown, widget) == (Screen::Pause, pause_screen::LAST)
-        {
-            if let Some(last) = menu.widgets.get_mut(widget) {
-                last.active = false;
-            }
-            exit.write(AppExit::Success);
-        }
-        if let Some(next) = next_screen(shown, *event) {
-            *screen = next;
-            if next == Screen::None {
-                grab(&mut cursor, true);
-                buttons.reset_all();
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     mod jar {
-        use std::sync::{Arc, LazyLock};
+        use std::sync::Arc;
 
         use bevy::input::keyboard::{Key, KeyboardInput};
-        use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
+        use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
         use bevy::input::touch::TouchPhase;
         use bevy::input::{ButtonState, InputPlugin};
         use bevy::time::Real;
         use bevy::window::CursorGrabMode;
-        use mcrs_minecraft_client_widget::GuiRect;
+        use mcrs_minecraft_client_widget::{GuiRect, Widget};
+        use mcrs_minecraft_client_world::session::{
+            LocalServer, LocalServerPhase, LocalWorldOrigin,
+        };
         use mcrs_minecraft_model::resource_set::ResourceSet;
+        use time::UtcOffset;
 
         use super::super::*;
+        use crate::accessibility_settings_screen::accessibility_settings_screen;
+        use crate::controls_screen::controls_screen;
         use crate::font::corpus_font;
         use crate::menu_plugin::MenuPlugin;
-        use crate::scene::{GuiAtlasData, GuiConfig, GuiSize};
-
-        static ATLAS: LazyLock<Arc<GuiAtlasData>> =
-            LazyLock::new(|| Arc::new(GuiAtlasData::load(ResourceSet::corpus()).unwrap()));
-
-        const GUI: GuiExtent = GuiExtent::new(427, 240);
-
-        fn game_app() -> App {
-            let mut app = App::new();
-            app.add_plugins((
-                InputPlugin,
-                MenuPlugin,
-                MenuScreensPlugin { local_world: true },
-            ))
-            .insert_resource(GuiConfig {
-                scale: 1,
-                cursor: Some(IVec2::ZERO),
-                frozen_ticks: None,
-                advanced_tooltips: false,
-            })
-            .insert_resource(GuiScene {
-                size: GuiSize {
-                    width: GUI.width,
-                    height: GUI.height,
-                    scale: 1,
-                },
-                ..GuiScene::default()
-            })
-            .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
-            .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
-            .init_resource::<ClientOptions>()
-            .init_resource::<Screen>()
-            .init_resource::<Time<Real>>();
-            app.world_mut().spawn((Window::default(), PrimaryWindow));
-            app.update();
-            app
-        }
-
-        fn tap_escape(app: &mut App) {
-            for state in [ButtonState::Pressed, ButtonState::Released] {
-                app.world_mut().write_message(KeyboardInput {
-                    key_code: KeyCode::Escape,
-                    logical_key: Key::Escape,
-                    state,
-                    text: None,
-                    repeat: false,
-                    window: Entity::PLACEHOLDER,
-                });
-                app.update();
-            }
-        }
-
-        fn click(app: &mut App, x: i32, y: i32) {
-            app.world_mut().resource_mut::<GuiConfig>().cursor = Some(IVec2::new(x, y));
-            for state in [ButtonState::Pressed, ButtonState::Released] {
-                app.world_mut().write_message(MouseButtonInput {
-                    button: MouseButton::Left,
-                    state,
-                    window: Entity::PLACEHOLDER,
-                });
-                app.update();
-            }
-        }
-
-        fn screen(app: &App) -> Screen {
-            *app.world().resource::<Screen>()
-        }
-
-        fn grab_mode(app: &mut App) -> CursorGrabMode {
-            app.world_mut()
-                .query_filtered::<&CursorOptions, With<PrimaryWindow>>()
-                .single(app.world())
-                .unwrap()
-                .grab_mode
-        }
-
-        fn caption(app: &App, widget: WidgetId) -> String {
-            let menu = app.world().resource::<Menu>();
-            menu.widgets.get(widget).unwrap().caption.clone()
-        }
+        use crate::menu_test_app::{
+            ATLAS, GUI, caption, click, game_app, grab_mode, screen, tap_escape,
+        };
+        use crate::mouse_settings_screen::mouse_settings_screen;
+        use crate::options_screen::options_screen;
+        use crate::pause_screen::pause_screen;
+        use crate::scene::{GuiConfig, GuiScene, GuiSize};
+        use crate::video_settings_screen::video_settings_screen;
 
         #[test]
         fn escape_opens_the_pause_screen_and_back_to_game_takes_the_mouse_again() {
@@ -526,7 +368,11 @@ mod tests {
             app.add_plugins((
                 InputPlugin,
                 MenuPlugin,
-                MenuScreensPlugin { local_world: true },
+                MenuScreensPlugin {
+                    preselected_world: None,
+                    utc_offset: UtcOffset::UTC,
+                    singleplayer: true,
+                },
             ))
             .insert_resource(GuiConfig {
                 scale: 1,
@@ -546,6 +392,7 @@ mod tests {
             .init_resource::<Screen>()
             .init_resource::<Time<Real>>();
             app.world_mut().spawn((Window::default(), PrimaryWindow));
+            app.world_mut().spawn(Player);
             app.update();
             let atlas = GuiAtlas(Arc::clone(&ATLAS));
             let language = ClientLanguage::load(ResourceSet::corpus()).unwrap();
@@ -581,11 +428,17 @@ mod tests {
         }
 
         #[test]
-        fn the_last_button_ends_the_client() {
+        fn the_last_button_of_a_local_world_leaves_the_session() {
             let mut app = game_app();
+            app.insert_resource(LocalServer {
+                phase: LocalServerPhase::Running,
+                origin: LocalWorldOrigin::Opened,
+            });
             tap_escape(&mut app);
+            assert_eq!(caption(&app, pause_screen::LAST), "Save and Quit to Title");
             click(&mut app, 150, 135);
-            assert_eq!(app.should_exit(), Some(AppExit::Success));
+            assert_eq!(app.should_exit(), None);
+            assert!(!app.world().resource::<Messages<LeaveRequest>>().is_empty());
             let menu = app.world().resource::<Menu>();
             assert!(!menu.widgets.get(pause_screen::LAST).unwrap().active);
         }
@@ -961,8 +814,8 @@ mod tests {
                 ),
                 (
                     &[ACCESSIBILITY_BUTTON, FIRST_ROW_BUTTON],
-                    ControlsParent::AccessibilitySettings,
-                    Screen::AccessibilitySettings,
+                    ControlsParent::AccessibilitySettings(AccessibilityParent::Options),
+                    Screen::AccessibilitySettings(AccessibilityParent::Options),
                     accessibility_settings_screen::CONTROLS,
                     done,
                 ),

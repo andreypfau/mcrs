@@ -1,19 +1,23 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::Denial;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Reason;
 use mcrs_minecraft_engine_item::Refusal;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::RequestResult;
+use mcrs_minecraft_engine_item::RequestSource;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_inventory_minigame::ArenaRules;
 use mcrs_minecraft_inventory_minigame::ArenaRulesPlugin;
 use mcrs_minecraft_inventory_minigame::EnterGame;
 use mcrs_minecraft_inventory_minigame::Frozen;
@@ -24,19 +28,21 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_vanilla_inventory::PlayerInventories;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
+use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
-const DENIAL_SOURCE: RequestId = RequestId(40);
-const REQUEST: RequestId = RequestId(9);
+#[derive(Resource)]
+struct TestSource(RequestSource);
 
 fn app() -> App {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(ItemTable::leak((0..3).map(|_| Vec::new()))),
-        VanillaInventoryPlugin,
-        ArenaRulesPlugin {
-            denial_source: DENIAL_SOURCE,
-        },
-    ));
+    app.insert_resource(ItemTable::leak((0..3).map(|_| Vec::new())))
+        .add_plugins((
+            ItemPlugin::default(),
+            VanillaInventoryPlugin,
+            ArenaRulesPlugin,
+        ));
+    let source = app.allocate_request_source().unwrap();
+    app.insert_resource(TestSource(source));
     app
 }
 
@@ -67,10 +73,14 @@ fn move_one(world: &mut World, player: Entity, from: u16) -> Result<(), Refusal>
         holder: player,
         index,
     };
+    let id = RequestId {
+        source: world.resource::<TestSource>().0,
+        serial: 9,
+    };
     world
         .commands()
         .entity(player)
-        .request(Request::new(REQUEST).split(at(from), at(20), 1));
+        .request(Request::new(id).split(at(from), at(20), 1));
     world.flush();
     let results: Vec<RequestResult> = world
         .resource_mut::<Messages<RequestResult>>()
@@ -107,19 +117,27 @@ fn a_player_in_the_game_cannot_take_from_the_locked_slot() {
 }
 
 #[test]
-fn a_request_of_a_frozen_player_is_denied() {
+fn a_request_of_a_frozen_player_is_denied_with_the_source_of_the_plugin() {
     let mut app = app();
     let world = app.world_mut();
+    let source = world.resource::<ArenaRules>().source;
+    assert_ne!(
+        source,
+        world.resource::<VanillaInventoryRequests>().source,
+        "each plugin gets a source of its own"
+    );
     let frozen = spawn_player(world);
-    world.entity_mut(frozen).insert(Frozen);
+    world.entity_mut(frozen).insert(Frozen::default());
     let free = spawn_player(world);
 
     assert_eq!(
         move_one(world, frozen, 10),
-        Err(Refusal::Denied(Denial {
-            source: DENIAL_SOURCE,
-            code: 1,
-        }))
+        Err(Refusal::Denied(Denial { source, code: 1 }))
+    );
+    assert_eq!(
+        world.get::<Frozen>(frozen),
+        Some(&Frozen { denied: 1 }),
+        "the plugin counts its denial"
     );
     assert_eq!(
         capture(world, frozen),

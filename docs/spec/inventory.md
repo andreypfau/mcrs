@@ -32,6 +32,10 @@ id.
 - **Menu**: an ordered list of slot references that a player has open. Each entry has a menu index.
 - **Inventory menu**: the menu of INV-MNU-001. Each player always has one.
 - **Open menu**: the menu that the clicks of a player go to (INV-MNU-002).
+- **Container id**: the number that names a menu of a player in the menu packets.
+- **Menu type**: an entry of the `minecraft:menu` registry. The vanilla client selects the screen
+  of a menu by its menu type.
+- **Opener**: the block, the entity or the plugin that opens a menu for a player.
 - **State id**: a number of a menu that the server and the client use to find a lost update
   (INV-SYN-001).
 - **Client view**: what the server knows of the stack that the client holds for a slot
@@ -60,7 +64,7 @@ label (`README.md`, section "Semantics, not accidents").
 | Prefix | Subject |
 |--------|---------|
 | `INV-SLT` | the holders and the slots of a player, their slot limits and filters |
-| `INV-MNU` | the inventory menu |
+| `INV-MNU` | the inventory menu and the open of another menu |
 | `INV-SEL` | the selected slot and the hand actions |
 | `INV-INS` | the insert rule |
 | `INV-CRE` | the creative inventory and the operations that make items |
@@ -102,6 +106,23 @@ when each of these conditions is true:
 - the `slot` of that component is the name of the armour slot;
 - that component has no `allowed_entities`, or `allowed_entities` contains `minecraft:player`.
 
+The component is the effective component of the stack (`item-stack.md`, STK-PAT-002). Its shape is
+in `item-stack.md`, STK-SHP-028. The names of the armour slots are `feet` for `P[36]`, `legs` for
+`P[37]`, `chest` for `P[38]` and `head` for `P[39]`. A stack without the component does not go into
+an armour slot.
+
+`allowed_entities` is an entity type set (`item-stack.md`, STK-SHP-030). It contains
+`minecraft:player` as `item-stack.md`, STK-SHP-031, states:
+
+- A list contains `minecraft:player` when an element of the list is `minecraft:player`.
+- A tag contains `minecraft:player` when `minecraft:player` is a resolved member of that tag of the
+  registry `minecraft:entity_type` (`registry.md`, REG-TAG-005). The filter uses the members at
+  the time of the request. Thus a data pack can change the result.
+- The empty list does not contain `minecraft:player`.
+
+For example, `minecraft:carved_pumpkin` has the slot `head` and no `allowed_entities`, so it can go
+into `P[39]`. `minecraft:shield` has the slot `offhand`, so it does not go into an armour slot.
+
 **INV-SLT-004** (`source_suggested`, semantic). The take filter of an armour slot refuses when
 these two conditions are true:
 
@@ -109,6 +130,24 @@ these two conditions are true:
 - the player is not in creative mode.
 
 In each other case the take filter permits.
+
+The stack has an enchantment with the effect when each of these conditions is true:
+
+1. The effective `minecraft:enchantments` component of the stack (`item-stack.md`, STK-PAT-002 and
+   STK-SHP-015) has an entry for an enchantment.
+2. The `effects` map of that enchantment has the key `minecraft:prevent_armor_change`. The
+   enchantment is the entry of the registry `minecraft:enchantment` that the server loaded
+   (`registry-fields.md`, REG-FLD-122 and REG-FLD-351).
+
+These statements also apply:
+
+- The level of the entry has no effect.
+- The value of the effect is `{}`, and it has no condition. The field `slots` of the enchantment
+  has no effect.
+- The component `minecraft:stored_enchantments` has no effect. Thus an enchanted book in an armour
+  slot does not lock the slot.
+- In the vanilla data pack, only `minecraft:binding_curse` has this effect. A data pack can add the
+  effect to another enchantment, or remove it.
 
 **INV-SLT-005** (`design`, semantic). The off-hand slot has no take filter and no place filter.
 It accepts each stack in each edition, and no configuration changes this. Reason: decision of the
@@ -173,6 +212,12 @@ for that armour slot.
 | 6 | `S` is one of `M[36]` through `M[44]`. | `M[9]` up to `M[35]` |
 | 7 | `S` is `M[45]`. | `M[9]` up to `M[44]` |
 
+The repeat of a quick move (`inventory-transactions.md`, ITX-JAV-026) applies to each row,
+also to `M[0]`. Each pass uses the first row whose condition is true at the start of that pass.
+For example, `M[9]` holds 64 carved pumpkins, and `A(head)` and the hotbar hold the empty stack.
+The first pass uses row 3 and puts 1 carved pumpkin in `A(head)`. The second pass uses row 5 and
+puts 63 carved pumpkins in `M[36]`.
+
 Rows 3 and 4 do not read `allowed_entities`. When the place filter of the one destination
 refuses, the click moves no item. Section 11, U4, asks the owner about the kind of this result.
 Deviation D4 of `inventory-transactions.md` does not show in
@@ -184,6 +229,64 @@ all cannot take from `M[0]` (ITX-JAV-011). The inventory menu permits a drag to 
 
 **INV-MNU-006** (`source_suggested`, semantic). A player on the server can always drop items. Thus
 the last condition of ITX-JAV-013 is always true.
+
+### 2.1 The open of another menu
+
+**INV-MNU-007** (`source_suggested`, semantic). The server opens a menu other than the inventory
+menu for a player in these steps:
+
+1. When the open menu is not the inventory menu, the server closes it as INV-CLS-002 states. It
+   sends `container_close` with the container id of that menu. It then does the steps of
+   INV-CLS-001.
+2. The new menu gets its container id (INV-MNU-008).
+3. The server sends `open_screen` for the new menu (INV-MNU-009).
+4. The server sends `container_set_content` for the new menu, with the state id 1 (INV-SYN-001).
+   The client view of each entry of the new menu and of the cursor becomes the sent stack.
+5. When the new menu has data values, the server sends one `container_set_data` packet for each
+   data value.
+6. The new menu becomes the open menu.
+
+The server does the six steps in one tick, before the next comparison of INV-SYN-003. The packets
+are in the order of the steps. When step 1 closes a menu, it empties the cursor before the new
+menu exists. Thus the cursor of the new menu then holds the empty stack.
+
+The vanilla client also accepts `open_screen` without `container_close` before it. With the
+`container_close` of step 1, the vanilla client closes the screen of the replaced menu first. It
+then shows the new screen and puts the mouse pointer at the centre of the window. INV-MNU-011
+states the cursor when the inventory menu is the open menu.
+
+**INV-MNU-008** (`source_suggested`, semantic). Each player has a menu counter. The counter is
+0 when the player joins. Step 2 of INV-MNU-007 sets the counter to `(counter mod 100) + 1`. The new
+menu gets this value as its container id. Thus the first menu after the join has the container id
+1, and the container ids are 1 through 100 in turn.
+
+A new menu never has the container id of the menu that it replaces. Thus a `container_click` for
+the replaced menu fails check 1 of ITX-JAV-001. The vanilla server sets the counter to 0 again at a
+respawn. A parity test must not compare a container id after a respawn.
+
+**INV-MNU-009** (`source_suggested_black_box_confirmed`, wire). The `open_screen` packet has these
+fields, in this order:
+
+1. the container id, a VarInt;
+2. the menu type, a VarInt: the network id of the entry in the `minecraft:menu` registry;
+3. the title, a text in the wire form of TXT-NBT-003.
+
+The opener gives the title. The vanilla client shows the title in the screen of the menu. For
+example, the vanilla server gives the translatable text `container.chest` to a chest without a
+custom name.
+
+**INV-MNU-010** (`design`, semantic). When the opener gives no title, the title of the menu is the
+empty text (TXT-MOD-004). The `open_screen` packet then carries the bytes `08 0000` as the title.
+The vanilla client then shows no text in the place of the title. Reason: the packet has no form
+without a title. The game has no default title for a menu type, because each opener gives its own
+title. For example, a chest and a barrel have the same menu type and different titles.
+
+**INV-MNU-011** (`design`, semantic). When the inventory menu is the open menu, step 1 of
+INV-MNU-007 does nothing. The cursor stack stays in the cursor slot. The `container_set_content`
+packet of step 4 carries that stack as the cursor, and the screen of the new menu shows it.
+The vanilla server sends the empty stack as the cursor and keeps the stack where the player cannot
+see it. Reason: each player has one cursor slot (INV-SLT-002), and the player can see each stack
+that the player holds. See deviation D8.
 
 ## 3. The selected slot and the hand actions
 
@@ -212,7 +315,7 @@ with the status 4 or 5 drops from the selected slot. `n` is the selected slot. T
 the request `drop(P[n], count(P[n]))`. The status 5 gives the request `drop(P[n], 1)`. When
 `P[n]` holds the empty stack, the server does nothing. The server ignores the packet of a
 spectator. IEN-SPN-001 states the item entity. After the drop, the client view of `P[n]` is the
-stack that the server holds. ITX-JAV-022 states the result when a plugin denies the request. See.
+stack that the server holds. ITX-JAV-022 states the result when a plugin denies the request.
 
 **INV-SEL-005** (`design`, semantic). The `player_action` packet with the status 7 gives the
 request `swap(P[n], P[40])`, where `n` is the selected slot. When the two slots hold the empty
@@ -223,9 +326,10 @@ changes a slot, so the filters of the two slots apply with no other rule.
 **INV-SEL-006** (`design`, client agreement). When the request of INV-SEL-005 has a rejection or
 a denial (ITX-JAV-022), the client view of `P[n]` and of `P[40]` becomes not known. The
 comparison of INV-SYN-003 then sends the two stacks. Reason: the server does not know what the
-client shows for the two slots, so it sends both. ITX-JAV-021 states that the vanilla client
-changes neither slot before the answer. By default, the two slots have no filter (INV-SLT-001, INV-SLT-005). Only a filter that a
-plugin gives to `P[n]` or to `P[40]` can cause such a rejection.
+client shows for the two slots, so it sends both. ITX-JAV-025 states that the vanilla client
+changes neither slot before the answer. By default, the two slots have no filter (INV-SLT-001,
+INV-SLT-005). Only a filter that a plugin gives to `P[n]` or to `P[40]` can cause such a
+rejection.
 
 ## 4. The insert rule
 
@@ -558,6 +662,13 @@ selected slot that the file holds. The server sends them as INV-SEL-003 and INV-
   insert of the reference skips a slot.
 - **Visible to the client**: only when a plugin gives a main slot or the off-hand slot a place
   filter. The reference has no such plugin.
+
+**D8.**
+
+- **Rule**: INV-MNU-011.
+- **Reference**: when the server opens a menu while the inventory menu is the open menu, the cursor
+  stack stays with the inventory menu. The new menu has the empty stack as its cursor.
+- **Visible to the client**: yes. The stack shows on the cursor of the new screen.
 
 ## 11. Unresolved
 

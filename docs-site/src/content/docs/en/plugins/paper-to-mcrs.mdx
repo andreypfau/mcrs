@@ -20,6 +20,7 @@ sources:
   - crates/mcrs_minecraft_command_engine/src/command_event.rs
   - crates/mcrs_minecraft_engine/src/bus.rs
   - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_game_mode/src/player_game_mode.rs
   - crates/mcrs_minecraft_command_engine/src/app_commands.rs
   - crates/mcrs_minecraft_command/src/permission.rs
   - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
@@ -82,7 +83,7 @@ No row is a drop-in replacement, because mcrs has no Bukkit-like API, as [This i
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
-| `Player`, `Entity` as objects | An `Entity` id plus components `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | A player has three ids: the Bevy `Entity`, the `PlayerSession`, which lives across dimensions, and the network id (<Status issue={158} />) |
+| `Player`, `Entity` as objects | An `Entity` id plus components `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" /> | A player has three ids: the Bevy `Entity`, the `PlayerSession`, which lives across dimensions, and the network id (<Status issue={158} />) |
 | `player.sendMessage(Component)` | An `OutboundPlayerPacket` message, built with `bus::to` and the `system_chat` helper | <Status state="partial" /> | This is low level, and there is no `player.send()` |
 | `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` inside a dimension | <Status state="partial" /> | Players live in dimension worlds, and there is no global collection (<Status issue={154} />) |
 | `world.getBlockAt(..).setType(..)` | The `BlockSetRequest` message and the `WorldView` volume API | <Status state="partial" /> | Works inside one dimension. One API for world access is <Status issue={486} /> |

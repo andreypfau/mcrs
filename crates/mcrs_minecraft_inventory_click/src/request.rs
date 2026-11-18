@@ -1,8 +1,9 @@
-use crate::Click;
+use mcrs_minecraft_container_click::Click;
+use mcrs_minecraft_container_click::ClickKind;
+use mcrs_minecraft_container_click::Clicked;
+
 use crate::ClickError;
-use crate::ClickKind;
 use crate::ClickPlayer;
-use crate::Clicked;
 use crate::Drag;
 use crate::Menu;
 use crate::Operations;

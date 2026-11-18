@@ -1,5 +1,4 @@
 mod add_entity_data;
-mod apply_entity_data;
 mod client_tables;
 pub mod delta;
 mod entity_light;
@@ -16,11 +15,11 @@ mod receive_movement;
 mod remove_spent_entities;
 mod simulated_motion;
 mod simulated_step;
+mod sleeping_beds;
 mod ticked;
 mod tracked_velocity;
 
 pub use add_entity_data::*;
-pub use apply_entity_data::*;
 pub use fuse::Fuse;
 pub use item_entity_stack::ItemEntityStack;
 pub use network_entities::*;

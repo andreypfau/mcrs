@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod apply_entity_data;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
@@ -6,6 +7,7 @@ mod attribute_packets;
 pub mod block_breaking;
 pub mod block_prediction;
 pub mod block_target;
+pub mod camera_section_ready;
 pub mod chat;
 pub mod chat_history;
 mod chat_packets;
@@ -17,18 +19,21 @@ pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
 pub mod hotbar_sync;
-pub mod inventory_packets;
+mod item_table_cache;
 pub mod joined_game;
 pub mod local_motion;
 pub mod local_player;
 pub mod movement_input;
 pub mod player;
+pub mod player_load;
 pub mod player_view;
 mod pong;
 mod received;
 pub mod registries;
 pub mod screen;
+pub mod session;
 pub mod sign;
 #[cfg(test)]
 mod test_session;
 mod walk;
+pub mod world_list;

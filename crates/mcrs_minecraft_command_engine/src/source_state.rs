@@ -1,11 +1,11 @@
 use crate::command_targets::CommandTargets;
 use bevy_ecs::prelude::{Query, With};
 use mcrs_minecraft_command::CommandLevel;
-use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
 pub use mcrs_minecraft_engine::command_handoff::SourceState;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 
 pub fn level_of(op_level: PlayerOpLevel) -> CommandLevel {
     CommandLevel::from(op_level.clamped())

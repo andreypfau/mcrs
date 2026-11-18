@@ -24,7 +24,7 @@ use crate::fixture::holders;
 use crate::fixture::put;
 use crate::fixture::stacks;
 
-fn close(world: &mut World, player: Entity) {
+pub(crate) fn close(world: &mut World, player: Entity) {
     let packet = ServerboundContainerClose {
         container_id: VarInt(7),
     };

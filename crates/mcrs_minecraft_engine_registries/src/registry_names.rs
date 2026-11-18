@@ -1,4 +1,5 @@
 use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_table::ItemTable;
@@ -11,6 +12,7 @@ pub struct RegistryNames<'a> {
     registries: &'a Registries,
     items: Option<&'a ItemTable>,
     block_tags: Option<Tags<Block>>,
+    entity_type_tags: Option<Tags<EntityType>>,
 }
 
 impl<'a> RegistryNames<'a> {
@@ -20,6 +22,7 @@ impl<'a> RegistryNames<'a> {
             registries,
             items: Some(items),
             block_tags: registries.tags::<Block>(),
+            entity_type_tags: registries.tags::<EntityType>(),
         }
     }
 
@@ -28,19 +31,88 @@ impl<'a> RegistryNames<'a> {
             registries,
             items: None,
             block_tags: registries.tags::<Block>(),
+            entity_type_tags: registries.tags::<EntityType>(),
         }
     }
 }
 
+pub(crate) struct NamedRegistry {
+    pub(crate) table: NameTable,
+    pub(crate) key: &'static str,
+}
+
+pub(crate) const NAMED_REGISTRIES: [NamedRegistry; 13] = [
+    NamedRegistry {
+        table: NameTable::Attribute,
+        key: "minecraft:attribute",
+    },
+    NamedRegistry {
+        table: NameTable::Block,
+        key: "minecraft:block",
+    },
+    NamedRegistry {
+        table: NameTable::ComponentType,
+        key: "minecraft:data_component_type",
+    },
+    NamedRegistry {
+        table: NameTable::Enchantment,
+        key: "minecraft:enchantment",
+    },
+    NamedRegistry {
+        table: NameTable::MapDecorationType,
+        key: "minecraft:map_decoration_type",
+    },
+    NamedRegistry {
+        table: NameTable::SoundEvent,
+        key: "minecraft:sound_event",
+    },
+    NamedRegistry {
+        table: NameTable::EntityType,
+        key: "minecraft:entity_type",
+    },
+    NamedRegistry {
+        table: NameTable::MobEffect,
+        key: "minecraft:mob_effect",
+    },
+    NamedRegistry {
+        table: NameTable::Potion,
+        key: "minecraft:potion",
+    },
+    NamedRegistry {
+        table: NameTable::TrimMaterial,
+        key: "minecraft:trim_material",
+    },
+    NamedRegistry {
+        table: NameTable::TrimPattern,
+        key: "minecraft:trim_pattern",
+    },
+    NamedRegistry {
+        table: NameTable::Instrument,
+        key: "minecraft:instrument",
+    },
+    NamedRegistry {
+        table: NameTable::BannerPattern,
+        key: "minecraft:banner_pattern",
+    },
+];
+
 fn registry_key(table: NameTable) -> Option<&'static str> {
-    match table {
-        NameTable::Attribute => Some("minecraft:attribute"),
-        NameTable::Block => Some("minecraft:block"),
-        NameTable::ComponentType => Some("minecraft:data_component_type"),
-        NameTable::Enchantment => Some("minecraft:enchantment"),
-        NameTable::MapDecorationType => Some("minecraft:map_decoration_type"),
-        _ => None,
-    }
+    NAMED_REGISTRIES
+        .iter()
+        .find(|named| named.table == table)
+        .map(|named| named.key)
+}
+
+fn tag_id<R>(tags: &Tags<R>, name: ResourceLocation<'_>) -> Option<u16> {
+    let tag = tags.id(TagKey::new(name))?;
+    u16::try_from(tag.index()).ok()
+}
+
+fn tag_name<R>(tags: &Tags<R>, id: u16) -> Option<ResourceLocation<'_>> {
+    let (_, name) = tags
+        .iter()
+        .find(|(tag, _)| tag.index() == usize::from(id))?;
+    Some(name.as_location())
 }
 
 impl NameLookup for RegistryNames<'_> {
@@ -49,8 +121,10 @@ impl NameLookup for RegistryNames<'_> {
             return self.items?.id(table, name);
         }
         if table == NameTable::BlockTag {
-            let tag = self.block_tags.as_ref()?.id(TagKey::new(name))?;
-            return u16::try_from(tag.index()).ok();
+            return tag_id(self.block_tags.as_ref()?, name);
+        }
+        if table == NameTable::EntityTypeTag {
+            return tag_id(self.entity_type_tags.as_ref()?, name);
         }
         let key = ResourceLocation::read(registry_key(table)?).ok()?;
         self.registries.id_of(key, name)
@@ -61,11 +135,10 @@ impl NameLookup for RegistryNames<'_> {
             return self.items?.name(table, id);
         }
         if table == NameTable::BlockTag {
-            let tags = self.block_tags.as_ref()?;
-            let (_, name) = tags
-                .iter()
-                .find(|(tag, _)| tag.index() == usize::from(id))?;
-            return Some(name.as_location());
+            return tag_name(self.block_tags.as_ref()?, id);
+        }
+        if table == NameTable::EntityTypeTag {
+            return tag_name(self.entity_type_tags.as_ref()?, id);
         }
         let key = ResourceLocation::read(registry_key(table)?).ok()?;
         let names = self.registries.names_of(key)?;

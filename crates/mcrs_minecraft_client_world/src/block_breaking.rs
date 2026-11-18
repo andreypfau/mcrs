@@ -5,7 +5,6 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ConnectionState;
@@ -22,6 +21,7 @@ use crate::block_target::{BlockHit, Reach, block_target};
 use crate::columns::{AIR, ColumnStore};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::hotbar_sync::SendSelectedSlot;
+use crate::local_motion::{self, LocalMotion};
 use crate::local_player::LocalPlayerTick;
 use crate::player::{Player, look_direction};
 
@@ -219,6 +219,7 @@ fn attack(
     player: Single<
         (
             &PhysicsTransform,
+            Option<&LocalMotion>,
             Option<&AttributeInstances>,
             Option<&LocalGameMode>,
             Option<&PermissionLevel>,
@@ -231,7 +232,7 @@ fn attack(
     predictions: Option<ResMut<BlockPredictions>>,
 ) {
     let input = input.take();
-    let (transform, instances, mode, permission) = player.into_inner();
+    let (transform, motion, instances, mode, permission) = player.into_inner();
     let (
         Some(reach),
         Some(connection),
@@ -254,7 +255,7 @@ fn attack(
     if *state != ConnectionState::Game {
         return;
     }
-    let eye = transform.translation + DVec3::Y * PLAYER_EYE_HEIGHT;
+    let eye = transform.translation + DVec3::Y * f64::from(local_motion::eye_height(motion));
     let rotation = transform.rotation;
     let direction = look_direction(rotation.yaw(), rotation.pitch())
         .as_dvec3()

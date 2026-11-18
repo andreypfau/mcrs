@@ -8,4 +8,13 @@ pub enum NameTable {
     BlockTag,
     ComponentType,
     MapDecorationType,
+    SoundEvent,
+    EntityType,
+    EntityTypeTag,
+    MobEffect,
+    Potion,
+    TrimMaterial,
+    TrimPattern,
+    Instrument,
+    BannerPattern,
 }

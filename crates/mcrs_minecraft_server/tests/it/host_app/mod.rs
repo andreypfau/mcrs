@@ -16,7 +16,7 @@ use bytes::Bytes;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
@@ -41,7 +41,7 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;

@@ -5,8 +5,7 @@ use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_inventory_player::HOTBAR;
-
-use crate::PlayerHolders;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 pub(crate) fn apply_selected_slot(
     In((player, slot)): In<(Entity, u8)>,

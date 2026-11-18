@@ -1,6 +1,6 @@
 use crate::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use crate::intent::status_frame;
-use crate::metrics::Malformed;
+use crate::metrics::{Malformed, PacketDispatcher};
 use crate::{ConnectionState, NetworkSet, RawConnection, WriterWakes};
 use crate::{connect, event, lan, webtransport};
 use base64::engine::general_purpose::STANDARD;
@@ -12,6 +12,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
 use bevy_ecs::world::{FromWorld, World};
 use bytes::Bytes;
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -38,6 +39,7 @@ pub struct NetworkPlugin {
     pub send_buffer_bytes: usize,
     pub accept_backlog: u32,
     pub rate_limit: InboundRateLimit,
+    pub nbt_budget: NbtBudget,
     pub per_ip_accept_limit: bool,
     pub proxy_upstreams: Vec<IpAddr>,
 }
@@ -67,6 +69,7 @@ impl Default for NetworkPlugin {
             send_buffer_bytes: 512 * 1024,
             accept_backlog: 1024,
             rate_limit: InboundRateLimit::default(),
+            nbt_budget: NbtBudget::default(),
             per_ip_accept_limit: true,
             proxy_upstreams: Vec::new(),
         }
@@ -242,6 +245,8 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
     );
     app.add_plugins(event::EventLoopPlugin);
+    let mut dispatcher = app.world_mut().resource_mut::<PacketDispatcher>();
+    dispatcher.set_nbt_budget(plugin.nbt_budget);
 
     Ok(())
 }

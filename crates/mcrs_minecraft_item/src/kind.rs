@@ -98,7 +98,7 @@ macro_rules! for_each_data_component {
         Bees                         : Bees                     [persistent],
         SulfurCubeContent            : SulfurCubeContent        [persistent, nested, refs],
         Lock                         : Lock                     [persistent, nested, nbt_wire, refs],
-        ContainerLoot                : ContainerLoot            [persistent, nbt_wire],
+        ContainerLoot                : ContainerLoot            [persistent],
         BreakSound                   : BreakSound               [persistent, refs],
         Compostable                  : Compostable              [persistent],
         CookingFuel                  : CookingFuel              [persistent],

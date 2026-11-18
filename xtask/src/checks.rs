@@ -28,13 +28,14 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 17] = [
+const NO_STD_PACKAGES: [&str; 19] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_block_break",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_client_widget",
+    "mcrs_minecraft_container_click",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_fog",
     "mcrs_minecraft_goal_world",
@@ -42,13 +43,14 @@ const NO_STD_PACKAGES: [&str; 17] = [
     "mcrs_minecraft_inventory_click",
     "mcrs_minecraft_inventory_player",
     "mcrs_minecraft_inventory_transaction",
+    "mcrs_minecraft_menu_geometry",
     "mcrs_minecraft_pose",
     "mcrs_molang",
     "mcrs_molang_wgsl",
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 136] = [
+const NO_BEVY_PACKAGES: [&str; 139] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -72,6 +74,8 @@ const NO_BEVY_PACKAGES: [&str; 136] = [
     "mcrs_minecraft_chat",
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
+    "mcrs_minecraft_container_click",
+    "mcrs_minecraft_creative_report",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_client_options",
     "mcrs_minecraft_client_recorder",
@@ -129,6 +133,7 @@ const NO_BEVY_PACKAGES: [&str; 136] = [
     "mcrs_minecraft_loot",
     "mcrs_minecraft_loot_condition",
     "mcrs_minecraft_map_decoration",
+    "mcrs_minecraft_menu_geometry",
     "mcrs_minecraft_mesh",
     "mcrs_minecraft_model_file",
     "mcrs_minecraft_move_predict",
@@ -216,11 +221,24 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_engine_server",
 ];
 
+const CLIENT_USABLE_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_engine_item",
+    "mcrs_minecraft_inventory_client",
+    "mcrs_minecraft_player_holders",
+];
+
+const SERVER_ONLY_PACKAGES: [&str; 4] = [
+    "mcrs_minecraft_engine",
+    "mcrs_minecraft_engine_server",
+    "mcrs_minecraft_save",
+    "mcrs_minecraft_server",
+];
+
 const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
     "mcrs_minecraft_network",
     "mcrs_minecraft_protocol",
     "mcrs_minecraft_inventory_click",
-    "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_inventory_client",
     "mcrs_minecraft_inventory_server",
 ];
 
@@ -530,6 +548,15 @@ fn layers(ctx: &Context) -> Outcome {
         return Err(format!(
             "the inventory gameplay depends on the packet edge ({}); move the code that needs it to mcrs_minecraft_inventory_server",
             edge.join(", ")
+        ));
+    }
+    for package in CLIENT_USABLE_PACKAGES {
+        linked_forbidden(ctx, package, &SERVER_ONLY_PACKAGES, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "an inventory crate that a client uses links a server-only crate ({}); move the code that needs it to mcrs_minecraft_vanilla_inventory",
+            linked.join(", ")
         ));
     }
     for package in ENTITY_RENDER_PACKAGES {

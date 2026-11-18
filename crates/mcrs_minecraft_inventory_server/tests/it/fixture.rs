@@ -9,6 +9,7 @@ use bevy_ecs::world::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::PersistedRegistry;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_inventory_menu::Menus;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
@@ -18,6 +19,7 @@ use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_inventory_server::InventoryServerPlugin;
+use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
@@ -31,12 +33,12 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
-use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 pub const STONE: Kind = Kind(1);
@@ -63,8 +65,9 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
 pub fn app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .insert_resource(*TABLE)
         .add_plugins((
-            ItemPlugin::new(*TABLE),
+            ItemPlugin::default(),
             VanillaInventoryPlugin,
             InventoryServerPlugin,
             InventoryPersistencePlugin,
@@ -148,4 +151,14 @@ pub fn dropped(world: &mut World) -> Vec<(Kind, u8, i16)> {
         .collect();
     dropped.sort_unstable_by_key(|(kind, count, _)| (*kind, *count));
     dropped
+}
+
+pub fn first_menu_sync(world: &World, player: Entity) -> &MenuSync {
+    let first = world
+        .get::<Menus>(player)
+        .and_then(|menus| menus.iter().next())
+        .expect("a restored player has the inventory menu");
+    world
+        .get::<MenuSync>(first)
+        .expect("the inventory menu has a client view")
 }

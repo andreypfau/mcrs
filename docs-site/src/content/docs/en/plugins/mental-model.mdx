@@ -9,6 +9,7 @@ stability: changing
 tracking: [367, 357, 323]
 sources:
   - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_game_mode/src/player_game_mode.rs
   - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
   - crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs
   - docs/physics-architecture.md
@@ -87,7 +88,7 @@ The table below maps what you would reach for in Java to its closest relative he
 | A `Listener` method | An observer function `fn(e: On<Event>)`, or a system |
 | `runTaskTimer` | A system in `FixedUpdate`, which runs 20 times per second |
 
-Your own plugin data follows the same rule. Put it in components and resources, and when you need to remember a player, keep the `Entity` id and look the player up again when you use it. The components for game mode, flying and operator level are in [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
+Your own plugin data follows the same rule. Put it in components and resources, and when you need to remember a player, keep the `Entity` id and look the player up again when you use it. The game mode component is in [player_game_mode.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_game_mode/src/player_game_mode.rs), and the components for flying and operator level are in [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
 
 ## There is no `Bukkit.getServer()`
 

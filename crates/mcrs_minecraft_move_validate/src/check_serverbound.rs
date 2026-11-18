@@ -37,6 +37,7 @@ pub fn check_serverbound(id: i32, body: &[u8]) -> Verdict {
             }
         }
         Serverbound::ClientTickEnd
+        | Serverbound::PlayerInput
         | Serverbound::PlayerLoaded
         | Serverbound::Pong(_)
         | Serverbound::Other => Ok(()),
@@ -100,7 +101,7 @@ fn decode(id: i32, fields: &mut Fields<'_>, reports: &mut Reports) -> Option<Ser
             if fields.byte()? & !INPUT_FLAGS != 0 {
                 reports.add(Finding::UnknownInputFlag);
             }
-            Serverbound::Other
+            Serverbound::PlayerInput
         }
         PLAYER_ABILITIES => {
             if fields.byte()? & !FLY_REQUEST != 0 {

@@ -1,27 +1,18 @@
 use bevy::math::{IRect, IVec2};
-use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
+use mcrs_minecraft_container_click::Clicked;
+use mcrs_minecraft_item::slots;
+use mcrs_minecraft_menu_geometry::MenuGeometry;
 
 use crate::inventory_figure::figure_rect;
+use crate::menu_draw;
+use crate::player_stacks::PlayerStacks;
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
-pub const IMAGE_WIDTH: i32 = 176;
-pub const IMAGE_HEIGHT: i32 = 166;
+const GEOMETRY: MenuGeometry = MenuGeometry::INVENTORY;
+const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DIM_TOP: u32 = 0xC010_1010;
 const DIM_BOTTOM: u32 = 0xD010_1010;
-
-pub fn slot_position(menu: u16) -> Option<IVec2> {
-    let i = i32::from(menu);
-    let position = match menu {
-        slots::RESULT => IVec2::new(154, 28),
-        m if slots::CRAFT.contains(&m) => IVec2::new(98 + (i - 1) % 2 * 18, 18 + (i - 1) / 2 * 18),
-        slots::ARMOR_HEAD..=slots::ARMOR_FEET => IVec2::new(8, 8 + (i - 5) * 18),
-        m if slots::MAIN.contains(&m) => IVec2::new(8 + (i - 9) % 9 * 18, 84 + (i - 9) / 9 * 18),
-        m if slots::HOTBAR.contains(&m) => IVec2::new(8 + (i - 36) * 18, 142),
-        slots::OFFHAND => IVec2::new(77, 62),
-        _ => return None,
-    };
-    Some(position)
-}
 
 fn empty_icon(menu: u16) -> Option<&'static str> {
     match menu {
@@ -34,25 +25,27 @@ fn empty_icon(menu: u16) -> Option<&'static str> {
     }
 }
 
-pub fn origin(size: GuiSize) -> IVec2 {
-    IVec2::new(
-        (size.width - IMAGE_WIDTH) / 2,
-        (size.height - IMAGE_HEIGHT) / 2,
+pub(crate) fn window_corner(size: GuiSize) -> IVec2 {
+    menu_draw::point(GEOMETRY.window(size.width, size.height))
+}
+
+pub(crate) fn recipe_book_button(corner: GuiPoint) -> GuiRect {
+    GuiRect::new(
+        corner.x.saturating_add(RECIPE_BOOK_BUTTON.x),
+        corner.y.saturating_add(RECIPE_BOOK_BUTTON.y),
+        RECIPE_BOOK_BUTTON.width,
+        RECIPE_BOOK_BUTTON.height,
     )
 }
 
-fn hovering(slot: IVec2, local: IVec2) -> bool {
-    local.x >= slot.x - 1 && local.x < slot.x + 17 && local.y >= slot.y - 1 && local.y < slot.y + 17
-}
-
-pub fn hovered_slot(size: GuiSize, cursor: IVec2) -> Option<u16> {
-    let local = cursor - origin(size);
-    (0..slots::MENU_COUNT as u16)
-        .find(|&menu| slot_position(menu).is_some_and(|position| hovering(position, local)))
-}
-
-pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &mut Vec<GuiQuad>) {
-    let top_left = origin(size);
+pub fn inventory_screen(
+    size: GuiSize,
+    cursor: IVec2,
+    stacks: &PlayerStacks,
+    out: &mut Vec<GuiQuad>,
+) {
+    let corner = GEOMETRY.window(size.width, size.height);
+    let top_left = menu_draw::point(corner);
     out.push(GuiQuad::FillGradient {
         rect: IRect::new(0, 0, size.width, size.height),
         top: DIM_TOP,
@@ -60,26 +53,28 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
     });
     out.push(sprite(
         top_left,
-        IVec2::new(IMAGE_WIDTH, IMAGE_HEIGHT),
+        IVec2::new(GEOMETRY.width(), GEOMETRY.height()),
         "container/inventory",
     ));
     out.push(GuiQuad::Figure {
         rect: figure_rect(top_left),
     });
-    let button = IVec2::new(top_left.x + 104, size.height / 2 - 22);
-    let over_button = (button.x..button.x + 20).contains(&cursor.x)
-        && (button.y..button.y + 18).contains(&cursor.y);
+    let button = recipe_book_button(corner);
+    let pointer = GuiPoint::new(cursor.x, cursor.y);
+    let button_area = menu_draw::irect(button);
     out.push(sprite(
-        button,
-        IVec2::new(20, 18),
-        if over_button {
+        button_area.min,
+        button_area.size(),
+        if button.contains_point(pointer) {
             "recipe_book/button_highlighted"
         } else {
             "recipe_book/button"
         },
     ));
-    let hovered = hovered_slot(size, cursor);
-    let highlight = hovered.and_then(slot_position);
+    let highlight = match GEOMETRY.clicked_at(corner, pointer) {
+        Clicked::Entry(index) => GEOMETRY.entry(index).map(menu_draw::point),
+        Clicked::Outside | Clicked::Nowhere => None,
+    };
     if let Some(position) = highlight {
         out.push(sprite(
             top_left + position - 4,
@@ -87,15 +82,12 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
             "container/slot_highlight_back",
         ));
     }
-    for menu in 0..slots::MENU_COUNT as u16 {
-        let Some(position) = slot_position(menu) else {
-            continue;
-        };
-        let at = top_left + position;
-        match slots.get(menu) {
+    for entry in GEOMETRY.entries() {
+        let at = top_left + menu_draw::point(entry.corner);
+        match stacks.get(entry.index) {
             Some(stack) => out.push(GuiQuad::Item { origin: at, stack }),
             None => {
-                if let Some(icon) = empty_icon(menu) {
+                if let Some(icon) = empty_icon(entry.index) {
                     out.push(sprite(at, IVec2::splat(16), icon));
                 }
             }
@@ -108,7 +100,7 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
             "container/slot_highlight_front",
         ));
     }
-    if let Some(stack) = slots.get(slots::CARRIED) {
+    if let Some(stack) = stacks.get(slots::CARRIED) {
         out.push(GuiQuad::Item {
             origin: cursor - 8,
             stack,
@@ -118,8 +110,24 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::world::World;
-    use mcrs_minecraft_item::Held;
+    use bevy::app::App;
+    use mcrs_minecraft_engine_inventory_menu::MenuParts;
+    use mcrs_minecraft_engine_inventory_menu::Menus;
+    use mcrs_minecraft_engine_item::ItemCommandsExt;
+    use mcrs_minecraft_engine_item::ItemPlugin;
+    use mcrs_minecraft_engine_item::Slots;
+    use mcrs_minecraft_engine_item::StackCommandsExt;
+    use mcrs_minecraft_inventory_file::PlayerItems;
+    use mcrs_minecraft_inventory_menu::MenuLayout;
+    use mcrs_minecraft_item_stack::Builtin;
+    use mcrs_minecraft_item_stack::Count;
+    use mcrs_minecraft_item_stack::ItemStack;
+    use mcrs_minecraft_item_stack::Kind;
+    use mcrs_minecraft_item_stack::MaxStackSize;
+    use mcrs_minecraft_item_table::ItemTable;
+    use mcrs_minecraft_player_holders::PlayerHolders;
+    use mcrs_minecraft_player_holders::PlayerHoldersPlugin;
+    use mcrs_minecraft_player_holders::restore_holders;
 
     use super::*;
     use crate::hotbar::hotbar;
@@ -131,32 +139,76 @@ mod tests {
         scale: 2,
     };
 
-    #[test]
-    fn slot_positions_match_the_vanilla_menu() {
-        assert_eq!(slot_position(0), Some(IVec2::new(154, 28)));
-        assert_eq!(slot_position(1), Some(IVec2::new(98, 18)));
-        assert_eq!(slot_position(4), Some(IVec2::new(116, 36)));
-        assert_eq!(slot_position(5), Some(IVec2::new(8, 8)));
-        assert_eq!(slot_position(8), Some(IVec2::new(8, 62)));
-        assert_eq!(slot_position(9), Some(IVec2::new(8, 84)));
-        assert_eq!(slot_position(35), Some(IVec2::new(152, 120)));
-        assert_eq!(slot_position(36), Some(IVec2::new(8, 142)));
-        assert_eq!(slot_position(44), Some(IVec2::new(152, 142)));
-        assert_eq!(slot_position(45), Some(IVec2::new(77, 62)));
+    enum Place {
+        Cursor,
+        CraftResult,
+        CraftGrid(u16),
+        Player(u16),
     }
 
-    fn player(world: &mut World, filled: &[u16]) -> SlotTable {
-        let holder = world.spawn(SlotTable::fixed(slots::COUNT)).id();
-        for &index in filled {
-            world.spawn(Held { holder, index });
+    fn player(filled: &[Place]) -> PlayerStacks {
+        let mut app = App::new();
+        app.insert_resource(ItemTable::leak([vec![Builtin::MaxStackSize(
+            MaxStackSize(64),
+        )]]))
+        .add_plugins((ItemPlugin::default(), PlayerHoldersPlugin));
+        let world = app.world_mut();
+        let player = world.spawn_empty().id();
+        world
+            .run_system_cached_with(restore_holders, (player, PlayerItems::default()))
+            .unwrap();
+        world.flush();
+        let world = app.world();
+        let holders = *world.get::<PlayerHolders>(player).unwrap();
+        let menu = world.get::<Menus>(player).unwrap().iter().next().unwrap();
+        let layout = world.get::<MenuLayout>(menu).unwrap().clone();
+        let parts = *world.get::<MenuParts>(menu).unwrap();
+        for place in filled {
+            let (holder, index) = match place {
+                Place::Cursor => (holders.cursor, 0),
+                Place::CraftResult => (holders.craft_result, 0),
+                Place::CraftGrid(index) => (holders.craft_grid, *index),
+                Place::Player(index) => (player, *index),
+            };
+            let stack = ItemStack::new(Kind(0), Count::new(1).unwrap());
+            let world = app.world_mut();
+            world.commands().spawn_stack(stack).put_at(holder, index);
+            world.flush();
         }
-        world.get::<SlotTable>(holder).unwrap().clone()
+        PlayerStacks::collect(&layout, &parts, holders.cursor, |slot| {
+            app.world()
+                .get::<Slots>(slot.holder)?
+                .get(usize::from(slot.index))
+        })
+    }
+
+    #[test]
+    fn the_player_stacks_follow_the_vanilla_menu_layout() {
+        let placed = [
+            (Place::CraftResult, 0),
+            (Place::CraftGrid(0), 1),
+            (Place::CraftGrid(3), 4),
+            (Place::Player(39), 5),
+            (Place::Player(36), 8),
+            (Place::Player(9), 9),
+            (Place::Player(35), 35),
+            (Place::Player(0), 36),
+            (Place::Player(8), 44),
+            (Place::Player(40), 45),
+            (Place::Cursor, 46),
+        ];
+        for (place, menu) in placed {
+            let table = player(&[place]);
+            let filled: Vec<u16> = (0..=46)
+                .filter(|&index| table.get(index).is_some())
+                .collect();
+            assert_eq!(filled, vec![menu]);
+        }
     }
 
     #[test]
     fn the_hotbar_lists_the_vanilla_rectangles_in_order() {
-        let mut world = World::new();
-        let table = player(&mut world, &[slots::HOTBAR.start + 3, slots::OFFHAND]);
+        let table = player(&[Place::Player(3), Place::Player(40)]);
         let mut out = Vec::new();
         hotbar(SIZE, 3, &table, &mut out);
         let cx = 213;
@@ -190,13 +242,12 @@ mod tests {
 
     #[test]
     fn the_inventory_screen_lists_the_vanilla_rectangles_in_order() {
-        let mut world = World::new();
-        let table = player(&mut world, &[slots::MAIN.start, slots::CARRIED]);
+        let table = player(&[Place::Player(9), Place::Cursor]);
         let mut out = Vec::new();
         let cursor = IVec2::new(125 + 8 + 5, 37 + 84 + 5);
         inventory_screen(SIZE, cursor, &table, &mut out);
         let top_left = IVec2::new(125, 37);
-        assert_eq!(origin(SIZE), top_left);
+        assert_eq!(window_corner(SIZE), top_left);
         assert!(
             matches!(out[0], GuiQuad::FillGradient { rect, top: 0xC010_1010, bottom: 0xD010_1010 } if rect == IRect::new(0, 0, 427, 240))
         );
@@ -251,22 +302,5 @@ mod tests {
             }
         ));
         assert!(matches!(out[out.len() - 1], GuiQuad::Item { .. }));
-    }
-
-    #[test]
-    fn hover_uses_the_one_pixel_margin_and_the_first_slot_wins() {
-        assert_eq!(
-            hovered_slot(SIZE, origin(SIZE) + IVec2::new(7, 7)),
-            Some(slots::ARMOR_HEAD)
-        );
-        assert_eq!(
-            hovered_slot(SIZE, origin(SIZE) + IVec2::new(8, 24)),
-            Some(slots::ARMOR_HEAD)
-        );
-        assert_eq!(
-            hovered_slot(SIZE, origin(SIZE) + IVec2::new(8, 25)),
-            Some(slots::ARMOR_CHEST)
-        );
-        assert_eq!(hovered_slot(SIZE, IVec2::new(-1, -1)), None);
     }
 }
