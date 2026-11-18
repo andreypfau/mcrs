@@ -11,10 +11,8 @@ use mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
-use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, DimensionBuilders};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::{HandInput, MenuAction, MenuInput};
-use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_network::event::Received;
@@ -23,7 +21,7 @@ use mcrs_minecraft_protocol::{Encode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerClose;
 
 use crate::container_menus;
-use crate::local_world::LocalWorld;
+use crate::local_world::{self, LocalWorld};
 use crate::stacks::{self, AGREED, Entry, Item, Stack};
 
 const GUI_SCALE: u32 = 2;
@@ -696,23 +694,6 @@ fn add_input(app: &mut App) {
         .spawn((Window::default(), CursorOptions::default(), PrimaryWindow));
 }
 
-fn discard_thrown_items(server: &mut App) {
-    server
-        .world_mut()
-        .get_resource_or_init::<DimensionBuilders>()
-        .add(add_item_discard);
-}
-
-fn add_item_discard(_: &World, _: &DimensionBuild<'_>, dimension: &mut SubApp) {
-    dimension.add_systems(FixedUpdate, discard_items);
-}
-
-fn discard_items(items: Query<Entity, With<ItemEntity>>, mut commands: Commands) {
-    for item in &items {
-        commands.entity(item).despawn();
-    }
-}
-
 fn play(app: &mut App, frame: &[Event]) {
     let world = app.world_mut();
     let window = world
@@ -765,7 +746,11 @@ fn play(app: &mut App, frame: &[Event]) {
 
 #[test]
 fn each_gesture_gives_its_input_and_the_same_stacks_on_both_sides() {
-    let mut world = LocalWorld::join("screen-clicks", discard_thrown_items, add_input);
+    let mut world = LocalWorld::join(
+        "screen-clicks",
+        local_world::discard_thrown_items,
+        add_input,
+    );
     for row in ROWS {
         world.app.insert_resource(row.screen);
         let mut cursor = world
