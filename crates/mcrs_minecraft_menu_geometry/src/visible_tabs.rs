@@ -41,8 +41,9 @@ impl VisibleTabs {
 }
 
 const fn bit(index: usize) -> Option<u16> {
-    if index >= u16::BITS as usize {
-        return None;
+    if index < u16::BITS as usize {
+        Some(1u16 << index)
+    } else {
+        None
     }
-    1u16.checked_shl(index as u32)
 }

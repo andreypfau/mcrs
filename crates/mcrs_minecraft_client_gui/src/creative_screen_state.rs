@@ -61,6 +61,9 @@ impl CreativeScreenState {
     }
 
     pub fn select(&mut self, tab: usize, content: &CreativeTabContent) {
+        if !content.visible_tabs().contains(tab) {
+            return;
+        }
         let reset = if tab == self.selected && self.selected_tab().kind == CreativeTabKind::Search {
             SearchReset::Keep
         } else {
@@ -70,11 +73,10 @@ impl CreativeScreenState {
     }
 
     pub fn wheel(&mut self, vertical: f64, content: &CreativeTabContent) {
-        let len = self.content(content).len();
-        if !CreativeGeometry::can_scroll(self.selected_tab().kind, len) {
+        if !self.can_scroll(content) {
             return;
         }
-        let rows = f64::from(CreativeGeometry::row_count(len));
+        let rows = f64::from(CreativeGeometry::row_count(self.content(content).len()));
         self.scroll = (self.scroll - vertical / rows).clamp(0.0, 1.0);
     }
 

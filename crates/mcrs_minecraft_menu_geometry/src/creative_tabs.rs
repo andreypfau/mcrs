@@ -1,7 +1,6 @@
 use mcrs_minecraft_keys::creative_mode_tab;
 use mcrs_minecraft_resource::rl;
 
-use crate::CreativeBackground;
 use crate::CreativeTab;
 use crate::CreativeTabAlignment;
 use crate::CreativeTabKind;
@@ -17,7 +16,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.buildingBlocks",
         icon: rl!("minecraft:bricks"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_1"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_1"),
@@ -31,7 +29,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.coloredBlocks",
         icon: rl!("minecraft:cyan_wool"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_2"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_2"),
@@ -45,7 +42,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.natural",
         icon: rl!("minecraft:grass_block"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_3"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_3"),
@@ -59,7 +55,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.functional",
         icon: rl!("minecraft:oak_sign"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_4"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_4"),
@@ -73,7 +68,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.redstone",
         icon: rl!("minecraft:redstone"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_5"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_5"),
@@ -87,7 +81,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Right,
         title_key: "itemGroup.hotbar",
         icon: rl!("minecraft:bookshelf"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_6"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_6"),
@@ -101,7 +94,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Right,
         title_key: "itemGroup.search",
         icon: rl!("minecraft:compass"),
-        background: CreativeBackground::ItemSearch,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_top_selected_7"),
             unselected: rl!("minecraft:container/creative_inventory/tab_top_unselected_7"),
@@ -115,7 +107,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.tools",
         icon: rl!("minecraft:diamond_pickaxe"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_1"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_1"),
@@ -129,7 +120,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.combat",
         icon: rl!("minecraft:netherite_sword"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_2"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_2"),
@@ -143,7 +133,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.foodAndDrink",
         icon: rl!("minecraft:golden_apple"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_3"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_3"),
@@ -157,7 +146,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.ingredients",
         icon: rl!("minecraft:iron_ingot"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_4"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_4"),
@@ -171,7 +159,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Left,
         title_key: "itemGroup.spawnEggs",
         icon: rl!("minecraft:creeper_spawn_egg"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_5"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_5"),
@@ -185,7 +172,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Right,
         title_key: "itemGroup.op",
         icon: rl!("minecraft:command_block"),
-        background: CreativeBackground::Items,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_6"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_6"),
@@ -199,7 +185,6 @@ pub const CREATIVE_TABS: [CreativeTab; 14] = [
         alignment: CreativeTabAlignment::Right,
         title_key: "itemGroup.inventory",
         icon: rl!("minecraft:chest"),
-        background: CreativeBackground::Inventory,
         sprites: TabSprites {
             selected: rl!("minecraft:container/creative_inventory/tab_bottom_selected_7"),
             unselected: rl!("minecraft:container/creative_inventory/tab_bottom_unselected_7"),

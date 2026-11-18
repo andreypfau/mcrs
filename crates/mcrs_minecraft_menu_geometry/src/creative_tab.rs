@@ -2,7 +2,6 @@ use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_widget::GuiRect;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::CreativeBackground;
 use crate::CreativeGeometry;
 use crate::CreativeTabAlignment;
 use crate::CreativeTabKind;
@@ -30,7 +29,6 @@ pub struct CreativeTab {
     pub alignment: CreativeTabAlignment,
     pub title_key: &'static str,
     pub icon: ResourceLocation<'static>,
-    pub background: CreativeBackground,
     pub sprites: TabSprites,
 }
 

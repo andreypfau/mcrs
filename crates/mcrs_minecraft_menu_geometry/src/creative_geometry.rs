@@ -71,7 +71,7 @@ impl CreativeGeometry {
 
     #[must_use]
     pub fn content_index(slot: u16, first_row: i32) -> Option<usize> {
-        GRID.corner(slot)?;
+        (slot < GRID_SLOTS).then_some(())?;
         let first_row = usize::try_from(first_row).ok()?;
         let columns = usize::from(GRID_COLUMNS);
         first_row

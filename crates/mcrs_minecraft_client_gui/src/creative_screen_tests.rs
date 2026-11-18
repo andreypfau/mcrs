@@ -309,6 +309,14 @@ fn a_selection_resets_the_scroll_and_the_search_text() {
             selected: SAVED_HOTBARS,
             text: "",
         },
+        SelectRow {
+            name: "the hidden operator tab",
+            steps: |state, content| {
+                state.select(OP_BLOCKS, content);
+            },
+            selected: BUILDING_BLOCKS,
+            text: "",
+        },
     ];
     for row in rows {
         let mut state = opened(&VANILLA);
