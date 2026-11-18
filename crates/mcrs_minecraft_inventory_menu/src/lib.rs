@@ -6,10 +6,6 @@ mod menu_range;
 mod route;
 mod route_when;
 mod worn_slot;
-#[rustfmt::skip]
-pub mod menu_keys;
-#[rustfmt::skip]
-pub mod registry_keys;
 
 pub use menu_entry::MenuEntry;
 pub use menu_layout::MenuLayout;

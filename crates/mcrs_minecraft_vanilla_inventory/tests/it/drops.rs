@@ -5,7 +5,7 @@ use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
+use mcrs_minecraft_vanilla_inventory::RequestPurpose;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 use crate::fixture::STONE;
@@ -41,7 +41,7 @@ fn only_a_drop_of_the_vanilla_source_launches_the_stack() {
         world.commands().entity(player).request(
             Request::new(RequestId {
                 source,
-                serial: CLICK_REQUEST,
+                serial: RequestPurpose::Click.serial(),
             })
             .drop(from, 2),
         );

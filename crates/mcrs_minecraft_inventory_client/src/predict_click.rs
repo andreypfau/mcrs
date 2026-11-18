@@ -36,13 +36,12 @@ use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 
 use crate::RemoteMenu;
+use crate::click_purpose::ClickPurpose;
 use crate::click_source::ClickSource;
 use crate::local_inventory::StackNames;
 use crate::outbox::Outbox;
 use crate::outgoing::Outgoing;
 use crate::predict_creative::CreativeScratch;
-
-const CLICK_SERIAL: u32 = 0;
 
 #[derive(Resource, Default)]
 pub(crate) struct ClickScratch {
@@ -165,7 +164,7 @@ fn plan_click(
         },
         request: RequestId {
             source: source.0,
-            serial: CLICK_SERIAL,
+            serial: ClickPurpose::Click.serial(),
         },
     };
     let Ok(request) = clicks.plan(viewer, click, clicker) else {

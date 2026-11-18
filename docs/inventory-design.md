@@ -89,7 +89,8 @@ The layer numbers are those of `CLAUDE.md`. Each name has the prefix `mcrs_minec
 | `inventory_transaction` | 3, rules, `no_std` | none | no change | the planner of an atomic request |
 | `inventory_player` | 3, rules, `no_std` | none | changed | the 41 slots, the vanilla slot rules as data, the insert rule, the close moves |
 | `inventory_click` | 3, rules, `no_std` | none | no change | Java click kinds to operations; the traits `Menu` and `Slots` |
-| `inventory_menu` | 3, data | feature `bevy`: derives only | changed | menu registry keys, `MenuEntry`, the layout of the inventory menu |
+| `inventory_menu` | 3, data | feature `bevy`: derives only | changed | `MenuEntry`, the layout of the inventory menu |
+| `menu_key` | 3, data | none | new | `MenuType` and the keys of the menu registry |
 | `inventory_client_view` | 3 | none | changed | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | none | new | `PlayerItems`, the inventory keys of a player file |
 | `engine_item` | 4 | required | changed | stacks as entities, `SlotChanged`, `SlotPolicy`, gates, `RequestCheck`, request sources |
@@ -264,7 +265,8 @@ the craft grid does the same. At a leave and at a dimension change, the observer
 the open menu and then for the first menu (INV-CLS-003).
 
 `VanillaInventoryPlugin` reads the game rule of section 1 from the game rules of the world.
-The serial numbers of its requests are public constants beside `HandAction`.
+`RequestPurpose` names the purpose of each request of the plugin and converts it to and from
+the serial of `RequestId`.
 
 ## 4.6 `mcrs_minecraft_inventory_server` (layer 5, edge)
 

@@ -132,7 +132,6 @@ mod tests {
     use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_inventory_file::PlayerItems;
     use mcrs_minecraft_inventory_menu::MenuLayout;
-    use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
     use mcrs_minecraft_item_stack::Count;
     use mcrs_minecraft_item_stack::ItemModel;
     use mcrs_minecraft_item_stack::ItemStack;
@@ -143,6 +142,7 @@ mod tests {
     use mcrs_minecraft_item_stack::Trim;
     use mcrs_minecraft_item_stack::TrimMaterialId;
     use mcrs_minecraft_item_stack::TrimPatternId;
+    use mcrs_minecraft_menu_key::menu_keys::MenuType;
     use mcrs_minecraft_model_file::model_file::GuiLight;
     use mcrs_minecraft_player_holders::{PlayerHolders, PlayerHoldersPlugin, restore_holders};
     use mcrs_minecraft_resource::ResourceLocation;

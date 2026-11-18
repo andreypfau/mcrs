@@ -3,10 +3,10 @@ use bevy::prelude::Entity;
 use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::EntryPreview;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_item_icon::{Overlays, StackOverlay};
 use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry, MenuLabels, TitlePosition};
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::drag_preview::DragPreview;
@@ -282,7 +282,6 @@ mod tests {
     use mcrs_minecraft_inventory_click::DragSplit;
     use mcrs_minecraft_inventory_file::PlayerItems;
     use mcrs_minecraft_inventory_menu::MenuLayout;
-    use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
     use mcrs_minecraft_item_icon::IconSources;
     use mcrs_minecraft_item_stack::Builtin;
     use mcrs_minecraft_item_stack::Count;
@@ -292,6 +291,7 @@ mod tests {
     use mcrs_minecraft_item_stack::NameLookup;
     use mcrs_minecraft_item_stack::NameTable;
     use mcrs_minecraft_item_table::ItemTable;
+    use mcrs_minecraft_menu_key::menu_keys::MenuType;
     use mcrs_minecraft_model::resource_set::ResourceSet;
     use mcrs_minecraft_model::stack_view::StackView;
     use mcrs_minecraft_player_holders::PlayerHolders;

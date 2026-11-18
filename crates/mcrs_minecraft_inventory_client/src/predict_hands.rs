@@ -22,11 +22,10 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use mcrs_voxel::BlockPos;
 
 use crate::HandInput;
+use crate::click_purpose::ClickPurpose;
 use crate::click_source::ClickSource;
 use crate::outbox::Outbox;
 use crate::outgoing::Outgoing;
-
-const HAND_SERIAL: u32 = 1;
 
 #[expect(
     clippy::large_enum_variant,
@@ -87,7 +86,7 @@ fn plan_hand(
     };
     let id = RequestId {
         source: source.0,
-        serial: HAND_SERIAL,
+        serial: ClickPurpose::Hand.serial(),
     };
     let held_count = (slots.get(usize::from(selected.0)))
         .and_then(|stack| counts.get(stack).ok())

@@ -14,9 +14,8 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_player_holders::HandAction;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+use crate::RequestPurpose;
 use crate::VanillaInventoryRequests;
-use crate::request_ids::HAND_DROP_REQUEST;
-use crate::request_ids::HAND_SWAP_REQUEST;
 
 pub(crate) fn apply_hand_action(
     In((player, action)): In<(Entity, HandAction)>,
@@ -34,13 +33,13 @@ pub(crate) fn apply_hand_action(
     if game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Spectator) {
         return;
     }
-    let serial = match action {
-        HandAction::DropOne | HandAction::DropStack => HAND_DROP_REQUEST,
-        HandAction::SwapHands => HAND_SWAP_REQUEST,
+    let purpose = match action {
+        HandAction::DropOne | HandAction::DropStack => RequestPurpose::HandDrop,
+        HandAction::SwapHands => RequestPurpose::HandSwap,
     };
     let id = RequestId {
         source: requests.source,
-        serial,
+        serial: purpose.serial(),
     };
     let held_count = (slots.get(usize::from(selected.0)))
         .and_then(|stack| counts.get(stack).ok())

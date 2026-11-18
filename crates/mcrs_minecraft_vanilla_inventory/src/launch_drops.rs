@@ -16,11 +16,9 @@ use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 use mcrs_minecraft_vanilla_item_entity::Thrower;
 
+use crate::RequestPurpose;
 use crate::VanillaInventoryRequests;
 use crate::hand_launch::hand_launch;
-use crate::request_ids::CLICK_REQUEST;
-use crate::request_ids::CLOSE_REQUEST;
-use crate::request_ids::HAND_DROP_REQUEST;
 
 pub(crate) fn launch_drops(
     mut drops: MessageReader<RequestDrop>,
@@ -44,10 +42,10 @@ pub(crate) fn launch_drops(
         if drop.id.source != requests.source {
             continue;
         }
-        let cause = match drop.id.serial {
-            CLOSE_REQUEST => Cause::MenuRest,
-            CLICK_REQUEST | HAND_DROP_REQUEST => Cause::Throw,
-            _ => continue,
+        let cause = match RequestPurpose::from_serial(drop.id.serial) {
+            Some(RequestPurpose::Close) => Cause::MenuRest,
+            Some(RequestPurpose::Click | RequestPurpose::HandDrop) => Cause::Throw,
+            Some(RequestPurpose::HandSwap | RequestPurpose::Creative) | None => continue,
         };
         let player = if players.contains(drop.holder) {
             drop.holder
