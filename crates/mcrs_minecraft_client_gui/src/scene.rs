@@ -928,6 +928,7 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .init_resource::<GlyphCache>()
+            .add_plugins(crate::creative_screen_plugin::CreativeScreenPlugin)
             .add_observer(spawn_inventory_figure)
             .init_resource::<crate::title_draw::TitleScreenState>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
