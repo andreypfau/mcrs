@@ -31,6 +31,9 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 
 const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 const OVERWORLD: &str = "minecraft:overworld";
+const MAX_SIDE: i32 = 128;
+const MARGIN_COLUMNS: i32 = 8;
+const BORDER_COLUMNS: i64 = 30_000_000 / 16;
 const PATIENCE: Duration = Duration::from_secs(600);
 
 struct Args {
@@ -48,14 +51,14 @@ impl Args {
         let side: i32 = argument(&args, 0, 16);
         let offset: i32 = argument(&args, 2, 0);
         assert!(side >= 1, "the side of the square is at least one column");
-        let fits = offset
-            .checked_sub(LOADING_RINGS)
-            .and(side.checked_add(2 * LOADING_RINGS))
-            .and(offset.checked_add(side))
-            .and_then(|end| end.checked_add(LOADING_RINGS));
         assert!(
-            fits.is_some(),
-            "the square and its loading rings fit in the column range"
+            side <= MAX_SIDE,
+            "the side of the square is at most {MAX_SIDE} columns"
+        );
+        let reach = i64::from(offset).abs() + i64::from(side) + i64::from(MARGIN_COLUMNS);
+        assert!(
+            reach <= BORDER_COLUMNS,
+            "the offset, the side and the margin of {MARGIN_COLUMNS} columns must fit the world border of {BORDER_COLUMNS} columns"
         );
         Self {
             side,
