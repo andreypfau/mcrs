@@ -10,14 +10,13 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_tooltip::AttackBases;
 use mcrs_minecraft_item_tooltip::TooltipInputs;
 use mcrs_minecraft_item_tooltip::TooltipView;
-use mcrs_minecraft_item_tooltip::append_tooltip_parts;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::Text;
 
 use crate::language::ClientLanguage;
-use crate::menu_item_tooltip::player_attack_bases;
+use crate::menu_item_tooltip;
 use crate::menu_item_tooltip::prototype_components;
 
 #[derive(Clone, Debug, Default)]
@@ -57,7 +56,7 @@ impl CreativeSearchIndex {
             index.tag_names.push(name.clone());
         }
         let names = RegistryNames::new(registries, items);
-        let attack = player_attack_bases(None);
+        let attack = menu_item_tooltip::player_attack_bases(None);
         let mut tooltip = Vec::new();
         for stack in search_list {
             let parts_start = index.parts.len();
@@ -130,7 +129,13 @@ impl CreativeSearchIndex {
             TooltipInputs::new(sources.attack, prototype_components(sources.items, stack));
         inputs.view = TooltipView::Creative;
         tooltip.clear();
-        append_tooltip_parts(stack, sources.items, sources.names, &inputs, tooltip);
+        mcrs_minecraft_item_tooltip::append_tooltip_parts(
+            stack,
+            sources.items,
+            sources.names,
+            &inputs,
+            tooltip,
+        );
         for part in tooltip.iter() {
             let part = search_part(&sources.language.plain_text(part));
             if !part.is_empty() {

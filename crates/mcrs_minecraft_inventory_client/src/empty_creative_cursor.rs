@@ -7,7 +7,7 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::CreativeScreen;
-use crate::local_inventory::shows_inventory_menu;
+use crate::local_inventory;
 
 pub(crate) fn empty_creative_cursor(
     closed: On<Remove<CreativeScreen>>,
@@ -18,7 +18,7 @@ pub(crate) fn empty_creative_cursor(
     let Ok((player_holders, menus)) = viewers.get(closed.entity) else {
         return;
     };
-    if !shows_inventory_menu(menus) {
+    if !local_inventory::shows_inventory_menu(menus) {
         return;
     }
     let carried = (holders.get(player_holders.cursor).ok()).and_then(|slots| slots.get(0));

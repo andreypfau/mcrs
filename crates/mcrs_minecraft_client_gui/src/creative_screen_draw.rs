@@ -15,19 +15,17 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::drag_preview::DragPreview;
-use crate::edit_box_draw::draw_edit_box_in;
-use crate::font::{Span, draw_str_without_shadow};
+use crate::edit_box_draw;
+use crate::font::{self, Span};
 use crate::item_decorations::WHITE;
 use crate::item_icons::ItemIcons;
 use crate::language::ClientLanguage;
 use crate::menu_draw;
-use crate::menu_input::menu_clock;
+use crate::menu_input;
 use crate::menu_label_text::LABEL_COLOR;
-use crate::menu_screen::{
-    DIM_BOTTOM, DIM_TOP, background, draw_carried, draw_previewed_entry, empty_icon,
-};
+use crate::menu_screen::{self, DIM_BOTTOM, DIM_TOP};
 use crate::menu_stacks::MenuStacks;
-use crate::scene::{GuiAtlas, GuiAtlasData, GuiQuad, GuiScene, sprite};
+use crate::scene::{self, GuiAtlas, GuiAtlasData, GuiQuad, GuiScene};
 use crate::slot_icon::SlotIcon;
 
 const GRID_SLOTS: u16 = 45;
@@ -95,7 +93,7 @@ pub(crate) fn draw_creative_screen(
         slot_icons: &slot_icons,
         atlas: &atlas.0,
         language: &language,
-        now_ms: menu_clock(&time),
+        now_ms: menu_input::menu_clock(&time),
     };
     creative_screen(&frame, &icons, &mut text_tooltip, &mut scene);
 }
@@ -179,14 +177,14 @@ fn creative_screen(
             other.tab().unselected_sprite().path(),
         ));
     }
-    background(
+    menu_screen::background(
         frame.atlas,
         top_left,
         tab.kind.background().part(),
         &mut scene.quads,
     );
     if tab.kind == CreativeTabKind::Search {
-        draw_edit_box_in(
+        edit_box_draw::draw_edit_box_in(
             offset(window, CreativeGeometry::SEARCH_BOX),
             None,
             state.search_box(),
@@ -213,7 +211,7 @@ fn creative_screen(
         draw_tab_icon(frame, icons, scene, top_left, other);
     }
     if tab.kind.has_title() {
-        draw_str_without_shadow(
+        font::draw_str_without_shadow(
             &frame.atlas.font,
             (top_left + menu_draw::point(CreativeGeometry::TITLE)).as_vec2(),
             frame.language.get(tab.title_key),
@@ -227,7 +225,7 @@ fn creative_screen(
     request_tab_tooltip(frame, text_tooltip, scene, window);
     request_destroy_tooltip(frame, text_tooltip, scene, hit);
     let carried = frame.carried();
-    draw_carried(scene, carried, frame.drag);
+    menu_screen::draw_carried(scene, carried, frame.drag);
 }
 
 fn unselected_tabs(
@@ -313,7 +311,7 @@ fn draw_entry(frame: &CreativeFrame, at: IVec2, index: u16, scene: &mut GuiScene
     if let Some(preview) = frame.drag.entry(index)
         && frame.stacks.carried().is_some()
     {
-        draw_previewed_entry(scene, at, preview, frame.carried());
+        menu_screen::draw_previewed_entry(scene, at, preview, frame.carried());
         return;
     }
     match frame.stacks.get(index) {
@@ -323,8 +321,10 @@ fn draw_entry(frame: &CreativeFrame, at: IVec2, index: u16, scene: &mut GuiScene
             }
         }
         None => {
-            if let Some(icon) = empty_icon(index) {
-                scene.quads.push(sprite(at, IVec2::splat(ENTRY_SIZE), icon));
+            if let Some(icon) = menu_screen::empty_icon(index) {
+                scene
+                    .quads
+                    .push(scene::sprite(at, IVec2::splat(ENTRY_SIZE), icon));
             }
         }
     }
@@ -357,7 +357,7 @@ fn request_destroy_tooltip(
 }
 
 fn highlight_sprite(at: IVec2, region: &'static str) -> GuiQuad {
-    sprite(at - HIGHLIGHT_INSET, IVec2::splat(HIGHLIGHT_SIZE), region)
+    scene::sprite(at - HIGHLIGHT_INSET, IVec2::splat(HIGHLIGHT_SIZE), region)
 }
 
 pub(crate) fn offset(window: GuiPoint, rect: GuiRect) -> GuiRect {
@@ -370,7 +370,7 @@ pub(crate) fn offset(window: GuiPoint, rect: GuiRect) -> GuiRect {
 }
 
 fn local_sprite(top_left: IVec2, rect: GuiRect, region: &'static str) -> GuiQuad {
-    sprite(
+    scene::sprite(
         top_left + IVec2::new(rect.x, rect.y),
         IVec2::new(rect.width, rect.height),
         region,

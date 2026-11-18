@@ -1,67 +1,9 @@
-use bevy::clipboard::Clipboard;
-use bevy::ecs::system::SystemParam;
 use bevy::input::keyboard::KeyboardInput;
-use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Key;
 use mcrs_minecraft_client_widget::{EditBox, GuiRect, KeyModifiers};
-use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 
 use crate::chat_input;
-use crate::creative_screen_state::CreativeScreenState;
-use crate::creative_tab_content::CreativeTabContent;
-use crate::menu_input;
-use crate::scene::GuiAtlas;
 use crate::search_input::SearchInput;
-
-#[derive(SystemParam)]
-pub(crate) struct CreativeTabSelect<'w> {
-    screen: Option<ResMut<'w, CreativeScreenState>>,
-    content: Option<Res<'w, CreativeTabContent>>,
-    clipboard: Option<ResMut<'w, Clipboard>>,
-    atlas: Option<Res<'w, GuiAtlas>>,
-}
-
-impl CreativeTabSelect<'_> {
-    pub(crate) fn select(&mut self, tab: CreativeTabIndex) {
-        self.with(|screen, content| screen.select(tab, content));
-    }
-
-    pub(crate) fn wheel(&mut self, vertical: f64) {
-        self.with(|screen, content| screen.wheel(vertical, content));
-    }
-
-    pub(crate) fn drag_scroll(&mut self, top: i32, mouse_y: f64) {
-        self.with(|screen, content| screen.drag_scroll(top, mouse_y, content));
-    }
-
-    fn with(&mut self, change: impl FnOnce(&mut CreativeScreenState, &CreativeTabContent)) {
-        if let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) {
-            change(screen, content);
-        }
-    }
-
-    pub(crate) fn edit_search(
-        &mut self,
-        input: &SearchInput,
-        search_box: GuiRect,
-        mouse_x: Option<f64>,
-    ) {
-        let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) else {
-            return;
-        };
-        let mut clipboard = self.clipboard.as_deref_mut();
-        let width = menu_input::text_width(self.atlas.as_deref());
-        let mut copied = None;
-        screen.edit_search(content, |edit| {
-            copied = apply_search(edit, input, search_box, mouse_x, &width, || {
-                chat_input::clipboard_text(clipboard.as_deref_mut())
-            });
-        });
-        if let Some(text) = copied {
-            chat_input::copy_text(clipboard, &text);
-        }
-    }
-}
 
 pub(crate) fn apply_search(
     edit: &mut EditBox,

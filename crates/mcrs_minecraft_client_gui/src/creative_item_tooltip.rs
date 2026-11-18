@@ -15,13 +15,12 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 
-use crate::creative_screen_draw::{ENTRY_SIZE, slot_corner};
+use crate::creative_screen_draw::{self, ENTRY_SIZE};
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
 use crate::menu_item_tooltip::{
-    HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
-    player_attack_bases, tooltip_detail,
+    self, HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
 };
 use crate::scene::{GuiAtlas, GuiConfig, GuiScene};
 
@@ -80,22 +79,22 @@ pub(crate) fn request_creative_item_tooltip(
     let hovered = menu
         .filter(|_| occupant(cursor).is_none())
         .and_then(|menu| {
-            let stack = match hit {
-                CreativeHit::GridSlot(slot) => {
-                    HoveredStack::Value(creative.grid_stack(slot, &content)?)
-                }
+            let (stack, slot) = match hit {
+                CreativeHit::GridSlot(slot) => (
+                    HoveredStack::Value(creative.grid_stack(slot, &content)?),
+                    TooltipSlot::Grid(slot),
+                ),
                 _ => {
                     let entry = hit.menu_index()?;
                     let (layout, parts) = menus.get(menu).ok()?;
-                    let slot = layout.entry(entry).and_then(|slot| parts.slot(slot))?;
-                    HoveredStack::Entity(occupant(slot)?)
+                    let held = layout.entry(entry).and_then(|slot| parts.slot(slot))?;
+                    (
+                        HoveredStack::Entity(occupant(held)?),
+                        TooltipSlot::Entry(entry),
+                    )
                 }
             };
-            let slot = match hit {
-                CreativeHit::GridSlot(slot) => TooltipSlot::Grid(slot),
-                _ => TooltipSlot::Entry(hit.menu_index()?),
-            };
-            let corner = slot_corner(hit)?;
+            let corner = creative_screen_draw::slot_corner(hit)?;
             Some(HoveredItem {
                 menu,
                 slot,
@@ -131,8 +130,8 @@ pub(crate) fn request_creative_item_tooltip(
     };
     let style = TooltipStyle {
         view,
-        detail: tooltip_detail(&config),
-        attack: player_attack_bases(instances),
+        detail: menu_item_tooltip::tooltip_detail(&config),
+        attack: menu_item_tooltip::player_attack_bases(instances),
     };
     let sources = LineSources {
         items: &items,

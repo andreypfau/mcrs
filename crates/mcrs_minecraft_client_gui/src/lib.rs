@@ -15,6 +15,8 @@ mod creative_item_tooltip;
 #[cfg(test)]
 mod creative_item_tooltip_tests;
 mod creative_screen_draw;
+mod creative_screen_edit;
+mod creative_screen_input;
 mod creative_screen_open;
 pub mod creative_screen_plugin;
 mod creative_screen_shown;
@@ -23,9 +25,9 @@ pub mod creative_screen_state;
 mod creative_screen_tests;
 #[cfg(test)]
 mod creative_screen_view_tests;
+mod creative_search_edit;
 pub mod creative_search_index;
 pub mod creative_tab_content;
-mod creative_tab_select;
 pub mod creative_tab_view;
 pub mod cursor_grab;
 pub mod debug_displayer;

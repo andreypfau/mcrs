@@ -35,10 +35,10 @@ use mcrs_minecraft_resource::rl;
 use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
+use crate::creative_search_edit;
 use crate::creative_search_index::CreativeSearchIndex;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
-use crate::creative_tab_select;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::mark_creative_screen::mark_creative_screen;
@@ -453,7 +453,7 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
                 modifiers: key.modifiers,
             };
             state.edit_search(&VANILLA, |edit| {
-                copied = creative_tab_select::apply_search(
+                copied = creative_search_edit::apply_search(
                     edit,
                     &input,
                     CreativeGeometry::SEARCH_BOX,

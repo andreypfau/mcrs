@@ -9,7 +9,6 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::{MouseButtonInput, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiKey, GuiRect};
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -20,18 +19,18 @@ use mcrs_minecraft_engine_item::{SlotRef, Slots, Stacks};
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::{InventoryClientSet, MenuAction, MenuInput};
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_menu_geometry::{CreativeGeometry, CreativeHit, CreativeTabIndex, MenuGeometry};
+use mcrs_minecraft_menu_geometry::{CreativeHit, CreativeTabIndex, MenuGeometry};
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::chat_input;
 use crate::close_menu_screen::close_menu_screen;
-use crate::creative_clicks::{self, CreativeClicks};
+use crate::creative_clicks::CreativeClicks;
 use crate::creative_grid::CreativeGrid;
-use crate::creative_screen_draw;
+use crate::creative_screen_edit::CreativeScreenEdit;
+use crate::creative_screen_input::{self, CreativePointer, ScrollDrag, SearchPress};
 use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_shown::shows_creative_screen;
-use crate::creative_tab_select::CreativeTabSelect;
 use crate::cursor_grab;
 use crate::drag_preview::DragPreview;
 use crate::follow_open_menu::follow_open_menu;
@@ -74,7 +73,7 @@ impl Plugin for InventoryClicksPlugin {
 }
 
 #[derive(Clone, Debug)]
-enum ScreenEvent {
+pub(crate) enum ScreenEvent {
     Press(MouseButton),
     Release(MouseButton),
     Key(Gesture),
@@ -102,38 +101,6 @@ struct ClickState {
     gesture: MenuGesture,
     scroll: ScrollDrag,
     search: SearchPress,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum ScrollDrag {
-    #[default]
-    Idle,
-    Dragging,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct CreativePointer {
-    top: i32,
-    mouse_x: f64,
-    mouse_y: f64,
-    search_box: GuiRect,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum SearchPress {
-    #[default]
-    None,
-    Held(Duration),
-    Released(Duration),
-}
-
-impl SearchPress {
-    fn at(self) -> Option<Duration> {
-        match self {
-            Self::None => None,
-            Self::Held(at) | Self::Released(at) => Some(at),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -164,38 +131,11 @@ impl ScreenPointer<'_, '_> {
         self.window.single().ok()?.cursor_position()
     }
 
-    fn search_box(&self) -> Option<GuiRect> {
+    fn creative(&self) -> Option<CreativePointer> {
         let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
             return None;
         };
-        let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
-        let corner = CreativeGeometry::window(size.width, size.height);
-        Some(creative_screen_draw::offset(
-            corner,
-            CreativeGeometry::SEARCH_BOX,
-        ))
-    }
-
-    fn edit_search(&self, tabs: &mut CreativeTabSelect, input: &SearchInput) {
-        if let Some(search_box) = self.search_box() {
-            let mouse_x = self.creative_pointer().map(|at| at.mouse_x);
-            tabs.edit_search(input, search_box, mouse_x);
-        }
-    }
-
-    fn creative_pointer(&self) -> Option<CreativePointer> {
-        let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
-            return None;
-        };
-        let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
-        let pointer = scene::gui_pointer(window, config, size.scale)?;
-        let corner = CreativeGeometry::window(size.width, size.height);
-        Some(CreativePointer {
-            top: corner.y,
-            mouse_x: pointer.x,
-            mouse_y: pointer.y,
-            search_box: creative_screen_draw::offset(corner, CreativeGeometry::SEARCH_BOX),
-        })
+        Some(creative_screen_input::creative_pointer(window, config))
     }
 
     fn notches(&self, wheel: &MouseWheel) -> f64 {
@@ -298,7 +238,7 @@ impl LocalStacks<'_, '_> {
     }
 }
 
-fn key_event(key: KeyCode) -> Option<ScreenEvent> {
+pub(crate) fn key_event(key: KeyCode) -> Option<ScreenEvent> {
     let gesture = match key {
         INVENTORY | KeyCode::Escape => return Some(ScreenEvent::Close),
         item_key_codes::SWAP_OFFHAND => Gesture::OffhandKey,
@@ -341,7 +281,7 @@ impl ClickState {
         wheel: &mut MessageReader<MouseWheel>,
         pointer: &ScreenPointer,
         creative: bool,
-        tabs: &mut CreativeTabSelect,
+        tabs: &mut CreativeScreenEdit,
     ) -> bool {
         let notches: f64 = wheel.read().map(|wheel| pointer.notches(wheel)).sum();
         if creative && notches != 0.0 {
@@ -351,17 +291,9 @@ impl ClickState {
         let moved = mem::replace(&mut self.pointer, position) != position;
         if moved
             && creative
-            && self.scroll == ScrollDrag::Dragging
-            && let Some(at) = pointer.creative_pointer()
+            && let Some(at) = pointer.creative()
         {
-            tabs.drag_scroll(at.top, at.mouse_y);
-        }
-        if moved
-            && creative
-            && matches!(self.search, SearchPress::Held(_))
-            && let Some(at) = pointer.creative_pointer()
-        {
-            tabs.edit_search(&SearchInput::Drag, at.search_box, Some(at.mouse_x));
+            creative_screen_input::follow_pointer(self.scroll, self.search, at, tabs);
         }
         moved
     }
@@ -416,48 +348,11 @@ impl ClickState {
     }
 }
 
-fn swaps_from_search(
-    frame: &mut GestureFrame,
-    input: &SearchInput,
-    hover: Hover,
-    modifiers: Modifiers,
-) -> bool {
-    let SearchInput::Key { input, .. } = input else {
-        return false;
-    };
-    if !matches!(menu_input::gui_key(input.key_code), Some(GuiKey::Digit(_))) {
-        return false;
-    }
-    let Some(ScreenEvent::Key(gesture)) = key_event(input.key_code) else {
-        return false;
-    };
-    if let Hover::Creative(hit) = hover
-        && creative_clicks::is_empty_grid_slot(hit, frame.grid)
-    {
-        return false;
-    }
-    frame.click(hover, gesture, modifiers)
-}
-
 fn drain_without_menu(events: &mut VecDeque<QueuedEvent>) -> FrameEnd {
     if (events.drain(..)).any(|queued| matches!(queued.event, ScreenEvent::Close)) {
         FrameEnd::Closed
     } else {
         FrameEnd::Open
-    }
-}
-
-fn search_press(search: &mut SearchPress, at: Duration, modifiers: Modifiers) -> SearchInput {
-    let double = search
-        .at()
-        .is_some_and(|last| at.saturating_sub(last) <= Duration::from_millis(DOUBLE_CLICK_MS));
-    *search = SearchPress::Held(at);
-    if double {
-        SearchInput::SelectWord
-    } else if modifiers.shift {
-        SearchInput::Click(Anchor::Keep)
-    } else {
-        SearchInput::Click(Anchor::Move)
     }
 }
 
@@ -503,7 +398,9 @@ fn play(
                 frame.press(button, at, hover, modifiers);
                 if button == MouseButton::Left {
                     if matches!(hover, Hover::Creative(CreativeHit::SearchBox)) {
-                        return FrameEnd::Search(search_press(search, at, modifiers));
+                        return FrameEnd::Search(creative_screen_input::search_press(
+                            search, at, modifiers,
+                        ));
                     }
                     *search = SearchPress::None;
                 }
@@ -520,7 +417,7 @@ fn play(
                 frame.click(hover, gesture, modifiers);
             }
             ScreenEvent::Search(input) => {
-                if !swaps_from_search(frame, &input, hover, modifiers) {
+                if !creative_screen_input::swaps_from_search(frame, &input, hover, modifiers) {
                     return FrameEnd::Search(input);
                 }
             }
@@ -548,7 +445,7 @@ type Outputs<'w, 's> = (
     Query<'w, 's, &'static mut CursorOptions, With<PrimaryWindow>>,
     MessageWriter<'w, MenuInput>,
     ResMut<'w, DragPreview>,
-    CreativeTabSelect<'w>,
+    CreativeScreenEdit<'w>,
 );
 
 fn click_in_menu(
@@ -621,7 +518,7 @@ fn click_in_menu(
                 let FrameEnd::Search(input) = end else {
                     break end;
                 };
-                pointer.edit_search(&mut world_and_outputs.p1().4, &input);
+                (world_and_outputs.p1().4).edit_search(&input, pointer.creative());
                 if !sent.is_empty() {
                     break FrameEnd::Open;
                 }
