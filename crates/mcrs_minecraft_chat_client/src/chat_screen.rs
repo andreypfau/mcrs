@@ -213,6 +213,7 @@ impl ChatScreen {
                     Outcome::Ignored
                 }
             }
+            Key::Copy if self.edit.selected().is_empty() => Outcome::Ignored,
             Key::Copy => Outcome::Copy(self.edit.selected().to_owned()),
             Key::Left { step, anchor } => self.moved(|edit| edit.left(step, anchor)),
             Key::Right { step, anchor } => self.moved(|edit| edit.right(step, anchor)),

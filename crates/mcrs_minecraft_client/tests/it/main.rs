@@ -10,6 +10,8 @@ mod container_menus;
 #[cfg(feature = "singleplayer")]
 mod creative_actions;
 #[cfg(feature = "singleplayer")]
+mod creative_screen_clicks;
+#[cfg(feature = "singleplayer")]
 mod local_server;
 #[cfg(feature = "singleplayer")]
 mod local_world;

@@ -1,5 +1,6 @@
 use crate::CREATIVE_TABS;
 use crate::CreativeTab;
+use crate::CreativeTabKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CreativeTabIndex {
@@ -11,6 +12,15 @@ impl CreativeTabIndex {
     pub const FIRST: Self = {
         let [tab, ..] = &CREATIVE_TABS;
         Self { index: 0, tab }
+    };
+
+    pub const SEARCH: Self = {
+        let [_, _, _, _, _, _, tab, ..] = &CREATIVE_TABS;
+        assert!(
+            matches!(tab.kind, CreativeTabKind::Search),
+            "the seventh creative tab is the search tab"
+        );
+        Self { index: 6, tab }
     };
 
     #[must_use]

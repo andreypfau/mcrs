@@ -17,7 +17,7 @@ use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::{ItemTable, Prototype};
 use mcrs_minecraft_item_tooltip::{
-    AttackBases, TooltipDetail, TooltipInputs, append_tooltip_parts,
+    AttackBases, TooltipDetail, TooltipInputs, TooltipView, append_tooltip_parts,
 };
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
@@ -31,27 +31,57 @@ use crate::scene::{GuiAtlas, GuiConfig, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::LineGap;
 
+const GRID_WIDGETS: u32 = 1 << 16;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct HoveredEntry {
-    menu: Entity,
-    entry: u16,
-    stack: Entity,
-    bounds: GuiRect,
+pub(crate) enum TooltipSlot {
+    Entry(u16),
+    Grid(u16),
+}
+
+impl TooltipSlot {
+    fn widget(self) -> WidgetId {
+        match self {
+            Self::Entry(entry) => WidgetId(u32::from(entry)),
+            Self::Grid(slot) => WidgetId(GRID_WIDGETS + u32::from(slot)),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum HoveredStack<'a> {
+    Entity(Entity),
+    Value(&'a ItemStack),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct HoveredItem<'a> {
+    pub(crate) menu: Entity,
+    pub(crate) slot: TooltipSlot,
+    pub(crate) stack: HoveredStack<'a>,
+    pub(crate) bounds: GuiRect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TooltipStyle {
+    pub(crate) view: TooltipView,
+    pub(crate) detail: TooltipDetail,
+    pub(crate) attack: AttackBases,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 struct ShownStack {
-    entry: u16,
-    stack: Entity,
+    menu: Entity,
+    slot: TooltipSlot,
+    stack: Option<Entity>,
     value: ItemStack,
-    detail: TooltipDetail,
-    attack: AttackBases,
+    style: TooltipStyle,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct HoverStart {
     menu: Entity,
-    entry: u16,
+    slot: TooltipSlot,
     millis: u64,
 }
 
@@ -60,50 +90,63 @@ pub(crate) struct MenuItemTooltip {
     shown: Option<ShownStack>,
     start: Option<HoverStart>,
     parts: Vec<Text>,
+    added: Vec<Text>,
     spans: Vec<Span>,
     lines: Vec<Vec<Span>>,
 }
 
-struct LineSources<'a> {
-    items: &'a ItemTable,
-    registries: &'a CurrentRegistries,
-    language: &'a ClientLanguage,
-    font: &'a Font,
+pub(crate) struct LineSources<'a> {
+    pub(crate) items: &'a ItemTable,
+    pub(crate) registries: &'a CurrentRegistries,
+    pub(crate) language: &'a ClientLanguage,
+    pub(crate) font: &'a Font,
 }
 
 impl MenuItemTooltip {
-    fn forget(&mut self) {
+    pub(crate) fn forget(&mut self) {
         self.shown = None;
     }
 
-    fn follow(
+    pub(crate) fn leave(&mut self) {
+        self.start = None;
+    }
+
+    pub(crate) fn follow(
         &mut self,
-        hovered: HoveredEntry,
-        detail: TooltipDetail,
-        attack: AttackBases,
+        hovered: HoveredItem,
+        style: TooltipStyle,
         stacks: &mut Stacks,
         sources: &LineSources,
+        added: impl FnOnce(&ItemStack, &mut Vec<Text>),
     ) {
         let current = self.shown.as_ref().is_some_and(|shown| {
-            shown.entry == hovered.entry
-                && shown.stack == hovered.stack
-                && shown.detail == detail
-                && shown.attack == attack
-                && stacks.equals_value(hovered.stack, &shown.value)
+            shown.menu == hovered.menu
+                && shown.slot == hovered.slot
+                && shown.style == style
+                && match hovered.stack {
+                    HoveredStack::Entity(stack) => {
+                        shown.stack == Some(stack) && stacks.equals_value(stack, &shown.value)
+                    }
+                    HoveredStack::Value(value) => shown.stack.is_none() && shown.value == *value,
+                }
         });
         if current {
             return;
         }
         self.lines.clear();
-        let shown = stacks.to_value(hovered.stack).map(|value| ShownStack {
-            entry: hovered.entry,
-            stack: hovered.stack,
+        let (stack, value) = match hovered.stack {
+            HoveredStack::Entity(stack) => (Some(stack), stacks.to_value(stack)),
+            HoveredStack::Value(value) => (None, Some(value.clone())),
+        };
+        let shown = value.map(|value| ShownStack {
+            menu: hovered.menu,
+            slot: hovered.slot,
+            stack,
             value,
-            detail,
-            attack,
+            style,
         });
         if let Some(shown) = &shown {
-            self.write(&shown.value, detail, attack, sources);
+            self.write(&shown.value, style, sources, added);
         }
         self.shown = shown;
     }
@@ -111,19 +154,23 @@ impl MenuItemTooltip {
     fn write(
         &mut self,
         stack: &ItemStack,
-        detail: TooltipDetail,
-        attack: AttackBases,
+        style: TooltipStyle,
         sources: &LineSources,
+        added: impl FnOnce(&ItemStack, &mut Vec<Text>),
     ) {
         let items = sources.items;
-        let prototype_components = items
-            .prototype(stack.kind)
-            .map_or(0, |prototype| Prototype::components(prototype).len());
-        let mut inputs = TooltipInputs::new(attack, prototype_components);
-        inputs.detail = detail;
+        let mut inputs = TooltipInputs::new(style.attack, prototype_components(items, stack));
+        inputs.view = style.view;
+        inputs.detail = style.detail;
         self.parts.clear();
         let names = RegistryNames::new(sources.registries, items);
         append_tooltip_parts(stack, items, &names, &inputs, &mut self.parts);
+        if !self.parts.is_empty() {
+            self.added.clear();
+            added(stack, &mut self.added);
+            let after_first = 1..1;
+            self.parts.splice(after_first, self.added.drain(..));
+        }
         self.spans.clear();
         for (index, part) in self.parts.iter().enumerate() {
             if index > 0 {
@@ -147,24 +194,58 @@ impl MenuItemTooltip {
         );
     }
 
-    fn lines_after_delay(&mut self, hovered: HoveredEntry, now_ms: u64) -> Option<&[Vec<Span>]> {
+    pub(crate) fn request(
+        &mut self,
+        hovered: HoveredItem,
+        now_ms: u64,
+        pointer: GuiPoint,
+        scene: &mut GuiScene,
+    ) {
         if self.lines.is_empty() {
             self.start = None;
-            return None;
+            return;
         }
         let start = match self.start {
-            Some(start) if start.menu == hovered.menu && start.entry == hovered.entry => start,
+            Some(start) if start.menu == hovered.menu && start.slot == hovered.slot => start,
             _ => *self.start.insert(HoverStart {
                 menu: hovered.menu,
-                entry: hovered.entry,
+                slot: hovered.slot,
                 millis: now_ms,
             }),
         };
-        (now_ms > start.millis).then_some(self.lines.as_slice())
+        if now_ms <= start.millis {
+            return;
+        }
+        let screen = GuiExtent::new(scene.size.width, scene.size.height);
+        scene.tooltip.request_widget_lines(
+            TooltipRequest {
+                widget: hovered.slot.widget(),
+                bounds: hovered.bounds,
+                screen,
+                anchor: TooltipAnchor::Mouse(pointer),
+            },
+            None,
+            LineGap::AfterFirst,
+            &self.lines,
+        );
     }
 }
 
-fn player_attack_bases(instances: Option<&AttributeInstances>) -> AttackBases {
+pub(crate) fn prototype_components(items: &ItemTable, stack: &ItemStack) -> usize {
+    items
+        .prototype(stack.kind)
+        .map_or(0, |prototype| Prototype::components(prototype).len())
+}
+
+pub(crate) fn tooltip_detail(config: &GuiConfig) -> TooltipDetail {
+    if config.advanced_tooltips {
+        TooltipDetail::Advanced
+    } else {
+        TooltipDetail::Basic
+    }
+}
+
+pub(crate) fn player_attack_bases(instances: Option<&AttributeInstances>) -> AttackBases {
     let bases = attribute_bases(EntityType::Player);
     let base = |attribute: Attribute| {
         instances
@@ -178,14 +259,14 @@ fn player_attack_bases(instances: Option<&AttributeInstances>) -> AttackBases {
     }
 }
 
-fn hovered_entry(
+fn hovered_entry<'a>(
     size: GuiSize,
     pointer: GuiPoint,
     menu: Entity,
     layout: &MenuLayout,
     parts: &MenuParts,
     occupant: impl Fn(SlotRef) -> Option<Entity>,
-) -> Option<HoveredEntry> {
+) -> Option<HoveredItem<'a>> {
     let geometry = MenuGeometry::of_layout(layout)?;
     let corner = geometry.window(size.width, size.height);
     let Clicked::Entry(entry) = geometry.clicked_at(corner, pointer) else {
@@ -196,10 +277,10 @@ fn hovered_entry(
         .entry(entry)
         .and_then(|slot| parts.slot(slot))
         .and_then(occupant)?;
-    Some(HoveredEntry {
+    Some(HoveredItem {
         menu,
-        entry,
-        stack,
+        slot: TooltipSlot::Entry(entry),
+        stack: HoveredStack::Entity(stack),
         bounds: GuiRect::new(
             corner.x.saturating_add(area.x),
             corner.y.saturating_add(area.y),
@@ -231,7 +312,7 @@ pub(crate) fn request_menu_item_tooltip(
     let (Some(language), Some(atlas), Some(registries), Screen::Menu) =
         (language, atlas, registries, *screen)
     else {
-        tooltip.start = None;
+        tooltip.leave();
         return;
     };
     if language.is_changed() || items.is_changed() || registries.is_changed() || atlas.is_changed()
@@ -255,13 +336,13 @@ pub(crate) fn request_menu_item_tooltip(
         hovered_entry(scene.size, pointer, menu, layout, parts, occupant)
     });
     let Some(hovered) = hovered else {
-        tooltip.start = None;
+        tooltip.leave();
         return;
     };
-    let detail = if config.advanced_tooltips {
-        TooltipDetail::Advanced
-    } else {
-        TooltipDetail::Basic
+    let style = TooltipStyle {
+        view: TooltipView::Standard,
+        detail: tooltip_detail(&config),
+        attack,
     };
     let sources = LineSources {
         items: &items,
@@ -269,23 +350,9 @@ pub(crate) fn request_menu_item_tooltip(
         language: &language,
         font: &atlas.0.font,
     };
-    tooltip.follow(hovered, detail, attack, &mut stacks, &sources);
+    tooltip.follow(hovered, style, &mut stacks, &sources, |_, _| {});
     let now_ms = u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX);
-    let screen = GuiExtent::new(scene.size.width, scene.size.height);
-    let Some(lines) = tooltip.lines_after_delay(hovered, now_ms) else {
-        return;
-    };
-    scene.tooltip.request_widget_lines(
-        TooltipRequest {
-            widget: WidgetId(u32::from(hovered.entry)),
-            bounds: hovered.bounds,
-            screen,
-            anchor: TooltipAnchor::Mouse(pointer),
-        },
-        None,
-        LineGap::AfterFirst,
-        lines,
-    );
+    tooltip.request(hovered, now_ms, pointer, &mut scene);
 }
 
 #[cfg(test)]

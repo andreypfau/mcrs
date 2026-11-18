@@ -1,3 +1,4 @@
+use bevy::clipboard::{Clipboard, ClipboardRead};
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::InputSystems;
@@ -100,7 +101,7 @@ fn capture_keys(keys: &mut ButtonInput<KeyCode>) {
     keys.clear();
 }
 
-fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
+pub(crate) fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
     let step = if modifiers.control {
         Step::Word
     } else {
@@ -138,13 +139,32 @@ fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
     })
 }
 
+pub(crate) const CHAT: KeyCode = KeyCode::KeyT;
+
+pub(crate) fn pastes(code: KeyCode, modifiers: KeyModifiers) -> bool {
+    modifiers.is_shortcut() && code == KeyCode::KeyV
+}
+
+pub(crate) fn clipboard_text(clipboard: Option<&mut Clipboard>) -> Option<String> {
+    match clipboard?.fetch_text() {
+        ClipboardRead::Ready(Ok(text)) => Some(text),
+        _ => None,
+    }
+}
+
+pub(crate) fn copy_text(clipboard: Option<&mut Clipboard>, text: &str) {
+    if let Some(clipboard) = clipboard {
+        let _ = clipboard.set_text(text);
+    }
+}
+
 #[derive(SystemParam)]
 struct ChatKeys<'w, 's> {
     keys: ResMut<'w, ButtonInput<KeyCode>>,
     keyboard: MessageReader<'w, 's, KeyboardInput>,
     buttons: Res<'w, ButtonInput<MouseButton>>,
     scroll: Res<'w, AccumulatedMouseScroll>,
-    clipboard: Option<ResMut<'w, bevy::clipboard::Clipboard>>,
+    clipboard: Option<ResMut<'w, Clipboard>>,
     scene: Res<'w, GuiScene>,
     last_cursor: Local<'s, IVec2>,
     input_dragging: Local<'s, bool>,
@@ -169,7 +189,7 @@ fn opening(
     if screen != Screen::None || !joined {
         return None;
     }
-    if keys.just_pressed(KeyCode::KeyT) {
+    if keys.just_pressed(CHAT) {
         return Some(
             chat.draft
                 .take()
@@ -302,12 +322,10 @@ fn type_keys(
         let key = screen_key(event.key_code, modifiers);
         let outcome = if let Some(key) = key {
             screen.key(key, history, cx)
-        } else if modifiers.is_shortcut() && event.key_code == KeyCode::KeyV {
-            match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
-                Some(bevy::clipboard::ClipboardRead::Ready(Ok(text))) => {
-                    screen.type_text(&text, cx)
-                }
-                _ => Outcome::Ignored,
+        } else if pastes(event.key_code, modifiers) {
+            match clipboard_text(keys.clipboard.as_deref_mut()) {
+                Some(text) => screen.type_text(&text, cx),
+                None => Outcome::Ignored,
             }
         } else if let Some(text) = event.text.as_ref().filter(|_| !control) {
             screen.type_text(text, cx)
@@ -323,11 +341,7 @@ fn type_keys(
         match outcome {
             Outcome::Closed(how) => typed.closed = Some(how),
             Outcome::Page(direction) => typed.page += direction,
-            Outcome::Copy(text) => {
-                if let Some(clipboard) = keys.clipboard.as_deref_mut() {
-                    let _ = clipboard.set_text(text);
-                }
-            }
+            Outcome::Copy(text) => copy_text(keys.clipboard.as_deref_mut(), &text),
             _ => {}
         }
     }

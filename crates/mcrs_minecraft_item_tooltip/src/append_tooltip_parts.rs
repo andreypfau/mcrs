@@ -25,6 +25,7 @@ use crate::enchantment_parts::enchantment_parts;
 use crate::map_parts::map_parts;
 use crate::name_part::name_part;
 use crate::profile_part::profile_part;
+use crate::random_painting_part::random_painting_part;
 use crate::visible::Visible;
 
 pub fn append_tooltip_parts<N: NameLookup>(
@@ -47,6 +48,9 @@ pub fn append_tooltip_parts<N: NameLookup>(
         display,
     };
     parts.push(name_part(stack, items));
+    if inputs.view == TooltipView::Creative {
+        parts.extend(random_painting_part(&visible));
+    }
     if let Some(map_id) = visible.component::<MapId>() {
         map_parts(&visible, *map_id, inputs, parts);
     }
