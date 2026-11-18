@@ -3,7 +3,6 @@ use bevy_ecs::system::Local;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 
-use crate::RemoteMenu;
 use crate::local_inventory::LocalInventory;
 use crate::local_inventory::StackNames;
 
@@ -16,10 +15,7 @@ pub(crate) fn container_set_slot(
     let (Some(packet), Some(names)) = (received.packet(), names.names()) else {
         return;
     };
-    if packet.container_id.0 != RemoteMenu::INVENTORY {
-        return;
-    }
-    let Some(menu) = inventory.inventory_menu() else {
+    let Some(menu) = inventory.menu_of(packet.container_id.0) else {
         return;
     };
     let Some(slot) = u16::try_from(packet.slot)
