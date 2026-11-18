@@ -40,6 +40,7 @@ use crate::click_source::ClickSource;
 use crate::local_inventory::StackNames;
 use crate::outbox::Outbox;
 use crate::outgoing::Outgoing;
+use crate::predict_creative::CreativeScratch;
 
 const CLICK_SERIAL: u32 = 0;
 
@@ -49,6 +50,7 @@ pub(crate) struct ClickScratch {
     before: Vec<EntryBefore>,
     hash: HashScratch,
     bytes: Vec<u8>,
+    pub(crate) creative: CreativeScratch,
 }
 
 struct EntryBefore {

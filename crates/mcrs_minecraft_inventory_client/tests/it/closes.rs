@@ -161,7 +161,7 @@ fn a_click_and_a_close_of_one_frame_are_sent_in_the_order_they_are_written() {
         let world = app.world_mut();
         let connection = world.spawn_empty().id();
         set_up(world, connection);
-        for action in row.actions {
+        for action in row.actions.clone() {
             world.write_message(MenuInput {
                 viewer: player,
                 action,
@@ -169,7 +169,7 @@ fn a_click_and_a_close_of_one_frame_are_sent_in_the_order_they_are_written() {
         }
         app.update();
         let world = app.world();
-        let actions = row.actions;
+        let actions = row.actions.clone();
         assert_eq!(content(world, 9), Some(STONES), "{actions:?}: placed");
         assert_eq!(cursor(world), None, "{actions:?}: cursor");
         assert_eq!(
