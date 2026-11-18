@@ -200,7 +200,9 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
      left, right, or pick with creative. The pointer is not in the empty area.
   2. A mouse press with a cursor stack gives no click.
   3. A mouse release of a button that is not the button of the open drag closes the drag. It gives
-     no click. The mouse release that comes next also gives no click, for each button.
+     no click. The mouse release that comes next also gives no click, for each button, unless
+     it gives a double click. `client-container-screen.md`, CCS-DRG-004, states the order of
+     these checks.
   4. The drag adds a slot only when the pointer moves while the button is down. When the drag
      holds one slot or more at the mouse release of its button, the drag gives the result. Section
      0.4 puts the drag out of scope.

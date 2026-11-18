@@ -1,20 +1,23 @@
 use bevy::math::{IRect, IVec2, Rect, UVec2};
 use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
 use mcrs_minecraft_container_click::Clicked;
+use mcrs_minecraft_inventory_click::EntryPreview;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry, MenuLabels, TitlePosition};
 use mcrs_minecraft_resource::ResourceLocation;
 
+use crate::drag_preview::DragPreview;
 use crate::font::{Font, draw_text_without_shadow};
 use crate::inventory_figure::figure_rect;
-use crate::item_decorations::WHITE;
+use crate::item_decorations::{CountLabel, WHITE};
 use crate::menu_draw;
 use crate::menu_label_text::MenuLabelText;
 use crate::menu_stacks::MenuStacks;
 use crate::scene::{GuiAtlasData, GuiQuad, GuiSize, sprite};
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
+const DRAG_FILL: u32 = 0x80FF_FFFF;
 const DIM_TOP: u32 = 0xC010_1010;
 const DIM_BOTTOM: u32 = 0xD010_1010;
 const TEXTURE_FOLDER: &str = "textures/gui/";
@@ -79,15 +82,22 @@ pub(crate) fn background_extent(texture: ResourceLocation<'static>) -> UVec2 {
         .as_uvec2()
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct MenuContents<'a> {
+    pub stacks: &'a MenuStacks,
+    pub drag: &'a DragPreview,
+}
+
 pub fn menu_screen(
     size: GuiSize,
     cursor: IVec2,
     geometry: MenuGeometry,
-    stacks: &MenuStacks,
+    contents: MenuContents,
     labels: &MenuLabelText,
     atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
+    let MenuContents { stacks, drag } = contents;
     let corner = geometry.window(size.width, size.height);
     let top_left = menu_draw::point(corner);
     let pointer = GuiPoint::new(cursor.x, cursor.y);
@@ -132,8 +142,28 @@ pub fn menu_screen(
     }
     for entry in geometry.entries() {
         let at = top_left + menu_draw::point(entry.corner);
+        let preview = drag.entry(entry.index).zip(stacks.carried());
+        if let Some((preview, carried)) = preview {
+            out.push(GuiQuad::Fill {
+                rect: IRect::from_corners(at, at + 16),
+                color: DRAG_FILL,
+            });
+            out.push(GuiQuad::Item {
+                origin: at,
+                stack: carried,
+                count: Some(match preview {
+                    EntryPreview::Fits(count) => CountLabel::Plain(count),
+                    EntryPreview::Capped(count) => CountLabel::Capped(count),
+                }),
+            });
+            continue;
+        }
         match stacks.get(entry.index) {
-            Some(stack) => out.push(GuiQuad::Item { origin: at, stack }),
+            Some(stack) => out.push(GuiQuad::Item {
+                origin: at,
+                stack,
+                count: None,
+            }),
             None => {
                 if let Some(icon) = empty_icon(entry.index).filter(|_| inventory) {
                     out.push(sprite(at, IVec2::splat(16), icon));
@@ -148,10 +178,14 @@ pub fn menu_screen(
             "container/slot_highlight_front",
         ));
     }
-    if let Some(stack) = stacks.carried() {
+    let count = drag.cursor().map(CountLabel::Plain);
+    if let Some(stack) = stacks.carried()
+        && count != Some(CountLabel::Plain(0))
+    {
         out.push(GuiQuad::Item {
             origin: cursor - 8,
             stack,
+            count,
         });
     }
 }
@@ -213,6 +247,7 @@ mod tests {
     use std::sync::LazyLock;
 
     use bevy::app::App;
+    use bevy::ecs::entity::Entity;
     use bevy::math::Vec2;
     use mcrs_minecraft_engine_inventory_menu::MenuParts;
     use mcrs_minecraft_engine_inventory_menu::MenuTitle;
@@ -221,6 +256,9 @@ mod tests {
     use mcrs_minecraft_engine_item::ItemPlugin;
     use mcrs_minecraft_engine_item::Slots;
     use mcrs_minecraft_engine_item::StackCommandsExt;
+    use mcrs_minecraft_inventory_click::DragEntry;
+    use mcrs_minecraft_inventory_click::DragKind;
+    use mcrs_minecraft_inventory_click::DragSplit;
     use mcrs_minecraft_inventory_file::PlayerItems;
     use mcrs_minecraft_inventory_menu::MenuLayout;
     use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
@@ -415,7 +453,10 @@ mod tests {
             SIZE,
             cursor,
             MenuGeometry::INVENTORY,
-            &table,
+            MenuContents {
+                stacks: &table,
+                drag: &DragPreview::default(),
+            },
             &MenuLabelText::default(),
             &ATLAS,
             &mut out,
@@ -491,6 +532,74 @@ mod tests {
     }
 
     #[test]
+    fn a_drag_of_ten_over_three_empty_entries_previews_three_each_and_leaves_one() {
+        let table = stacks(None, &[Place::Cursor]);
+        let carried = table.carried().unwrap();
+        let mut drag = DragPreview::default();
+        for index in 9..12 {
+            drag.join(index, DragEntry { held: 0, cap: 64 });
+        }
+        drag.split(DragSplit {
+            kind: DragKind::Split,
+            count: 10,
+            max: 64,
+            size: 3,
+        });
+        let cursor = IVec2::new(300, 200);
+        let mut out = Vec::new();
+        menu_screen(
+            SIZE,
+            cursor,
+            MenuGeometry::INVENTORY,
+            MenuContents {
+                stacks: &table,
+                drag: &drag,
+            },
+            &MenuLabelText::default(),
+            &ATLAS,
+            &mut out,
+        );
+        let top_left = inventory_window_corner(SIZE);
+        let corners: Vec<IVec2> = (9..12)
+            .map(|index| top_left + menu_draw::point(MenuGeometry::INVENTORY.entry(index).unwrap()))
+            .collect();
+        let fills: Vec<IRect> = (out.iter())
+            .filter_map(|quad| match quad {
+                GuiQuad::Fill {
+                    rect,
+                    color: 0x80FF_FFFF,
+                } => Some(*rect),
+                _ => None,
+            })
+            .collect();
+        let entry_areas: Vec<IRect> = (corners.iter())
+            .map(|corner| IRect::from_corners(*corner, *corner + 16))
+            .collect();
+        assert_eq!(fills, entry_areas, "a white fill on each previewed entry");
+        let drawn: Vec<(IVec2, Entity, Option<CountLabel>)> = (out.iter())
+            .filter_map(|quad| match quad {
+                GuiQuad::Item {
+                    origin,
+                    stack,
+                    count,
+                } => Some((*origin, *stack, *count)),
+                _ => None,
+            })
+            .collect();
+        let three = Some(CountLabel::Plain(3));
+        assert_eq!(
+            drawn,
+            vec![
+                (corners[0], carried, three),
+                (corners[1], carried, three),
+                (corners[2], carried, three),
+                (cursor - 8, carried, Some(CountLabel::Plain(1))),
+            ],
+            "the cursor item with 3 in each entry and 1 at the mouse"
+        );
+    }
+
+    #[test]
     fn a_chest_screen_draws_the_background_labels_and_stacks_of_its_menu_type() {
         let table = stacks(
             Some(MenuType::Generic9x3),
@@ -505,7 +614,18 @@ mod tests {
         let top_left = IVec2::new((427 - 176) / 2, (240 - 168) / 2);
         let cursor = top_left + IVec2::new(8 + 3, 18 + 3);
         let mut out = Vec::new();
-        menu_screen(SIZE, cursor, geometry, &table, &labels, &ATLAS, &mut out);
+        menu_screen(
+            SIZE,
+            cursor,
+            geometry,
+            MenuContents {
+                stacks: &table,
+                drag: &DragPreview::default(),
+            },
+            &labels,
+            &ATLAS,
+            &mut out,
+        );
 
         let image = ATLAS.region("container/generic_54").min.as_vec2();
         assert_eq!(

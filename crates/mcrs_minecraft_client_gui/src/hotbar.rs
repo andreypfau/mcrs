@@ -30,6 +30,7 @@ pub fn hotbar(size: GuiSize, selected: u8, stacks: &MenuStacks, out: &mut Vec<Gu
             out.push(GuiQuad::Item {
                 origin: IVec2::new(cx - 90 + i32::from(i) * 20 + 2, y),
                 stack,
+                count: None,
             });
         }
     }
@@ -37,6 +38,7 @@ pub fn hotbar(size: GuiSize, selected: u8, stacks: &MenuStacks, out: &mut Vec<Gu
         out.push(GuiQuad::Item {
             origin: IVec2::new(cx - 91 - 26, y),
             stack,
+            count: None,
         });
     }
 }

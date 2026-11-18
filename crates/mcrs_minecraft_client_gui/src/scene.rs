@@ -17,10 +17,12 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::MenuGeometry;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
+use crate::drag_preview::DragPreview;
 use crate::font::Font;
 use crate::font_definition::FontOptions;
 use crate::font_glyph::{
@@ -31,13 +33,15 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
-use crate::item_decorations::{Decorated, WHITE, decorations};
+use crate::item_decorations::{CountLabel, Decorated, WHITE, decorations};
 use crate::item_icons::{ItemIcons, build_icon_meshes};
 use crate::item_resolve::ItemRenderLayers;
 use crate::language::ClientLanguage;
 use crate::menu_draw;
 use crate::menu_label_text::MenuLabelText;
-use crate::menu_screen::{background_extent, background_region, menu_backgrounds, menu_screen};
+use crate::menu_screen::{
+    MenuContents, background_extent, background_region, menu_backgrounds, menu_screen,
+};
 use crate::menu_stacks::MenuStacks;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
@@ -106,6 +110,7 @@ pub enum GuiQuad {
     Item {
         origin: IVec2,
         stack: Entity,
+        count: Option<CountLabel>,
     },
     Icon {
         origin: IVec2,
@@ -613,6 +618,7 @@ fn draw_screens(
     holders: Query<&Slots>,
     atlas: Option<Res<GuiAtlas>>,
     language: Option<Res<ClientLanguage>>,
+    drag: Option<Res<DragPreview>>,
     mut stacks: Local<ScreenStacks>,
     mut scene: ResMut<GuiScene>,
 ) {
@@ -647,11 +653,15 @@ fn draw_screens(
         return;
     };
     stacks.open.collect(layout, parts, player.cursor, occupant);
+    let no_drag = DragPreview::default();
     menu_screen(
         scene.size,
         scene.cursor,
         geometry,
-        &stacks.open,
+        MenuContents {
+            stacks: &stacks.open,
+            drag: drag.as_deref().unwrap_or(&no_drag),
+        },
         &stacks.labels,
         &atlas.0,
         &mut scene.quads,
@@ -702,13 +712,22 @@ fn build_gui_batch(
     let mut expanded = Vec::with_capacity(scene.quads.len() * 2);
     for quad in &scene.quads {
         match *quad {
-            GuiQuad::Item { origin, stack } => {
+            GuiQuad::Item {
+                origin,
+                stack,
+                count,
+            } => {
                 expanded.push(*quad);
-                let Ok(count) = counts.get(stack) else {
+                let Some(count) = count.or_else(|| {
+                    counts
+                        .get(stack)
+                        .ok()
+                        .map(|count| CountLabel::Plain(count.get()))
+                }) else {
                     continue;
                 };
                 let decorated = Decorated {
-                    count: count.get(),
+                    count,
                     damage: layers.get(stack).ok().and_then(|layers| layers.damage),
                 };
                 decorations(origin, &decorated, &atlas.font, &mut expanded);
@@ -720,7 +739,7 @@ fn build_gui_batch(
                 };
                 if entry.overlays == Overlays::Stack {
                     let decorated = Decorated {
-                        count: entry.overlay.count,
+                        count: CountLabel::Plain(entry.overlay.count),
                         damage: entry.overlay.durability,
                     };
                     decorations(origin, &decorated, &atlas.font, &mut expanded);
@@ -733,7 +752,7 @@ fn build_gui_batch(
     for quad in expanded {
         let vertices = &mut batch.vertices;
         match quad {
-            GuiQuad::Item { origin, stack } => {
+            GuiQuad::Item { origin, stack, .. } => {
                 let end = vertices.len() as u32;
                 close_flat(&mut flat_start, end, &mut batch.draws);
                 let Ok(layers) = layers.get(stack) else {
@@ -965,6 +984,8 @@ impl Plugin for GuiPlugin {
                 (
                     begin_gui_frame,
                     draw_screens,
+                    crate::menu_item_tooltip::request_menu_item_tooltip
+                        .run_if(resource_exists::<ItemTable>),
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
