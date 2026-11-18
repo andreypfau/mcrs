@@ -1,9 +1,11 @@
+use crate::configuration::AwaitingConfigurationAck;
 use bevy_app::{App, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
+use bevy_ecs::query::Has;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_time::{Real, Time};
 use mcrs_minecraft_engine::muxer::latency::Latency;
@@ -61,16 +63,26 @@ pub fn handle_keepalive(
         &mut ServerSideConnection,
         &ConnectionState,
         &mut KeepAlive,
+        Has<AwaitingConfigurationAck>,
     )>,
     time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
     let now = time.elapsed();
-    for (entity, mut con, conn_state, mut state) in query.iter_mut() {
+    for (entity, mut con, conn_state, mut state, awaiting_ack) in query.iter_mut() {
         match *state {
             KeepAlive::Awaiting { sent, .. } if now.saturating_sub(sent) >= KEEPALIVE_INTERVAL => {
                 warn!("Keepalive timeout for {}", con.remote_addr());
                 commands.entity(entity).remove::<ServerSideConnection>();
+            }
+            KeepAlive::Idle { since } if awaiting_ack => {
+                if now.saturating_sub(since) >= 2 * KEEPALIVE_INTERVAL {
+                    warn!(
+                        "{} did not acknowledge the finish of the configuration",
+                        con.remote_addr()
+                    );
+                    commands.entity(entity).remove::<ServerSideConnection>();
+                }
             }
             KeepAlive::Idle { since } if now.saturating_sub(since) >= KEEPALIVE_INTERVAL => {
                 let challenge = rand::random();
@@ -169,6 +181,7 @@ fn handle_keepalive_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use bytes::Bytes;
     use mcrs_minecraft_network::RawConnection;
@@ -222,5 +235,58 @@ mod tests {
             measured,
             "a repeated round trip keeps the latency, so viewers get no update"
         );
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Outcome {
+        Challenged,
+        Waits,
+        Dropped,
+    }
+
+    #[test]
+    fn no_configuration_challenge_follows_the_finish_of_the_configuration() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let rows = [
+            (false, KEEPALIVE_INTERVAL, Outcome::Challenged),
+            (true, KEEPALIVE_INTERVAL, Outcome::Waits),
+            (true, 2 * KEEPALIVE_INTERVAL, Outcome::Dropped),
+        ];
+        for (awaiting_ack, idle, expected) in rows {
+            let startup = Instant::now();
+            let mut world = World::new();
+            let mut time = Time::<Real>::new(startup);
+            time.update_with_instant(startup);
+            time.update_with_instant(startup + idle);
+            world.insert_resource(time);
+            let (raw, _outgoing, _inbound) = RawConnection::new_for_test_full(1);
+            let connection = world
+                .spawn((
+                    ServerSideConnection { raw: Box::new(raw) },
+                    ConnectionState::Configuration,
+                    KeepAlive::Idle {
+                        since: Duration::ZERO,
+                    },
+                ))
+                .id();
+            if awaiting_ack {
+                world
+                    .entity_mut(connection)
+                    .insert(AwaitingConfigurationAck);
+            }
+            world.run_system_once(handle_keepalive).unwrap();
+            let outcome = match world.get::<KeepAlive>(connection) {
+                _ if world.get::<ServerSideConnection>(connection).is_none() => Outcome::Dropped,
+                Some(KeepAlive::Awaiting { .. }) => Outcome::Challenged,
+                _ => Outcome::Waits,
+            };
+            assert_eq!(
+                outcome, expected,
+                "a client that was sent the finish of the configuration reads play packets, so no \
+                 challenge goes to it, but it must acknowledge in time: awaiting the \
+                 acknowledgement {awaiting_ack}, idle for {idle:?}"
+            );
+        }
     }
 }

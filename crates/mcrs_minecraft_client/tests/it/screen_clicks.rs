@@ -651,11 +651,13 @@ fn set_up(world: &mut LocalWorld, row: &Row) {
     let cleared: Vec<Entry> = (9..=45).map(stacks::empty).collect();
     world.give(&cleared);
     pick_up(world, SCRATCH_ENTRY);
+    world.give(&[stacks::empty(SCRATCH_ENTRY)]);
+    world.app.insert_resource(row.screen);
     if row.given_cursor.is_some() {
         world.give(&[stacks::holding(SCRATCH_ENTRY, row.given_cursor)]);
         pick_up(world, SCRATCH_ENTRY);
+        world.give(&[stacks::empty(SCRATCH_ENTRY)]);
     }
-    world.give(&[stacks::empty(SCRATCH_ENTRY)]);
     world.give(row.given);
     test_support::round_trip(&mut world.app);
     world.switch_game_mode(row.game_mode);
@@ -752,7 +754,6 @@ fn each_gesture_gives_its_input_and_the_same_stacks_on_both_sides() {
         add_input,
     );
     for row in ROWS {
-        world.app.insert_resource(row.screen);
         let mut cursor = world
             .app
             .world_mut()
@@ -851,7 +852,7 @@ fn a_server_chest_opens_its_screen_takes_a_click_and_closes_it() {
     );
 
     container_menus::close_on_server(&mut world.app);
-    test_support::update_until(&mut world.app, "the close of the server", |app| {
+    test_support::update_until(&mut world.app, |app| {
         *app.world().resource::<Screen>() == Screen::None
     });
     world.leave();
