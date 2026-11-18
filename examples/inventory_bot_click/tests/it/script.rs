@@ -37,8 +37,8 @@ fn the_bot_script_ends_with_the_expected_slots_and_no_correction() {
     std::fs::remove_dir_all(&folder).ok();
     let mut app = bot();
     open(&mut app, &folder);
-    update_until(&mut app, "the join", joined);
-    update_until(&mut app, "the inventory menu with a state id", |app| {
+    update_until(&mut app, joined);
+    update_until(&mut app, |app| {
         creative_player(app.world_mut()).is_some() && has_state_id(app.world_mut())
     });
     round_trip(&mut app);
@@ -49,7 +49,7 @@ fn the_bot_script_ends_with_the_expected_slots_and_no_correction() {
 
     *app.world_mut().resource_mut::<ServerAnswers>() = ServerAnswers::default();
     app.world_mut().init_resource::<ClickScript>();
-    update_until(&mut app, "the end of the script", |app| {
+    update_until(&mut app, |app| {
         app.world().resource::<ClickScript>().is_done()
     });
     round_trip(&mut app);
