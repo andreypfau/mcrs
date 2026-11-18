@@ -25,6 +25,7 @@ mcrs_minecraft_inventory_client.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine_inventory_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
@@ -34,6 +35,7 @@ mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_inventory_click.workspace = true
 mcrs_minecraft_inventory_menu = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_icon = { workspace = true, features = ["bevy"] }

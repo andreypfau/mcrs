@@ -1,4 +1,5 @@
 use core::mem;
+use core::time::Duration;
 use std::collections::VecDeque;
 
 use bevy::ecs::system::SystemParam;
@@ -11,11 +12,10 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_container_click::{
-    ButtonBinding, Click, ClickInput, Clicked, Gesture, StackPresence,
-};
+use mcrs_minecraft_container_click::{Clicked, Gesture};
+use mcrs_minecraft_engine_inventory_click::MenuTargets;
 use mcrs_minecraft_engine_inventory_menu::{MenuParts, Menus};
-use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::{SlotRef, Slots, Stacks};
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_client::{InventoryClientSet, MenuAction, MenuInput};
 use mcrs_minecraft_inventory_menu::MenuLayout;
@@ -25,11 +25,17 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::close_menu_screen::close_menu_screen;
 use crate::cursor_grab;
+use crate::drag_preview::DragPreview;
 use crate::follow_open_menu::follow_open_menu;
+use crate::gesture_frame::{self, GestureFrame};
+use crate::hover::Hover;
 use crate::item_key_codes;
+use crate::menu_gesture::MenuGesture;
 use crate::menu_screen;
 use crate::menu_stacks::MenuStacks;
+use crate::modifiers::Modifiers;
 use crate::scene::{self, GuiConfig, GuiSize};
+use crate::viewer::Viewer;
 
 const INVENTORY: KeyCode = KeyCode::KeyE;
 
@@ -37,29 +43,20 @@ pub struct InventoryClicksPlugin;
 
 impl Plugin for InventoryClicksPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                open_inventory.run_if(input_just_pressed(INVENTORY)),
-                follow_open_menu,
-                click_in_menu,
+        app.init_resource::<DragPreview>()
+            .add_systems(
+                Update,
+                (
+                    open_inventory.run_if(input_just_pressed(INVENTORY)),
+                    follow_open_menu,
+                    click_in_menu,
+                )
+                    .chain()
+                    .after(ClientNetworkSystems::Receive)
+                    .before(InventoryClientSet::Predict),
             )
-                .chain()
-                .after(ClientNetworkSystems::Receive)
-                .before(InventoryClientSet::Predict),
-        )
-        .add_observer(close_menu_screen);
+            .add_observer(close_menu_screen);
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum ReleaseRule {
-    #[default]
-    NoClick,
-    Click,
-    Drag {
-        button: u8,
-    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -71,24 +68,28 @@ enum ScreenEvent {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Modifiers {
-    shift: bool,
-    control: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
 struct QueuedEvent {
     event: ScreenEvent,
     hover: Hover,
     modifiers: Modifiers,
+    at: Duration,
 }
 
 #[derive(Default)]
 struct ClickState {
     last_screen: Screen,
     last_menu: Option<Entity>,
-    release: ReleaseRule,
+    pointer: Option<Vec2>,
     events: VecDeque<QueuedEvent>,
+    sent: Vec<MenuInput>,
+    preview: DragPreview,
+    gesture: MenuGesture,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FrameEnd {
+    Open,
+    Closed,
 }
 
 #[derive(SystemParam)]
@@ -96,6 +97,7 @@ struct Gestures<'w, 's> {
     mouse: MessageReader<'w, 's, MouseButtonInput>,
     keyboard: MessageReader<'w, 's, KeyboardInput>,
     keys: Res<'w, ButtonInput<KeyCode>>,
+    time: Res<'w, Time<Real>>,
 }
 
 #[derive(SystemParam)]
@@ -104,22 +106,11 @@ struct ScreenPointer<'w, 's> {
     config: Option<Res<'w, GuiConfig>>,
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Hover {
-    RecipeBookButton,
-    Menu(Clicked),
-}
-
-impl Hover {
-    fn clicked(self) -> Clicked {
-        match self {
-            Self::RecipeBookButton => Clicked::Nowhere,
-            Self::Menu(clicked) => clicked,
-        }
-    }
-}
-
 impl ScreenPointer<'_, '_> {
+    fn position(&self) -> Option<Vec2> {
+        self.window.single().ok()?.cursor_position()
+    }
+
     fn hover(&self, geometry: Option<MenuGeometry>) -> Hover {
         let outside = Hover::Menu(Clicked::Outside);
         let (Ok(window), Some(config), Some(geometry)) =
@@ -170,12 +161,6 @@ struct OpenMenu<'a> {
     parts: &'a MenuParts,
 }
 
-struct Viewer<'a> {
-    entity: Entity,
-    creative: bool,
-    stacks: &'a MenuStacks,
-}
-
 impl LocalStacks<'_, '_> {
     fn player(&self) -> Option<Entity> {
         self.player.single().ok().map(|(entity, ..)| entity)
@@ -195,7 +180,7 @@ impl LocalStacks<'_, '_> {
         })
     }
 
-    fn viewer<'a>(&self, open: OpenMenu, stacks: &'a mut MenuStacks) -> Viewer<'a> {
+    fn viewer<'a>(&'a self, open: OpenMenu<'a>, stacks: &'a mut MenuStacks) -> Viewer<'a> {
         stacks.collect(open.layout, open.parts, open.holders.cursor, |slot| {
             self.holders
                 .get(slot.holder)
@@ -204,50 +189,10 @@ impl LocalStacks<'_, '_> {
         });
         Viewer {
             entity: open.viewer,
+            menu: open.menu,
             creative: open.creative,
             stacks,
         }
-    }
-}
-
-fn presence(stack: Option<Entity>) -> StackPresence {
-    match stack {
-        Some(_) => StackPresence::Stack,
-        None => StackPresence::Empty,
-    }
-}
-
-impl Viewer<'_> {
-    fn input(&self, gesture: Gesture, clicked: Clicked, modifiers: Modifiers) -> ClickInput {
-        ClickInput {
-            gesture,
-            shift: modifiers.shift,
-            control: modifiers.control,
-            creative: self.creative,
-            cursor: presence(self.stacks.carried()),
-            target: match clicked {
-                Clicked::Entry(menu) => presence(self.stacks.get(menu)),
-                Clicked::Outside | Clicked::Nowhere => StackPresence::Empty,
-            },
-        }
-    }
-
-    fn click(&self, clicked: Clicked, input: ClickInput) -> Option<MenuInput> {
-        Click::from_input(clicked, input).map(|click| MenuInput {
-            viewer: self.entity,
-            action: MenuAction::Click(click),
-        })
-    }
-}
-
-fn button_number(button: MouseButton) -> Option<u8> {
-    match button {
-        MouseButton::Left => Some(0),
-        MouseButton::Right => Some(1),
-        MouseButton::Middle => Some(2),
-        MouseButton::Back => Some(4),
-        MouseButton::Forward => Some(5),
-        MouseButton::Other(_) => None,
     }
 }
 
@@ -267,102 +212,15 @@ fn key_event(key: KeyCode) -> Option<ScreenEvent> {
     Some(ScreenEvent::Key(gesture))
 }
 
-fn button_binding(button: MouseButton) -> ButtonBinding {
-    match button {
-        MouseButton::Middle => ButtonBinding::PickItem,
-        _ => ButtonBinding::Other,
-    }
-}
-
-impl ReleaseRule {
-    fn press(
-        &mut self,
-        button: MouseButton,
-        viewer: &Viewer,
-        hover: Hover,
-        modifiers: Modifiers,
-    ) -> Option<MenuInput> {
-        if button == MouseButton::Left && matches!(hover, Hover::RecipeBookButton) {
-            *self = Self::NoClick;
-            return None;
-        }
-        let clicked = hover.clicked();
-        let number = button_number(button)?;
-        let binding = button_binding(button);
-        let gesture = Gesture::Press {
-            button: number,
-            binding,
-        };
-        let input = viewer.input(gesture, clicked, modifiers);
-        let click = viewer.click(clicked, input);
-        let opens_drag = input.cursor == StackPresence::Stack
-            && clicked != Clicked::Nowhere
-            && (matches!(button, MouseButton::Left | MouseButton::Right)
-                || (binding == ButtonBinding::PickItem && input.creative));
-        *self = match (&click, *self) {
-            (Some(_), _) => Self::NoClick,
-            (None, Self::Drag { .. }) => *self,
-            (None, _) if opens_drag => Self::Drag { button: number },
-            (None, _) => Self::Click,
-        };
-        click
-    }
-
-    fn release(
-        &mut self,
-        button: MouseButton,
-        viewer: &Viewer,
-        clicked: Clicked,
-        modifiers: Modifiers,
-    ) -> Option<MenuInput> {
-        let number = button_number(button)?;
-        match mem::take(self) {
-            Self::NoClick => None,
-            Self::Drag { button: open } if open != number => None,
-            Self::Drag { .. } | Self::Click => {
-                let gesture = Gesture::Release {
-                    button: number,
-                    binding: button_binding(button),
-                };
-                viewer.click(clicked, viewer.input(gesture, clicked, modifiers))
-            }
-        }
-    }
-}
-
-impl QueuedEvent {
-    fn input(self, release: &mut ReleaseRule, viewer: &Viewer) -> Option<MenuInput> {
-        let clicked = self.hover.clicked();
-        match self.event {
-            ScreenEvent::Press(button) => release.press(button, viewer, self.hover, self.modifiers),
-            ScreenEvent::Release(button) => {
-                release.release(button, viewer, clicked, self.modifiers)
-            }
-            ScreenEvent::Key(gesture) => {
-                viewer.click(clicked, viewer.input(gesture, clicked, self.modifiers))
-            }
-            ScreenEvent::Close => None,
-        }
-    }
-}
-
 impl ClickState {
-    fn collect(
-        &mut self,
-        gestures: &mut Gestures,
-        pointer: &ScreenPointer,
-        geometry: Option<MenuGeometry>,
-    ) {
-        if gestures.mouse.is_empty() && gestures.keyboard.is_empty() {
-            return;
-        }
-        let hover = pointer.hover(geometry);
+    fn collect(&mut self, gestures: &mut Gestures, hover: Hover) {
         let modifiers = Modifiers {
             shift: gestures.keys.any_pressed(item_key_codes::SHIFT),
             control: gestures.keys.any_pressed(item_key_codes::CONTROL),
         };
+        let at = gestures.time.elapsed();
         for event in gestures.mouse.read() {
-            if button_number(event.button).is_some() {
+            if gesture_frame::button_number(event.button).is_some() {
                 self.events.push_back(QueuedEvent {
                     event: match event.state {
                         ButtonState::Pressed => ScreenEvent::Press(event.button),
@@ -370,6 +228,7 @@ impl ClickState {
                     },
                     hover,
                     modifiers,
+                    at,
                 });
             }
         }
@@ -381,15 +240,36 @@ impl ClickState {
                     event: screen_event,
                     hover,
                     modifiers,
+                    at,
                 });
             }
         }
     }
+}
 
-    fn reset(&mut self) {
-        self.release = ReleaseRule::NoClick;
-        self.events.clear();
+fn play(frame: &mut GestureFrame, events: &mut VecDeque<QueuedEvent>) -> FrameEnd {
+    while let Some(queued) = events.pop_front() {
+        let sent = frame.sent.len();
+        match queued.event {
+            ScreenEvent::Close => {
+                events.clear();
+                return FrameEnd::Closed;
+            }
+            ScreenEvent::Press(button) => {
+                frame.press(button, queued.at, queued.hover, queued.modifiers);
+            }
+            ScreenEvent::Release(button) => {
+                frame.release(button, queued.hover, queued.modifiers);
+            }
+            ScreenEvent::Key(gesture) => {
+                frame.click(queued.hover.clicked(), gesture, queued.modifiers);
+            }
+        }
+        if frame.sent.len() > sent {
+            break;
+        }
     }
+    FrameEnd::Open
 }
 
 fn open_inventory(
@@ -403,71 +283,111 @@ fn open_inventory(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
+type Outputs<'w, 's> = (
+    Option<ResMut<'w, Screen>>,
+    Query<'w, 's, &'static mut CursorOptions, With<PrimaryWindow>>,
+    MessageWriter<'w, MenuInput>,
+    ResMut<'w, DragPreview>,
+);
+
 fn click_in_menu(
     mut gestures: Gestures,
-    screen: Option<ResMut<Screen>>,
     pointer: ScreenPointer,
     stacks: LocalStacks,
-    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    mut inputs: MessageWriter<MenuInput>,
+    mut items: Option<Stacks>,
+    mut world_and_outputs: ParamSet<(Option<MenuTargets>, Outputs)>,
     mut state: Local<ClickState>,
     mut menu_stacks: Local<MenuStacks>,
 ) {
+    let (screen, _, _, mut drag_preview) = world_and_outputs.p1();
     let current = screen.as_deref().copied().unwrap_or_default();
     let open = stacks.open_menu();
     let menu = open.map(|open| open.menu);
     let last = mem::replace(&mut state.last_screen, current);
     let last_menu = mem::replace(&mut state.last_menu, menu);
-    let Some(mut screen) =
-        screen.filter(|_| last == Screen::Menu && current == Screen::Menu && last_menu == menu)
-    else {
+    if last != Screen::Menu || current != Screen::Menu || last_menu != menu {
         gestures.mouse.clear();
         gestures.keyboard.clear();
-        state.reset();
-        return;
-    };
-    let geometry = open.and_then(|open| MenuGeometry::of_layout(open.layout));
-    state.collect(&mut gestures, &pointer, geometry);
-    if state.events.is_empty() {
+        state.events.clear();
+        state.pointer = None;
+        state.gesture = MenuGesture::default();
+        drag_preview.clear();
         return;
     }
-    let viewer = open.map(|open| stacks.viewer(open, &mut menu_stacks));
+    let has_input = !gestures.mouse.is_empty() || !gestures.keyboard.is_empty();
+    if !has_input && state.events.is_empty() && state.gesture.open_drag().is_none() {
+        return;
+    }
+    let hover = pointer.hover(open.and_then(|open| MenuGeometry::of_layout(open.layout)));
+    if has_input {
+        state.collect(&mut gestures, hover);
+    }
+    let position = pointer.position();
+    let moved = mem::replace(&mut state.pointer, position) != position;
     let ClickState {
         last_screen,
-        release,
         events,
+        sent,
+        preview,
+        gesture,
         ..
     } = &mut *state;
-    while let Some(queued) = events.pop_front() {
-        if let ScreenEvent::Close = queued.event {
-            if let Some(player) = stacks.player() {
-                inputs.write(MenuInput {
-                    viewer: player,
-                    action: MenuAction::Close,
-                });
-            }
-            *screen = Screen::None;
-            *last_screen = Screen::None;
-            if let Ok(mut cursor) = cursor.single_mut() {
-                cursor_grab::grab(&mut cursor, true);
-            }
-            *release = ReleaseRule::NoClick;
-            events.clear();
-            return;
+    sent.clear();
+    let end = match open {
+        Some(open) => {
+            let cursor = SlotRef {
+                holder: open.holders.cursor,
+                index: 0,
+            };
+            let viewer = stacks.viewer(open, &mut menu_stacks);
+            let mut targets = world_and_outputs.p0();
+            let view = (targets.as_mut()).and_then(|targets| targets.read(viewer.entity, cursor));
+            let mut frame = GestureFrame {
+                viewer: &viewer,
+                targets: view.as_ref(),
+                items: items.as_mut(),
+                gesture,
+                sent,
+            };
+            frame.follow_pointer(hover, moved, preview);
+            let end = play(&mut frame, events);
+            frame.project_preview(preview);
+            end
         }
-        let Some(viewer) = &viewer else {
-            *release = ReleaseRule::NoClick;
-            continue;
-        };
-        if let Some(input) = queued.input(release, viewer) {
-            inputs.write(input);
-            break;
+        None => {
+            *gesture = MenuGesture::default();
+            preview.clear();
+            let closed =
+                (events.drain(..)).any(|queued| matches!(queued.event, ScreenEvent::Close));
+            if closed {
+                FrameEnd::Closed
+            } else {
+                FrameEnd::Open
+            }
         }
+    };
+    let (screen, mut cursor, mut inputs, mut drag_preview) = world_and_outputs.p1();
+    for input in sent.drain(..) {
+        inputs.write(input);
     }
+    if end == FrameEnd::Closed {
+        preview.clear();
+        if let Some(player) = stacks.player() {
+            inputs.write(MenuInput {
+                viewer: player,
+                action: MenuAction::Close,
+            });
+        }
+        if let Some(mut screen) = screen {
+            *screen = Screen::None;
+        }
+        *last_screen = Screen::None;
+        if let Ok(mut cursor) = cursor.single_mut() {
+            cursor_grab::grab(&mut cursor, true);
+        }
+        *gesture = MenuGesture::default();
+    }
+    mem::swap(&mut *drag_preview, preview);
 }
 
 #[cfg(test)]
