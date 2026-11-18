@@ -17,8 +17,7 @@ use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::UndecodedValue;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-use crate::local_world::ENTRIES;
-use crate::local_world::LocalWorld;
+use crate::local_world::{self, ENTRIES, LocalWorld};
 use crate::stacks::AGREED;
 use crate::stacks::Item;
 use crate::stacks::Stack;
@@ -328,7 +327,11 @@ const ROWS: &[Row] = &[
 
 #[test]
 fn each_creative_action_leaves_the_client_and_the_server_with_the_same_stacks() {
-    let mut world = LocalWorld::join("creative-actions", |_| {}, record_creative_slots);
+    let mut world = LocalWorld::join(
+        "creative-actions",
+        local_world::discard_thrown_items,
+        record_creative_slots,
+    );
     let viewer = world.viewer;
 
     let mut expected: Vec<Option<Stack>> = ENTRIES.map(|_| None).collect();

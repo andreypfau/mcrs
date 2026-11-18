@@ -6,7 +6,7 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
 
-use crate::local_world::LocalWorld;
+use crate::local_world::{self, LocalWorld};
 use crate::stacks::AGREED;
 use crate::stacks::Entry;
 use crate::stacks::Item;
@@ -199,7 +199,7 @@ const ROWS: &[Row] = &[
 
 #[test]
 fn each_click_leaves_the_client_and_the_server_with_the_same_stacks() {
-    let mut world = LocalWorld::join("menu-clicks", |_| {}, |_| {});
+    let mut world = LocalWorld::join("menu-clicks", local_world::discard_thrown_items, |_| {});
     let viewer = world.viewer;
     for row in ROWS {
         world.give(row.given);
