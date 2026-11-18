@@ -6,6 +6,7 @@ use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
@@ -508,8 +509,123 @@ fn edit_book_refuses_one_page_past_the_limit_on_decode() {
         bytes.push(0);
         bytes
     };
-    assert!(ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES).as_slice()).is_ok());
-    assert!(ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES + 1).as_slice()).is_err());
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES).as_slice()).is_ok(),
+        "a book at the page limit decodes"
+    );
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES + 1).as_slice()).is_err(),
+        "a book past the page limit is refused"
+    );
+}
+
+fn var_int(value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(i32::try_from(value).expect("the test lengths fit in 32 bits"))
+        .encode(&mut bytes)
+        .expect("a Vec takes every byte");
+    bytes
+}
+
+fn byte_array_under_a(length: usize) -> Vec<u8> {
+    let declared = i32::try_from(length).expect("the test lengths fit in 32 bits");
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&declared.to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    nbt
+}
+
+fn with_component(kind: usize, value: &[u8]) -> Vec<u8> {
+    [var_int(1), var_int(0), var_int(kind), value.to_vec()].concat()
+}
+
+fn creative_slot(kind: usize, value: &[u8]) -> Vec<u8> {
+    let component = [var_int(value.len()), value.to_vec()].concat();
+    [
+        36i16.to_be_bytes().to_vec(),
+        var_int(1),
+        var_int(1),
+        with_component(kind, &component),
+    ]
+    .concat()
+}
+
+fn container_of_two(length: usize) -> Vec<u8> {
+    let template = [
+        vec![1],
+        var_int(1),
+        var_int(1),
+        with_component(0, &byte_array_under_a(length)),
+    ]
+    .concat();
+    [var_int(2), template.clone(), template].concat()
+}
+
+fn book_of(pages: usize, page: &str) -> Vec<u8> {
+    let length = u16::try_from(page.len()).expect("a page fits a String");
+    let mut text = vec![8];
+    text.extend_from_slice(&length.to_be_bytes());
+    text.extend_from_slice(page.as_bytes());
+    text.push(0);
+    let mut book = [
+        var_int(1),
+        b"t".to_vec(),
+        vec![0],
+        var_int(1),
+        b"a".to_vec(),
+    ]
+    .concat();
+    book.extend([var_int(0), var_int(pages)].concat());
+    for _ in 0..pages {
+        book.extend_from_slice(&text);
+    }
+    book.push(0);
+    book
+}
+
+#[test]
+fn a_creative_slot_packet_shares_one_nbt_budget_across_its_stack() {
+    let custom_data = 0;
+    let written_book_content = 57;
+    let container = 77;
+    let cases = [
+        (
+            creative_slot(custom_data, &byte_array_under_a(2_097_148)),
+            true,
+        ),
+        (
+            creative_slot(custom_data, &byte_array_under_a(2_097_149)),
+            false,
+        ),
+        (creative_slot(container, &container_of_two(1_048_572)), true),
+        (
+            creative_slot(container, &container_of_two(1_048_573)),
+            false,
+        ),
+        (
+            creative_slot(written_book_content, &book_of(100, &"x".repeat(10_485))),
+            true,
+        ),
+        (
+            creative_slot(written_book_content, &book_of(100, &"x".repeat(10_486))),
+            false,
+        ),
+        (
+            creative_slot(written_book_content, &book_of(262_145, "")),
+            false,
+        ),
+    ];
+    for (index, (bytes, passes)) in cases.iter().enumerate() {
+        let read = mcrs_minecraft_nbt::with_nbt_budget(NbtBudget::default(), || {
+            ServerboundSetCreativeModeSlot::decode(&mut bytes.as_slice()).map(|_| ())
+        });
+        if *passes {
+            assert!(matches!(read, Ok(Ok(()))), "{index}: {read:?}");
+        } else {
+            assert!(matches!(read, Err(NbtQuotaExceeded)), "{index}: {read:?}");
+        }
+    }
 }
 
 #[test]

@@ -77,13 +77,13 @@ impl<R: Read + Seek, E: NbtEncoding> NbtReadHelper<R, E> {
         Ok(buf[0])
     }
 
-    pub fn read_root_kind(&mut self) -> Result<u8> {
+    pub(crate) fn read_root_kind(&mut self) -> Result<u8> {
         let kind = self.get_u8()?;
         budget::charge(value_charge(kind), 1)?;
         Ok(kind)
     }
 
-    pub fn read_entry_kind(&mut self) -> Result<u8> {
+    pub(crate) fn read_entry_kind(&mut self) -> Result<u8> {
         let kind = self.get_u8()?;
         if kind == END_ID {
             budget::charge(1, 0)?;
@@ -93,13 +93,13 @@ impl<R: Read + Seek, E: NbtEncoding> NbtReadHelper<R, E> {
         Ok(kind)
     }
 
-    pub fn read_string_length(&mut self) -> Result<usize> {
+    pub(crate) fn read_string_length(&mut self) -> Result<usize> {
         let len = E::read_string_length(&mut self.reader)?;
         budget::charge(2 * len as u64, 0)?;
         Ok(len)
     }
 
-    pub fn read_array_length(&mut self, width: u64) -> Result<usize> {
+    pub(crate) fn read_array_length(&mut self, width: u64) -> Result<usize> {
         let len = E::read_collection_length(&mut self.reader)?;
         budget::charge(width.saturating_mul(len as u64), 0)?;
         Ok(len)

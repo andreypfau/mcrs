@@ -327,13 +327,18 @@ impl PacketDispatcher {
         let (side, budget) = (self.side, self.nbt_budget);
         match self.counts_mut(state) {
             Some(counts) if side == PacketSide::Serverbound => {
-                mcrs_minecraft_nbt::with_nbt_budget(budget, || counts.record(id, body))
-                    .unwrap_or_else(|_| {
-                        Err(Malformed {
-                            cause: counts.decode_failure(id),
-                            log: None,
-                        })
-                    })
+                let mut recorded = Ok(None);
+                let fits = mcrs_minecraft_nbt::with_nbt_budget(budget, || {
+                    recorded = counts.record(id, body);
+                })
+                .is_ok();
+                match recorded {
+                    Ok(_) if !fits => Err(Malformed {
+                        cause: counts.decode_failure(id),
+                        log: None,
+                    }),
+                    recorded => recorded,
+                }
             }
             Some(counts) => counts.record(id, body),
             None => Err(Malformed {
@@ -413,14 +418,18 @@ mod tests {
     }
 
     fn two_nbt(
-        _: i32,
+        id: i32,
         r: &mut &[u8],
         _: &mut Triggers,
     ) -> mcrs_minecraft_protocol::Result<Decoded<Trigger>> {
         use mcrs_minecraft_nbt::tag::NbtTag;
         use mcrs_minecraft_protocol::Decode;
-        NbtTag::decode(r)?;
-        NbtTag::decode(r)?;
+        let first = NbtTag::decode(r);
+        let second = NbtTag::decode(r);
+        if id == 0 {
+            first?;
+            second?;
+        }
         Ok(Decoded::NotImplemented("two_nbt"))
     }
 
@@ -432,16 +441,16 @@ mod tests {
     }
 
     #[test]
-    fn the_network_nbt_of_one_packet_shares_one_budget_and_a_refusal_is_not_logged() {
+    fn the_network_nbt_of_one_packet_shares_one_budget_and_a_refusal_is_logged_once() {
         let mut counts = PacketDispatcher::serverbound()
             .with_play(PlayTable::new(&game_serverbound::TABLE, two_nbt));
         let fits = two_arrays(1_048_576);
         let over = two_arrays(1_048_577);
         for _ in 0..2 {
-            assert!(matches!(
-                counts.dispatch(ConnectionState::Game, 0, &fits),
-                Ok(None)
-            ));
+            assert!(
+                matches!(counts.dispatch(ConnectionState::Game, 0, &fits), Ok(None)),
+                "each packet has a budget of its own"
+            );
         }
         let refused = counts
             .dispatch(ConnectionState::Game, 0, &over)
@@ -451,12 +460,32 @@ mod tests {
             "{}",
             refused.cause
         );
-        assert_eq!(refused.log, None);
+        assert!(
+            refused.log.is_some(),
+            "the first failure of a row is logged"
+        );
+        let again = counts
+            .dispatch(ConnectionState::Game, 0, &over)
+            .expect_err("the packet is past the byte limit");
+        assert_eq!(again.log, None);
+
+        let swallowed = counts
+            .dispatch(ConnectionState::Game, 1, &over)
+            .expect_err("a swallowed quota error is still a refusal");
+        assert!(
+            swallowed.cause.starts_with(DECODER_EXCEPTION),
+            "{}",
+            swallowed.cause
+        );
+        assert_eq!(swallowed.log, None);
 
         counts.set_nbt_budget(NbtBudget {
             bytes: 1_000_000,
             tags: 262_144,
         });
-        assert!(counts.dispatch(ConnectionState::Game, 0, &fits).is_err());
+        assert!(
+            counts.dispatch(ConnectionState::Game, 0, &fits).is_err(),
+            "the plugin byte limit applies"
+        );
     }
 }
