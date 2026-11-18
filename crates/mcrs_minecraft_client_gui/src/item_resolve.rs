@@ -16,7 +16,9 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
 
+use mcrs_minecraft_model::item_model_asset::DisplayContext;
 use mcrs_minecraft_model::item_model_bake::{BakedItemModel, BakedNode, ItemModels};
+use mcrs_minecraft_model::item_model_context::ItemModelContext;
 use mcrs_minecraft_model::item_model_eval::Evaluator;
 use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_model_file::model_file::{DisplayTransform, GuiLight};
@@ -123,9 +125,10 @@ pub fn resolve(
         stack,
         registries,
         grass_colormap: models.grass_colormap.as_deref(),
+        context: ItemModelContext::new(DisplayContext::Gui),
     };
     let mut layers = Vec::new();
-    collect(&evaluator, item, &mut layers);
+    collect(&evaluator, models, item, &mut layers);
     let gui_light = layers
         .first()
         .map_or(GuiLight::Front, |layer| layer.model.gui_light);
@@ -152,30 +155,35 @@ struct Layer<'m> {
     tints: Vec<u32>,
 }
 
-fn collect<'m>(evaluator: &Evaluator<'_>, node: &'m BakedNode, out: &mut Vec<Layer<'m>>) {
+fn collect<'m>(
+    evaluator: &Evaluator<'_>,
+    models: &'m ItemModels,
+    node: &'m BakedNode,
+    out: &mut Vec<Layer<'m>>,
+) {
     match node {
         BakedNode::Empty | BakedNode::BundleSelectedItem => {}
         BakedNode::Model {
             model,
             tints,
             transform,
-        } => out.push(Layer {
+        } => out.extend(models.model(*model).map(|model| Layer {
             model,
             transform: *transform,
             tints: tints.iter().map(|tint| evaluator.tint(tint)).collect(),
-        }),
+        })),
         BakedNode::Special {
             properties,
             transform,
             ..
-        } => out.push(Layer {
-            model: properties,
+        } => out.extend(models.model(*properties).map(|model| Layer {
+            model,
             transform: *transform,
             tints: Vec::new(),
-        }),
+        })),
         BakedNode::Composite(children) => {
             for child in children {
-                collect(evaluator, child, out);
+                collect(evaluator, models, child, out);
             }
         }
         BakedNode::Condition {
@@ -184,6 +192,7 @@ fn collect<'m>(evaluator: &Evaluator<'_>, node: &'m BakedNode, out: &mut Vec<Lay
             on_false,
         } => collect(
             evaluator,
+            models,
             if evaluator.condition(property) {
                 on_true
             } else {
@@ -197,6 +206,7 @@ fn collect<'m>(evaluator: &Evaluator<'_>, node: &'m BakedNode, out: &mut Vec<Lay
             fallback,
         } => collect(
             evaluator,
+            models,
             evaluator
                 .select(switch)
                 .and_then(|i| cases.get(i))
@@ -207,14 +217,14 @@ fn collect<'m>(evaluator: &Evaluator<'_>, node: &'m BakedNode, out: &mut Vec<Lay
             property,
             scale,
             thresholds,
-            models,
+            models: entries,
             fallback,
         } => {
             let value = evaluator.range(property) * scale;
             let chosen = BakedNode::range_index(thresholds, value)
-                .and_then(|i| models.get(i))
+                .and_then(|i| entries.get(i))
                 .unwrap_or(&**fallback);
-            collect(evaluator, chosen, out);
+            collect(evaluator, models, chosen, out);
         }
     }
 }
@@ -365,6 +375,7 @@ mod tests {
             },
             registries: None,
             grass_colormap: models().grass_colormap.as_deref(),
+            context: ItemModelContext::new(DisplayContext::Gui),
         }
     }
 
@@ -557,10 +568,10 @@ mod tests {
     fn the_system_rebuilds_only_the_stacks_of_changed_slots() {
         let mut app = App::new();
         app.insert_resource(*TABLE)
-            .insert_resource(ItemModels {
-                by_id: models().by_id.clone(),
-                missing: models().missing.clone(),
-                grass_colormap: None,
+            .insert_resource({
+                let mut models = models().clone();
+                models.grass_colormap = None;
+                models
             })
             .add_plugins((ItemPlugin::default(), ItemRenderPlugin));
         let world = app.world_mut();

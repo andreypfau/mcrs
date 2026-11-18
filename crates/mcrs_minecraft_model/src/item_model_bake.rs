@@ -1,6 +1,5 @@
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use bevy::math::{DVec3, Mat4, Vec3};
 use bevy::prelude::Resource;
@@ -14,6 +13,7 @@ use crate::item_model_asset::{
 };
 use crate::item_model_generator;
 use crate::item_model_transform::compose;
+use crate::model_id::ModelId;
 use crate::resource_set::ResourceSet;
 use mcrs_minecraft_model_file::face_bake::{self, VariantTransform};
 use mcrs_minecraft_model_file::model_file::{
@@ -30,18 +30,18 @@ pub struct ItemQuad {
     pub tint: Option<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BakedItemModel {
     pub quads: Vec<ItemQuad>,
     pub display: DisplayTransform,
     pub gui_light: GuiLight,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BakedNode {
     Empty,
     Model {
-        model: Arc<BakedItemModel>,
+        model: ModelId,
         tints: Vec<TintSource>,
         transform: Mat4,
     },
@@ -65,7 +65,7 @@ pub enum BakedNode {
     },
     Special {
         model: SpecialModel,
-        properties: Arc<BakedItemModel>,
+        properties: ModelId,
         transform: Mat4,
     },
     BundleSelectedItem,
@@ -82,14 +82,20 @@ impl BakedNode {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct ItemModels {
-    pub by_id: hashbrown::HashMap<ResourceLocationBuf, Arc<BakedNode>>,
-    pub missing: Arc<BakedNode>,
+    pub by_id: hashbrown::HashMap<ResourceLocationBuf, BakedNode>,
+    pub missing: BakedNode,
     pub grass_colormap: Option<Vec<u8>>,
+    models: Vec<BakedItemModel>,
 }
 
 impl ItemModels {
+    #[must_use]
+    pub fn model(&self, id: ModelId) -> Option<&BakedItemModel> {
+        self.models.get(id.index()?)
+    }
+
     pub fn get(&self, id: &str) -> &BakedNode {
         ResourceLocation::read(id)
             .ok()
@@ -102,21 +108,23 @@ struct Baker<'a> {
     pack: &'a ResourceSet,
     resolver: ModelResolver<'a>,
     sprites: &'a mut SpriteRegistry,
-    models: HashMap<String, Arc<BakedItemModel>>,
-    missing: Arc<BakedItemModel>,
+    ids: HashMap<String, ModelId>,
+    models: Vec<BakedItemModel>,
+    missing: ModelId,
 }
 
 pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<ItemModels, String> {
     sprites
         .load_atlases(pack)
         .map_err(|error| error.to_string())?;
-    let missing = Arc::new(missing_model(pack, sprites)?);
+    let missing = missing_model(pack, sprites)?;
     let mut baker = Baker {
         pack,
         resolver: ModelResolver::new(pack.files()),
         sprites,
-        models: HashMap::new(),
-        missing: missing.clone(),
+        ids: HashMap::new(),
+        models: vec![missing],
+        missing: ModelId(0),
     };
     let mut by_id = hashbrown::HashMap::new();
     for (id, bytes) in pack.entries("items", "json") {
@@ -125,16 +133,17 @@ pub fn bake_all(pack: &ResourceSet, sprites: &mut SpriteRegistry) -> Result<Item
             .node(&item.model, Mat4::IDENTITY)
             .map_err(|error| format!("items/{id}: {error}"))?;
         let location = ResourceLocationBuf::read(&id).map_err(|error| format!("{id}: {error}"))?;
-        by_id.insert(location, Arc::new(root));
+        by_id.insert(location, root);
     }
     Ok(ItemModels {
         by_id,
         grass_colormap: Some(load_colormap(pack, "grass").map_err(|error| error.to_string())?),
-        missing: Arc::new(BakedNode::Model {
-            model: missing,
+        missing: BakedNode::Model {
+            model: baker.missing,
             tints: Vec::new(),
             transform: Mat4::IDENTITY,
-        }),
+        },
+        models: baker.models,
     })
 }
 
@@ -223,14 +232,19 @@ impl Baker<'_> {
                 transformation,
                 model,
             } => {
-                let baked = self.model(base.as_str())?;
+                let base = self.model(base.as_str())?;
+                let (display, gui_light) = base
+                    .index()
+                    .and_then(|index| self.models.get(index))
+                    .map(|baked| (baked.display, baked.gui_light))
+                    .ok_or_else(|| format!("{base:?} is not baked"))?;
                 BakedNode::Special {
                     model: model.clone(),
-                    properties: Arc::new(BakedItemModel {
+                    properties: self.push(BakedItemModel {
                         quads: Vec::new(),
-                        display: baked.display,
-                        gui_light: baked.gui_light,
-                    }),
+                        display,
+                        gui_light,
+                    })?,
                     transform: compose(parent, transformation.as_ref()),
                 }
             }
@@ -245,22 +259,29 @@ impl Baker<'_> {
         match fallback {
             Some(fallback) => self.node(fallback, transform),
             None => Ok(BakedNode::Model {
-                model: self.missing.clone(),
+                model: self.missing,
                 tints: Vec::new(),
                 transform,
             }),
         }
     }
 
-    fn model(&mut self, id: &str) -> Result<Arc<BakedItemModel>, String> {
-        if let Some(model) = self.models.get(id) {
-            return Ok(model.clone());
+    fn model(&mut self, id: &str) -> Result<ModelId, String> {
+        if let Some(model) = self.ids.get(id) {
+            return Ok(*model);
         }
         let pack = self.pack;
         let resolved = self.resolver.resolve(id);
-        let model = Arc::new(bake_model(pack, self.sprites, resolved)?);
-        self.models.insert(id.to_string(), model.clone());
+        let model = bake_model(pack, self.sprites, resolved)?;
+        let model = self.push(model)?;
+        self.ids.insert(id.to_string(), model);
         Ok(model)
+    }
+
+    fn push(&mut self, model: BakedItemModel) -> Result<ModelId, String> {
+        let id = u32::try_from(self.models.len()).map_err(|error| error.to_string())?;
+        self.models.push(model);
+        Ok(ModelId(id))
     }
 }
 
@@ -367,6 +388,18 @@ fn missing_model(
 mod tests {
     use super::*;
 
+    #[test]
+    fn an_id_out_of_range_names_no_model() {
+        let models = ItemModels {
+            by_id: hashbrown::HashMap::new(),
+            missing: BakedNode::Empty,
+            grass_colormap: None,
+            models: Vec::new(),
+        };
+        assert!(models.model(ModelId(0)).is_none());
+        assert!(models.model(ModelId(u32::MAX)).is_none());
+    }
+
     mod jar {
         use super::*;
 
@@ -404,6 +437,7 @@ mod tests {
         else {
             panic!("stick is a plain model");
         };
+        let model = models.model(*model).unwrap();
         assert_eq!(*transform, Mat4::IDENTITY);
         assert_eq!(model.gui_light, GuiLight::Front);
         assert!(model.quads.len() > 2);
@@ -415,6 +449,7 @@ mod tests {
         let BakedNode::Model { model, .. } = models.get("minecraft:no_such_item") else {
             panic!("missing is a plain model");
         };
+        let model = models.model(*model).unwrap();
         assert_eq!(model.quads.len(), 6);
         assert_eq!(model.display, DisplayTransform::IDENTITY);
         assert_eq!(model.gui_light, GuiLight::Side);
@@ -448,6 +483,6 @@ mod tests {
         let BakedNode::Special { properties, .. } = models.get("minecraft:conduit") else {
             panic!("conduit is special");
         };
-        assert!(properties.quads.is_empty());
+        assert!(models.model(*properties).unwrap().quads.is_empty());
     }
 }
