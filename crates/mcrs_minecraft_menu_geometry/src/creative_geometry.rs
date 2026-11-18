@@ -16,6 +16,9 @@ const GRID_ROWS: u16 = 5;
 const GRID_SLOTS: u16 = GRID_COLUMNS * GRID_ROWS;
 pub(crate) const HOTBAR_MENU_START: u16 = 36;
 const HEAD_MENU_INDEX: u16 = 5;
+const CHEST_MENU_INDEX: u16 = 6;
+const LEGS_MENU_INDEX: u16 = 7;
+const FEET_MENU_INDEX: u16 = 8;
 const MAIN_MENU_START: u16 = 9;
 const OFF_HAND_MENU_INDEX: u16 = 45;
 const SCROLL_TRAVEL: f64 = 95.0;
@@ -46,7 +49,6 @@ impl CreativeGeometry {
     pub const HEIGHT: i32 = 136;
     pub const TITLE: GuiPoint = GuiPoint::new(8, 6);
     pub const SEARCH_BOX: GuiRect = GuiRect::new(82, 6, 80, 9);
-    pub const PLAYER_BOX: GuiRect = GuiRect::new(73, 6, 32, 43);
     pub const DESTROY_SLOT: GuiPoint = GuiPoint::new(173, 112);
     pub const SCROLL_BAR: GuiRect = GuiRect::new(175, 18, 14, 112);
     pub const SCROLLER: ResourceLocation<'static> =
@@ -68,6 +70,16 @@ impl CreativeGeometry {
     }
 
     #[must_use]
+    pub fn content_index(slot: u16, first_row: i32) -> Option<usize> {
+        GRID.corner(slot)?;
+        let first_row = usize::try_from(first_row).ok()?;
+        let columns = usize::from(GRID_COLUMNS);
+        first_row
+            .checked_mul(columns)?
+            .checked_add(usize::from(slot))
+    }
+
+    #[must_use]
     pub fn hotbar_slot(column: u16) -> Option<GuiPoint> {
         HOTBAR.corner(column)
     }
@@ -76,9 +88,9 @@ impl CreativeGeometry {
     pub fn inventory_entry(menu_index: u16) -> Option<GuiPoint> {
         match menu_index {
             HEAD_MENU_INDEX => Some(GuiPoint::new(54, 6)),
-            6 => Some(GuiPoint::new(54, 33)),
-            7 => Some(GuiPoint::new(108, 6)),
-            8 => Some(GuiPoint::new(108, 33)),
+            CHEST_MENU_INDEX => Some(GuiPoint::new(54, 33)),
+            LEGS_MENU_INDEX => Some(GuiPoint::new(108, 6)),
+            FEET_MENU_INDEX => Some(GuiPoint::new(108, 33)),
             OFF_HAND_MENU_INDEX => Some(GuiPoint::new(35, 20)),
             HOTBAR_MENU_START.. => HOTBAR.corner(menu_index - HOTBAR_MENU_START),
             MAIN_MENU_START.. => MAIN_INVENTORY.corner(menu_index - MAIN_MENU_START),

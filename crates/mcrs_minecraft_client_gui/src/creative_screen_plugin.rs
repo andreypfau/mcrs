@@ -1,5 +1,6 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_creative_content::OperatorCondition;
@@ -8,7 +9,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientNetworkSystems;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::creative_screen::CreativeScreen;
+use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::language::ClientLanguage;
@@ -23,7 +24,7 @@ impl Plugin for CreativeScreenPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(LoadedCreativeReport::embedded())
             .init_resource::<CreativeTabContent>()
-            .init_resource::<CreativeScreen>()
+            .init_resource::<CreativeScreenState>()
             .add_systems(
                 Update,
                 (
@@ -42,6 +43,7 @@ struct CreativeSession<'w, 's> {
     registries: Option<Res<'w, CurrentRegistries>>,
     items: Option<Res<'w, ItemTable>>,
     language: Option<Res<'w, ClientLanguage>>,
+    options: Option<Res<'w, ClientOptions>>,
     player:
         Query<'w, 's, (Option<&'static Abilities>, Option<&'static PermissionLevel>), With<Player>>,
 }
@@ -53,7 +55,11 @@ impl CreativeSession<'_, '_> {
         };
         let creative = abilities.is_some_and(|abilities| abilities.instant_build);
         let gamemaster = permission.is_some_and(|level| *level >= PermissionLevel::GAMEMASTERS);
-        if creative && gamemaster {
+        let tab_on = self
+            .options
+            .as_ref()
+            .is_some_and(|options| options.operator_items_tab);
+        if creative && gamemaster && tab_on {
             OperatorCondition::Met
         } else {
             OperatorCondition::NotMet
@@ -91,6 +97,9 @@ fn rebuild_creative_content(
     });
 }
 
-fn follow_creative_content(content: Res<CreativeTabContent>, mut screen: ResMut<CreativeScreen>) {
-    screen.0.content_changed(&content);
+fn follow_creative_content(
+    content: Res<CreativeTabContent>,
+    mut screen: ResMut<CreativeScreenState>,
+) {
+    screen.content_changed(&content);
 }

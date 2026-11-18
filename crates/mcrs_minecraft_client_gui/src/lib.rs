@@ -9,7 +9,6 @@ pub mod chunk_map;
 mod close_menu_screen;
 mod controls_screen;
 mod create_world_screen;
-pub mod creative_screen;
 pub mod creative_screen_plugin;
 pub mod creative_screen_state;
 #[cfg(test)]

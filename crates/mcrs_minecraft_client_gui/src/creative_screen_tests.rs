@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use bevy::prelude::*;
+use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_creative_content::OperatorCondition;
@@ -18,7 +19,6 @@ use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::rl;
 
-use crate::creative_screen::CreativeScreen;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeInputs;
@@ -445,12 +445,13 @@ fn an_empty_tab_is_hidden_and_a_selected_empty_tab_falls_back_to_the_first_tab()
 }
 
 #[test]
-fn the_plugin_rebuilds_the_content_when_the_operator_condition_changes() {
+fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
     let mut app = App::new();
     app.add_plugins(CreativeScreenPlugin)
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource::<ItemTable>(*TABLE)
-        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap());
+        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+        .init_resource::<ClientOptions>();
     let player = app
         .world_mut()
         .spawn((
@@ -462,15 +463,25 @@ fn the_plugin_rebuilds_the_content_when_the_operator_condition_changes() {
     app.update();
     let content = app.world().resource::<CreativeTabContent>();
     assert!(
+        !content.visible_tabs().contains(OP_BLOCKS),
+        "the option off hides the tab from an operator"
+    );
+
+    app.world_mut()
+        .resource_mut::<ClientOptions>()
+        .operator_items_tab = true;
+    app.update();
+    let content = app.world().resource::<CreativeTabContent>();
+    assert!(
         content.visible_tabs().contains(OP_BLOCKS),
-        "an operator in creative sees the tab"
+        "an operator in creative with the option on sees the tab"
     );
     let selected = {
         let world = app.world_mut();
-        world.resource_scope(|world, mut screen: Mut<CreativeScreen>| {
+        world.resource_scope(|world, mut screen: Mut<CreativeScreenState>| {
             let content = world.resource::<CreativeTabContent>();
-            screen.0.select(OP_BLOCKS, content);
-            screen.0.selected()
+            screen.select(OP_BLOCKS, content);
+            screen.selected()
         })
     };
     assert_eq!(selected, OP_BLOCKS);
@@ -484,9 +495,9 @@ fn the_plugin_rebuilds_the_content_when_the_operator_condition_changes() {
         !content.visible_tabs().contains(OP_BLOCKS),
         "a deop hides the tab"
     );
-    let screen = app.world().resource::<CreativeScreen>();
+    let screen = app.world().resource::<CreativeScreenState>();
     assert_eq!(
-        screen.0.selected(),
+        screen.selected(),
         BUILDING_BLOCKS,
         "the deop moves the selection"
     );

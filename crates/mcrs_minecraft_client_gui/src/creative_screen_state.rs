@@ -1,3 +1,4 @@
+use bevy::prelude::Resource;
 use mcrs_minecraft_client_widget::EditBox;
 use mcrs_minecraft_client_widget::LengthUnit;
 use mcrs_minecraft_creative_content::SearchQuery;
@@ -11,7 +12,6 @@ use crate::creative_tab_content::CreativeTabContent;
 use crate::creative_tab_view::CreativeTabView;
 
 const FIRST_TAB: usize = 0;
-const GRID_COLUMNS: usize = 9;
 const SEARCH_MAX_LENGTH: usize = 50;
 const SEARCH_TEXT_COLOR: u32 = 0xFFFF_FFFF;
 
@@ -21,10 +21,9 @@ enum SearchReset {
     Keep,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Resource, Clone, Debug)]
 pub struct CreativeScreenState {
     selected: usize,
-    tab: CreativeTab,
     scroll: f64,
     content_len: usize,
     search: EditBox,
@@ -42,7 +41,6 @@ impl Default for CreativeScreenState {
         search.can_lose_focus = false;
         Self {
             selected: FIRST_TAB,
-            tab: CREATIVE_TABS[FIRST_TAB],
             scroll: 0.0,
             content_len: 0,
             search,
@@ -63,7 +61,7 @@ impl CreativeScreenState {
     }
 
     pub fn select(&mut self, tab: usize, content: &CreativeTabContent) {
-        let reset = if tab == self.selected && self.tab.kind == CreativeTabKind::Search {
+        let reset = if tab == self.selected && self.selected_tab().kind == CreativeTabKind::Search {
             SearchReset::Keep
         } else {
             SearchReset::Clear
@@ -73,7 +71,7 @@ impl CreativeScreenState {
 
     pub fn wheel(&mut self, vertical: f64, content: &CreativeTabContent) {
         let len = self.content(content).len();
-        if !CreativeGeometry::can_scroll(self.tab.kind, len) {
+        if !CreativeGeometry::can_scroll(self.selected_tab().kind, len) {
             return;
         }
         let rows = f64::from(CreativeGeometry::row_count(len));
@@ -97,7 +95,9 @@ impl CreativeScreenState {
 
     pub fn content_changed(&mut self, content: &CreativeTabContent) {
         self.match_search(content);
-        if self.tab.kind == CreativeTabKind::Items && content.tab_list(self.selected).is_empty() {
+        if self.selected_tab().kind == CreativeTabKind::Items
+            && content.tab_list(self.selected).is_empty()
+        {
             self.apply_selection(FIRST_TAB, SearchReset::Clear, content);
             return;
         }
@@ -120,7 +120,8 @@ impl CreativeScreenState {
 
     #[must_use]
     pub fn selected_tab(&self) -> CreativeTab {
-        self.tab
+        let [first, ..] = CREATIVE_TABS;
+        CREATIVE_TABS.get(self.selected).copied().unwrap_or(first)
     }
 
     #[must_use]
@@ -135,7 +136,7 @@ impl CreativeScreenState {
 
     #[must_use]
     pub fn content<'a>(&'a self, content: &'a CreativeTabContent) -> CreativeTabView<'a> {
-        match self.tab.kind {
+        match self.selected_tab().kind {
             CreativeTabKind::Items => CreativeTabView::Stacks(content.tab_list(self.selected)),
             CreativeTabKind::Search => CreativeTabView::Search {
                 list: content.search_list(),
@@ -149,7 +150,7 @@ impl CreativeScreenState {
 
     #[must_use]
     pub fn can_scroll(&self, content: &CreativeTabContent) -> bool {
-        CreativeGeometry::can_scroll(self.tab.kind, self.content(content).len())
+        CreativeGeometry::can_scroll(self.selected_tab().kind, self.content(content).len())
     }
 
     #[must_use]
@@ -164,18 +165,16 @@ impl CreativeScreenState {
         slot: usize,
         content: &'a CreativeTabContent,
     ) -> Option<&'a ItemStack> {
-        CreativeGeometry::grid_slot(u16::try_from(slot).ok()?)?;
-        let first_row = usize::try_from(self.first_row(content)).ok()?;
-        let index = first_row.checked_mul(GRID_COLUMNS)?.checked_add(slot)?;
+        let index =
+            CreativeGeometry::content_index(u16::try_from(slot).ok()?, self.first_row(content))?;
         self.content(content).get(index)
     }
 
     fn apply_selection(&mut self, tab: usize, reset: SearchReset, content: &CreativeTabContent) {
-        let Some(entry) = CREATIVE_TABS.get(tab) else {
+        if tab >= CREATIVE_TABS.len() {
             return;
-        };
+        }
         self.selected = tab;
-        self.tab = *entry;
         if reset == SearchReset::Clear {
             self.search.set("");
         }
