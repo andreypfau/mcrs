@@ -17,9 +17,9 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_player_holders::HandAction;
-use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
+use mcrs_minecraft_vanilla_inventory::RequestPurpose;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 use crate::fixture::DIRT;
@@ -55,7 +55,7 @@ fn inv_slt_005_a_hand_swap_puts_any_item_in_the_off_hand() {
         holder: player,
         id: RequestId {
             source: world.resource::<VanillaInventoryRequests>().source,
-            serial: HAND_SWAP_REQUEST,
+            serial: RequestPurpose::HandSwap.serial(),
         },
         outcome: Ok(()),
     };

@@ -2,7 +2,7 @@ use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_widget::GuiRect;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_menu::MenuLayout;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::rl;
 

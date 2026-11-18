@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_mesh::DrawKind;
 use mcrs_minecraft_render::sky::SkyEffects;
 

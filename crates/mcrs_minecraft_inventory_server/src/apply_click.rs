@@ -25,7 +25,7 @@ use mcrs_minecraft_inventory_client_view::ClickSync;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_player_holders::PlayerHolders;
-use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
+use mcrs_minecraft_vanilla_inventory::RequestPurpose;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 
 use crate::InventoryInput;
@@ -162,7 +162,7 @@ fn plan_click(
         cursor: cursor_slot(player_holders),
         request: RequestId {
             source,
-            serial: CLICK_REQUEST,
+            serial: RequestPurpose::Click.serial(),
         },
     };
     let (request, view) = match clicks.plan(player, click, clicker) {

@@ -1,6 +1,6 @@
 use anyhow::Context;
-use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_protocol::{Decode, Packet};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetData,
