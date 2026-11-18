@@ -100,7 +100,6 @@ mod release_rule;
 pub mod scene;
 mod scroll_area_draw;
 mod search_input;
-mod search_point;
 mod select_world_screen;
 mod session_screens;
 pub mod sign_text;

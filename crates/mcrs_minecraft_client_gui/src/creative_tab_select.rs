@@ -3,7 +3,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Key;
-use mcrs_minecraft_client_widget::{EditBox, KeyModifiers};
+use mcrs_minecraft_client_widget::{EditBox, GuiRect, KeyModifiers};
 use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 
 use crate::chat_input;
@@ -12,7 +12,6 @@ use crate::creative_tab_content::CreativeTabContent;
 use crate::menu_input;
 use crate::scene::GuiAtlas;
 use crate::search_input::SearchInput;
-use crate::search_point::SearchPoint;
 
 #[derive(SystemParam)]
 pub(crate) struct CreativeTabSelect<'w> {
@@ -41,27 +40,42 @@ impl CreativeTabSelect<'_> {
         }
     }
 
-    pub(crate) fn edit_search(&mut self, input: &SearchInput, point: Option<SearchPoint>) {
+    pub(crate) fn edit_search(
+        &mut self,
+        input: &SearchInput,
+        search_box: GuiRect,
+        mouse_x: Option<f64>,
+    ) {
         let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) else {
             return;
         };
         let clipboard = self.clipboard.as_deref_mut();
         let width = menu_input::text_width(self.atlas.as_deref());
-        screen.edit_search(content, |edit| match (input, point) {
-            (SearchInput::Key { input, modifiers }, _) => {
-                type_key(edit, input, *modifiers, clipboard);
-            }
-            (SearchInput::SelectAll, _) => edit.select_all(),
-            (SearchInput::Click(anchor), Some(point)) => {
-                edit.click(point.rect, point.x, *anchor, &width);
-            }
-            (SearchInput::SelectWord, Some(point)) => {
-                edit.select_word(point.rect, point.x, &width);
-            }
-            (SearchInput::Drag, Some(point)) => edit.drag(point.rect, point.x, &width),
-            (SearchInput::Click(_) | SearchInput::SelectWord | SearchInput::Drag, None) => {}
+        screen.edit_search(content, |edit| {
+            apply_search(edit, input, search_box, mouse_x, &width, clipboard);
         });
     }
+}
+
+pub(crate) fn apply_search(
+    edit: &mut EditBox,
+    input: &SearchInput,
+    search_box: GuiRect,
+    mouse_x: Option<f64>,
+    width: &impl Fn(&str) -> i32,
+    clipboard: Option<&mut Clipboard>,
+) {
+    match (input, mouse_x) {
+        (SearchInput::Key { input, modifiers }, _) => {
+            type_key(edit, input, *modifiers, clipboard);
+        }
+        (SearchInput::SelectAll, _) => edit.select_all(),
+        (SearchInput::Click(anchor), Some(x)) => edit.click(search_box, x, *anchor, width),
+        (SearchInput::SelectWord, Some(x)) => edit.select_word(search_box, x, width),
+        (SearchInput::Drag, Some(x)) => edit.drag(search_box, x, width),
+        (SearchInput::Click(_) | SearchInput::SelectWord | SearchInput::Drag, None) => {}
+    }
+    edit.scroll(search_box, width);
 }
 
 fn type_key(

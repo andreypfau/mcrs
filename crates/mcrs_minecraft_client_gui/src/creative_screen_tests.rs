@@ -1,7 +1,12 @@
 use std::sync::LazyLock;
 
+use bevy::input::ButtonState;
+use bevy::input::keyboard::Key;
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::keyboard::NativeKey;
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_widget::KeyModifiers;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -20,6 +25,7 @@ use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
+use mcrs_minecraft_menu_geometry::CreativeGeometry;
 use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_model::resource_set::ResourceSet;
@@ -32,10 +38,12 @@ use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_search_index::CreativeSearchIndex;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::creative_tab_select;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::TABLE;
+use crate::search_input::SearchInput;
 
 const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
 const COLORED_BLOCKS: CreativeTabIndex = tab(1);
@@ -349,6 +357,88 @@ fn a_selection_resets_the_scroll_and_the_search_text() {
             row.name
         );
         assert_scroll(state.scroll(), 0.0, row.name);
+    }
+}
+
+struct SearchKeyRow {
+    name: &'static str,
+    keys: &'static [SearchKey],
+    text: &'static str,
+    scrolled: bool,
+}
+
+#[derive(Clone, Copy)]
+struct SearchKey {
+    code: KeyCode,
+    text: Option<&'static str>,
+    modifiers: KeyModifiers,
+}
+
+const fn typed(code: KeyCode, text: &'static str) -> SearchKey {
+    SearchKey {
+        code,
+        text: Some(text),
+        modifiers: KeyModifiers::NONE,
+    }
+}
+
+const W: SearchKey = typed(KeyCode::KeyW, "w");
+
+#[test]
+fn a_search_key_keeps_the_caret_in_view() {
+    let rows = [
+        SearchKeyRow {
+            name: "twenty wide characters",
+            keys: &[W; 20],
+            text: "wwwwwwwwwwwwwwwwwwww",
+            scrolled: true,
+        },
+        SearchKeyRow {
+            name: "a short text",
+            keys: &[W; 2],
+            text: "ww",
+            scrolled: false,
+        },
+    ];
+    let width = |text: &str| 6 * i32::try_from(text.chars().count()).unwrap();
+    for row in rows {
+        let mut state = opened(&VANILLA);
+        state.select(SEARCH, &VANILLA);
+        for key in row.keys {
+            let input = SearchInput::Key {
+                input: KeyboardInput {
+                    key_code: key.code,
+                    logical_key: Key::Unidentified(NativeKey::Unidentified),
+                    state: ButtonState::Pressed,
+                    text: key.text.map(Into::into),
+                    repeat: false,
+                    window: Entity::PLACEHOLDER,
+                },
+                modifiers: key.modifiers,
+            };
+            state.edit_search(&VANILLA, |edit| {
+                creative_tab_select::apply_search(
+                    edit,
+                    &input,
+                    CreativeGeometry::SEARCH_BOX,
+                    None,
+                    &width,
+                    None,
+                );
+            });
+        }
+        let search = state.search_box();
+        assert_eq!(search.text(), row.text, "{}: the search text", row.name);
+        let first = search
+            .layout(CreativeGeometry::SEARCH_BOX, 0, &width)
+            .visible
+            .start;
+        assert_eq!(
+            first > 0,
+            row.scrolled,
+            "{}: the first visible position {first}",
+            row.name
+        );
     }
 }
 

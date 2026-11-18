@@ -9,7 +9,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::{MouseButtonInput, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiKey};
+use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiKey, GuiRect};
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -47,7 +47,6 @@ use crate::modifiers::Modifiers;
 use crate::release_rule::ReleaseRule;
 use crate::scene::{self, GuiConfig, GuiSize};
 use crate::search_input::SearchInput;
-use crate::search_point::SearchPoint;
 use crate::viewer::Viewer;
 use crate::wheel_notches;
 
@@ -115,8 +114,9 @@ enum ScrollDrag {
 #[derive(Clone, Copy, Debug)]
 struct CreativePointer {
     top: i32,
+    mouse_x: f64,
     mouse_y: f64,
-    search: SearchPoint,
+    search_box: GuiRect,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -164,6 +164,25 @@ impl ScreenPointer<'_, '_> {
         self.window.single().ok()?.cursor_position()
     }
 
+    fn search_box(&self) -> Option<GuiRect> {
+        let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
+            return None;
+        };
+        let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
+        let corner = CreativeGeometry::window(size.width, size.height);
+        Some(creative_screen_draw::offset(
+            corner,
+            CreativeGeometry::SEARCH_BOX,
+        ))
+    }
+
+    fn edit_search(&self, tabs: &mut CreativeTabSelect, input: &SearchInput) {
+        if let Some(search_box) = self.search_box() {
+            let mouse_x = self.creative_pointer().map(|at| at.mouse_x);
+            tabs.edit_search(input, search_box, mouse_x);
+        }
+    }
+
     fn creative_pointer(&self) -> Option<CreativePointer> {
         let (Ok(window), Some(config)) = (self.window.single(), self.config.as_deref()) else {
             return None;
@@ -173,11 +192,9 @@ impl ScreenPointer<'_, '_> {
         let corner = CreativeGeometry::window(size.width, size.height);
         Some(CreativePointer {
             top: corner.y,
+            mouse_x: pointer.x,
             mouse_y: pointer.y,
-            search: SearchPoint {
-                rect: creative_screen_draw::offset(corner, CreativeGeometry::SEARCH_BOX),
-                x: pointer.x,
-            },
+            search_box: creative_screen_draw::offset(corner, CreativeGeometry::SEARCH_BOX),
         })
     }
 
@@ -344,7 +361,7 @@ impl ClickState {
             && matches!(self.search, SearchPress::Held(_))
             && let Some(at) = pointer.creative_pointer()
         {
-            tabs.edit_search(&SearchInput::Drag, Some(at.search));
+            tabs.edit_search(&SearchInput::Drag, at.search_box, Some(at.mouse_x));
         }
         moved
     }
@@ -601,8 +618,7 @@ fn click_in_menu(
                 let FrameEnd::Search(input) = end else {
                     break end;
                 };
-                let point = pointer.creative_pointer().map(|at| at.search);
-                world_and_outputs.p1().4.edit_search(&input, point);
+                pointer.edit_search(&mut world_and_outputs.p1().4, &input);
                 if !sent.is_empty() {
                     break FrameEnd::Open;
                 }
