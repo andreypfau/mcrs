@@ -3,6 +3,5 @@
 mod alloc_free;
 mod caps;
 mod corpus;
-mod exhaustive;
 mod meshes;
 mod resolve;
