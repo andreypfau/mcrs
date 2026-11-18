@@ -3,4 +3,5 @@
 pub enum Overlays {
     None,
     Stack,
+    Capped,
 }

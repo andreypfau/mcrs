@@ -1,20 +1,24 @@
 use bevy::math::{IRect, IVec2, Rect, UVec2};
+use bevy::prelude::Entity;
 use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::EntryPreview;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_item::slots;
+use mcrs_minecraft_item_icon::{Overlays, StackOverlay};
 use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry, MenuLabels, TitlePosition};
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::drag_preview::DragPreview;
 use crate::font::{Font, draw_text_without_shadow};
 use crate::inventory_figure::figure_rect;
-use crate::item_decorations::{CountLabel, WHITE};
+use crate::item_decorations::WHITE;
+use crate::item_icons::ItemIcons;
 use crate::menu_draw;
 use crate::menu_label_text::MenuLabelText;
 use crate::menu_stacks::MenuStacks;
-use crate::scene::{GuiAtlasData, GuiQuad, GuiSize, sprite};
+use crate::scene::{GuiAtlasData, GuiQuad, GuiScene, GuiSize, sprite};
+use crate::slot_icon::SlotIcon;
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DRAG_FILL: u32 = 0x80FF_FFFF;
@@ -89,105 +93,123 @@ pub struct MenuContents<'a> {
 }
 
 pub fn menu_screen(
-    size: GuiSize,
-    cursor: IVec2,
+    scene: &mut GuiScene,
     geometry: MenuGeometry,
     contents: MenuContents,
     labels: &MenuLabelText,
     atlas: &GuiAtlasData,
-    out: &mut Vec<GuiQuad>,
+    icon_of: impl Fn(Entity) -> Option<SlotIcon>,
 ) {
     let MenuContents { stacks, drag } = contents;
+    let (size, cursor) = (scene.size, scene.cursor);
     let corner = geometry.window(size.width, size.height);
     let top_left = menu_draw::point(corner);
     let pointer = GuiPoint::new(cursor.x, cursor.y);
     let inventory = geometry.is_inventory();
-    out.push(GuiQuad::FillGradient {
+    scene.quads.push(GuiQuad::FillGradient {
         rect: IRect::new(0, 0, size.width, size.height),
         top: DIM_TOP,
         bottom: DIM_BOTTOM,
     });
     for part in geometry.background() {
-        background(atlas, top_left, part, out);
+        background(atlas, top_left, part, &mut scene.quads);
     }
     if inventory {
-        out.push(GuiQuad::Figure {
-            rect: figure_rect(top_left),
-        });
-        let button = recipe_book_button(corner);
-        let button_area = menu_draw::irect(button);
-        out.push(sprite(
-            button_area.min,
-            button_area.size(),
-            if button.contains_point(pointer) {
-                "recipe_book/button_highlighted"
-            } else {
-                "recipe_book/button"
-            },
-        ));
+        inventory_extras(&mut scene.quads, corner, pointer);
     }
     if let Some(positions) = geometry.labels() {
-        draw_labels(&atlas.font, top_left, &geometry, positions, labels, out);
+        draw_labels(
+            &atlas.font,
+            top_left,
+            &geometry,
+            positions,
+            labels,
+            &mut scene.quads,
+        );
     }
     let highlight = match geometry.clicked_at(corner, pointer) {
         Clicked::Entry(index) => geometry.entry(index).map(menu_draw::point),
         Clicked::Outside | Clicked::Nowhere => None,
     };
     if let Some(position) = highlight {
-        out.push(sprite(
+        scene.quads.push(sprite(
             top_left + position - 4,
             IVec2::new(24, 24),
             "container/slot_highlight_back",
         ));
     }
+    let carried_stack = stacks.carried();
+    let carried = carried_stack.and_then(&icon_of);
     for entry in geometry.entries() {
         let at = top_left + menu_draw::point(entry.corner);
-        let preview = drag.entry(entry.index).zip(stacks.carried());
-        if let Some((preview, carried)) = preview {
-            out.push(GuiQuad::Fill {
+        if let Some(preview) = drag.entry(entry.index)
+            && carried_stack.is_some()
+        {
+            scene.quads.push(GuiQuad::Fill {
                 rect: IRect::from_corners(at, at + 16),
                 color: DRAG_FILL,
             });
-            out.push(GuiQuad::Item {
-                origin: at,
-                stack: carried,
-                count: Some(match preview {
-                    EntryPreview::Fits(count) => CountLabel::Plain(count),
-                    EntryPreview::Capped(count) => CountLabel::Capped(count),
-                }),
-            });
+            if let Some(slot) = carried {
+                let (count, overlays) = match preview {
+                    EntryPreview::Fits(count) => (count, Overlays::Stack),
+                    EntryPreview::Capped(count) => (count, Overlays::Capped),
+                };
+                let overlay = StackOverlay {
+                    count,
+                    ..slot.overlay
+                };
+                ItemIcons::draw_icon(scene, at, slot.icon, overlay, overlays);
+            }
             continue;
         }
         match stacks.get(entry.index) {
-            Some(stack) => out.push(GuiQuad::Item {
-                origin: at,
-                stack,
-                count: None,
-            }),
+            Some(stack) => {
+                if let Some(slot) = icon_of(stack) {
+                    ItemIcons::draw_icon(scene, at, slot.icon, slot.overlay, Overlays::Stack);
+                }
+            }
             None => {
                 if let Some(icon) = empty_icon(entry.index).filter(|_| inventory) {
-                    out.push(sprite(at, IVec2::splat(16), icon));
+                    scene.quads.push(sprite(at, IVec2::splat(16), icon));
                 }
             }
         }
     }
     if let Some(position) = highlight {
-        out.push(sprite(
+        scene.quads.push(sprite(
             top_left + position - 4,
             IVec2::new(24, 24),
             "container/slot_highlight_front",
         ));
     }
-    let count = drag.cursor().map(CountLabel::Plain);
-    if let Some(stack) = stacks.carried()
-        && count != Some(CountLabel::Plain(0))
-    {
-        out.push(GuiQuad::Item {
-            origin: cursor - 8,
-            stack,
-            count,
-        });
+    if let Some(slot) = carried {
+        let count = drag.cursor().unwrap_or(slot.overlay.count);
+        if count != 0 {
+            let overlay = StackOverlay {
+                count,
+                ..slot.overlay
+            };
+            ItemIcons::draw_icon(scene, cursor - 8, slot.icon, overlay, Overlays::Stack);
+        }
     }
+}
+
+fn inventory_extras(out: &mut Vec<GuiQuad>, corner: GuiPoint, pointer: GuiPoint) {
+    let top_left = menu_draw::point(corner);
+    out.push(GuiQuad::Figure {
+        rect: figure_rect(top_left),
+    });
+    let button = recipe_book_button(corner);
+    let button_area = menu_draw::irect(button);
+    out.push(sprite(
+        button_area.min,
+        button_area.size(),
+        if button.contains_point(pointer) {
+            "recipe_book/button_highlighted"
+        } else {
+            "recipe_book/button"
+        },
+    ));
 }
 
 fn background(atlas: &GuiAtlasData, top_left: IVec2, part: BackgroundPart, out: &mut Vec<GuiQuad>) {
@@ -247,7 +269,6 @@ mod tests {
     use std::sync::LazyLock;
 
     use bevy::app::App;
-    use bevy::ecs::entity::Entity;
     use bevy::math::Vec2;
     use mcrs_minecraft_engine_inventory_menu::MenuParts;
     use mcrs_minecraft_engine_inventory_menu::MenuTitle;
@@ -262,13 +283,17 @@ mod tests {
     use mcrs_minecraft_inventory_file::PlayerItems;
     use mcrs_minecraft_inventory_menu::MenuLayout;
     use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
+    use mcrs_minecraft_item_icon::IconSources;
     use mcrs_minecraft_item_stack::Builtin;
     use mcrs_minecraft_item_stack::Count;
     use mcrs_minecraft_item_stack::ItemStack;
     use mcrs_minecraft_item_stack::Kind;
     use mcrs_minecraft_item_stack::MaxStackSize;
+    use mcrs_minecraft_item_stack::NameLookup;
+    use mcrs_minecraft_item_stack::NameTable;
     use mcrs_minecraft_item_table::ItemTable;
     use mcrs_minecraft_model::resource_set::ResourceSet;
+    use mcrs_minecraft_model::stack_view::StackView;
     use mcrs_minecraft_player_holders::PlayerHolders;
     use mcrs_minecraft_player_holders::PlayerHoldersPlugin;
     use mcrs_minecraft_player_holders::restore_holders;
@@ -278,6 +303,7 @@ mod tests {
     use crate::hotbar::hotbar;
     use crate::language::ClientLanguage;
     use crate::menu_label_text::LABEL_COLOR;
+    use crate::menu_test_app::{MODELS, TABLE};
 
     const SIZE: GuiSize = GuiSize {
         width: 427,
@@ -287,6 +313,29 @@ mod tests {
 
     static ATLAS: LazyLock<GuiAtlasData> =
         LazyLock::new(|| GuiAtlasData::load(ResourceSet::corpus()).unwrap());
+
+    static ICON: LazyLock<SlotIcon> = LazyLock::new(|| {
+        let location = ResourceLocation::read("minecraft:stone").unwrap();
+        let kind = Kind(TABLE.id(NameTable::Item, location).unwrap());
+        let stack = ItemStack::new(kind, Count::new(1).unwrap());
+        let view = StackView {
+            stack: &stack,
+            table: &TABLE,
+        };
+        let sources = IconSources {
+            models: &MODELS,
+            registries: None,
+        };
+        SlotIcon::of(view, &sources)
+    });
+
+    fn scene(cursor: IVec2) -> GuiScene {
+        GuiScene {
+            size: SIZE,
+            cursor,
+            ..GuiScene::default()
+        }
+    }
 
     enum Place {
         Cursor,
@@ -381,8 +430,9 @@ mod tests {
     #[test]
     fn the_hotbar_lists_the_vanilla_rectangles_in_order() {
         let table = stacks(None, &[Place::Player(3), Place::Player(40)]);
-        let mut out = Vec::new();
-        hotbar(SIZE, 3, &table, &mut out);
+        let mut scene = scene(IVec2::ZERO);
+        hotbar(&mut scene, 3, &table, |_| Some(*ICON));
+        let out = &scene.quads;
         let cx = 213;
         assert_eq!(
             out[0],
@@ -404,10 +454,10 @@ mod tests {
             matches!(out[2], GuiQuad::Sprite { rect, region: "hud/hotbar_offhand_left", .. } if rect.min == IVec2::new(cx - 120, 217))
         );
         assert!(
-            matches!(out[3], GuiQuad::Item { origin, .. } if origin == IVec2::new(cx - 90 + 62, 221))
+            matches!(out[3], GuiQuad::Icon { origin, .. } if origin == IVec2::new(cx - 90 + 62, 221))
         );
         assert!(
-            matches!(out[4], GuiQuad::Item { origin, .. } if origin == IVec2::new(cx - 117, 221))
+            matches!(out[4], GuiQuad::Icon { origin, .. } if origin == IVec2::new(cx - 117, 221))
         );
         assert_eq!(out.len(), 5);
     }
@@ -415,7 +465,7 @@ mod tests {
     fn items(out: &[GuiQuad]) -> Vec<IVec2> {
         out.iter()
             .filter_map(|quad| match quad {
-                GuiQuad::Item { origin, .. } => Some(*origin),
+                GuiQuad::Icon { origin, .. } => Some(*origin),
                 _ => None,
             })
             .collect()
@@ -447,11 +497,10 @@ mod tests {
     #[test]
     fn the_inventory_screen_lists_the_vanilla_rectangles_in_order() {
         let table = stacks(None, &[Place::Player(9), Place::Cursor]);
-        let mut out = Vec::new();
         let cursor = IVec2::new(125 + 8 + 5, 37 + 84 + 5);
+        let mut scene = scene(cursor);
         menu_screen(
-            SIZE,
-            cursor,
+            &mut scene,
             MenuGeometry::INVENTORY,
             MenuContents {
                 stacks: &table,
@@ -459,8 +508,9 @@ mod tests {
             },
             &MenuLabelText::default(),
             &ATLAS,
-            &mut out,
+            |_| Some(*ICON),
         );
+        let out = &scene.quads;
         let top_left = IVec2::new(125, 37);
         assert_eq!(inventory_window_corner(SIZE), top_left);
         assert!(
@@ -510,11 +560,8 @@ mod tests {
                 ("container/slot/shield", top_left + IVec2::new(77, 62)),
             ]
         );
-        assert_eq!(items(&out), vec![top_left + IVec2::new(8, 84), cursor - 8]);
-        assert!(
-            label_origins(&out).is_empty(),
-            "the inventory has no labels"
-        );
+        assert_eq!(items(out), vec![top_left + IVec2::new(8, 84), cursor - 8]);
+        assert!(label_origins(out).is_empty(), "the inventory has no labels");
         assert!(
             matches!(
                 out[out.len() - 2],
@@ -526,18 +573,18 @@ mod tests {
             "the front highlight draws over the stacks"
         );
         assert!(
-            matches!(out[out.len() - 1], GuiQuad::Item { .. }),
+            matches!(out[out.len() - 1], GuiQuad::Icon { .. }),
             "the carried stack draws last"
         );
     }
 
     #[test]
-    fn a_drag_of_ten_over_three_empty_entries_previews_three_each_and_leaves_one() {
+    fn a_drag_of_ten_over_three_empty_entries_previews_three_and_caps_the_small_one() {
         let table = stacks(None, &[Place::Cursor]);
         let carried = table.carried().unwrap();
         let mut drag = DragPreview::default();
-        for index in 9..12 {
-            drag.join(index, DragEntry { held: 0, cap: 64 });
+        for (index, cap) in [(9, 64), (10, 64), (11, 2)] {
+            drag.join(index, DragEntry { held: 0, cap });
         }
         drag.split(DragSplit {
             kind: DragKind::Split,
@@ -546,10 +593,9 @@ mod tests {
             size: 3,
         });
         let cursor = IVec2::new(300, 200);
-        let mut out = Vec::new();
+        let mut scene = scene(cursor);
         menu_screen(
-            SIZE,
-            cursor,
+            &mut scene,
             MenuGeometry::INVENTORY,
             MenuContents {
                 stacks: &table,
@@ -557,8 +603,9 @@ mod tests {
             },
             &MenuLabelText::default(),
             &ATLAS,
-            &mut out,
+            |stack| (stack == carried).then_some(*ICON),
         );
+        let out = &scene.quads;
         let top_left = inventory_window_corner(SIZE);
         let corners: Vec<IVec2> = (9..12)
             .map(|index| top_left + menu_draw::point(MenuGeometry::INVENTORY.entry(index).unwrap()))
@@ -576,26 +623,24 @@ mod tests {
             .map(|corner| IRect::from_corners(*corner, *corner + 16))
             .collect();
         assert_eq!(fills, entry_areas, "a white fill on each previewed entry");
-        let drawn: Vec<(IVec2, Entity, Option<CountLabel>)> = (out.iter())
-            .filter_map(|quad| match quad {
-                GuiQuad::Item {
-                    origin,
-                    stack,
-                    count,
-                } => Some((*origin, *stack, *count)),
+        let drawn: Vec<(IVec2, u8, Overlays)> = (out.iter())
+            .filter_map(|quad| match *quad {
+                GuiQuad::Icon { origin, index } => {
+                    let entry = scene.icons[index];
+                    Some((origin, entry.overlay.count, entry.overlays))
+                }
                 _ => None,
             })
             .collect();
-        let three = Some(CountLabel::Plain(3));
         assert_eq!(
             drawn,
             vec![
-                (corners[0], carried, three),
-                (corners[1], carried, three),
-                (corners[2], carried, three),
-                (cursor - 8, carried, Some(CountLabel::Plain(1))),
+                (corners[0], 3, Overlays::Stack),
+                (corners[1], 3, Overlays::Stack),
+                (corners[2], 2, Overlays::Capped),
+                (cursor - 8, 2, Overlays::Stack),
             ],
-            "the cursor item with 3 in each entry and 1 at the mouse"
+            "3 in each entry that fits, 2 capped in the small one and 2 at the mouse"
         );
     }
 
@@ -613,10 +658,9 @@ mod tests {
         let geometry = MenuGeometry::of(MenuType::Generic9x3).unwrap();
         let top_left = IVec2::new((427 - 176) / 2, (240 - 168) / 2);
         let cursor = top_left + IVec2::new(8 + 3, 18 + 3);
-        let mut out = Vec::new();
+        let mut scene = scene(cursor);
         menu_screen(
-            SIZE,
-            cursor,
+            &mut scene,
             geometry,
             MenuContents {
                 stacks: &table,
@@ -624,12 +668,13 @@ mod tests {
             },
             &labels,
             &ATLAS,
-            &mut out,
+            |_| Some(*ICON),
         );
+        let out = &scene.quads;
 
         let image = ATLAS.region("container/generic_54").min.as_vec2();
         assert_eq!(
-            texels(&out),
+            texels(out),
             vec![
                 (
                     IRect::from_corners(top_left, top_left + IVec2::new(176, 71)),
@@ -649,12 +694,12 @@ mod tests {
             "the two parts of generic_54 touch"
         );
         assert_eq!(
-            label_origins(&out),
+            label_origins(out),
             vec![top_left + IVec2::new(8, 6), top_left + IVec2::new(8, 74)],
             "the title and the inventory label"
         );
         assert_eq!(
-            items(&out),
+            items(out),
             vec![
                 top_left + IVec2::new(8, 18),
                 top_left + IVec2::new(8, 143),
