@@ -83,7 +83,7 @@ Out of scope:
 
 | Input | Default | Value that turns the budget off |
 |-------|---------|---------------------------------|
-| NBT budget: the byte limit | `2097152` | none |
+| NBT budget: the byte limit | `33554432` | none |
 | NBT budget: the tag limit | `262144` | none |
 
 - **Behavior:** the user sets the input through the plugin (`README.md`, section "Requirements
@@ -95,11 +95,52 @@ Out of scope:
 - **Behavior:** a user of the library who decodes a wire stack alone can give a budget. When the
   user gives no budget, the reader uses the defaults of this table.
 
-Provenance: `design`. The byte limit is the number of the vanilla quota for one network NBT
-(TXT-NBT-005). The tag limit and the depth limit are the defaults of the per-tag limiter of the
-NBT library of the public ViaVersion proxy. A vanilla client in normal play sends much less: a
-written book with 100 pages of 1024 ASCII characters has a charge of 204 800. Kind: semantic.
-Confidence: high.
+Provenance: `design`. Both defaults are policy of mcrs, not values of the vanilla server. The byte
+limit `33554432` is `2^25`, the smallest power of two above the charge of the largest stack that
+survival play makes (NBQ-CFG-002). That charge is 33 186 000. The byte limit is also twice the
+largest charge that one serverbound packet of plain text can carry (NBQ-CFG-002). The tag limit
+is the default of the per-tag limiter of the NBT library of the public ViaVersion proxy. It is
+more than 48 times the tag total of the largest stack of survival play. The depth limit is also
+the default of that library. Kind: semantic. Confidence: high.
+
+### NBQ-CFG-002: A stack of survival play passes
+
+- **Behavior:** with the defaults of NBQ-CFG-001, the budget does not refuse a stack that survival
+  play can make. The largest such stack is the shulker box of this rule. A player in creative mode
+  who moves it thus keeps the connection.
+- **Inputs:** the limits of survival play:
+  - a written book comes from a book and quill. `edit_book` gives at most 100 pages of 1024 UTF-16
+    code units (NBQ-BOOK-001).
+  - each page is a plain text, thus one String tag on the wire (`item-stack.md`, STK-SHP-004).
+    When the server filters text, a page has a raw text and a filtered text.
+  - the modified UTF-8 form of NBT uses at most 3 bytes for each UTF-16 code unit. A String of
+    1024 code units thus has at most `L = 3072`.
+  - the title, the author and the generation of `minecraft:written_book_content` are not network
+    NBT. They add nothing (NBQ-UNIT-001).
+  - an anvil gives a `minecraft:custom_name` of at most 50 code units, thus `L = 150`.
+  - a shulker box holds 27 stacks. Each written book in it is one stack.
+- **Behavior:** the charges of NBQ-CHG-001 then give these totals:
+
+| Part | Charge | Tags |
+|------|--------|------|
+| one page: raw text `2 × 3072` and filtered text `2 × 3072` | 12 288 | 2 |
+| one book: 100 pages | 1 228 800 | 200 |
+| the name of one book | 300 | 1 |
+| 27 named books | 33 185 700 | 5 427 |
+| the name of the shulker box | 300 | 1 |
+| the shulker box | 33 186 000 | 5 428 |
+
+- **Behavior:** such a shulker box does not fit in one serverbound packet. Its wire form has about
+  16 600 000 bytes: each page has 6 151 bytes. An inflated packet has at most 8 388 608 bytes
+  (`compression.md`, FRAME-007). FRAME-007 refuses the packet before the budget applies.
+- **Behavior:** in one packet, a shulker box can carry 13 such books and a part of a 14th book.
+  Its charge is less than 16 777 216. For each String, the charge `2 × L` is less than two times
+  its `L + 3` bytes on the wire. When each network NBT of a packet is a String, the charge total is
+  thus less than two times the bytes of the packet.
+
+Provenance: `design` for the budget. `documentation` for the limits of `edit_book` (NBQ-BOOK-001)
+and for the name of 50 characters of the anvil and the 27 slots of a shulker box, on the Minecraft
+Wiki. Kind: semantic. Confidence: high.
 
 ## 2. The decode unit
 
@@ -108,7 +149,11 @@ Confidence: high.
 - **Behavior:** each decode unit has one budget. At the start of the decode unit, the charge
   total and the tag total are 0. A decode unit is one of these:
   - one serverbound packet that the server reads in the CONFIGURATION state or in the PLAY state;
-  - one wire stack that a user of the library decodes alone, out of a packet.
+  - one wire stack that a user of the library decodes alone, out of a packet, from input that
+    the user does not trust.
+- **Behavior:** a stack that the server made, and that the server decodes again, is not a decode
+  unit. The budget does not apply to it. For example, the stacks of the sync of a menu and the
+  stack of an item entity are not decode units.
 - **Behavior:** each network NBT in the decode unit adds to the same budget. The totals do not go
   back to 0 between two network NBT of one decode unit. This includes:
   - each component whose wire form is a network NBT or holds one, for example
@@ -127,13 +172,14 @@ Confidence: high.
   of `inventory.md`, INV-CRE-003. A player who is not in creative mode thus gets the same refusal.
 - **Behavior:** the limits that the start of this document lists apply together with the budget.
   The first limit that fails gives the decode error.
-- **Example:** a stack holds a container with two stacks. Each of the two stacks has a
-  `minecraft:custom_data` with a charge of 1 100 000. Each charge is less than the byte limit, but
-  the sum is larger. The stack is refused (NBQ-VEC-010).
+- **Example:** a library user gives a byte limit of 2 097 152. A stack holds a container with two
+  stacks. Each of the two stacks has a `minecraft:custom_data` with a charge of 1 100 000. Each
+  charge is less than the byte limit, but the sum is larger. The stack is refused (NBQ-VEC-010).
 
 Provenance: `design`. A limit for each value lets the sum grow with the number of values. A
 packet with one stack with nested stacks can hold thousands of network NBT. One budget for the
-whole packet bounds the work for the packet to the work for one NBT at the byte limit. Kind:
+whole packet bounds the memory that the reader allocates for the NBT of the packet. The time of
+the decode has a weaker bound (NBQ-REF-001). Kind:
 deviation (section 6). Confidence: high.
 
 ## 3. The charge
@@ -187,7 +233,7 @@ List cost more than its one byte on the wire. Kind: deviation (section 6). Confi
   reader does not need the data to give the quota error.
 - **Behavior:** a negative declared length stays a decode error, as before this document.
 
-Provenance: `design`. A charge before the data bounds the memory and the time of the reader by the
+Provenance: `design`. A charge before the data bounds the memory that the reader allocates by the
 budget. A declared length of `2147483647` thus costs no allocation. Kind: semantic.
 Confidence: high.
 
@@ -199,8 +245,11 @@ Confidence: high.
   unit and gives no partial value.
 - **Behavior:** a user of the library can tell a quota error from an error of input that ends too
   early.
-- **Behavior:** before the quota error, the reader reads at most the bytes that the budget allows.
-  It allocates memory only for data that it charged.
+- **Behavior:** the reader allocates memory only for data that it charged, and it charges the data
+  before it allocates the memory. The memory of a decode unit is thus bounded by the budget.
+- **Behavior:** the time of the decode is bounded by the bytes of the packet times a factor that
+  grows with the depth of the NBT. The budget does not bound the time. Unresolved entry 6 states
+  why.
 - **Behavior:** a quota error is not a panic. It does not stop the thread of the reader.
 
 Provenance: `design`. A user of the library must know that the input is too large, not
@@ -227,9 +276,10 @@ Confidence: high.
   time as with a packet at the limits.
 - **Behavior:** a flood of refused packets does not write one log line for each packet.
 
-Provenance: `design`. A vanilla client never sends a packet past the budget in normal play
-(NBQ-CFG-001), so the sender is not a vanilla client. A disconnect stops further work for the
-connection. The reason is the same as for each other decode error (`compression.md`, FRAME-009).
+Provenance: `design`. With the defaults, a stack of survival play does not reach the budget
+(NBQ-CFG-002). A packet past the budget thus holds a stack from a command, or it does not come from
+a vanilla client. A disconnect stops further work for the connection. The reason is the same as
+for each other decode error (`compression.md`, FRAME-009).
 Kind: semantic. Confidence: high.
 
 ## 5. The book packet
@@ -263,18 +313,23 @@ on the Minecraft Wiki. The String (n) form is that of `login.md`, section 0.1. T
   - **Reason:** a limit for each NBT alone lets one packet hold many NBT at that limit. The work
     for one packet then grows with the number of NBT.
   - **Visible to the client:** only for a packet with a charge larger than the byte limit, or with
-    more tags than the tag limit. The player gets the disconnect of NBQ-REF-002. This occurs only
-    with a stack that is much larger than a stack of survival play, for example a stack from a
-    command, which the player moves in creative mode.
+    more tags than the tag limit. The player gets the disconnect of NBQ-REF-002. A stack of
+    survival play never gets it (NBQ-CFG-002). A stack from a command can get it when the player
+    moves it in creative mode, for example a `minecraft:custom_data` with a List of more than
+    262 144 elements.
   - **Bug reference:** none.
-  - **Test:** a differential test does not send a stack with a charge above 1 000 000.
+  - **Test:** a differential test does not send a stack with more than 100 000 tags, or with a
+    charge above 16 000 000.
 
 ## 7. Unresolved
 
 Each entry has a default. The default applies until the owner decides. An entry is not an open
 question for an implementer.
 
-1. **The defaults** (NBQ-CFG-001). Default: a byte limit of `2097152` and a tag limit of `262144`.
+1. **The defaults** (NBQ-CFG-001). Default: a byte limit of `33554432` and a tag limit of `262144`.
+   With these values, the tag limit refuses most hostile NBT that fits in one packet. The byte
+   limit refuses a declared length past the data (NBQ-CHG-002). Inside one packet, the tag limit
+   refuses a List of small elements before the byte limit does.
 2. **A budget in the client.** Default: a client that decodes a clientbound stack uses the
    default budget for each top-level stack, with no budget for the whole packet. Reason: a
    clientbound packet, for example `container_set_content`, can hold many large stacks that the
@@ -292,13 +347,30 @@ question for an implementer.
 5. **Follow-up limits on single components.** Default: none in this document. These belong to the
    documents of their values: a limit on each array of a component, the depth of the hidden effect
    of a potion effect, and the depth of the arguments of a `translate` text.
+6. **The time of the decode** (NBQ-REF-001). Default: the time is bounded by the bytes of the
+   packet times a factor of the depth, not by the budget. Two causes are known:
+   - after the budget accepts a text or a value of a component, the reader decodes it a second
+     time, and the second decode does not charge the budget;
+   - to read a Compound with one entry with an empty name, the reader can skip the value and
+     then read it again. At each level of depth, the reader can skip the same bytes again. The
+     work is then the depth times the size.
+
+   A later issue can bound the time. This document does not state the fix.
 
 ## 8. Test vectors
 
-In each vector, the budget has the defaults of NBQ-CFG-001. "Reader" vectors decode one network
-NBT, or one wire stack alone. "Packet" vectors send a `set_creative_mode_slot` packet from a
-player in creative mode. A packet with more than 2 097 151 bytes needs compression to fit in a
-frame (FRAME-005).
+"Reader" vectors decode one network NBT, or one wire stack alone. "Packet" vectors send a
+`set_creative_mode_slot` packet from a player in creative mode. A packet with more than
+2 097 151 bytes needs compression to fit in a frame (FRAME-005).
+
+The budget of each vector is one of these:
+
+- NBQ-VEC-001 to NBQ-VEC-015: a byte limit of `2097152` that the test gives, and the default tag
+  limit. A reader vector gives it as a library user (NBQ-CFG-001). A packet vector sets it in the
+  plugin. With this byte limit, the vectors stay small. A stack at the default byte limit does not
+  fit in one packet.
+- NBQ-VEC-016: a byte limit of `1000000` in the plugin.
+- NBQ-VEC-017 to NBQ-VEC-020: the defaults of NBQ-CFG-001.
 
 ### NBQ-VEC-001 to NBQ-VEC-006: Reader, one network NBT
 
@@ -330,12 +402,29 @@ Compound with one entry with the name `a` and a Byte array of `N` bytes. Its cha
 - NBQ-VEC-012: `minecraft:written_book_content` with 262 145 pages, each page an empty String
   text. The charge is 0. The tag total is 262 145. The result is a quota error.
 
-### NBQ-VEC-013 to NBQ-VEC-017: Packet
+### NBQ-VEC-013 to NBQ-VEC-019: Packet
 
 | Id | Packet | Result |
 |----|--------|--------|
 | NBQ-VEC-013 | the stack of NBQ-VEC-008 in a `set_creative_mode_slot` packet, slot 36 | `disconnect` of PLAY with `disconnect.genericReason`, then the close. Slot 36 does not change. The server does not panic, and the next tick runs. |
 | NBQ-VEC-014 | the stack of NBQ-VEC-007 in the same packet | slot 36 holds the stack. The connection stays open. |
 | NBQ-VEC-015 | the stack of NBQ-VEC-007, two times, in two packets | both pass, because each packet has its own budget |
-| NBQ-VEC-016 | the stack of NBQ-VEC-007, with a plugin byte limit of `1000000` | the refusal of NBQ-VEC-013 |
+| NBQ-VEC-016 | the stack of NBQ-VEC-007 | the refusal of NBQ-VEC-013 |
 | NBQ-VEC-017 | an `edit_book` packet with 101 pages of 1 character | the refusal of NBQ-VEC-013 |
+| NBQ-VEC-018 | the stack of NBQ-VEC-020 with 13 books and no names, slot 36 | slot 36 holds the stack. The connection stays open. |
+| NBQ-VEC-019 | `minecraft:custom_data` = `{"a": [List of Byte, N = 300000]}`, with the data, slot 36 | the refusal of NBQ-VEC-013, at the head of the List: the tag total is 300 002 |
+
+- NBQ-VEC-018 is the shulker box of a player in creative mode (NBQ-CFG-002). Its charge is
+  15 974 400 and its tag total is 2 600. The packet has about 7 996 500 bytes, less than the limit
+  of 8 388 608 bytes of an inflated packet.
+
+### NBQ-VEC-020: Reader, the largest stack of survival play
+
+- **Stack:** one `minecraft:shulker_box` with `minecraft:custom_name` of 50 times `U+3042`. Its
+  `minecraft:container` holds 27 stacks of one `minecraft:written_book`, each with:
+  - `minecraft:custom_name` of 50 times `U+3042`;
+  - `minecraft:written_book_content`: title `t`, author `a`, 100 pages. Each page has a raw text
+    and a filtered text, each a String text of 1024 times `U+3042`.
+- **Charge:** 33 186 000, as NBQ-CFG-002 states. **Tags:** 5 428.
+- **Result:** passes. The wire form has about 16 600 000 bytes, so only a library user can decode
+  it alone. It does not fit in one packet.
