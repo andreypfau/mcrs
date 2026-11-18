@@ -1042,3 +1042,44 @@ fn a_named_colour_equals_its_rgb_value_and_keeps_its_spelling() {
         assert_eq!(hash(&from_wire), hash(stack), "{spelling}");
     }
 }
+
+fn stone_with(kind: &str, value: &[u8]) -> Vec<u8> {
+    let type_id = COMPONENT_TYPES
+        .iter()
+        .position(|path| *path == kind)
+        .expect("the kind has a type id");
+    let type_id = u8::try_from(type_id).expect("the type ids are below 128");
+    [unhex("01 01 01 00"), vec![type_id], value.to_vec()].concat()
+}
+
+fn byte_array_under_a(length: usize) -> Vec<u8> {
+    let declared = i32::try_from(length).expect("the test lengths fit in 32 bits");
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&declared.to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    stone_with("custom_data", &nbt)
+}
+
+fn container_of_two(length: usize) -> Vec<u8> {
+    let template = [unhex("01 8808 01"), byte_array_under_a(length).split_off(2)].concat();
+    stone_with("container", &[vec![2], template.clone(), template].concat())
+}
+
+#[test]
+fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
+    let cases = [
+        (byte_array_under_a(2_097_148), true),
+        (byte_array_under_a(2_097_149), false),
+        (container_of_two(1_048_572), true),
+        (container_of_two(1_048_573), false),
+    ];
+    for (index, (bytes, passes)) in cases.iter().enumerate() {
+        let read = read_all(bytes, read_wire);
+        if *passes {
+            assert!(matches!(read, Ok(Some(_))), "{index}");
+        } else {
+            assert_eq!(read, Err(WireError::QuotaExceeded), "{index}");
+        }
+    }
+}

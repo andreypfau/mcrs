@@ -32,6 +32,8 @@ pub enum Error {
     LargeLength(usize),
     #[error("Tried to read NBT tag with too high complexity, depth > {MAX_DEPTH}")]
     TooDeep,
+    #[error("The network NBT exceeds its budget")]
+    QuotaExceeded,
 }
 
 pub const MAX_DEPTH: u32 = 512;

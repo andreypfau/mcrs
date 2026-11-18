@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_nbt.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_container_click.workspace = true
@@ -40,7 +41,6 @@ tracing.workspace = true
 [dev-dependencies]
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_item_entity.workspace = true
-mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_test_alloc.workspace = true

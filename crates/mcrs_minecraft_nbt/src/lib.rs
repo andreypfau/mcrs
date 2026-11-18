@@ -4,6 +4,7 @@
 )]
 
 mod binary_read_guard;
+mod budget;
 pub mod compound;
 pub mod deserializer;
 pub mod encoding;
@@ -22,6 +23,7 @@ mod test;
 mod wire;
 
 pub(crate) use binary_read_guard::{BinaryReadGuard, reading_binary};
+pub use budget::{NbtBudget, NbtQuotaExceeded, with_nbt_budget, without_nbt_budget};
 pub use deserializer::{from_bytes, from_bytes_unnamed, from_bytes_unnamed_with, from_bytes_with};
 pub use encoding::{BigEndian, LittleEndian, NbtEncoding, NetworkLittleEndian};
 pub use error::{Error, MAX_DEPTH};

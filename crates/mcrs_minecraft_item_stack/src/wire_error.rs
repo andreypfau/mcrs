@@ -33,6 +33,7 @@ pub enum WireError {
     UnnamedId(NameTable),
     SavedValueOnly,
     TooDeep,
+    QuotaExceeded,
 }
 
 impl WireError {
@@ -115,6 +116,7 @@ impl fmt::Display for WireError {
             Self::SavedValueOnly => formatter
                 .write_str("the patch holds an undecoded saved component, which has no wire form"),
             Self::TooDeep => formatter.write_str("the item templates are nested too deep"),
+            Self::QuotaExceeded => formatter.write_str("the network NBT exceeds its budget"),
         }
     }
 }

@@ -369,6 +369,16 @@ fn decode_with<'a>(
     r: &mut &'a [u8],
     patch: impl FnOnce(&mut &'a [u8]) -> Result<ComponentPatch<Wire>>,
 ) -> Result<ProtoStack<Wire>> {
+    mcrs_minecraft_nbt::with_nbt_budget(mcrs_minecraft_nbt::NbtBudget::default(), || {
+        decode_budgeted(r, patch)
+    })
+    .map_err(Error::other)?
+}
+
+fn decode_budgeted<'a>(
+    r: &mut &'a [u8],
+    patch: impl FnOnce(&mut &'a [u8]) -> Result<ComponentPatch<Wire>>,
+) -> Result<ProtoStack<Wire>> {
     let count = VarInt::decode(r)?.0;
     if count <= 0 {
         return Ok(ProtoStack::default());

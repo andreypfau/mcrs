@@ -192,7 +192,7 @@ impl NbtTag {
     pub fn deserialize<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<NbtTag, Error> {
-        let tag_id = reader.get_u8()?;
+        let tag_id = reader.read_root_kind()?;
         Self::deserialize_data(reader, tag_id)
     }
 
@@ -206,11 +206,11 @@ impl NbtTag {
         match tag_id {
             END_ID => Ok(()),
             BYTE_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(1)?;
                 reader.skip_bytes(len as i64)
             }
             STRING_ID => {
-                let len = E::read_string_length(&mut reader.reader)?;
+                let len = reader.read_string_length()?;
                 reader.skip_bytes(len as i64)
             }
             INT_ID => {
@@ -242,7 +242,7 @@ impl NbtTag {
                 Ok(())
             }
             INT_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(4)?;
                 if let Some(size) = E::fixed_size(INT_ID) {
                     reader.skip_bytes(len as i64 * size)
                 } else {
@@ -253,7 +253,7 @@ impl NbtTag {
                 }
             }
             LONG_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(8)?;
                 if let Some(size) = E::fixed_size(LONG_ID) {
                     reader.skip_bytes(len as i64 * size)
                 } else {
@@ -298,7 +298,7 @@ impl NbtTag {
                 Ok(NbtTag::Double(double))
             }
             BYTE_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(1)?;
                 let byte_array = reader.read_boxed_slice(len)?;
                 Ok(NbtTag::ByteArray(byte_array))
             }
@@ -329,7 +329,7 @@ impl NbtTag {
                 Ok(NbtTag::Compound(compound))
             }
             INT_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(4)?;
                 let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
                 for _ in 0..len {
                     let int = reader.get_i32()?;
@@ -338,7 +338,7 @@ impl NbtTag {
                 Ok(NbtTag::IntArray(int_array))
             }
             LONG_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(8)?;
                 let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len, READ_STEP));
                 for _ in 0..len {
                     let long = reader.get_i64()?;
@@ -433,6 +433,9 @@ pub(crate) fn read_list_header<R: Read + Seek, E: NbtEncoding>(
 ) -> Result<(u8, usize), Error> {
     let element_type = reader.get_u8()?;
     let len = E::read_collection_length(&mut reader.reader)?;
+    let count = len as u64;
+    let element = 4 + crate::budget::value_charge(element_type);
+    crate::budget::charge(element.saturating_mul(count).saturating_add(5), count)?;
     if element_type == END_ID && len > 0 {
         return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
     }

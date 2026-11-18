@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::BuiltinKey;
@@ -83,6 +84,17 @@ fn frame_length(input: &mut &[u8]) -> Result<usize, WireError> {
 }
 
 fn read_frame<L: NameLookup>(
+    input: &mut &[u8],
+    names: &L,
+    entries: Entries,
+) -> Result<Option<ItemStack>, WireError> {
+    mcrs_minecraft_nbt::with_nbt_budget(NbtBudget::default(), || {
+        read_budgeted_frame(input, names, entries)
+    })
+    .unwrap_or(Err(WireError::QuotaExceeded))
+}
+
+fn read_budgeted_frame<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
     entries: Entries,

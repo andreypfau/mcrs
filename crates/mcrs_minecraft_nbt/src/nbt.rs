@@ -28,7 +28,7 @@ impl Nbt {
     pub fn read_with<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<Nbt, Error> {
-        let tag_type_id = reader.get_u8()?;
+        let tag_type_id = reader.read_root_kind()?;
 
         if tag_type_id != COMPOUND_ID {
             return Err(Error::NoRootCompound(tag_type_id));
@@ -49,7 +49,7 @@ impl Nbt {
     pub fn read_unnamed_with<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<Nbt, Error> {
-        let tag_type_id = reader.get_u8()?;
+        let tag_type_id = reader.read_root_kind()?;
 
         if tag_type_id != COMPOUND_ID {
             return Err(Error::NoRootCompound(tag_type_id));
@@ -93,7 +93,7 @@ impl Nbt {
 pub fn get_nbt_string<R: Read + Seek, E: NbtEncoding>(
     bytes: &mut NbtReadHelper<R, E>,
 ) -> Result<String, Error> {
-    let len = E::read_string_length(&mut bytes.reader)?;
+    let len = bytes.read_string_length()?;
     let string_bytes = bytes.read_boxed_slice(len)?;
     Ok(E::decode_string(&string_bytes)?.into_owned())
 }

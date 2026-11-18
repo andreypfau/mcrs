@@ -499,6 +499,20 @@ fn edit_book_bounds_pages_and_title() {
 }
 
 #[test]
+fn edit_book_refuses_one_page_past_the_limit_on_decode() {
+    let book = |pages: usize| {
+        let mut bytes = vec![0, u8::try_from(pages).expect("below 128 pages")];
+        for _ in 0..pages {
+            bytes.extend_from_slice(&[1, b'x']);
+        }
+        bytes.push(0);
+        bytes
+    };
+    assert!(ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES).as_slice()).is_ok());
+    assert!(ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES + 1).as_slice()).is_err());
+}
+
+#[test]
 fn quick_craft_button_round_trips_every_valid_mask() {
     let valid = [
         (0, QuickCraftKind::Split, QuickCraftStage::Header),
