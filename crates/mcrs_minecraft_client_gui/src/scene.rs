@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use bevy::math::{IRect, IVec2, Rect, UVec2};
+use bevy::math::{DVec2, IRect, IVec2, Rect, UVec2};
 use bevy::prelude::*;
 use bevy::render::RenderApp;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
@@ -32,9 +32,11 @@ use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
+use crate::menu_draw;
 use crate::player_stacks::PlayerStacks;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_client_widget::GuiPoint;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
@@ -522,19 +524,29 @@ pub(crate) fn window_framebuffer(window: &Window) -> UVec2 {
     )
 }
 
+pub(crate) fn gui_pointer(window: &Window, config: &GuiConfig, scale: u32) -> Option<DVec2> {
+    if let Some(cursor) = config.cursor {
+        return Some(cursor.as_dvec2());
+    }
+    let scale = f64::from(scale.max(1));
+    window
+        .physical_cursor_position()
+        .map(|cursor| cursor.as_dvec2() / scale)
+}
+
+pub(crate) fn gui_point(at: DVec2) -> GuiPoint {
+    GuiPoint::new(at.x.floor() as i32, at.y.floor() as i32)
+}
+
 fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
 ) {
     scene.size = GuiSize::of(window_framebuffer(&window), config.scale);
-    scene.cursor = config.cursor.unwrap_or_else(|| {
-        window
-            .physical_cursor_position()
-            .map_or(IVec2::new(-1, -1), |p| {
-                (p / scene.size.scale as f32).floor().as_ivec2()
-            })
-    });
+    scene.cursor = gui_pointer(&window, &config, scene.size.scale)
+        .map(gui_point)
+        .map_or(IVec2::new(-1, -1), menu_draw::point);
     scene.quads.clear();
     scene.tooltip.clear();
 }
@@ -558,13 +570,9 @@ fn draw_screens(
     let Ok((player, player_menus, selected, mode)) = player.single() else {
         return;
     };
-    let Some((layout, parts)) = (player_menus.iter().next()).and_then(|menu| menus.get(menu).ok())
-    else {
+    let Some(stacks) = PlayerStacks::of_player(player, player_menus, &menus, &holders) else {
         return;
     };
-    let stacks = PlayerStacks::collect(layout, parts, player.cursor, |slot| {
-        holders.get(slot.holder).ok()?.get(usize::from(slot.index))
-    });
     if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
         hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
     }

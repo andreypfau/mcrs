@@ -1,42 +1,21 @@
-use bevy::prelude::*;
 use mcrs_minecraft_client::test_support::ServerAnswers;
-use mcrs_minecraft_client::test_support::connection;
-use mcrs_minecraft_client::test_support::count_server_answers;
-use mcrs_minecraft_client::test_support::creative_player;
-use mcrs_minecraft_client::test_support::give;
-use mcrs_minecraft_client::test_support::joined;
-use mcrs_minecraft_client::test_support::open;
-use mcrs_minecraft_client::test_support::player_slot;
-use mcrs_minecraft_client::test_support::put_local;
-use mcrs_minecraft_client::test_support::round_trip;
-use mcrs_minecraft_client::test_support::update_until;
 use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
-use mcrs_minecraft_protocol::Bounded;
-use mcrs_minecraft_protocol::WritePacket;
-use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
-use mcrs_minecraft_save::SaveLock;
 
-use crate::local_world::client;
-use crate::local_world::world_folder;
+use crate::local_world::LocalWorld;
 use crate::stacks::AGREED;
 use crate::stacks::Entry;
 use crate::stacks::Item;
 use crate::stacks::Stack;
 use crate::stacks::at;
 use crate::stacks::click;
-use crate::stacks::cursor;
 use crate::stacks::empty;
 use crate::stacks::held;
 use crate::stacks::on;
-use crate::stacks::stack_at;
-use crate::stacks::value;
 
 struct Row {
     name: &'static str,
@@ -48,8 +27,6 @@ struct Row {
     cursor: Option<Stack>,
     answers: ServerAnswers,
 }
-
-const ENTRIES: std::ops::RangeInclusive<u16> = 9..=45;
 
 const ROWS: &[Row] = &[
     Row {
@@ -222,89 +199,21 @@ const ROWS: &[Row] = &[
 
 #[test]
 fn each_click_leaves_the_client_and_the_server_with_the_same_stacks() {
-    let folder = world_folder("menu-clicks");
-    let mut app = client();
-    count_server_answers(&mut app);
-    open(&mut app, &folder);
-    update_until(&mut app, "the join", joined);
-    update_until(&mut app, "the inventory menu in creative mode", |app| {
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world().resource::<ServerAnswers>().contents > 0
-            && creative_player(app.world_mut()).is_some()
-    });
-    round_trip(&mut app);
-    let viewer = creative_player(app.world_mut()).unwrap();
-
-    let mut expected: Vec<Option<Stack>> = ENTRIES.map(|_| None).collect();
+    let mut world = LocalWorld::join("menu-clicks", |_| {}, |_| {});
+    let viewer = world.viewer;
     for row in ROWS {
-        for given in row.given {
-            let value = value(app.world(), given.stack);
-            give(app.world_mut(), viewer, given.entry, value);
-            expected[usize::from(given.entry - ENTRIES.start())] = given.stack;
-        }
-        for local in row.local {
-            let value = value(app.world(), local.stack);
-            put_local(app.world_mut(), viewer, local.entry, value);
-        }
-        switch_game_mode(&mut app, viewer, row.game_mode);
-        *app.world_mut().resource_mut::<ServerAnswers>() = ServerAnswers::default();
+        world.give(row.given);
+        world.put_local(row.local);
+        world.switch_game_mode(row.game_mode);
+        world.clear_answers();
         for &click in row.clicks {
-            app.world_mut().write_message(MenuInput {
+            world.app.world_mut().write_message(MenuInput {
                 viewer,
                 action: MenuAction::Click(click),
             });
         }
-        app.update();
-        round_trip(&mut app);
-
-        assert_eq!(
-            *app.world().resource::<ServerAnswers>(),
-            row.answers,
-            "{}: the packets of the server in answer",
-            row.name
-        );
-        for entry in row.entries {
-            expected[usize::from(entry.entry - ENTRIES.start())] = entry.stack;
-        }
-        let entries: Vec<Option<Stack>> = ENTRIES
-            .map(|entry| stack_at(app.world(), viewer, player_slot(entry)))
-            .collect();
-        assert_eq!(entries, expected, "{}: the entries 9 to 45", row.name);
-        assert_eq!(
-            cursor(app.world(), viewer),
-            row.cursor,
-            "{}: the cursor",
-            row.name
-        );
+        world.app.update();
+        world.assert_after_round_trip(row.name, Some(row.answers), row.entries, row.cursor);
     }
-
-    app.world_mut().write_message(AppExit::Success);
-    app.update();
-    let lock = SaveLock::take(&folder).expect("the server released the world");
-    drop(lock);
-    std::fs::remove_dir_all(&folder).ok();
-}
-
-fn switch_game_mode(app: &mut App, viewer: Entity, game_mode: GameMode) {
-    if app.world().get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode)) {
-        return;
-    }
-    round_trip(app);
-    let command = match game_mode {
-        GameMode::Survival => "gamemode survival",
-        GameMode::Creative => "gamemode creative",
-        GameMode::Adventure => "gamemode adventure",
-        GameMode::Spectator => "gamemode spectator",
-    };
-    connection(app.world_mut()).write_packet(&ServerboundChatCommand {
-        command: Bounded(command),
-    });
-    let creative = game_mode == GameMode::Creative;
-    update_until(app, command, |app| {
-        let world = app.world();
-        world.get::<PlayerGameMode>(viewer) == Some(&PlayerGameMode(game_mode))
-            && world
-                .get::<Abilities>(viewer)
-                .is_some_and(|abilities| abilities.instant_build == creative)
-    });
+    world.leave();
 }

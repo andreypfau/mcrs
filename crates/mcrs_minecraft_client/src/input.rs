@@ -5,6 +5,7 @@ use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as Ph
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 
+use mcrs_minecraft_client_gui::item_key_codes;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
@@ -22,17 +23,6 @@ const NOTCHES_PER_LOGICAL_PIXEL: f64 = 0.1;
 
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
 
-const HOTBAR_KEYS: [KeyCode; 9] = [
-    KeyCode::Digit1,
-    KeyCode::Digit2,
-    KeyCode::Digit3,
-    KeyCode::Digit4,
-    KeyCode::Digit5,
-    KeyCode::Digit6,
-    KeyCode::Digit7,
-    KeyCode::Digit8,
-    KeyCode::Digit9,
-];
 const TOOLBAR_ACTIVATORS: [KeyCode; 2] = [KeyCode::KeyC, KeyCode::KeyX];
 
 pub struct ClientInputPlugin;
@@ -43,7 +33,11 @@ impl Plugin for ClientInputPlugin {
             .add_systems(FixedUpdate, read_movement_keys.before(LocalPlayerTick))
             .add_systems(
                 RunFixedMainLoop,
-                (read_attack_input, read_hotbar_keys, read_wheel)
+                (
+                    read_attack_input,
+                    read_hotbar_keys.run_if(cursor_grabbed_without_screen),
+                    read_wheel,
+                )
                     .in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
             )
             .add_systems(Update, (apply_mouse_look, grab_cursor_on_click).chain());
@@ -194,8 +188,6 @@ fn read_wheel(
 
 fn read_hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    screen: Option<Res<Screen>>,
-    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
     mut player: Query<
         (
             &mut SelectedHotbarSlot,
@@ -205,11 +197,8 @@ fn read_hotbar_keys(
         With<Player>,
     >,
 ) {
-    if cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen) {
-        return;
-    }
     let Some(slot) = (0..=LAST_HOTBAR_SLOT)
-        .zip(HOTBAR_KEYS)
+        .zip(item_key_codes::HOTBAR)
         .find_map(|(slot, key)| keys.just_pressed(key).then_some(slot))
     else {
         return;
@@ -253,6 +242,13 @@ fn release_cursor_on_escape(
 
 fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
     screen.is_none_or(|screen| *screen == Screen::None)
+}
+
+pub(crate) fn cursor_grabbed_without_screen(
+    screen: Option<Res<Screen>>,
+    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
+) -> bool {
+    cursor.grab_mode != CursorGrabMode::None && screen_is_none(screen)
 }
 
 #[cfg(not(target_family = "wasm"))]

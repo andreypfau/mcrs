@@ -4413,6 +4413,7 @@ dependencies = [
  "mcrs_minecraft_light_color",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_light_render",
+ "mcrs_minecraft_menu_geometry",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
@@ -4503,6 +4504,7 @@ dependencies = [
  "mcrs_minecraft_client_widget",
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_command",
+ "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_inventory_menu",
@@ -4522,6 +4524,7 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_lang",
+ "mcrs_minecraft_menu_geometry",
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",
@@ -6180,6 +6183,14 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_menu_geometry"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_client_widget",
+ "mcrs_minecraft_container_click",
 ]
 
 [[package]]

@@ -13,7 +13,7 @@ use mcrs_minecraft_client_widget::{
 
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
-use crate::scene::{GuiAtlas, GuiConfig, GuiScene};
+use crate::scene::{self, GuiAtlas, GuiConfig, GuiScene};
 
 const BUTTONS: [(MouseButton, PointerButton); 3] = [
     (MouseButton::Left, PointerButton::Left),
@@ -44,7 +44,7 @@ pub(crate) struct Pointer<'w, 's> {
 impl Pointer<'_, '_> {
     fn is_idle(&mut self, at: Option<DVec2>, mouse: GuiPoint) -> bool {
         let moved = std::mem::replace(&mut *self.last, at) != at
-            || at.is_some_and(|at| gui_point(at) != mouse);
+            || at.is_some_and(|at| scene::gui_point(at) != mouse);
         let acted = BUTTONS.iter().any(|&(button, _)| {
             self.buttons.just_pressed(button) || self.buttons.just_released(button)
         });
@@ -52,13 +52,7 @@ impl Pointer<'_, '_> {
     }
 
     fn position(&self) -> Option<DVec2> {
-        if let Some(cursor) = self.config.cursor {
-            return Some(cursor.as_dvec2());
-        }
-        let scale = f64::from(self.scene.size.scale.max(1));
-        self.window
-            .physical_cursor_position()
-            .map(|cursor| cursor.as_dvec2() / scale)
+        scene::gui_pointer(&self.window, &self.config, self.scene.size.scale)
     }
 }
 
@@ -81,7 +75,7 @@ pub(crate) fn menu_pointer(
     let widgets = &mut menu.widgets;
     let buttons = &*pointer.buttons;
     if let Some(at) = at {
-        widgets.mouse_move(gui_point(at));
+        widgets.mouse_move(scene::gui_point(at));
         if buttons.pressed(MouseButton::Left) && !buttons.just_pressed(MouseButton::Left) {
             widgets.mouse_drag(at.x, now_ms, &width, &mut events);
         }
@@ -111,10 +105,6 @@ pub(crate) fn menu_pointer(
         }
     }
     out.write_batch(events.drain(..).map(MenuEvent::Widget));
-}
-
-fn gui_point(at: DVec2) -> GuiPoint {
-    GuiPoint::new(at.x.floor() as i32, at.y.floor() as i32)
 }
 
 #[derive(SystemParam)]
