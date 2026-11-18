@@ -15,7 +15,7 @@ pub enum SlotGroup {
 }
 
 impl SlotGroup {
-    pub(crate) const ALL: [Self; 11] = [
+    pub const ALL: [Self; 11] = [
         Self::Any,
         Self::Mainhand,
         Self::Offhand,
@@ -29,7 +29,8 @@ impl SlotGroup {
         Self::Saddle,
     ];
 
-    pub(crate) const fn name(self) -> &'static str {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Any => "any",
             Self::Mainhand => "mainhand",

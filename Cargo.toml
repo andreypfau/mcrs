@@ -224,6 +224,7 @@ mcrs_minecraft_creative_report = { path = "crates/mcrs_minecraft_creative_report
 mcrs_minecraft_creative_content = { path = "crates/mcrs_minecraft_creative_content" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
+mcrs_minecraft_item_tooltip = { path = "crates/mcrs_minecraft_item_tooltip" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
 mcrs_minecraft_engine_inventory_menu = { path = "crates/mcrs_minecraft_engine_inventory_menu" }
 mcrs_minecraft_engine_inventory_click = { path = "crates/mcrs_minecraft_engine_inventory_click" }

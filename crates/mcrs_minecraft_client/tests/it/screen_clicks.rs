@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::input::mouse::MouseButtonInput;
 use bevy::input::{ButtonState, InputPlugin};
@@ -24,6 +26,7 @@ use crate::stacks::{self, AGREED, Entry, Item, Stack};
 
 const GUI_SCALE: u32 = 2;
 const SCRATCH_ENTRY: u16 = 9;
+const FRAME: Duration = Duration::from_millis(300);
 const WINDOW_CORNER: IVec2 = IVec2::new((640 - 176) / 2, (360 - 166) / 2);
 
 #[derive(Clone, Copy, Debug)]
@@ -320,6 +323,260 @@ const ROWS: &[Row] = &[
         ..row("Escape closes the inventory screen")
     },
     Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[over(12)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 0),
+            on(ClickKind::Drag, 1, 10),
+            on(ClickKind::Drag, 1, 11),
+            on(ClickKind::Drag, 1, 12),
+            outside(ClickKind::Drag, 2),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 3),
+            stacks::at(11, Item::Stone, 3),
+            stacks::at(12, Item::Stone, 3),
+        ],
+        cursor: stacks::held(Item::Stone, 1),
+        ..row("a left drag over three entries splits the cursor stack between them")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(RIGHT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 4),
+            on(ClickKind::Drag, 5, 10),
+            on(ClickKind::Drag, 5, 11),
+            outside(ClickKind::Drag, 6),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 1),
+            stacks::at(11, Item::Stone, 1),
+        ],
+        cursor: stacks::held(Item::Stone, 8),
+        ..row("a right drag puts one item in each entry")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Move(Pointer::RecipeBookButton), Event::Press(LEFT)],
+            &[Event::Release(RIGHT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 4),
+            on(ClickKind::Drag, 5, 10),
+            on(ClickKind::Drag, 5, 11),
+            outside(ClickKind::Drag, 6),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 1),
+            stacks::at(11, Item::Stone, 1),
+        ],
+        cursor: stacks::held(Item::Stone, 8),
+        ..row("a left press on the recipe book button keeps an open drag")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(MIDDLE)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(MIDDLE)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 8),
+            on(ClickKind::Drag, 9, 10),
+            on(ClickKind::Drag, 9, 11),
+            outside(ClickKind::Drag, 10),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 64),
+            stacks::at(11, Item::Stone, 64),
+        ],
+        ..row("a middle drag in creative fills each entry and empties the cursor")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Press(RIGHT), Event::Release(RIGHT)],
+            &[Event::Release(LEFT)],
+        ],
+        cursor: stacks::held(Item::Stone, 10),
+        ..row("a release of another button cancels a drag over two entries")
+    },
+    Row {
+        given: &[stacks::at(9, Item::Stone, 10)],
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[over(9), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+            &[over(10), Event::Release(RIGHT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUp, 1, 10)],
+        entries: &[stacks::empty(9), stacks::at(10, Item::Stone, 1)],
+        cursor: stacks::held(Item::Stone, 9),
+        ..row("only the first release after a press that sent a click is skipped")
+    },
+    Row {
+        given: &[stacks::at(9, Item::Stone, 10)],
+        frames: &[
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[Event::Press(RIGHT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Move(Pointer::Outside), Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), outside(ClickKind::PickUp, 0)],
+        entries: &[stacks::empty(9), stacks::empty(10), stacks::empty(11)],
+        ..row("a drag opened by a double click adds no entry, also after a later press")
+    },
+    Row {
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[Event::Key(SHIFT), over(9), Event::Press(LEFT)],
+            &[over(10)],
+            &[over(11)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[
+            outside(ClickKind::Drag, 0),
+            on(ClickKind::Drag, 1, 10),
+            on(ClickKind::Drag, 1, 11),
+            outside(ClickKind::Drag, 2),
+        ],
+        entries: &[
+            stacks::at(10, Item::Stone, 5),
+            stacks::at(11, Item::Stone, 5),
+        ],
+        ..row("Shift has no effect on a drag over two entries")
+    },
+    Row {
+        given: &[stacks::at(10, Item::Stone, 5)],
+        given_cursor: stacks::held(Item::Dirt, 3),
+        frames: &[
+            &[Event::Key(SHIFT), over(10), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::QuickMove, 0, 10)],
+        entries: &[stacks::empty(10), stacks::at(36, Item::Stone, 5)],
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row("a Shift drag that joins no entry moves the stack under the pointer")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 10),
+            stacks::at(20, Item::Stone, 5),
+            stacks::at(30, Item::Stone, 3),
+        ],
+        frames: &[
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+            ],
+            &[],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUpAll, 0, 9)],
+        entries: &[stacks::empty(9), stacks::empty(20), stacks::empty(30)],
+        cursor: stacks::held(Item::Stone, 18),
+        ..row("a double click gathers the stacks of the cursor item")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 10),
+            stacks::at(20, Item::Stone, 5),
+            stacks::at(30, Item::Stone, 3),
+        ],
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[Event::Release(RIGHT)],
+            &[Event::Release(LEFT)],
+        ],
+        sent: &[on(ClickKind::PickUp, 0, 9), on(ClickKind::PickUpAll, 0, 9)],
+        entries: &[stacks::empty(9), stacks::empty(20), stacks::empty(30)],
+        cursor: stacks::held(Item::Stone, 18),
+        ..row("a double click gathers after a release of another button cancels its drag")
+    },
+    Row {
+        given: &[stacks::at(20, Item::Stone, 5)],
+        given_cursor: stacks::held(Item::Stone, 10),
+        frames: &[
+            &[Event::Move(Pointer::EmptyArea), Event::Press(RIGHT)],
+            &[
+                Event::Move(Pointer::RecipeBookButton),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+            ],
+            &[over(9), Event::Release(LEFT)],
+            &[over(10), Event::Release(RIGHT)],
+        ],
+        sent: &[on(ClickKind::PickUpAll, 0, 9), on(ClickKind::PickUp, 1, 10)],
+        entries: &[stacks::empty(20), stacks::at(10, Item::Stone, 1)],
+        cursor: stacks::held(Item::Stone, 14),
+        ..row("the release after a double click release is not skipped")
+    },
+    Row {
+        given: &[
+            stacks::at(9, Item::Stone, 5),
+            stacks::at(20, Item::Stone, 7),
+        ],
+        given_cursor: stacks::held(Item::Dirt, 3),
+        frames: &[
+            &[
+                Event::Key(SHIFT),
+                over(9),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+                Event::Press(LEFT),
+                Event::Release(LEFT),
+            ],
+            &[],
+        ],
+        sent: &[
+            on(ClickKind::QuickMove, 0, 9),
+            on(ClickKind::QuickMove, 0, 20),
+            on(ClickKind::QuickMove, 0, 36),
+        ],
+        entries: &[
+            stacks::at(9, Item::Stone, 12),
+            stacks::empty(20),
+            stacks::empty(36),
+        ],
+        cursor: stacks::held(Item::Dirt, 3),
+        ..row("a Shift double click moves each stack of the remembered item")
+    },
+    Row {
         screen: Screen::None,
         given: &[stacks::at(36, Item::Dirt, 5)],
         frames: &[&[Event::Key(KeyCode::KeyQ)]],
@@ -480,6 +737,9 @@ fn play(app: &mut App, frame: &[Event]) {
             }
         }
     }
+    app.world_mut()
+        .resource_mut::<Time<Real>>()
+        .advance_by(FRAME);
     app.update();
     app.world_mut().run_schedule(FixedUpdate);
 }
