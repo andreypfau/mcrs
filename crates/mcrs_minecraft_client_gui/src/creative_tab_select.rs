@@ -9,13 +9,17 @@ use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use crate::chat_input;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::menu_input;
+use crate::scene::GuiAtlas;
 use crate::search_input::SearchInput;
+use crate::search_point::SearchPoint;
 
 #[derive(SystemParam)]
 pub(crate) struct CreativeTabSelect<'w> {
     screen: Option<ResMut<'w, CreativeScreenState>>,
     content: Option<Res<'w, CreativeTabContent>>,
     clipboard: Option<ResMut<'w, Clipboard>>,
+    atlas: Option<Res<'w, GuiAtlas>>,
 }
 
 impl CreativeTabSelect<'_> {
@@ -37,14 +41,25 @@ impl CreativeTabSelect<'_> {
         }
     }
 
-    pub(crate) fn edit_search(&mut self, input: &SearchInput) {
+    pub(crate) fn edit_search(&mut self, input: &SearchInput, point: Option<SearchPoint>) {
         let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) else {
             return;
         };
         let clipboard = self.clipboard.as_deref_mut();
-        screen.edit_search(content, |edit| match input {
-            SearchInput::Key { input, modifiers } => type_key(edit, input, *modifiers, clipboard),
-            SearchInput::SelectAll => edit.select_all(),
+        let width = menu_input::text_width(self.atlas.as_deref());
+        screen.edit_search(content, |edit| match (input, point) {
+            (SearchInput::Key { input, modifiers }, _) => {
+                type_key(edit, input, *modifiers, clipboard);
+            }
+            (SearchInput::SelectAll, _) => edit.select_all(),
+            (SearchInput::Click(anchor), Some(point)) => {
+                edit.click(point.rect, point.x, *anchor, &width);
+            }
+            (SearchInput::SelectWord, Some(point)) => {
+                edit.select_word(point.rect, point.x, &width);
+            }
+            (SearchInput::Drag, Some(point)) => edit.drag(point.rect, point.x, &width),
+            (SearchInput::Click(_) | SearchInput::SelectWord | SearchInput::Drag, None) => {}
         });
     }
 }

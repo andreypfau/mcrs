@@ -55,6 +55,7 @@ enum Pointer {
     Hotbar(u16),
     Destroy,
     ScrollBar(i32),
+    SearchBox,
     Outside,
 }
 
@@ -142,6 +143,14 @@ const fn sent(area: Area, kind: ClickKind, button: u8, clicked: Clicked) -> Sent
 const fn over(pointer: Pointer) -> Event {
     Event::Move(pointer)
 }
+
+const TYPE_STONE: &[Event] = &[
+    Event::Key(KeyCode::KeyS),
+    Event::Key(KeyCode::KeyT),
+    Event::Key(KeyCode::KeyO),
+    Event::Key(KeyCode::KeyN),
+    Event::Key(KeyCode::KeyE),
+];
 
 const ROWS: &[Row] = &[
     Row {
@@ -431,6 +440,35 @@ const ROWS: &[Row] = &[
         )
     },
     Row {
+        frames: &[
+            TYPE_STONE,
+            &[over(Pointer::SearchBox), Event::Press(LEFT)],
+            &[over(Pointer::Outside)],
+            &[Event::Release(LEFT)],
+            &[Event::Key(KeyCode::KeyD)],
+        ],
+        search: "d",
+        ..row(
+            "a drag from the search box selects the text it passes",
+            SEARCH_TAB,
+        )
+    },
+    Row {
+        frames: &[
+            TYPE_STONE,
+            &[over(Pointer::SearchBox), Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+            &[Event::Press(LEFT)],
+            &[Event::Release(LEFT)],
+            &[Event::Key(KeyCode::KeyD)],
+        ],
+        search: "d",
+        ..row(
+            "a double click on the search box selects the word under the pointer",
+            SEARCH_TAB,
+        )
+    },
+    Row {
         frames: &[&[over(Pointer::Grid(0)), Event::Key(KeyCode::KeyF)]],
         search: "f",
         ..row(
@@ -526,6 +564,10 @@ fn gui_point(pointer: Pointer) -> IVec2 {
         }
         Pointer::Outside => return IVec2::new(window.x - 10, window.y + 20),
         Pointer::ScrollBar(y) => return IVec2::new(window.x + SCROLL_BAR_X, window.y + y),
+        Pointer::SearchBox => {
+            let rect = CreativeGeometry::SEARCH_BOX;
+            return IVec2::new(window.x + rect.x + rect.width - 2, window.y + rect.y + 4);
+        }
         Pointer::Grid(slot) => CreativeGeometry::grid_slot(slot).unwrap(),
         Pointer::Hotbar(column) => CreativeGeometry::hotbar_slot(column).unwrap(),
         Pointer::Destroy => CreativeGeometry::DESTROY_SLOT,

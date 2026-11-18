@@ -9,6 +9,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
+use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS};
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -28,6 +29,7 @@ use crate::close_menu_screen::close_menu_screen;
 use crate::creative_clicks::{self, CreativeClicks};
 use crate::creative_grid::CreativeGrid;
 use crate::creative_layout::CreativeLayout;
+use crate::creative_screen_draw;
 use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_shown::shows_creative_screen;
 use crate::creative_tab_select::CreativeTabSelect;
@@ -46,6 +48,7 @@ use crate::modifiers::Modifiers;
 use crate::release_rule::ReleaseRule;
 use crate::scene::{self, GuiConfig, GuiSize};
 use crate::search_input::SearchInput;
+use crate::search_point::SearchPoint;
 use crate::viewer::Viewer;
 
 const INVENTORY: KeyCode = KeyCode::KeyE;
@@ -100,6 +103,7 @@ struct ClickState {
     preview: DragPreview,
     gesture: MenuGesture,
     scroll: ScrollDrag,
+    search: SearchPress,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -113,6 +117,24 @@ enum ScrollDrag {
 struct CreativePointer {
     top: i32,
     mouse_y: f64,
+    search: SearchPoint,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SearchPress {
+    #[default]
+    None,
+    Held(Duration),
+    Released(Duration),
+}
+
+impl SearchPress {
+    fn at(self) -> Option<Duration> {
+        match self {
+            Self::None => None,
+            Self::Held(at) | Self::Released(at) => Some(at),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -149,9 +171,14 @@ impl ScreenPointer<'_, '_> {
         };
         let size = GuiSize::of(scene::window_framebuffer(window), config.scale);
         let pointer = scene::gui_pointer(window, config, size.scale)?;
+        let corner = CreativeGeometry::window(size.width, size.height);
         Some(CreativePointer {
-            top: CreativeGeometry::window(size.width, size.height).y,
+            top: corner.y,
             mouse_y: pointer.y,
+            search: SearchPoint {
+                rect: creative_screen_draw::offset(corner, CreativeGeometry::SEARCH_BOX),
+                x: pointer.x,
+            },
         })
     }
 
@@ -312,6 +339,7 @@ impl ClickState {
         self.pointer = None;
         self.gesture = MenuGesture::default();
         self.scroll = ScrollDrag::Idle;
+        self.search = SearchPress::None;
     }
 
     fn is_idle(&self, gestures: &Gestures) -> bool {
@@ -321,6 +349,7 @@ impl ClickState {
             && self.events.is_empty()
             && self.gesture.open_drag().is_none()
             && self.scroll == ScrollDrag::Idle
+            && !matches!(self.search, SearchPress::Held(_))
     }
 
     fn scroll(
@@ -342,6 +371,13 @@ impl ClickState {
             && let Some(at) = pointer.creative_pointer()
         {
             tabs.drag_scroll(at.top, at.mouse_y);
+        }
+        if moved
+            && creative
+            && matches!(self.search, SearchPress::Held(_))
+            && let Some(at) = pointer.creative_pointer()
+        {
+            tabs.edit_search(&SearchInput::Drag, Some(at.search));
         }
         moved
     }
@@ -424,10 +460,25 @@ fn drain_without_menu(events: &mut VecDeque<QueuedEvent>) -> FrameEnd {
     }
 }
 
+fn search_press(search: &mut SearchPress, at: Duration, modifiers: Modifiers) -> SearchInput {
+    let double = search
+        .at()
+        .is_some_and(|last| at.saturating_sub(last) <= Duration::from_millis(DOUBLE_CLICK_MS));
+    *search = SearchPress::Held(at);
+    if double {
+        SearchInput::SelectWord
+    } else if modifiers.shift {
+        SearchInput::Click(Anchor::Keep)
+    } else {
+        SearchInput::Click(Anchor::Move)
+    }
+}
+
 fn play(
     frame: &mut GestureFrame,
     events: &mut VecDeque<QueuedEvent>,
     scroll: &mut ScrollDrag,
+    search: &mut SearchPress,
 ) -> FrameEnd {
     while let Some(queued) = events.pop_front() {
         let sent = frame.sent.len();
@@ -439,6 +490,9 @@ fn play(
         } = queued;
         if matches!(event, ScreenEvent::Release(MouseButton::Left)) {
             *scroll = ScrollDrag::Idle;
+            if let SearchPress::Held(pressed) = *search {
+                *search = SearchPress::Released(pressed);
+            }
             if let Some(tab) = hover.tab() {
                 frame.gesture.release = ReleaseRule::NoClick;
                 return FrameEnd::SelectTab(tab);
@@ -462,6 +516,12 @@ fn play(
                     *scroll = ScrollDrag::Dragging;
                 }
                 frame.press(button, at, hover, modifiers);
+                if button == MouseButton::Left {
+                    if matches!(hover, Hover::Creative(CreativeHit::SearchBox)) {
+                        return FrameEnd::Search(search_press(search, at, modifiers));
+                    }
+                    *search = SearchPress::None;
+                }
                 if matches!(hover, Hover::Creative(CreativeHit::GridSlot(_)))
                     && (frame.grid.map(CreativeGrid::layout)).is_some_and(CreativeLayout::searches)
                 {
@@ -543,6 +603,7 @@ fn click_in_menu(
         preview,
         gesture,
         scroll,
+        search,
         ..
     } = &mut *state;
     sent.clear();
@@ -569,12 +630,13 @@ fn click_in_menu(
                 if !mem::replace(&mut followed, true) {
                     frame.follow_pointer(hover, moved, preview);
                 }
-                let end = play(&mut frame, events, scroll);
+                let end = play(&mut frame, events, scroll, search);
                 frame.project_preview(preview);
                 let FrameEnd::Search(input) = end else {
                     break end;
                 };
-                world_and_outputs.p1().4.edit_search(&input);
+                let point = pointer.creative_pointer().map(|at| at.search);
+                world_and_outputs.p1().4.edit_search(&input, point);
                 if !sent.is_empty() {
                     break FrameEnd::Open;
                 }

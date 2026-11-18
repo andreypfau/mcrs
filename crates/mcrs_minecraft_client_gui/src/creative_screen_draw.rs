@@ -360,7 +360,7 @@ fn highlight_sprite(at: IVec2, region: &'static str) -> GuiQuad {
     sprite(at - HIGHLIGHT_INSET, IVec2::splat(HIGHLIGHT_SIZE), region)
 }
 
-fn offset(window: GuiPoint, rect: GuiRect) -> GuiRect {
+pub(crate) fn offset(window: GuiPoint, rect: GuiRect) -> GuiRect {
     GuiRect::new(
         window.x.saturating_add(rect.x),
         window.y.saturating_add(rect.y),

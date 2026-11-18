@@ -1,5 +1,5 @@
 use bevy::input::keyboard::KeyboardInput;
-use mcrs_minecraft_client_widget::KeyModifiers;
+use mcrs_minecraft_client_widget::{Anchor, KeyModifiers};
 
 #[derive(Clone, Debug)]
 pub(crate) enum SearchInput {
@@ -8,4 +8,7 @@ pub(crate) enum SearchInput {
         modifiers: KeyModifiers,
     },
     SelectAll,
+    Click(Anchor),
+    SelectWord,
+    Drag,
 }
