@@ -33,6 +33,7 @@ pub use creative_click::CreativeClick;
 pub use hand_input::HandInput;
 pub use inventory_client_plugin::InventoryClientPlugin;
 pub use inventory_client_set::InventoryClientSet;
+pub use local_inventory::shows_inventory_menu;
 pub use menu_action::MenuAction;
 pub use menu_input::MenuInput;
 pub use remote_menu::RemoteMenu;

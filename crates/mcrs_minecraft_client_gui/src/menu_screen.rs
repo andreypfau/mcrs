@@ -5,7 +5,9 @@ use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_click::EntryPreview;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_item_icon::{Overlays, StackOverlay};
-use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry, MenuLabels, TitlePosition};
+use mcrs_minecraft_menu_geometry::{
+    BackgroundPart, CreativeBackground, MenuGeometry, MenuLabels, TitlePosition,
+};
 use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -22,12 +24,12 @@ use crate::slot_icon::SlotIcon;
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DRAG_FILL: u32 = 0x80FF_FFFF;
-const DIM_TOP: u32 = 0xC010_1010;
-const DIM_BOTTOM: u32 = 0xD010_1010;
+pub(crate) const DIM_TOP: u32 = 0xC010_1010;
+pub(crate) const DIM_BOTTOM: u32 = 0xD010_1010;
 const TEXTURE_FOLDER: &str = "textures/gui/";
 const TEXTURE_SUFFIX: &str = ".png";
 
-fn empty_icon(menu: u16) -> Option<&'static str> {
+pub(crate) fn empty_icon(menu: u16) -> Option<&'static str> {
     match menu {
         slots::ARMOR_HEAD => Some("container/slot/helmet"),
         slots::ARMOR_CHEST => Some("container/slot/chestplate"),
@@ -67,6 +69,14 @@ fn background_parts() -> impl Iterator<Item = BackgroundPart> {
         .filter_map(|kind| MenuGeometry::of(*kind))
         .chain([MenuGeometry::INVENTORY])
         .flat_map(|geometry| geometry.background())
+        .chain(
+            [
+                CreativeBackground::Items,
+                CreativeBackground::ItemSearch,
+                CreativeBackground::Inventory,
+            ]
+            .map(CreativeBackground::part),
+        )
 }
 
 pub(crate) fn menu_backgrounds() -> impl Iterator<Item = ResourceLocation<'static>> {
@@ -212,7 +222,12 @@ fn inventory_extras(out: &mut Vec<GuiQuad>, corner: GuiPoint, pointer: GuiPoint)
     ));
 }
 
-fn background(atlas: &GuiAtlasData, top_left: IVec2, part: BackgroundPart, out: &mut Vec<GuiQuad>) {
+pub(crate) fn background(
+    atlas: &GuiAtlasData,
+    top_left: IVec2,
+    part: BackgroundPart,
+    out: &mut Vec<GuiQuad>,
+) {
     let Some(region) = background_region(part.texture).and_then(|name| atlas.regions.get(name))
     else {
         return;

@@ -4,8 +4,13 @@ use mcrs_minecraft_creative_content::OperatorCondition;
 use mcrs_minecraft_creative_content::SessionInputs;
 use mcrs_minecraft_creative_report::CreativeReport;
 use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_menu_geometry::CREATIVE_TABS;
 use mcrs_minecraft_menu_geometry::CreativeTabIndex;
 use mcrs_minecraft_menu_geometry::CreativeTabKind;
 use mcrs_minecraft_menu_geometry::VisibleTabs;
@@ -30,6 +35,7 @@ pub struct CreativeTabContent {
     search: CreativeSearchIndex,
     visible: VisibleTabs,
     operator: OperatorCondition,
+    icons: [Option<ItemStack>; CREATIVE_TABS.len()],
 }
 
 impl Default for CreativeTabContent {
@@ -39,6 +45,7 @@ impl Default for CreativeTabContent {
             search: CreativeSearchIndex::default(),
             visible: VisibleTabs::always(),
             operator: OperatorCondition::NotMet,
+            icons: [const { None }; CREATIVE_TABS.len()],
         }
     }
 }
@@ -73,11 +80,16 @@ impl CreativeTabContent {
                 tab.kind == CreativeTabKind::Items && !lists.tab_list(tab.id).is_empty()
             })
             .fold(VisibleTabs::always(), VisibleTabs::with);
+        let icons = CREATIVE_TABS.map(|tab| {
+            let id = inputs.items.id(NameTable::Item, tab.icon)?;
+            Some(ItemStack::new(Kind(id), Count::new(1)?))
+        });
         Self {
             lists,
             search,
             visible,
             operator: inputs.operator,
+            icons,
         }
     }
 
@@ -99,6 +111,11 @@ impl CreativeTabContent {
     #[must_use]
     pub fn visible_tabs(&self) -> VisibleTabs {
         self.visible
+    }
+
+    #[must_use]
+    pub fn tab_icon(&self, tab: CreativeTabIndex) -> Option<&ItemStack> {
+        self.icons.get(tab.index())?.as_ref()
     }
 
     #[must_use]

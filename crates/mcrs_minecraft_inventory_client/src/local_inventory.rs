@@ -50,7 +50,8 @@ pub(crate) struct StackNames<'w> {
     registries: Option<Res<'w, CurrentRegistries>>,
 }
 
-pub(crate) fn shows_inventory_menu(menus: &Menus) -> bool {
+#[must_use]
+pub fn shows_inventory_menu(menus: &Menus) -> bool {
     menus
         .open()
         .is_some_and(|open| menus.iter().next() == Some(open))

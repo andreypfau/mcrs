@@ -49,7 +49,8 @@ const fn tab(index: usize) -> CreativeTabIndex {
 
 static REPORT: LazyLock<LoadedCreativeReport> = LazyLock::new(LoadedCreativeReport::embedded);
 
-static VANILLA: LazyLock<CreativeTabContent> = LazyLock::new(|| vanilla(OperatorCondition::NotMet));
+pub(crate) static VANILLA: LazyLock<CreativeTabContent> =
+    LazyLock::new(|| vanilla(OperatorCondition::NotMet));
 
 fn vanilla(operator: OperatorCondition) -> CreativeTabContent {
     CreativeTabContent::build(CreativeInputs {
