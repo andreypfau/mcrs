@@ -2,17 +2,20 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use bevy::ecs::resource::IsResource;
-use bevy::ecs::world::EntityRef;
 use bevy::math::{IRect, IVec2, Rect, UVec2};
 use bevy::prelude::*;
 use bevy::render::RenderApp;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
-use mcrs_minecraft_item::{
-    ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
-};
+use mcrs_minecraft_engine_inventory_menu::MenuParts;
+use mcrs_minecraft_engine_inventory_menu::Menus;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_game_mode::PlayerGameMode;
+use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_player_holders::PlayerHolders;
 
 use crate::atlas_quad::AtlasQuad;
 use crate::font::Font;
@@ -29,10 +32,9 @@ use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
+use crate::player_stacks::PlayerStacks;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
-use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
@@ -547,18 +549,27 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 
 fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&SlotTable, &SelectedHotbarSlot, Option<&LocalGameMode>), With<Player>>,
+    player: Query<(&PlayerHolders, &Menus, &Selected, Option<&PlayerGameMode>)>,
+    menus: Query<(&MenuLayout, &MenuParts)>,
+    holders: Query<&Slots>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected, mode)) = player.single() else {
+    let Ok((player, player_menus, selected, mode)) = player.single() else {
         return;
     };
-    if mode.is_none_or(|mode| mode.current != GameMode::Spectator) {
-        hotbar(scene.size, selected.0, slots, &mut scene.quads);
+    let Some((layout, parts)) = (player_menus.iter().next()).and_then(|menu| menus.get(menu).ok())
+    else {
+        return;
+    };
+    let stacks = PlayerStacks::collect(layout, parts, player.cursor, |slot| {
+        holders.get(slot.holder).ok()?.get(usize::from(slot.index))
+    });
+    if mode.is_none_or(|PlayerGameMode(mode)| *mode != GameMode::Spectator) {
+        hotbar(scene.size, selected.0, &stacks, &mut scene.quads);
     }
     if *screen == Screen::Inventory {
-        inventory_screen(scene.size, scene.cursor, slots, &mut scene.quads);
+        inventory_screen(scene.size, scene.cursor, &stacks, &mut scene.quads);
     }
 }
 
@@ -580,7 +591,7 @@ fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
     layers: Query<&ItemRenderLayers>,
-    stacks: Query<EntityRef, (With<ItemStack>, Without<IsResource>)>,
+    counts: Query<&Count>,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut cache: ResMut<GlyphCache>,
@@ -607,12 +618,12 @@ fn build_gui_batch(
         match *quad {
             GuiQuad::Item { origin, stack } => {
                 expanded.push(*quad);
-                let Ok(stack) = stacks.get(stack) else {
+                let Ok(count) = counts.get(stack) else {
                     continue;
                 };
                 let decorated = Decorated {
-                    count: stack.get::<ItemStack>().map_or(1, |stack| stack.count),
-                    damage: is_damaged(stack).then(|| (damage_value(stack), max_damage(stack))),
+                    count: count.get(),
+                    damage: layers.get(stack).ok().and_then(|layers| layers.damage),
                 };
                 decorations(origin, &decorated, &atlas.font, &mut expanded);
             }

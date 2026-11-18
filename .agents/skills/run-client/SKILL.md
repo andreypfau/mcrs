@@ -12,7 +12,17 @@ Work in your own worktree. Start the processes from a scratch folder, for exampl
 `/tmp/run-client`. The server writes `whitelist.json` and `banned-players.json` into that
 folder, and the client writes `screenshots/`. Save the process id of each process you start.
 
-## 1. Build
+## 1. Check the screen
+
+```bash
+ioreg -n Root -d1 -a | grep -A1 ScreenIsLocked
+```
+
+A `<true/>` after the key means the screen is locked. No output or `<false/>` means the screen is
+unlocked. If the screen is locked, stop. Tell the owner: "The screen is locked. A capture on a
+locked screen never settles. Unlock the screen and ask me again."
+
+## 2. Build
 
 ```bash
 cargo build --release -p mcrs --bin mcrs -p mcrs_minecraft_client --bin mcrs_minecraft_client
@@ -25,7 +35,7 @@ worktree root. Without it the server stops with "the registries are unusable".
 The game jar comes from the local launcher folder. Without it, the first start downloads the
 jar, which needs network access.
 
-## 2. Server
+## 3. Server
 
 ```bash
 cd /tmp/run-client
@@ -37,7 +47,7 @@ BEVY_ASSET_ROOT=<worktree> MCRS_PORT=25599 <worktree>/target/release/mcrs
 - It is ready at the log line `entering Playing state`. The line
   `WebTransport listening on ... (certificate hash <hex>)` gives the hash for the browser.
 
-## 3. Native client
+## 4. Native client
 
 ```bash
 cd /tmp/run-client
@@ -53,7 +63,7 @@ BEVY_ASSET_ROOT=<worktree> MCRS_SERVER=127.0.0.1:25599 MCRS_CAPTURE=/tmp/run-cli
 - Other knobs are `MCRS_*` variables: `MCRS_VIEW` (render distance), `MCRS_STATS=1` (debug
   lines in the log). Read `crates/mcrs_minecraft_client/src/config.rs` for the list.
 
-## 4. Web client
+## 5. Web client
 
 ```bash
 cd <worktree>
@@ -77,7 +87,7 @@ BACKEND=webgl2 scripts/build-web.sh  # writes target/bundle/mcrs-webgl2.html
 - Without `?server=` the page draws no world. Other knobs are query parameters in
   lower case, for example `&view=8`.
 
-## 5. Screenshot of a window on macOS
+## 6. Screenshot of a window on macOS
 
 - Never capture the whole screen or a screen rectangle. The front window is often a private
   window of the owner, not yours.
@@ -97,7 +107,7 @@ BACKEND=webgl2 scripts/build-web.sh  # writes target/bundle/mcrs-webgl2.html
 - Wait until the page has loaded and streamed the chunks.
 - Scale a large image before you read it: `sips -Z 1200 shot.png --out shot-small.png`.
 
-## 6. What to check
+## 7. What to check
 
 - The world is drawn: terrain, sky and clouds, not a single colour or a black frame.
 - The changed element is on screen and matches the specification or the issue.
@@ -105,7 +115,7 @@ BACKEND=webgl2 scripts/build-web.sh  # writes target/bundle/mcrs-webgl2.html
 - The client log has no `ERROR` and no panic. Read it with
   `grep -E "ERROR|panicked" /tmp/run-client/client.log`.
 
-## 7. Stop
+## 8. Stop
 
 - Kill the client and the server by their process ids: `kill <pid>`.
 - A smoke run with `MCRS_CAPTURE` stops the client by itself.
