@@ -6911,6 +6911,7 @@ dependencies = [
  "criterion",
  "flume",
  "glam",
+ "libc",
  "mcrs_command",
  "mcrs_engine_link",
  "mcrs_engine_muxer",
