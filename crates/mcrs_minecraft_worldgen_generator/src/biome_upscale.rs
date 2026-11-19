@@ -53,6 +53,24 @@ impl Neighbourhood {
         quarts.iter().all(|&biome| biome == first).then_some(first)
     }
 
+    fn most_common(&self) -> u8 {
+        let mut tally = [0u16; 256];
+        for &biome in self.0.as_flattened().as_flattened() {
+            if let Some(count) = tally.get_mut(usize::from(biome)) {
+                *count = count.saturating_add(1);
+            }
+        }
+        let mut common = 0;
+        let mut most = 0;
+        for (biome, &count) in (0..=u8::MAX).zip(&tally) {
+            if count > most {
+                common = biome;
+                most = count;
+            }
+        }
+        common
+    }
+
     fn corners(&self, x: usize, y: usize, z: usize) -> [u8; 8] {
         let quarts = &self.0;
         [
@@ -113,24 +131,36 @@ pub fn upscale_biomes(
                 return VoxelPalette::homogeneous(biome);
             }
 
-            let mut cube = Box::new([[[0u8; EDGE]; EDGE]; EDGE]);
+            let common = quarts.most_common();
+            let mut cube = Box::new([[[common; EDGE]; EDGE]; EDGE]);
             let cells = cube.as_flattened_mut().as_flattened_mut();
             for cell_y in 0..CELLS {
                 for cell_z in 0..CELLS {
                     for cell_x in 0..CELLS {
                         let (xs, ys, zs) =
                             (cell_span(cell_x), cell_span(cell_y), cell_span(cell_z));
-                        let low = BlockPos::new(
+                        let corners = quarts.corners(cell_x, cell_y, cell_z);
+                        let [first, ..] = corners;
+                        if corners.iter().all(|&biome| biome == first) {
+                            if first != common {
+                                for y in ys {
+                                    for z in zs.clone() {
+                                        let row = (y * EDGE + z) * EDGE;
+                                        if let Some(span) =
+                                            cells.get_mut(row + xs.start..row + xs.end)
+                                        {
+                                            span.fill(first);
+                                        }
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        let terms = cache.cell_terms(BlockPos::new(
                             block_x + xs.start as i32,
                             block_y + ys.start as i32,
                             block_z + zs.start as i32,
-                        );
-                        let corners = quarts.corners(cell_x, cell_y, cell_z);
-                        let [first, ..] = corners;
-                        let terms = corners
-                            .iter()
-                            .any(|&biome| biome != first)
-                            .then(|| cache.cell_terms(low));
+                        ));
                         for y in ys {
                             for z in zs.clone() {
                                 for x in xs.clone() {
@@ -139,9 +169,7 @@ pub fn upscale_biomes(
                                         block_y + y as i32,
                                         block_z + z as i32,
                                     );
-                                    cells[(y * EDGE + z) * EDGE + x] = terms
-                                        .as_ref()
-                                        .map_or(first, |terms| terms.nearest(&corners, pos));
+                                    cells[(y * EDGE + z) * EDGE + x] = terms.nearest(&corners, pos);
                                 }
                             }
                         }
