@@ -134,7 +134,7 @@ A server has no such single world. Its plugin `VanillaItemEntityPlugin` adds a d
 
 So the players, their slot policies, `RequestCheck` and `EntryPressed` live in the dimension world of each player. Register your plugin with `app.add_dimension_plugin(ArenaRulesPlugin)`. Every dimension world builds a clone of it after the dimension builders, so its `build` allocates a source and adds the observers in that world. The plugin must be `Clone`, as both plugins of the example are. With `add_plugins` it lands in the main app, where its observers never see a player. Trigger your own events, such as `EnterGame`, in the world of the player too. [Dimensions are separate worlds](/docs/en/plugins/dimensions/) explains `add_dimension_plugin`. No test of the repository runs these plugins in a server yet.
 
-## Not there yet
+## The client and what is left
 
 The mcrs client takes clicks in its inventory screen.[^129] It draws the eight generic container screens with item tooltips, drag previews and double clicks, so a player sees a menu your plugin opens.[^130] In creative mode the inventory key opens the creative screen with tabs, scrolling, search and stack clicks.[^131] The remaining screen limits are on [The client today](/docs/en/client/overview/#what-is-missing). The player inventory issue still covers agreement with a vanilla client and persistence across a rejoin.[^521]
 

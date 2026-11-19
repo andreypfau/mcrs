@@ -62,7 +62,7 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Cap, budget | The cap is the largest number of subjects that one client can see. The budget is the largest number of bytes per second spent on entities. | - |
 | Subject, viewer | A subject is an entity that is seen, and a viewer is a client that sees it. Both terms come from [`replication.md`](https://github.com/andreypfau/mcrs/blob/main/docs/replication.md). | - |
 | Section, column | A section is 16x16x16 blocks, and a column is a stack of sections. | Minestom `Chunk`, which holds `Section`s. |
-| Row | A row is the server record of an entity in a dense per-tile column. Mobs are rows. Moving entities that are not living, such as items, falling blocks and primed TNT, are Bevy entities with components instead. | - |
+| Row | A row is the server record of an entity in a dense per-tile column. Mobs are rows. Moving entities that are not living, such as items and falling blocks, are Bevy entities with components instead. | - |
 | Entity key, order key | The entity key holds the id of an entity, its UUID, its source of new UUIDs, its random stream and its tile. The UUID is also the order key. | - |
 | Brain, goals, wait | The brain is the mob AI stage, and its kernel wakes only the mobs that a timer or a fact names. Goals are picked by tile, and waits replace per-tick checks. | Paper mob goals (`Mob`, `Goal`), loosely. |
 | Volume | A volume is one API for blocks, heights and biomes. Worldgen, the client and the kernels all use it. | Minestom `Block.Getter`, loosely. |

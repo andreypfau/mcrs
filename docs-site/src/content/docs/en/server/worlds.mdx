@@ -97,7 +97,7 @@ World generation matches vanilla in parity tests on the reference seeds. [Parity
 | World state files | The server reads the spawn, the weather, the game rules, the world clocks and the world generation settings of the save at start, and writes them back on the autosave |
 | Unreadable regions | The server copies a chunk it cannot decode, or a region with a damaged slot, to `<save>/quarantine/` before it replaces it. A file that cannot be read stays as it is on the disk |
 
-The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. From a file it can parse, the server reads the inventory, the ender chest, the selected hotbar slot, the equipment and the attributes of the player, and it writes them back on save.[^521] A key of the format that mcrs has no behavior for yet goes back to the file unchanged.[^745]
+The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. From a file it can parse, the server reads the inventory, the ender chest, the selected hotbar slot, the equipment and the attributes of the player, and it writes them back on save.[^521] A key of the format that mcrs has no behavior for yet goes back to the file unchanged.[^744]
 
 A short test checks the clean stop.
 
@@ -124,5 +124,5 @@ There is no source yet for how the server treats a `datapacks` folder inside a w
 [^969]: <Status pr={969} state="works" /> Makes a new world in a folder without `level.dat` and locks the world folder.
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
 [^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
-[^745]: <Status pr={744} state="works" /> Gives the player file a complete codec and saves the components that plugins register.
+[^744]: <Status pr={744} state="works" /> Gives the player file a complete codec and saves the components that plugins register.
 [^316]: <Status issue={316} /> Plans the reload of data packs while the server runs.

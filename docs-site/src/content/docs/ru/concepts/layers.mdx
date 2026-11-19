@@ -25,7 +25,7 @@ mcrs - репозиторий из {fact('crates')} крейта, разложе
 
 Крейты лежат в [`crates/`](https://github.com/andreypfau/mcrs/tree/main/crates). Крейт, привязанный к игре, называется `mcrs_minecraft_<name>`. Крейт для понятия, которое от игры не зависит, называется `mcrs_<name>`, например крейты ядра движка `mcrs_engine_cell`, `mcrs_engine_link`, `mcrs_engine_muxer` и `mcrs_engine_store` или `mcrs_molang` и `mcrs_voxel`. Все крейты с их слоями перечислены на [карте крейтов](/docs/ru/crates/overview/).
 
-Ниже слоя 4 Bevy подключается необязательной фичей, а ниже слоя 2 необязателен и tokio, потому что с tokio работает только сетевой слой. Часть границ проверяет `layers` в `xtask/src/checks.rs`. Проверка не пускает игровые данные в `mcrs_minecraft_protocol` и `mcrs_minecraft_network`, а сеть, клиент и сервер - в запекание моделей, значки предметов и рендер сущностей. Она также запрещает раскладку и правила инвентаря в `mcrs_minecraft_protocol_game` и серверные крейты в крейтах инвентаря для клиента, например `mcrs_minecraft_inventory_client`.
+Ниже слоя 4 Bevy подключается необязательной фичей, а ниже слоя 2 необязателен и tokio, потому что с tokio работает только сетевой слой. В CI часть границ проверяет `layers` из `xtask/src/checks.rs`. Проверка не пускает игровые данные в `mcrs_minecraft_protocol` и `mcrs_minecraft_network`, а сеть, клиент и сервер - в запекание моделей, значки предметов и рендер сущностей. Она также запрещает раскладку и правила инвентаря в `mcrs_minecraft_protocol_game` и серверные крейты в крейтах инвентаря для клиента, например `mcrs_minecraft_inventory_client`.
 
 ## Ядра хранят правила, драйверы их запускают
 
