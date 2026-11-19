@@ -35,6 +35,7 @@ pub struct MaterialScratch {
     cell_terms: Vec<Interval>,
     cell_density: Vec<f32>,
     splits: Vec<CondId>,
+    run_splits: Vec<Option<Split>>,
     breaks: Vec<i32>,
     reachable: Vec<u16>,
     noise_columns: Vec<f32>,
@@ -75,6 +76,7 @@ struct Piece {
     biome: Option<u16>,
 }
 
+#[derive(Clone, Copy)]
 enum Split {
     Always(bool),
     At(i32),
@@ -86,6 +88,13 @@ struct VeinCells {
     cell: IVec3,
     size: IVec3,
     at: usize,
+    open_rows: OpenRows,
+}
+
+#[derive(Clone, Copy)]
+struct OpenRows {
+    first: i32,
+    last: i32,
 }
 
 impl MaterialScratch {
@@ -164,6 +173,8 @@ where
         scratch.noises.resize(program.noise_count(), (0, 0.0));
 
         scratch.splits.clear();
+        scratch.run_splits.clear();
+        scratch.run_splits.resize(program.conditions().len(), None);
         for (id, condition) in program.conditions().iter().enumerate() {
             if matches!(
                 condition.kind,
@@ -358,8 +369,12 @@ where
                     ..
                 }) => breaks.extend([true_at_and_below + 1, false_at_and_above]),
                 _ => {
-                    if let Some(Split::At(at)) | Some(Split::AtOrBelow(at)) = self.split(id) {
+                    let split = self.split(id);
+                    if let Some(Split::At(at) | Split::AtOrBelow(at)) = split {
                         breaks.extend([at, at + 1]);
+                    }
+                    if let Some(slot) = self.scratch.run_splits.get_mut(id as usize) {
+                        *slot = split;
                     }
                 }
             }
@@ -374,7 +389,9 @@ where
                     .div_euclid(layout.cell.y)
                     .clamp(0, layout.size.y - 1)
             };
-            for cy in cell_of(bottom)..=cell_of(top) {
+            let first = cell_of(bottom).max(layout.open_rows.first);
+            let last = cell_of(top).min(layout.open_rows.last);
+            for cy in first..=last {
                 if self.vein_cell_open(vein, cy) {
                     let cell_bottom = min_y + cy * layout.cell.y;
                     breaks.extend([cell_bottom, cell_bottom + layout.cell.y]);
@@ -589,7 +606,13 @@ where
                     Tri::Maybe => None,
                 }
             }
-            _ => match self.split(condition) {
+            _ => match self
+                .scratch
+                .run_splits
+                .get(condition as usize)
+                .copied()
+                .flatten()
+            {
                 Some(Split::Always(value)) => Some(value),
                 Some(Split::At(at)) if lo >= at => Some(true),
                 Some(Split::At(at)) if hi < at => Some(false),
@@ -707,6 +730,8 @@ where
         if last >= layout.size.y {
             return true;
         }
+        let first = first.max(layout.open_rows.first);
+        let last = last.min(layout.open_rows.last);
         (first..=last).any(|cy| self.vein_cell_open(vein, cy))
     }
 
@@ -889,6 +914,12 @@ where
             return true;
         };
         let slot = strip + cy as usize;
+        if let Some(layout) = self.scratch.vein_layout.get(vein)
+            && cy < layout.size.y
+            && !(layout.open_rows.first..=layout.open_rows.last).contains(&cy)
+        {
+            return false;
+        }
         match self.scratch.vein_cells.get(slot) {
             Some(&CELL_OPEN) | None => return true,
             Some(&CELL_CLOSED) => return false,
@@ -1247,6 +1278,7 @@ fn plan_veins(
                 cell: IVec3::new(16, height, 16),
                 size: IVec3::ONE,
                 at,
+                open_rows: OpenRows { first: 0, last: 0 },
             });
             scratch.vein_cells.push(CELL_OPEN);
             if let Some(row) = scratch
@@ -1261,9 +1293,122 @@ fn plan_veins(
         };
 
         let size = IVec3::new(16 / cell.x, height / cell.y, 16 / cell.z);
-        scratch.vein_layout.push(VeinCells { cell, size, at });
+        let open_rows = match program.vein_cell_bounds(index) {
+            Some(bounds) => open_vein_rows(router, bounds, scratch, veins, cell, size.y),
+            None => OpenRows {
+                first: 0,
+                last: size.y - 1,
+            },
+        };
+        scratch.vein_layout.push(VeinCells {
+            cell,
+            size,
+            at,
+            open_rows,
+        });
         scratch
             .vein_cells
             .resize(at + (size.x * size.y * size.z) as usize, CELL_UNKNOWN);
+    }
+}
+
+fn open_vein_rows(
+    router: &NoiseRouter,
+    bounds: &CellBounds,
+    scratch: &mut MaterialScratch,
+    veins: &SampleGrid,
+    cell: IVec3,
+    rows: i32,
+) -> OpenRows {
+    scratch.corners.clear();
+    scratch
+        .corners
+        .resize(bounds.wrappers().len(), Interval::INFINITE);
+    let mut open = OpenRows {
+        first: rows,
+        last: -1,
+    };
+    for cy in 0..rows {
+        let min = veins.min_block() + IVec3::new(0, cy * cell.y, 0);
+        let max = min + IVec3::new(15, cell.y - 1, 15);
+        let closed = bounds
+            .eval(
+                &router.program,
+                &scratch.corners,
+                min,
+                max,
+                &mut scratch.cell_terms,
+            )
+            .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK);
+        if !closed {
+            open.first = open.first.min(cy);
+            open.last = cy;
+        }
+    }
+    open
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compile::tests::build;
+
+    #[test]
+    fn every_positive_vein_density_lies_in_an_open_vein_row() {
+        let (router, material) = build("overworld");
+        let min_y = router.noise.min_y;
+        let height = router.noise.height as i32;
+        let top = min_y + height - 1;
+        let mut scratch = MaterialScratch::default();
+        let mut workspace = Workspace::default();
+        let mut density = Vec::new();
+        let mut positive = vec![0usize; material.veins().len()];
+
+        for chunk in 0..12 {
+            let block_x = chunk * 16 * 37 - 2048;
+            let block_z = chunk * 16 * 53 + 496;
+            let eval = MaterialEval::new(
+                &router,
+                &material,
+                &mut scratch,
+                |_, _, _| 0,
+                |_, _, _, _, _| false,
+                block_x,
+                block_z,
+                top,
+                &[0],
+            );
+            let layouts = eval.scratch.vein_layout.clone();
+            let veins = material.veins().iter().zip(&layouts);
+            for ((vein, layout), seen) in veins.zip(&mut positive) {
+                let grid = SampleGrid::new(
+                    IVec3::new(8, height, 8),
+                    IVec3::new(block_x, min_y, block_z),
+                    IVec3::new(2, 1, 2),
+                );
+                density.clear();
+                density.resize(grid.len(), 0.0);
+                router
+                    .program
+                    .fill(&mut workspace, &grid, vein.density, &mut density);
+                for point in 0..64 * height {
+                    let (column, dy) = (point / height, point % height);
+                    if density[grid.index_unchecked(column % 8, dy, column / 8)] <= 0.0 {
+                        continue;
+                    }
+                    *seen += 1;
+                    let row = dy / layout.cell.y;
+                    assert!(
+                        (layout.open_rows.first..=layout.open_rows.last).contains(&row),
+                        "vein density is positive at y {} in closed row {row}",
+                        min_y + dy,
+                    );
+                }
+            }
+        }
+        assert!(
+            positive.iter().all(|&count| count > 0),
+            "every vein shows positive density somewhere: {positive:?}"
+        );
     }
 }
