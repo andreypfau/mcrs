@@ -46,6 +46,7 @@ pub type ServerAddress = crate::browser::WebTransportTarget;
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClientNetworkSystems {
     Receive,
+    Deliver,
     Flush,
 }
 
@@ -237,8 +238,9 @@ impl Plugin for ClientNetworkPlugin {
                 leave_sessions.run_if(on_message::<LeaveRequest>),
                 cancel_joins.run_if(on_message::<CancelJoin>),
                 start_joins.run_if(on_message::<JoinRequest>),
-                collect_joins,
-                receive_packets,
+                (collect_joins, receive_packets)
+                    .chain()
+                    .in_set(ClientNetworkSystems::Deliver),
             )
                 .chain()
                 .in_set(ClientNetworkSystems::Receive),
