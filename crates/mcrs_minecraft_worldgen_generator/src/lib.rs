@@ -201,12 +201,18 @@ impl CellLattice {
         fluid: &mut FluidField<'_>,
         fill: &mut FillBuffers,
     ) -> CellFill {
-        corner_bounds(&self.values, &self.volume, at, &mut fill.corners);
         let min = IVec3::new(
             self.volume.block_x(at.x),
             self.volume.block_y(at.y),
             self.volume.block_z(at.z),
         );
+        let air = noise_router
+            .final_density_chain_bound(&self.values, &self.volume, at, min, min + self.cell - 1)
+            .filter(|chain| chain.max() < -CELL_BOUNDS_SLACK);
+        if let Some(chain) = air {
+            return self.verdict(chain, at, fluid);
+        }
+        corner_bounds(&self.values, &self.volume, at, &mut fill.corners);
         let Some(bounds) = noise_router.final_density_cell_bounds(
             &fill.corners,
             min,

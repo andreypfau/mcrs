@@ -292,6 +292,18 @@ impl NoiseRouter {
         self.cell_bounds.cell_size()
     }
 
+    pub fn final_density_chain_bound(
+        &self,
+        values: &[f32],
+        lattice: &SampleGrid,
+        at: IVec3,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        self.cell_bounds
+            .chain_bound(&self.program, values, lattice, at, min, max)
+    }
+
     pub fn final_density_cell_bounds(
         &self,
         corners: &[Interval],
