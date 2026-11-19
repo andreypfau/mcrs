@@ -37,6 +37,8 @@ pub struct MaterialScratch {
     splits: Vec<CondId>,
     run_splits: Vec<Option<Split>>,
     breaks: Vec<i32>,
+    open_cells: Vec<OpenCell>,
+    zones: Vec<Zone>,
     reachable: Vec<u16>,
     noise_columns: Vec<f32>,
     noise_column_stamps: Vec<u32>,
@@ -74,6 +76,29 @@ struct Piece {
     lo: i32,
     hi: i32,
     biome: Option<u16>,
+    open_veins: Option<u64>,
+}
+
+#[derive(Clone, Copy)]
+struct Zone {
+    lo: i32,
+    hi: i32,
+    entry: usize,
+}
+
+impl Zone {
+    const WHOLE: Self = Self {
+        lo: i32::MIN,
+        hi: i32::MAX,
+        entry: 0,
+    };
+}
+
+#[derive(Clone, Copy)]
+struct OpenCell {
+    bottom: i32,
+    top: i32,
+    vein: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -380,6 +405,9 @@ where
             }
         }
         self.scratch.splits = splits;
+        let mut open_cells = std::mem::take(&mut self.scratch.open_cells);
+        open_cells.clear();
+        let mut cells_known = bottom >= min_y;
         for vein in 0..self.scratch.vein_layout.len() {
             let Some(&layout) = self.scratch.vein_layout.get(vein) else {
                 break;
@@ -389,12 +417,18 @@ where
                     .div_euclid(layout.cell.y)
                     .clamp(0, layout.size.y - 1)
             };
+            cells_known &= (top - min_y) / layout.cell.y < layout.size.y;
             let first = cell_of(bottom).max(layout.open_rows.first);
             let last = cell_of(top).min(layout.open_rows.last);
             for cy in first..=last {
                 if self.vein_cell_open(vein, cy) {
                     let cell_bottom = min_y + cy * layout.cell.y;
                     breaks.extend([cell_bottom, cell_bottom + layout.cell.y]);
+                    open_cells.push(OpenCell {
+                        bottom: cell_bottom,
+                        top: cell_bottom + layout.cell.y - 1,
+                        vein: vein as u32,
+                    });
                 }
             }
         }
@@ -402,27 +436,140 @@ where
         breaks.sort_unstable_by(|a, b| b.cmp(a));
         breaks.dedup();
 
-        let mut hi = top;
-        for &lo in &breaks {
-            self.settle_piece(lo, hi, out);
-            hi = lo - 1;
-        }
-        if hi >= bottom {
-            self.settle_piece(bottom, hi, out);
-        }
-        self.scratch.breaks = breaks;
-    }
-
-    fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, SettledState)>) {
-        let piece = Piece {
+        let piece_of = |lo: i32, hi: i32| Piece {
             lo,
             hi,
             biome: None,
+            open_veins: cells_known.then(|| {
+                open_cells
+                    .iter()
+                    .filter(|cell| cell.bottom <= hi && cell.top >= lo)
+                    .fold(0, |mask, cell| {
+                        mask | 1u64.checked_shl(cell.vein).unwrap_or(0)
+                    })
+            }),
         };
-        match self.settle_from(0, piece) {
+        let mut zones = std::mem::take(&mut self.scratch.zones);
+        zones.clear();
+        let mut hi = top;
+        for &lo in &breaks {
+            let piece = piece_of(lo, hi);
+            let entry = self.entry_for(piece, &open_cells, &mut zones);
+            self.settle_piece(entry, piece, out);
+            hi = lo - 1;
+        }
+        if hi >= bottom {
+            let piece = piece_of(bottom, hi);
+            let entry = self.entry_for(piece, &open_cells, &mut zones);
+            self.settle_piece(entry, piece, out);
+        }
+        self.scratch.breaks = breaks;
+        self.scratch.open_cells = open_cells;
+        self.scratch.zones = zones;
+    }
+
+    fn entry_for(&mut self, piece: Piece, open_cells: &[OpenCell], zones: &mut Vec<Zone>) -> usize {
+        while zones
+            .last()
+            .is_some_and(|zone| zone.lo > piece.lo || piece.hi > zone.hi)
+        {
+            zones.pop();
+        }
+        let Zone {
+            mut lo,
+            mut hi,
+            entry: mut pc,
+        } = zones.last().copied().unwrap_or(Zone::WHOLE);
+        let program = self.program;
+        while let Some(&op) = program.tape().get(pc) {
+            let (was_lo, was_hi) = (lo, hi);
+            match op {
+                Op::Guard { condition, skip_to } => {
+                    let decided = if self.reads_biome(condition) {
+                        self.scratch
+                            .folded
+                            .get(condition as usize)
+                            .copied()
+                            .flatten()
+                    } else {
+                        self.over(condition, piece)
+                    };
+                    let Some(value) = decided else {
+                        break;
+                    };
+                    self.narrow(condition, value, &mut lo, &mut hi);
+                    pc = if value { pc + 1 } else { skip_to as usize };
+                }
+                Op::OreVein { vein } => {
+                    if piece.open_veins.is_none() || self.vein_open_over(vein, piece) {
+                        break;
+                    }
+                    for cell in open_cells.iter().filter(|cell| cell.vein == vein) {
+                        if cell.top < piece.lo {
+                            lo = lo.max(cell.top.saturating_add(1));
+                        } else {
+                            hi = hi.min(cell.bottom.saturating_sub(1));
+                        }
+                    }
+                    pc += 1;
+                }
+                Op::Block { .. } | Op::Bandlands => break,
+            }
+            match zones.last_mut() {
+                Some(zone) if (lo, hi) == (was_lo, was_hi) => zone.entry = pc,
+                _ => zones.push(Zone { lo, hi, entry: pc }),
+            }
+        }
+        pc
+    }
+
+    fn narrow(&self, condition: CondId, value: bool, lo: &mut i32, hi: &mut i32) {
+        if let Some(&Some(_)) = self.scratch.folded.get(condition as usize) {
+            return;
+        }
+        let Some(compiled) = self.program.conditions().get(condition as usize) else {
+            return;
+        };
+        let split = match compiled.kind {
+            Condition::Not(inner) => return self.narrow(inner, !value, lo, hi),
+            Condition::VerticalGradient {
+                true_at_and_below,
+                false_at_and_above,
+                ..
+            } => {
+                if value {
+                    *hi = (*hi).min(true_at_and_below);
+                } else {
+                    *lo = (*lo).max(false_at_and_above);
+                }
+                return;
+            }
+            _ => self
+                .scratch
+                .run_splits
+                .get(condition as usize)
+                .copied()
+                .flatten(),
+        };
+        match (split, value) {
+            (Some(Split::At(at)), true) => *lo = (*lo).max(at),
+            (Some(Split::At(at)), false) => *hi = (*hi).min(at.saturating_sub(1)),
+            (Some(Split::AtOrBelow(at)), true) => *hi = (*hi).min(at),
+            (Some(Split::AtOrBelow(at)), false) => *lo = (*lo).max(at.saturating_add(1)),
+            _ => {}
+        }
+    }
+
+    fn settle_piece(
+        &mut self,
+        entry: usize,
+        piece: Piece,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) {
+        match self.settle_from(entry, piece) {
             Settled::Open {
                 guard, condition, ..
-            } if self.reads_biome(condition) => self.settle_by_biome(guard, lo, hi, out),
+            } if self.reads_biome(condition) => self.settle_by_biome(guard, piece, out),
             settled => self.settle_open(piece, settled, out),
         }
     }
@@ -430,26 +577,27 @@ where
     fn settle_by_biome(
         &mut self,
         guard: usize,
-        lo: i32,
-        hi: i32,
+        piece: Piece,
         out: &mut Vec<(i32, i32, SettledState)>,
     ) {
+        let Piece { lo, hi, .. } = piece;
         let mut top = hi;
         let mut above = (self.biome_at)(self.block_x, hi, self.block_z);
         for y in (lo..hi).rev() {
             let biome = (self.biome_at)(self.block_x, y, self.block_z);
             if biome != above {
-                self.settle_exact(guard, y + 1, top, above, out);
+                self.settle_exact(guard, piece, y + 1, top, above, out);
                 top = y;
                 above = biome;
             }
         }
-        self.settle_exact(guard, lo, top, above, out);
+        self.settle_exact(guard, piece, lo, top, above, out);
     }
 
     fn settle_exact(
         &mut self,
         guard: usize,
+        parent: Piece,
         lo: i32,
         hi: i32,
         biome: u16,
@@ -459,6 +607,7 @@ where
             lo,
             hi,
             biome: Some(biome),
+            open_veins: parent.open_veins,
         };
         let settled = self.settle_from(guard, piece);
         self.settle_open(piece, settled, out);
@@ -560,7 +709,7 @@ where
                 Op::Block { state } => return Settled::Answer(SettledState::Block(Some(state))),
                 Op::Bandlands => return Settled::Answer(SettledState::Bandlands),
                 Op::OreVein { vein } => {
-                    if self.vein_open_in(vein as usize, piece.lo, piece.hi) {
+                    if self.vein_open_over(vein, piece) {
                         return Settled::Blocked;
                     }
                     pc += 1;
@@ -571,7 +720,7 @@ where
     }
 
     fn over(&mut self, condition: CondId, piece: Piece) -> Option<bool> {
-        let Piece { lo, hi, biome } = piece;
+        let Piece { lo, hi, biome, .. } = piece;
         if let Some(&Some(value)) = self.scratch.folded.get(condition as usize) {
             return Some(value);
         }
@@ -718,6 +867,15 @@ where
             ) as i32
         };
         1 + offset + surface_depth + secondary
+    }
+
+    fn vein_open_over(&mut self, vein: VeinId, piece: Piece) -> bool {
+        match (piece.open_veins, 1u64.checked_shl(vein)) {
+            (Some(mask), Some(bit)) if (vein as usize) < self.scratch.vein_layout.len() => {
+                mask & bit != 0
+            }
+            _ => self.vein_open_in(vein as usize, piece.lo, piece.hi),
+        }
     }
 
     fn vein_open_in(&mut self, vein: usize, lo: i32, hi: i32) -> bool {
