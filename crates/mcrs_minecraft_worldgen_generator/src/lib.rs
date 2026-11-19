@@ -686,12 +686,15 @@ fn column_biome_palettes(
         ),
         ColumnBiomes::Beta(beta) => {
             let grid = beta_biome_grid(noise_router, beta, block_x, block_z);
-            (upscale_column(&grid, noise_router, y_sections), false)
+            (
+                upscale_column(grid.window(), noise_router, y_sections),
+                false,
+            )
         }
         ColumnBiomes::TheEnd(end) => {
             let palettes = end_biome_grid(noise_router, end, block_x, block_z, y_sections)
                 .map_or_else(Vec::new, |grid| {
-                    upscale_column(&grid, noise_router, y_sections)
+                    upscale_column(grid.window(), noise_router, y_sections)
                 });
             (palettes, true)
         }
@@ -700,7 +703,7 @@ fn column_biome_palettes(
 }
 
 fn upscale_column(
-    grid: &BiomeGrid,
+    grid: BiomeWindow<'_>,
     noise_router: &NoiseRouter,
     y_sections: &[i32],
 ) -> Vec<BiomePalette> {
@@ -719,10 +722,17 @@ pub fn multi_noise_palettes(
     block_z: i32,
     y_sections: &[i32],
 ) -> Vec<BiomePalette> {
-    multi_noise_grid(noise_router, table, climate, block_x, block_z, y_sections)
-        .map_or_else(Vec::new, |grid| {
-            upscale_column(&grid, noise_router, y_sections)
-        })
+    let upscale = |window: BiomeWindow<'_>| upscale_column(window, noise_router, y_sections);
+    with_column_window(
+        noise_router,
+        table,
+        climate,
+        block_x,
+        block_z,
+        y_sections,
+        upscale,
+    )
+    .unwrap_or_default()
 }
 
 pub fn multi_noise_grid(
@@ -733,14 +743,36 @@ pub fn multi_noise_grid(
     block_z: i32,
     y_sections: &[i32],
 ) -> Option<BiomeGrid> {
+    let copy = |window: BiomeWindow<'_>| window.to_grid();
+    with_column_window(
+        noise_router,
+        table,
+        climate,
+        block_x,
+        block_z,
+        y_sections,
+        copy,
+    )
+}
+
+fn with_column_window<R>(
+    noise_router: &NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+    lend: impl FnOnce(BiomeWindow<'_>) -> R,
+) -> Option<R> {
     if (block_x | block_z) & 15 != 0 {
         return None;
     }
     let col = ColumnPos::new(block_x >> 4, block_z >> 4);
-    match climate {
-        Some(climate) => climate.grid(table, col),
-        None => ClimateBox::sample(noise_router, [col], y_sections)?.grid(table, col),
+    if let Some(window) = climate.and_then(|climate| climate.window(col)) {
+        return Some(lend(window));
     }
+    let alone = ClimateBox::sample(noise_router, table, [col], y_sections)?;
+    Some(lend(alone.window(col)?))
 }
 
 pub fn beta_biome_grid(
@@ -1042,6 +1074,8 @@ pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;
 pub(crate) mod biome_upscale;
+mod biome_window;
+pub use biome_window::BiomeWindow;
 mod climate_box;
 pub use climate_box::ClimateBox;
 pub mod feature_program;

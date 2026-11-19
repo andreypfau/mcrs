@@ -1,4 +1,5 @@
-use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::biome_window::BiomeWindow;
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use glam::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
@@ -13,55 +14,61 @@ const WINDOW: i32 = QUARTS_PER_COLUMN + 2;
 
 pub struct ClimateBox {
     volume: SampleGrid,
-    values: Vec<f32>,
+    min: ColumnPos,
+    columns_x: i32,
+    members: Vec<bool>,
+    ids: Vec<u8>,
 }
 
 impl ClimateBox {
-    pub fn sample(
+    pub fn sample<I>(
         noise_router: &NoiseRouter,
-        columns: impl IntoIterator<Item = ColumnPos>,
+        table: &MultiNoiseBiomeTable,
+        columns: I,
         y_sections: &[i32],
-    ) -> Option<Self> {
+    ) -> Option<Self>
+    where
+        I: IntoIterator<Item = ColumnPos>,
+        I::IntoIter: Clone,
+    {
         let (&first, &last) = (y_sections.first()?, y_sections.last()?);
-        let mut columns = columns.into_iter();
-        let start = columns.next()?;
-        let (min, max) = columns.fold((start, start), |(min, max), col| {
+        let columns = columns.into_iter();
+        let start = columns.clone().next()?;
+        let (min, max) = columns.clone().fold((start, start), |(min, max), col| {
             (
                 ColumnPos::new(min.x.min(col.x), min.z.min(col.z)),
                 ColumnPos::new(max.x.max(col.x), max.z.max(col.z)),
             )
         });
+        let columns_x = max.x - min.x + 1;
+        let columns_z = max.z - min.z + 1;
         let volume = SampleGrid::new(
             IVec3::new(
-                (max.x - min.x + 1) * QUARTS_PER_COLUMN + 2,
+                columns_x * QUARTS_PER_COLUMN + 2,
                 (last - first + 1) * QUARTS_PER_COLUMN,
-                (max.z - min.z + 1) * QUARTS_PER_COLUMN + 2,
+                columns_z * QUARTS_PER_COLUMN + 2,
             ),
             IVec3::new(min.x * 16 - 4, first * 16, min.z * 16 - 4),
             IVec3::splat(4),
         );
-        let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
-        let mut values = vec![0.0f32; roots.len() * volume.len()];
-        noise_router.fill_roots(&mut Workspace::new(), &volume, &roots, &mut values);
-        Some(Self { volume, values })
-    }
-
-    pub fn grid(&self, table: &MultiNoiseBiomeTable, col: ColumnPos) -> Option<BiomeGrid> {
-        let size = self.volume.size();
-        let origin = self.volume.min_block();
-        let offset_x = (col.x * 16 - 4 - origin.x) / 4;
-        let offset_z = (col.z * 16 - 4 - origin.z) / 4;
-        let inside = |offset: i32, span: i32| (0..=span - WINDOW).contains(&offset);
-        if !inside(offset_x, size.x) || !inside(offset_z, size.z) {
-            return None;
+        let size = volume.size();
+        let mut members = vec![false; usize::try_from(columns_x * columns_z).ok()?];
+        let mut covered = vec![false; usize::try_from(size.x * size.z).ok()?];
+        for col in columns {
+            let (column_x, column_z) = (col.x - min.x, col.z - min.z);
+            *members.get_mut(usize::try_from(column_z * columns_x + column_x).ok()?)? = true;
+            for z in column_z * QUARTS_PER_COLUMN..column_z * QUARTS_PER_COLUMN + WINDOW {
+                let row = usize::try_from(z * size.x).ok()?;
+                let from = row + usize::try_from(column_x * QUARTS_PER_COLUMN).ok()?;
+                covered.get_mut(from..from + WINDOW as usize)?.fill(true);
+            }
         }
-        let window = SampleGrid::new(
-            IVec3::new(WINDOW, size.y, WINDOW),
-            IVec3::new(col.x * 16 - 4, origin.y, col.z * 16 - 4),
-            IVec3::splat(4),
-        );
-        let points = self.volume.len();
-        let mut rows = self.values.chunks_exact(points);
+
+        let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
+        let points = volume.len();
+        let mut values = vec![0.0f32; roots.len() * points];
+        noise_router.fill_roots(&mut Workspace::new(), &volume, &roots, &mut values);
+        let mut rows = values.chunks_exact(points);
         let (Some(temperature), Some(vegetation), Some(continents), Some(erosion)) =
             (rows.next(), rows.next(), rows.next(), rows.next())
         else {
@@ -72,26 +79,57 @@ impl ClimateBox {
         };
 
         let mut cursor = table.cursor();
-        let mut ids = Vec::with_capacity(window.len());
-        for z in 0..WINDOW {
-            for x in 0..WINDOW {
-                for y in 0..size.y {
-                    let at = self.volume.index_unchecked(offset_x + x, y, offset_z + z);
-                    let target = TargetPoint::new(
-                        *temperature.get(at)?,
-                        *vegetation.get(at)?,
-                        *continents.get(at)?,
-                        *erosion.get(at)?,
-                        *depth.get(at)?,
-                        *ridges.get(at)?,
-                    );
-                    ids.push(*cursor.find_value(target)?);
-                }
+        let mut ids = vec![0u8; points];
+        let height = usize::try_from(size.y).ok()?;
+        let quart_columns = ids.chunks_exact_mut(height).zip(&covered);
+        for (quart_column, at) in quart_columns.zip((0..points).step_by(height)) {
+            let (column, &true) = quart_column else {
+                continue;
+            };
+            for (y, id) in column.iter_mut().enumerate() {
+                let at = at + y;
+                let target = TargetPoint::new(
+                    *temperature.get(at)?,
+                    *vegetation.get(at)?,
+                    *continents.get(at)?,
+                    *erosion.get(at)?,
+                    *depth.get(at)?,
+                    *ridges.get(at)?,
+                );
+                *id = *cursor.find_value(target)?;
             }
         }
-        Some(BiomeGrid {
-            volume: window,
+        Some(Self {
+            volume,
+            min,
+            columns_x,
+            members,
             ids,
         })
+    }
+
+    #[must_use]
+    pub fn window(&self, col: ColumnPos) -> Option<BiomeWindow<'_>> {
+        let (column_x, column_z) = (col.x - self.min.x, col.z - self.min.z);
+        if !(0..self.columns_x).contains(&column_x) {
+            return None;
+        }
+        let member = usize::try_from(column_z * self.columns_x + column_x).ok()?;
+        if !*self.members.get(member)? {
+            return None;
+        }
+        let origin = self.volume.min_block();
+        let window = SampleGrid::new(
+            IVec3::new(WINDOW, self.volume.size().y, WINDOW),
+            IVec3::new(col.x * 16 - 4, origin.y, col.z * 16 - 4),
+            IVec3::splat(4),
+        );
+        Some(BiomeWindow::new(
+            window,
+            self.volume,
+            column_x * QUARTS_PER_COLUMN,
+            column_z * QUARTS_PER_COLUMN,
+            &self.ids,
+        ))
     }
 }

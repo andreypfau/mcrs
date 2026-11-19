@@ -482,9 +482,10 @@ fn a_fill_group_lends_each_column_the_quarts_it_samples_alone() {
     for seed in [2, 845] {
         let router = build_settings_router("overworld", seed);
         for group in [&full[..], &partial[..]] {
-            let climate = ClimateBox::sample(&router, group.iter().copied(), &sections).unwrap();
+            let climate =
+                ClimateBox::sample(&router, &table, group.iter().copied(), &sections).unwrap();
             for &col in group {
-                let grid = climate.grid(&table, col).unwrap();
+                let grid = climate.window(col).unwrap().to_grid();
                 let (volume, ids) = column_quarts_sampled_alone(&router, &table, col, &sections);
                 assert_eq!(grid.volume, volume, "seed {seed} column {col:?}");
                 assert!(

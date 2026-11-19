@@ -185,7 +185,7 @@ fn main() {
     let warm: Vec<ColumnPos> = (0..2)
         .map(|x| ColumnPos::new(offset + x, offset - 1))
         .collect();
-    let climate = ClimateBox::sample(&router, warm.iter().copied(), &y_sections).unwrap();
+    let climate = ClimateBox::sample(&router, &table, warm.iter().copied(), &y_sections).unwrap();
     for col in &warm {
         run(&mut column, &mut scratch, &mut ws, &climate, col.x, col.z);
     }
@@ -203,7 +203,8 @@ fn main() {
                 })
                 .collect();
             let t = Instant::now();
-            let climate = ClimateBox::sample(&router, group.iter().copied(), &y_sections).unwrap();
+            let climate =
+                ClimateBox::sample(&router, &table, group.iter().copied(), &y_sections).unwrap();
             let share = t.elapsed() / group.len() as u32;
             for col in group {
                 let (mut s, n, dominant) =

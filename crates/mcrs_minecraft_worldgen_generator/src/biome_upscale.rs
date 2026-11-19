@@ -1,4 +1,4 @@
-use crate::multi_noise_biomes::BiomeGrid;
+use crate::biome_window::BiomeWindow;
 use mcrs_minecraft_biome::zoom::{FiddleCache, uniform_corners};
 use mcrs_minecraft_chunk::VoxelPalette;
 use mcrs_minecraft_core::QuartPos;
@@ -9,7 +9,7 @@ const EDGE: usize = SectionPos::SIZE;
 const CELLS: usize = EDGE / QuartPos::SIZE + 1;
 
 struct ColumnBiomes<'a> {
-    grid: &'a BiomeGrid,
+    grid: BiomeWindow<'a>,
     origin: QuartPos,
     first_row: i32,
     last_row: i32,
@@ -17,7 +17,7 @@ struct ColumnBiomes<'a> {
 
 impl ColumnBiomes<'_> {
     fn at(&self, quart: QuartPos) -> u8 {
-        let size = self.grid.volume.size();
+        let size = self.grid.volume().size();
         let x = quart.x - self.origin.x;
         let z = quart.z - self.origin.z;
         debug_assert!(
@@ -56,7 +56,7 @@ fn cell_span(cell: usize) -> Range<usize> {
     reason = "fills the upscaled cells of each quart cell in y, z, x order"
 )]
 pub fn upscale_biomes(
-    grid: &BiomeGrid,
+    grid: BiomeWindow<'_>,
     zoom_seed: i64,
     sections: &[i32],
     cache: &mut FiddleCache,
@@ -64,7 +64,7 @@ pub fn upscale_biomes(
     let (Some(&first), Some(&last)) = (sections.first(), sections.last()) else {
         return Vec::new();
     };
-    let min = grid.volume.min_block();
+    let min = grid.volume().min_block();
     let column = ColumnBiomes {
         grid,
         origin: QuartPos::of(min.into()),

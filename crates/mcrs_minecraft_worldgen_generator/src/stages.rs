@@ -996,17 +996,18 @@ fn settle_block_entities<'a>(
     settled
 }
 
-pub fn fill_group_climate(
-    ctx: &FillContext,
-    columns: impl IntoIterator<Item = ColumnPos>,
-) -> Option<ClimateBox> {
-    let ColumnBiomes::MultiNoise(_) = ctx.program.biomes else {
+pub fn fill_group_climate<I>(ctx: &FillContext, columns: I) -> Option<ClimateBox>
+where
+    I: IntoIterator<Item = ColumnPos>,
+    I::IntoIter: Clone,
+{
+    let ColumnBiomes::MultiNoise(table) = &ctx.program.biomes else {
         return None;
     };
     if let ColumnGenerator::Flat(_) = ctx.program.generator {
         return None;
     }
-    ClimateBox::sample(ctx.router.as_deref()?, columns, &ctx.y_sections)
+    ClimateBox::sample(ctx.router.as_deref()?, table, columns, &ctx.y_sections)
 }
 
 pub fn fill_pooled(

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::biome_window::BiomeWindow;
 use crate::ids::require_registry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ClimateCursor, ParameterList, ParameterPoint, TargetPoint};
@@ -61,6 +62,11 @@ impl BiomeGrid {
     #[inline]
     pub fn get(&self, x: i32, y: i32, z: i32) -> u8 {
         self.ids[self.volume.index_unchecked(x, y, z)]
+    }
+
+    #[must_use]
+    pub fn window(&self) -> BiomeWindow<'_> {
+        BiomeWindow::new(self.volume, self.volume, 0, 0, &self.ids)
     }
 }
 

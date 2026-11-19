@@ -81,7 +81,12 @@ fn a_row_outside_the_column_is_answered_by_the_edge_row() {
         )
     };
 
-    let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
+    let containers = upscale_biomes(
+        grid.window(),
+        zoom_seed,
+        &sections,
+        &mut FiddleCache::default(),
+    );
 
     for container in &containers {
         container.for_each_distinct(|biome| assert_ne!(biome, MARGIN));
@@ -117,7 +122,12 @@ fn a_uniform_neighbourhood_gives_a_single_value_container() {
                 if y == 0 || y == rows - 1 { margin } else { 5 }
             },
         );
-        let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
+        let containers = upscale_biomes(
+            grid.window(),
+            zoom_seed,
+            &sections,
+            &mut FiddleCache::default(),
+        );
         assert_eq!(containers.len(), sections.len());
         for container in &containers {
             assert!(
@@ -136,7 +146,12 @@ fn a_uniform_cell_is_filled_with_its_corner_biome() {
     let min = grid.volume.min_block();
     let rows = grid.volume.size().y;
 
-    let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
+    let containers = upscale_biomes(
+        grid.window(),
+        zoom_seed,
+        &sections,
+        &mut FiddleCache::default(),
+    );
 
     for container in &containers {
         assert!(matches!(container.0, PalettedContainer::Heterogeneous(_)));
@@ -161,7 +176,12 @@ fn a_single_row_grid_answers_every_height_from_that_row() {
     );
     let min = grid.volume.min_block();
 
-    let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
+    let containers = upscale_biomes(
+        grid.window(),
+        zoom_seed,
+        &sections,
+        &mut FiddleCache::default(),
+    );
 
     for container in &containers {
         let mut distinct = 0;
