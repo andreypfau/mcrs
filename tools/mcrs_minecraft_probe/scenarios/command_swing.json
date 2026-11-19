@@ -1,0 +1,332 @@
+{
+  "target": {
+    "operators": ["Alice", "Bob", "Carl", "Dan"],
+    "operator_levels": {
+      "Carl": 1,
+      "Dan": 2
+    }
+  },
+  "observe": {
+    "swing": true,
+    "chat": true,
+    "commands": ["swing"]
+  },
+  "steps": [
+    {
+      "id": "prepare_peaceful",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false"
+        ]
+      }
+    },
+    { "id": "join_alice", "join": "Alice" },
+    { "id": "join_bob", "join": "Bob" },
+    {
+      "id": "prepare_arena",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false",
+          "kill @e[type=!minecraft:player]",
+          "fill -5 99 -5 5 99 5 minecraft:stone",
+          "fill -5 100 -5 5 104 5 minecraft:air",
+          "tp Alice 0 100 0",
+          "tp Bob 2 100 0",
+          "gamemode creative Alice",
+          "gamemode creative Bob",
+          "summon minecraft:pig 1 100 0 {UUID:[I;0,0,0,8],NoAI:1b}",
+          "summon minecraft:armor_stand 1 100 1 {UUID:[I;0,0,0,7],NoGravity:1b}",
+          "summon minecraft:item 1 100 -2 {UUID:[I;0,0,0,6],PickupDelay:32767s,Item:{id:\"minecraft:stone\",count:1}}",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:interact_animation={type:\"none\",duration:25},minecraft:attack_animation={type:\"none\",duration:19}]",
+          "item replace entity Alice weapon.offhand with minecraft:stick[minecraft:interact_animation={type:\"none\",duration:33}]",
+          "scoreboard objectives add swing_res dummy"
+        ]
+      }
+    },
+    { "id": "wait_arena", "wait": { "ms": 300 } },
+    { "id": "join_carl_op1", "join": "Carl" },
+    {
+      "id": "setup_carl_op1",
+      "console": { "lines": ["tp Carl 3 100 0", "gamemode creative Carl"] }
+    },
+    { "id": "swing_op1_carl_fails", "command": { "client": "Carl", "line": "swing" } },
+    { "id": "leave_carl_op1", "leave": "Carl" },
+    { "id": "join_dan_op2", "join": "Dan" },
+    {
+      "id": "setup_dan_op2",
+      "console": { "lines": ["tp Dan 3 100 0", "gamemode creative Dan"] }
+    },
+    { "id": "swing_op2_dan_succeeds", "command": { "client": "Dan", "line": "swing Dan mainhand" } },
+    { "id": "wait_dan_op2", "wait": { "ms": 300 } },
+    { "id": "leave_dan_op2", "leave": "Dan" },
+    { "id": "swing_bare_alice", "command": { "client": "Alice", "line": "swing" } },
+    { "id": "wait_after_bare", "wait": { "ms": 300 } },
+    { "id": "swing_mainhand_omits_anim", "command": { "client": "Alice", "line": "swing Alice mainhand" } },
+    { "id": "wait_after_main", "wait": { "ms": 300 } },
+    { "id": "swing_offhand", "command": { "client": "Alice", "line": "swing Alice offhand" } },
+    { "id": "wait_after_off", "wait": { "ms": 300 } },
+    { "id": "swing_mainhand_stab", "command": { "client": "Alice", "line": "swing Alice mainhand stab" } },
+    { "id": "wait_after_stab", "wait": { "ms": 300 } },
+    { "id": "swing_mainhand_none_15", "command": { "client": "Alice", "line": "swing Alice mainhand none 15" } },
+    { "id": "wait_after_15", "wait": { "ms": 500 } },
+    {
+      "id": "equip_whack_control_alice",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:6}]"
+        ]
+      }
+    },
+    { "id": "punch_whack_positive_control", "punch": { "client": "Alice" } },
+    { "id": "wait_whack_control", "wait": { "ms": 300 } },
+    {
+      "id": "swing_none_blocks_later_punch",
+      "sequence": {
+        "steps": [
+          { "console": { "lines": ["swing Alice mainhand none 40"] } },
+          { "wait": { "ms": 150 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_none_40", "wait": { "ms": 1500 } },
+    { "id": "suggest_anim_all", "suggest": { "client": "Alice", "line": "/swing Alice mainhand " } },
+    { "id": "suggest_anim_s", "suggest": { "client": "Alice", "line": "/swing Alice mainhand s" } },
+    { "id": "suggest_anim_upper_s", "suggest": { "client": "Alice", "line": "/swing Alice mainhand S" } },
+    { "id": "swing_bob_time_2s", "command": { "client": "Alice", "line": "swing Bob offhand stab 2s" } },
+    { "id": "wait_after_2s", "wait": { "ms": 1200 } },
+    { "id": "swing_multiple_targets", "command": { "client": "Alice", "line": "swing @e[distance=..5]" } },
+    { "id": "wait_after_multi", "wait": { "ms": 300 } },
+    { "id": "swing_item_only_fails", "command": { "client": "Alice", "line": "swing @e[type=minecraft:item]" } },
+    { "id": "swing_notfound_fails", "command": { "client": "Alice", "line": "swing @a[name=nobody]" } },
+    { "id": "swing_invalid_animation", "command": { "client": "Alice", "line": "swing Alice mainhand bad_anim" } },
+    { "id": "swing_uppercase_animation", "command": { "client": "Alice", "line": "swing Alice mainhand WHACK" } },
+    { "id": "swing_duration_zero_fails", "command": { "client": "Alice", "line": "swing Alice mainhand stab 0" } },
+    { "id": "swing_console_bare_fails", "console": { "lines": ["swing"] } },
+    { "id": "swing_console_pig", "console": { "lines": ["swing @e[type=minecraft:pig] offhand stab 12"] } },
+    {
+      "id": "swing_cooldown_blocks_later_punch",
+      "sequence": {
+        "steps": [
+          { "console": { "lines": ["swing Alice mainhand stab 60"] } },
+          { "wait": { "ms": 150 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_slow_cmd_expire", "wait": { "ms": 1600 } },
+    {
+      "id": "equip_slow_stick_alice",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:60}]",
+          "scoreboard players set Alice swing_res 99",
+          "tick freeze"
+        ]
+      }
+    },
+    {
+      "id": "punch_cooldown_blocks_later_swing",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "await_packet": { "client": "Bob", "packet": { "swing": { "subject": "Alice" } } } },
+          { "advance_ticks": { "ticks": 2 } },
+          {
+            "console": {
+              "lines": [
+                "execute store result score Alice swing_res run swing Alice offhand stab 10",
+                "scoreboard players get Alice swing_res",
+                "tick unfreeze"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    { "id": "wait_slow_punch_expire", "wait": { "ms": 1600 } },
+    {
+      "id": "equip_very_slow_stick_alice",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:100}]",
+          "scoreboard players set Alice swing_res 99"
+        ]
+      }
+    },
+    { "id": "punch_very_slow_for_blocked_cmd", "punch": { "client": "Alice" } },
+    { "id": "swing_while_blocked_reports_success", "command": { "client": "Alice", "line": "execute store result score Alice swing_res run swing Alice offhand stab 12" } },
+    { "id": "swing_while_blocked_score", "console": { "lines": ["scoreboard players get Alice swing_res"] } },
+    { "id": "wait_very_slow_expire", "wait": { "ms": 2000 } },
+    {
+      "id": "freeze_pig_cmd_cd",
+      "console": {
+        "lines": [
+          "tick freeze",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+        ]
+      }
+    },
+    { "id": "tick_pig_cmd_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "try_pig_cmd_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
+    { "id": "tick_pig_cmd_2", "advance_ticks": { "ticks": 1 } },
+    { "id": "try_pig_cmd_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
+    { "id": "tick_pig_cmd_3", "advance_ticks": { "ticks": 1 } },
+    { "id": "try_pig_cmd_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
+    { "id": "tick_pig_cmd_4", "advance_ticks": { "ticks": 1 } },
+    { "id": "try_pig_cmd_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 6"] } },
+    { "id": "clear_pig_cmd_cd", "advance_ticks": { "ticks": 4 } },
+    {
+      "id": "cmd_haste2_pig_d10",
+      "console": {
+        "lines": [
+          "effect clear @e[type=minecraft:pig,limit=1]",
+          "effect give @e[type=minecraft:pig,limit=1] minecraft:haste 60 2",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 10"
+        ]
+      }
+    },
+    { "id": "cmd_h2_step3", "advance_ticks": { "ticks": 3 } },
+    { "id": "cmd_h2_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "cmd_h2_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "cmd_h2_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "cmd_h2_clear", "advance_ticks": { "ticks": 4 } },
+    {
+      "id": "cmd_conduit2_pig_d10",
+      "console": {
+        "lines": [
+          "effect clear @e[type=minecraft:pig,limit=1]",
+          "effect give @e[type=minecraft:pig,limit=1] minecraft:conduit_power 60 2",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 10"
+        ]
+      }
+    },
+    { "id": "cmd_c2_step3", "advance_ticks": { "ticks": 3 } },
+    { "id": "cmd_c2_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "cmd_c2_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "cmd_c2_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "cmd_c2_clear", "advance_ticks": { "ticks": 4 } },
+    {
+      "id": "cmd_fatigue4_pig_d6",
+      "console": {
+        "lines": [
+          "effect clear @e[type=minecraft:pig,limit=1]",
+          "effect give @e[type=minecraft:pig,limit=1] minecraft:mining_fatigue 60 4",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+        ]
+      }
+    },
+    { "id": "cmd_f4_step8", "advance_ticks": { "ticks": 8 } },
+    { "id": "cmd_f4_blocked_at_t8", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "cmd_f4_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "cmd_f4_unlocked_at_t9", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    {
+      "id": "unfreeze_pig_cmd_cd",
+      "console": {
+        "lines": [
+          "effect clear @e[type=minecraft:pig,limit=1]",
+          "tick unfreeze"
+        ]
+      }
+    },
+    { "id": "wait_unfreeze_cmd_cd", "wait": { "ms": 500 } },
+    { "id": "setup_effects_haste", "console": { "lines": ["effect give Alice minecraft:haste 60 3"] } },
+    { "id": "swing_haste_default", "command": { "client": "Alice", "line": "swing Alice" } },
+    { "id": "wait_haste_default", "wait": { "ms": 400 } },
+    { "id": "swing_haste_explicit", "command": { "client": "Alice", "line": "swing Alice mainhand stab 20" } },
+    { "id": "wait_haste_explicit", "wait": { "ms": 800 } },
+    {
+      "id": "setup_effects_fatigue",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "effect give Alice minecraft:mining_fatigue 60 2"
+        ]
+      }
+    },
+    { "id": "swing_fatigue_explicit", "command": { "client": "Alice", "line": "swing Alice mainhand stab 20" } },
+    { "id": "wait_fatigue_explicit", "wait": { "ms": 800 } },
+    {
+      "id": "setup_effects_conduit",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "effect give Alice minecraft:conduit_power 60 0"
+        ]
+      }
+    },
+    { "id": "swing_conduit_explicit", "command": { "client": "Alice", "line": "swing Alice mainhand stab 20" } },
+    { "id": "wait_conduit_explicit", "wait": { "ms": 800 } },
+    { "id": "clear_effects_cmd", "console": { "lines": ["effect clear Alice"] } },
+    {
+      "id": "swing_execute_store_result",
+      "console": {
+        "lines": [
+          "execute at Alice store result score Alice swing_res run swing @e[distance=..5] mainhand",
+          "scoreboard players get Alice swing_res",
+          "execute store result score Alice swing_res run swing @e[type=minecraft:item] mainhand",
+          "scoreboard players get Alice swing_res"
+        ]
+      }
+    },
+    { "id": "wait_after_scoreboard", "wait": { "ms": 300 } },
+    { "id": "deop_alice", "console": { "lines": ["deop Alice"] } },
+    { "id": "swing_deopped_alice_fails", "command": { "client": "Alice", "line": "swing" } },
+    { "id": "reop_alice", "console": { "lines": ["op Alice"] } },
+    { "id": "feedback_off", "console": { "lines": ["gamerule send_command_feedback false"] } },
+    { "id": "swing_feedback_false", "command": { "client": "Alice", "line": "execute store result score Alice swing_res run swing Alice mainhand" } },
+    { "id": "swing_feedback_false_score", "console": { "lines": ["scoreboard players get Alice swing_res"] } },
+    { "id": "feedback_on", "console": { "lines": ["gamerule send_command_feedback true"] } },
+    { "id": "alice_spectator", "console": { "lines": ["gamemode spectator Alice"] } },
+    { "id": "swing_spectator_self", "command": { "client": "Alice", "line": "swing Alice mainhand stab 7" } },
+    { "id": "alice_creative", "console": { "lines": ["gamemode creative Alice"] } },
+    { "id": "wait_after_spectator", "wait": { "ms": 500 } },
+    {
+      "id": "setup_same_tick_execute",
+      "console": {
+        "lines": [
+          "scoreboard players set Alice swing_res 99",
+          "scoreboard players set Bob swing_res 99"
+        ]
+      }
+    },
+    {
+      "id": "swing_same_tick_execute",
+      "console": {
+        "lines": [
+          "execute as @a store result score @s swing_res run swing Alice mainhand stab 10",
+          "scoreboard players get Alice swing_res",
+          "scoreboard players get Bob swing_res"
+        ]
+      }
+    },
+    { "id": "wait_after_same_tick", "wait": { "ms": 700 } },
+    { "id": "swing_bad_token_at", "command": { "client": "Alice", "line": "swing Alice mainhand @" } },
+    {
+      "id": "move_bob_nether",
+      "console": {
+        "lines": ["execute in minecraft:the_nether run tp Bob 0 64 0"]
+      }
+    },
+    { "id": "wait_bob_nether", "wait": { "ms": 800 } },
+    { "id": "swing_cross_dimension_target", "command": { "client": "Alice", "line": "swing Bob mainhand stab 8" } },
+    {
+      "id": "return_bob_overworld",
+      "console": {
+        "lines": ["execute in minecraft:overworld run tp Bob 2 100 0"]
+      }
+    },
+    { "id": "wait_bob_return_invuln", "wait": { "ms": 3500 } },
+    {
+      "id": "wait_dead_bob_removal",
+      "sequence": { "steps": [
+        { "console": { "lines": ["scoreboard players set Alice swing_res 99", "kill Bob"] } },
+        { "await_packet": { "client": "Alice", "packet": { "remove_entity": { "subject": "Bob" } } } }
+      ] }
+    },
+    { "id": "swing_dead_bob_past_removal", "command": { "client": "Alice", "line": "execute store result score Alice swing_res run swing Bob mainhand stab 6" } },
+    { "id": "swing_dead_bob_score", "console": { "lines": ["scoreboard players get Alice swing_res"] } }
+  ]
+}

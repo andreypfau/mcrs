@@ -1,5 +1,6 @@
 use crate::ByteAngle;
 use crate::CommandSuggestion;
+use crate::Hand;
 use crate::advancement::{AdvancementProgress, PositionedAdvancement};
 use crate::block::BlockStateNumber;
 use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
@@ -264,6 +265,20 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
 pub struct ClientboundHurtAnimation {
     pub entity_id: VarInt,
     pub yaw: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundAnimate {
+    pub entity_id: VarInt,
+    pub action: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundSwingAnimation {
+    pub entity_id: VarInt,
+    pub hand: Hand,
+    pub animation: mcrs_minecraft_item::component::SwingAnimationKind,
+    pub duration: VarInt,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

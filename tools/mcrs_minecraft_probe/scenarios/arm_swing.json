@@ -1,0 +1,1335 @@
+{
+  "target": {
+    "operators": ["Alice", "Bob", "Charlie"]
+  },
+  "observe": {
+    "swing": true,
+    "animate": true,
+    "packet_order": true
+  },
+  "steps": [
+    {
+      "id": "prepare_peaceful",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false"
+        ]
+      }
+    },
+    { "id": "join_bob", "join": "Bob" },
+    {
+      "id": "prepare_arena",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false",
+          "kill @e[type=!minecraft:player]",
+          "fill -5 99 -5 5 99 5 minecraft:stone",
+          "fill -5 100 -5 5 104 5 minecraft:air",
+          "tp Bob 2 100 0 90 0",
+          "gamemode creative Bob"
+        ]
+      }
+    },
+    { "id": "join_alice_deferred", "join_deferred": "Alice" },
+    {
+      "id": "setup_alice_before_load",
+      "console": {
+        "lines": [
+          "tp Alice 0 100 0 0 0",
+          "gamemode creative Alice",
+          "clear Alice"
+        ]
+      }
+    },
+    { "id": "punch_before_player_loaded", "punch": { "client": "Alice" } },
+    { "id": "send_player_loaded_alice", "send_loaded": "Alice" },
+    { "id": "join_charlie", "join": "Charlie" },
+    {
+      "id": "setup_charlie",
+      "console": {
+        "lines": [
+          "tp Charlie 4 100 0 90 0",
+          "gamemode creative Charlie"
+        ]
+      }
+    },
+    {
+      "id": "punch_empty_shared_observers",
+      "punch": { "client": "Alice" },
+      "packet_order": true
+    },
+    { "id": "set_left_arm_alice", "client_main_arm": { "client": "Alice", "arm": "left" } },
+    { "id": "wait_left_arm", "wait": { "ms": 300 } },
+    {
+      "id": "punch_left_arm",
+      "punch": { "client": "Alice" },
+      "packet_order": true
+    },
+    { "id": "reset_right_arm_alice", "client_main_arm": { "client": "Alice", "arm": "right" } },
+    { "id": "wait_right_arm", "wait": { "ms": 300 } },
+    {
+      "id": "setup_burst_same_tick",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:60}]",
+          "tick freeze"
+        ]
+      }
+    },
+    { "id": "punch_burst_same_tick", "punch_burst": { "client": "Alice", "count": 2 } },
+    { "id": "punch_after_burst_blocked_while_frozen", "punch": { "client": "Alice" } },
+    {
+      "id": "unfreeze_burst_same_tick",
+      "console": {
+        "lines": [
+          "tick step 35",
+          "tick unfreeze",
+          "item replace entity Alice weapon.mainhand with minecraft:air"
+        ]
+      }
+    },
+    { "id": "wait_after_burst", "wait": { "ms": 300 } },
+    {
+      "id": "equip_copper_spear",
+      "console": {
+        "lines": ["item replace entity Alice weapon.mainhand with minecraft:copper_spear"]
+      }
+    },
+    { "id": "punch_copper_spear", "punch": { "client": "Alice" } },
+    {
+      "id": "equip_attack_none",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"none\",duration:12}]"
+        ]
+      }
+    },
+    { "id": "punch_attack_none", "punch": { "client": "Alice" } },
+    {
+      "id": "equip_attack_zero",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:0}]"
+        ]
+      }
+    },
+    { "id": "punch_attack_zero", "punch": { "client": "Alice" } },
+    {
+      "id": "equip_interact_only_main",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:interact_animation={type:\"stab\",duration:19}]"
+        ]
+      }
+    },
+    { "id": "punch_ignores_interact_animation", "punch": { "client": "Alice" } },
+    {
+      "id": "equip_offhand_spear_only",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:copper_spear"
+        ]
+      }
+    },
+    { "id": "punch_ignores_offhand", "punch": { "client": "Alice" } },
+    {
+      "id": "equip_slow_and_clear_slot1",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice hotbar.0 with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:60}]",
+          "item replace entity Alice hotbar.1 with minecraft:air"
+        ]
+      }
+    },
+    { "id": "select_slot_0", "select_slot": { "client": "Alice", "slot": 0 } },
+    {
+      "id": "slow_swing_blocks_reswing_and_slot_switch",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 150 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 100 } },
+          { "select_slot": { "client": "Alice", "slot": 1 } },
+          { "wait": { "ms": 100 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 1550 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_short_punch", "wait": { "ms": 400 } },
+    {
+      "id": "apply_mining_fatigue_15",
+      "console": {
+        "lines": ["effect give Alice minecraft:mining_fatigue 30 15"]
+      }
+    },
+    { "id": "wait_fatigue_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_fatigue_unscaled_and_blocks_reswing",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_fatigue_swing_expire", "wait": { "ms": 1000 } },
+    {
+      "id": "apply_haste_and_fatigue",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice hotbar.1 with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:24}]",
+          "effect give Alice minecraft:haste 30 20",
+          "effect give Alice minecraft:mining_fatigue 30 15"
+        ]
+      }
+    },
+    { "id": "wait_haste_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste_overrides_fatigue_sequence",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    {
+      "id": "setup_offhand_slow_snowball",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:snowball[minecraft:interact_animation={type:\"stab\",duration:60}] 16"
+        ]
+      }
+    },
+    {
+      "id": "offhand_slow_blocks_mainhand_punch",
+      "sequence": {
+        "steps": [
+          { "use_item": { "client": "Alice", "hand": "off", "sequence": 1 } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_offhand_slow_expire", "wait": { "ms": 1400 } },
+    {
+      "id": "setup_effect_formula_checks",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:10}]",
+          "effect give Alice minecraft:haste 60 2"
+        ]
+      }
+    },
+    { "id": "wait_haste2_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste2_shortens_b10",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 220 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_haste2", "wait": { "ms": 400 } },
+    {
+      "id": "setup_fatigue_1",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect give Alice minecraft:mining_fatigue 60 1"
+        ]
+      }
+    },
+    { "id": "wait_fatigue1_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_fatigue1_blocks_at_200ms",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_fatigue1", "wait": { "ms": 600 } },
+    { "id": "freeze_fatigue1_player", "console": { "lines": ["tick freeze"] } },
+    {
+      "id": "punch_fatigue1_world_t0",
+      "sequence": { "steps": [
+        { "advance_ticks": { "ticks": 0 } },
+        { "punch": { "client": "Alice" } },
+        { "use_item_on": { "client": "Alice", "hand": "main", "position": [0, 99, 0], "face": "up", "sequence": 30 } },
+        { "await_packet": { "client": "Alice", "packet": { "block_ack": { "sequence": 30 } } } }
+      ] }
+    },
+    {
+      "id": "punch_fatigue1_world_t5",
+      "sequence": { "steps": [
+        { "advance_ticks": { "ticks": 5 } },
+        { "punch": { "client": "Alice" } },
+        { "use_item_on": { "client": "Alice", "hand": "main", "position": [0, 99, 0], "face": "up", "sequence": 31 } },
+        { "await_packet": { "client": "Alice", "packet": { "block_ack": { "sequence": 31 } } } }
+      ] }
+    },
+    {
+      "id": "punch_fatigue1_world_t6",
+      "sequence": { "steps": [
+        { "advance_ticks": { "ticks": 1 } },
+        { "punch": { "client": "Alice" } },
+        { "use_item_on": { "client": "Alice", "hand": "main", "position": [0, 99, 0], "face": "up", "sequence": 32 } },
+        { "await_packet": { "client": "Alice", "packet": { "block_ack": { "sequence": 32 } } } }
+      ] }
+    },
+    { "id": "unfreeze_fatigue1_player", "console": { "lines": ["tick unfreeze"] } },
+    {
+      "id": "setup_fatigue_3",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "effect give Alice minecraft:mining_fatigue 60 3"
+        ]
+      }
+    },
+    { "id": "wait_fatigue3_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_fatigue3_blocks_at_300ms",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 300 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_fatigue3", "wait": { "ms": 700 } },
+    {
+      "id": "setup_haste0_and_fatigue4",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect give Alice minecraft:haste 60 0",
+          "effect give Alice minecraft:mining_fatigue 60 4"
+        ]
+      }
+    },
+    { "id": "wait_h0_f4_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste0_overrides_fatigue4",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_h0_f4", "wait": { "ms": 500 } },
+    {
+      "id": "setup_baseline_b10",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:10}]"
+        ]
+      }
+    },
+    { "id": "wait_baseline_b10_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_baseline_b10_blocked_at_220ms",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 220 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_baseline_b10", "wait": { "ms": 500 } },
+    {
+      "id": "setup_conduit_2_b10",
+      "console": {
+        "lines": [
+          "effect give Alice minecraft:conduit_power 60 2"
+        ]
+      }
+    },
+    { "id": "wait_conduit2_b10_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_conduit2_shortens_b10",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 220 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_conduit2_b10", "wait": { "ms": 500 } },
+    {
+      "id": "setup_conduit_0",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect give Alice minecraft:conduit_power 60 0",
+          "effect give Alice minecraft:mining_fatigue 60 4"
+        ]
+      }
+    },
+    { "id": "wait_conduit0_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_conduit0_overrides_fatigue4_b6",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "clear_conduit0", "console": { "lines": ["effect clear Alice"] } },
+    { "id": "wait_after_conduit0", "wait": { "ms": 500 } },
+    {
+      "id": "setup_haste_conduit_max",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice hotbar.0 with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:20}]",
+          "item replace entity Alice hotbar.1 with minecraft:stick[minecraft:attack_animation={type:\"stab\",duration:20}]",
+          "item replace entity Alice hotbar.2 with minecraft:stick[minecraft:attack_animation={type:\"none\",duration:20}]",
+          "effect give Alice minecraft:haste 60 6",
+          "effect give Alice minecraft:conduit_power 60 6"
+        ]
+      }
+    },
+    { "id": "wait_hc_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste6_conduit6_b20_max",
+      "sequence": {
+        "steps": [
+          { "select_slot": { "client": "Alice", "slot": 0 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 250 } },
+          { "select_slot": { "client": "Alice", "slot": 1 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 180 } },
+          { "select_slot": { "client": "Alice", "slot": 2 } },
+          { "punch": { "client": "Alice" } },
+          { "select_slot": { "client": "Alice", "slot": 0 } }
+        ]
+      }
+    },
+    { "id": "wait_after_hc1", "wait": { "ms": 500 } },
+    {
+      "id": "setup_haste10_conduit2",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice hotbar.0 with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:24}]",
+          "item replace entity Alice hotbar.1 with minecraft:stick[minecraft:attack_animation={type:\"stab\",duration:24}]",
+          "item replace entity Alice hotbar.2 with minecraft:stick[minecraft:attack_animation={type:\"none\",duration:24}]",
+          "effect give Alice minecraft:haste 60 10",
+          "effect give Alice minecraft:conduit_power 60 2"
+        ]
+      }
+    },
+    { "id": "wait_hc2_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste10_conduit2_b24",
+      "sequence": {
+        "steps": [
+          { "select_slot": { "client": "Alice", "slot": 0 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 220 } },
+          { "select_slot": { "client": "Alice", "slot": 1 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "select_slot": { "client": "Alice", "slot": 2 } },
+          { "punch": { "client": "Alice" } },
+          { "select_slot": { "client": "Alice", "slot": 0 } }
+        ]
+      }
+    },
+    { "id": "wait_after_hc2", "wait": { "ms": 600 } },
+    {
+      "id": "setup_haste2_conduit10_fatigue4",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:24}]",
+          "effect give Alice minecraft:haste 60 2",
+          "effect give Alice minecraft:conduit_power 60 10",
+          "effect give Alice minecraft:mining_fatigue 60 4"
+        ]
+      }
+    },
+    { "id": "wait_hcf_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste2_conduit10_fatigue4_b24",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 220 } },
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 200 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_after_hcf", "wait": { "ms": 500 } },
+    {
+      "id": "setup_clamp_haste20_b6",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect give Alice minecraft:haste 60 20"
+        ]
+      }
+    },
+    { "id": "wait_clamp_settle", "wait": { "ms": 200 } },
+    {
+      "id": "punch_haste20_b6_clamp_unlocked",
+      "sequence": {
+        "steps": [
+          { "punch": { "client": "Alice" } },
+          { "wait": { "ms": 100 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "clear_clamp_effects", "console": { "lines": ["effect clear Alice"] } },
+    { "id": "wait_after_clamp", "wait": { "ms": 400 } },
+    {
+      "id": "setup_drop_item",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:dirt[minecraft:attack_animation={type:\"stab\",duration:15},minecraft:interact_animation={type:\"none\",duration:20}] 16"
+        ]
+      }
+    },
+    {
+      "id": "drop_item_nonempty",
+      "player_action": { "client": "Alice", "status": "drop_item" },
+      "packet_order": true
+    },
+    { "id": "wait_drop_1", "wait": { "ms": 200 } },
+    { "id": "drop_all_items_nonempty", "player_action": { "client": "Alice", "status": "drop_all_items" } },
+    { "id": "wait_drop_2", "wait": { "ms": 200 } },
+    { "id": "drop_item_empty", "player_action": { "client": "Alice", "status": "drop_item" } },
+    {
+      "id": "setup_swap_offhand",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stone 1",
+          "item replace entity Alice weapon.offhand with minecraft:dirt 1"
+        ]
+      }
+    },
+    {
+      "id": "swap_offhand_no_swing",
+      "player_action": { "client": "Alice", "status": "swap_item_with_offhand" }
+    },
+    {
+      "id": "setup_block_break",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "setblock 1 100 1 minecraft:stone"
+        ]
+      }
+    },
+    {
+      "id": "start_destroy_no_swing",
+      "player_action": {
+        "client": "Alice",
+        "status": "start_destroy_block",
+        "position": [1, 100, 1],
+        "face": "up"
+      }
+    },
+    {
+      "id": "change_destroy_no_swing",
+      "player_action": {
+        "client": "Alice",
+        "status": "change_destroy_direction",
+        "position": [1, 100, 1],
+        "face": "north"
+      }
+    },
+    {
+      "id": "abort_destroy_no_swing",
+      "player_action": {
+        "client": "Alice",
+        "status": "abort_destroy_block",
+        "position": [1, 100, 1],
+        "face": "north"
+      }
+    },
+    {
+      "id": "stop_destroy_no_swing",
+      "player_action": {
+        "client": "Alice",
+        "status": "stop_destroy_block",
+        "position": [1, 100, 1],
+        "face": "north"
+      }
+    },
+    { "id": "freeze_before_immediate_stab", "console": { "lines": ["tick freeze"] } },
+    {
+      "id": "stab_immediate_with_spear",
+      "sequence": {
+        "steps": [
+          { "advance_ticks": { "ticks": 0 } },
+          { "select_slot": { "client": "Alice", "slot": 0 } },
+          { "creative_slot": { "client": "Alice", "slot": 36, "stack": { "item": "minecraft:wooden_spear", "count": 1 } } },
+          { "player_action": { "client": "Alice", "status": "stab" } },
+          { "await_packet": { "client": "Bob", "packet": { "swing": { "subject": "Alice" } } } }
+        ]
+      }
+    },
+    { "id": "unfreeze_after_immediate_stab", "console": { "lines": ["tick unfreeze"] } },
+    { "id": "wait_after_immediate_stab", "wait": { "ms": 300 } },
+    {
+      "id": "equip_offhand_spear_stab",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:wooden_spear"
+        ]
+      }
+    },
+    { "id": "wait_offhand_spear_charge", "wait": { "ms": 1400 } },
+    { "id": "stab_offhand_no_swing", "player_action": { "client": "Alice", "status": "stab" } },
+    {
+      "id": "equip_stab_spear",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:wooden_spear[minecraft:attack_animation={type:\"whack\",duration:9},minecraft:interact_animation={type:\"stab\",duration:21}]"
+        ]
+      }
+    },
+    { "id": "wait_spear_charge", "wait": { "ms": 1400 } },
+    {
+      "id": "stab_spear",
+      "player_action": { "client": "Alice", "status": "stab" },
+      "packet_order": true
+    },
+    { "id": "wait_after_stab", "wait": { "ms": 300 } },
+    {
+      "id": "equip_stab_stick",
+      "console": {
+        "lines": ["item replace entity Alice weapon.mainhand with minecraft:stick"]
+      }
+    },
+    { "id": "stab_non_spear", "player_action": { "client": "Alice", "status": "stab" } },
+    {
+      "id": "setup_stab_spectator",
+      "console": {
+        "lines": [
+          "gamemode spectator Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:wooden_spear"
+        ]
+      }
+    },
+    { "id": "stab_spectator_no_swing", "player_action": { "client": "Alice", "status": "stab" } },
+    { "id": "restore_alice_after_stab_spectator", "console": { "lines": ["gamemode creative Alice"] } },
+    {
+      "id": "setup_snowball_offhand",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:copper_spear",
+          "item replace entity Alice weapon.offhand with minecraft:snowball[minecraft:attack_animation={type:\"none\",duration:15},minecraft:interact_animation={type:\"stab\",duration:8}] 8"
+        ]
+      }
+    },
+    {
+      "id": "use_item_snowball_offhand",
+      "use_item": { "client": "Alice", "hand": "off", "sequence": 2 }
+    },
+    { "id": "wait_after_snowball", "wait": { "ms": 200 } },
+    {
+      "id": "setup_empty_map_offhand",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:map[minecraft:interact_animation={type:\"stab\",duration:7}] 8"
+        ]
+      }
+    },
+    {
+      "id": "use_item_empty_map_observers_only",
+      "use_item": { "client": "Alice", "hand": "off", "sequence": 3 }
+    },
+    { "id": "wait_after_empty_map", "wait": { "ms": 200 } },
+    {
+      "id": "setup_apple_survival",
+      "console": {
+        "lines": [
+          "difficulty easy",
+          "gamemode survival Alice",
+          "effect give Alice minecraft:hunger 10 255",
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:apple 4"
+        ]
+      }
+    },
+    { "id": "wait_hunger", "wait": { "ms": 2000 } },
+    {
+      "id": "check_eat_food_level",
+      "console": { "lines": ["data get entity Alice foodLevel"] }
+    },
+    {
+      "id": "use_item_eat_start_no_swing",
+      "sequence": {
+        "steps": [
+          { "use_item": { "client": "Alice", "hand": "main", "sequence": 4 } },
+          { "wait": { "ms": 500 } },
+          { "player_action": { "client": "Alice", "status": "release_use_item" } }
+        ]
+      },
+      "packet_order": true
+    },
+    {
+      "id": "setup_use_item_extras",
+      "console": {
+        "lines": [
+          "data get entity Alice foodLevel",
+          "difficulty peaceful",
+          "gamemode creative Alice",
+          "effect clear Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:air"
+        ]
+      }
+    },
+    { "id": "use_item_empty_no_swing", "use_item": { "client": "Alice", "hand": "main", "sequence": 10 } },
+    {
+      "id": "equip_bow",
+      "console": { "lines": ["item replace entity Alice weapon.mainhand with minecraft:bow"] }
+    },
+    { "id": "use_item_bow_no_swing", "use_item": { "client": "Alice", "hand": "main", "sequence": 11 } },
+    {
+      "id": "equip_shield",
+      "console": { "lines": ["item replace entity Alice weapon.mainhand with minecraft:shield"] }
+    },
+    { "id": "use_item_shield_no_swing", "use_item": { "client": "Alice", "hand": "main", "sequence": 12 } },
+    {
+      "id": "equip_fishing_rod",
+      "console": { "lines": ["item replace entity Alice weapon.mainhand with minecraft:fishing_rod"] }
+    },
+    { "id": "use_item_fishing_rod_cast", "use_item": { "client": "Alice", "hand": "main", "sequence": 13 } },
+    { "id": "wait_after_rod_cast", "wait": { "ms": 500 } },
+    { "id": "use_item_fishing_rod_reel", "use_item": { "client": "Alice", "hand": "main", "sequence": 14 } },
+    { "id": "wait_after_rod_reel", "wait": { "ms": 300 } },
+    {
+      "id": "setup_use_item_spectator",
+      "console": {
+        "lines": [
+          "gamemode spectator Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:snowball 8"
+        ]
+      }
+    },
+    { "id": "use_item_spectator_no_swing", "use_item": { "client": "Alice", "hand": "main", "sequence": 15 } },
+    {
+      "id": "setup_use_item_on_place",
+      "console": {
+        "lines": [
+          "gamemode creative Alice",
+          "effect clear Alice",
+          "setblock 1 99 2 minecraft:stone",
+          "setblock 1 100 2 minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:stone[minecraft:interact_animation={type:\"stab\",duration:9}] 8"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_place_stone_offhand",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "off",
+        "position": [1, 99, 2],
+        "face": "up",
+        "sequence": 5
+      },
+      "packet_order": true
+    },
+    { "id": "wait_after_place", "wait": { "ms": 300 } },
+    {
+      "id": "setup_two_placements",
+      "console": {
+        "lines": [
+          "setblock 1 99 3 minecraft:stone",
+          "setblock 2 99 3 minecraft:stone",
+          "setblock 1 100 3 minecraft:air",
+          "setblock 2 100 3 minecraft:air",
+          "tick freeze"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_two_placements_order",
+      "sequence": {
+        "steps": [
+          {
+            "use_item_on": {
+              "client": "Alice",
+              "hand": "off",
+              "position": [1, 99, 3],
+              "face": "up",
+              "sequence": 16
+            }
+          },
+          {
+            "use_item_on": {
+              "client": "Alice",
+              "hand": "off",
+              "position": [2, 99, 3],
+              "face": "up",
+              "sequence": 17
+            }
+          }
+        ]
+      },
+      "packet_order": true
+    },
+    { "id": "unfreeze_two_placements", "console": { "lines": ["tick unfreeze"] } },
+    { "id": "wait_after_two_placements", "wait": { "ms": 300 } },
+    {
+      "id": "setup_use_item_on_lever",
+      "console": {
+        "lines": [
+          "setblock 1 100 1 minecraft:lever[face=floor]",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:interact_animation={type:\"stab\",duration:8}]",
+          "item replace entity Alice weapon.offhand with minecraft:stick[minecraft:interact_animation={type:\"stab\",duration:8}]"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_lever_main",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [1, 100, 1],
+        "face": "up",
+        "sequence": 6
+      }
+    },
+    { "id": "wait_after_lever_main", "wait": { "ms": 300 } },
+    {
+      "id": "use_item_on_lever_off_ignored",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "off",
+        "position": [1, 100, 1],
+        "face": "up",
+        "sequence": 7
+      }
+    },
+    {
+      "id": "setup_use_item_on_refused",
+      "console": {
+        "lines": [
+          "gamemode survival Alice",
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:air"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_refused_survival_empty",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [1, 100, 2],
+        "face": "up",
+        "sequence": 8
+      }
+    },
+    {
+      "id": "use_item_on_lever_survival_empty",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [1, 100, 1],
+        "face": "up",
+        "sequence": 23
+      }
+    },
+    { "id": "wait_after_lever_survival_empty", "wait": { "ms": 300 } },
+    {
+      "id": "setup_use_item_on_chest_and_flint",
+      "console": {
+        "lines": [
+          "gamemode creative Alice",
+          "setblock 1 100 -1 minecraft:chest",
+          "setblock 1 99 -2 minecraft:stone",
+          "setblock 1 100 -2 minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:stick",
+          "item replace entity Alice weapon.offhand with minecraft:stick"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_chest_main",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [1, 100, -1],
+        "face": "up",
+        "sequence": 18
+      }
+    },
+    { "id": "wait_after_chest_main", "wait": { "ms": 300 } },
+    {
+      "id": "use_item_on_chest_off_ignored",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "off",
+        "position": [1, 100, -1],
+        "face": "up",
+        "sequence": 19
+      }
+    },
+    {
+      "id": "equip_flint_and_steel",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:flint_and_steel",
+          "item replace entity Alice weapon.offhand with minecraft:air"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_flint_and_steel",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [1, 99, -2],
+        "face": "up",
+        "sequence": 20
+      }
+    },
+    { "id": "wait_after_flint", "wait": { "ms": 300 } },
+    {
+      "id": "setup_use_item_on_reach_and_hitbox",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:stone 16",
+          "setblock 0 99 2 minecraft:stone",
+          "setblock 0 100 2 minecraft:air",
+          "setblock 20 99 0 minecraft:stone",
+          "setblock 20 100 0 minecraft:air"
+        ]
+      }
+    },
+    { "id": "wait_reach_setup", "wait": { "ms": 200 } },
+    {
+      "id": "use_item_on_in_reach_control",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [0, 99, 2],
+        "face": "up",
+        "sequence": 21
+      }
+    },
+    { "id": "wait_after_in_reach_control", "wait": { "ms": 300 } },
+    {
+      "id": "use_item_on_out_of_reach_no_swing",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [20, 99, 0],
+        "face": "up",
+        "sequence": 22
+      }
+    },
+    {
+      "id": "use_item_on_inside_hitbox_no_swing",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "main",
+        "position": [0, 99, 0],
+        "face": "up",
+        "sequence": 23
+      }
+    },
+    {
+      "id": "setup_use_item_on_bone_meal",
+      "console": {
+        "lines": [
+          "gamemode creative Alice",
+          "setblock 1 99 0 minecraft:grass_block",
+          "setblock 1 100 0 minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:bone_meal[minecraft:interact_animation={type:\"stab\",duration:9}] 8"
+        ]
+      }
+    },
+    {
+      "id": "use_item_on_bone_meal_includes_self",
+      "use_item_on": {
+        "client": "Alice",
+        "hand": "off",
+        "position": [1, 99, 0],
+        "face": "up",
+        "sequence": 9
+      }
+    },
+    { "id": "wait_after_bone_meal", "wait": { "ms": 300 } },
+    {
+      "id": "setup_pig_for_combat",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:diamond_sword[minecraft:enchantments={\"minecraft:sharpness\":5}]",
+          "summon minecraft:pig 1 100 0 {UUID:[I;0,0,0,9],NoAI:1b,Health:100f,attributes:[{id:\"minecraft:max_health\",base:100}]}"
+        ]
+      }
+    },
+    { "id": "wait_pig_charge", "wait": { "ms": 700 } },
+    {
+      "id": "attack_pig_sharpness_no_swing_emits_animate",
+      "attack": { "client": "Alice", "target": "minecraft:pig" }
+    },
+    {
+      "id": "equip_carrot_main",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:carrot[minecraft:interact_animation={type:\"stab\",duration:11}]"
+        ]
+      }
+    },
+    {
+      "id": "interact_pig_carrot_includes_self",
+      "interact": { "client": "Alice", "target": "minecraft:pig", "hand": "main" }
+    },
+    { "id": "wait_after_carrot", "wait": { "ms": 300 } },
+    {
+      "id": "equip_iron_ingot_off",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "item replace entity Alice weapon.offhand with minecraft:iron_ingot"
+        ]
+      }
+    },
+    {
+      "id": "interact_pig_inert_no_swing",
+      "interact": { "client": "Alice", "target": "minecraft:pig", "hand": "off" }
+    },
+    {
+      "id": "equip_saddle_off",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:saddle"
+        ]
+      }
+    },
+    {
+      "id": "interact_pig_saddle_observers_only",
+      "interact": { "client": "Alice", "target": "minecraft:pig", "hand": "off" }
+    },
+    { "id": "wait_after_saddle", "wait": { "ms": 300 } },
+    {
+      "id": "setup_sheep_shears",
+      "console": {
+        "lines": [
+          "summon minecraft:sheep -1 100 0 {UUID:[I;0,0,0,10],NoAI:1b}",
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:shears"
+        ]
+      }
+    },
+    {
+      "id": "interact_sheep_shears_includes_self",
+      "interact": { "client": "Alice", "target": "minecraft:sheep", "hand": "main" }
+    },
+    { "id": "wait_after_shears", "wait": { "ms": 300 } },
+    {
+      "id": "setup_normal_preconditions_extras",
+      "console": {
+        "lines": [
+          "effect give Alice minecraft:invisibility 60 0",
+          "gamemode creative Alice"
+        ]
+      }
+    },
+    { "id": "wait_invis_settle", "wait": { "ms": 200 } },
+    { "id": "punch_invisibility", "punch": { "client": "Alice" } },
+    { "id": "wait_after_invis", "wait": { "ms": 300 } },
+    {
+      "id": "setup_adventure_punch",
+      "console": {
+        "lines": [
+          "effect clear Alice",
+          "gamemode adventure Alice"
+        ]
+      }
+    },
+    { "id": "punch_adventure", "punch": { "client": "Alice" } },
+    { "id": "wait_after_adventure", "wait": { "ms": 300 } },
+    {
+      "id": "setup_survival_punch",
+      "console": { "lines": ["gamemode survival Alice"] }
+    },
+    { "id": "punch_survival", "punch": { "client": "Alice" } },
+    { "id": "wait_after_survival", "wait": { "ms": 300 } },
+    {
+      "id": "set_spectator_sender",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.offhand with minecraft:air",
+          "item replace entity Alice weapon.mainhand with minecraft:dirt 4",
+          "gamemode spectator Alice"
+        ]
+      }
+    },
+    { "id": "spectator_sender_punch", "punch": { "client": "Alice" } },
+    { "id": "wait_spectator_punch", "wait": { "ms": 200 } },
+    {
+      "id": "spectator_sender_drop_no_swing",
+      "player_action": { "client": "Alice", "status": "drop_item" }
+    },
+    {
+      "id": "set_spectator_observer",
+      "console": {
+        "lines": [
+          "gamemode creative Alice",
+          "gamemode spectator Bob"
+        ]
+      }
+    },
+    { "id": "spectator_observer_receives_punch", "punch": { "client": "Alice" } },
+    {
+      "id": "move_charlie_out_of_range",
+      "sequence": { "steps": [
+        { "console": { "lines": [
+          "gamemode creative Bob",
+          "item replace entity Alice weapon.mainhand with minecraft:stick[minecraft:attack_animation={type:\"whack\",duration:600}]",
+          "effect give Alice minecraft:luck 120 0 true",
+          "effect give Charlie minecraft:luck 120 0 true",
+          "tp Charlie 600 100 0"
+        ] } },
+        { "await_packet": { "client": "Charlie", "packet": { "remove_entity": { "subject": "Alice" } } } }
+      ] }
+    },
+    { "id": "wait_out_of_range", "wait": { "ms": 1000 } },
+    {
+      "id": "punch_charlie_out_of_range",
+      "sequence": { "steps": [
+        { "punch": { "client": "Alice" } },
+        { "await_packet": { "client": "Bob", "packet": { "swing": { "subject": "Alice" } } } }
+      ] }
+    },
+    {
+      "id": "move_charlie_back_in_range",
+      "sequence": { "steps": [
+        { "console": { "lines": ["tp Charlie 4 100 0"] } },
+        { "await_packet": { "client": "Charlie", "packet": { "player_position": { "block_center": [4, 100, 0] } } } },
+        { "await_player_ticks": { "client": "Charlie", "ticks": 6 } },
+        { "sync_position": "Charlie" },
+        { "await_packet": { "client": "Charlie", "packet": { "add_entity": { "subject": "Alice" } } } },
+        { "punch": { "client": "Alice" } }
+      ] }
+    },
+    { "id": "wait_back_in_range", "await_player_ticks": { "client": "Alice", "ticks": 301 } },
+    {
+      "id": "clear_slow_charlie_equipment",
+      "console": {
+        "lines": [
+          "item replace entity Alice weapon.mainhand with minecraft:air",
+          "effect clear Alice minecraft:luck",
+          "effect clear Charlie minecraft:luck"
+        ]
+      }
+    },
+    { "id": "punch_charlie_back_in_range", "punch": { "client": "Alice" } },
+    {
+      "id": "move_charlie_to_nether",
+      "console": {
+        "lines": [
+          "execute in minecraft:the_nether run tp Charlie 0 64 0"
+        ]
+      }
+    },
+    { "id": "wait_nether_load", "wait": { "ms": 800 } },
+    { "id": "punch_charlie_in_nether", "punch": { "client": "Alice" } },
+    {
+      "id": "freeze_pig_exact_ticks_d5",
+      "console": {
+        "lines": [
+          "tick freeze",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 5"
+        ]
+      }
+    },
+    { "id": "d5_step_2", "advance_ticks": { "ticks": 2 } },
+    { "id": "d5_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "d5_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d5_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_d5", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_d6",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 6"] }
+    },
+    { "id": "d6_step_3", "advance_ticks": { "ticks": 3 } },
+    { "id": "d6_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "d6_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d6_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_d6", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_d7",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 7"] }
+    },
+    { "id": "d7_step_3", "advance_ticks": { "ticks": 3 } },
+    { "id": "d7_blocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "d7_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d7_unlocked_at_t4", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_d7", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_d12",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 12"] }
+    },
+    { "id": "d12_step_6", "advance_ticks": { "ticks": 6 } },
+    { "id": "d12_blocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "d12_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d12_unlocked_at_t7", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_d12", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_d1",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 1"] }
+    },
+    { "id": "d1_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d1_unlocked_at_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_d1", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_d2",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 2"] }
+    },
+    { "id": "d2_step_1", "advance_ticks": { "ticks": 1 } },
+    { "id": "d2_blocked_at_t1", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "d2_step_2", "advance_ticks": { "ticks": 1 } },
+    { "id": "d2_unlocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    {
+      "id": "freeze_pig_conduit0_b6",
+      "console": {
+        "lines": [
+          "effect clear @e[type=minecraft:pig,limit=1]",
+          "effect give @e[type=minecraft:pig,limit=1] minecraft:conduit_power 60 0",
+          "effect give @e[type=minecraft:pig,limit=1] minecraft:mining_fatigue 60 4",
+          "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+        ]
+      }
+    },
+    { "id": "conduit0_b6_step_3", "advance_ticks": { "ticks": 3 } },
+    { "id": "pig_conduit0_b6_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    {
+      "id": "clear_pig_conduit0_b6",
+      "sequence": { "steps": [
+        { "console": { "lines": ["effect clear @e[type=minecraft:pig,limit=1]"] } },
+        { "advance_ticks": { "ticks": 4 } }
+      ] }
+    },
+    {
+      "id": "freeze_pig_midwindow_noeffect",
+      "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] mainhand stab 10"] }
+    },
+    {
+      "id": "midwindow_step1_add_haste20",
+      "sequence": { "steps": [
+        { "advance_ticks": { "ticks": 1 } },
+        { "console": { "lines": ["effect give @e[type=minecraft:pig,limit=1] minecraft:haste 60 20"] } }
+      ] }
+    },
+    { "id": "midwindow_step1_t2", "advance_ticks": { "ticks": 1 } },
+    { "id": "midwindow_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    {
+      "id": "midwindow_step3_t5",
+      "advance_ticks": { "ticks": 3 }
+    },
+    { "id": "midwindow_blocked_at_t5", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "midwindow_step1_t6", "advance_ticks": { "ticks": 1 } },
+    { "id": "midwindow_unlocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    {
+      "id": "clear_pig_midwindow",
+      "sequence": { "steps": [
+        { "console": { "lines": ["effect clear @e[type=minecraft:pig,limit=1]"] } },
+        { "advance_ticks": { "ticks": 6 } }
+      ] }
+    },
+    {
+      "id": "freeze_pig_fatigue1_b6",
+      "console": { "lines": [
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:mining_fatigue 60 1",
+        "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+      ] }
+    },
+    { "id": "pig_fatigue1_step5", "advance_ticks": { "ticks": 5 } },
+    { "id": "pig_fatigue1_blocked_at_t5", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "pig_fatigue1_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "pig_fatigue1_unlocked_at_t6", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_pig_fatigue1", "advance_ticks": { "ticks": 4 } },
+    {
+      "id": "freeze_pig_haste0_fatigue4_b6",
+      "console": { "lines": [
+        "effect clear @e[type=minecraft:pig,limit=1]",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:haste 60 0",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:mining_fatigue 60 4",
+        "swing @e[type=minecraft:pig,limit=1] mainhand stab 6"
+      ] }
+    },
+    { "id": "pig_haste0_fatigue4_step2", "advance_ticks": { "ticks": 2 } },
+    { "id": "pig_haste0_fatigue4_blocked_at_t2", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "pig_haste0_fatigue4_step1", "advance_ticks": { "ticks": 1 } },
+    { "id": "pig_haste0_fatigue4_unlocked_at_t3", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "clear_pig_haste0_fatigue4", "advance_ticks": { "ticks": 2 } },
+    {
+      "id": "freeze_pig_haste10_conduit2_b24",
+      "console": { "lines": [
+        "effect clear @e[type=minecraft:pig,limit=1]",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:haste 60 10",
+        "effect give @e[type=minecraft:pig,limit=1] minecraft:conduit_power 60 2",
+        "swing @e[type=minecraft:pig,limit=1] mainhand stab 24"
+      ] }
+    },
+    { "id": "pig_haste10_conduit2_step8", "advance_ticks": { "ticks": 8 } },
+    { "id": "pig_haste10_conduit2_unlocked_at_t8", "console": { "lines": ["swing @e[type=minecraft:pig,limit=1] offhand whack 1"] } },
+    { "id": "unfreeze_pig_gates", "console": { "lines": ["tick unfreeze"] } },
+    { "id": "join_dave", "join": "Dave" },
+    { "id": "punch_extra_byte_disconnects", "punch_extra_byte": { "client": "Dave" } },
+    {
+      "id": "dead_sender_punch_before_removal",
+      "sequence": {
+        "steps": [
+          { "console": { "lines": ["kill Alice"] } },
+          { "wait": { "ms": 150 } },
+          { "punch": { "client": "Alice" } }
+        ]
+      }
+    },
+    { "id": "wait_corpse_removal", "wait": { "ms": 1200 } },
+    { "id": "dead_sender_punch_after_removal", "punch": { "client": "Alice" } }
+  ]
+}

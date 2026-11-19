@@ -39,6 +39,7 @@ pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_core::Direction;
 pub use mcrs_minecraft_item::component::GlobalPos;
+pub use mcrs_minecraft_item::component::SwingAnimationKind;
 pub use mcrs_voxel::ColumnPos;
 pub use pos::MoveFlags;
 pub use pos::Position;

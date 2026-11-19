@@ -96,10 +96,13 @@ packet (kind: unspecified).
 **PLC-PLA-002** (`black_box_confirmed`, wire). The server sends `block_update` when one block changes in
 a section. It sends `section_blocks_update` when more than one block in a section changes together.
 
-**PLC-PLA-003** (`black_box_confirmed`, semantic). For one placement, an observer gets, in this order:
-`sound`, `swing_animation`, the new block state. An observer does not get an acknowledgement or a
-refresh. For several placements in one tick, the observer gets each `sound`, then the
-block states, then each `swing_animation`. This order rests on one observation.
+**PLC-PLA-003** (`black_box_confirmed`, semantic). For one placement, an observer receives only the
+packets applicable to it, in this order when present: `sound`, `swing_animation`, the new block
+state. An observer does not get an acknowledgement or a refresh. For several placements in one tick,
+the observer gets each delivered `sound` and `swing_animation` before the block states
+([arm-swing.md](arm-swing.md), `SWG-DST-003`). An observer holding the chunk without tracking the
+placer, or a repeat placement blocked by cooldown or the same-tick cap (`SWG-STA-005`, `SWG-STA-004`),
+omits `swing_animation`.
 
 **PLC-PLA-004** (`black_box_confirmed`, semantic). The placer does not get `sound` or `swing_animation`
 for a placement.
@@ -117,12 +120,12 @@ the distance from its position to the sound position is less than the range of t
 A distance of 15.9 gets it and 16.1 does not. An observer gets the new block state while
 its client holds the chunk.
 
-**PLC-PLA-007** (`source_suggested_black_box_confirmed`, wire). The `swing_animation` packet names the
-entity of the placer, the hand (0 for the main hand, and 1 for the off hand), and the swing animation of
-the held item. The swing animation is the type and the duration of the `minecraft:swing_animation`
-component. The default is the type 1 (`whack`) and the duration 6. The reference
-implementation sends the packet two times. A parity test must not count these packets (kind:
-unspecified). An observer that does not track the placer does not get it.
+**PLC-PLA-007** (`black_box_confirmed`, wire). The `swing_animation` packet names the placer and the
+hand (`0` main, `1` off). It sends the type and duration from `minecraft:interact_animation`
+([arm-swing.md](arm-swing.md), `SWG-CMP-002`). Observers that do not track the placer receive no
+packet ([arm-swing.md](arm-swing.md), `SWG-DST-001`). Single-packet emission when cooldown and tick
+rules allow a swing follows DEV-3 (`design`, `deviation`; [arm-swing.md](arm-swing.md), `SWG-SRC-007`,
+`SWG-STA-005`, `SWG-STA-004`).
 
 **PLC-PLA-008** (`black_box_confirmed`, semantic). In creative mode, the held item does not change. The
 placer gets no slot packet, and an observer gets no `set_equipment`.
@@ -377,9 +380,11 @@ sneak and two empty hands, the clicked block acts. Experiment E54.
 **PLC-INT-003** (`black_box_confirmed`, semantic). A light at the clicked position acts for an operator,
 and its level changes. For another player, the result is a refresh and one acknowledgement.
 
-**PLC-INT-004** (`black_box_confirmed`, semantic). When the clicked block acts, the placer gets a refresh
-and one acknowledgement. Other packets of the block can come before or after the refresh. An observer
-gets `swing_animation`.
+**PLC-INT-004** (`black_box_confirmed`, semantic). When the clicked block acts, the placer gets a
+refresh and one acknowledgement. Other packets of the block can come before or after the refresh.
+Observers that track the actor receive `swing_animation` when cooldown and tick rules allow a swing
+([arm-swing.md](arm-swing.md), `SWG-SRC-006`, `SWG-DST-001`), with single-packet emission under
+DEV-3 (`design`, `deviation`; `SWG-SRC-007`, `SWG-STA-005`, `SWG-STA-004`).
 
 **PLC-INT-005** (`source_suggested_black_box_confirmed`, semantic). In spectator mode, a block with a
 screen opens it and no block changes. A chest is the tested case. On a portal block, the
@@ -529,9 +534,10 @@ the placer sneaks, the new chest stays `single`, unless the clicked block is the
 **PLC-SEQ-001** (`black_box_confirmed`, semantic). Requests that the server handles between two ticks get
 one acknowledgement. It carries the highest sequence of those requests, whichever came last. A refused request counts too.
 
-**PLC-SEQ-002** (`black_box_confirmed`, semantic). Each request gets its own refresh. Each placement gets
-its own `sound` and `swing_animation` for an observer. Block states that change in one tick use
-PLC-PLA-002.
+**PLC-SEQ-002** (`black_box_confirmed`, semantic). Each request gets its own refresh. Each placement
+gets its own `sound` for an observer. Under DEV-3 (`design`, `deviation`), a tracking observer gets
+one `swing_animation` only when [arm-swing.md](arm-swing.md) (`SWG-SRC-007`, `SWG-STA-005`,
+`SWG-STA-004`) starts a swing. Block states that change in one tick use `PLC-PLA-002`.
 
 **PLC-SEQ-003** (`black_box_confirmed`, semantic). Requests about 200 ms apart each get their own
 acknowledgement.
@@ -563,6 +569,22 @@ checks the sequence, so BRK-SEQ-005 breaks the block. Experiment E46.
   each other case of PLC-HGT-004, the placer gets it one time.
 - **Visible to the client**: no. The second message replaces the first in the overlay position.
 - **Test**: a differential test counts one message.
+
+**DEV-3.**
+
+- **Rule**: PLC-PLA-007, PLC-INT-004, PLC-SEQ-002.
+- **Reference**: vanilla sends two `swing_animation` packets per recipient when `use_item_on` starts a
+  swing. Both accepted placements in the frozen-world probe start swings
+  ([arm-swing.md](arm-swing.md), `SWG-E3`). `SWG-U1` records the open question about repeat triggers.
+- **Reason**: [arm-swing.md](arm-swing.md) (`SWG-DEV-001`, `SWG-DEV-002`) removes duplicate packets
+  and caps swings at one per actor per tick (`#906`).
+- **Visible to the client**: yes, only through the raw packet count (`1` instead of `2`, or `0` on a
+  repeat).
+- **Bug reference**: none.
+- **Test**: for two accepted placements in one tick by a placer with no active cooldown and no prior
+  swing in that tick, a tracking observer present throughout both placements checks `1`
+  `swing_animation` packet on the first placement and `0` on the repeat on `mcrs`, and `2` then `2`
+  on vanilla.
 
 ## 11. Unresolved
 
