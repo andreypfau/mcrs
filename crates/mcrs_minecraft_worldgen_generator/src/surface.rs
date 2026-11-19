@@ -206,7 +206,12 @@ pub fn apply_material_surface(
                         let mut state = if run < settled.len() && y <= settled[run].1 {
                             match settled[run].2 {
                                 SettledState::Block(state) => {
-                                    span = Some(settled[run].0.max(run_bottom).max(y & !0xF));
+                                    span = Some(
+                                        settled[run]
+                                            .0
+                                            .max(run_bottom)
+                                            .max(column.present_bottom(y)),
+                                    );
                                     state
                                 }
                                 SettledState::Bandlands => eval.bandlands_at(y),
@@ -375,7 +380,7 @@ pub(crate) fn descend_strip(
                 water_level,
             });
             if let Descent::Through(bottom) = descent {
-                let bottom = bottom.clamp(next_ceiling.max(min_y).max(y & !0xF), y);
+                let bottom = bottom.clamp(next_ceiling.max(min_y).max(column.present_bottom(y)), y);
                 depth_above += y - bottom;
                 y = bottom;
             }

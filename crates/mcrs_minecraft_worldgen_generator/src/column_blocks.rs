@@ -7,6 +7,7 @@ use mcrs_voxel::SectionPos;
 pub struct ColumnBlocks {
     y_sections: Vec<i32>,
     first_section_y: i32,
+    present_floors: Vec<i32>,
     cells: Vec<Cell<VoxelId>>,
 }
 
@@ -14,9 +15,12 @@ impl ColumnBlocks {
     pub const SECTION_VOLUME: usize = BlockPalette::VOLUME;
 
     pub fn new(y_sections: &[i32]) -> Self {
+        let mut present_floors = Vec::new();
+        fill_present_floors(y_sections, &mut present_floors);
         Self {
             y_sections: y_sections.to_vec(),
             first_section_y: y_sections.first().copied().unwrap_or(0),
+            present_floors,
             cells: vec![Cell::new(VoxelId::default()); y_sections.len() * Self::SECTION_VOLUME],
         }
     }
@@ -26,6 +30,7 @@ impl ColumnBlocks {
             self.y_sections.clear();
             self.y_sections.extend_from_slice(y_sections);
             self.first_section_y = y_sections.first().copied().unwrap_or(0);
+            fill_present_floors(y_sections, &mut self.present_floors);
             self.cells.resize(
                 y_sections.len() * Self::SECTION_VOLUME,
                 Cell::new(VoxelId::default()),
@@ -99,6 +104,14 @@ impl ColumnBlocks {
                 }
             }
         }
+    }
+
+    #[must_use]
+    pub fn present_bottom(&self, world_y: i32) -> i32 {
+        self.slot(world_y >> 4)
+            .and_then(|slot| self.present_floors.get(slot))
+            .copied()
+            .unwrap_or(world_y)
     }
 
     #[inline]
@@ -203,5 +216,18 @@ impl ColumnBlocks {
                 *blocks = palette;
             }
         }
+    }
+}
+
+fn fill_present_floors(y_sections: &[i32], floors: &mut Vec<i32>) {
+    floors.clear();
+    let mut floor = i32::MIN;
+    let mut previous = None;
+    for &section_y in y_sections {
+        if previous.and_then(|below: i32| below.checked_add(1)) != Some(section_y) {
+            floor = section_y.saturating_mul(16);
+        }
+        floors.push(floor);
+        previous = Some(section_y);
     }
 }
