@@ -6,6 +6,7 @@ use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_noise::stack::ColumnScratch;
 use mcrs_minecraft_numeric::{floor_to_i32, remap};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_density::cell::{
@@ -36,6 +37,11 @@ pub struct MaterialScratch {
     splits: Vec<CondId>,
     breaks: Vec<i32>,
     reachable: Vec<u16>,
+    noise_columns: Vec<f32>,
+    noise_column_stamps: Vec<u32>,
+    window_ys: Vec<f64>,
+    window_ys_stamp: u32,
+    column: ColumnScratch,
 }
 
 const SHORT_RUN: i32 = 8;
@@ -122,6 +128,9 @@ pub struct MaterialEval<'a, B, R> {
     pub(crate) water_level: i32,
     biome: u16,
     biome_stamp: u32,
+    window_lo: i32,
+    window_hi: i32,
+    gen_window: u32,
 }
 
 impl<'a, B, R> MaterialEval<'a, B, R>
@@ -206,6 +215,7 @@ where
             IVec3::new(block_x, min_y, block_z),
         );
         plan_veins(router, program, scratch, &veins);
+        plan_noise_columns(program, scratch, &veins);
 
         Self {
             router,
@@ -241,6 +251,9 @@ where
             water_level: NO_WATER,
             biome: 0,
             biome_stamp: 0,
+            window_lo: 0,
+            window_hi: -1,
+            gen_window: 0,
         }
     }
 
@@ -251,6 +264,7 @@ where
         self.block_z = block_z;
         self.gradient_x = gradient_x;
         self.gradient_z = gradient_z;
+        self.close_window();
         self.surface_depth = self.compute_surface_depth();
 
         let local = IVec3::new(block_x, 0, block_z) - self.veins.min_block();
@@ -277,9 +291,56 @@ where
         out: &mut Vec<(i32, i32, SettledState)>,
     ) {
         out.clear();
-        if self.scratch.bypass_shortcuts || top - bottom < SHORT_RUN {
+        self.close_window();
+        if self.scratch.bypass_shortcuts {
             return;
         }
+        if top - bottom >= SHORT_RUN {
+            self.settle_run(top, bottom, ceiling, depth_above, water_level, out);
+        }
+        self.open_window(top, bottom, out);
+    }
+
+    fn close_window(&mut self) {
+        self.window_lo = 0;
+        self.window_hi = -1;
+    }
+
+    fn open_window(&mut self, top: i32, bottom: i32, settled: &[(i32, i32, SettledState)]) {
+        let (mut lo, mut hi) = (i32::MAX, i32::MIN);
+        let mut cursor = top;
+        for &(piece_lo, piece_hi, state) in settled {
+            if piece_hi < cursor {
+                lo = lo.min(piece_hi + 1);
+                hi = hi.max(cursor);
+            }
+            if let SettledState::Resume(_) = state {
+                lo = lo.min(piece_lo);
+                hi = hi.max(piece_hi);
+            }
+            cursor = piece_lo - 1;
+        }
+        if cursor >= bottom {
+            lo = lo.min(bottom);
+            hi = hi.max(cursor);
+        }
+        let min_y = self.veins.min_block().y;
+        if lo <= hi && lo >= min_y && hi - min_y < self.veins.size().y {
+            self.window_lo = lo;
+            self.window_hi = hi;
+            self.gen_window = self.gen_window.wrapping_add(1);
+        }
+    }
+
+    fn settle_run(
+        &mut self,
+        top: i32,
+        bottom: i32,
+        ceiling: i32,
+        depth_above: i32,
+        water_level: i32,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) {
         self.run_top = top;
         self.run_ceiling = ceiling;
         self.run_depth = depth_above;
@@ -746,11 +807,48 @@ where
             return 0.0;
         };
         let y = if is_3d { f64::from(self.block_y) } else { 0.0 };
-        let value = f64::from(sampler.get(f64::from(self.block_x), y, f64::from(self.block_z)));
+        let value = match self.windowed_noise(noise, is_3d) {
+            Some(value) => value,
+            None => f64::from(sampler.get(f64::from(self.block_x), y, f64::from(self.block_z))),
+        };
         if let Some(slot) = self.scratch.noises.get_mut(noise as usize) {
             *slot = (stamp, value);
         }
         value
+    }
+
+    fn windowed_noise(&mut self, noise: NoiseId, is_3d: bool) -> Option<f64> {
+        if !is_3d || !self.memoise || !(self.window_lo..=self.window_hi).contains(&self.block_y) {
+            return None;
+        }
+        let stride = self.veins.size().y as usize;
+        let len = (self.window_hi - self.window_lo + 1) as usize;
+        let at = noise as usize * stride;
+        let stamp = self.scratch.noise_column_stamps.get_mut(noise as usize)?;
+        if *stamp != self.gen_window {
+            let sampler = self.program.noise(noise)?;
+            let out = self.scratch.noise_columns.get_mut(at..at + len)?;
+            if self.scratch.window_ys_stamp != self.gen_window {
+                self.scratch.window_ys_stamp = self.gen_window;
+                self.scratch.window_ys.clear();
+                self.scratch
+                    .window_ys
+                    .extend((self.window_lo..=self.window_hi).map(f64::from));
+            }
+            sampler.fill_column(
+                out,
+                f64::from(self.block_x),
+                f64::from(self.block_z),
+                &self.scratch.window_ys,
+                &mut self.scratch.column,
+            );
+            *stamp = self.gen_window;
+        }
+        let index = (self.block_y - self.window_lo) as usize;
+        self.scratch
+            .noise_columns
+            .get(at + index)
+            .map(|&value| f64::from(value))
     }
 
     fn sample(&mut self, root: usize, pos: IVec3) -> f32 {
@@ -1104,6 +1202,20 @@ where
             Some(ore_vein.filler)
         }
     }
+}
+
+fn plan_noise_columns(
+    program: &MaterialProgram,
+    scratch: &mut MaterialScratch,
+    veins: &SampleGrid,
+) {
+    scratch.noise_column_stamps.clear();
+    scratch.noise_column_stamps.resize(program.noise_count(), 0);
+    scratch.window_ys_stamp = 0;
+    scratch.noise_columns.clear();
+    scratch
+        .noise_columns
+        .resize(program.noise_count() * veins.size().y as usize, 0.0);
 }
 
 fn plan_veins(
