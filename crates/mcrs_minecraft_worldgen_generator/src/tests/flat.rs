@@ -56,6 +56,7 @@ fn a_flat_dimension_fills_its_layers_with_no_router_carver_feature_or_structure(
         &ctx,
         ColumnPos::new(3, -7),
         &mut column,
+        None,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

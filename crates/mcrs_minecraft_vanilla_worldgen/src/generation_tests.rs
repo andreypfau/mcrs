@@ -393,7 +393,8 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
     let mut filled: BTreeMap<ColumnPos, Arc<FilledSnapshot>> = BTreeMap::new();
     let fill = |col: ColumnPos| {
         Arc::new(
-            fill_pooled(ctx, col, &CancellationToken::new()).expect("the fill was not cancelled"),
+            fill_pooled(ctx, col, None, &CancellationToken::new())
+                .expect("the fill was not cancelled"),
         )
     };
     let (mut carried, mut crossed) = (0usize, 0usize);
@@ -628,7 +629,7 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     );
 
     let mut buffer = ColumnBlocks::new(&y_sections);
-    let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
+    let alone = fill_column(&ctx, col, &mut buffer, None, &CancellationToken::new())
         .expect("the fill was not cancelled");
     let bottom = y_sections[0];
     for (y, got) in &generated {
@@ -736,7 +737,7 @@ fn a_filled_column_lays_its_bedrock_floor() {
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
-    let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
+    let snapshot = fill_column(&ctx, col, &mut column, None, &CancellationToken::new())
         .expect("the fill was not cancelled");
 
     let bedrock = VoxelId::from(
@@ -797,6 +798,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
         &ctx,
         ColumnPos::new(3, -7),
         &mut column,
+        None,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

@@ -27,7 +27,7 @@ fn real_column() -> RealColumn {
 
     for chunk_x in 0..64 {
         let block_x = chunk_x * 16;
-        let grid = multi_noise_grid(&router, &table, block_x, 0, &sections)
+        let grid = multi_noise_grid(&router, &table, None, block_x, 0, &sections)
             .expect("the multi-noise path builds a grid");
         let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
         let mixed = containers.iter().any(|container| {

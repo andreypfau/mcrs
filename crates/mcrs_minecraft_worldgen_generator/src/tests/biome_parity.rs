@@ -82,6 +82,7 @@ mod exhaustive {
             let containers = multi_noise_palettes(
                 &router,
                 &table,
+                None,
                 column.chunk_x * 16,
                 column.chunk_z * 16,
                 &sections,

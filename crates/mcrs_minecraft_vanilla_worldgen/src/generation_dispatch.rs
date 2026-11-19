@@ -4,7 +4,7 @@ use bevy_tasks::TaskPool;
 use mcrs_engine_link::Step;
 use mcrs_engine_link::TaskEnd;
 use mcrs_minecraft_worldgen_generator::stages::{
-    FillContext, fill_pooled, merge_column, run_region,
+    FillContext, fill_group_climate, fill_pooled, merge_column, run_region,
 };
 use mcrs_minecraft_worldgen_generator::staging::{Stage, StagingStore};
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -163,9 +163,11 @@ impl GenerationStage {
         }
         let ctx = ctx.clone();
         let mut task = Some(pool.spawn(async move {
+            let climate = fill_group_climate(&ctx, fills.iter().map(|fill| fill.col));
             let mut unstarted = Unstarted(fills.into_iter());
             for fill in unstarted.0.by_ref() {
-                if let Some(snapshot) = fill_pooled(&ctx, fill.col, &fill.cancel) {
+                if let Some(snapshot) = fill_pooled(&ctx, fill.col, climate.as_ref(), &fill.cancel)
+                {
                     fill.end.finish(StageResult::Filled(Box::new(snapshot)));
                 }
             }

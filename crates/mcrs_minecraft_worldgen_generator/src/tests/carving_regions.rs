@@ -375,6 +375,7 @@ fn fill(context: &FillContext, (x, z): (i32, i32)) -> (ColumnBlocks, Vec<u16>) {
         context,
         ColumnPos::new(x, z),
         &mut buffer,
+        None,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

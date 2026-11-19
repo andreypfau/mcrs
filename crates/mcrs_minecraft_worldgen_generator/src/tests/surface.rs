@@ -190,10 +190,18 @@ pub(super) fn surfaced_column(
         router,
         &ColumnBiomes::None,
         None,
+        None,
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let biomes = multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let biomes = multi_noise_palettes(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    );
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -298,11 +306,18 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &router,
             &ColumnBiomes::None,
             None,
+            None,
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let biomes =
-            multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
+        let biomes = multi_noise_palettes(
+            &router,
+            &table,
+            None,
+            section_x * 16,
+            section_z * 16,
+            &y_sections,
+        );
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
             &column,
@@ -430,8 +445,15 @@ fn grid_biomes(
     y_sections: &[i32],
 ) -> usize {
     let table = table_over(ids);
-    let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
-        .expect("the multi-noise fill widens a grid");
+    let grid = multi_noise_grid(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    )
+    .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
     for id in &grid.ids {
         present[*id as usize] = true;
@@ -538,6 +560,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
             &ctx,
             ColumnPos::new(3, -7),
             &mut column,
+            None,
             &CancellationToken::new(),
         )
         .expect("the fill was not cancelled");
@@ -619,6 +642,7 @@ fn surfaced_column_fixed(
         y_sections,
         router,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )

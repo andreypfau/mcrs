@@ -348,7 +348,7 @@ pub fn generate_region(
     let rungs = ctx.rungs();
     let mut buffer = ColumnBlocks::new(y_sections);
     for col in region(2 * rungs as i32) {
-        let Some(snapshot) = fill_column(ctx, col, &mut buffer, &cancel) else {
+        let Some(snapshot) = fill_column(ctx, col, &mut buffer, None, &cancel) else {
             continue;
         };
         store.insert_filled(snapshot);

@@ -7,7 +7,8 @@
 )]
 
 mod common;
-use mcrs_minecraft_worldgen_generator::ColumnBiomes;
+use mcrs_minecraft_worldgen_generator::{ClimateBox, ColumnBiomes};
+use mcrs_voxel::ColumnPos;
 use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, Instant};
 
@@ -29,6 +30,7 @@ use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use common::support::{biome_id, biomes_of, carvers_of, corpus, material_router, registries_over};
 
 const ABSENT_BIOME: u16 = 250;
+const GROUP: usize = 4;
 
 fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
@@ -96,6 +98,7 @@ fn main() {
     let run = |column: &mut ColumnBlocks,
                scratch: &mut MaterialScratch,
                ws: &mut Workspace,
+               climate: &ClimateBox,
                x: i32,
                z: i32|
      -> (Stages, u64, u8) {
@@ -109,16 +112,19 @@ fn main() {
             &router,
             &ColumnBiomes::None,
             None,
+            None,
             &cancel,
         )
         .unwrap();
         s.fill = t.elapsed();
         let t = Instant::now();
-        let biomes = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
+        let biomes =
+            multi_noise_palettes(&router, &table, Some(climate), x * 16, z * 16, &y_sections);
         s.biomes = t.elapsed();
 
         let dominant = {
-            let g = multi_noise_grid(&router, &table, x * 16, z * 16, &y_sections).unwrap();
+            let g = multi_noise_grid(&router, &table, Some(climate), x * 16, z * 16, &y_sections)
+                .unwrap();
             let mut counts = [0u32; 256];
             for cz in 0..4i32 {
                 for cx in 0..4i32 {
@@ -176,33 +182,50 @@ fn main() {
         (s, sections.len() as u64, dominant)
     };
 
-    for x in 0..2 {
-        run(&mut column, &mut scratch, &mut ws, offset + x, offset - 1);
+    let warm: Vec<ColumnPos> = (0..2)
+        .map(|x| ColumnPos::new(offset + x, offset - 1))
+        .collect();
+    let climate = ClimateBox::sample(&router, warm.iter().copied(), &y_sections).unwrap();
+    for col in &warm {
+        run(&mut column, &mut scratch, &mut ws, &climate, col.x, col.z);
     }
 
     let mut per_column: Vec<f64> = Vec::with_capacity((side * side) as usize);
     let mut per_biome: BTreeMap<u8, (u32, Stages)> = BTreeMap::new();
 
     let started = Instant::now();
-    for z in 0..side {
-        for x in 0..side {
-            let (s, n, dominant) = run(&mut column, &mut scratch, &mut ws, offset + x, offset + z);
-            total.fill += s.fill;
-            total.biomes += s.biomes;
-            total.surface += s.surface;
-            total.carve += s.carve;
-            total.pack += s.pack;
-            sink += n;
+    for group_z in (0..side).step_by(GROUP) {
+        for group_x in (0..side).step_by(GROUP) {
+            let group: Vec<ColumnPos> = (group_z..side.min(group_z + GROUP as i32))
+                .flat_map(|z| {
+                    (group_x..side.min(group_x + GROUP as i32))
+                        .map(move |x| ColumnPos::new(offset + x, offset + z))
+                })
+                .collect();
+            let t = Instant::now();
+            let climate = ClimateBox::sample(&router, group.iter().copied(), &y_sections).unwrap();
+            let share = t.elapsed() / group.len() as u32;
+            for col in group {
+                let (mut s, n, dominant) =
+                    run(&mut column, &mut scratch, &mut ws, &climate, col.x, col.z);
+                s.biomes += share;
+                total.fill += s.fill;
+                total.biomes += s.biomes;
+                total.surface += s.surface;
+                total.carve += s.carve;
+                total.pack += s.pack;
+                sink += n;
 
-            let one = s.fill + s.biomes + s.surface + s.carve + s.pack;
-            per_column.push(one.as_secs_f64() * 1e3);
-            let slot = per_biome.entry(dominant).or_default();
-            slot.0 += 1;
-            slot.1.fill += s.fill;
-            slot.1.biomes += s.biomes;
-            slot.1.surface += s.surface;
-            slot.1.carve += s.carve;
-            slot.1.pack += s.pack;
+                let one = s.fill + s.biomes + s.surface + s.carve + s.pack;
+                per_column.push(one.as_secs_f64() * 1e3);
+                let slot = per_biome.entry(dominant).or_default();
+                slot.0 += 1;
+                slot.1.fill += s.fill;
+                slot.1.biomes += s.biomes;
+                slot.1.surface += s.surface;
+                slot.1.carve += s.carve;
+                slot.1.pack += s.pack;
+            }
         }
     }
     let wall = started.elapsed();

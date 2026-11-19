@@ -159,6 +159,7 @@ fn run_pinned(
                 router,
                 &ColumnBiomes::new(Some(source), None, None).unwrap(),
                 None,
+                None,
                 cancel,
             ) else {
                 continue;
@@ -312,6 +313,7 @@ fn natural(
                 router,
                 &natural,
                 None,
+                None,
                 cancel,
             ) else {
                 continue;
@@ -359,6 +361,7 @@ fn natural(
                 y_sections,
                 router,
                 &ColumnBiomes::new(Some(&source), None, None).unwrap(),
+                None,
                 None,
                 cancel,
             )

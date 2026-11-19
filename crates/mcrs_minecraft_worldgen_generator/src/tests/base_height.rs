@@ -30,6 +30,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             &router,
             &ColumnBiomes::None,
             None,
+            None,
             &CancellationToken::new(),
         )
         .expect("the column is not cancelled");

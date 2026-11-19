@@ -28,6 +28,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         &router,
         &ColumnBiomes::None,
         None,
+        None,
         &CancellationToken::new(),
     )
     .expect("the column is not cancelled");
@@ -129,6 +130,7 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
                 y_sections,
                 router,
                 &ColumnBiomes::None,
+                None,
                 beard,
                 &CancellationToken::new(),
             )

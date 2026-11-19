@@ -46,9 +46,9 @@ use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
-    BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
-    apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
-    spans_dimension,
+    BetaCaveBlockIds, ClimateBox, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates,
+    apply_beta_carvers, apply_beta_surface, apply_material_surface, beta_surface_rng,
+    fill_column_dense_any, spans_dimension,
 };
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, HeightmapKinds, HeightmapPredicates, build_column_heightmaps,
@@ -302,6 +302,7 @@ pub fn fill_column(
     ctx: &FillContext,
     col: ColumnPos,
     column: &mut ColumnBlocks,
+    climate: Option<&ClimateBox>,
     cancel: &CancellationToken,
 ) -> Option<FilledSnapshot> {
     let _span = info_span!("world::column_load").entered();
@@ -332,6 +333,7 @@ pub fn fill_column(
             y_sections,
             router,
             &ctx.program.biomes,
+            climate,
             beard.as_ref(),
             cancel,
         )?
@@ -994,12 +996,26 @@ fn settle_block_entities<'a>(
     settled
 }
 
+pub fn fill_group_climate(
+    ctx: &FillContext,
+    columns: impl IntoIterator<Item = ColumnPos>,
+) -> Option<ClimateBox> {
+    let ColumnBiomes::MultiNoise(_) = ctx.program.biomes else {
+        return None;
+    };
+    if let ColumnGenerator::Flat(_) = ctx.program.generator {
+        return None;
+    }
+    ClimateBox::sample(ctx.router.as_deref()?, columns, &ctx.y_sections)
+}
+
 pub fn fill_pooled(
     ctx: &FillContext,
     col: ColumnPos,
+    climate: Option<&ClimateBox>,
     cancel: &CancellationToken,
 ) -> Option<FilledSnapshot> {
-    with_column_buffer(|column| fill_column(ctx, col, column, cancel))
+    with_column_buffer(|column| fill_column(ctx, col, column, climate, cancel))
 }
 
 pub fn run_region(
@@ -1288,8 +1304,8 @@ mod tests {
             for x in -5..=5 {
                 for z in -5..=5 {
                     let col = ColumnPos::new(x, z);
-                    let after = fill_column(&carved, col, &mut buffer, &cancel).unwrap();
-                    let before = fill_column(&uncarved, col, &mut buffer, &cancel).unwrap();
+                    let after = fill_column(&carved, col, &mut buffer, None, &cancel).unwrap();
+                    let before = fill_column(&uncarved, col, &mut buffer, None, &cancel).unwrap();
                     let (terrain, maps) = (after.terrain.unwrap(), after.maps.unwrap());
                     let before = before.terrain.unwrap();
                     for lx in 0..16 {

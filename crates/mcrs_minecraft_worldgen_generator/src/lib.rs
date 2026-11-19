@@ -19,7 +19,6 @@ use crate::probe_lattice::ProbeLattice;
 use crate::structures::index::EndBiomes;
 use crate::task::CancellationToken;
 use glam::IVec3;
-use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_biome::registry_keys::BIOME;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
@@ -39,10 +38,10 @@ use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
-    CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
+    FINAL_DENSITY, NoiseRouter, TEMPERATURE, VEGETATION,
 };
 use mcrs_minecraft_worldgen_density::surface_levels::SurfaceLevels;
-use mcrs_voxel::BlockStateId;
+use mcrs_voxel::{BlockStateId, ColumnPos};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -670,15 +669,17 @@ fn narrow_biome_number(number: u16) -> Result<u8, NarrowError> {
 fn column_biome_palettes(
     noise_router: &NoiseRouter,
     biomes: &ColumnBiomes,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> (Vec<BiomePalette>, bool) {
     match biomes {
-        ColumnBiomes::MultiNoise(table) => (
-            multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-            true,
-        ),
+        ColumnBiomes::MultiNoise(table) => {
+            let palettes =
+                multi_noise_palettes(noise_router, table, climate, block_x, block_z, y_sections);
+            (palettes, true)
+        }
         ColumnBiomes::Fixed(biome) => (
             vec![BiomePalette::homogeneous(*biome); y_sections.len()],
             true,
@@ -713,50 +714,33 @@ fn upscale_column(
 pub fn multi_noise_palettes(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> Vec<BiomePalette> {
-    let Some(grid) = multi_noise_grid(noise_router, table, block_x, block_z, y_sections) else {
-        return Vec::new();
-    };
-    upscale_column(&grid, noise_router, y_sections)
+    multi_noise_grid(noise_router, table, climate, block_x, block_z, y_sections)
+        .map_or_else(Vec::new, |grid| {
+            upscale_column(&grid, noise_router, y_sections)
+        })
 }
 
 pub fn multi_noise_grid(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> Option<BiomeGrid> {
-    let (&first, &last) = (y_sections.first()?, y_sections.last()?);
-    let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4, 6),
-        IVec3::new(block_x - 4, first * 16, block_z - 4),
-        IVec3::splat(4),
-    );
-    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
-    let points = volume.len();
-    let mut values = vec![0.0f32; roots.len() * points];
-    let mut ws = Workspace::new();
-    noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
-
-    let mut cursor = table.cursor();
-    let mut ids = Vec::with_capacity(points);
-    for at in 0..points {
-        let target = TargetPoint::new(
-            values[at],
-            values[points + at],
-            values[2 * points + at],
-            values[3 * points + at],
-            values[4 * points + at],
-            values[5 * points + at],
-        );
-        ids.push(*cursor.find_value(target)?);
+    if (block_x | block_z) & 15 != 0 {
+        return None;
     }
-
-    Some(BiomeGrid { volume, ids })
+    let col = ColumnPos::new(block_x >> 4, block_z >> 4);
+    match climate {
+        Some(climate) => climate.grid(table, col),
+        None => ClimateBox::sample(noise_router, [col], y_sections)?.grid(table, col),
+    }
 }
 
 pub fn beta_biome_grid(
@@ -815,6 +799,7 @@ pub fn generate_column(
         noise_router,
         biomes,
         None,
+        None,
         cancel,
     ) else {
         return vec![None; y_sections.len()];
@@ -834,13 +819,14 @@ pub fn fill_column_dense_any<'a>(
     y_sections: &[i32],
     noise_router: &'a NoiseRouter,
     biomes: &ColumnBiomes,
+    climate: Option<&ClimateBox>,
     beard: Option<&Beard>,
     cancel: &CancellationToken,
 ) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
     let (biomes, material_surface) =
-        column_biome_palettes(noise_router, biomes, block_x, block_z, y_sections);
+        column_biome_palettes(noise_router, biomes, climate, block_x, block_z, y_sections);
     column.reset(y_sections);
 
     let mut tops = [NO_TOP; 256];
@@ -1056,6 +1042,8 @@ pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;
 pub(crate) mod biome_upscale;
+mod climate_box;
+pub use climate_box::ClimateBox;
 pub mod feature_program;
 pub mod features;
 pub mod flat;

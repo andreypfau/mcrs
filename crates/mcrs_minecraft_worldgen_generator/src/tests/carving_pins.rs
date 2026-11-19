@@ -219,6 +219,7 @@ fn column_digest(context: &FillContext, column: (i32, i32), keys: &mut HashMap<u
         context,
         ColumnPos::new(column.0, column.1),
         &mut buffer,
+        None,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");
