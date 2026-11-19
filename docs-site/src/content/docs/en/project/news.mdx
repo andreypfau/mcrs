@@ -52,6 +52,7 @@ sources:
   - pr:1025
   - pr:1029
   - pr:1030
+  - pr:1040
   - pr:1037
   - pr:1038
   - crates/mcrs_minecraft_item_stack/tests/it/wire.rs
@@ -64,8 +65,8 @@ sources:
   - crates/mcrs_minecraft_inventory_click/tests/it/drag.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 79dd5940a
-  date: 2026-11-18
+  commit: 485b34f36
+  date: 2026-11-19
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -75,7 +76,7 @@ This page is the change log of mcrs. Each entry says what was merged, what chang
 
 ## Since v0.5.8 (no tag yet)
 
-This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1112 commits and merged 363 pull requests. 261 of the pull requests are from andreypfau, and 102 are from 13 other people.
+This entry covers 2026-10-14 to 2026-11-19. In that time 14 authors made 1115 commits and merged 366 pull requests. 264 of the pull requests are from andreypfau, and 102 are from 13 other people.
 
 ### Merged
 
@@ -104,7 +105,7 @@ This entry covers 2026-10-14 to 2026-11-18. In that time 14 authors made 1112 co
 - The client keeps the stacks of the local player in the same item holders as the server and draws the item icons from them (<Status pr={991} state="works" />, <Status pr={996} state="works" />). A client without a GUI predicts and sends its clicks and holds the container menus that the server opens (<Status pr={994} state="works" />, <Status pr={1003} state="works" />). In the inventory screen the mouse and the keys move stacks, and outside a screen Q drops and F swaps the hands (<Status pr={1004} state="works" />).
 - The client draws the eight generic container screens a server opens, with resource-pack textures, titles and slots (<Status pr={1016} state="works" />). Menu screens preview a drag and gather stacks with a double click, including the Shift variants (<Status pr={1025} state="works" />), and show an item tooltip on hover (<Status pr={1024} state="works" />).
 - In creative mode E opens the creative inventory with tabs, scrolling, text and tag search, the hotbar row and the survival inventory tab with a destroy slot (<Status pr={1029} state="works" />, <Status pr={1046} state="works" />). Its tab lists come from the generated report and the session, and a client without a GUI can send creative clicks (<Status pr={1008} state="works" />).
-- F3+F4 shows the game modes with item icons (<Status pr={1020} state="works" />). Hotbar, menu and cursor icons use that same item icon path, and a registry change refreshes a trimmed item icon (<Status pr={1030} state="works" />).
+- F3+F4 shows the game modes with item icons (<Status pr={1020} state="works" />). Hotbar, menu and cursor icons use that same item icon path, and a registry change refreshes a trimmed item icon (<Status pr={1030} state="works" />). A potion icon has the colour of its potion, and an enchanted item has the glint (<Status pr={1040} state="works" />).
 - The client inventory, the container screens and the creative inventory have specifications (<Status pr={975} state="works" />, <Status pr={978} state="works" />), and a recording of the vanilla client confirms what the client changes on a drop and a hand swap (<Status pr={976} state="works" />). The update tool writes the stacks of each creative tab from a run of the game, and `mcrs_minecraft_creative_report` reads them (<Status pr={1002} state="works" />).
 - The client draws the fog of the world with an Improved Transparency option (<Status pr={771} state="works" />), only the sections inside the render distance (<Status pr={762} state="works" />), the text of signs (<Status pr={698} state="works" />), every glyph of the default font (<Status pr={701} state="works" />), and players with the skin of their profile (<Status pr={758} state="works" />).
 - The client moves the local player with the movement kernel of the server (<Status pr={807} state="works" />), and it moves items, falling blocks, primed TNT and experience orbs between two updates of the server (<Status pr={805} state="works" />).

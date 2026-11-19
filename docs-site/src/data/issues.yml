@@ -86,6 +86,8 @@
 882: { state: partial }
 910: { state: wip }
 995: { state: works }
+999: { state: works }
+1000: { state: works }
 1005: { state: works }
 1013: { state: works }
 1014: { state: works }
@@ -104,3 +106,5 @@
 1042: { state: works }
 1043: { state: wip }
 1045: { state: works }
+1048: { state: works }
+1050: { state: works }
