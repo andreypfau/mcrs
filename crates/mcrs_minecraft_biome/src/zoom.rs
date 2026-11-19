@@ -172,14 +172,14 @@ impl CellTerms {
             corner: c0,
             distance: f64::INFINITY,
         }
-        .offer(c0, z0 + y0 + x0)
-        .offer(c1, z1 + y1 + x1)
-        .offer(c2, z2 + y2 + x2)
-        .offer(c3, z3 + y3 + x3)
-        .offer(c4, z4 + y4 + x4)
-        .offer(c5, z5 + y5 + x5)
-        .offer(c6, z6 + y6 + x6)
-        .offer(c7, z7 + y7 + x7)
+        .offer(c0, x0 + y0 + z0)
+        .offer(c1, x1 + y1 + z1)
+        .offer(c2, x2 + y2 + z2)
+        .offer(c3, x3 + y3 + z3)
+        .offer(c4, x4 + y4 + z4)
+        .offer(c5, x5 + y5 + z5)
+        .offer(c6, x6 + y6 + z6)
+        .offer(c7, x7 + y7 + z7)
         .corner
     }
 }
