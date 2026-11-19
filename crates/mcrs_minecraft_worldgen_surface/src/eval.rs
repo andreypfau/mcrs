@@ -108,6 +108,28 @@ enum Split {
     AtOrBelow(i32),
 }
 
+#[derive(Clone, Copy)]
+enum Span {
+    Uniform(bool),
+    Mixed { cut: Option<i32> },
+}
+
+impl Split {
+    fn span(self, lo: i32, hi: i32) -> Span {
+        match self {
+            Split::Always(value) => Span::Uniform(value),
+            Split::At(at) if lo >= at => Span::Uniform(true),
+            Split::At(at) if hi < at => Span::Uniform(false),
+            Split::At(at) => Span::Mixed { cut: Some(at) },
+            Split::AtOrBelow(at) if hi <= at => Span::Uniform(true),
+            Split::AtOrBelow(at) if lo > at => Span::Uniform(false),
+            Split::AtOrBelow(at) => Span::Mixed {
+                cut: Some(at.saturating_add(1)),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct RunSplit {
     run: u32,
@@ -506,7 +528,7 @@ where
         }
     }
 
-    fn split_point(&self, condition: CondId, piece: Piece) -> Option<i32> {
+    fn split_point(&mut self, condition: CondId, piece: Piece) -> Option<i32> {
         let inside = |at: i32| (at > piece.lo && at <= piece.hi).then_some(at);
         match self.program.conditions().get(condition as usize)?.kind {
             Condition::Not(inner) => self.split_point(inner, piece),
@@ -516,10 +538,9 @@ where
                 ..
             } => inside(true_at_and_below.saturating_add(1)).or_else(|| inside(false_at_and_above)),
             Condition::Biome { .. } => None,
-            _ => match self.scratch.run_splits.get(condition as usize)?.split? {
-                Split::At(at) => inside(at),
-                Split::AtOrBelow(at) => inside(at.saturating_add(1)),
-                Split::Always(_) => None,
+            _ => match self.run_split(condition)?.span(piece.lo, piece.hi) {
+                Span::Mixed { cut } => cut,
+                Span::Uniform(_) => None,
             },
         }
     }
@@ -741,12 +762,10 @@ where
                 }
             }
             _ => match self.run_split(condition) {
-                Some(Split::Always(value)) => Some(value),
-                Some(Split::At(at)) if lo >= at => Some(true),
-                Some(Split::At(at)) if hi < at => Some(false),
-                Some(Split::AtOrBelow(at)) if hi <= at => Some(true),
-                Some(Split::AtOrBelow(at)) if lo > at => Some(false),
-                Some(_) => None,
+                Some(split) => match split.span(lo, hi) {
+                    Span::Uniform(value) => Some(value),
+                    Span::Mixed { .. } => None,
+                },
                 None if compiled.scope == Scope::Xz => Some(self.test(condition)),
                 None => None,
             },

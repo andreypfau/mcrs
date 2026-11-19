@@ -133,6 +133,7 @@ fn start(seed: u64) -> App {
     app
 }
 
+#[cfg(unix)]
 fn process_cpu() -> Duration {
     let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
     // SAFETY: `usage` is a valid, writable rusage and RUSAGE_SELF is a valid target.
@@ -142,6 +143,13 @@ fn process_cpu() -> Duration {
     let usage = unsafe { usage.assume_init() };
     let micros = |time: libc::timeval| time.tv_sec as u64 * 1_000_000 + time.tv_usec as u64;
     Duration::from_micros(micros(usage.ru_utime) + micros(usage.ru_stime))
+}
+
+#[cfg(not(unix))]
+fn process_cpu() -> Duration {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
 }
 
 fn tick(app: &mut App) {

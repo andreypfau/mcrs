@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::parameter_list::Preset;
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
@@ -32,6 +33,7 @@ use mcrs_minecraft_worldgen_surface::MaterialScratch;
 use common::support::{biome_id, biomes_of, carvers_of, corpus, material_router, registries_over};
 
 static CHECK: AtomicU64 = AtomicU64::new(0);
+static BIOME_CHECK: AtomicU64 = AtomicU64::new(0);
 const ABSENT_BIOME: u16 = 250;
 const GROUP: usize = 4;
 
@@ -59,6 +61,28 @@ fn column_hash(column: &ColumnBlocks) -> u64 {
     hash
 }
 
+fn biome_hash(sections: &[Option<(BlockPalette, BiomePalette)>]) -> u64 {
+    let mut hash = 0u64;
+    let mut mix = |value: u64| hash = (hash ^ value).wrapping_mul(0x0100_0000_01b3);
+    for section in sections {
+        let Some((_, biomes)) = section else {
+            mix(u64::MAX);
+            continue;
+        };
+        biomes.for_each_distinct(|biome| mix(u64::from(biome)));
+        mix(u64::MAX - 1);
+        for y in 0..BiomePalette::SIZE {
+            for z in 0..BiomePalette::SIZE {
+                for x in 0..BiomePalette::SIZE {
+                    mix(biomes.get_cell(x, y, z).map_or(u64::MAX, u64::from));
+                }
+            }
+        }
+    }
+    hash
+}
+
+#[cfg(unix)]
 fn thread_time() -> Duration {
     let mut now = libc::timespec {
         tv_sec: 0,
@@ -68,6 +92,13 @@ fn thread_time() -> Duration {
     let status = unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &raw mut now) };
     assert_eq!(status, 0, "the thread cpu clock is available");
     Duration::new(now.tv_sec.unsigned_abs(), now.tv_nsec.unsigned_abs() as u32)
+}
+
+#[cfg(not(unix))]
+fn thread_time() -> Duration {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
 }
 
 #[derive(Default, Clone, Copy)]
@@ -215,6 +246,10 @@ fn main() {
         let t = thread_time();
         let sections = column.into_sections(&biomes);
         s.pack = thread_time() - t;
+        BIOME_CHECK.fetch_xor(
+            biome_hash(&sections).rotate_left((x * 7 + z * 13) as u32 & 63),
+            Ordering::Relaxed,
+        );
         (s, sections.len() as u64, dominant)
     };
 
@@ -236,6 +271,7 @@ fn main() {
     }
 
     let warm_check = CHECK.load(Ordering::Relaxed);
+    let warm_biome_check = BIOME_CHECK.load(Ordering::Relaxed);
     let mut per_column: Vec<f64> = Vec::new();
     let mut per_biome: BTreeMap<u8, (u32, Stages)> = BTreeMap::new();
     let mut best_all = Duration::MAX;
@@ -243,6 +279,7 @@ fn main() {
     let mut lowest: Option<Stages> = None;
     for _ in 0..repeats {
         CHECK.store(warm_check, Ordering::Relaxed);
+        BIOME_CHECK.store(warm_biome_check, Ordering::Relaxed);
         sink = 0;
         let mut total = Stages::default();
         let mut round_columns: Vec<f64> = Vec::with_capacity((side * side) as usize);
@@ -351,6 +388,7 @@ fn main() {
     );
 
     println!("CHECK {:016x}", CHECK.load(Ordering::Relaxed));
+    println!("BIOME_CHECK {:016x}", BIOME_CHECK.load(Ordering::Relaxed));
     per_column.sort_by(f64::total_cmp);
     let at =
         |q: f64| per_column[(((per_column.len() as f64) * q) as usize).min(per_column.len() - 1)];
