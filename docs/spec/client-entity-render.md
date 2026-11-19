@@ -443,13 +443,15 @@ screenshot from above of a pig on grass. The shadow is a disc with its centre un
 - **Inputs:** the custom name and its visible flag (CENTS-DATA-002, indices 2 and 3); the
   crosshair target; the squared distance `d²` from the camera; the crouching flag; the team
   rules; the state of the HUD.
-- **Behavior:** a mob shows its name tag when all of these conditions are true:
+- **Behavior:** a mob shows its name tag when all of these conditions are true. A player has
+  CEREN-NAME-003, and a name that a host sets has CEREN-NAME-005:
   1. The mob has a custom name.
   2. The visible flag is true, or the mob is the crosshair target.
   3. `d²` is less than `64²`. A mob that crouches also needs `d²` less than 1024.
   4. The HUD is not hidden, the mob is not the camera entity, the mob is not hidden from the
      local player (CEREN-VIS-001), and the mob has no passenger.
-  5. The team rule of the name tag visibility allows it.
+  5. The team rule of the name tag visibility allows it. The team rules are out of scope, and
+     this condition always holds (CEREN-NAME-002, notes).
 - **Postconditions:** the query `has_rider` does not change the name tag.
 
 Provenance: `documentation`; `source_suggested` for the distances. Kind: semantic. Confidence:
@@ -472,10 +474,129 @@ the pig.
      white text, no background, and light levels of at least 2.
   6. A mob that crouches draws its name tag one time, with depth, the text colour and the
      background.
+  7. The text and the background of a name tag use the geometry of CEREN-NAME-006.
 - **Postconditions:** a name tag behind a wall shows faintly.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: name a pig. Put a
 wall between you and the pig. The name shows faintly through the wall.
+
+The rules of this section apply to each living entity that has a name line (CEREN-NAME-004):
+a mob with a custom name, a player (CEREN-NAME-003) and an entity with a name that a host sets
+(CEREN-NAME-005). The team rules of the name tag visibility and the score line under the name
+are out of scope. A name tag never shows a score line. The team rule of CEREN-NAME-001, item 5,
+always allows the name tag.
+
+### CEREN-NAME-003: The name tag of a player
+
+- **Inputs:** a living client entity of the type `minecraft:player`; its custom name and the
+  visible flag (CENTS-DATA-002, indices 2 and 3); the profile name of the player; the crosshair
+  target; the camera entity; CEREN-NAME-001 and CEREN-NAME-002.
+- **Behavior:**
+  1. The name text of a player is its custom name when it has one. Otherwise, it is the profile
+     name. The profile name is the name that the player info of the client holds for the UUID
+     of the player. A player with no custom name and no profile name has no name tag.
+  2. A player shows its name tag when the conditions of CEREN-NAME-001 hold, except condition 2.
+     The custom name visible flag does not matter for a player. A player that has a name text
+     passes condition 1 and condition 2.
+  3. The local player does not show its name tag when it is the camera entity. This holds in
+     the first-person view and in each third-person view. The local player shows its name tag
+     when the camera entity is another entity, for example in the spectator view of another
+     player. The camera entity then does not show its name tag.
+  4. An invisible player that is hidden from the local player (CEREN-VIS-001) shows no name tag.
+     An invisible player that a spectator sees shows its name tag.
+  5. A player that crouches shows its name tag as CEREN-NAME-001, condition 3, and
+     CEREN-NAME-002, item 6, state.
+  6. A player with a passenger shows no name tag (CEREN-NAME-001, condition 4).
+- **Postconditions:** two players with the same custom name and no profile name show the same
+  line. A player whose profile name changes in the player info shows the new name in the
+  next frame.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium for items 1, 2 and 4, high for
+item 3. Experiment: join a server with two clients. Look at the second player in the first
+client. The profile name shows. Give the second player a custom name through the server (for
+example a plugin that sets the custom name). The custom name shows. Switch the first client to the third-person view.
+Its own name does not show.
+
+### CEREN-NAME-004: The line of a name tag
+
+- **Inputs:** the name text: a text component (CEREN-NAME-001, CEREN-NAME-003 or CEREN-NAME-005);
+  the language of the client; the default font.
+- **Behavior:**
+  1. A translatable part shows its translation, with its arguments filled in order. A key with
+     no translation shows as the fallback text, or as the key when the part has no fallback.
+     The rules of `client-sign-text.md`, SIGN-LINE-001, items 5 and 6, apply.
+  2. The line is the concatenation of the parts, in order, in one row. The client does not wrap
+     the line and does not limit its width or its length.
+  3. A code point keeps the style that it has after inheritance: the colour, bold, italic,
+     underlined, strikethrough, obfuscated and the font. A code point with a colour in its
+     style uses that colour for the text. The alpha of that colour is the alpha of the text
+     colour of CEREN-NAME-002, item 4, for the draw of that item.
+  4. A code point with no colour in its style uses the text colour of CEREN-NAME-002.
+  5. The client draws the line with no drop shadow.
+  6. The width `w` of the line is the width of a text (`client-font.md`, FONT-WID-001). The
+     bold advance and the font of a code point count in `w`.
+  7. A click event, a hover event and an insertion of a part have no effect on the name tag.
+  8. A line feed in the text has no special meaning. It is a code point of the font
+     (`client-font.md`, FONT-WID-001, postconditions).
+- **Postconditions:** a pig named with the colour red shows a red name. A name with no colour
+  shows white. A line of an empty text has `w` = 0, and the name tag draws a background of
+  2 pixels width.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium for items 1, 2, 4 and 6, low
+for item 3 and item 8. Experiment: name a pig with the JSON text
+`{"text":"A","color":"red","extra":[{"text":"B","bold":true},{"text":"C","color":"blue"}]}`. The
+line shows `A` in red, `B` in bold red and `C` in blue. Repeat with a line feed in the text, and
+with an italic part.
+
+### CEREN-NAME-005: A name that a host sets
+
+- **Inputs:** an embedding host that adds living client entities (CPR-HOST-001 for a player); a
+  name text that the host gives for one entity; the optional visible flag that the host gives.
+- **Behavior:**
+  1. The host can set, change and clear the name of an entity at any time. The next frame draws
+     the change.
+  2. The name that the host sets acts as the custom name of that entity. For the entity, no
+     packet of a server gives the custom name or the visible flag.
+  3. For a player, the name of the host replaces the profile name and the custom name
+     (CEREN-NAME-003, item 1). When the host clears the name, the name text is the custom name
+     or the profile name again.
+  4. For an entity that is not a player, the visible flag that the host gives is the custom name
+     visible flag (CEREN-NAME-001, condition 2). The default of the flag is false.
+  5. All other rules of this section apply with no change.
+- **Postconditions:** a host that spawns a player with a name shows that name above the player
+  with no server and no player info.
+
+Provenance: `design`. Kind: semantic. Confidence: high. The observer is a user of the library.
+
+### CEREN-NAME-006: Geometry and draw of a name tag
+
+- **Inputs:** the line of CEREN-NAME-004 with its width `w`; the anchor and the scale of
+  CEREN-NAME-002.
+- **Behavior:** the name tag has its own space. Its unit is one GUI unit of the scale of
+  CEREN-NAME-002, item 3. +X is to the right of the screen. +Y is down.
+  1. The line starts at `x = −w / 2` and its glyph row starts at `y = 0`. The glyph row is 9
+     units high, as `client-font.md` states. `w / 2` is not rounded.
+  2. The background is a rectangle from `(x − 1, −1)` to `(x + w + 1, 9)`. Its width is
+     `w + 2` and its height is 10.
+  3. The background and the line share the plane of the name tag. The background is behind the
+     line.
+  4. The first draw of CEREN-NAME-002, item 5, draws the background and then the line. The
+     second draw draws only the line, over the first draw.
+  5. Each draw uses the light of CEREN-SURF-003. The name tag does not use the coloured light
+     tint of CEREN-SURF-003, item 4, and it does not darken with the face factor.
+  6. The name tag draws after the model and the layers of the entity.
+  7. The name tag has no outline and no drop shadow.
+  8. The client applies the fog of CEREN-SURF-003, item 5, except the part that shows through
+     blocks (`client-fog.md`).
+- **Postconditions:** the name tag is centred under the anchor. A name of 59 units width has a
+  background 61 units wide and 10 units high. At the scale of 0.025, that background is 1.525
+  blocks wide.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium for items 1, 2 and 4, low for
+items 5 and 6. Experiment: name a pig `Hello, World!` and take a screenshot at 2 blocks. Measure
+the background against the glyph row: a margin of 1 pixel at left, right and top, and the
+bottom edge that item 2 gives. Repeat with a bold name and with a name of an odd width. Compare the
+position of the first glyph with `−w / 2`.
 
 ---
 
@@ -506,3 +627,14 @@ wall between you and the pig. The name shows faintly through the wall.
 - **Visible to the client:** yes, only below 12 px of entity height. A far entity does not move
   its legs or its head, and its outline follows one of 16 × 3 views.
 - **Test:** a screenshot test against the reference uses only entities of at least 12 px.
+
+## 9. Unresolved
+
+1. The background width of CEREN-NAME-006, item 2, can use the width `w` rounded up or the exact
+   sum of the advances (FONT-WID-001, item 4). The two differ for a name with a fractional
+   advance, for example a name with a Unifont glyph.
+2. The alpha of a styled colour in CEREN-NAME-004, item 3, can be the alpha of the text colour
+   or an opaque alpha. The draw with a fixed opaque white colour then differs.
+3. The light of the second draw, CEREN-NAME-002, item 5, says "levels of at least 2". The
+   values of the first draw, and the effect of the sky light and the block light on each, have
+   no experiment.

@@ -156,6 +156,23 @@ pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
     f64::from(type_data.eye_height * size) * data.scale
 }
 
+#[must_use]
+pub fn box_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
+    if entity.kind == EntityType::Player {
+        let dimensions = data.pose.player_dimensions().scaled(data.scale as f32);
+        return f64::from(dimensions.height);
+    }
+    let Some(type_data) = entity.type_data() else {
+        return 0.0;
+    };
+    let size = if data.baby {
+        type_data.baby_scale.unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    f64::from(type_data.height * size) * data.scale
+}
+
 impl RenderInputs<'_> {
     #[must_use]
     pub fn frame(&self, partial_tick: f32) -> FrameValues {

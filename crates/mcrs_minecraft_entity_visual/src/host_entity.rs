@@ -13,6 +13,9 @@ use crate::synced_data::SyncedData;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HostEntity;
 
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CameraEntity;
+
 const HOST_NETWORK_ID: i32 = i32::MIN;
 
 pub const SNAP_DISTANCE: f64 = 64.0;
