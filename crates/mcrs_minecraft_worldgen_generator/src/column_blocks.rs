@@ -150,6 +150,68 @@ impl ColumnBlocks {
         }
     }
 
+    #[must_use]
+    pub fn run_bottom(
+        &self,
+        local_x: i32,
+        local_z: i32,
+        top: i32,
+        min_y: i32,
+        state: VoxelId,
+    ) -> i32 {
+        let Some(column) = column_index(local_x, local_z) else {
+            return top;
+        };
+        let mut bottom = top;
+        while bottom > min_y {
+            let below = bottom - 1;
+            let Some(cells) = self.column_cells(below >> 4, column) else {
+                return bottom;
+            };
+            let section_bottom = (below & !0xF).max(min_y);
+            for y in (section_bottom..=below).rev() {
+                if cells.get((y & 0xF) as usize * 256).map(Cell::get) != Some(state) {
+                    return y + 1;
+                }
+            }
+            bottom = section_bottom;
+        }
+        bottom
+    }
+
+    pub fn highest_below(
+        &self,
+        local_x: i32,
+        local_z: i32,
+        above: i32,
+        min_y: i32,
+        matches: impl Fn(VoxelId) -> bool,
+    ) -> Option<i32> {
+        let column = column_index(local_x, local_z)?;
+        let mut top = above.checked_sub(1)?;
+        while top >= min_y {
+            let section_bottom = (top & !0xF).max(min_y);
+            if let Some(cells) = self.column_cells(top >> 4, column) {
+                for y in (section_bottom..=top).rev() {
+                    if cells
+                        .get((y & 0xF) as usize * 256)
+                        .is_some_and(|cell| matches(cell.get()))
+                    {
+                        return Some(y);
+                    }
+                }
+            }
+            top = section_bottom.checked_sub(1)?;
+        }
+        None
+    }
+
+    fn column_cells(&self, section_y: i32, column: usize) -> Option<&[Cell<VoxelId>]> {
+        let slot = self.slot(section_y)?;
+        self.cells
+            .get(slot * Self::SECTION_VOLUME + column..(slot + 1) * Self::SECTION_VOLUME)
+    }
+
     pub fn fill_strip(&self, local_x: i32, local_z: i32, bottom: i32, top: i32, value: VoxelId) {
         if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) {
             return;
@@ -217,6 +279,11 @@ impl ColumnBlocks {
             }
         }
     }
+}
+
+fn column_index(local_x: i32, local_z: i32) -> Option<usize> {
+    ((0..16).contains(&local_x) && (0..16).contains(&local_z))
+        .then(|| (local_z as usize) * 16 + local_x as usize)
 }
 
 fn fill_present_floors(y_sections: &[i32], floors: &mut Vec<i32>) {

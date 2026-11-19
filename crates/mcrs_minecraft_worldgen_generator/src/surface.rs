@@ -187,10 +187,12 @@ pub fn apply_material_surface(
                         run_bottom = bottom;
                         Descent::Step
                     }
-                    Visit::Open { y } => {
-                        carved_top &= carving
-                            .as_deref()
-                            .is_some_and(|carving| carving.is_carved(x, y, z));
+                    Visit::OpenRun { top, bottom } => {
+                        if carved_top {
+                            carved_top = carving.as_deref().is_some_and(|carving| {
+                                (bottom..=top).all(|y| carving.is_carved(x, y, z))
+                            });
+                        }
                         Descent::Step
                     }
                     Visit::Block {
@@ -311,8 +313,9 @@ pub(crate) enum Visit {
         depth_below: i32,
         water_level: i32,
     },
-    Open {
-        y: i32,
+    OpenRun {
+        top: i32,
+        bottom: i32,
     },
 }
 
@@ -348,21 +351,20 @@ pub(crate) fn descend_strip(
         if old == air {
             depth_above = 0;
             water_level = NO_WATER;
-            visit(Visit::Open { y });
+            let bottom = column.run_bottom(x, z, y, min_y, old);
+            visit(Visit::OpenRun { top: y, bottom });
+            y = bottom;
         } else if is_fluid(old) {
             if water_level == NO_WATER {
                 water_level = y + 1;
             }
-            visit(Visit::Open { y });
+            let bottom = column.run_bottom(x, z, y, min_y, old);
+            visit(Visit::OpenRun { top: y, bottom });
+            y = bottom;
         } else {
             if next_ceiling >= y {
-                next_ceiling = (min_y..y)
-                    .rev()
-                    .find(|&look| {
-                        column
-                            .get(x, look, z)
-                            .is_some_and(|old| old == air || is_fluid(old))
-                    })
+                next_ceiling = column
+                    .highest_below(x, z, y, min_y, |state| state == air || is_fluid(state))
                     .map_or(WAY_BELOW_MIN_Y, |floor| floor + 1);
                 visit(Visit::Run {
                     top: y,
