@@ -1,3 +1,4 @@
+use crate::bounds::{Bounds, node_bounds};
 use crate::branch::{self, Coverage, Fallback, GuardTest, Keep, Scope, Step};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
@@ -422,6 +423,7 @@ static ZERO: Node = Node::Constant(0.0);
 pub struct Program {
     nodes: Box<[Node]>,
     axes: Box<[Axes]>,
+    ranges: Box<[Interval]>,
     plans: Box<[Plan]>,
     plan_of: Box<[u32]>,
     roots: Box<[NodeId]>,
@@ -534,6 +536,7 @@ impl Program {
         Self {
             nodes: nodes.into_boxed_slice(),
             axes: axes.into_boxed_slice(),
+            ranges: ranges.into_boxed_slice(),
             plans: plans.into_boxed_slice(),
             plan_of: plan_of.into_boxed_slice(),
             roots: roots.into_boxed_slice(),
@@ -572,9 +575,68 @@ impl Program {
         out: &mut [f32],
     ) {
         debug_assert_eq!(out.len(), volume.len());
+        if self.run_plan(ws, volume, target) {
+            self.copy_node(ws, volume, target, out);
+        }
+    }
+
+    pub(crate) fn gather(&mut self, targets: &[NodeId]) -> Option<NodeId> {
+        let (&first, rest) = targets.split_first()?;
+        let mut nodes = std::mem::take(&mut self.nodes).into_vec();
+        let mut axes = std::mem::take(&mut self.axes).into_vec();
+        let mut ranges = std::mem::take(&mut self.ranges).into_vec();
+        let mut sum = first;
+        for &next in rest.iter().chain(rest.is_empty().then_some(&first)) {
+            let node = Node::Binary {
+                op: BinaryOp::Add,
+                a: sum,
+                b: next,
+            };
+            let range = |id: NodeId| ranges.get(id as usize).copied().unwrap_or(Interval::NAI);
+            let range = node_bounds(&node, Bounds::Declared, range).unwrap_or(Interval::INFINITE);
+            sum = NodeId::try_from(nodes.len()).ok()?;
+            nodes.push(node);
+            axes.push(ALL_AXES);
+            ranges.push(range);
+        }
+        let plan = Plan::new(&nodes, &axes, &ranges, sum);
+        self.nodes = nodes.into_boxed_slice();
+        self.axes = axes.into_boxed_slice();
+        self.ranges = ranges.into_boxed_slice();
+        let mut plan_of = std::mem::take(&mut self.plan_of).into_vec();
+        plan_of.resize(self.nodes.len(), u32::MAX);
+        let mut plans = std::mem::take(&mut self.plans).into_vec();
+        if let Some(index) = plan_of.get_mut(sum as usize) {
+            *index = u32::try_from(plans.len()).ok()?;
+        }
+        plans.push(plan);
+        self.plan_of = plan_of.into_boxed_slice();
+        self.plans = plans.into_boxed_slice();
+        Some(sum)
+    }
+
+    pub(crate) fn fill_gathered(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        gather: NodeId,
+        targets: &[NodeId],
+        out: &mut [f32],
+    ) {
+        let n = volume.len();
+        debug_assert_eq!(out.len(), targets.len() * n);
+        if !self.run_plan(ws, volume, gather) {
+            return;
+        }
+        for (&target, out) in targets.iter().zip(out.chunks_exact_mut(n)) {
+            self.copy_node(ws, volume, target, out);
+        }
+    }
+
+    fn run_plan(&self, ws: &mut Workspace, volume: &SampleGrid, target: NodeId) -> bool {
         let Some(plan) = self.plan_of(target) else {
             debug_assert!(false, "node {target} has no fill plan");
-            return;
+            return false;
         };
         ws.prepare(self, plan, volume);
         self.fill_lattices(ws, volume, plan);
@@ -582,7 +644,10 @@ impl Program {
         ws.windows.clear();
         ws.windows.push(Window::whole(volume));
         self.run_steps(plan, ws, volume, 0..plan.steps.len(), 0, 0..1);
+        true
+    }
 
+    fn copy_node(&self, ws: &Workspace, volume: &SampleGrid, target: NodeId, out: &mut [f32]) {
         let axes = self.axes_of(target);
         let buf = ws.read(self, target, volume);
         if axes == ALL_AXES {

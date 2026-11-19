@@ -10,6 +10,7 @@ pub mod beta;
 pub mod bounds;
 mod branch;
 pub mod cell;
+pub mod column_bound;
 pub mod compile;
 pub mod node;
 pub mod program;

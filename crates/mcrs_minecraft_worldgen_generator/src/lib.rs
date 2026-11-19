@@ -37,6 +37,7 @@ use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
+use mcrs_minecraft_worldgen_density::column_bound::ColumnScratch;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseRouter, TEMPERATURE, VEGETATION,
@@ -50,6 +51,7 @@ use std::sync::Arc;
 struct CellLattice {
     volume: SampleGrid,
     cell: IVec3,
+    cell_rows: i32,
     values: Vec<f32>,
     width: usize,
 }
@@ -110,7 +112,8 @@ impl CellLattice {
         noise_router: &NoiseRouter,
         block_x: i32,
         block_z: i32,
-        ws: &mut Workspace,
+        beard: Option<&Beard>,
+        fill: &mut FillBuffers,
     ) -> Option<Self> {
         let cell = noise_router.cell_size()?;
         if 16 % cell.x != 0 || 16 % cell.y != 0 || 16 % cell.z != 0 {
@@ -120,55 +123,128 @@ impl CellLattice {
         if noise_router.noise.min_y % 16 != 0 || height % 16 != 0 {
             return None;
         }
-        let volume = SampleGrid::new(
+        let full = SampleGrid::new(
             IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
             IVec3::new(block_x, noise_router.noise.min_y, block_z),
             cell,
         );
-        let inputs = noise_router.cell_inputs();
-        let width = inputs.len();
-        let rows = volume.size().y as usize;
-        let (nx, nz) = (volume.size().x, volume.size().z);
-        let mut values = vec![0.0f32; width * volume.len()];
-
-        let borrowed = (0..nz)
-            .map(|z| (0, z))
-            .chain((1..nx).map(|x| (x, 0)))
-            .collect::<Vec<_>>();
-        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+        let cell_rows = full.size().y - 1;
+        let width = noise_router.cell_inputs().len();
+        let hint = LATTICE_PLANES.with_borrow_mut(|planes| {
             planes.retarget(noise_router);
-            borrowed.iter().all(|&(x, z)| {
-                let Some(column) = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))
-                else {
-                    return false;
-                };
-                for k in 0..width {
-                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
-                    values[at..at + rows].copy_from_slice(&column[k * rows..(k + 1) * rows]);
-                }
-                true
+            borrowed_columns(&full)
+                .filter_map(|(x, z)| planes.get(plane_key(full.block_x(x), full.block_z(z))))
+                .filter_map(|column| column.len().checked_div(width))
+                .max()
+                .map(|held| held as i32 - 1)
+        });
+        let first_air =
+            noise_router.final_density_first_air_row(&mut fill.ws, &full, hint, &mut fill.columns);
+        let bearded = beard.and_then(|beard| {
+            (first_air..cell_rows).rev().find(|&cell_y| {
+                (0..full.size().z - 1).any(|cell_z| {
+                    (0..full.size().x - 1).any(|cell_x| {
+                        let world = IVec3::new(
+                            full.block_x(cell_x),
+                            full.block_y(cell_y),
+                            full.block_z(cell_z),
+                        );
+                        beard.intersects(&SampleGrid::dense(cell, world))
+                    })
+                })
             })
         });
-
-        if shared {
-            let inner = SampleGrid::new(
-                IVec3::new(nx - 1, volume.size().y, nz - 1),
-                volume.min_block() + IVec3::new(cell.x, 0, cell.z),
+        let rows = bearded.map_or(first_air, |cell_y| cell_y + 1) + 1;
+        let mut lattice = Self {
+            volume: SampleGrid::new(
+                IVec3::new(full.size().x, rows.min(full.size().y), full.size().z),
+                full.min_block(),
                 cell,
-            );
-            let mut inner_values = vec![0.0f32; width * inner.len()];
-            noise_router.fill_nodes(ws, &inner, inputs, &mut inner_values);
-            for z in 0..nz - 1 {
-                for x in 0..nx - 1 {
-                    for k in 0..width {
-                        let from = k * inner.len() + inner.index_unchecked(x, 0, z);
-                        let to = k * volume.len() + volume.index_unchecked(x + 1, 0, z + 1);
-                        values[to..to + rows].copy_from_slice(&inner_values[from..from + rows]);
-                    }
+            ),
+            cell,
+            cell_rows,
+            values: Vec::new(),
+            width,
+        };
+        lattice.compute(noise_router, &mut fill.ws);
+        Some(lattice)
+    }
+
+    fn holds(&self, cell_y: i32) -> bool {
+        cell_y + 1 < self.volume.size().y
+    }
+
+    fn extend(&mut self, noise_router: &NoiseRouter, ws: &mut Workspace) {
+        self.volume = SampleGrid::new(
+            IVec3::new(
+                self.volume.size().x,
+                self.cell_rows + 1,
+                self.volume.size().z,
+            ),
+            self.volume.min_block(),
+            self.cell,
+        );
+        self.compute(noise_router, ws);
+    }
+
+    fn compute(&mut self, noise_router: &NoiseRouter, ws: &mut Workspace) {
+        let volume = self.volume;
+        let inputs = noise_router.cell_inputs();
+        let width = self.width;
+        let rows = volume.size().y as usize;
+        let (nx, nz) = (volume.size().x, volume.size().z);
+        let values = &mut self.values;
+        values.clear();
+        values.resize(width * volume.len(), 0.0);
+
+        let borrowed = borrowed_columns(&volume).collect::<Vec<_>>();
+        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+            planes.retarget(noise_router);
+            let held = borrowed.iter().try_fold(rows, |low, &(x, z)| {
+                let column = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))?;
+                Some(low.min(column.len().checked_div(width).unwrap_or(rows)))
+            })?;
+            for &(x, z) in &borrowed {
+                let column = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))?;
+                let stride = column.len().checked_div(width).unwrap_or(rows);
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    values[at..at + held].copy_from_slice(&column[k * stride..k * stride + held]);
                 }
             }
+            Some(held)
+        });
+        if let Some(held) = shared {
+            let size_y = volume.size().y;
+            let lattice = LatticeBlocks {
+                noise_router,
+                volume,
+                width,
+            };
+            lattice.fill(
+                ws,
+                IVec3::new(1, 0, 1),
+                IVec3::new(nx - 1, size_y, nz - 1),
+                values,
+            );
+            let held = held as i32;
+            if held < size_y {
+                let missing = size_y - held;
+                lattice.fill(
+                    ws,
+                    IVec3::new(0, held, 0),
+                    IVec3::new(1, missing, nz),
+                    values,
+                );
+                lattice.fill(
+                    ws,
+                    IVec3::new(1, held, 0),
+                    IVec3::new(nx - 1, missing, 1),
+                    values,
+                );
+            }
         } else {
-            noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+            noise_router.fill_nodes(ws, &volume, inputs, values);
         }
 
         let mut column = vec![0.0f32; width * rows];
@@ -185,13 +261,7 @@ impl CellLattice {
             }
         });
 
-        noise_router.pin_cell_lattice(ws, &volume, &values);
-        Some(Self {
-            volume,
-            cell,
-            values,
-            width,
-        })
+        noise_router.pin_cell_lattice(ws, &volume, values);
     }
 
     fn classify(
@@ -201,6 +271,9 @@ impl CellLattice {
         fluid: &mut FluidField<'_>,
         fill: &mut FillBuffers,
     ) -> CellFill {
+        if !self.holds(at.y) {
+            return self.settle(at, fluid);
+        }
         let min = IVec3::new(
             self.volume.block_x(at.x),
             self.volume.block_y(at.y),
@@ -243,17 +316,65 @@ impl CellLattice {
             return CellFill::Solid;
         }
         if bounds.max() < -CELL_BOUNDS_SLACK {
-            let min = IVec3::new(
-                self.volume.block_x(at.x),
-                self.volume.block_y(at.y),
-                self.volume.block_z(at.z),
-            );
-            return match fluid.settle(min, min + self.cell - 1) {
-                Some(status) => CellFill::Uniform(status),
-                None => CellFill::Mixed,
-            };
+            return self.settle(at, fluid);
         }
         CellFill::Mixed
+    }
+
+    fn settle(&self, at: IVec3, fluid: &mut FluidField<'_>) -> CellFill {
+        let min = IVec3::new(
+            self.volume.block_x(at.x),
+            self.volume.block_y(at.y),
+            self.volume.block_z(at.z),
+        );
+        match fluid.settle(min, min + self.cell - 1) {
+            Some(status) => CellFill::Uniform(status),
+            None => CellFill::Mixed,
+        }
+    }
+}
+
+fn borrowed_columns(volume: &SampleGrid) -> impl Iterator<Item = (i32, i32)> {
+    let (nx, nz) = (volume.size().x, volume.size().z);
+    (0..nz).map(|z| (0, z)).chain((1..nx).map(|x| (x, 0)))
+}
+
+struct LatticeBlocks<'a> {
+    noise_router: &'a NoiseRouter,
+    volume: SampleGrid,
+    width: usize,
+}
+
+impl LatticeBlocks<'_> {
+    fn fill(&self, ws: &mut Workspace, origin: IVec3, size: IVec3, values: &mut [f32]) {
+        let volume = &self.volume;
+        let block = SampleGrid::new(
+            size,
+            IVec3::new(
+                volume.block_x(origin.x),
+                volume.block_y(origin.y),
+                volume.block_z(origin.z),
+            ),
+            volume.step_block(),
+        );
+        let mut block_values = vec![0.0f32; self.width * block.len()];
+        self.noise_router.fill_nodes(
+            ws,
+            &block,
+            self.noise_router.cell_inputs(),
+            &mut block_values,
+        );
+        let rows = size.y as usize;
+        for z in 0..size.z {
+            for x in 0..size.x {
+                for k in 0..self.width {
+                    let from = k * block.len() + block.index_unchecked(x, 0, z);
+                    let to = k * volume.len()
+                        + volume.index_unchecked(origin.x + x, origin.y, origin.z + z);
+                    values[to..to + rows].copy_from_slice(&block_values[from..from + rows]);
+                }
+            }
+        }
     }
 }
 
@@ -273,6 +394,7 @@ struct FillBuffers {
     barrier: Vec<f32>,
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
+    columns: ColumnScratch,
 }
 
 #[expect(
@@ -292,7 +414,8 @@ fn fill_column(
     let default_block = noise_router.default_block_state;
     let mut fill = FillBuffers::default();
 
-    let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
+    let Some(mut lattice) = CellLattice::fill(noise_router, block_x, block_z, beard, &mut fill)
+    else {
         return fill_column_dense(
             column,
             block_x,
@@ -314,7 +437,7 @@ fn fill_column(
             return false;
         }
         for cell_x in 0..lattice.volume.size().x - 1 {
-            for cell_y in (0..lattice.volume.size().y - 1).rev() {
+            for cell_y in (0..lattice.cell_rows).rev() {
                 let at = IVec3::new(cell_x, cell_y, cell_z);
                 let world = IVec3::new(
                     lattice.volume.block_x(cell_x),
@@ -331,6 +454,9 @@ fn fill_column(
                 } else {
                     lattice.classify(noise_router, at, fluid, &mut fill)
                 };
+                if verdict == CellFill::Mixed && !lattice.holds(cell_y) {
+                    lattice.extend(noise_router, &mut fill.ws);
+                }
                 match verdict {
                     CellFill::Solid => {
                         fill_cell_box(column, index, base, cell, default_block);

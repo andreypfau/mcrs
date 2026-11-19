@@ -1,6 +1,7 @@
 use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
+use crate::column_bound::{ColumnBound, ColumnScratch};
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{DensityFunctionHolder, ValueRange};
 use glam::IVec3;
@@ -186,17 +187,21 @@ pub struct NoiseRouter {
     pub aquifer: Option<AquiferConfig>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
+    column_bound: Option<ColumnBound>,
 }
 
 impl NoiseRouter {
     pub fn new(
-        program: Program,
+        mut program: Program,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         blocks: RouterBlocks,
         aquifer: Option<AquiferConfig>,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
+        let column_bound = cell_bounds
+            .chain_input()
+            .and_then(|input| ColumnBound::new(&mut program, input));
         Self {
             program,
             sea_level: settings.sea_level,
@@ -213,6 +218,7 @@ impl NoiseRouter {
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
+            column_bound,
         }
     }
 
@@ -302,6 +308,19 @@ impl NoiseRouter {
     ) -> Option<Interval> {
         self.cell_bounds
             .chain_bound(&self.program, values, lattice, at, min, max)
+    }
+
+    pub fn final_density_first_air_row(
+        &self,
+        ws: &mut Workspace,
+        lattice: &SampleGrid,
+        hint: Option<i32>,
+        scratch: &mut ColumnScratch,
+    ) -> i32 {
+        let top = lattice.size().y - 1;
+        self.column_bound.as_ref().map_or(top, |bound| {
+            bound.first_air_row(&self.program, &self.cell_bounds, ws, lattice, hint, scratch)
+        })
     }
 
     pub fn final_density_cell_bounds(

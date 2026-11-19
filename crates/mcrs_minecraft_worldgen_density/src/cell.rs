@@ -205,7 +205,23 @@ impl CellBounds {
         let chain = self.chain.as_ref()?;
         let stride = lattice.len();
         let row = values.get(chain.wrapper * stride..(chain.wrapper + 1) * stride)?;
-        let mut bound = corner_hull(row, lattice, at);
+        self.chain_over(program, corner_hull(row, lattice, at), min, max)
+    }
+
+    pub fn chain_input(&self) -> Option<NodeId> {
+        let chain = self.chain.as_ref()?;
+        self.inputs.get(chain.wrapper).copied()
+    }
+
+    pub fn chain_over(
+        &self,
+        program: &Program,
+        wrapper: Interval,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        let chain = self.chain.as_ref()?;
+        let mut bound = wrapper;
         for link in &chain.links {
             bound = node_bounds(program.node(link.node), Bounds::Cell { min, max }, |dep| {
                 if dep == link.operand {
