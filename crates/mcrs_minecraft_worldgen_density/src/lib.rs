@@ -5,6 +5,7 @@ pub mod density_function_type_keys;
 #[rustfmt::skip]
 pub mod registry_keys;
 pub mod aquifer;
+pub mod aquifer_cells;
 pub mod beta;
 pub mod bounds;
 mod branch;

@@ -24,6 +24,8 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
+#[cfg(test)]
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 #[cfg(test)]
@@ -183,12 +185,14 @@ pub(super) fn surfaced_column(
     let table = table_over(ids);
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
         None,
         None,
@@ -299,12 +303,14 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
 
         let table = table_over(&ids);
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let mut filled = fill_column_dense_any(
             &mut column,
             section_x,
             section_z,
             &y_sections,
             &router,
+            &mut cells,
             &ColumnBiomes::None,
             None,
             None,
@@ -557,11 +563,13 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
 
         let y_sections = ctx.y_sections.clone();
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let snapshot = fill_column(
             &ctx,
             ColumnPos::new(3, -7),
             &mut column,
             None,
+            &mut cells,
             &CancellationToken::new(),
         )
         .expect("the fill was not cancelled");
@@ -636,12 +644,14 @@ fn surfaced_column_fixed(
     use mcrs_minecraft_chunk::palette::BiomePalette;
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
         None,
         None,

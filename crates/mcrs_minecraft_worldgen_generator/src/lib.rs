@@ -35,6 +35,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::NarrowError;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
@@ -584,8 +585,9 @@ pub fn base_column(
         IVec3::new(x, min_y, z),
         IVec3::new(x, min_y + height - 1, z),
     );
-    let mut fluid =
-        SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(router, levels, min, max));
+    let mut cells = AquiferCells::default();
+    let mut fluid = SURFACE_LEVELS
+        .with_borrow_mut(|levels| FluidField::new(router, levels, &mut cells, min, max));
     let mut barrier_buffer = Vec::new();
     let mut barrier_at = volume_barrier(router, ws, &volume, &mut barrier_buffer);
     let mut column = vec![VoxelId(0); height as usize];
@@ -823,12 +825,14 @@ pub fn generate_column(
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let Some(filled) = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         noise_router,
+        &mut cells,
         biomes,
         None,
         None,
@@ -850,6 +854,7 @@ pub fn fill_column_dense_any<'a>(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &'a NoiseRouter,
+    cells: &'a mut AquiferCells,
     biomes: &ColumnBiomes,
     climate: Option<&ClimateBox>,
     beard: Option<&Beard>,
@@ -862,7 +867,7 @@ pub fn fill_column_dense_any<'a>(
     column.reset(y_sections);
 
     let mut tops = [NO_TOP; 256];
-    let mut fluid = column_fluid_field(noise_router, block_x, block_z);
+    let mut fluid = column_fluid_field(noise_router, cells, block_x, block_z);
     if !fill_column(
         column,
         block_x,
@@ -884,19 +889,57 @@ pub fn fill_column_dense_any<'a>(
     })
 }
 
-pub fn column_fluid_field(
-    noise_router: &NoiseRouter,
+pub fn column_fluid_field<'a>(
+    noise_router: &'a NoiseRouter,
+    cells: &'a mut AquiferCells,
     block_x: i32,
     block_z: i32,
-) -> FluidField<'_> {
-    let min_y = noise_router.noise.min_y;
-    let min = IVec3::new(block_x, min_y, block_z);
-    let max = IVec3::new(
-        block_x + 15,
-        min_y + noise_router.noise.height as i32 - 1,
-        block_z + 15,
+) -> FluidField<'a> {
+    let (min, max) = fill_bounds(noise_router, block_x, block_z, block_x, block_z);
+    SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(noise_router, levels, cells, min, max))
+}
+
+pub fn cover_fill_group(
+    noise_router: &NoiseRouter,
+    columns: impl IntoIterator<Item = ColumnPos>,
+    cells: &mut AquiferCells,
+) {
+    let mut columns = columns.into_iter();
+    let Some(first) = columns.next() else {
+        return;
+    };
+    let (low, high) = columns.fold((first, first), |(low, high), col| {
+        (
+            ColumnPos::new(low.x.min(col.x), low.z.min(col.z)),
+            ColumnPos::new(high.x.max(col.x), high.z.max(col.z)),
+        )
+    });
+    let (min, max) = fill_bounds(
+        noise_router,
+        low.x * 16,
+        low.z * 16,
+        high.x * 16,
+        high.z * 16,
     );
-    SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(noise_router, levels, min, max))
+    cells.cover(noise_router, min, max);
+}
+
+fn fill_bounds(
+    noise_router: &NoiseRouter,
+    low_x: i32,
+    low_z: i32,
+    high_x: i32,
+    high_z: i32,
+) -> (IVec3, IVec3) {
+    let min_y = noise_router.noise.min_y;
+    (
+        IVec3::new(low_x, min_y, low_z),
+        IVec3::new(
+            high_x + 15,
+            min_y + noise_router.noise.height as i32 - 1,
+            high_z + 15,
+        ),
+    )
 }
 
 pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {

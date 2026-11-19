@@ -7,7 +7,8 @@
 )]
 
 mod common;
-use mcrs_minecraft_worldgen_generator::{ClimateBox, ColumnBiomes};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
+use mcrs_minecraft_worldgen_generator::{ClimateBox, ColumnBiomes, cover_fill_group};
 use mcrs_voxel::ColumnPos;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -121,12 +122,14 @@ fn main() {
     let mut column = ColumnBlocks::new(&y_sections);
     let mut scratch = MaterialScratch::default();
     let mut ws = Workspace::new();
+    let mut cells = AquiferCells::default();
     let mut sink = 0u64;
 
     let run = |column: &mut ColumnBlocks,
                scratch: &mut MaterialScratch,
                ws: &mut Workspace,
                climate: &ClimateBox,
+               cells: &mut AquiferCells,
                x: i32,
                z: i32|
      -> (Stages, u64, u8) {
@@ -138,6 +141,7 @@ fn main() {
             z,
             &y_sections,
             &router,
+            cells,
             &ColumnBiomes::None,
             None,
             None,
@@ -218,8 +222,17 @@ fn main() {
         .map(|x| ColumnPos::new(offset + x, offset - 1))
         .collect();
     let climate = ClimateBox::sample(&router, &table, warm.iter().copied(), &y_sections).unwrap();
+    cover_fill_group(&router, warm.iter().copied(), &mut cells);
     for col in &warm {
-        run(&mut column, &mut scratch, &mut ws, &climate, col.x, col.z);
+        run(
+            &mut column,
+            &mut scratch,
+            &mut ws,
+            &climate,
+            &mut cells,
+            col.x,
+            col.z,
+        );
     }
 
     let warm_check = CHECK.load(Ordering::Relaxed);
@@ -248,10 +261,21 @@ fn main() {
                     ClimateBox::sample(&router, &table, group.iter().copied(), &y_sections)
                         .unwrap();
                 let share = (thread_time() - t) / group.len() as u32;
+                let t = thread_time();
+                cover_fill_group(&router, group.iter().copied(), &mut cells);
+                let cover_share = (thread_time() - t) / group.len() as u32;
                 for col in group {
-                    let (mut s, n, dominant) =
-                        run(&mut column, &mut scratch, &mut ws, &climate, col.x, col.z);
+                    let (mut s, n, dominant) = run(
+                        &mut column,
+                        &mut scratch,
+                        &mut ws,
+                        &climate,
+                        &mut cells,
+                        col.x,
+                        col.z,
+                    );
                     s.biomes += share;
+                    s.fill += cover_share;
                     total.fill += s.fill;
                     total.biomes += s.biomes;
                     total.surface += s.surface;

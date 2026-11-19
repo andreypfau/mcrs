@@ -1,4 +1,5 @@
 use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::corner_bounds;
 
 use crate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
@@ -74,7 +75,8 @@ mod exhaustive {
                 let (cx, cz) = (origin.0 + i % SIDE, origin.1 + i / SIDE);
                 let lattice = CellLattice::fill(&router, cx * 16, cz * 16, &mut fill.ws)
                     .expect("the router has a cell lattice");
-                let mut fluid = column_fluid_field(&router, cx * 16, cz * 16);
+                let mut aquifer = AquiferCells::default();
+                let mut fluid = column_fluid_field(&router, &mut aquifer, cx * 16, cz * 16);
                 fill.corners.resize(lattice.width, Interval::exact(0.0));
                 let size = lattice.volume.size();
                 for z in 0..size.z - 1 {

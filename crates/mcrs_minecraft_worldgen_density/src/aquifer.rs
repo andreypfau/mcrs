@@ -1,3 +1,4 @@
+use crate::aquifer_cells::AquiferCells;
 use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
 use crate::surface_levels::SurfaceLevels;
@@ -7,14 +8,14 @@ use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_numeric::floor_div;
 use mcrs_minecraft_numeric::remap;
 use mcrs_minecraft_numeric::remap_clamped;
-use mcrs_minecraft_random::{Random, RandomSource};
+use mcrs_minecraft_random::RandomSource;
 
 pub const WAY_BELOW_MIN_Y: i32 = -2032 << 4;
 
 const AIR: VoxelId = VoxelId(0);
 
-const X_SPACING_SHIFT: i32 = 4;
-const Y_SPACING: i32 = 12;
+pub(crate) const X_SPACING_SHIFT: i32 = 4;
+pub(crate) const Y_SPACING: i32 = 12;
 const SAMPLE_OFFSET_X: i32 = -5;
 const SAMPLE_OFFSET_Y: i32 = 1;
 const SAMPLE_OFFSET_Z: i32 = -5;
@@ -153,8 +154,7 @@ pub struct FluidField<'a> {
     ws: Workspace,
     min_grid: IVec3,
     grid_size: IVec3,
-    centres: Box<[IVec3]>,
-    status: Box<[Option<FluidStatus>]>,
+    cells: &'a mut AquiferCells,
     surface: Box<[Option<i32>]>,
     surface_min_quart: (i32, i32),
     surface_quarts_x: i32,
@@ -165,6 +165,7 @@ impl<'a> FluidField<'a> {
     pub fn new(
         router: &'a NoiseRouter,
         levels: &mut SurfaceLevels,
+        cells: &'a mut AquiferCells,
         min: IVec3,
         max: IVec3,
     ) -> Self {
@@ -178,41 +179,23 @@ impl<'a> FluidField<'a> {
             ws: Workspace::new(),
             min_grid: IVec3::ZERO,
             grid_size: IVec3::ZERO,
-            centres: Box::new([]),
-            status: Box::new([]),
+            cells,
             surface: Box::new([]),
             surface_min_quart: (0, 0),
             surface_quarts_x: 0,
             volumes: Box::new([]),
         };
-        let Some(config) = router.aquifer.as_ref() else {
+        if router.aquifer.is_none() {
             return field;
-        };
+        }
 
-        let min_grid = Self::anchor(min.x, min.y, min.z) - IVec3::Y;
-        let max_grid = Self::anchor(max.x, max.y, max.z) + IVec3::ONE;
+        let min_grid = anchor(min.x, min.y, min.z) - IVec3::Y;
+        let max_grid = anchor(max.x, max.y, max.z) + IVec3::ONE;
         let grid_size = max_grid - min_grid + IVec3::ONE;
         field.min_grid = min_grid;
         field.grid_size = grid_size;
 
-        let mut centres = Vec::with_capacity((grid_size.x * grid_size.y * grid_size.z) as usize);
-        for gy in min_grid.y..=max_grid.y {
-            for gz in min_grid.z..=max_grid.z {
-                for gx in min_grid.x..=max_grid.x {
-                    let mut random = config.random.clone().fork_at(IVec3::new(gx, gy, gz));
-                    let jx = random.next_i32_bound(10);
-                    let jy = random.next_i32_bound(9);
-                    let jz = random.next_i32_bound(10);
-                    centres.push(IVec3::new(
-                        (gx << X_SPACING_SHIFT) + jx,
-                        gy * Y_SPACING + jy,
-                        (gz << X_SPACING_SHIFT) + jz,
-                    ));
-                }
-            }
-        }
-        field.status = vec![None; centres.len()].into_boxed_slice();
-        field.centres = centres.into_boxed_slice();
+        field.cells.cover(router, min, max);
 
         let quart_min = (
             ((min_grid.x << X_SPACING_SHIFT) - 48) >> 2,
@@ -260,7 +243,7 @@ impl<'a> FluidField<'a> {
 
     #[inline]
     fn cell_index(&self, grid: IVec3) -> usize {
-        flat(grid - self.min_grid, self.grid_size)
+        self.cells.index(grid)
     }
 
     fn surface_level(&mut self, x: i32, z: i32) -> i32 {
@@ -302,14 +285,12 @@ impl<'a> FluidField<'a> {
     }
 
     fn status(&mut self, index: usize) -> FluidStatus {
-        if let Some(&Some(status)) = self.status.get(index) {
+        if let Some(status) = self.cells.status(index) {
             return status;
         }
-        let centre = self.centres.get(index).copied().unwrap_or_default();
+        let centre = self.cells.centre(index).unwrap_or_default();
         let status = self.compute_status(centre);
-        if let Some(slot) = self.status.get_mut(index) {
-            *slot = Some(status);
-        }
+        self.cells.put(index, status);
         status
     }
 
@@ -412,14 +393,14 @@ impl<'a> FluidField<'a> {
     }
 
     fn select(&self, x: i32, y: i32, z: i32) -> ([i32; 3], [usize; 3]) {
-        let anchor = Self::anchor(x, y, z);
+        let anchor = anchor(x, y, z);
         let mut distance = [i32::MAX; 3];
         let mut index = [0usize; 3];
         for dx in 0..=1 {
             for dy in -1..=1 {
                 for dz in 0..=1 {
                     let cell = self.cell_index(anchor + IVec3::new(dx, dy, dz));
-                    let Some(&centre) = self.centres.get(cell) else {
+                    let Some(centre) = self.cells.centre(cell) else {
                         continue;
                     };
                     let d = centre - IVec3::new(x, y, z);
@@ -568,15 +549,6 @@ impl<'a> FluidField<'a> {
         volume
     }
 
-    #[inline]
-    fn anchor(x: i32, y: i32, z: i32) -> IVec3 {
-        IVec3::new(
-            (x + SAMPLE_OFFSET_X) >> X_SPACING_SHIFT,
-            floor_div(y + SAMPLE_OFFSET_Y, Y_SPACING),
-            (z + SAMPLE_OFFSET_Z) >> X_SPACING_SHIFT,
-        )
-    }
-
     pub fn substance_settled(
         &mut self,
         x: i32,
@@ -608,8 +580,8 @@ impl<'a> FluidField<'a> {
         if min.y < self.global.lava_below {
             return None;
         }
-        let lo = Self::anchor(min.x, min.y, min.z);
-        let hi = Self::anchor(max.x, max.y, max.z);
+        let lo = anchor(min.x, min.y, min.z);
+        let hi = anchor(max.x, max.y, max.z);
         let mut fold: Option<Window> = None;
         for gx in lo.x..=hi.x {
             for gy in lo.y..=hi.y {
@@ -661,7 +633,16 @@ pub fn point_barrier<'a>(
 }
 
 #[inline]
-fn flat(at: IVec3, size: IVec3) -> usize {
+pub(crate) fn anchor(x: i32, y: i32, z: i32) -> IVec3 {
+    IVec3::new(
+        (x + SAMPLE_OFFSET_X) >> X_SPACING_SHIFT,
+        floor_div(y + SAMPLE_OFFSET_Y, Y_SPACING),
+        (z + SAMPLE_OFFSET_Z) >> X_SPACING_SHIFT,
+    )
+}
+
+#[inline]
+pub(crate) fn flat(at: IVec3, size: IVec3) -> usize {
     debug_assert!(
         at.cmpge(IVec3::ZERO).all() && at.cmplt(size).all(),
         "{at} lies outside the lattice region {size}"

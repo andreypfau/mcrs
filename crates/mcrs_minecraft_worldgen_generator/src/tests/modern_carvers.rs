@@ -5,6 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::{build_settings_router, carvers_of, corpus};
@@ -97,6 +98,7 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let mut carved_columns = 0;
     for chunk_x in 0..3 {
         let (column, stone, bedrock) = stone_column();
+        let mut cells = AquiferCells::default();
         apply_modern_carvers(
             &column,
             chunk_x,
@@ -107,10 +109,11 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
             &table,
             overworld_height(),
             &block_ids,
-            &mut column_fluid_field(&router, chunk_x * 16, 0),
+            &mut column_fluid_field(&router, &mut cells, chunk_x * 16, 0),
         );
 
-        let mut oracle = column_fluid_field(&router, chunk_x * 16, 0);
+        let mut oracle_cells = AquiferCells::default();
+        let mut oracle = column_fluid_field(&router, &mut oracle_cells, chunk_x * 16, 0);
         let mut oracle_ws = Workspace::new();
         let mut barrier = point_barrier(&router, &mut oracle_ws);
         let mut freed = 0;

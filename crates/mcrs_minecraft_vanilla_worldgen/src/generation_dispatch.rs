@@ -3,6 +3,8 @@ use std::future::Future;
 use bevy_tasks::TaskPool;
 use mcrs_engine_link::Step;
 use mcrs_engine_link::TaskEnd;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
+use mcrs_minecraft_worldgen_generator::cover_fill_group;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_group_climate, fill_pooled, merge_column, run_region,
 };
@@ -164,9 +166,14 @@ impl GenerationStage {
         let ctx = ctx.clone();
         let mut task = Some(pool.spawn(async move {
             let climate = fill_group_climate(&ctx, fills.iter().map(|fill| fill.col));
+            let mut cells = AquiferCells::default();
+            if let Some(router) = ctx.router.as_deref() {
+                cover_fill_group(router, fills.iter().map(|fill| fill.col), &mut cells);
+            }
             let mut unstarted = Unstarted(fills.into_iter());
             for fill in unstarted.0.by_ref() {
-                if let Some(snapshot) = fill_pooled(&ctx, fill.col, climate.as_ref(), &fill.cancel)
+                if let Some(snapshot) =
+                    fill_pooled(&ctx, fill.col, climate.as_ref(), &mut cells, &fill.cancel)
                 {
                     fill.end.finish(StageResult::Filled(Box::new(snapshot)));
                 }

@@ -3,6 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
@@ -108,8 +109,15 @@ fn kept_surface_levels_do_not_change_a_field() {
     ] {
         let volume = column_volume(router, chunk_x, chunk_z);
         let (min, max) = (volume.min_block(), volume.max_block());
-        let mut warm = FluidField::new(router, &mut kept, min, max);
-        let mut cold = FluidField::new(router, &mut SurfaceLevels::default(), min, max);
+        let (mut warm_cells, mut cold_cells) = (AquiferCells::default(), AquiferCells::default());
+        let mut warm = FluidField::new(router, &mut kept, &mut warm_cells, min, max);
+        let mut cold = FluidField::new(
+            router,
+            &mut SurfaceLevels::default(),
+            &mut cold_cells,
+            min,
+            max,
+        );
         let mut warm_ws = Workspace::new();
         let mut cold_ws = Workspace::new();
         for z in (min.z..=max.z).step_by(3) {
@@ -161,15 +169,18 @@ fn check_parity(router: &NoiseRouter) {
         router
             .program
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
+        let (mut oracle_cells, mut fast_cells) = (AquiferCells::default(), AquiferCells::default());
         let mut oracle = FluidField::new(
             router,
             &mut SurfaceLevels::default(),
+            &mut oracle_cells,
             volume.min_block(),
             volume.max_block(),
         );
         let mut fast = FluidField::new(
             router,
             &mut SurfaceLevels::default(),
+            &mut fast_cells,
             volume.min_block(),
             volume.max_block(),
         );

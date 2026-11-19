@@ -5,13 +5,13 @@ const SIDE_BITS: u32 = 7;
 const SIDE: usize = 1 << SIDE_BITS;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Owner {
+pub(crate) struct Owner {
     router: usize,
     seed: u64,
 }
 
 impl Owner {
-    fn of(router: &NoiseRouter) -> Self {
+    pub(crate) fn of(router: &NoiseRouter) -> Self {
         Self {
             router: ptr::from_ref(router) as usize,
             seed: router.world_seed,

@@ -8,6 +8,7 @@
 
 mod common;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -151,12 +152,14 @@ fn run_pinned(
     for z in 0..side {
         for x in 0..side {
             let (cx, cz) = (offset + x, offset + z);
+            let mut cells = AquiferCells::default();
             let Some(mut filled) = fill_column_dense_any(
                 column,
                 cx,
                 cz,
                 y_sections,
                 router,
+                &mut cells,
                 &ColumnBiomes::new(Some(source), None, None).unwrap(),
                 None,
                 None,
@@ -305,12 +308,14 @@ fn natural(
     for z in 0..side {
         for x in 0..side {
             let (cx, cz) = (offset + x, offset + z);
+            let mut cells = AquiferCells::default();
             let Some(filled) = fill_column_dense_any(
                 &mut column,
                 cx,
                 cz,
                 y_sections,
                 router,
+                &mut cells,
                 &natural,
                 None,
                 None,
@@ -354,12 +359,14 @@ fn natural(
             let real = t.elapsed().as_secs_f64() * 1e3;
 
             let source = fixed_source(registry, &names[dominant as usize]);
+            let mut cells = AquiferCells::default();
             let pinned_fill = fill_column_dense_any(
                 &mut column,
                 cx,
                 cz,
                 y_sections,
                 router,
+                &mut cells,
                 &ColumnBiomes::new(Some(&source), None, None).unwrap(),
                 None,
                 None,
