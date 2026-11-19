@@ -208,12 +208,12 @@ impl CellBounds {
         self.chain_over(program, corner_hull(row, lattice, at), min, max)
     }
 
-    pub fn chain_input(&self) -> Option<NodeId> {
+    pub(crate) fn chain_input(&self) -> Option<NodeId> {
         let chain = self.chain.as_ref()?;
         self.inputs.get(chain.wrapper).copied()
     }
 
-    pub fn chain_over(
+    pub(crate) fn chain_over(
         &self,
         program: &Program,
         wrapper: Interval,

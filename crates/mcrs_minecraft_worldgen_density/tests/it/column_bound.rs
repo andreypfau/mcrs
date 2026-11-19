@@ -2,7 +2,7 @@ use crate::vanilla_parity::overworld_router;
 use glam::IVec3;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::cell::CELL_BOUNDS_SLACK;
-use mcrs_minecraft_worldgen_density::column_bound::ColumnScratch;
+use mcrs_minecraft_worldgen_density::column_bound::ColumnBoundScratch;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use std::sync::LazyLock;
@@ -14,7 +14,7 @@ fn assert_rows_above_first_air_are_air(chunks: impl Iterator<Item = (i32, i32)>)
     let cell = router.cell_size().unwrap();
     let noise = router.noise;
     let mut ws = Workspace::new();
-    let mut scratch = ColumnScratch::default();
+    let mut scratch = ColumnBoundScratch::default();
     let mut skipped = 0;
     for (chunk_x, chunk_z) in chunks {
         let lattice = SampleGrid::new(
@@ -99,7 +99,7 @@ fn the_cell_inputs_seeded_by_the_column_bound_match_an_unseeded_fill() {
     let noise = router.noise;
     let inputs = router.cell_inputs();
     let mut ws = Workspace::new();
-    let mut scratch = ColumnScratch::default();
+    let mut scratch = ColumnBoundScratch::default();
     for (chunk_x, chunk_z) in [(0, 0), (-7, 3), (35, 0)] {
         let min = IVec3::new(chunk_x * 16, noise.min_y, chunk_z * 16);
         let size = IVec3::new(

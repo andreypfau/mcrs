@@ -37,7 +37,7 @@ use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
-use mcrs_minecraft_worldgen_density::column_bound::ColumnScratch;
+use mcrs_minecraft_worldgen_density::column_bound::ColumnBoundScratch;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseRouter, TEMPERATURE, VEGETATION,
@@ -344,7 +344,7 @@ struct LatticeBlocks<'a> {
     noise_router: &'a NoiseRouter,
     volume: SampleGrid,
     width: usize,
-    columns: &'a ColumnScratch,
+    columns: &'a ColumnBoundScratch,
 }
 
 impl LatticeBlocks<'_> {
@@ -392,7 +392,7 @@ struct FillBuffers {
     barrier: Vec<f32>,
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
-    columns: ColumnScratch,
+    columns: ColumnBoundScratch,
 }
 
 #[expect(

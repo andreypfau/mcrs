@@ -15,7 +15,7 @@ enum Term {
     Varying,
 }
 
-pub struct ColumnBound {
+pub(crate) struct ColumnBound {
     target: NodeId,
     gather: Option<NodeId>,
     frontier: Box<[NodeId]>,
@@ -25,7 +25,7 @@ pub struct ColumnBound {
 }
 
 impl ColumnBound {
-    pub fn new(program: &mut Program, target: NodeId, inputs: &[NodeId]) -> Option<Self> {
+    pub(crate) fn new(program: &mut Program, target: NodeId, inputs: &[NodeId]) -> Option<Self> {
         let len = program.len();
         let mut reached = vec![false; len];
         *reached.get_mut(target as usize)? = true;
@@ -122,7 +122,7 @@ impl ColumnBound {
         ws: &mut Workspace,
         lattice: &SampleGrid,
         hint: Option<i32>,
-        scratch: &mut ColumnScratch,
+        scratch: &mut ColumnBoundScratch,
     ) -> i32 {
         let size = lattice.size();
         let top = size.y - 1;
@@ -191,7 +191,7 @@ impl ColumnBound {
         program: &Program,
         ws: &mut Workspace,
         volume: &SampleGrid,
-        scratch: &ColumnScratch,
+        scratch: &ColumnBoundScratch,
         out: &mut [f32],
     ) -> bool {
         let Some(plane) = scratch.plane.as_ref().filter(|_| !self.seeded.is_empty()) else {
@@ -217,7 +217,7 @@ impl ColumnBound {
         lattice: &SampleGrid,
         plane: &SampleGrid,
         bottom: i32,
-        scratch: &mut ColumnScratch,
+        scratch: &mut ColumnBoundScratch,
     ) -> bool {
         let size = lattice.size();
         let (low, high) = (lattice.block_y(bottom), lattice.block_y(size.y - 1));
@@ -272,7 +272,7 @@ impl ColumnBound {
         z: i32,
         low: i32,
         high: i32,
-        scratch: &mut ColumnScratch,
+        scratch: &mut ColumnBoundScratch,
     ) -> Option<Interval> {
         let at = plane.index_unchecked(x, 0, z);
         let cached = scratch.columns.get(at).copied()?;
@@ -299,10 +299,10 @@ impl ColumnBound {
         program: &Program,
         min: IVec3,
         max: IVec3,
-        scratch: &mut ColumnScratch,
+        scratch: &mut ColumnBoundScratch,
     ) -> Option<Interval> {
         scratch.epoch = scratch.epoch.wrapping_add(1);
-        let ColumnScratch {
+        let ColumnBoundScratch {
             values,
             stamps,
             stack,
@@ -420,7 +420,7 @@ impl Evaluation<'_> {
 }
 
 #[derive(Default)]
-pub struct ColumnScratch {
+pub struct ColumnBoundScratch {
     frontier: Vec<f32>,
     values: Vec<Interval>,
     stamps: Vec<u64>,

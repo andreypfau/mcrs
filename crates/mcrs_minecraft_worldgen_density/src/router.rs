@@ -1,7 +1,7 @@
 use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
-use crate::column_bound::{ColumnBound, ColumnScratch};
+use crate::column_bound::{ColumnBound, ColumnBoundScratch};
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{DensityFunctionHolder, ValueRange};
 use glam::IVec3;
@@ -264,7 +264,7 @@ impl NoiseRouter {
         &self,
         ws: &mut Workspace,
         volume: &SampleGrid,
-        scratch: &ColumnScratch,
+        scratch: &ColumnBoundScratch,
         out: &mut [f32],
     ) {
         let seeded = self
@@ -331,7 +331,7 @@ impl NoiseRouter {
         ws: &mut Workspace,
         lattice: &SampleGrid,
         hint: Option<i32>,
-        scratch: &mut ColumnScratch,
+        scratch: &mut ColumnBoundScratch,
     ) -> i32 {
         let top = lattice.size().y - 1;
         self.column_bound.as_ref().map_or(top, |bound| {
