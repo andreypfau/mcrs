@@ -160,6 +160,9 @@ pub fn apply_material_surface(
             let mut run = 0;
             let mut run_bottom = min_y;
             let mut carved_top = false;
+            let mut next_carved = carving
+                .as_deref()
+                .and_then(|carving| carving.highest_carved(x, z, min_y, height));
             descend_strip(
                 column,
                 x,
@@ -226,9 +229,15 @@ pub fn apply_material_surface(
                             eval.update_y(depth_above, depth_below, water_level, y);
                             eval.apply()
                         };
-                        if let Some(substance) = carving
-                            .as_deref_mut()
-                            .and_then(|carving| carving.substance(x, y, z, state))
+                        if next_carved.is_some_and(|carved| y < carved) {
+                            next_carved = carving
+                                .as_deref()
+                                .and_then(|carving| carving.highest_carved(x, z, min_y, y));
+                        }
+                        if next_carved == Some(y)
+                            && let Some(substance) = carving
+                                .as_deref_mut()
+                                .and_then(|carving| carving.substance(x, y, z, state))
                         {
                             carved_top |= depth_above == 1;
                             set_block(column, tops, min_y, x, y, z, substance);
