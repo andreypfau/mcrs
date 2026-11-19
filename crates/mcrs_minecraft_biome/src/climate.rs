@@ -341,7 +341,7 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
     best
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Nearest {
     Unique { slot: u32, distance: i64 },
     Tied { distance: i64 },
@@ -371,6 +371,7 @@ fn search_unique(
     at: usize,
     target: &Coords,
     best: &mut Option<Nearest>,
+    bound: i64,
 ) -> Option<()> {
     let children = children(tree, at, target, checked_add_square)?;
     for (((child, &distance), &grandchildren), &value) in children
@@ -379,6 +380,9 @@ fn search_unique(
         .zip(children.counts)
         .zip(children.values)
     {
+        if distance > bound {
+            continue;
+        }
         let pruned = match *best {
             Some(Nearest::Unique {
                 distance: nearest, ..
@@ -391,7 +395,7 @@ fn search_unique(
         }
         let nearest = best.map_or(i64::MAX, Nearest::distance);
         if grandchildren != 0 {
-            search_unique(tree, child, target, best)?;
+            search_unique(tree, child, target, best, bound)?;
         } else if distance < nearest {
             *best = Some(Nearest::Unique {
                 slot: value,
@@ -414,6 +418,46 @@ const MAX_DEPTH_GROUPS: usize = 8;
 struct DepthGroup {
     depth: Parameter,
     tree: Tree,
+    farthest_offset: i64,
+}
+
+impl DepthGroup {
+    fn farthest_distance(&self, target: &Coords) -> Option<i64> {
+        let mut total = self.farthest_offset;
+        for ((min, max), &target) in self.tree.min.iter().zip(&self.tree.max).zip(target) {
+            let (min, max) = (*min.first()?, *max.first()?);
+            let distance = target
+                .checked_sub(min)?
+                .checked_add(1)?
+                .max(max.checked_sub(target)?)
+                .max(0);
+            total = checked_add_square(total, distance)?;
+        }
+        Some(total)
+    }
+
+    fn bound(&self, seed: Option<&ParameterPoint>, target: &Coords) -> i64 {
+        let space = seed.map(|point| {
+            ParameterPoint {
+                depth: NEUTRAL_DEPTH,
+                ..*point
+            }
+            .space()
+        });
+        space
+            .filter(|_| self.farthest_distance(target).is_some())
+            .and_then(|space| checked_leaf_distance(&space, target))
+            .unwrap_or(i64::MAX)
+    }
+}
+
+fn checked_leaf_distance(space: &[Parameter; 7], target: &Coords) -> Option<i64> {
+    space
+        .iter()
+        .zip(target)
+        .try_fold(0, |total, (parameter, &target)| {
+            checked_add_square(total, parameter.distance(target))
+        })
 }
 
 fn depth_groups<T>(values: &[(ParameterPoint, T)]) -> Vec<DepthGroup> {
@@ -449,9 +493,11 @@ fn depth_groups<T>(values: &[(ParameterPoint, T)]) -> Vec<DepthGroup> {
                 },
                 subtree @ Node::SubTree { .. } => subtree,
             };
+            let tree = flatten(root);
             Some(DepthGroup {
                 depth,
-                tree: flatten(root),
+                farthest_offset: tree.offset.iter().copied().max()?,
+                tree,
             })
         })
         .collect()
@@ -464,14 +510,21 @@ fn column_of(target: TargetPoint) -> TargetPoint {
     }
 }
 
-fn group_nearest(
-    groups: &[DepthGroup],
+fn group_nearest<T>(
+    list: &ParameterList<T>,
     column: TargetPoint,
+    seeds: &mut [Option<u32>; MAX_DEPTH_GROUPS],
 ) -> Option<[Option<Nearest>; MAX_DEPTH_GROUPS]> {
     let coords = column.coords();
     let mut nearest = [None; MAX_DEPTH_GROUPS];
-    for (best, group) in nearest.iter_mut().zip(groups) {
-        search_unique(&group.tree, 0, &coords, best)?;
+    for ((best, group), seed) in nearest.iter_mut().zip(&list.depth_groups).zip(seeds) {
+        let point = seed
+            .and_then(|slot| list.values.get(slot as usize))
+            .map(|(point, _)| point);
+        search_unique(&group.tree, 0, &coords, best, group.bound(point, &coords))?;
+        if let Some(Nearest::Unique { slot, .. }) = *best {
+            *seed = Some(slot);
+        }
     }
     Some(nearest)
 }
@@ -489,6 +542,7 @@ pub struct ClimateCursor<'a, T> {
     last: Option<usize>,
     column: Option<TargetPoint>,
     nearest: ColumnNearest,
+    seeds: [Option<u32>; MAX_DEPTH_GROUPS],
 }
 
 impl<'a, T> ClimateCursor<'a, T> {
@@ -508,13 +562,12 @@ impl<'a, T> ClimateCursor<'a, T> {
     fn grouped_slot(&mut self, target: TargetPoint) -> Option<usize> {
         let list = self.list;
         let column = column_of(target);
-        if list.depth_groups.is_empty() || self.column != Some(column) {
-            self.column = Some(column);
-            self.nearest = ColumnNearest::Unsearched;
+        if list.depth_groups.is_empty() {
             return None;
         }
-        if let ColumnNearest::Unsearched = self.nearest {
-            self.nearest = group_nearest(&list.depth_groups, column)
+        if self.column != Some(column) {
+            self.column = Some(column);
+            self.nearest = group_nearest(list, column, &mut self.seeds)
                 .map_or(ColumnNearest::Overflowed, ColumnNearest::Grouped);
         }
         let ColumnNearest::Grouped(nearest) = &self.nearest else {
@@ -718,6 +771,7 @@ impl<T> ParameterList<T> {
             last: None,
             column: None,
             nearest: ColumnNearest::Unsearched,
+            seeds: [None; MAX_DEPTH_GROUPS],
         }
     }
 
@@ -942,6 +996,48 @@ mod tests {
         assert!(
             grouped > 10_000,
             "the grouped path answered {grouped} lookups"
+        );
+    }
+
+    #[test]
+    fn a_bound_from_the_previous_column_keeps_every_group_answer() {
+        let overworld = crate::overworld_preset::overworld_parameter_list().values();
+        let duplicates = overworld.iter().step_by(7);
+        let table = ParameterList::new(
+            overworld
+                .iter()
+                .chain(duplicates)
+                .map(|(point, _)| (*point, ()))
+                .collect(),
+        );
+        let steps = 25;
+        let at = |step: usize| (step % steps) as f32 * 0.1 - 1.2;
+        let mut seeds = [None; MAX_DEPTH_GROUPS];
+        let mut tied = 0;
+        for row in 0..steps {
+            for step in 0..steps {
+                let column = TargetPoint::new(
+                    at(row),
+                    at(row + 2 * step),
+                    at(step),
+                    at(3 * row + step),
+                    0.0,
+                    at(row * step),
+                );
+                let unbounded = group_nearest(&table, column, &mut [None; MAX_DEPTH_GROUPS]);
+                let bounded = group_nearest(&table, column, &mut seeds);
+                assert_eq!(bounded, unbounded, "at row {row}, step {step}");
+                tied += unbounded
+                    .iter()
+                    .flatten()
+                    .flatten()
+                    .filter(|nearest| matches!(nearest, Nearest::Tied { .. }))
+                    .count();
+            }
+        }
+        assert!(
+            tied > 50,
+            "the duplicated entries tie in {tied} group searches"
         );
     }
 
