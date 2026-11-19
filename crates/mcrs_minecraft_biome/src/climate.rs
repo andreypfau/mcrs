@@ -56,8 +56,16 @@ impl Parameter {
 
     #[inline]
     pub fn distance(self, target: i64) -> i64 {
-        (target - self.max + 1).max(self.min - target).max(0)
+        target
+            .saturating_sub(self.max)
+            .saturating_add(1)
+            .max(self.min.saturating_sub(target))
+            .max(0)
     }
+}
+
+fn saturating_add_square(total: i64, distance: i64) -> i64 {
+    total.saturating_add(distance.saturating_mul(distance))
 }
 
 impl From<&ParameterRange> for Parameter {
@@ -189,11 +197,9 @@ fn bound_distance(space: &[Parameter; 7], target: &Coords) -> i64 {
     space
         .iter()
         .zip(target)
-        .map(|(parameter, &target)| {
-            let distance = parameter.distance(target);
-            distance * distance
+        .fold(0, |total, (parameter, &target)| {
+            saturating_add_square(total, parameter.distance(target))
         })
-        .sum()
 }
 
 #[derive(Debug, Clone)]
@@ -233,8 +239,8 @@ impl Tree {
             min.push(parameter.min);
             max.push(parameter.max);
         }
-        let offset = offset.distance(0);
-        self.offset.push(offset * offset);
+        self.offset
+            .push(saturating_add_square(0, offset.distance(0)));
         self.value.push(0);
         self.children_start.push(0);
         self.children_count.push(0);
@@ -313,7 +319,7 @@ fn children<'t>(
 
 fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> Option<(u32, i64)> {
     let Some(children) = children(tree, at, target, |total, distance| {
-        Some(total + distance * distance)
+        Some(saturating_add_square(total, distance))
     }) else {
         return best;
     };
@@ -324,7 +330,9 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
         .zip(children.counts)
         .zip(children.values)
     {
-        if best.map_or(i64::MAX, |(_, nearest)| nearest) <= distance {
+        if let Some((_, nearest)) = best
+            && nearest <= distance
+        {
             continue;
         }
         let found = if grandchildren == 0 {
@@ -333,7 +341,7 @@ fn search(tree: &Tree, at: usize, target: &Coords, best: Option<(u32, i64)>) -> 
             search(tree, child, target, best)
         };
         if let Some(found) = found
-            && best.map_or(i64::MAX, |(_, nearest)| nearest) > found.1
+            && best.is_none_or(|(_, nearest)| nearest > found.1)
         {
             best = Some(found);
         }
@@ -470,9 +478,9 @@ fn depth_groups<T>(values: &[(ParameterPoint, T)]) -> Vec<DepthGroup> {
             depths.push(point.depth);
         }
     }
-    depths
+    let groups: Option<Vec<DepthGroup>> = depths
         .into_iter()
-        .filter_map(|depth| {
+        .map(|depth| {
             let leaves = values
                 .iter()
                 .enumerate()
@@ -500,7 +508,8 @@ fn depth_groups<T>(values: &[(ParameterPoint, T)]) -> Vec<DepthGroup> {
                 tree,
             })
         })
-        .collect()
+        .collect();
+    groups.unwrap_or_default()
 }
 
 fn column_of(target: TargetPoint) -> TargetPoint {
@@ -1100,6 +1109,27 @@ mod tests {
                     "the outlier is pruned by the full search"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn an_entry_far_outside_the_climate_range_still_yields_a_value() {
+        let hot = ParameterPoint {
+            temperature: Parameter::point(1e6),
+            ..point(0.0, 0.0)
+        };
+        let cold = ParameterPoint {
+            temperature: Parameter::point(-1e6),
+            ..point(0.0, 0.0)
+        };
+        let target = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        for (values, expected) in [
+            (vec![(hot, "hot"), (point(0.1, 0.0), "near")], "near"),
+            (vec![(hot, "hot"), (cold, "cold")], "hot"),
+        ] {
+            let table = ParameterList::new(values);
+            assert_eq!(table.find_value(target), Some(&expected));
+            assert_eq!(table.cursor().find_value(target), Some(&expected));
         }
     }
 
