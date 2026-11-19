@@ -346,6 +346,10 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
                 })
                 .collect(),
         }),
+        Node::Lerp { alpha, second, .. } => Some(Site {
+            always: vec![*alpha],
+            arms: vec![plain(*second, GuardTest::LeftNonZero { left: *alpha })],
+        }),
         Node::Binary { op, a, b } => {
             let (left, right) = (*a, ranges.get(*b as usize).copied()?);
             let (test, negate) = match op {
