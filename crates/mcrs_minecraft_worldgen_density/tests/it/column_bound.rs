@@ -80,3 +80,40 @@ mod exhaustive {
         );
     }
 }
+
+#[test]
+fn the_cell_inputs_seeded_by_the_column_bound_match_an_unseeded_fill() {
+    let router = &*ROUTER;
+    let cell = router.cell_size().unwrap();
+    let noise = router.noise;
+    let inputs = router.cell_inputs();
+    let mut ws = Workspace::new();
+    let mut scratch = ColumnScratch::default();
+    for (chunk_x, chunk_z) in [(0, 0), (-7, 3), (35, 0)] {
+        let min = IVec3::new(chunk_x * 16, noise.min_y, chunk_z * 16);
+        let size = IVec3::new(
+            16 / cell.x + 1,
+            noise.height as i32 / cell.y + 1,
+            16 / cell.z + 1,
+        );
+        let lattice = SampleGrid::new(size, min, cell);
+        router.final_density_first_air_row(&mut ws, &lattice, None, &mut scratch);
+        let inner = SampleGrid::new(
+            IVec3::new(size.x - 1, size.y / 2, size.z - 1),
+            min + IVec3::new(cell.x, cell.y * 3, cell.z),
+            cell,
+        );
+        for volume in [lattice, inner] {
+            let mut expected = vec![0.0f32; inputs.len() * volume.len()];
+            router.fill_nodes(&mut ws, &volume, inputs, &mut expected);
+            let mut seeded = vec![0.0f32; expected.len()];
+            router.fill_cell_inputs(&mut ws, &volume, &scratch, &mut seeded);
+            let bits = |values: &[f32]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+            assert_eq!(
+                bits(&seeded),
+                bits(&expected),
+                "chunk ({chunk_x}, {chunk_z}) volume {volume:?}"
+            );
+        }
+    }
+}

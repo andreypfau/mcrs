@@ -19,7 +19,7 @@ fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     let rows = router.noise.height as i32 / cell.y + 1;
 
     let mut whole = CellLattice::fill(&router, 0, 0, None, &mut fill).expect("the lattice fills");
-    whole.extend(&router, &mut fill.ws);
+    whole.extend(&router, &mut fill);
     let ws = &mut fill.ws;
     let part = SampleGrid::new(
         IVec3::new(4, rows, 4),
@@ -76,7 +76,7 @@ mod exhaustive {
                 let (cx, cz) = (origin.0 + i % SIDE, origin.1 + i / SIDE);
                 let mut lattice = CellLattice::fill(&router, cx * 16, cz * 16, None, &mut fill)
                     .expect("the router has a cell lattice");
-                lattice.extend(&router, &mut fill.ws);
+                lattice.extend(&router, &mut fill);
                 let mut aquifer = AquiferCells::default();
                 let mut fluid = column_fluid_field(&router, &mut aquifer, cx * 16, cz * 16);
                 fill.corners.resize(lattice.width, Interval::exact(0.0));

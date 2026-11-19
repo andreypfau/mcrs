@@ -1,6 +1,6 @@
 use crate::bounds::{Bounds, node_bounds};
 use crate::cell::{CELL_BOUNDS_SLACK, CellBounds};
-use crate::program::{Node, NodeId, Program, Workspace};
+use crate::program::{Node, NodeId, Program, Seed, SeededPlan, Workspace};
 use glam::IVec3;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
@@ -19,12 +19,13 @@ pub struct ColumnBound {
     target: NodeId,
     gather: Option<NodeId>,
     frontier: Box<[NodeId]>,
+    seeded: Box<[SeededPlan]>,
     terms: Box<[Term]>,
     fixed: Box<[Interval]>,
 }
 
 impl ColumnBound {
-    pub fn new(program: &mut Program, target: NodeId) -> Option<Self> {
+    pub fn new(program: &mut Program, target: NodeId, inputs: &[NodeId]) -> Option<Self> {
         let len = program.len();
         let mut reached = vec![false; len];
         *reached.get_mut(target as usize)? = true;
@@ -95,15 +96,20 @@ impl ColumnBound {
             })
             .collect();
 
-        let gather = if frontier.is_empty() {
-            None
+        let (gather, seeded) = if frontier.is_empty() {
+            (None, Vec::new())
         } else {
-            Some(program.gather(&frontier)?)
+            let seeded: Option<Vec<SeededPlan>> = inputs
+                .iter()
+                .map(|&input| program.seeded_plan(input, &frontier))
+                .collect();
+            (Some(program.gather(&frontier)?), seeded?)
         };
         Some(Self {
             target,
             gather,
             frontier: frontier.into_boxed_slice(),
+            seeded: seeded.into_boxed_slice(),
             terms: terms.into_boxed_slice(),
             fixed: fixed.into_boxed_slice(),
         })
@@ -128,8 +134,10 @@ impl ColumnBound {
         let columns = plane.len();
         scratch.frontier.clear();
         scratch.frontier.resize(self.frontier.len() * columns, 0.0);
+        scratch.plane = None;
         if let Some(gather) = self.gather {
             program.fill_gathered(ws, &plane, gather, &self.frontier, &mut scratch.frontier);
+            scratch.plane = Some(plane);
         }
         scratch.values.clear();
         scratch.values.extend_from_slice(&self.fixed);
@@ -176,6 +184,30 @@ impl ColumnBound {
             }
         }
         low
+    }
+
+    pub fn fill_inputs(
+        &self,
+        program: &Program,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        scratch: &ColumnScratch,
+        out: &mut [f32],
+    ) -> bool {
+        let Some(plane) = scratch.plane.as_ref().filter(|_| !self.seeded.is_empty()) else {
+            return false;
+        };
+        let seed = Seed {
+            plane,
+            values: &scratch.frontier,
+        };
+        let count = volume.len();
+        out.len() == self.seeded.len() * count
+            && self
+                .seeded
+                .iter()
+                .zip(out.chunks_exact_mut(count))
+                .all(|(&seeded, row)| program.fill_seeded(ws, volume, seeded, &seed, row))
     }
 
     fn band_is_air(
@@ -394,6 +426,7 @@ pub struct ColumnScratch {
     stamps: Vec<u64>,
     stack: Vec<NodeId>,
     columns: Vec<Interval>,
+    plane: Option<SampleGrid>,
     epoch: u64,
     band: u64,
 }

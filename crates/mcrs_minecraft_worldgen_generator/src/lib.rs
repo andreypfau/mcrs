@@ -166,7 +166,7 @@ impl CellLattice {
             values: Vec::new(),
             width,
         };
-        lattice.compute(noise_router, &mut fill.ws);
+        lattice.compute(noise_router, fill);
         Some(lattice)
     }
 
@@ -174,7 +174,7 @@ impl CellLattice {
         cell_y + 1 < self.volume.size().y
     }
 
-    fn extend(&mut self, noise_router: &NoiseRouter, ws: &mut Workspace) {
+    fn extend(&mut self, noise_router: &NoiseRouter, fill: &mut FillBuffers) {
         self.volume = SampleGrid::new(
             IVec3::new(
                 self.volume.size().x,
@@ -184,12 +184,12 @@ impl CellLattice {
             self.volume.min_block(),
             self.cell,
         );
-        self.compute(noise_router, ws);
+        self.compute(noise_router, fill);
     }
 
-    fn compute(&mut self, noise_router: &NoiseRouter, ws: &mut Workspace) {
+    fn compute(&mut self, noise_router: &NoiseRouter, fill: &mut FillBuffers) {
         let volume = self.volume;
-        let inputs = noise_router.cell_inputs();
+        let FillBuffers { ws, columns, .. } = fill;
         let width = self.width;
         let rows = volume.size().y as usize;
         let (nx, nz) = (volume.size().x, volume.size().z);
@@ -220,6 +220,7 @@ impl CellLattice {
                 noise_router,
                 volume,
                 width,
+                columns,
             };
             lattice.fill(
                 ws,
@@ -244,7 +245,7 @@ impl CellLattice {
                 );
             }
         } else {
-            noise_router.fill_nodes(ws, &volume, inputs, values);
+            noise_router.fill_cell_inputs(ws, &volume, columns, values);
         }
 
         let mut column = vec![0.0f32; width * rows];
@@ -343,6 +344,7 @@ struct LatticeBlocks<'a> {
     noise_router: &'a NoiseRouter,
     volume: SampleGrid,
     width: usize,
+    columns: &'a ColumnScratch,
 }
 
 impl LatticeBlocks<'_> {
@@ -358,12 +360,8 @@ impl LatticeBlocks<'_> {
             volume.step_block(),
         );
         let mut block_values = vec![0.0f32; self.width * block.len()];
-        self.noise_router.fill_nodes(
-            ws,
-            &block,
-            self.noise_router.cell_inputs(),
-            &mut block_values,
-        );
+        self.noise_router
+            .fill_cell_inputs(ws, &block, self.columns, &mut block_values);
         let rows = size.y as usize;
         for z in 0..size.z {
             for x in 0..size.x {
@@ -455,7 +453,7 @@ fn fill_column(
                     lattice.classify(noise_router, at, fluid, &mut fill)
                 };
                 if verdict == CellFill::Mixed && !lattice.holds(cell_y) {
-                    lattice.extend(noise_router, &mut fill.ws);
+                    lattice.extend(noise_router, &mut fill);
                 }
                 match verdict {
                     CellFill::Solid => {

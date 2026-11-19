@@ -201,7 +201,7 @@ impl NoiseRouter {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
         let column_bound = cell_bounds
             .chain_input()
-            .and_then(|input| ColumnBound::new(&mut program, input));
+            .and_then(|input| ColumnBound::new(&mut program, input, cell_bounds.inputs()));
         Self {
             program,
             sea_level: settings.sea_level,
@@ -257,6 +257,22 @@ impl NoiseRouter {
             if let Some(row) = out.get_mut(k * n..(k + 1) * n) {
                 self.program.fill_node(ws, volume, node, row);
             }
+        }
+    }
+
+    pub fn fill_cell_inputs(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        scratch: &ColumnScratch,
+        out: &mut [f32],
+    ) {
+        let seeded = self
+            .column_bound
+            .as_ref()
+            .is_some_and(|bound| bound.fill_inputs(&self.program, ws, volume, scratch, out));
+        if !seeded {
+            self.fill_nodes(ws, volume, self.cell_inputs(), out);
         }
     }
 

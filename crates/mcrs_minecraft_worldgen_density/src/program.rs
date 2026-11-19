@@ -435,7 +435,20 @@ struct Plan {
     steps: Box<[Step]>,
     lattice: Box<[NodeId]>,
     slot: Box<[u32]>,
+    given: Box<[NodeId]>,
+    given_slot: Box<[u32]>,
     slot_count: [u32; 8],
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SeededPlan {
+    plan: u32,
+    target: NodeId,
+}
+
+pub(crate) struct Seed<'a> {
+    pub plane: &'a SampleGrid,
+    pub values: &'a [f32],
 }
 
 #[derive(Default)]
@@ -530,7 +543,7 @@ impl Program {
             if let Some(plan) = plan_of.get_mut(entry as usize) {
                 *plan = index as u32;
             }
-            plans.push(Plan::new(&nodes, &axes, &ranges, entry));
+            plans.push(Plan::new(&nodes, &axes, &ranges, entry, &[]));
         }
 
         Self {
@@ -599,7 +612,7 @@ impl Program {
             axes.push(ALL_AXES);
             ranges.push(range);
         }
-        let plan = Plan::new(&nodes, &axes, &ranges, sum);
+        let plan = Plan::new(&nodes, &axes, &ranges, sum, &[]);
         self.nodes = nodes.into_boxed_slice();
         self.axes = axes.into_boxed_slice();
         self.ranges = ranges.into_boxed_slice();
@@ -613,6 +626,78 @@ impl Program {
         self.plan_of = plan_of.into_boxed_slice();
         self.plans = plans.into_boxed_slice();
         Some(sum)
+    }
+
+    pub(crate) fn seeded_plan(&mut self, target: NodeId, given: &[NodeId]) -> Option<SeededPlan> {
+        let plan = Plan::new(&self.nodes, &self.axes, &self.ranges, target, given);
+        let id = SeededPlan {
+            plan: u32::try_from(self.plans.len()).ok()?,
+            target,
+        };
+        let mut plans = std::mem::take(&mut self.plans).into_vec();
+        plans.push(plan);
+        self.plans = plans.into_boxed_slice();
+        Some(id)
+    }
+
+    pub(crate) fn fill_seeded(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        seeded: SeededPlan,
+        seed: &Seed<'_>,
+        out: &mut [f32],
+    ) -> bool {
+        debug_assert_eq!(out.len(), volume.len());
+        let Some(plan_ref) = self.plans.get(seeded.plan as usize) else {
+            return false;
+        };
+        let Some(origin) = seed_origin(seed.plane, volume) else {
+            return false;
+        };
+        ws.prepare(self, plan_ref, volume);
+        self.fill_lattices(ws, volume, plan_ref);
+        self.write_seed(ws, volume, plan_ref, seed, origin);
+        ws.windows.clear();
+        ws.windows.push(Window::whole(volume));
+        self.run_steps(plan_ref, ws, volume, 0..plan_ref.steps.len(), 0, 0..1);
+        self.copy_node(ws, volume, seeded.target, out);
+        true
+    }
+
+    fn write_seed(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        plan: &Plan,
+        seed: &Seed<'_>,
+        origin: IVec3,
+    ) {
+        let count = seed.plane.len();
+        for (k, &id) in plan.given.iter().enumerate() {
+            let axes = self.axes_of(id);
+            let strip = stratum(axes, volume);
+            let off = ws.offset_of(id);
+            let row = seed
+                .values
+                .get(k * count..(k + 1) * count)
+                .unwrap_or_default();
+            for iz in 0..strip.size().z {
+                for ix in 0..strip.size().x {
+                    let from = seed.plane.index_unchecked(
+                        if axes & AXIS_X != 0 { origin.x + ix } else { 0 },
+                        0,
+                        if axes & AXIS_Z != 0 { origin.z + iz } else { 0 },
+                    );
+                    if let (Some(slot), Some(&value)) = (
+                        ws.values.get_mut(off + strip.index_unchecked(ix, 0, iz)),
+                        row.get(from),
+                    ) {
+                        *slot = value;
+                    }
+                }
+            }
+        }
     }
 
     pub(crate) fn fill_gathered(
@@ -1337,6 +1422,22 @@ impl Program {
 }
 
 #[inline]
+fn seed_origin(plane: &SampleGrid, volume: &SampleGrid) -> Option<IVec3> {
+    let step = plane.step_block();
+    if step.x != volume.step_block().x || step.z != volume.step_block().z {
+        return None;
+    }
+    let offset = volume.min_block() - plane.min_block();
+    if offset.x.checked_rem(step.x)? != 0 || offset.z.checked_rem(step.z)? != 0 {
+        return None;
+    }
+    let origin = IVec3::new(offset.x / step.x, 0, offset.z / step.z);
+    let end = origin + volume.size();
+    let inside =
+        origin.x >= 0 && origin.z >= 0 && end.x <= plane.size().x && end.z <= plane.size().z;
+    inside.then_some(origin)
+}
+
 fn fill_gap(site: &mut [f32], source: &[f32], gap: Range<usize>, negate: bool) {
     let broadcast = site.len() == 1;
     for y in gap {
@@ -1560,13 +1661,19 @@ fn interpolate_cells(
 }
 
 impl Plan {
-    fn new(nodes: &[Node], axes: &[Axes], ranges: &[Interval], target: NodeId) -> Self {
+    fn new(
+        nodes: &[Node],
+        axes: &[Axes],
+        ranges: &[Interval],
+        target: NodeId,
+        given: &[NodeId],
+    ) -> Self {
         let mut live = vec![false; nodes.len()];
         if let Some(live) = live.get_mut(target as usize) {
             *live = true;
         }
         for (i, node) in nodes.iter().enumerate().rev() {
-            if live.get(i) == Some(&true) {
+            if live.get(i) == Some(&true) && !given.contains(&(i as NodeId)) {
                 node.visit_local_inputs(&mut |j| {
                     if let Some(live) = live.get_mut(j as usize) {
                         *live = true;
@@ -1576,7 +1683,7 @@ impl Plan {
         }
         let (mut order, mut lattice) = (Vec::new(), Vec::new());
         for (i, (node, &live)) in nodes.iter().zip(&live).enumerate() {
-            if !live {
+            if !live || given.contains(&(i as NodeId)) {
                 continue;
             }
             order.push(i as NodeId);
@@ -1596,14 +1703,25 @@ impl Plan {
                 });
             }
         }
-        if let Some(last) = last_use.get_mut(target as usize) {
-            *last = usize::MAX;
+        for &kept in given.iter().chain([&target]) {
+            if let Some(last) = last_use.get_mut(kept as usize) {
+                *last = usize::MAX;
+            }
         }
 
         let axes_of = |id: NodeId| axes.get(id as usize).map_or(0, |&a| usize::from(a));
         let mut node_slot = vec![0u32; nodes.len()];
         let mut free: [Vec<u32>; 8] = Default::default();
         let mut slot_count = [0u32; 8];
+        let given_slot: Vec<u32> = given
+            .iter()
+            .map(|&id| {
+                slot_count.get_mut(axes_of(id)).map_or(0, |count| {
+                    *count += 1;
+                    *count - 1
+                })
+            })
+            .collect();
         let mut slot = Vec::with_capacity(order.len());
         for (p, &id) in order.iter().enumerate() {
             let a = axes_of(id);
@@ -1639,6 +1757,8 @@ impl Plan {
             steps: steps.into_boxed_slice(),
             lattice: lattice.into_boxed_slice(),
             slot: slot.into_boxed_slice(),
+            given: given.into(),
+            given_slot: given_slot.into_boxed_slice(),
             slot_count,
         }
     }
@@ -1672,7 +1792,8 @@ impl Workspace {
             *base = len as u32;
             len += count as usize * extent(axes, volume);
         }
-        for (&id, &slot) in plan.order.iter().zip(plan.slot.iter()) {
+        let order = plan.order.iter().chain(&plan.given);
+        for (&id, &slot) in order.zip(plan.slot.iter().chain(&plan.given_slot)) {
             let axes = program.axes_of(id);
             if let (Some(offset), Some(&base)) = (
                 self.offset.get_mut(id as usize),
