@@ -1,5 +1,5 @@
 use crate::biome_window::BiomeWindow;
-use mcrs_minecraft_biome::zoom::{FiddleCache, uniform_corners};
+use mcrs_minecraft_biome::zoom::FiddleCache;
 use mcrs_minecraft_chunk::VoxelPalette;
 use mcrs_minecraft_core::QuartPos;
 use mcrs_voxel::{BlockPos, SectionPos};
@@ -7,6 +7,7 @@ use std::ops::Range;
 
 const EDGE: usize = SectionPos::SIZE;
 const CELLS: usize = EDGE / QuartPos::SIZE + 1;
+const SPAN: usize = CELLS + 1;
 
 struct ColumnBiomes<'a> {
     grid: BiomeWindow<'a>,
@@ -28,22 +29,42 @@ impl ColumnBiomes<'_> {
         self.grid.get(x, y, z)
     }
 
-    fn single_biome(&self, quart_x: i32, quart_y: i32, quart_z: i32) -> Option<u8> {
-        let first = self.at(QuartPos::new(quart_x - 1, quart_y - 1, quart_z - 1));
-        let span = CELLS as i32 + 1;
-        (0..span)
-            .all(|x| {
-                (0..span).all(|z| {
-                    (0..span).all(|y| {
-                        self.at(QuartPos::new(
-                            quart_x - 1 + x,
-                            quart_y - 1 + y,
-                            quart_z - 1 + z,
-                        )) == first
-                    })
-                })
-            })
-            .then_some(first)
+    fn neighbourhood(&self, quart_x: i32, quart_y: i32, quart_z: i32) -> Neighbourhood {
+        let mut quarts = [[[0; SPAN]; SPAN]; SPAN];
+        for (x, plane) in (quart_x - 1..).zip(&mut quarts) {
+            for (y, row) in (quart_y - 1..).zip(plane) {
+                for (z, biome) in (quart_z - 1..).zip(row) {
+                    *biome = self.at(QuartPos::new(x, y, z));
+                }
+            }
+        }
+        Neighbourhood(quarts)
+    }
+}
+
+struct Neighbourhood([[[u8; SPAN]; SPAN]; SPAN]);
+
+impl Neighbourhood {
+    fn single_biome(&self) -> Option<u8> {
+        let quarts = self.0.as_flattened().as_flattened();
+        let [first, ..] = *quarts else {
+            return None;
+        };
+        quarts.iter().all(|&biome| biome == first).then_some(first)
+    }
+
+    fn corners(&self, x: usize, y: usize, z: usize) -> [u8; 8] {
+        let quarts = &self.0;
+        [
+            quarts[x][y][z],
+            quarts[x][y][z + 1],
+            quarts[x][y + 1][z],
+            quarts[x][y + 1][z + 1],
+            quarts[x + 1][y][z],
+            quarts[x + 1][y][z + 1],
+            quarts[x + 1][y + 1][z],
+            quarts[x + 1][y + 1][z + 1],
+        ]
     }
 }
 
@@ -87,7 +108,8 @@ pub fn upscale_biomes(
         .iter()
         .map(|&section_y| {
             let block_y = section_y * 16;
-            if let Some(biome) = column.single_biome(block_x >> 2, section_y * 4, block_z >> 2) {
+            let quarts = column.neighbourhood(block_x >> 2, section_y * 4, block_z >> 2);
+            if let Some(biome) = quarts.single_biome() {
                 return VoxelPalette::homogeneous(biome);
             }
 
@@ -98,24 +120,28 @@ pub fn upscale_biomes(
                     for cell_x in 0..CELLS {
                         let (xs, ys, zs) =
                             (cell_span(cell_x), cell_span(cell_y), cell_span(cell_z));
-                        let corner = BlockPos::new(
+                        let low = BlockPos::new(
                             block_x + xs.start as i32,
                             block_y + ys.start as i32,
                             block_z + zs.start as i32,
                         );
-                        let uniform = uniform_corners(corner, |quart| column.at(quart));
+                        let corners = quarts.corners(cell_x, cell_y, cell_z);
+                        let [first, ..] = corners;
+                        let terms = corners
+                            .iter()
+                            .any(|&biome| biome != first)
+                            .then(|| cache.cell_terms(low));
                         for y in ys {
                             for z in zs.clone() {
                                 for x in xs.clone() {
-                                    cells[(y * EDGE + z) * EDGE + x] =
-                                        uniform.unwrap_or_else(|| {
-                                            let pos = BlockPos::new(
-                                                block_x + x as i32,
-                                                block_y + y as i32,
-                                                block_z + z as i32,
-                                            );
-                                            column.at(cache.quart_cell(pos))
-                                        });
+                                    let pos = BlockPos::new(
+                                        block_x + x as i32,
+                                        block_y + y as i32,
+                                        block_z + z as i32,
+                                    );
+                                    cells[(y * EDGE + z) * EDGE + x] = terms
+                                        .as_ref()
+                                        .map_or(first, |terms| terms.nearest(&corners, pos));
                                 }
                             }
                         }
