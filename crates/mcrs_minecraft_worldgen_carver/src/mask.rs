@@ -54,6 +54,24 @@ impl CarvingMask {
         self.index(x, y, z).is_some_and(|index| self.bits[index])
     }
 
+    #[must_use]
+    pub fn highest_carved(&self, x: i32, z: i32, bottom: i32, top: i32) -> Option<i32> {
+        let bottom = bottom.max(self.min_y);
+        let top = top.min(self.max_y());
+        if bottom > top {
+            return None;
+        }
+        let low = self.index(x, bottom, z)?;
+        let high = self.index(x, top, z)?;
+        if !self.bits.contains_any_in_range(low..high + 1) {
+            return None;
+        }
+        let carved = (low..=high)
+            .rev()
+            .find(|&index| self.bits.contains(index))?;
+        Some(top - (high - carved) as i32)
+    }
+
     pub fn visit(&self, mut visit: impl FnMut(i32, i32, i32, i32)) {
         let mut run: Option<(usize, usize)> = None;
         for index in self.bits.ones() {

@@ -137,6 +137,29 @@ impl ColumnBlocks {
         }
     }
 
+    pub fn fill_strip(&self, local_x: i32, local_z: i32, bottom: i32, top: i32, value: VoxelId) {
+        if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) {
+            return;
+        }
+        let column = (local_z as usize) * 16 + local_x as usize;
+        let mut y = bottom;
+        while y <= top {
+            let section_top = (y | 0xF).min(top);
+            if let Some(slot) = self.slot(y >> 4) {
+                let base = slot * Self::SECTION_VOLUME + column;
+                for local_y in (y & 0xF)..=(section_top & 0xF) {
+                    if let Some(cell) = self.cells.get(base + (local_y as usize) * 256) {
+                        cell.set(value);
+                    }
+                }
+            }
+            let Some(next) = section_top.checked_add(1) else {
+                return;
+            };
+            y = next;
+        }
+    }
+
     pub fn block_palettes(&self) -> Vec<BlockPalette> {
         self.y_sections
             .iter()

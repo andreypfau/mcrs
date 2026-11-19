@@ -6,7 +6,7 @@ use crate::ColumnBiomes;
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 #[cfg(test)]
-use crate::surface::{Visit, descend_strip, set_block};
+use crate::surface::{Descent, Visit, descend_strip, set_block};
 #[cfg(test)]
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, SurfaceStates};
@@ -52,6 +52,7 @@ fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i
         {
             seen.push((y, depth_above, depth_below, water_level));
         }
+        Descent::Step
     });
     seen
 }

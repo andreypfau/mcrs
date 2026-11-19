@@ -632,6 +632,12 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
         self.mask.contains(x, y, z)
     }
 
+    #[inline]
+    #[must_use]
+    pub fn highest_carved(&self, x: i32, z: i32, bottom: i32, top: i32) -> Option<i32> {
+        self.mask.highest_carved(x, z, bottom, top)
+    }
+
     pub fn substance(&mut self, x: i32, y: i32, z: i32, block: Option<VoxelId>) -> Option<VoxelId> {
         if !self.is_carved(x, y, z) || block.is_some_and(|block| self.ids.is_uncarvable(block)) {
             return None;
