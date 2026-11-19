@@ -391,7 +391,9 @@ pub(crate) fn descend_strip(
                 water_level,
             });
             if let Descent::Through(bottom) = descent {
-                let bottom = bottom.clamp(next_ceiling.max(min_y).max(column.present_bottom(y)), y);
+                let bottom = bottom
+                    .max(next_ceiling.max(min_y).max(column.present_bottom(y)))
+                    .min(y);
                 depth_above += y - bottom;
                 y = bottom;
             }
@@ -428,8 +430,9 @@ fn write_span(
         let lower = carved.map_or(bottom, |carved| carved + 1);
         if state != stone && lower <= upper {
             column.fill_strip(x, z, lower, upper, state);
-            let height = &mut tops[(z * 16 + x) as usize];
-            *height = (*height).max(upper);
+            if let Some(height) = tops.get_mut((z * 16 + x) as usize) {
+                *height = (*height).max(upper);
+            }
         }
         let Some(carved) = carved else {
             return;

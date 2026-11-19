@@ -189,7 +189,12 @@ impl CellLattice {
 
     fn compute(&mut self, noise_router: &NoiseRouter, fill: &mut FillBuffers) {
         let volume = self.volume;
-        let FillBuffers { ws, columns, .. } = fill;
+        let FillBuffers {
+            ws,
+            columns,
+            block_values,
+            ..
+        } = fill;
         let width = self.width;
         let rows = volume.size().y as usize;
         let (nx, nz) = (volume.size().x, volume.size().z);
@@ -209,12 +214,13 @@ impl CellLattice {
                 let stride = column.len().checked_div(width).unwrap_or(rows);
                 for k in 0..width {
                     let at = k * volume.len() + volume.index_unchecked(x, 0, z);
-                    values[at..at + held].copy_from_slice(&column[k * stride..k * stride + held]);
+                    let source = column.get(k * stride..k * stride + held)?;
+                    values.get_mut(at..at + held)?.copy_from_slice(source);
                 }
             }
             Some(held)
         });
-        if let Some(held) = shared {
+        let filled = shared.and_then(|held| {
             let size_y = volume.size().y;
             let lattice = LatticeBlocks {
                 noise_router,
@@ -224,27 +230,32 @@ impl CellLattice {
             };
             lattice.fill(
                 ws,
+                block_values,
                 IVec3::new(1, 0, 1),
                 IVec3::new(nx - 1, size_y, nz - 1),
                 values,
-            );
+            )?;
             let held = held as i32;
             if held < size_y {
                 let missing = size_y - held;
                 lattice.fill(
                     ws,
+                    block_values,
                     IVec3::new(0, held, 0),
                     IVec3::new(1, missing, nz),
                     values,
-                );
+                )?;
                 lattice.fill(
                     ws,
+                    block_values,
                     IVec3::new(1, held, 0),
                     IVec3::new(nx - 1, missing, 1),
                     values,
-                );
+                )?;
             }
-        } else {
+            Some(())
+        });
+        if filled.is_none() {
             noise_router.fill_cell_inputs(ws, &volume, columns, values);
         }
 
@@ -348,7 +359,14 @@ struct LatticeBlocks<'a> {
 }
 
 impl LatticeBlocks<'_> {
-    fn fill(&self, ws: &mut Workspace, origin: IVec3, size: IVec3, values: &mut [f32]) {
+    fn fill(
+        &self,
+        ws: &mut Workspace,
+        block_values: &mut Vec<f32>,
+        origin: IVec3,
+        size: IVec3,
+        values: &mut [f32],
+    ) -> Option<()> {
         let volume = &self.volume;
         let block = SampleGrid::new(
             size,
@@ -359,9 +377,10 @@ impl LatticeBlocks<'_> {
             ),
             volume.step_block(),
         );
-        let mut block_values = vec![0.0f32; self.width * block.len()];
+        block_values.clear();
+        block_values.resize(self.width * block.len(), 0.0);
         self.noise_router
-            .fill_cell_inputs(ws, &block, self.columns, &mut block_values);
+            .fill_cell_inputs(ws, &block, self.columns, block_values);
         let rows = size.y as usize;
         for z in 0..size.z {
             for x in 0..size.x {
@@ -369,10 +388,12 @@ impl LatticeBlocks<'_> {
                     let from = k * block.len() + block.index_unchecked(x, 0, z);
                     let to = k * volume.len()
                         + volume.index_unchecked(origin.x + x, origin.y, origin.z + z);
-                    values[to..to + rows].copy_from_slice(&block_values[from..from + rows]);
+                    let source = block_values.get(from..from + rows)?;
+                    values.get_mut(to..to + rows)?.copy_from_slice(source);
                 }
             }
         }
+        Some(())
     }
 }
 
@@ -393,6 +414,7 @@ struct FillBuffers {
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
     columns: ColumnBoundScratch,
+    block_values: Vec<f32>,
 }
 
 #[expect(
@@ -905,7 +927,13 @@ fn with_column_window<R>(
         return None;
     }
     let col = ColumnPos::new(block_x >> 4, block_z >> 4);
-    if let Some(window) = climate.and_then(|climate| climate.window(col)) {
+    let (&first, &last) = (y_sections.first()?, y_sections.last()?);
+    let spans_sections = |window: &BiomeWindow<'_>| {
+        let volume = window.volume();
+        volume.min_block().y == first * 16 && volume.size().y == (last - first + 1) * 4
+    };
+    let shared = climate.and_then(|climate| climate.window(col));
+    if let Some(window) = shared.filter(spans_sections) {
         return Some(lend(window));
     }
     let alone = ClimateBox::sample(noise_router, table, [col], y_sections)?;

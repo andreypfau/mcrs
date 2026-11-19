@@ -71,18 +71,19 @@ impl Neighbourhood {
         common
     }
 
-    fn corners(&self, x: usize, y: usize, z: usize) -> [u8; 8] {
-        let quarts = &self.0;
-        [
-            quarts[x][y][z],
-            quarts[x][y][z + 1],
-            quarts[x][y + 1][z],
-            quarts[x][y + 1][z + 1],
-            quarts[x + 1][y][z],
-            quarts[x + 1][y][z + 1],
-            quarts[x + 1][y + 1][z],
-            quarts[x + 1][y + 1][z + 1],
-        ]
+    fn corners(&self, x: usize, y: usize, z: usize) -> Option<[u8; 8]> {
+        let corner =
+            |dx: usize, dy: usize, dz: usize| self.0.get(x + dx)?.get(y + dy)?.get(z + dz).copied();
+        Some([
+            corner(0, 0, 0)?,
+            corner(0, 0, 1)?,
+            corner(0, 1, 0)?,
+            corner(0, 1, 1)?,
+            corner(1, 0, 0)?,
+            corner(1, 0, 1)?,
+            corner(1, 1, 0)?,
+            corner(1, 1, 1)?,
+        ])
     }
 }
 
@@ -139,7 +140,9 @@ pub fn upscale_biomes(
                     for cell_x in 0..CELLS {
                         let (xs, ys, zs) =
                             (cell_span(cell_x), cell_span(cell_y), cell_span(cell_z));
-                        let corners = quarts.corners(cell_x, cell_y, cell_z);
+                        let Some(corners) = quarts.corners(cell_x, cell_y, cell_z) else {
+                            continue;
+                        };
                         let [first, ..] = corners;
                         if corners.iter().all(|&biome| biome == first) {
                             if first != common {
