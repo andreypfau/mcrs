@@ -163,7 +163,7 @@ impl ColumnBound {
                     step = step.saturating_mul(2);
                 }
             } else {
-                low = hint + 1;
+                low = (hint + 1).min(high);
                 while low < high {
                     let probe = low.saturating_add(step - 1).min(high);
                     if is_air(probe) {

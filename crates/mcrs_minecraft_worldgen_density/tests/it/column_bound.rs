@@ -39,6 +39,17 @@ fn assert_rows_above_first_air_are_air(chunks: impl Iterator<Item = (i32, i32)>)
                 "chunk ({chunk_x}, {chunk_z}) with hint {hint}"
             );
         }
+        let buried = SampleGrid::new(
+            IVec3::new(lattice.size().x, 3, lattice.size().z),
+            lattice.min_block(),
+            cell,
+        );
+        let buried_top = buried.size().y - 1;
+        assert_eq!(
+            router.final_density_first_air_row(&mut ws, &buried, Some(buried_top), &mut scratch),
+            router.final_density_first_air_row(&mut ws, &buried, None, &mut scratch),
+            "chunk ({chunk_x}, {chunk_z}) buried lattice with the hint at its top"
+        );
         for cell_y in first_air..top {
             for cell_z in 0..lattice.size().z - 1 {
                 for cell_x in 0..lattice.size().x - 1 {
