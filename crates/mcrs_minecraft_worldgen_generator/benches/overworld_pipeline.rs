@@ -10,6 +10,7 @@ mod common;
 use mcrs_minecraft_worldgen_generator::{ClimateBox, ColumnBiomes};
 use mcrs_voxel::ColumnPos;
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
@@ -29,6 +30,7 @@ use mcrs_minecraft_worldgen_surface::MaterialScratch;
 
 use common::support::{biome_id, biomes_of, carvers_of, corpus, material_router, registries_over};
 
+static CHECK: AtomicU64 = AtomicU64::new(0);
 const ABSENT_BIOME: u16 = 250;
 const GROUP: usize = 4;
 
@@ -39,6 +41,21 @@ fn biome_ids() -> HashMap<String, u16> {
         ids.entry(biome.to_string()).or_insert(next);
     }
     ids
+}
+
+fn column_hash(column: &ColumnBlocks) -> u64 {
+    let mut hash = 0u64;
+    for y in -64..320 {
+        for z in 0..16 {
+            for x in 0..16 {
+                let state = column
+                    .get(x, y, z)
+                    .map_or(u64::MAX, |state| u64::from(u16::from(state)));
+                hash = (hash ^ state).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+    }
+    hash
 }
 
 #[derive(Default, Clone, Copy)]
@@ -175,6 +192,10 @@ fn main() {
             )),
         );
         s.surface = t.elapsed();
+        CHECK.fetch_xor(
+            column_hash(column).rotate_left((x * 7 + z * 13) as u32 & 63),
+            Ordering::Relaxed,
+        );
 
         let t = Instant::now();
         let sections = column.into_sections(&biomes);
@@ -267,6 +288,7 @@ fn main() {
         pct(total.pack)
     );
 
+    println!("CHECK {:016x}", CHECK.load(Ordering::Relaxed));
     per_column.sort_by(f64::total_cmp);
     let at =
         |q: f64| per_column[(((per_column.len() as f64) * q) as usize).min(per_column.len() - 1)];
