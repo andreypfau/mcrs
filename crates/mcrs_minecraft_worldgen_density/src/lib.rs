@@ -15,6 +15,7 @@ pub mod program;
 pub mod proto;
 pub mod router;
 pub mod surface_levels;
+mod window;
 
 pub const FAST_PROFILE: bool = cfg!(feature = "fast");
 

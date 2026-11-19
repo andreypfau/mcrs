@@ -1,9 +1,11 @@
-use crate::branch::{self, Fallback, GuardTest, Step};
+use crate::branch::{self, Coverage, Fallback, GuardTest, Keep, Scope, Step};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
+use crate::window::{Window, element};
+use core::ops::Range;
 use glam::IVec3;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
@@ -13,7 +15,7 @@ use mcrs_minecraft_noise::kernel::{
 };
 use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
 use mcrs_minecraft_noise::strata::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum,
+    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, run_len, stratum,
 };
 use mcrs_minecraft_numeric as numeric;
 use std::sync::Arc;
@@ -222,6 +224,20 @@ pub enum Node {
 }
 
 impl Node {
+    pub(crate) fn samples_per_element(&self) -> bool {
+        matches!(
+            self,
+            Node::Noise { .. }
+                | Node::ShiftedNoise { .. }
+                | Node::ShiftB { .. }
+                | Node::OldBlendedNoise(_)
+                | Node::DistanceToPoint(_)
+                | Node::EndOuterIslands(_)
+                | Node::Spline { .. }
+                | Node::FindTopSurface { .. }
+        )
+    }
+
     pub fn visit_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
             Node::Constant(_)
@@ -427,6 +443,7 @@ pub struct Workspace {
     lattices: Vec<Lattice>,
     probe: Vec<f32>,
     sliced: Vec<f32>,
+    windows: Vec<Window>,
     nested: Option<Box<Workspace>>,
     #[cfg(any(test, feature = "eval-count"))]
     count: EvalCount,
@@ -562,43 +579,9 @@ impl Program {
         ws.prepare(self, plan, volume);
         self.fill_lattices(ws, volume, plan);
 
-        let (mut k, mut step) = (0usize, 0usize);
-        while let Some(next) = plan.steps.get(step) {
-            match *next {
-                Step::Eval { end } => {
-                    let end = end as usize;
-                    #[cfg(any(test, feature = "eval-count"))]
-                    {
-                        ws.count.evaluated += (end - k) as u64;
-                    }
-                    for &id in plan.order.get(k..end).unwrap_or_default() {
-                        self.eval(id, ws, volume);
-                    }
-                    k = end;
-                    step += 1;
-                }
-                Step::Guard {
-                    test,
-                    fallback,
-                    skip_to,
-                    next_step,
-                } => {
-                    if self.guard_holds(test, ws, volume) {
-                        step += 1;
-                    } else {
-                        if let Some(fallback) = fallback {
-                            self.apply_fallback(fallback, ws, volume);
-                        }
-                        #[cfg(any(test, feature = "eval-count"))]
-                        {
-                            ws.count.skipped += (skip_to as usize - k) as u64;
-                        }
-                        k = skip_to as usize;
-                        step = next_step as usize;
-                    }
-                }
-            }
-        }
+        ws.windows.clear();
+        ws.windows.push(Window::whole(volume));
+        self.run_steps(plan, ws, volume, 0..plan.steps.len(), 0, 0..1);
 
         let axes = self.axes_of(target);
         let buf = ws.read(self, target, volume);
@@ -628,6 +611,141 @@ impl Program {
             "density values are guaranteed NaN-free; a NaN here means a division by zero, \
              a log of a negative or a sqrt of a negative reached the graph"
         );
+    }
+
+    fn run_steps(
+        &self,
+        plan: &Plan,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        steps: Range<usize>,
+        mut k: usize,
+        active: Range<usize>,
+    ) {
+        let mut step = steps.start;
+        while step < steps.end {
+            let Some(next) = plan.steps.get(step) else {
+                return;
+            };
+            match *next {
+                Step::Eval { end } => {
+                    let end = end as usize;
+                    #[cfg(any(test, feature = "eval-count"))]
+                    {
+                        ws.count.evaluated += (end - k) as u64;
+                    }
+                    for &id in plan.order.get(k..end).unwrap_or_default() {
+                        self.eval_over(id, ws, volume, active.clone());
+                    }
+                    k = end;
+                    step += 1;
+                }
+                Step::Guard {
+                    test,
+                    fallback,
+                    scope,
+                    skip_to,
+                    next_step,
+                } => {
+                    let kept = ws.windows.len();
+                    let coverage = self.keep_windows(test, scope, ws, volume, active.clone());
+                    let needed = if coverage == Coverage::Everything {
+                        active.clone()
+                    } else {
+                        kept..ws.windows.len()
+                    };
+                    if coverage == Coverage::Nothing {
+                        #[cfg(any(test, feature = "eval-count"))]
+                        {
+                            ws.count.skipped += (skip_to as usize - k) as u64;
+                        }
+                    } else {
+                        self.run_steps(plan, ws, volume, step + 1..next_step as usize, k, needed);
+                    }
+                    if let Some(fallback) = fallback.filter(|_| coverage != Coverage::Everything) {
+                        self.apply_fallback(fallback, test, ws, volume, active.clone());
+                    }
+                    ws.windows.truncate(kept);
+                    k = skip_to as usize;
+                    step = next_step as usize;
+                }
+            }
+        }
+    }
+
+    fn eval_over(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid, active: Range<usize>) {
+        if !self.node(id).samples_per_element() {
+            self.eval(id, ws, volume, &Window::whole(volume));
+            return;
+        }
+        for w in active {
+            let Some(&window) = ws.windows.get(w) else {
+                continue;
+            };
+            self.eval(id, ws, volume, &window);
+        }
+    }
+
+    fn keep_windows(
+        &self,
+        test: GuardTest,
+        scope: Scope,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        active: Range<usize>,
+    ) -> Coverage {
+        let keep = Keep::new(test, |id| self.node(id));
+        let selector = test.selector();
+        let axes = self.axes_of(selector);
+        let Workspace {
+            values,
+            offset,
+            windows,
+            ..
+        } = ws;
+        let off = offset.get(selector as usize).map_or(0, |&off| off as usize);
+        let mut coverage = None;
+        for window in windows.get(active.clone()).unwrap_or_default() {
+            let start = off + window.start(axes, volume);
+            let selected = values
+                .get(start..start + extent(axes, &window.grid))
+                .unwrap_or_default();
+            let part = keep.coverage(selected, scope);
+            let joined = coverage.map_or(part, |seen: Coverage| seen.and(part));
+            coverage = Some(joined);
+            if joined == Coverage::Part {
+                break;
+            }
+        }
+        let coverage = coverage.unwrap_or(Coverage::Nothing);
+        if coverage != Coverage::Part {
+            return coverage;
+        }
+        let column_of = Runs::new(
+            values
+                .get(off..off + extent(axes, volume))
+                .unwrap_or_default(),
+            axes,
+            volume,
+        );
+        for w in active {
+            let Some(&window) = windows.get(w) else {
+                continue;
+            };
+            let first = windows.len();
+            let mut kept_rows = 0;
+            for (x, z) in window.columns() {
+                keep.kept_runs(column_of.col(x, z), window.rows(), |rows| {
+                    kept_rows += rows.len();
+                    windows.push(Window::column(volume, x, z, rows));
+                });
+            }
+            if kept_rows == window.grid.len() {
+                windows.truncate(first);
+                windows.push(window);
+            }
+        }
+        coverage
     }
 
     fn plan_of(&self, target: NodeId) -> Option<&Plan> {
@@ -711,6 +829,7 @@ impl Program {
         &self,
         ws: &mut Workspace,
         volume: &SampleGrid,
+        window: &Window,
         id: NodeId,
         density: NodeId,
         upper_bound: NodeId,
@@ -718,18 +837,19 @@ impl Program {
         cell_height: i32,
     ) {
         let axes = self.axes_of(id);
-        let ext = stratum(axes, volume);
+        let ext = stratum(axes, &window.grid);
         let size = ext.size();
         debug_assert_eq!(size.y, 1, "a surface level does not vary along Y");
-        let mut slot = ws.offset_of(id);
+        let mut slot = ws.offset_of(id) + window.start(axes, volume);
         for iz in 0..size.z {
             for ix in 0..size.x {
                 let value = self.find_top_surface(
                     ws,
                     volume,
-                    &ext,
-                    ix as usize,
-                    iz as usize,
+                    ext.block_x(ix),
+                    ext.block_z(iz),
+                    window.x + ix as usize,
+                    window.z + iz as usize,
                     density,
                     upper_bound,
                     lower_bound,
@@ -751,7 +871,8 @@ impl Program {
         &self,
         ws: &mut Workspace,
         volume: &SampleGrid,
-        ext: &SampleGrid,
+        bx: i32,
+        bz: i32,
         ix: usize,
         iz: usize,
         density: NodeId,
@@ -761,8 +882,6 @@ impl Program {
     ) -> f32 {
         const BATCH: i64 = 64;
 
-        let bx = ext.block_x(ix as i32);
-        let bz = ext.block_z(iz as i32);
         let upper = if self.axes_of(upper_bound) & AXIS_Y == 0 {
             let buf = ws.read(self, upper_bound, volume);
             Runs::new(buf, self.axes_of(upper_bound), volume)
@@ -816,79 +935,69 @@ impl Program {
         found as f32
     }
 
-    fn guard_holds(&self, test: GuardTest, ws: &Workspace, volume: &SampleGrid) -> bool {
-        let all = |id| ws.read(self, id, volume);
-        match test {
-            GuardTest::InRange {
-                selector,
-                lo,
-                hi,
-                want,
-            } => all(selector).iter().any(|&v| (v >= lo && v < hi) == want),
-            GuardTest::Arm {
-                site,
-                selector,
-                arm,
-            } => {
-                let Node::IntervalSelect {
-                    thresholds, arms, ..
-                } = self.node(site)
-                else {
-                    return true;
-                };
-                all(selector).iter().any(|&v| {
-                    thresholds
-                        .iter()
-                        .position(|&t| v < t)
-                        .unwrap_or(arms.len() - 1)
-                        == arm as usize
-                })
-            }
-            GuardTest::LeftAbove { left, limit } => all(left).iter().any(|&v| v > limit),
-            GuardTest::LeftBelow { left, limit } => all(left).iter().any(|&v| v < limit),
-            GuardTest::LeftNonZero { left } => all(left).iter().any(|&v| v != 0.0),
-        }
-    }
-
-    fn apply_fallback(&self, fallback: Fallback, ws: &mut Workspace, volume: &SampleGrid) {
-        let axes = self.axes_of(fallback.site);
-        let ext = stratum(axes, volume);
-        let source_axes = self.axes_of(fallback.source);
-        let off = ws.offset_of(fallback.site);
-        let source_off = ws.offset_of(fallback.source);
-
-        let len = extent(axes, volume);
-        let (below, rest) = ws.values.split_at_mut(off);
-        let (out, above) = rest.split_at_mut(len);
-        let source = Runs::new(
-            other_slot(
-                below,
-                above,
-                off + len,
-                source_off,
-                extent(source_axes, volume),
-            ),
-            source_axes,
-            volume,
+    fn apply_fallback(
+        &self,
+        fallback: Fallback,
+        test: GuardTest,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        active: Range<usize>,
+    ) {
+        let keep = Keep::new(test, |id| self.node(id));
+        let selector = test.selector();
+        let (site_axes, source_axes, selector_axes) = (
+            self.axes_of(fallback.site),
+            self.axes_of(fallback.source),
+            self.axes_of(selector),
         );
+        let (site_off, source_off, selector_off) = (
+            ws.offset_of(fallback.site),
+            ws.offset_of(fallback.source),
+            ws.offset_of(selector),
+        );
+        let Workspace {
+            values, windows, ..
+        } = ws;
         let negate = fallback.negate;
-        each_column(out, &ext, |run, ix, iz| {
-            let source = source.col(ix, iz);
-            for (i, o) in run.iter_mut().enumerate() {
-                *o = if negate {
-                    -at(source, i)
-                } else {
-                    at(source, i)
+        let size_y = volume.size().y as usize;
+        for w in active {
+            let Some(window) = windows.get(w) else {
+                continue;
+            };
+            let rows = window.rows();
+            for (x, z) in window.columns() {
+                let column_at = |off: usize, axes: Axes| {
+                    (off + element(axes, volume, x, z, 0), run_len(axes, size_y))
                 };
+                let (site_at, site_len) = column_at(site_off, site_axes);
+                let Some((below, rest)) = values.split_at_mut_checked(site_at) else {
+                    continue;
+                };
+                let Some((site, above)) = rest.split_at_mut_checked(site_len) else {
+                    continue;
+                };
+                let (below, above): (&[f32], &[f32]) = (below, above);
+                let other = |(at, len): (usize, usize)| {
+                    other_slot(below, above, site_at + site_len, at, len)
+                };
+                let selector = other(column_at(selector_off, selector_axes));
+                let source = other(column_at(source_off, source_axes));
+                let mut fill = |gap: Range<usize>| fill_gap(site, source, gap, negate);
+                let mut gap_from = rows.start;
+                keep.kept_runs(selector, rows.clone(), |kept| {
+                    fill(gap_from..kept.start);
+                    gap_from = kept.end;
+                });
+                fill(gap_from..rows.end);
             }
-        });
+        }
     }
 
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per node kind, in the node's declaration order, so each fill reads against its kind"
     )]
-    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid) {
+    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid, window: &Window) {
         let node = self.node(id);
         if let &Node::Slice {
             input,
@@ -909,6 +1018,7 @@ impl Program {
             self.fill_top_surface(
                 ws,
                 volume,
+                window,
                 id,
                 density,
                 upper_bound,
@@ -918,8 +1028,9 @@ impl Program {
             return;
         }
         let axes = self.axes_of(id);
-        let ext = stratum(axes, volume);
-        let off = ws.offset_of(id);
+        let grid = &window.grid;
+        let ext = stratum(axes, grid);
+        let off = ws.offset_of(id) + window.start(axes, volume);
 
         let Workspace {
             values,
@@ -927,19 +1038,24 @@ impl Program {
             lattices,
             ..
         } = ws;
-        let len = extent(axes, volume);
-        let (below, rest) = values.split_at_mut(off);
-        let (out, above) = rest.split_at_mut(len);
+        let len = extent(axes, grid);
+        let Some((below, rest)) = values.split_at_mut_checked(off) else {
+            return;
+        };
+        let Some((out, above)) = rest.split_at_mut_checked(len) else {
+            return;
+        };
         let (below, above): (&[f32], &[f32]) = (below, above);
         let end = off + len;
 
         let read = |j: NodeId| -> Runs<'_> {
             let j_axes = self.axes_of(j);
-            let j_off = offset.get(j as usize).map_or(0, |&off| off as usize);
+            let j_off = offset.get(j as usize).map_or(0, |&off| off as usize)
+                + window.start(j_axes, volume);
             Runs::new(
-                other_slot(below, above, end, j_off, extent(j_axes, volume)),
+                other_slot(below, above, end, j_off, extent(j_axes, grid)),
                 j_axes,
-                volume,
+                grid,
             )
         };
 
@@ -1105,7 +1221,7 @@ impl Program {
                 &|k| {
                     coords
                         .get(k)
-                        .map_or_else(|| Runs::new(&[], NO_AXES, volume), |&j| read(j))
+                        .map_or_else(|| Runs::new(&[], NO_AXES, grid), |&j| read(j))
                 },
                 &ext,
             ),
@@ -1156,6 +1272,16 @@ impl Program {
 }
 
 #[inline]
+fn fill_gap(site: &mut [f32], source: &[f32], gap: Range<usize>, negate: bool) {
+    let broadcast = site.len() == 1;
+    for y in gap {
+        let value = at(source, y);
+        if let Some(out) = site.get_mut(if broadcast { 0 } else { y }) {
+            *out = if negate { -value } else { value };
+        }
+    }
+}
+
 fn other_slot<'a>(
     below: &'a [f32],
     above: &'a [f32],
@@ -1529,6 +1655,7 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::distance::DistanceMetric;
     use crate::node::gradient::Tiling;
     use glam::IVec3;
     use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
@@ -1987,6 +2114,83 @@ mod tests {
         let (out, count) = run_counting(&p, &v, 0);
         assert!(out[0] == 0.0 && out[0].is_sign_negative());
         assert_eq!((count.evaluated, count.skipped), (1, 2));
+    }
+
+    fn y_plus_three_x() -> Vec<Node> {
+        vec![
+            gradient(Axis::Y, 0.0, 8.0, 0.0, 8.0),
+            gradient(Axis::X, 0.0, 2.0, 0.0, 6.0),
+            Node::Binary {
+                op: BinaryOp::Add,
+                a: 0,
+                b: 1,
+            },
+        ]
+    }
+
+    fn distance_from(y: i32) -> Node {
+        Node::DistanceToPoint(DistanceParams::new(0, y, 0, DistanceMetric::Manhattan))
+    }
+
+    fn choice_inside_a_band_of_rows() -> Program {
+        let mut nodes = y_plus_three_x();
+        nodes.extend([
+            distance_from(-10),
+            Node::Constant(-1.0),
+            Node::RangeChoice {
+                input: 2,
+                min_inclusive: 5.0,
+                max_exclusive: 8.0,
+                when_in: 3,
+                when_out: 4,
+            },
+        ]);
+        let axes = vec![AXIS_Y, AXIS_X, AXIS_X | AXIS_Y, ALL_AXES, NO_AXES, ALL_AXES];
+        program(nodes, axes, vec![5])
+    }
+
+    fn min_reaching_its_right_in_the_top_rows() -> Program {
+        let mut nodes = y_plus_three_x();
+        nodes.extend([
+            distance_from(-6),
+            Node::Binary {
+                op: BinaryOp::Min,
+                a: 2,
+                b: 3,
+            },
+        ]);
+        let axes = vec![AXIS_Y, AXIS_X, AXIS_X | AXIS_Y, ALL_AXES, ALL_AXES];
+        let ranges = vec![
+            Interval::INFINITE,
+            Interval::INFINITE,
+            Interval::INFINITE,
+            Interval::of(5.5, 20.0),
+            Interval::INFINITE,
+        ];
+        program_with_ranges(nodes, axes, ranges, vec![4])
+    }
+
+    #[test]
+    fn a_guard_that_holds_on_part_of_a_column_runs_its_subgraph_on_exactly_those_rows() {
+        let v = SampleGrid::dense(IVec3::new(2, 8, 1), IVec3::ZERO);
+        let cases: [(Program, [f32; 16]); 2] = [
+            (
+                choice_inside_a_band_of_rows(),
+                [
+                    -1.0, -1.0, -1.0, -1.0, -1.0, 15.0, 16.0, 17.0, -1.0, -1.0, 13.0, 14.0, 15.0,
+                    -1.0, -1.0, -1.0,
+                ],
+            ),
+            (
+                min_reaching_its_right_in_the_top_rows(),
+                [
+                    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                ],
+            ),
+        ];
+        for (p, expected) in cases {
+            assert_eq!(run(&p, &v, 0), expected);
+        }
     }
 
     #[test]
