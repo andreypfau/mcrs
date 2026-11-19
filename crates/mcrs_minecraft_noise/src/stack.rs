@@ -172,14 +172,51 @@ impl<N: Noise> NoiseStack<N> {
         y_scale: f64,
         scratch: &mut ColumnScratch,
     ) {
+        let heights = (0..out.len() as i32).map(|i| volume.block_y(i));
+        self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "independent inputs of one stack evaluation"
+    )]
+    pub(crate) fn fill_heights_at(
+        &self,
+        out: &mut [f32],
+        block_x: i32,
+        block_z: i32,
+        heights: &[i32],
+        xz_scale: f64,
+        y_scale: f64,
+        scratch: &mut ColumnScratch,
+    ) {
+        let heights = heights.iter().copied();
+        self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "independent inputs of one stack evaluation"
+    )]
+    #[inline]
+    fn fill_at(
+        &self,
+        out: &mut [f32],
+        block_x: i32,
+        block_z: i32,
+        heights: impl Iterator<Item = i32> + Clone,
+        xz_scale: f64,
+        y_scale: f64,
+        scratch: &mut ColumnScratch,
+    ) {
         out.fill(0.0);
         scratch.resize(out.len());
         for layer in &self.layers {
             let f = layer.frequency;
             let layer_xz = xz_scale * f;
             let layer_y = y_scale * f;
-            for (i, slot) in scratch.scaled.iter_mut().enumerate() {
-                *slot = volume.block_y(i as i32) as f64 * layer_y;
+            for (slot, height) in scratch.scaled.iter_mut().zip(heights.clone()) {
+                *slot = height as f64 * layer_y;
             }
             layer.noise.get_column(
                 block_x as f64 * layer_xz,
