@@ -251,7 +251,7 @@ pub(crate) fn open_chest(app: &mut App, viewer: Entity, container_id: i32) -> En
     connection(app.world_mut()).write_packet(&ServerboundChatCommand {
         command: Bounded(OPEN_CHEST),
     });
-    update_until(app, "the chest menu", |app| {
+    update_until(app, |app| {
         open_container_id(app.world(), viewer) == Some(container_id)
     });
     round_trip(app);

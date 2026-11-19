@@ -53,6 +53,10 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_datapack::KnownPack>);
 
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub(crate) struct AwaitingConfigurationAck;
+
 pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
@@ -189,7 +193,10 @@ pub fn on_known_packs_response(
     con.write_packet(&ClientboundFinishConfiguration);
     con.raw.check_play_moves();
 
-    commands.entity(entity).remove::<AwaitingKnownPacks>();
+    commands
+        .entity(entity)
+        .remove::<AwaitingKnownPacks>()
+        .insert(AwaitingConfigurationAck);
 }
 
 pub fn on_configuration_ack(
@@ -206,6 +213,9 @@ pub fn on_configuration_ack(
     let Ok((_, profile, anchor, _)) = connections.get(event.entity) else {
         return;
     };
+    commands
+        .entity(event.entity)
+        .remove::<AwaitingConfigurationAck>();
     let in_play = |connection| {
         connections
             .get(connection)

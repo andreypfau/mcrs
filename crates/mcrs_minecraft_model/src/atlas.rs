@@ -1,5 +1,6 @@
 use crate::anim;
 use crate::resource_set::ResourceSet;
+use crate::sprite_atlas::SpriteAtlas;
 use crate::sprite_error::SpriteError;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
@@ -8,10 +9,12 @@ use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_minecraft_model_file::resource_id;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::LazyLock;
 
 pub const MISSING_SPRITE: &str = "minecraft:missingno";
+
+const ITEM_ATLAS: &str = "minecraft:items";
 
 pub const ARRAY_LAYERS: usize = 2048;
 
@@ -27,6 +30,7 @@ pub struct Sprite {
     pub array: u8,
     pub layer: u16,
     pub animation: Option<u16>,
+    pub atlas: SpriteAtlas,
 }
 
 pub struct Animation {
@@ -52,6 +56,37 @@ pub struct SpriteRegistry {
     table: Vec<Sprite>,
     animations: Vec<Animation>,
     permutations: HashMap<String, Permutation>,
+    item_atlas: ItemAtlasMembers,
+}
+
+#[derive(Default)]
+struct ItemAtlasMembers {
+    directories: Vec<DirectorySource>,
+    sprites: HashSet<String>,
+}
+
+struct DirectorySource {
+    source: String,
+    prefix: String,
+}
+
+impl ItemAtlasMembers {
+    fn atlas_of(&self, pack: &ResourceSet, id: &str) -> SpriteAtlas {
+        let (namespace, path) = resource_id::split_id(id);
+        let listed = self.sprites.contains(id)
+            || self.directories.iter().any(|directory| {
+                path.strip_prefix(directory.prefix.as_str())
+                    .is_some_and(|rest| {
+                        let file = format!("{namespace}/textures/{}/{rest}.png", directory.source);
+                        pack.get(&file).is_some()
+                    })
+            });
+        if listed {
+            SpriteAtlas::Item
+        } else {
+            SpriteAtlas::Block
+        }
+    }
 }
 
 struct Source {
@@ -86,6 +121,11 @@ impl SpriteRegistry {
         self.table.get(usize::from(id)).copied()
     }
 
+    pub fn atlas(&self, id: u16) -> SpriteAtlas {
+        self.sprite(id)
+            .map_or(SpriteAtlas::Block, |sprite| sprite.atlas)
+    }
+
     pub fn opacity(&self, id: u16) -> Opacity {
         self.sprite(id)
             .and_then(|sprite| {
@@ -96,13 +136,30 @@ impl SpriteRegistry {
     }
 
     pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
+        let mut item_atlas = ItemAtlasMembers::default();
+        let mut loaded = Vec::new();
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
                 serde_json::from_slice(bytes).map_err(|error| SpriteError::Atlas {
                     id: id.clone(),
                     message: error.to_string(),
                 })?;
-            self.permutations.extend(sources.permutations(pack)?);
+            let permutations = sources.permutations(pack)?;
+            if resource_id::full_id(&id) == ITEM_ATLAS {
+                item_atlas
+                    .sprites
+                    .extend(permutations.iter().map(|(sprite, _)| sprite.clone()));
+                item_atlas.directories.extend(sources.directories());
+                item_atlas.sprites.extend(sources.singles());
+            }
+            loaded.extend(permutations);
+        }
+        self.item_atlas = item_atlas;
+        self.permutations.extend(loaded);
+        for (name, &id) in &self.index {
+            if let Some(sprite) = self.table.get_mut(usize::from(id)) {
+                sprite.atlas = self.item_atlas.atlas_of(pack, name);
+            }
         }
         Ok(())
     }
@@ -287,6 +344,7 @@ impl SpriteRegistry {
             array: index as u8,
             layer,
             animation,
+            atlas: self.item_atlas.atlas_of(pack, id),
         });
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
@@ -383,6 +441,13 @@ enum AtlasSource {
         #[serde(default = "underscore")]
         separator: String,
     },
+    #[serde(rename = "minecraft:directory", alias = "directory")]
+    Directory { source: String, prefix: String },
+    #[serde(rename = "minecraft:single", alias = "single")]
+    Single {
+        resource: String,
+        sprite: Option<String>,
+    },
     #[serde(other)]
     Other,
 }
@@ -392,6 +457,29 @@ fn underscore() -> String {
 }
 
 impl AtlasSources {
+    fn directories(&self) -> impl Iterator<Item = DirectorySource> + '_ {
+        self.sources.iter().filter_map(|source| match source {
+            AtlasSource::Directory { source, prefix } => Some(DirectorySource {
+                source: source.clone(),
+                prefix: prefix.clone(),
+            }),
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Single { .. }
+            | AtlasSource::Other => None,
+        })
+    }
+
+    fn singles(&self) -> impl Iterator<Item = String> + '_ {
+        self.sources.iter().filter_map(|source| match source {
+            AtlasSource::Single { resource, sprite } => {
+                Some(resource_id::full_id(sprite.as_ref().unwrap_or(resource)))
+            }
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Directory { .. }
+            | AtlasSource::Other => None,
+        })
+    }
+
     fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, SpriteError> {
         let mut out = Vec::new();
         for source in &self.sources {
@@ -733,6 +821,7 @@ mod tests {
             a_sprite_is_interned_once();
             every_atlas_parses_and_the_item_trims_permute_into_sprites();
             the_missing_sprite_is_a_generated_checker();
+            sprites_interned_before_the_atlas_lists_load_take_their_atlas();
         }
     }
 
@@ -1004,6 +1093,23 @@ mod tests {
                 .intern(pack, "minecraft:trims/items/chestplate_trim_nope")
                 .is_err()
         );
+    }
+
+    fn sprites_interned_before_the_atlas_lists_load_take_their_atlas() {
+        let pack = ResourceSet::corpus();
+        let mut registry = SpriteRegistry::default();
+        let cases = [
+            ("minecraft:item/stick", SpriteAtlas::Item),
+            ("minecraft:block/stone", SpriteAtlas::Block),
+        ];
+        let ids: Vec<u16> = cases
+            .iter()
+            .map(|(id, _)| registry.intern(pack, id).unwrap())
+            .collect();
+        registry.load_atlases(pack).unwrap();
+        for ((name, atlas), id) in cases.iter().zip(ids) {
+            assert_eq!(registry.atlas(id), *atlas, "{name}");
+        }
     }
 
     fn the_missing_sprite_is_a_generated_checker() {
