@@ -7618,6 +7618,7 @@ dependencies = [
  "criterion",
  "fixedbitset",
  "glam",
+ "libc",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
