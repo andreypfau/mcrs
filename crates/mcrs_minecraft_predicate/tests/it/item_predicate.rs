@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
+use mcrs_minecraft_item_stack::AttackAnimation;
 use mcrs_minecraft_item_stack::AttributeId;
 use mcrs_minecraft_item_stack::AttributeModifier;
 use mcrs_minecraft_item_stack::AttributeModifiers;
@@ -14,13 +15,17 @@ use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
 use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_item_stack::InteractAnimation;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::PiercingWeapon;
 use mcrs_minecraft_item_stack::SlotGroup;
+use mcrs_minecraft_item_stack::SwingAnimation;
+use mcrs_minecraft_item_stack::SwingKind;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_predicate::BakedItemPredicate;
@@ -44,6 +49,7 @@ impl NameLookup for RegistryLookup {
             NameTable::Attribute => "minecraft:attribute",
             NameTable::Block => "minecraft:block",
             NameTable::ComponentType => "minecraft:data_component_type",
+            NameTable::SoundEvent => "minecraft:sound_event",
             _ => return None,
         };
         registries().id_of(ResourceLocation::read(registry).ok()?, name)
@@ -586,4 +592,93 @@ fn attribute_modifiers_test_a_collection_pred_itm_020_col_001_to_004() {
         .map(|(rule, json, stack, expected)| (*rule, json.as_str(), stack.clone(), *expected))
         .collect();
     check(&cases);
+}
+
+#[test]
+fn exact_and_presence_predicates_match_swing_and_piercing_components() {
+    let spear = sword()
+        .set(AttackAnimation(SwingAnimation {
+            kind: SwingKind::Stab,
+            duration: 13,
+        }))
+        .set(InteractAnimation(SwingAnimation {
+            kind: SwingKind::None,
+            duration: 4,
+        }))
+        .set(PiercingWeapon::new());
+
+    check(&[
+        (
+            "REG-FLD-548",
+            r#"{"components": {"minecraft:attack_animation": {"type": "stab", "duration": 13}}}"#,
+            Held::Stack(spear.clone()),
+            true,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"components": {"minecraft:attack_animation": {"type": "whack", "duration": 6}}}"#,
+            Held::Stack(spear.clone()),
+            false,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"components": {"minecraft:interact_animation": {"type": "none", "duration": 4}}}"#,
+            Held::Stack(spear.clone()),
+            true,
+        ),
+        (
+            "REG-FLD-546",
+            r#"{"components": {"minecraft:piercing_weapon": {}}}"#,
+            Held::Stack(spear.clone()),
+            true,
+        ),
+        (
+            "REG-FLD-546",
+            r#"{"components": {"minecraft:piercing_weapon": {"dismounts": true}}}"#,
+            Held::Stack(spear.clone()),
+            false,
+        ),
+        (
+            "REG-FLD-546",
+            r#"{"components": {"minecraft:piercing_weapon": {}}}"#,
+            Held::Stack(sword()),
+            false,
+        ),
+        (
+            "REG-FLD-546",
+            r#"{"predicates": {"minecraft:piercing_weapon": {}}}"#,
+            Held::Stack(spear.clone()),
+            true,
+        ),
+        (
+            "REG-FLD-546",
+            r#"{"predicates": {"minecraft:piercing_weapon": {}}}"#,
+            Held::Stack(sword()),
+            false,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"predicates": {"minecraft:attack_animation": {}}}"#,
+            Held::Stack(spear.clone()),
+            true,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"predicates": {"minecraft:attack_animation": {}}}"#,
+            Held::Stack(sword()),
+            false,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"predicates": {"minecraft:interact_animation": {}}}"#,
+            Held::Stack(spear),
+            true,
+        ),
+        (
+            "REG-FLD-548",
+            r#"{"predicates": {"minecraft:interact_animation": {}}}"#,
+            Held::Stack(sword()),
+            false,
+        ),
+    ]);
 }
