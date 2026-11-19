@@ -588,21 +588,26 @@ fn fill_blocks(
         beard.fill(volume, density);
     }
     let mut barrier_at = volume_barrier(noise_router, ws, volume, barrier);
+    let min = volume.min_block();
+    let settled = fluid.settle(min, min + volume.size() - 1);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
                 let value = density[volume.index_unchecked(x, y, z)];
                 let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
                 let world = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let state = column_block(
-                    default_block,
-                    value,
-                    fluid,
-                    world.x,
-                    world.y,
-                    world.z,
-                    &mut barrier_at,
-                );
+                let state = match settled {
+                    Some(status) if value <= 0.0 => status.at(world.y),
+                    _ => column_block(
+                        default_block,
+                        value,
+                        fluid,
+                        world.x,
+                        world.y,
+                        world.z,
+                        &mut barrier_at,
+                    ),
+                };
                 if state != VoxelId(0) {
                     column.set_in_section(index, px, py, pz, state);
                     let slot = &mut tops[(pz * 16 + px) as usize];
