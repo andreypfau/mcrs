@@ -907,10 +907,16 @@ where
 
     pub fn apply_from(&mut self, start: usize) -> Option<VoxelId> {
         let mut pc = start;
-        while let Some(op) = self.program.tape().get(pc) {
+        let program = self.program;
+        while let Some(op) = program.tape().get(pc) {
             match *op {
                 Op::Guard { condition, skip_to } => {
-                    if self.test(condition) {
+                    if self.memoise
+                        && let Some(band) = program.noise_bands().at(pc)
+                    {
+                        let value = self.noise(band.noise, band.is_3d);
+                        pc = program.noise_bands().select(band, value);
+                    } else if self.test(condition) {
                         pc += 1;
                     } else {
                         pc = skip_to as usize;
