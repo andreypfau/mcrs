@@ -2,6 +2,7 @@ use crate::compile::{
     CLAY_BAND_COUNT, CompiledCondition, CondId, Condition, MaterialProgram, NoiseId, Op, Scope,
     SurfaceNoise, Tri, VeinId,
 };
+use crate::noise_band::NoiseBand;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::interval::Interval;
@@ -44,6 +45,9 @@ pub struct MaterialScratch {
     window_ys: Vec<f64>,
     window_ys_stamp: u32,
     column: ColumnScratch,
+    band_answers: Vec<BandAnswer>,
+    band_ys: Vec<f64>,
+    band_values: Vec<f32>,
 }
 
 const SHORT_RUN: i32 = 8;
@@ -57,6 +61,12 @@ pub enum SettledState {
     Block(Option<VoxelId>),
     Bandlands,
     Resume(usize),
+}
+
+#[derive(Clone, Copy)]
+struct BandAnswer {
+    target: usize,
+    state: SettledState,
 }
 
 enum Settled {
@@ -570,6 +580,13 @@ where
             ..
         }) = self.program.conditions().get(condition as usize)
         else {
+            if self.memoise
+                && let Some(band) = self.program.noise_bands().at(guard)
+                && band.is_3d
+                && self.settle_band(band, piece, out)
+            {
+                return;
+            }
             return out.push((lo, hi, resume));
         };
         if lo <= true_at_and_below || hi >= false_at_and_above {
@@ -603,6 +620,59 @@ where
             };
             out.push((y, y, state));
         }
+    }
+
+    fn settle_band(
+        &mut self,
+        band: NoiseBand,
+        piece: Piece,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) -> bool {
+        let program = self.program;
+        let Some(sampler) = program.noise(band.noise) else {
+            return false;
+        };
+        let mut answers = std::mem::take(&mut self.scratch.band_answers);
+        answers.clear();
+        let mut settled = true;
+        for target in program.noise_bands().targets(band) {
+            let Settled::Answer(state) = self.settle_from(target, piece) else {
+                settled = false;
+                break;
+            };
+            answers.push(BandAnswer { target, state });
+        }
+        if settled {
+            let Piece { lo, hi, .. } = piece;
+            self.scratch.band_ys.clear();
+            self.scratch.band_ys.extend((lo..=hi).map(f64::from));
+            self.scratch.band_values.clear();
+            self.scratch
+                .band_values
+                .resize(self.scratch.band_ys.len(), 0.0);
+            sampler.fill_column(
+                &mut self.scratch.band_values,
+                f64::from(self.block_x),
+                f64::from(self.block_z),
+                &self.scratch.band_ys,
+                &mut self.scratch.column,
+            );
+            let start = out.len();
+            let values = self.scratch.band_values.iter().rev();
+            for (y, &value) in (lo..=hi).rev().zip(values) {
+                let target = program.noise_bands().select(band, f64::from(value));
+                let state = answers
+                    .iter()
+                    .find(|answer| answer.target == target)
+                    .map_or(SettledState::Block(None), |answer| answer.state);
+                match out.get_mut(start..).and_then(<[_]>::last_mut) {
+                    Some(last) if last.2 == state => last.0 = y,
+                    _ => out.push((y, y, state)),
+                }
+            }
+        }
+        self.scratch.band_answers = answers;
+        settled
     }
 
     fn settle_from(&mut self, mut pc: usize, piece: Piece) -> Settled {

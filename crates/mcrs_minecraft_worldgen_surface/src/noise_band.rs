@@ -1,4 +1,5 @@
 use crate::compile::{CompiledCondition, Condition, NoiseId, Op};
+use std::iter;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct BandEntry {
@@ -88,6 +89,15 @@ impl NoiseBands {
 
     pub(crate) fn at(&self, pc: usize) -> Option<NoiseBand> {
         self.by_guard.get(pc).copied().flatten()
+    }
+
+    pub(crate) fn targets(&self, band: NoiseBand) -> impl Iterator<Item = usize> + '_ {
+        self.entries
+            .get(band.first as usize..band.end as usize)
+            .unwrap_or_default()
+            .iter()
+            .map(|entry| entry.on_true as usize)
+            .chain(iter::once(band.otherwise as usize))
     }
 
     pub(crate) fn select(&self, band: NoiseBand, value: f64) -> usize {
