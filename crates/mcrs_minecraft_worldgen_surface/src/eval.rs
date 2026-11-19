@@ -34,11 +34,10 @@ pub struct MaterialScratch {
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
     cell_density: Vec<f32>,
-    splits: Vec<CondId>,
-    run_splits: Vec<Option<Split>>,
+    run_splits: Vec<RunSplit>,
     breaks: Vec<i32>,
     open_cells: Vec<OpenCell>,
-    zones: Vec<Zone>,
+    pending: Vec<Pending>,
     reachable: Vec<u16>,
     noise_columns: Vec<f32>,
     noise_column_stamps: Vec<u32>,
@@ -80,18 +79,9 @@ struct Piece {
 }
 
 #[derive(Clone, Copy)]
-struct Zone {
-    lo: i32,
-    hi: i32,
-    entry: usize,
-}
-
-impl Zone {
-    const WHOLE: Self = Self {
-        lo: i32::MIN,
-        hi: i32::MAX,
-        entry: 0,
-    };
+struct Pending {
+    piece: Piece,
+    pc: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -106,6 +96,12 @@ enum Split {
     Always(bool),
     At(i32),
     AtOrBelow(i32),
+}
+
+#[derive(Clone, Copy, Default)]
+struct RunSplit {
+    run: u32,
+    split: Option<Split>,
 }
 
 #[derive(Clone, Copy)]
@@ -165,6 +161,7 @@ pub struct MaterialEval<'a, B, R> {
     window_lo: i32,
     window_hi: i32,
     gen_window: u32,
+    gen_run: u32,
 }
 
 impl<'a, B, R> MaterialEval<'a, B, R>
@@ -197,21 +194,10 @@ where
         scratch.noises.clear();
         scratch.noises.resize(program.noise_count(), (0, 0.0));
 
-        scratch.splits.clear();
         scratch.run_splits.clear();
-        scratch.run_splits.resize(program.conditions().len(), None);
-        for (id, condition) in program.conditions().iter().enumerate() {
-            if matches!(
-                condition.kind,
-                Condition::VerticalGradient { .. }
-                    | Condition::AbovePreliminarySurface
-                    | Condition::YAbove { .. }
-                    | Condition::Water { .. }
-                    | Condition::StoneDepth { .. }
-            ) {
-                scratch.splits.push(id as CondId);
-            }
-        }
+        scratch
+            .run_splits
+            .resize(program.conditions().len(), RunSplit::default());
 
         scratch.folded.clear();
         for condition in program.conditions() {
@@ -290,6 +276,7 @@ where
             window_lo: 0,
             window_hi: -1,
             gen_window: 0,
+            gen_run: 0,
         }
     }
 
@@ -382,29 +369,9 @@ where
         self.run_depth = depth_above;
         self.water_level = water_level;
         let min_y = self.veins.min_block().y;
-        let program = self.program;
+        self.gen_run = self.gen_run.wrapping_add(1);
         let mut breaks = std::mem::take(&mut self.scratch.breaks);
-        let splits = std::mem::take(&mut self.scratch.splits);
         breaks.clear();
-        for &id in &splits {
-            match program.conditions().get(id as usize).map(|c| &c.kind) {
-                Some(&Condition::VerticalGradient {
-                    true_at_and_below,
-                    false_at_and_above,
-                    ..
-                }) => breaks.extend([true_at_and_below + 1, false_at_and_above]),
-                _ => {
-                    let split = self.split(id);
-                    if let Some(Split::At(at) | Split::AtOrBelow(at)) = split {
-                        breaks.extend([at, at + 1]);
-                    }
-                    if let Some(slot) = self.scratch.run_splits.get_mut(id as usize) {
-                        *slot = split;
-                    }
-                }
-            }
-        }
-        self.scratch.splits = splits;
         let mut open_cells = std::mem::take(&mut self.scratch.open_cells);
         open_cells.clear();
         let mut cells_known = bottom >= min_y;
@@ -449,168 +416,116 @@ where
                     })
             }),
         };
-        let mut zones = std::mem::take(&mut self.scratch.zones);
-        zones.clear();
         let mut hi = top;
         for &lo in &breaks {
-            let piece = piece_of(lo, hi);
-            let entry = self.entry_for(piece, &open_cells, &mut zones);
-            self.settle_piece(entry, piece, out);
+            self.settle_piece(piece_of(lo, hi), out);
             hi = lo - 1;
         }
         if hi >= bottom {
-            let piece = piece_of(bottom, hi);
-            let entry = self.entry_for(piece, &open_cells, &mut zones);
-            self.settle_piece(entry, piece, out);
+            self.settle_piece(piece_of(bottom, hi), out);
         }
         self.scratch.breaks = breaks;
         self.scratch.open_cells = open_cells;
-        self.scratch.zones = zones;
     }
 
-    fn entry_for(&mut self, piece: Piece, open_cells: &[OpenCell], zones: &mut Vec<Zone>) -> usize {
-        while zones
-            .last()
-            .is_some_and(|zone| zone.lo > piece.lo || piece.hi > zone.hi)
-        {
-            zones.pop();
-        }
-        let Zone {
-            mut lo,
-            mut hi,
-            entry: mut pc,
-        } = zones.last().copied().unwrap_or(Zone::WHOLE);
-        let program = self.program;
-        while let Some(&op) = program.tape().get(pc) {
-            let (was_lo, was_hi) = (lo, hi);
-            match op {
-                Op::Guard { condition, skip_to } => {
-                    let decided = if self.reads_biome(condition) {
-                        self.scratch
-                            .folded
-                            .get(condition as usize)
-                            .copied()
-                            .flatten()
-                    } else {
-                        self.over(condition, piece)
-                    };
-                    let Some(value) = decided else {
-                        break;
-                    };
-                    self.narrow(condition, value, &mut lo, &mut hi);
-                    pc = if value { pc + 1 } else { skip_to as usize };
-                }
-                Op::OreVein { vein } => {
-                    if piece.open_veins.is_none() || self.vein_open_over(vein, piece) {
-                        break;
-                    }
-                    for cell in open_cells.iter().filter(|cell| cell.vein == vein) {
-                        if cell.top < piece.lo {
-                            lo = lo.max(cell.top.saturating_add(1));
-                        } else {
-                            hi = hi.min(cell.bottom.saturating_sub(1));
-                        }
-                    }
-                    pc += 1;
-                }
-                Op::Block { .. } | Op::Bandlands => break,
-            }
-            match zones.last_mut() {
-                Some(zone) if (lo, hi) == (was_lo, was_hi) => zone.entry = pc,
-                _ => zones.push(Zone { lo, hi, entry: pc }),
-            }
-        }
-        pc
-    }
-
-    fn narrow(&self, condition: CondId, value: bool, lo: &mut i32, hi: &mut i32) {
-        if let Some(&Some(_)) = self.scratch.folded.get(condition as usize) {
-            return;
-        }
-        let Some(compiled) = self.program.conditions().get(condition as usize) else {
-            return;
-        };
-        let split = match compiled.kind {
-            Condition::Not(inner) => return self.narrow(inner, !value, lo, hi),
-            Condition::VerticalGradient {
-                true_at_and_below,
-                false_at_and_above,
-                ..
-            } => {
-                if value {
-                    *hi = (*hi).min(true_at_and_below);
-                } else {
-                    *lo = (*lo).max(false_at_and_above);
-                }
-                return;
-            }
-            _ => self
-                .scratch
-                .run_splits
-                .get(condition as usize)
-                .copied()
-                .flatten(),
-        };
-        match (split, value) {
-            (Some(Split::At(at)), true) => *lo = (*lo).max(at),
-            (Some(Split::At(at)), false) => *hi = (*hi).min(at.saturating_sub(1)),
-            (Some(Split::AtOrBelow(at)), true) => *hi = (*hi).min(at),
-            (Some(Split::AtOrBelow(at)), false) => *lo = (*lo).max(at.saturating_add(1)),
-            _ => {}
-        }
-    }
-
-    fn settle_piece(
-        &mut self,
-        entry: usize,
-        piece: Piece,
-        out: &mut Vec<(i32, i32, SettledState)>,
-    ) {
-        match self.settle_from(entry, piece) {
-            Settled::Open {
+    fn settle_piece(&mut self, piece: Piece, out: &mut Vec<(i32, i32, SettledState)>) {
+        let mut pending = std::mem::take(&mut self.scratch.pending);
+        pending.clear();
+        pending.push(Pending { piece, pc: 0 });
+        while let Some(Pending { piece, pc }) = pending.pop() {
+            let settled = self.settle_from(pc, piece);
+            let Settled::Open {
                 guard, condition, ..
-            } if self.reads_biome(condition) => self.settle_by_biome(guard, piece, out),
-            settled => self.settle_open(piece, settled, out),
+            } = settled
+            else {
+                self.settle_open(piece, settled, out);
+                continue;
+            };
+            if let Some(at) = self.split_point(condition, piece) {
+                pending.push(Pending {
+                    piece: Piece {
+                        hi: at - 1,
+                        ..piece
+                    },
+                    pc: guard,
+                });
+                pending.push(Pending {
+                    piece: Piece { lo: at, ..piece },
+                    pc: guard,
+                });
+            } else if piece.biome.is_none() && self.reads_biome(condition) {
+                self.push_by_biome(piece, guard, &mut pending);
+            } else {
+                self.settle_open(piece, settled, out);
+            }
         }
+        self.scratch.pending = pending;
     }
 
-    fn settle_by_biome(
-        &mut self,
-        guard: usize,
-        piece: Piece,
-        out: &mut Vec<(i32, i32, SettledState)>,
-    ) {
-        let Piece { lo, hi, .. } = piece;
-        let mut top = hi;
-        let mut above = (self.biome_at)(self.block_x, hi, self.block_z);
-        for y in (lo..hi).rev() {
+    fn push_by_biome(&mut self, piece: Piece, pc: usize, pending: &mut Vec<Pending>) {
+        let start = pending.len();
+        let mut top = piece.hi;
+        let mut above = (self.biome_at)(self.block_x, piece.hi, self.block_z);
+        for y in (piece.lo..piece.hi).rev() {
             let biome = (self.biome_at)(self.block_x, y, self.block_z);
             if biome != above {
-                self.settle_exact(guard, piece, y + 1, top, above, out);
+                pending.push(Pending {
+                    piece: Piece {
+                        lo: y + 1,
+                        hi: top,
+                        biome: Some(above),
+                        ..piece
+                    },
+                    pc,
+                });
                 top = y;
                 above = biome;
             }
         }
-        self.settle_exact(guard, piece, lo, top, above, out);
+        pending.push(Pending {
+            piece: Piece {
+                lo: piece.lo,
+                hi: top,
+                biome: Some(above),
+                ..piece
+            },
+            pc,
+        });
+        if let Some(pieces) = pending.get_mut(start..) {
+            pieces.reverse();
+        }
     }
 
-    fn settle_exact(
-        &mut self,
-        guard: usize,
-        parent: Piece,
-        lo: i32,
-        hi: i32,
-        biome: u16,
-        out: &mut Vec<(i32, i32, SettledState)>,
-    ) {
-        let piece = Piece {
-            lo,
-            hi,
-            biome: Some(biome),
-            open_veins: parent.open_veins,
-        };
-        let settled = self.settle_from(guard, piece);
-        self.settle_open(piece, settled, out);
+    fn split_point(&self, condition: CondId, piece: Piece) -> Option<i32> {
+        let inside = |at: i32| (at > piece.lo && at <= piece.hi).then_some(at);
+        match self.program.conditions().get(condition as usize)?.kind {
+            Condition::Not(inner) => self.split_point(inner, piece),
+            Condition::VerticalGradient {
+                true_at_and_below,
+                false_at_and_above,
+                ..
+            } => inside(true_at_and_below.saturating_add(1)).or_else(|| inside(false_at_and_above)),
+            Condition::Biome { .. } => None,
+            _ => match self.scratch.run_splits.get(condition as usize)?.split? {
+                Split::At(at) => inside(at),
+                Split::AtOrBelow(at) => inside(at.saturating_add(1)),
+                Split::Always(_) => None,
+            },
+        }
+    }
+
+    fn run_split(&mut self, condition: CondId) -> Option<Split> {
+        let run = self.gen_run;
+        match self.scratch.run_splits.get(condition as usize) {
+            Some(known) if known.run == run => return known.split,
+            Some(_) => {}
+            None => return None,
+        }
+        let split = self.split(condition);
+        if let Some(slot) = self.scratch.run_splits.get_mut(condition as usize) {
+            *slot = RunSplit { run, split };
+        }
+        split
     }
 
     fn reads_biome(&self, condition: CondId) -> bool {
@@ -755,13 +670,7 @@ where
                     Tri::Maybe => None,
                 }
             }
-            _ => match self
-                .scratch
-                .run_splits
-                .get(condition as usize)
-                .copied()
-                .flatten()
-            {
+            _ => match self.run_split(condition) {
                 Some(Split::Always(value)) => Some(value),
                 Some(Split::At(at)) if lo >= at => Some(true),
                 Some(Split::At(at)) if hi < at => Some(false),
