@@ -48,16 +48,25 @@ const CELL_CLOSED: u8 = 2;
 pub enum SettledState {
     Block(Option<VoxelId>),
     Bandlands,
+    Resume(usize),
 }
 
 enum Settled {
     Answer(SettledState),
     Open {
+        guard: usize,
         condition: CondId,
         on_true: usize,
         on_false: usize,
     },
     Blocked,
+}
+
+#[derive(Clone, Copy)]
+struct Piece {
+    lo: i32,
+    hi: i32,
+    biome: Option<u16>,
 }
 
 enum Split {
@@ -327,15 +336,88 @@ where
     }
 
     fn settle_piece(&mut self, lo: i32, hi: i32, out: &mut Vec<(i32, i32, SettledState)>) {
-        let (condition, on_true, on_false) = match self.settle_from(0, lo, hi) {
+        let piece = Piece {
+            lo,
+            hi,
+            biome: None,
+        };
+        match self.settle_from(0, piece) {
+            Settled::Open {
+                guard, condition, ..
+            } if self.reads_biome(condition) => self.settle_by_biome(guard, lo, hi, out),
+            settled => self.settle_open(piece, settled, out),
+        }
+    }
+
+    fn settle_by_biome(
+        &mut self,
+        guard: usize,
+        lo: i32,
+        hi: i32,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) {
+        let mut top = hi;
+        let mut above = (self.biome_at)(self.block_x, hi, self.block_z);
+        for y in (lo..hi).rev() {
+            let biome = (self.biome_at)(self.block_x, y, self.block_z);
+            if biome != above {
+                self.settle_exact(guard, y + 1, top, above, out);
+                top = y;
+                above = biome;
+            }
+        }
+        self.settle_exact(guard, lo, top, above, out);
+    }
+
+    fn settle_exact(
+        &mut self,
+        guard: usize,
+        lo: i32,
+        hi: i32,
+        biome: u16,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) {
+        let piece = Piece {
+            lo,
+            hi,
+            biome: Some(biome),
+        };
+        let settled = self.settle_from(guard, piece);
+        self.settle_open(piece, settled, out);
+    }
+
+    fn reads_biome(&self, condition: CondId) -> bool {
+        match self.program.conditions().get(condition as usize) {
+            Some(CompiledCondition {
+                kind: Condition::Biome { .. },
+                ..
+            }) => true,
+            Some(CompiledCondition {
+                kind: Condition::Not(inner),
+                ..
+            }) => self.reads_biome(*inner),
+            _ => false,
+        }
+    }
+
+    fn settle_open(
+        &mut self,
+        piece: Piece,
+        settled: Settled,
+        out: &mut Vec<(i32, i32, SettledState)>,
+    ) {
+        let Piece { lo, hi, .. } = piece;
+        let (guard, condition, on_true, on_false) = match settled {
             Settled::Answer(state) => return out.push((lo, hi, state)),
             Settled::Blocked => return,
             Settled::Open {
+                guard,
                 condition,
                 on_true,
                 on_false,
-            } => (condition, on_true, on_false),
+            } => (guard, condition, on_true, on_false),
         };
+        let resume = SettledState::Resume(guard);
         let Some(&CompiledCondition {
             kind:
                 Condition::VerticalGradient {
@@ -346,16 +428,16 @@ where
             ..
         }) = self.program.conditions().get(condition as usize)
         else {
-            return;
+            return out.push((lo, hi, resume));
         };
         if lo <= true_at_and_below || hi >= false_at_and_above {
-            return;
+            return out.push((lo, hi, resume));
         }
         let (Settled::Answer(whenever), Settled::Answer(otherwise)) = (
-            self.settle_from(on_true, lo, hi),
-            self.settle_from(on_false, lo, hi),
+            self.settle_from(on_true, piece),
+            self.settle_from(on_false, piece),
         ) else {
-            return;
+            return out.push((lo, hi, resume));
         };
         if whenever == otherwise {
             return out.push((lo, hi, whenever));
@@ -381,15 +463,16 @@ where
         }
     }
 
-    fn settle_from(&mut self, mut pc: usize, lo: i32, hi: i32) -> Settled {
+    fn settle_from(&mut self, mut pc: usize, piece: Piece) -> Settled {
         let program = self.program;
         while let Some(op) = program.tape().get(pc) {
             match *op {
-                Op::Guard { condition, skip_to } => match self.over(condition, lo, hi) {
+                Op::Guard { condition, skip_to } => match self.over(condition, piece) {
                     Some(true) => pc += 1,
                     Some(false) => pc = skip_to as usize,
                     None => {
                         return Settled::Open {
+                            guard: pc,
                             condition,
                             on_true: pc + 1,
                             on_false: skip_to as usize,
@@ -399,7 +482,7 @@ where
                 Op::Block { state } => return Settled::Answer(SettledState::Block(Some(state))),
                 Op::Bandlands => return Settled::Answer(SettledState::Bandlands),
                 Op::OreVein { vein } => {
-                    if self.vein_open_in(vein as usize, lo, hi) {
+                    if self.vein_open_in(vein as usize, piece.lo, piece.hi) {
                         return Settled::Blocked;
                     }
                     pc += 1;
@@ -409,7 +492,8 @@ where
         Settled::Answer(SettledState::Block(None))
     }
 
-    fn over(&mut self, condition: CondId, lo: i32, hi: i32) -> Option<bool> {
+    fn over(&mut self, condition: CondId, piece: Piece) -> Option<bool> {
+        let Piece { lo, hi, biome } = piece;
         if let Some(&Some(value)) = self.scratch.folded.get(condition as usize) {
             return Some(value);
         }
@@ -429,16 +513,16 @@ where
                     None
                 }
             }
-            Condition::Not(inner) => self.over(inner, lo, hi).map(|value| !value),
+            Condition::Not(inner) => self.over(inner, piece).map(|value| !value),
             Condition::Biome { set } => {
+                let set = program.biome_sets().get(set as usize)?;
+                if let Some(biome) = biome {
+                    return Some(set.contains(biome));
+                }
                 if !self.reachable_over(lo, hi) {
                     return None;
                 }
-                match program
-                    .biome_sets()
-                    .get(set as usize)?
-                    .fold(self.scratch.reachable.iter().copied())
-                {
+                match set.fold(self.scratch.reachable.iter().copied()) {
                     Tri::Never => Some(false),
                     Tri::Always => Some(true),
                     Tri::Maybe => None,
@@ -574,7 +658,11 @@ where
     }
 
     pub fn apply(&mut self) -> Option<VoxelId> {
-        let mut pc = 0usize;
+        self.apply_from(0)
+    }
+
+    pub fn apply_from(&mut self, start: usize) -> Option<VoxelId> {
+        let mut pc = start;
         while let Some(op) = self.program.tape().get(pc) {
             match *op {
                 Op::Guard { condition, skip_to } => {

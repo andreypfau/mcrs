@@ -202,6 +202,10 @@ pub fn apply_material_surface(
                             match settled[run].2 {
                                 SettledState::Block(state) => state,
                                 SettledState::Bandlands => eval.bandlands_at(y),
+                                SettledState::Resume(guard) => {
+                                    eval.update_y(depth_above, depth_below, water_level, y);
+                                    eval.apply_from(guard)
+                                }
                             }
                         } else {
                             eval.update_y(depth_above, depth_below, water_level, y);
