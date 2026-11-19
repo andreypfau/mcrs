@@ -13,13 +13,14 @@ sources:
   - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
   - crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs
   - docs/physics-architecture.md
+  - src/main.rs
   - issue:367
   - issue:357
   - issue:323
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 
 import Status from '~/components/Status.astro';
@@ -127,9 +128,9 @@ Outside the exact tier, mcrs matches the distributions of the reference game's r
 
 For your plugin this comes down to one rule. If one of your systems must run before another, say so with `.before()` or `.after()`, and never rely on the order you happen to observe. CI runs the simulation schedules with ambiguity detection set to error, so an unordered conflict fails a test.[^323] The tests are [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
 
-## A panic does not stop the server
+## An error does not stop the server
 
-The server installs a fallback error handler in [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). When a system panics, the handler logs the panic and the server keeps running. This is close to an uncaught exception in a Bukkit event handler.
+The server installs a fallback error handler in [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). When a system or a command fails with an error that Bevy would panic on, such as a command for an entity that already left the world, the handler logs the error and the server keeps ticking. This is close to an uncaught exception in a Bukkit event handler.
 
 Next: [Rust for Java developers](/docs/en/plugins/rust-for-java/).
 

@@ -2,7 +2,7 @@
 title: Remove and replace vanilla parts
 description: Build your own server from the MinecraftServerPlugins group, disable members, pass settings as plugin fields.
 sidebar:
-  order: 8
+  order: 9
 kind: how-to
 audience: [jvm, rust]
 stability: changing
@@ -12,14 +12,20 @@ sources:
   - src/main.rs
   - crates/mcrs_minecraft_server/tests/it/client_join.rs
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_engine_server/src/require.rs
+  - crates/mcrs_minecraft_engine_server/src/server_thread.rs
+  - crates/mcrs_minecraft_engine_server/src/shutdown.rs
+  - crates/mcrs_minecraft_client/src/local_server.rs
+  - pr:969
+  - pr:1003
   - issue:278
   - issue:279
   - issue:281
   - issue:282
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 79dd5940a
+  date: 2026-11-18
 ---
 
 import Status from '~/components/Status.astro';
@@ -36,13 +42,13 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.[^279]
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, the pose of players, entity attributes, the sprint attribute, the reach of creative mode, item entities, falling blocks, the drops and support of blocks, mob brains, item and inventory saving, block placement, world generation, lighting and the network.[^279]
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
 You can disable or replace each member without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You get the error at start, so you do not have to trace a missing resource at the first tick.
 
-The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin`.[^282]
+The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and most of them reach every dimension world through `add_dimension_plugin`.[^282]
 
 ## Disable a member with disable
 
@@ -58,6 +64,8 @@ That test also calls `MinecraftServerPlugins::embedded()`. It gives a server tha
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
 
+To host such a server in your own program, pass a closure that builds the app to `ServerThread::start` from `mcrs_minecraft_engine_server`, and the server runs on a thread of its own. `address()` returns the address once the server listens, `request_shutdown()` asks the server to disconnect the players, save the world and exit, and `finish()` asks the same and waits for the thread to end. The client starts its singleplayer server this way, and the field `extend_server` of its `LocalServerPlugin` takes a function that adds your own plugins to that server.
+
 ## Settings are plugin fields
 
 The binary reads its settings from the environment and turns them into plugin fields in `src/main.rs`:
@@ -66,7 +74,7 @@ The binary reads its settings from the environment and turns them into plugin fi
 
 Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it.[^278]
 
-The environment variables of the binary are the fields of `ServerSettings`. Each variable has the name of its field with the prefix `MCRS_`. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+The environment variables of the binary are the fields of `ServerSettings`. Most variables carry the name of their field in upper case with the prefix `MCRS_`, such as `MCRS_MOB_AI` for `mob_ai`. [Environment variables](/docs/en/reference/env-vars/) has the list with the defaults.
 
 In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
 
@@ -84,7 +92,7 @@ The plan also names a test. One dimension runs on the empty source and another o
 Saving chunks to disk is a separate topic.
 </Aside>
 
-Next: [Add a command](/docs/en/plugins/commands/).
+Next: [Add a command](/docs/en/plugins/commands/), or [change how blocks are placed, broken and dropped](/docs/en/plugins/blocks/).
 
 [^279]: <Status issue={279} /> Splits the server plugin into a group of removable plugins.
 [^282]: <Status issue={282} /> Moves vanilla gameplay out of the server crate into removable plugins.

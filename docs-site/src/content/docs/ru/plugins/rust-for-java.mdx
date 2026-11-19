@@ -3,7 +3,7 @@ title: "Rust для Java-разработчика: минимум"
 description: Та часть Rust, которая нужна для плагинов mcrs, в сравнении с Java, и где читать дальше.
 sidebar:
   order: 3
-translated_from: 51d45c26a
+translated_from: 79dd5940a
 ---
 
 import Status from '~/components/Status.astro';
@@ -151,8 +151,8 @@ app.add_observer(|mut e: On<PlayerChatEvent>| {
 - [Rustlings](https://github.com/rust-lang/rustlings) - набор небольших упражнений.
 - [Руководство Cargo](https://doc.rust-lang.org/cargo/guide/) рассказывает про `Cargo.toml` и зависимости.
 - [Bevy learn](https://bevy.org/learn/) и [примеры ECS](https://github.com/bevyengine/bevy/tree/main/examples/ecs) знакомят с Bevy.
-- [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) может отставать. В mcrs используется Bevy 0.19, где типы называются `Message`, `MessageReader` и `On<E>`, а в старых текстах названия могут быть другими.
-- На [docs.rs для bevy_ecs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) есть точные сигнатуры.
+- [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) может отставать. В mcrs используется Bevy 0.20, где типы называются `Message`, `MessageReader` и `On<E>`, а в старых текстах названия могут быть другими.
+- На [docs.rs для bevy_ecs](https://docs.rs/bevy_ecs/0.20.1/bevy_ecs/) есть точные сигнатуры.
 
 <Aside type="caution" title="WIP">
 Тулчейн зафиксирован на nightly в `rust-toolchain.toml`. Сборка проекта вне репозитория на stable Rust - часть работы по подготовке крейтов к публикации.[^321] Подробное руководство по установке появится к альфе.

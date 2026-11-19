@@ -12,14 +12,15 @@ sources:
   - docs/minecraft-bevy-sharding-architecture.md
   - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
   - crates/mcrs_minecraft_engine_physics/examples/state_hash.rs
+  - crates/mcrs_minecraft_engine_entity_motion/src/lib.rs
   - issue:367
   - issue:364
   - issue:181
   - issue:190
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 19bc615fa
+  date: 2026-11-17
 ---
 import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
@@ -43,6 +44,8 @@ One system can still have a lot of entities to process, so the work inside it is
 
 No entity reads the new state of another entity in the same pass, so the tasks do not wait for each other and need no lock. The note calls this design Jacobi, because every row is computed from the old state. A task starts when the tasks it reads from are done. Small dependency counters track that, and the tasks run on the Bevy compute pool.
 
+Items and falling blocks take a shorter path. Each of them is a Bevy entity with components rather than a row, and one parallel pass steps them all with the same physics kernel. They push nothing, so this pass does not read the grid of bodies.
+
 ## The result is the same on any thread count
 
 The collected effects are merged by a stable key, so the result does not depend on the machine. The key is the persisted UUID of the entity and never a network id, and it also breaks ties between entities.
@@ -55,9 +58,9 @@ The project sorts determinism into three tiers:[^367]
 | Independent of the scheduler | The same inputs give the same tick regardless of thread order | Everything else |
 | Free | Any order is allowed | Entities and systems that share no written data |
 
-Two checks hold this today. The first is the test `tick_determinism.rs`. It ticks a world of two cells for 60 ticks, once with every world inline on one thread and once with threads. It hashes the whole simulation state after every tick and fails at the first tick where the hashes differ.
+Two checks hold this today. The first is the test `tick_determinism.rs`. It ticks a world of two cells for 46 ticks, or for 60 ticks in the `full` test profile, once with every world inline on one thread and once with threads. It hashes the whole simulation state after every tick and fails at the first tick where the hashes differ.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" from={"#[test]\nfn the_world_a_tick_produces_does_not_depend_on_the_threads"} title="The test: threads and inline must give the same world" />
+<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" from="fn assert_threads_do_not_change_the_world(" title="The test: threads and inline must give the same world" />
 
 ## Run the hash check yourself
 

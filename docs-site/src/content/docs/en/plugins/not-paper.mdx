@@ -11,6 +11,7 @@ sources:
   - src/main.rs
   - crates/mcrs_minecraft_server/src/lib.rs
   - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - crates/mcrs_minecraft_command_engine/src/command_event.rs
   - issue:437
   - issue:180
   - issue:279
@@ -20,8 +21,8 @@ sources:
   - pr:579
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -47,7 +48,7 @@ The table lists what your code can already do, with the issue or the pull reques
 | Remove or replace a part of the server | The server is a group of plugins, and you can disable its members | <Status issue={279} /> |
 | Add your code to every dimension or to one | `add_dimension_plugin` and `add_dimension_plugin_to` | <Status issue={280} /> |
 | Vanilla gameplay as removable plugins | Done | <Status issue={282} /> |
-| Intercept and cancel a chat line | `PlayerChatEvent`, the only public cancellable event | <Status pr={636} state="works" /> |
+| Intercept and cancel a chat line | `PlayerChatEvent`, which an observer can cancel. `CommandEvent` does the same for a command line | <Status pr={636} state="works" /> |
 | Register your own command | `add_command` with a typed command tree | <Status pr={579} state="works" /> |
 
 The entry point is [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). It creates the app and adds `MinecraftServerPlugins`, [the plugin group](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs) of the server.

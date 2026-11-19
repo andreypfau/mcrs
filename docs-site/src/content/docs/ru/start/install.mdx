@@ -3,7 +3,7 @@ title: Установка инструментов
 description: Что нужно, чтобы собрать mcrs, и Cargo для тех, кто знает Gradle. Подробный гайд появится к альфе.
 sidebar:
   order: 4
-translated_from: 3540f457b
+translated_from: 79dd5940a
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -18,17 +18,19 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Что нужно
 
-Rust ставится через [rustup](https://rustup.rs). Версию выбирать не нужно, потому что [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) закрепляет `nightly-2026-09-02`, и rustup скачает ее при первом вызове `cargo`. Он же добавит rustfmt, clippy и цели wasm32.
+Rust ставится через [rustup](https://rustup.rs). Версию выбирать не нужно, потому что [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) закрепляет `nightly-2026-09-02`, и rustup скачает ее при первом вызове `cargo`. Он же добавит rustfmt, clippy, цели wasm32 и кодогенератор Cranelift, которым отладочная сборка компилирует большую часть крейтов workspace.
+
+На Linux клиент работает и с Wayland, и с X11.
 
 В качестве IDE подойдет RustRover или IntelliJ IDEA с плагином Rust. Корень репозитория открывайте как проект Cargo. Условия лицензии RustRover проверьте сами.
 
-mcrs нужен официальный клиентский jar снапшота, но скачивать его вручную не придется. mcrs берет его из папки лаунчера или при первом запуске скачивает с Mojang в ту же папку, а потом проверяет SHA-1.
+mcrs нужен официальный клиентский jar снапшота, но скачивать его вручную не придется. mcrs берет его из папки лаунчера или при первом запуске скачивает с Mojang в ту же папку, а потом проверяет SHA-1. Еще клиенту нужны файлы шрифтов и панорама главного меню, которые игра хранит вне jar. Их он берет из папки `assets/objects` лаунчера или скачивает с Mojang в эту папку и проверяет SHA-1 каждого файла.
 
 Чтобы запустить mcrs, Java не нужна. Некоторым инструментам, например `tools/vanilla-oracle` и mob bench, требуется Java 21 или новее.
 
 Автор мерил и запускал все на macOS, на Apple M4 Max с Metal. CI гоняет lint, clippy, проверки переносимости и тесты на Ubuntu 24.04, без крейтов, которым нужен GPU. Для Windows в коде есть путь к jar, но его никто не проверял.
 
-Сколько длится первая сборка и сколько места она занимает на диске, пока никто не измерял. В workspace {fact('crates')} крейт, так что первая сборка будет долгой.
+Сколько длится первая сборка и сколько места она занимает на диске, пока никто не измерял. В workspace {fact('crates')} крейта, так что первая сборка будет долгой.
 
 ## Cargo для тех, кто знает Gradle
 

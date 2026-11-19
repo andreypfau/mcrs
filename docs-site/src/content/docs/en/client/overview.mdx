@@ -11,15 +11,46 @@ sources:
   - README.md
   - crates/mcrs_minecraft_client/src/config.rs
   - crates/mcrs_minecraft_client_jar/src/native.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client/src/game_directory.rs
+  - crates/mcrs_minecraft_client/src/hand_keys_plugin.rs
+  - crates/mcrs_minecraft_client_gui/src/inventory_clicks.rs
+  - crates/mcrs_minecraft_client_gui/src/menu_screens_plugin.rs
+  - crates/mcrs_minecraft_client_options/src/client_options.rs
+  - crates/mcrs_minecraft_entity_render/src/main_world.rs
+  - crates/mcrs_minecraft_render/src/render_path.rs
   - issue:136
   - issue:341
   - issue:521
   - issue:344
   - issue:337
+  - pr:731
+  - pr:757
+  - pr:780
+  - pr:799
+  - pr:826
+  - pr:945
+  - pr:974
+  - pr:1003
+  - pr:1004
+  - crates/mcrs_minecraft_client_gui/src/menu_screen.rs
+  - crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_draw.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_input.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_screen_open.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_tab_content.rs
+  - crates/mcrs_minecraft_client_gui/src/slot_icon.rs
+  - crates/mcrs_minecraft_client_gui/src/game_mode_switcher.rs
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_item_tooltip_tests.rs
+  - pr:1024
+  - pr:1046
+  - pr:1030
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 485b34f36
+  date: 2026-11-19
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -36,10 +67,17 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 |---|---|
 | Terrain with the block models and light of the game | Works, and the light includes coloured block light |
 | Sky, clouds and the fog of the environment | Works |
-| Mobs | Works for the five mob types the server has. The client draws far mobs as flat images, which [How the client renders](/docs/en/client/rendering/) explains |
+| Mobs | Works for pigs, frogs and players, the types that have a model in the entity pack of the repository. The client does not draw the other mob types of the server yet. The native client draws a player with the skin of its profile. The client draws far mobs as flat images, which [How the client renders](/docs/en/client/rendering/) explains |
 | F3 overlay with frame and stage times | Works |
 | Chat with command suggestions | Works |
 | Breaking blocks in creative mode, and showing the block you aim at | Works |
+| Title screen and local worlds | Works in the native client. The client opens the title screen at start. Singleplayer lists the worlds in the `saves` folder of the game directory, creates a new world, deletes one and opens one, and Save and Quit to Title saves the world and returns to the title screen |
+| Inventory screen | <Status issue={129} />. E opens it in survival mode. Mouse and key clicks move stacks, a drag previews the split before release, and a double click gathers matching stacks. Shift+double click quick moves matching stacks. The client predicts each click before the server answers, and server packets overwrite the prediction. Outside a screen Q drops one item, Control+Q drops the whole selected stack, and F swaps the hands |
+| Container screens | <Status issue={130} />. The client draws the generic menus a server opens: `generic_9x1` through `generic_9x6`, `generic_3x3` and `hopper`, with resource-pack textures, the title, slots and item tooltips. The same clicks, drags and double clicks work in them |
+| Creative inventory | <Status issue={131} />. E opens the creative screen in creative mode. It has tabs, a scrollable item grid, text and tag search, the hotbar row, a survival inventory tab and a destroy slot. Clicks take, place, clone, destroy and drop stacks |
+| Game mode switcher | F3+F4 shows the four game modes with their item icons |
+| Hotbar | Works. The mouse wheel and the keys 1 to 9 select a slot, and spectator mode shows no hotbar |
+| Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the game directory |
 | Joining the mcrs server or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
 
 ## What is missing
@@ -49,21 +87,24 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Sound | <Status issue={136} />. The client is silent |
 | Particles | <Status issue={137} /> |
 | Weather (rain, snow, lightning) | <Status issue={341} />. Today rain only dims the sun and the moon |
-| Inventory and container screens | <Status issue={521} /> covers the player inventory, and the screens are <Status issue={129} />, <Status issue={130} /> and <Status issue={131} />. The client draws an inventory screen only when you start it with `MCRS_SCREEN=inventory`, and you cannot play with that screen |
-| A web build | <Status issue={344} />. The build draws the sky in Chrome, but start-up blocks the page for 87 s and the build never reaches a steady frame |
+| Creative inventory details | Saved hotbars have no content (<Status issue={1032} />), and the survival inventory tab has no player figure (<Status issue={1043} />). A drag or a double click in the creative hotbar can gather from the whole inventory (<Status issue={1041} />) |
+| Creative session settings | The client assumes only the `minecraft:vanilla` feature flag (<Status issue={1031} />). The operator tab option has no button in Controls (<Status issue={1033} />); [Client variables](/docs/en/client/env-vars/) describes the file setting |
+| Item icons | Special models such as chests and shields draw no icon. Dynamic icons such as clocks and compasses do not refresh while their slot stays unchanged (<Status issue={1036} />) |
+| Item tooltips | Enchantment lines are missing (<Status issue={1021} />), renamed items and lore have no italics (<Status issue={1022} />), and the advanced component count can be low (<Status issue={1023} />). Disabled-item warnings and map summaries are not filled in yet, and creative stew tooltips do not list effects |
+| A web build | <Status issue={344} />. Chrome draws the world over WebGPU and over WebGL2. On WebGL2 the browser draws no mobs, and the CPU and GPU times of the web build are not measured yet |
 | Binary downloads | None yet. Releases are planned, and at this date no issue tracks them |
 
-## Only one platform is checked
+## The author checks one platform
 
-The author has checked one platform, an Apple M4 Max with macOS and Metal. Linux and Windows are not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
+The author checks the client on one platform, an Apple M4 Max with macOS and Metal. On Linux the client builds with both Wayland and X11, and a contributor ran it under Wayland when that support was added.[^826] Windows is not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
 
 ## A 96-column view
 
-The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower `MCRS_VIEW`, the number of columns the client asks for.
+The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower Render Distance in the video settings, or start the client with a smaller `MCRS_VIEW`, the number of columns it asks for.
 
 ## Build it from source to run it
 
-There is no binary download, so you build the client from source. The steps are short and live in the repository, so this page does not repeat them. Follow the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client takes a world folder and starts its own server for it. It reads textures and models from the official game jar, because the repository ships no Mojang art.
+There is no binary download, so build the client from source by following the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client starts on the title screen and runs its own server for the world you pick there. The game directory holds the worlds in `saves`, the options and the command history. It is `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows, and `MCRS_GAME_DIR` sets another folder. The other variables and options the client reads are on [Client variables](/docs/en/client/env-vars/). A world folder given as the argument is selected in the world list when it lies in `saves`. The client reads textures and models from the official game jar, because the repository ships no Mojang art.
 
 <Aside type="caution" title="WIP">
 A detailed guide for players will come before the alpha. Until then, this page gives no steps that were not run on a clean machine.
@@ -71,4 +112,5 @@ A detailed guide for players will come before the alpha. Until then, this page g
 
 The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/).
 
+[^826]: <Status pr={826} state="works" /> Turns on the Wayland backend of the client next to X11.
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.

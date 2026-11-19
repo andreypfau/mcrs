@@ -10,14 +10,14 @@ sources:
   - docs/clean-room.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 mcrs builds the behavior of the game from descriptions of that behavior and never from the game's code.
 
 - A specification author may read the game's code and writes the behavior into `docs/spec/`.
 - An implementer reads the specification and never reads the game's code.
-- No code, comment, test, note, commit message or issue names the game's classes, methods or fields.
+- No code, comment, test, note, commit message or issue names the game's classes, methods or fields. The one exception is a tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`, which names the client classes it calls.
 - A parity test compares our output with artifacts that the game produced.
 
 The rule is in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md). That file is the authority. [Specs and parity](/docs/en/contributing/specs-and-parity/) describes the spec format.
