@@ -28,6 +28,17 @@ impl<'a> Runs<'a> {
     }
 
     #[inline]
+    fn whole(self, ext: &SampleGrid, len: usize) -> Option<&'a [f32]> {
+        let size = ext.size();
+        let (sx, sy) = (size.x as usize, size.y as usize);
+        if self.run == sy && self.stride_x == sy && self.stride_z == sx * sy {
+            self.data.get(..len)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     pub fn col(self, ix: usize, iz: usize) -> &'a [f32] {
         let base = ix * self.stride_x + iz * self.stride_z;
         self.data.get(base..base + self.run).unwrap_or_default()
@@ -110,6 +121,12 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
 
 #[inline]
 pub fn map_columns(out: &mut [f32], ext: &SampleGrid, a: Runs<'_>, f: impl Fn(f32) -> f32) {
+    if let Some(a) = a.whole(ext, out.len()) {
+        for (o, &x) in out.iter_mut().zip(a) {
+            *o = f(x);
+        }
+        return;
+    }
     each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
 }
 
@@ -121,6 +138,12 @@ pub fn zip2_columns(
     b: Runs<'_>,
     f: impl Fn(f32, f32) -> f32,
 ) {
+    if let (Some(a), Some(b)) = (a.whole(ext, out.len()), b.whole(ext, out.len())) {
+        for (o, (&x, &y)) in out.iter_mut().zip(a.iter().zip(b)) {
+            *o = f(x, y);
+        }
+        return;
+    }
     each_column(out, ext, |run, ix, iz| {
         zip2(run, a.col(ix, iz), b.col(ix, iz), &f)
     });
