@@ -208,9 +208,9 @@ impl GlyphPage {
         let (min, max) = (texels.min, texels.max);
         Some([
             uv(min.x, min.y),
-            uv(max.x, min.y),
-            uv(max.x, max.y),
             uv(min.x, max.y),
+            uv(max.x, max.y),
+            uv(max.x, min.y),
         ])
     }
 }

@@ -173,7 +173,7 @@ fn prepare_text(
             },
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
-                cull_mode: None,
+                cull_mode: Some(Face::Back),
                 ..default()
             },
             depth_stencil: Some(DepthStencilState {

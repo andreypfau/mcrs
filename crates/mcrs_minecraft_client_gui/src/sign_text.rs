@@ -311,9 +311,9 @@ pub fn span_quads(
         out.push(SignQuad {
             corners: [
                 corner(rect.min.x, rect.min.y),
-                corner(rect.max.x, rect.min.y),
-                corner(rect.max.x, rect.max.y),
                 corner(rect.min.x, rect.max.y),
+                corner(rect.max.x, rect.max.y),
+                corner(rect.max.x, rect.min.y),
             ],
             glyph,
             source: image.source,
@@ -698,6 +698,34 @@ mod tests {
             );
             assert_eq!(got[0].spans, [Span::new("pc", 0xFFFF_5555).bold()]);
             assert_eq!(got[1].spans, [Span::new("fallback text", 0xFF11_1111)]);
+        }
+
+        #[test]
+        fn the_glyph_quads_of_a_side_face_the_viewer_of_that_side() {
+            let font = corpus_font();
+            let line = Line {
+                spans: vec![Span::new("a", 0xFF00_0000)],
+                width: 0,
+                origin: IVec2::ZERO,
+            };
+            let paint = Paint {
+                color: 0xFF00_0000,
+                outline: None,
+                light: 0,
+            };
+            for family in [SignFamily::Standing, SignFamily::Hanging] {
+                for (side, viewer) in [(Side::Front, Vec3::Z), (Side::Back, Vec3::NEG_Z)] {
+                    let matrix = text_matrix(family, SignMount::Ground, 0.0, side);
+                    let mut out = Vec::new();
+                    quads(font, std::slice::from_ref(&line), &matrix, &paint, &mut out);
+                    assert!(!out.is_empty());
+                    for quad in &out {
+                        let [a, b, c, _] = quad.corners;
+                        let normal = (b - a).cross(c - a);
+                        assert!(normal.dot(viewer) > 0.0, "{family:?} {side:?}: {normal}");
+                    }
+                }
+            }
         }
 
         #[test]
