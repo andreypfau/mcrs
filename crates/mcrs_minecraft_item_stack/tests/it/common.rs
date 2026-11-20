@@ -197,7 +197,10 @@ const OLDER_RECORDS: [(&str, &str); 5] = [
     ("item_model", "item_model"),
 ];
 
-const HOLDERS: [(&str, &str); 6] = [
+const HOLDERS: [(&str, &str); 9] = [
+    ("piercing_weapon_default", "piercing_weapon"),
+    ("piercing_weapon_explicit", "piercing_weapon"),
+    ("piercing_weapon_full", "piercing_weapon"),
     ("trim_ref", "trim"),
     ("trim_inline", "trim"),
     ("trim_mixed", "trim"),

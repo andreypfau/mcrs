@@ -749,13 +749,15 @@ struct PlainError {
     error: String,
 }
 
-const PLAIN_KINDS: [(&str, BuiltinKey); 20] = [
+const PLAIN_KINDS: [(&str, BuiltinKey); 22] = [
     ("max_stack_size", BuiltinKey::MaxStackSize),
     ("max_damage", BuiltinKey::MaxDamage),
     ("damage", BuiltinKey::Damage),
     ("unbreakable", BuiltinKey::Unbreakable),
     ("rarity", BuiltinKey::Rarity),
     ("repair_cost", BuiltinKey::RepairCost),
+    ("attack_animation", BuiltinKey::AttackAnimation),
+    ("interact_animation", BuiltinKey::InteractAnimation),
     ("map_id", BuiltinKey::MapId),
     ("map_decorations", BuiltinKey::MapDecorations),
     ("profile", BuiltinKey::Profile),

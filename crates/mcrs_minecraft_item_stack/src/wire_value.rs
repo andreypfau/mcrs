@@ -15,6 +15,7 @@ use mcrs_minecraft_wire::VarInt;
 use mcrs_voxel::BlockPos;
 
 use crate::ArgbColor;
+use crate::AttackAnimation;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
@@ -64,6 +65,7 @@ use crate::InlineTrimMaterial;
 use crate::InlineTrimPattern;
 use crate::Instrument;
 use crate::InstrumentId;
+use crate::InteractAnimation;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
@@ -80,6 +82,7 @@ use crate::NameTable;
 use crate::OminousBottleAmplifier;
 use crate::PaintingVariant;
 use crate::PaintingVariantId;
+use crate::PiercingWeapon;
 use crate::PotionContents;
 use crate::PotionId;
 use crate::Profile;
@@ -92,6 +95,8 @@ use crate::SoundEventRef;
 use crate::StewEffect;
 use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
+use crate::SwingAnimation;
+use crate::SwingKind;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -219,6 +224,13 @@ fn read_flat_value<L: NameLookup>(
         }),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(input)?),
         BuiltinKey::Equippable => Builtin::Equippable(reader.equippable(input)?),
+        BuiltinKey::PiercingWeapon => Builtin::PiercingWeapon(reader.piercing_weapon(input)?),
+        BuiltinKey::AttackAnimation => {
+            Builtin::AttackAnimation(AttackAnimation(reader.swing_animation(input)?))
+        }
+        BuiltinKey::InteractAnimation => {
+            Builtin::InteractAnimation(InteractAnimation(reader.swing_animation(input)?))
+        }
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(input, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(input, component)?)),
         BuiltinKey::Lore => Builtin::Lore(reader.lore(input)?),
@@ -513,6 +525,25 @@ impl<L: NameLookup> Reader<'_, L> {
         Ok(self.identifier(input)?.to_buf())
     }
 
+    fn piercing_weapon(&self, input: &mut &[u8]) -> Result<PiercingWeapon, WireError> {
+        let deals_knockback = self.boolean(input)?;
+        let dismounts = self.boolean(input)?;
+        let sound = self.optional(input, Self::sound_event)?;
+        let hit_sound = self.optional(input, Self::sound_event)?;
+        Ok(PiercingWeapon {
+            deals_knockback,
+            dismounts,
+            sound,
+            hit_sound,
+        })
+    }
+
+    fn swing_animation(&self, input: &mut &[u8]) -> Result<SwingAnimation, WireError> {
+        let kind = self.list_entry(input, &SwingKind::ALL)?;
+        let duration = self.var_int(input)?;
+        Ok(SwingAnimation { kind, duration })
+    }
+
     fn named_id(&self, id: i32, table: NameTable) -> Result<u16, WireError> {
         u16::try_from(id)
             .ok()
@@ -796,6 +827,10 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one dispatch arm per component wire form"
+)]
 pub(crate) fn write_value<L: NameLookup>(
     value: &Builtin,
     names: &L,
@@ -835,6 +870,11 @@ pub(crate) fn write_value<L: NameLookup>(
         }
         Builtin::Tool(tool) => writer.tool(tool, output)?,
         Builtin::Equippable(equippable) => writer.equippable(equippable, output)?,
+        Builtin::PiercingWeapon(weapon) => writer.piercing_weapon(weapon, output)?,
+        Builtin::AttackAnimation(AttackAnimation(swing))
+        | Builtin::InteractAnimation(InteractAnimation(swing)) => {
+            writer.swing_animation(swing, output)?;
+        }
         Builtin::MapDecorations(_) => writer.saved_form_as_nbt(value, output)?,
         Builtin::Profile(profile) => profile
             .encode(&mut *output)
@@ -1304,5 +1344,26 @@ impl<L: NameLookup> Writer<'_, L> {
                 Ok(())
             }
         }
+    }
+
+    fn piercing_weapon(
+        &self,
+        weapon: &PiercingWeapon,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        put_boolean(output, weapon.deals_knockback);
+        put_boolean(output, weapon.dismounts);
+        self.optional(weapon.sound.as_ref(), output, Self::sound_event)?;
+        self.optional(weapon.hit_sound.as_ref(), output, Self::sound_event)
+    }
+
+    fn swing_animation(
+        &self,
+        swing: &SwingAnimation,
+        output: &mut Vec<u8>,
+    ) -> Result<(), WireError> {
+        self.list_id(&SwingKind::ALL, swing.kind, output)?;
+        put_var_int(output, swing.duration);
+        Ok(())
     }
 }
