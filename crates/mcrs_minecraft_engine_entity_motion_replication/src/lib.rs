@@ -3,6 +3,8 @@ mod assign_ids;
 mod departures;
 mod entity_motion_replication_plugin;
 mod hold_unseen;
+mod mob_news;
+mod publish_mob_attributes;
 mod publish_motion;
 mod published_tile;
 mod subject;
