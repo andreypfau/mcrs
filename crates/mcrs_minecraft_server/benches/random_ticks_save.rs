@@ -214,6 +214,8 @@ struct Reads<'r> {
 impl BlockBehaviour<Bench> for Reads<'_> {
     type Memory = ();
 
+    type Shared = ();
+
     fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
         match self.rows.get(state.index()) {
             Some(Some(_)) => RandomTicks::BLOCK,
@@ -599,6 +601,7 @@ fn random_ticks_on_a_save(c: &mut Criterion) {
                 &mut volume,
                 &env,
                 &mut (),
+                &(),
                 picks,
                 &mut out,
                 spread,

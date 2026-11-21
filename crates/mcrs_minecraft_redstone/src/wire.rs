@@ -7,7 +7,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::{Connection, Kind};
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::power::{MAX_SIGNAL, WireSignals, best_neighbour_signal, neighbour_state, state_at};
 use crate::rules::{RedstoneRules, WireEvaluator};
 use crate::table::RedstoneTable;
@@ -170,6 +170,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let direct = best_neighbour_signal(cx, table, pos, WireSignals::Ignore);
     if direct == MAX_SIGNAL {
@@ -230,6 +231,7 @@ pub(crate) fn update_power<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let target = target_power(cx, table, pos);
     if table.power(state) == target {
@@ -318,6 +320,7 @@ pub(crate) fn placed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if is_wire(table, old) {
         return;
@@ -374,6 +377,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if can_survive(cx, table, pos) {
         update_power(cx, table, rules, pos, state);

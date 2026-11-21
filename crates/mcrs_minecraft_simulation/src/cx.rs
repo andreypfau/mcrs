@@ -58,6 +58,7 @@ fn due_after(now: GameTick, delay: i32) -> GameTick {
 pub struct Cx<'a, K: Kinds, V, F, B: BlockBehaviour<K>> {
     pub(crate) shard: &'a mut BlockShard<K>,
     pub(crate) memory: Option<&'a mut B::Memory>,
+    pub(crate) shared: &'a B::Shared,
     pub(crate) volume: &'a mut V,
     pub(crate) out: &'a mut StepOutput<K>,
     pub(crate) facts: &'a F,
@@ -90,11 +91,13 @@ where
         out: &'a mut StepOutput<K>,
         env: &Env<'a, F, B, P>,
         memory: Option<&'a mut B::Memory>,
+        shared: &'a B::Shared,
         now: GameTick,
     ) -> Self {
         Self {
             shard,
             memory,
+            shared,
             volume,
             out,
             facts: env.facts,
@@ -138,6 +141,10 @@ where
             self.task_leaves();
         }
         self.memory.as_deref_mut()
+    }
+
+    pub fn shared(&self) -> &B::Shared {
+        self.shared
     }
 
     pub fn state(&mut self, pos: BlockPos) -> Result<BlockStateId, Unavailable> {

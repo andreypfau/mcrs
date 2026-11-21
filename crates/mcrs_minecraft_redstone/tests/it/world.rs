@@ -8,13 +8,15 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
-use mcrs_minecraft_redstone::{BlockUse, Redstone, RedstoneMemory, RedstoneRules, RedstoneTable};
+use mcrs_minecraft_redstone::{
+    BlockUse, Redstone, RedstoneMemory, RedstoneRules, RedstoneSnapshot, RedstoneTable,
+};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{
-    BlockBehaviour, BlockFacts, BlockShard, BlockUpdateFlags, ChainOrigin, Cx, Env, GameTick,
-    KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput, SectionProperties,
-    ShardId, SimulatedSections, SimulationVolume, StepAt, StepOutput, SubTick, UpdateRequest,
-    VanillaOrder, step,
+    BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainOrigin, Cx, Env,
+    GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
+    SectionProperties, ShardId, SimulatedSections, SimulationVolume, StepAt, StepOutput, SubTick,
+    UpdateRequest, VanillaOrder, step,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
@@ -133,6 +135,8 @@ pub struct Rig {
 impl BlockBehaviour<TestKinds> for Rig {
     type Memory = RedstoneMemory;
 
+    type Shared = RedstoneSnapshot;
+
     fn block_tick<V: SimulationVolume, F: BlockFacts<TestKinds>>(
         &self,
         cx: &mut Cx<'_, TestKinds, V, F, Self>,
@@ -241,6 +245,8 @@ pub struct World {
     host: Host,
     shard: BlockShard<TestKinds>,
     pub memory: RedstoneMemory,
+    pub snapshot: RedstoneSnapshot,
+    pub events: Vec<BlockEvent<Id<Block>>>,
     rig: Rig,
     out: StepOutput<TestKinds>,
     pending: Vec<Message<TestKinds>>,
@@ -272,6 +278,8 @@ impl World {
             host: Host { volume },
             shard: BlockShard::new(),
             memory: RedstoneMemory::default(),
+            snapshot: RedstoneSnapshot::default(),
+            events: Vec::new(),
             rig: Rig {
                 redstone: Redstone::new(table().clone(), rules),
             },
@@ -388,6 +396,7 @@ impl World {
                 &mut self.host,
                 &env,
                 &mut self.memory,
+                &self.snapshot,
                 input,
                 &mut self.out,
             )
@@ -397,6 +406,7 @@ impl World {
             self.out.report.chain_overflows, 0,
             "the chain limit was reached"
         );
+        self.events.append(&mut self.out.delivered);
         self.out.clear();
         self.now += 1;
         self.counter = 0;

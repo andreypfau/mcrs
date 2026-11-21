@@ -8,7 +8,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::Kind;
-use crate::memory::HasRedstoneMemory;
+use crate::memory::HasRedstoneSnapshot;
 use crate::power::attached_of;
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
@@ -85,16 +85,15 @@ pub(crate) fn removed<K, V, F, B>(
     }
 }
 
-fn projectiles_in<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos) -> u16
+fn projectiles_in<K, V, F, B>(cx: &Cx<'_, K, V, F, B>, pos: BlockPos) -> u16
 where
     K: Kinds,
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
-        .map_or(0, |memory| memory.redstone().projectiles_in(pos))
+    cx.shared().redstone().projectiles_in(pos)
 }
 
 pub(crate) fn block_tick<K, V, F, B>(
@@ -107,7 +106,7 @@ pub(crate) fn block_tick<K, V, F, B>(
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(kind @ Kind::Button { wooden }) = table.kind(state) else {
         return;
@@ -137,7 +136,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if !matches!(table.kind(state), Some(Kind::Button { wooden: true })) || table.powered(state) {
         return;

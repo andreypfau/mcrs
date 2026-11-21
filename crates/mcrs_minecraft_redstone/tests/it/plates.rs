@@ -92,7 +92,7 @@ fn the_signal_of_each_plate_kind_follows_its_occupants() {
 }
 
 fn press(world: &mut World, plate: BlockPos, presence: Presence) {
-    world.memory.plates.insert(plate, presence);
+    world.snapshot.plates.insert(plate, presence);
     world.request_update(UpdateRequest::Single {
         target: plate,
         block: Facts.block_of(world.state(plate)),
@@ -117,7 +117,7 @@ fn an_item_presses_an_oak_plate_and_it_releases_twenty_ticks_after_the_item_goes
     assert!(world.powered(plate), "the item presses the plate");
     assert!(world.lit(lamp), "the plate powers the lamp beside it");
 
-    world.memory.plates.clear();
+    world.snapshot.plates.clear();
     world.ticks(19);
     assert!(world.powered(plate), "the plate waits for its check");
     world.tick();

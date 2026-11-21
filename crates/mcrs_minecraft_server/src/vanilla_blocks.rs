@@ -31,7 +31,9 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
-use mcrs_minecraft_redstone::{HasRedstone, Redstone, RedstoneMemory, RedstoneRules};
+use mcrs_minecraft_redstone::{
+    HasRedstone, Redstone, RedstoneMemory, RedstoneRules, RedstoneSnapshot,
+};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
@@ -68,6 +70,12 @@ impl HasRedstone for VanillaBlocks {
 
 impl BlockBehaviour<WorldKinds> for VanillaBlocks {
     type Memory = RedstoneMemory;
+
+    type Shared = RedstoneSnapshot;
+
+    fn reach(&self, state: BlockStateId) -> u8 {
+        self.redstone.reach(state)
+    }
 
     fn block_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
         &self,

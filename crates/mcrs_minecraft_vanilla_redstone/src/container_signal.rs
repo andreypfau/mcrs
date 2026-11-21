@@ -3,14 +3,14 @@ use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_entity::{ContainerData, GeneratedBlockEntity};
-use mcrs_minecraft_engine::block_simulation::{BlockMemory, BlockSimulation};
+use mcrs_minecraft_engine::block_simulation::{BlockShared, BlockSimulation};
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntity, BlockEntityPos};
 use mcrs_minecraft_item::ItemStackWithSlot;
 use mcrs_minecraft_item::definition::Items;
 use mcrs_minecraft_item_stack::{Kind, MaxStackSize};
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_redstone::{AnalogSource, HasRedstoneMemory, MAX_SIGNAL};
+use mcrs_minecraft_redstone::{AnalogSource, HasRedstoneSnapshot, MAX_SIGNAL};
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_simulation::{BlockBehaviour, UpdateRequest};
 
@@ -71,11 +71,11 @@ pub(crate) fn publish_container_signals<B>(
     blocks: Res<Blocks>,
     items: Res<Items>,
     table: Res<ItemTable>,
-    mut memory: ResMut<BlockMemory<B>>,
+    mut shared: ResMut<BlockShared<B>>,
     mut simulation: ResMut<BlockSimulation>,
 ) where
     B: BlockBehaviour<WorldKinds> + Send + Sync + 'static,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     for (pos, entity) in &changed {
         let Some((block, container)) = container_of(&entity.0) else {
@@ -86,7 +86,7 @@ pub(crate) fn publish_container_signals<B>(
             .and_then(|entry| entry.container_slots)
             .unwrap_or(0);
         let signal = container_signal(&container.items, slots, &items, &table);
-        let analog = &mut memory.0.redstone().analog;
+        let analog = &mut shared.0.redstone_mut().analog;
         if analog.get(&pos.0).copied() == Some(AnalogSource::Container(signal)) {
             continue;
         }

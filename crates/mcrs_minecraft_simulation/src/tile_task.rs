@@ -80,6 +80,7 @@ impl<K: Kinds> TileTask<K> {
         world: &V,
         base: &BlockShard<K>,
         env: &Env<'_, F, B, P>,
+        shared: &B::Shared,
         picks: RandomPicks<'_>,
         now: GameTick,
     ) where
@@ -96,7 +97,15 @@ impl<K: Kinds> TileTask<K> {
             overlay: &mut self.overlay,
             last: Cell::default(),
         };
-        let mut cx = Cx::new(&mut self.shard, &mut volume, &mut self.out, env, None, now);
+        let mut cx = Cx::new(
+            &mut self.shard,
+            &mut volume,
+            &mut self.out,
+            env,
+            None,
+            shared,
+            now,
+        );
         cx.task = Some(TileCx {
             region,
             base,
@@ -118,6 +127,7 @@ impl<K: Kinds> TileTask<K> {
         volume: &mut V,
         env: &Env<'_, F, B, P>,
         memory: &mut B::Memory,
+        shared: &B::Shared,
         out: &mut StepOutput<K>,
         now: GameTick,
         reruns: &mut Vec<usize>,
@@ -134,7 +144,7 @@ impl<K: Kinds> TileTask<K> {
         out.writes.append(&mut self.out.writes);
         out.destroyed.append(&mut self.out.destroyed);
         out.report.absorb(self.out.report);
-        let mut cx = Cx::new(shard, volume, out, env, Some(memory), now);
+        let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
         for mut message in self.out.outbound.drain(..) {
             message.stamp = cx.shard.clock.stamp(now);
             cx.apply(message);

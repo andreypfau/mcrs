@@ -9,7 +9,7 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 use crate::diode::{
     LateralInputs, feeds_a_diode, input_signal, lateral_signal, survives_on, update_front,
 };
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
 
@@ -31,6 +31,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     lateral_signal(cx, table, pos, facing, LateralInputs::Diodes) > 0
 }
@@ -46,6 +47,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -83,6 +85,7 @@ pub(crate) fn block_tick<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -123,6 +126,7 @@ pub(crate) fn placed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -168,6 +172,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     match from {
         Direction::Down => {

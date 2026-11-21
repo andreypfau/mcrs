@@ -48,12 +48,17 @@ fn validate<K: Kinds, V: Volume>(
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the step reads or writes"
+)]
 pub fn step<K, V, F, B, P>(
     shard: &mut BlockShard<K>,
     at: StepAt,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
     memory: &mut B::Memory,
+    shared: &B::Shared,
     input: PhaseInput<'_, K>,
     out: &mut StepOutput<K>,
 ) -> Result<(), StepError>
@@ -66,7 +71,7 @@ where
 {
     shard.chain.reset();
     validate(&*volume, env.kind, input.inbound)?;
-    let mut cx = Cx::new(shard, volume, out, env, Some(memory), at.now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, at.now);
     ingress(&mut cx, input);
     match at.phase {
         Phase::Ingress => {}

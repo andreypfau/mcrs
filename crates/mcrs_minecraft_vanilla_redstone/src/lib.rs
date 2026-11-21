@@ -1,5 +1,7 @@
+mod block_entities;
 mod comparator_store;
 mod container_signal;
+mod daylight_signal;
 mod moving_blocks;
 mod moving_store;
 mod plate_presence;

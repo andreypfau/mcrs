@@ -6,10 +6,13 @@ use mcrs_minecraft_engine::block_simulation::BlockMemory;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, BlockEntityPos, spawn_block_entities,
+    BlockEntity, BlockEntityPos, SectionBlockEntities, spawn_block_entities,
 };
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_redstone::{HasRedstoneMemory, MAX_SIGNAL};
 use mcrs_minecraft_simulation::BlockBehaviour;
+
+use crate::block_entities::entity_at;
 
 pub(crate) fn restore_comparator_outputs<B>(
     loaded: Query<(&BlockEntityPos, &BlockEntity), Added<BlockEntity>>,
@@ -34,8 +37,10 @@ pub(crate) fn restore_comparator_outputs<B>(
 
 pub(crate) fn persist_comparator_outputs<B>(
     mut memory: ResMut<BlockMemory<B>>,
-    dims: Query<Entity, With<Dimension>>,
-    mut entities: Query<(&BlockEntityPos, &mut BlockEntity)>,
+    dims: Query<(Entity, &SectionIndex), With<Dimension>>,
+    sections: Query<&SectionBlockEntities>,
+    positions: Query<&BlockEntityPos>,
+    mut entities: Query<&mut BlockEntity>,
     mut commands: Commands,
 ) where
     B: BlockBehaviour<WorldKinds> + Send + Sync + 'static,
@@ -45,7 +50,7 @@ pub(crate) fn persist_comparator_outputs<B>(
     if redstone.comparator_dirty.is_empty() {
         return;
     }
-    let Ok(dimension) = dims.single() else {
+    let Ok((dimension, index)) = dims.single() else {
         redstone.comparator_dirty.clear();
         return;
     };
@@ -54,10 +59,8 @@ pub(crate) fn persist_comparator_outputs<B>(
         let Some(signal) = redstone.comparators.get(&pos).copied() else {
             continue;
         };
-        let found = entities
-            .iter_mut()
-            .find(|(at, _)| at.0 == pos)
-            .map(|(_, entity)| entity);
+        let found = entity_at(index, &sections, &positions, pos)
+            .and_then(|entity| entities.get_mut(entity).ok());
         match found {
             Some(mut entity) => {
                 if let GeneratedBlockEntity::Comparator { output_signal, .. } = &mut entity.0 {
