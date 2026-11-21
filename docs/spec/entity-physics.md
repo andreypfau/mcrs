@@ -2432,7 +2432,9 @@ the apply step of the next tick (PHY-CMP-015). The write reaches its target at m
 The tick of the target in the next tick runs without the write. The results of that tick, also
 the writes of the target to other entities, can thus differ from a layout of one cell. Example: a
 late hit kills the target. In the next tick, the target is still alive, and it can hit another
-entity.
+entity. The bound of one tick applies to the arrival of the write, not to its results. A result that
+differs can change each later tick of the target. It can also change each later tick of an entity
+that the difference reaches through a write or a read, also through a chain of them.
 
 Exception "action across a cell boundary": an entity can start a block action in a column that
 another cell owns. This can be a step action, an inside action or a fall action. The owner applies that action one
@@ -2894,7 +2896,7 @@ not such a write, because each entity computes its own push (PHY-CMP-012). The b
 not use this rule. Its writes apply in the same tick (PHY-BLK-001). PHY-DEV-005 records this
 relaxation.
 
-Provenance: `source_suggested`. Kind: deviation (PHY-DEV-005). Confidence: medium.
+Provenance: `design`. Kind: deviation (PHY-DEV-005). Confidence: medium.
 
 **PHY-CMP-016** (`source_suggested`, semantic, confidence: medium). A rule that reads the network
 id for the choice of a tick reads the phase offset in its place. The item rest cycle of

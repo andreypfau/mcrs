@@ -729,10 +729,16 @@ stays a write of the block domain (PHY-BLK-001). The cooldown makes the order of
 Provenance: `design`. Kind: deviation (DMG-DEV-002, DMG-DEV-003, DMG-DEV-004). Confidence: medium.
 
 **DMG-ORD-003** (`black_box_confirmed`, semantic, confidence: high). Two hits on one entity in one
-tick, with the amounts `a` and `b` and no reduction, change the health by `max(a, b)` in each order.
+tick, with the amounts `a` and `b`, no reduction and no damage type of the tag `bypasses_cooldown`,
+change the health by `max(a, b)` in each order.
 The first is a full hit. The second is a partial hit with the difference, or a rejected hit. The
 order changes only the damage type of the damage event and of the death. Armor and `resistance`
 are not linear, so with them the total can differ by a small amount.
+
+A hit with a damage type of the tag `bypasses_cooldown` is always a full hit (DMG-HIT-003), so the
+order then changes the health. Example: the health is 20, a hit of 2 has that tag, and a hit of 5
+does not. The order "2, then 5" gives 15. The order "5, then 2" gives 13. The tag is empty in the
+corpus, so only a data pack makes this case.
 
 ## 12. Out of scope
 
@@ -789,8 +795,8 @@ are not linear, so with them the total can differ by a small amount.
   knockback of such a hit applies after the push of the tick, not before it. The velocity after
   the tick can differ.
 - **Bug reference:** none.
-- **Test:** a differential test with such a data pack compares the health and the packets, not the
-  velocity after the hit.
+- **Test:** a differential test with such a data pack compares the health. It does not compare the
+  velocity, the position or the packets that carry them, for example `set_entity_motion`.
 
 ### DMG-DEV-003: Inside effects after a death by an own hit
 
@@ -803,14 +809,14 @@ are not linear, so with them the total can differ by a small amount.
   still run on the entity that then dies. Examples are an ignition, an extinguish and the freeze of
   powder snow. mcrs does not preview the own hits, and it does not stop the tick early. A preview
   cannot know which hit a user of the library cancels before the apply step.
-- **Visible to the client:** yes, for one tick. In the death tick, the burning flag, the fire ticks
-  and the frozen ticks of the dying entity can differ. In the next tick, the dying entity does its
-  block effects step again (DMG-DTH-004). An entity that stays in the block then gets the effects
-  that the reference gives.
+- **Visible to the client:** yes. In the death tick, the burning flag, the fire ticks and the frozen
+  ticks of the dying entity can differ. In the next tick, the dying entity does its block effects
+  step again (DMG-DTH-004), and it gets the effects that the reference gives. The fire ticks and the
+  frozen ticks carry over from tick to tick (ENV-FIR-002, ENV-FRZ-002). Thus their difference can
+  stay after the death tick, until the counters reach the same limit.
 - **Bug reference:** none.
-- **Test:** a differential test that compares the flags of a dying entity in its death tick uses
-  this entry. It accepts a difference of the burning flag, the fire ticks and the frozen ticks in
-  that tick.
+- **Test:** a differential test that compares the flags of a dying entity uses this entry. From the
+  death tick on, it accepts a difference of the burning flag, the fire ticks and the frozen ticks.
 
 ### DMG-DEV-004: Hits of other entities in the order of the writer key
 
@@ -823,16 +829,17 @@ are not linear, so with them the total can differ by a small amount.
 - **Reason:** in mcrs, the apply step orders the hits by the writer key (PHY-CMP-015). Let B have a
   lower UUID than X. Then the attack of B applies first and is the full hit. The `hot_floor` hit and
   the fall hit of X are then partial hits or rejected hits. The tick list of the reference depends
-  on the order of the births, the loads and the cell layout. The writer key is total and fixed, so
-  the result does not depend on the thread count or on the cell layout.
+  on the order of the births, the loads and the cell layout. The writer key is total and fixed.
+  Thus, for the writes that reach the same apply step, the result does not depend on the thread
+  count or on the cell layout. A write from another cell can apply one tick late (PHY-CMP-015).
 - **Visible to the client:** yes, when two writers hit one target in one tick. The damage type of
   `damage_event` and of the death can differ. Only a full hit gives knockback, `hurt_animation` and
-  a hurt sound (DMG-HIT-005), so these can differ too. Without reductions, the health after the
-  tick is the same (DMG-ORD-003).
+  a hurt sound (DMG-HIT-005), so these can differ too. Without reductions and without the tag
+  `bypasses_cooldown`, the health after the tick is the same (DMG-ORD-003).
 - **Bug reference:** none.
 - **Test:** when two writers hit one target in one tick without a reduction of armor or
-  `resistance`, a differential test compares the health after the tick. With a reduction, it does
-  not compare the health (DMG-ORD-003). It does not compare the damage type of `damage_event`, the knockback, the
+  `resistance`, and no damage type has the tag `bypasses_cooldown`, a differential test compares
+  the health after the tick. Else it does not compare the health (DMG-ORD-003). It does not compare the damage type of `damage_event`, the knockback, the
   `hurt_animation` packet or the hurt sound of that tick.
 
 ## 14. Unresolved

@@ -82,7 +82,12 @@ pass.
    The engine adds no system to this set. A mutable queue, not an observer: the order is stable,
    the hits of a tick are one batch, and no dispatch runs for each hit.
 3. `Apply`. `apply_hits` sorts the queue by (`EntityUuid` of the target, `WriterKey`, write tick,
-   sequence). It calls `hurt` for each request. It writes `Vitals` only on a real change.
+   sequence). It calls `hurt` for each request. It writes `Vitals` only on a real change. The
+   attack writes its sweep hits (ATK-SWP-002) in `Collect`, together with the primary hit, and
+   `Filter` sees them as other requests. Each sweep hit names its primary hit. `apply_hits` holds
+   the sweep hits back from the sorted queue. After the last request of the queue, it applies the
+   sweep hits of each accepted primary hit, in the order of PHY-CMP-015 (ATK-ORD-003). It drops
+   the sweep hits of a rejected primary hit.
 4. `Report`. `apply_hits` has written one `Damaged { target, source, report }` for each accepted hit
    and one `Died { target, position, source }` for each death. `position` is the position of the
    target (DMG-DTH-002). Consumers run here.
