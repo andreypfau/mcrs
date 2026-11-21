@@ -175,9 +175,9 @@ fn release_remote(world: &mut World, session: PlayerSession) {
 mod tests {
     use super::*;
     use bevy_app::App;
-    use mcrs_minecraft_engine_world::entity::EntityUuid;
     use mcrs_minecraft_engine_world::entity::player::Player;
     use mcrs_minecraft_engine_world::world::dimension::Dimension;
+    use mcrs_minecraft_entity_key::EntityUuid;
     use mcrs_minecraft_game_mode::PlayerGameMode;
     use mcrs_minecraft_protocol::uuid::Uuid;
     use mcrs_minecraft_swing::{SwingModifiers, SwingTracker};
