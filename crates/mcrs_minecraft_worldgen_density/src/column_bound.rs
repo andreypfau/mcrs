@@ -1,7 +1,7 @@
 use crate::bounds::{Bounds, node_bounds};
 use crate::cell::{CELL_BOUNDS_SLACK, CellBounds, interpolation_hull};
 use crate::program::{Node, NodeId, Program, Seed, SeededPlan, Workspace};
-use crate::surface_levels::Owner;
+use crate::router_key::RouterKey;
 use glam::IVec3;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
@@ -442,17 +442,17 @@ pub struct ColumnBoundScratch {
     stack: Vec<NodeId>,
     columns: Vec<Interval>,
     plane: Option<SampleGrid>,
-    owner: Option<Owner>,
+    owner: Option<RouterKey>,
     epoch: u64,
     band: u64,
 }
 
 impl ColumnBoundScratch {
-    pub(crate) fn bind(&mut self, owner: Owner) {
+    pub(crate) fn bind(&mut self, owner: RouterKey) {
         self.owner = Some(owner);
     }
 
-    pub(crate) fn serves(&self, owner: Owner) -> bool {
+    pub(crate) fn serves(&self, owner: RouterKey) -> bool {
         self.owner == Some(owner)
     }
 }

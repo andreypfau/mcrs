@@ -16,6 +16,7 @@ pub mod node;
 pub mod program;
 pub mod proto;
 pub mod router;
+pub mod router_key;
 pub mod surface_levels;
 mod window;
 

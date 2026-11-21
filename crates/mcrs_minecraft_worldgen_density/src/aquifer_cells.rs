@@ -1,12 +1,12 @@
 use crate::aquifer::{FluidStatus, X_SPACING_SHIFT, Y_SPACING, anchor, flat};
 use crate::router::NoiseRouter;
-use crate::surface_levels::Owner;
+use crate::router_key::RouterKey;
 use glam::IVec3;
 use mcrs_minecraft_random::{Random, RandomSource};
 
 #[derive(Default, Debug)]
 pub struct AquiferCells {
-    owner: Option<Owner>,
+    owner: Option<RouterKey>,
     min_grid: IVec3,
     max_grid: IVec3,
     size: IVec3,
@@ -21,7 +21,7 @@ impl AquiferCells {
         };
         let min_grid = anchor(min.x, min.y, min.z) - IVec3::Y;
         let max_grid = anchor(max.x, max.y, max.z) + IVec3::ONE;
-        let owner = Owner::of(router);
+        let owner = router.key();
         if self.owner == Some(owner)
             && self.min_grid.cmple(min_grid).all()
             && self.max_grid.cmpge(max_grid).all()

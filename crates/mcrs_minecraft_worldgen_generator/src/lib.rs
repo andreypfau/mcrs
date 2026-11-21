@@ -42,6 +42,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseRouter, TEMPERATURE, VEGETATION,
 };
+use mcrs_minecraft_worldgen_density::router_key::RouterKey;
 use mcrs_minecraft_worldgen_density::surface_levels::SurfaceLevels;
 use mcrs_voxel::{BlockStateId, ColumnPos};
 use std::cell::RefCell;
@@ -58,7 +59,7 @@ struct CellLattice {
 
 #[derive(Default)]
 struct LatticePlanes {
-    owner: Option<(usize, u64)>,
+    owner: Option<RouterKey>,
     current: HashMap<i64, Box<[f32]>>,
     previous: HashMap<i64, Box<[f32]>>,
 }
@@ -67,7 +68,7 @@ const KEPT_COLUMNS: usize = 2048;
 
 impl LatticePlanes {
     fn retarget(&mut self, router: &NoiseRouter) {
-        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
+        let owner = router.key();
         if self.owner != Some(owner) {
             self.owner = Some(owner);
             self.current.clear();

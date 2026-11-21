@@ -145,6 +145,45 @@ fn kept_surface_levels_do_not_change_a_field() {
 }
 
 #[test]
+fn caches_filled_by_a_replaced_router_are_not_reused() {
+    let mut router = overworld(42, |_| {});
+    let volume = column_volume(&router, 0, 0);
+    let (min, max) = (volume.min_block(), volume.max_block());
+    let mut kept = SurfaceLevels::default();
+    let mut warm_cells = AquiferCells::default();
+    let mut ws = Workspace::new();
+    let mut warm = FluidField::new(&router, &mut kept, &mut warm_cells, min, max);
+    for y in min.y..=max.y {
+        warm.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut ws));
+    }
+    warm.keep_surface_levels(&mut kept);
+    router = overworld(42, |raw| {
+        let surface = raw["aquifers"]["surface_level"].take();
+        raw["aquifers"]["surface_level"] = serde_json::json!({
+            "type": "minecraft:mul",
+            "left": 0.5,
+            "right": surface,
+        });
+        raw["aquifers"]["fluid_level_floodedness"] = serde_json::json!(1.0);
+    });
+    let mut cold_cells = AquiferCells::default();
+    let mut warm = FluidField::new(&router, &mut kept, &mut warm_cells, min, max);
+    let mut cold = FluidField::new(
+        &router,
+        &mut SurfaceLevels::default(),
+        &mut cold_cells,
+        min,
+        max,
+    );
+    let mut cold_ws = Workspace::new();
+    for y in min.y..=max.y {
+        let got = warm.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut ws));
+        let want = cold.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut cold_ws));
+        assert_eq!(got, want, "block 0,{y},0");
+    }
+}
+
+#[test]
 fn a_louder_barrier_widens_the_shell_and_stays_exact() {
     let quiet = overworld(42, |_| {});
     let loud = overworld(42, |raw| {

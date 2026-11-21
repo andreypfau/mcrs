@@ -4,7 +4,7 @@ use crate::cell::CellBounds;
 use crate::column_bound::{ColumnBound, ColumnBoundScratch};
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{DensityFunctionHolder, ValueRange};
-use crate::surface_levels::Owner;
+use crate::router_key::{self, RouterKey};
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
@@ -189,6 +189,7 @@ pub struct NoiseRouter {
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
     column_bound: Option<ColumnBound>,
+    build: u64,
 }
 
 impl NoiseRouter {
@@ -220,6 +221,7 @@ impl NoiseRouter {
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
             column_bound,
+            build: router_key::next_build(),
         }
     }
 
@@ -240,6 +242,11 @@ impl NoiseRouter {
     #[must_use]
     pub fn aquifer(&self) -> Option<&AquiferConfig> {
         self.aquifer.as_ref()
+    }
+
+    #[must_use]
+    pub fn key(&self) -> RouterKey {
+        RouterKey::new(self.build, self.world_seed)
     }
 }
 
@@ -283,7 +290,7 @@ impl NoiseRouter {
         scratch: &ColumnBoundScratch,
         out: &mut [f32],
     ) {
-        let seeded = scratch.serves(Owner::of(self))
+        let seeded = scratch.serves(self.key())
             && self
                 .column_bound
                 .as_ref()
@@ -351,7 +358,7 @@ impl NoiseRouter {
         scratch: &mut ColumnBoundScratch,
     ) -> i32 {
         let top = lattice.size().y - 1;
-        scratch.bind(Owner::of(self));
+        scratch.bind(self.key());
         self.column_bound.as_ref().map_or(top, |bound| {
             bound.first_air_row(&self.program, &self.cell_bounds, ws, lattice, hint, scratch)
         })
