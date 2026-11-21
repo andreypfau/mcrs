@@ -54,17 +54,25 @@ impl NoiseBands {
             _ => None,
         };
         let mut by_guard = Vec::with_capacity(tape.len());
+        let mut tails: Vec<Option<NoiseBand>> = vec![None; tape.len()];
+        let mut members = Vec::new();
         let mut entries = Vec::new();
         for pc in 0..tape.len() {
+            if let Some(&Some(tail)) = tails.get(pc) {
+                by_guard.push((tail.end - tail.first >= 2).then_some(tail));
+                continue;
+            }
             let Some((head, entry, mut next)) = threshold_at(pc) else {
                 by_guard.push(None);
                 continue;
             };
             let first = entries.len();
             entries.push(entry);
+            members.clear();
             while let Some((noise, entry, skip_to)) = threshold_at(next as usize)
                 && noise == head
             {
+                members.push(next as usize);
                 entries.push(entry);
                 next = skip_to;
             }
@@ -73,13 +81,19 @@ impl NoiseBands {
                 by_guard.push(None);
                 continue;
             }
-            by_guard.push(Some(NoiseBand {
+            let band = NoiseBand {
                 noise: head.noise,
                 is_3d: head.is_3d,
                 first: first as u32,
                 end: entries.len() as u32,
                 otherwise: next,
-            }));
+            };
+            for (at, &member) in (band.first + 1..).zip(&members) {
+                if let Some(slot @ None) = tails.get_mut(member) {
+                    *slot = Some(NoiseBand { first: at, ..band });
+                }
+            }
+            by_guard.push(Some(band));
         }
         Self {
             by_guard: by_guard.into_boxed_slice(),

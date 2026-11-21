@@ -740,7 +740,7 @@ where
             } => {
                 if hi <= true_at_and_below {
                     Some(true)
-                } else if lo >= false_at_and_above {
+                } else if lo >= false_at_and_above && lo > true_at_and_below {
                     Some(false)
                 } else {
                     None
@@ -1513,7 +1513,97 @@ fn open_vein_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile::tests::build;
+    use crate::compile::tests::{
+        TEST_BLOCKS, biome_ids, build, material_corpus, resolve_block, settings,
+    };
+    use crate::compile::{MaterialInputs, build_router_and_material};
+    use crate::proto::{
+        MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
+    };
+    use mcrs_minecraft_block_predicate::block_state::BlockState;
+    use mcrs_minecraft_resource::ResourceLocationBuf;
+    use mcrs_minecraft_value_provider::VerticalAnchor;
+    use mcrs_minecraft_worldgen_testing::registry;
+
+    fn block(name: &str) -> MaterialRuleHolder {
+        MaterialRuleHolder::Owned(Box::new(MaterialRule::Block {
+            result_state: BlockState {
+                name: ResourceLocationBuf::minecraft(name).unwrap(),
+                properties: None,
+            },
+        }))
+    }
+
+    #[test]
+    fn a_settled_run_agrees_with_the_point_rule_where_gradient_anchors_meet() {
+        let (mut rules, conditions) = material_corpus();
+        let id = ResourceLocationBuf::minecraft("meeting_gradient").unwrap();
+        let gradient =
+            MaterialConditionHolder::Owned(Box::new(MaterialCondition::VerticalGradient {
+                random_name: id.clone(),
+                true_at_and_below: VerticalAnchor::Absolute(10),
+                false_at_and_above: VerticalAnchor::Absolute(10),
+            }));
+        let rule = MaterialRule::Sequence {
+            sequence: vec![
+                MaterialRuleHolder::Owned(Box::new(MaterialRule::Condition {
+                    if_true: gradient,
+                    then_run: block("bedrock"),
+                })),
+                block("stone"),
+            ],
+        };
+        rules.insert(id.clone(), MaterialRuleHolder::Owned(Box::new(rule)));
+        let mut settings = settings("overworld");
+        settings.material_rule = id;
+        let inputs = MaterialInputs {
+            rules: &rules,
+            conditions: &conditions,
+            block: &resolve_block,
+            biomes: &biome_ids,
+        };
+        let (router, material) = build_router_and_material(
+            &settings,
+            &registry("density_function"),
+            &registry("noise"),
+            42,
+            TEST_BLOCKS,
+            &inputs,
+        )
+        .unwrap();
+        let top = router.noise.min_y + router.noise.height as i32 - 1;
+        let mut scratch = MaterialScratch::default();
+        let mut eval = MaterialEval::new(
+            &router,
+            &material,
+            &mut scratch,
+            |_, _, _| 0,
+            |_, _, _, _, _| false,
+            0,
+            0,
+            top,
+            &[0],
+        );
+        eval.begin_strip(0, 0, 0, 0);
+        let mut settled = Vec::new();
+        eval.settled_runs(20, 10, 20, 1, NO_WATER, &mut settled);
+
+        let mut covered = 0;
+        for &(lo, hi, state) in &settled {
+            for y in lo..=hi {
+                eval.update_y(21 - y, y - 9, NO_WATER, y);
+                let expected = eval.apply();
+                let got = match state {
+                    SettledState::Block(block) => block,
+                    SettledState::Resume(pc) => eval.apply_from(pc),
+                    SettledState::Bandlands => eval.bandlands(),
+                };
+                assert_eq!(got, expected, "settled state differs at y {y}");
+                covered += 1;
+            }
+        }
+        assert_eq!(covered, 11, "the run was not settled: {settled:?}");
+    }
 
     #[test]
     fn every_positive_vein_density_lies_in_an_open_vein_row() {
