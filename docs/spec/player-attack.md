@@ -377,8 +377,8 @@ It does these steps:
    direction `(sin(r), -cos(r))`.
 5. Send the sweep particle (ATK-NET-006).
 
-The sweep sets no last-hit record and adds no exhaustion. The order of the hits of step 4 is
-unspecified. Each hit is on a different entity, so the order changes no health.
+The sweep sets no last-hit record and adds no exhaustion. ATK-ORD-003 states the place and the
+order of the hits of step 4.
 
 A player with no modifier has `q = 0`, so each sweep hit has the amount 1.0.
 
@@ -524,6 +524,15 @@ next tick. The exact tick is unspecified.
 
 Provenance: `source_suggested`. Kind: unspecified. Confidence: medium.
 
+**ATK-ORD-003** Each hit of an attack is a write of PHY-CMP-015 (`entity-physics.md`) with the
+writer key of the attacker. The sweep hits of ATK-SWP-002 are also such writes. The primary hit
+applies at its place in the sorted queue. When the primary hit is accepted, its sweep hits apply in
+the same apply step, after each other write of that step. Among themselves, the sweep hits apply in
+the order of PHY-CMP-015. A rejected primary hit gives no sweep hit. ATK-DEV-003 records the
+difference.
+
+Provenance: `design`. Kind: deviation (ATK-DEV-003). Confidence: medium.
+
 ## 10. The edition parameters
 
 **ATK-EDN-001** These values differ between the editions. The rules of this document state the
@@ -586,6 +595,21 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
   knockback can differ by a small amount.
 - **Bug reference:** none.
 - **Test:** a differential test compares no velocity of a player target after a partial hit.
+
+### ATK-DEV-003: The sweep hits apply after the other writes of the tick
+
+- **Rule:** ATK-ORD-003.
+- **Reference:** the sweep hits apply directly after the accepted primary hit (ATK-DMG-004). They
+  thus apply before the hits of the entity ticks of the same tick.
+- **Reason:** the apply step applies the writes in the order of the target key (PHY-CMP-015). A
+  sweep target can have a lower key than the primary target. Its place in the queue has then passed
+  when the primary hit is accepted. The sweep hits after the other writes keep the acceptance
+  condition and a fixed order.
+- **Visible to the client:** yes, when another writer hits a sweep target in the same tick. The
+  sweep hit can then be a partial hit or a rejected hit, and the other hit the full hit.
+- **Bug reference:** none.
+- **Test:** a differential test does not compare a sweep target that another writer hits in the
+  same tick.
 
 ## 13. Unresolved
 

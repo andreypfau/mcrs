@@ -424,9 +424,11 @@ The pass applies the rule through the sorted queue (DMG-ORD-002):
    its draw of step 3. It does not apply a crowd hit.
 2. When the step 2 count is more than `n - 1` and the draw is 0, the entity adds a crowd hit to
    the sorted queue. The crowd hit holds both counts and the neighbour list.
-3. The apply step takes the crowd hit at its place in the sorted queue. From both counts it
-   subtracts each entity of the neighbour list that died in this tick and has a lower order key.
-   An entity counts only when it was a candidate: `pushes(own, dead)`, and the boxes intersect.
+3. The apply step takes the crowd hit at its place in the sorted queue. It finds each entity of
+   the neighbour list that died in this tick and has a lower order key. An entity counts only when
+   it was a candidate: `pushes(own, dead)`, and the boxes intersect. The apply step subtracts each
+   such entity from the step 2 count. It subtracts it from the step 4 count only when that count
+   contains it, thus only when the entity was not a passenger.
    The apply step does no second query of the entities.
 4. When the step 4 count is still more than `n - 1`, the apply step applies the crowd hit. A death
    from that hit joins the deaths that step 3 subtracts for the later entities.
@@ -699,8 +701,9 @@ that the tick of the entity gives to itself in step 8 and later:
 The tick of the entity reads the block at the effect position from the block copy of the pass
 (PHY-CMP-009). It adds the own hits to the sorted queue with its own writer key, in the order
 of DMG-ORD-001 and ENV-ORD-001. The apply step applies them in that order (PHY-CMP-015). The hits of
-step 2, the base entity tick, apply at their step in the tick. A death there changes the AI step
-and the travel step of the same tick (DMG-DTH-004).
+step 2, the base entity tick, apply at their step in the tick, in the order of PHY-CMP-015. The
+apply step after the pass does not contain them. A death there changes the AI step and the travel
+step of the same tick (DMG-DTH-004).
 
 An own hit does not stop the tick of the entity. Each effect of step 8 runs, also when an earlier
 own hit of the tick kills the entity in the apply step. Thus, in the pass, an own hit never stops

@@ -74,8 +74,9 @@ The kernel reads no registry and no world. A custom damage type from a data pack
 `DamageSet` is a chain of four sets in `FixedUpdate`, in `TickSet::WorldWrite`, after the motion
 pass.
 
-1. `Collect`. Each source appends a `DamageRequest { target: Entity, hit: Hit, writer: WriterKey }`
-   to `PendingHits`. The motion step appends the own hits of an entity (step action, inside
+1. `Collect`. Each source appends a `DamageRequest { target: Entity, hit: Hit, writer: WriterKey,
+   tick: u64, sequence: u32 }` to `PendingHits`. `tick` is the write tick and `sequence` the order of
+   the writes of one writer to one target in that tick. A write from another cell keeps both values. The motion step appends the own hits of an entity (step action, inside
    actions, freezing, fall, crowd; DMG-ORD-002) through a per-thread queue. The system that fills `Defence` runs here.
 2. `Filter`. A user system takes `ResMut<PendingHits>`. It changes an amount or removes a request.
    The engine adds no system to this set. A mutable queue, not an observer: the order is stable,
@@ -94,8 +95,11 @@ Rules:
 - One apply point exists for each tick for the hits of other entities and the own hits of
   DMG-ORD-002. A hit that is written before `Apply` applies in the same tick.
 - Every hit source, also a hit of the base entity tick, writes a request to `PendingHits`. No source
-  calls `hurt` directly. The hits of the base entity tick apply at their step (DMG-ORD-002). The
-  issues of `docs/spec/environment-damage.md` decide how that step takes them from the queue.
+  calls `hurt` directly.
+- The hits of the base entity tick are the exception to the one apply point. They apply at their
+  step (DMG-ORD-002): that step takes its own requests from the queue and applies them in the order
+  of `Apply`. `Apply` after the pass takes all other requests. Later issues of
+  `docs/spec/environment-damage.md` decide the systems of that step and how `Filter` sees its requests.
 - The order of the queue does not depend on the thread order or on the spawn order.
 - A death removes nothing by itself. A layer 5 plugin appends a mob to the sorted despawn queue when its death
   time reaches 20 (DMG-DTH-003). A

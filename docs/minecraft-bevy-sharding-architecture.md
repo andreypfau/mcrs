@@ -566,9 +566,10 @@ Parallel map: each entity reads the frozen state, writes its own components,
         |
         v
 Collider groups, main pass, explosion groups;
-claims arbitrated after the block step;
-writes to other entities merged at the start of T+1
-by (target key, writer key, write tick, sequence)
+writes to other entities applied in one apply step after the pass of T
+by (target key, writer key, write tick, sequence);
+a write from another cell joins the apply step of T+1;
+claims arbitrated after the block step
         |
         v
 Block step applies block actions; rebuild the grid of dirty tiles

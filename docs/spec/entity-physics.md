@@ -2446,7 +2446,9 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 **PHY-INV-015** Let an implementation use PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012. Then the tick
 of each server-simulated entity reads only its own state and state from the end of the previous
-server tick. It writes only its own state, except for the deferred block actions of PHY-RCH-002.
+server tick. As an exception, it also reads each player in its state of PHY-CMP-021 from this tick.
+The copy of each cell must contain these player states before the entity pass. The tick writes
+only its own state, except for the deferred block actions of PHY-RCH-002.
 Thus the physics result, with the push, is independent of the order of the entities. It is also
 independent of the number of threads and of the split into cells.
 
@@ -2870,7 +2872,8 @@ writes in this order:
 3. the write tick: the tick in which the writer added the write, from the earliest;
 4. the sequence: the order in which one writer added its writes to one target in one tick.
 
-Thus the order does not depend on the thread count, the task split or the cell layout. A write of
+Thus, for one layout, the order does not depend on the thread count or the task split. The writes
+from the cell of the target have the same order in each layout. A write of
 tick `T` changes the target before the server sends the changes of tick `T`. The tick of the target
 in tick `T` does not see the write. The next tick of the target sees it. `entity-damage.md`,
 DMG-ORD-001, states the place of a hit.
@@ -2881,7 +2884,7 @@ as a claim can (PHY-CMP-017). The late write then joins the apply step of the ne
 tick is earlier, so it comes before each write of the same writer to the same target. The bound is
 one tick, only for the target of the write. This is the exception "write across a cell boundary" of
 PHY-INV-014. The health and the death of the target can then change one tick later than in a layout
-of one cell.
+of one cell. The order of the writes on that target can then also differ from a layout of one cell.
 
 A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
 not such a write, because each entity computes its own push (PHY-CMP-012). The block domain does

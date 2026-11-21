@@ -273,7 +273,7 @@ entity of another cell sends the write in the cell mail. The write joins the app
 of its own thread. No lock is taken: each thread owns its queue. The apply step runs once per tick, after the
 motion pass of the same tick, and the claim arbitration runs later in `WorldWrite`. At each of them, one serial system takes the queues of every thread. It sorts the entries by
 (`EntityUuid` of the target, `WriterKey`, write tick, sequence) and applies them. The order never uses the Bevy
-`Entity`. A write from another cell arrives in the cell mail and joins the apply step of `T + 1`. A claim from another cell arrives one tick late in the same way. The f64 sum order is then the same in each layout. No write waits for the start of
+`Entity`. A write from another cell arrives in the cell mail and joins the apply step of `T + 1`. A claim from another cell arrives one tick late in the same way. For one layout, the order and the f64 sum order do not depend on the thread count or the task split. The writes from the cell of the target keep the same order in each layout. A write from another cell can apply one tick later than in a layout of one cell, so a target can see another order there (PHY-DEV-005). No write waits for the start of
 the next tick, and `DomainInput` holds no write from the own cell. `WriterKey` and `YzxPos` move to
 `mcrs_minecraft_entity_key` (planned).
 
@@ -981,8 +981,8 @@ The server copy is the state in `PlayerRows`. Its velocity changes in the order 
 
 1. In `predict`, when an accepted move goes up from the ground, the copy jumps (PHY-INP-005).
 2. During the main pass, server entities push the copy and give it impulses. The copy is a push
-   neighbour with its state of PHY-CMP-021. These contributions are queue entries for the player;
-   they land in step 3, in the order of §3.7.
+   neighbour with its state of PHY-CMP-021. These contributions do not go through the apply step
+   of §3.7, because the player body layer keeps its own path; they land in step 3, in key order.
 3. The server part of the player runs after the main pass of the tiles near it, in parallel over
    players: it adds the pushes and impulses of step 2; multiplies the velocity by 0.98
    (PHY-GRV-009); sets small components to zero (PHY-GRV-008); applies the block effects without the
@@ -1163,7 +1163,7 @@ pub struct BodyGrid { tiles: BTreeMap<TileKey, GridTile> }
 
 The per-thread queues and the sorted queue (planned) are generic: the write, claim and expiry types come with the steps
 that fill them, and the kernel never reads them. An entry carries the target `EntityUuid`, a
-`WriterKey`, a sequence and the effect; the order never reads the Bevy `Entity`. `BlockOverlay` returns
+`WriterKey`, the write tick, a sequence and the effect; the order never reads the Bevy `Entity`. `BlockOverlay` returns
 no masks for a section with an overlay block, because the masks of the base do not know the overlay.
 
 The kernel functions take one `View` in place of the world, the bodies and the tables, and a
@@ -1175,7 +1175,7 @@ short.
 
 | Boundary | Why now |
 |----------|---------|
-| Queue entries with the target `EntityUuid`, a `WriterKey` and a sequence | one serial system applies them in a fixed order, for any thread count |
+| Queue entries with the target `EntityUuid`, a `WriterKey`, the write tick and a sequence | one serial system applies them in a fixed order, for any thread count |
 | `BlockOverlay` as a `CollisionWorld` | explosion groups run during `Simulate` and must not write blocks |
 | `ColliderEnds` ready per tile | a main-pass tile waits only for the collider groups that touch it |
 | `BodyGrid` with one owner system | the step reads the grid of the previous tick, and no other system writes it |

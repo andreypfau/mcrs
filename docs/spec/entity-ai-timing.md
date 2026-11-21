@@ -657,6 +657,8 @@ PHY-CMP-015, in the tick of the hit (DMG-ORD-001). A write from another cell can
 later (PHY-CMP-015). The removal of a mob after its death is not a claim. The mob leaves the world
 in the tick in which its death time reaches 20 (DMG-DTH-003). The own hits of DMG-ORD-002, for
 example the hits of the step action, the fall action and the crowd, also apply in the apply step.
+The hits of the base entity tick are an exception. They apply at their step, before the AI step
+(DMG-ORD-002), not in the apply step.
 
 Then the hot tick sends a fact to the brain. The reaction is a decision: the revenge target, the
 panic and the alert. The reason: the health and the knockback are visible in the next update. The
