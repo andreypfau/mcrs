@@ -496,3 +496,75 @@ fn a_fill_group_lends_each_column_the_quarts_it_samples_alone() {
         }
     }
 }
+
+#[test]
+fn a_climate_tie_resolves_in_a_fill_group_as_in_the_column_alone() {
+    use mcrs_minecraft_biome::climate::ParameterRange;
+    use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+    use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, RouterFunctions};
+
+    let at = |temperature: f64| ClimateParameters {
+        temperature: ParameterRange::Point(temperature),
+        humidity: ParameterRange::Point(0.0),
+        continentalness: ParameterRange::Point(0.0),
+        erosion: ParameterRange::Point(0.0),
+        depth: ParameterRange::Point(0.0),
+        weirdness: ParameterRange::Point(0.0),
+        offset: 0.0,
+    };
+    let registry = super::biome_registry(&["minecraft:snowy_plains", "minecraft:desert"]);
+    let cold = super::biome_id(&registry, "minecraft:snowy_plains");
+    let hot = super::biome_id(&registry, "minecraft:desert");
+    let table =
+        MultiNoiseBiomeTable::from_entries(&[entry(at(-0.5), cold), entry(at(0.5001), hot)])
+            .expect("an explicit list resolves");
+    let tie = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let warm = if table.biome_at(tie) == cold.narrow::<u8>().ok() {
+        0.5
+    } else {
+        -0.5
+    };
+
+    let mut settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocationBuf::minecraft("overworld").unwrap(),
+    );
+    settings.noise_router = RouterFunctions {
+        temperature: DensityFunctionHolder::y_gradient(-64, 0, 0.0, warm),
+        ..RouterFunctions::of_density(DensityFunctionHolder::ZERO)
+    };
+    let router = mcrs_minecraft_worldgen_density::compile::build_router(
+        &settings,
+        &mcrs_minecraft_worldgen_testing::registry("density_function"),
+        &mcrs_minecraft_worldgen_testing::registry("noise"),
+        0,
+        super::router_blocks(super::corpus()),
+    )
+    .unwrap();
+    let sections = y_sections();
+    let left = ColumnPos::new(0, 0);
+    let right = ColumnPos::new(1, 0);
+    let group = ClimateBox::sample(&router, &table, [left, right], &sections).unwrap();
+    let alone = ClimateBox::sample(&router, &table, [right], &sections).unwrap();
+    assert!(
+        group.window(right).unwrap().to_grid().ids == alone.window(right).unwrap().to_grid().ids,
+        "the right column reads a tie through the history of the left one"
+    );
+}
+
+#[test]
+fn a_climate_box_beyond_its_budget_or_the_coordinate_range_is_declined() {
+    let (table, _) = overworld_table();
+    let router = build_settings_router("overworld", 0);
+    let sections = y_sections();
+    for columns in [
+        [ColumnPos::new(0, 0), ColumnPos::new(256, 256)],
+        [ColumnPos::new(i32::MAX, 0), ColumnPos::new(i32::MAX, 1)],
+        [ColumnPos::new(i32::MIN, 0), ColumnPos::new(i32::MAX, 0)],
+    ] {
+        assert!(
+            ClimateBox::sample(&router, &table, columns, &sections).is_none(),
+            "{columns:?}"
+        );
+    }
+}

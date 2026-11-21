@@ -305,8 +305,7 @@ fn children<'t>(
     for ((min, max), &target) in tree.min.iter().zip(&tree.max).zip(target) {
         let (min, max) = (min.get(range.clone())?, max.get(range.clone())?);
         for ((total, &min), &max) in distances.iter_mut().zip(min).zip(max) {
-            let distance = (target - max + 1).max(min - target).max(0);
-            *total = add_square(*total, distance)?;
+            *total = add_square(*total, Parameter { min, max }.distance(target))?;
         }
     }
     Some(Children {
@@ -566,6 +565,12 @@ impl<'a, T> ClimateCursor<'a, T> {
         };
         self.last = Some(slot);
         Some(slot)
+    }
+
+    pub fn find_unique_value(&mut self, target: TargetPoint) -> Option<&'a T> {
+        let slot = self.grouped_slot(target)?;
+        self.last = Some(slot);
+        self.list.values.get(slot).map(|(_, value)| value)
     }
 
     fn grouped_slot(&mut self, target: TargetPoint) -> Option<usize> {
@@ -1122,10 +1127,16 @@ mod tests {
             temperature: Parameter::point(-1e6),
             ..point(0.0, 0.0)
         };
-        let target = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        for (values, expected) in [
-            (vec![(hot, "hot"), (point(0.1, 0.0), "near")], "near"),
-            (vec![(hot, "hot"), (cold, "cold")], "hot"),
+        let origin = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let far = TargetPoint::new(f32::MAX, 0.0, 0.0, 0.0, 0.0, 0.0);
+        for (values, target, expected) in [
+            (
+                vec![(hot, "hot"), (point(0.1, 0.0), "near")],
+                origin,
+                "near",
+            ),
+            (vec![(hot, "hot"), (cold, "cold")], origin, "hot"),
+            (vec![(point(0.0, 0.0), "only")], far, "only"),
         ] {
             let table = ParameterList::new(values);
             assert_eq!(table.find_value(target), Some(&expected));
