@@ -7,7 +7,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::OwnAttributesSet;
 use mcrs_minecraft_engine::tile_events::TileEvents;
-use mcrs_minecraft_engine_mob_attributes::{AttributeChanged, RowAttributes};
+use mcrs_minecraft_engine_mob_attributes::{RowAttributeChanged, RowAttributes};
 use mcrs_minecraft_engine_physics::MobPublish;
 
 use crate::publish_mob_attributes::publish_mob_attributes;
@@ -38,14 +38,14 @@ impl<M: Send + Sync + 'static> Plugin for MobReplicationPlugin<M> {
     fn build(&self, app: &mut App) {
         app.init_resource::<TileEvents>();
         app.init_resource::<RowAttributes>();
-        app.add_message::<AttributeChanged>();
+        app.add_message::<RowAttributeChanged>();
         app.configure_sets(FixedUpdate, OwnAttributesSet.before(MobPublish));
         app.add_systems(
             FixedUpdate,
             (
                 publish_mobs::<M>,
                 publish_mob_attributes::<M>
-                    .run_if(on_message::<AttributeChanged>)
+                    .run_if(on_message::<RowAttributeChanged>)
                     .ambiguous_with(MobPublish),
             )
                 .chain()

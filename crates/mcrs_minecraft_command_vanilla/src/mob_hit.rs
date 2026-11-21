@@ -3,7 +3,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_physics::{MobChanges, hurt_mob};
+use mcrs_minecraft_engine_physics::{RowMobChanges, hurt_row};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_entity_rows::Placed;
 
@@ -20,8 +20,8 @@ pub(crate) fn apply(worlds: &mut Worlds, HitMob { at, hit }: HitMob) {
         .map_or(0, |clock| clock.0);
     let outcome = world
         .try_resource_scope(|world, mut rows: Mut<EntityRows>| {
-            let mut changes = world.get_resource_mut::<MobChanges>()?;
-            hurt_mob(&mut rows, &mut changes, at, hit, tick)
+            let mut changes = world.get_resource_mut::<RowMobChanges>()?;
+            hurt_row(&mut rows, &mut changes, at, hit, tick)
         })
         .flatten();
     if outcome.is_none() {

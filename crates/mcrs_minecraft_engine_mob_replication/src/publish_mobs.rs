@@ -7,8 +7,8 @@ use mcrs_engine_muxer::EntityEvent;
 use mcrs_engine_muxer::SubjectEvent;
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_engine::tile_events::TileEvents;
-use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_physics::RowMobChanges;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
@@ -31,7 +31,7 @@ const MOVES_PER_TASK: usize = 1024;
 pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
     rows: Res<RowStore<M>>,
     mobs: Res<Mobs>,
-    changes: Res<MobChanges>,
+    changes: Res<RowMobChanges>,
     mut events: ResMut<TileEvents>,
 ) {
     let mut fresh: BTreeMap<EntityId, MobState> = changes
@@ -145,7 +145,7 @@ fn publish_crossings<M>(
     }
 }
 
-fn publish_strikes(changes: &MobChanges, events: &mut TileEvents) {
+fn publish_strikes(changes: &RowMobChanges, events: &mut TileEvents) {
     for struck in changes.strikes() {
         let mut signal = |signal: MobSignal| {
             events.push(
@@ -263,10 +263,10 @@ mod tests {
     use bevy_ecs::world::World;
     use bevy_tasks::TaskPool;
     use glam::DVec3;
-    use mcrs_minecraft_engine_physics::EntityWrites;
     use mcrs_minecraft_engine_physics::FLOOR;
     use mcrs_minecraft_engine_physics::Mob;
-    use mcrs_minecraft_engine_physics::TestScene;
+    use mcrs_minecraft_engine_physics::RowScene;
+    use mcrs_minecraft_engine_physics::RowWrites;
     use mcrs_minecraft_engine_physics::mob_body;
     use mcrs_minecraft_engine_physics::mob_row;
     use mcrs_minecraft_entity::EntityTypeData;
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn a_mob_that_crosses_a_tile_moves_in_its_new_tile_with_its_state_after_the_pass() {
         let pool = ComputeTaskPool::get_or_init(TaskPool::default);
-        let mut scene = TestScene::<()>::new(2, 0, 0, 1);
+        let mut scene = RowScene::<()>::new(2, 0, 0, 1);
         let id = EntityId(2);
         let row = mob_row(&EntityTypeData::PIG);
         let mut state = mob_body(
@@ -289,7 +289,7 @@ mod tests {
         );
         state.body.velocity = DVec3::new(0.5, 0.0, 0.0);
         scene.rows.spawn(id, state, row);
-        scene.step(pool, 1, &mut EntityWrites::default());
+        scene.step(pool, 1, &mut RowWrites::default());
         let to = TileKey::new(1, 0, 0);
         assert_eq!(
             scene.rows.tile_of(id),
@@ -316,7 +316,7 @@ mod tests {
             },
         );
         world.insert_resource(mobs);
-        world.insert_resource(MobChanges::default());
+        world.insert_resource(RowMobChanges::default());
         world.insert_resource(TileEvents::default());
         world
             .run_system_once(publish_mobs::<()>)

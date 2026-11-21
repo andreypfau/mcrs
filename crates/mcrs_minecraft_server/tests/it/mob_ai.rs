@@ -3,7 +3,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_brain::MobAi;
+use mcrs_minecraft_engine_brain::RowMobAi;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::VanillaBrain;
@@ -112,7 +112,7 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
     let mut panicked = false;
     for _ in 0..10 {
         server.ticks(operator, 1);
-        let ai = server.world().resource::<MobAi<VanillaBrain>>();
+        let ai = server.world().resource::<RowMobAi<VanillaBrain>>();
         panicked |= ai
             .stage()
             .tiles()
@@ -166,7 +166,7 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
         }
         for _ in 0..80 {
             server.ticks(operator, 1);
-            let ai = server.world().resource::<MobAi<VanillaBrain>>();
+            let ai = server.world().resource::<RowMobAi<VanillaBrain>>();
             let panics = ai
                 .stage()
                 .tiles()
@@ -228,7 +228,7 @@ fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
         );
     }
     let mobs = server.world().resource::<Mobs>().0.clone();
-    let ai = server.world().resource::<MobAi<VanillaBrain>>();
+    let ai = server.world().resource::<RowMobAi<VanillaBrain>>();
     let mut brains = 0;
     for entry in ai.stage().tiles().flat_map(|(_, brains)| brains.iter()) {
         let kind = mobs[&entry.mob].kind;

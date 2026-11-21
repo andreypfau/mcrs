@@ -1,3 +1,4 @@
+use bevy_ecs::component::Component;
 use mcrs_minecraft_brain::BrainRules;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -7,8 +8,8 @@ use mcrs_minecraft_mob_control::MobControl;
 use mcrs_minecraft_mob_control::Rotations;
 use mcrs_minecraft_physics::LastHit;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct MobColumn {
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct BrainState {
     pub kind: &'static EntityTypeData,
     pub rules: &'static BrainRules,
     pub control: MobControl,
@@ -23,7 +24,7 @@ pub struct MobColumn {
     pub stalled: bool,
 }
 
-impl MobColumn {
+impl BrainState {
     #[must_use]
     pub fn new(kind: &'static EntityTypeData, rules: &'static BrainRules) -> Option<Self> {
         let mob = kind.mob()?;

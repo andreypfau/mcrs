@@ -48,15 +48,15 @@ const LEFT_HANDED: f64 = 0.05;
 pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
 
 #[derive(Resource, Debug, Default)]
-pub struct MobChanges {
-    pub(crate) spawned: Vec<Spawned>,
+pub struct RowMobChanges {
+    pub(crate) spawned: Vec<RowSpawned>,
     pub(crate) touched: Vec<Placed>,
-    pub(crate) strikes: Vec<Struck>,
+    pub(crate) strikes: Vec<RowStruck>,
 }
 
-impl MobChanges {
+impl RowMobChanges {
     #[must_use]
-    pub fn spawned(&self) -> &[Spawned] {
+    pub fn spawned(&self) -> &[RowSpawned] {
         &self.spawned
     }
 
@@ -66,19 +66,19 @@ impl MobChanges {
     }
 
     #[must_use]
-    pub fn strikes(&self) -> &[Struck] {
+    pub fn strikes(&self) -> &[RowStruck] {
         &self.strikes
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Spawned {
+pub struct RowSpawned {
     pub id: EntityId,
     pub start: EntityState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Struck {
+pub struct RowStruck {
     pub at: Placed,
     pub damage_type: u32,
     pub outcome: HitOutcome,
@@ -129,7 +129,7 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
     mut ids: ResMut<CellEntityIds>,
     mut rows: ResMut<RowStore<M>>,
     mut mobs: ResMut<Mobs>,
-    mut changes: ResMut<MobChanges>,
+    mut changes: ResMut<RowMobChanges>,
     mut pending: ResMut<PendingSpawns>,
     mut uuids: ResMut<MobUuids>,
 ) {
@@ -164,7 +164,7 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
             SpawnSetup::None => MobLooks::default(),
         };
         looks.no_ai = request.extras.no_ai;
-        changes.spawned.push(Spawned { id, start: state });
+        changes.spawned.push(RowSpawned { id, start: state });
         rows.spawn(id, state, row);
         uuids.0.insert(request.uuid, id);
         mobs.0.insert(
@@ -184,7 +184,7 @@ pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
     rows: Res<RowStore<M>>,
     mut mobs: ResMut<Mobs>,
     mut uuids: ResMut<MobUuids>,
-    mut changes: ResMut<MobChanges>,
+    mut changes: ResMut<RowMobChanges>,
 ) {
     for removed in rows.changes().removed() {
         if let Some(mob) = mobs.0.remove(&removed.id) {
@@ -196,7 +196,7 @@ pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
     changes.strikes.clear();
 }
 
-fn first_looks(
+pub(crate) fn first_looks(
     kind: &EntityTypeData,
     stream: &KeyedStream,
     registries: Option<&Registries>,

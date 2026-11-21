@@ -6,7 +6,7 @@ use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_mob_attributes::{AttributeEdit, AttributeTarget, RowAttributes};
+use mcrs_minecraft_engine_mob_attributes::{AttributeTarget, RowAttributeEdit, RowAttributes};
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -367,7 +367,7 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
             .filter(|seen| matches!(seen, Seen::Attributes { .. }))
             .collect()
     };
-    let slow = |attribute| AttributeEdit {
+    let slow = |attribute| RowAttributeEdit {
         target: AttributeTarget::Row(row),
         attribute,
         edit: InstanceEdit::Put(InstanceModifier::new(

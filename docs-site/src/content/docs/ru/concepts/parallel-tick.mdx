@@ -53,7 +53,7 @@ cargo run --release -p mcrs_minecraft_engine_physics --example state_hash -- <th
 
 Запустите его с 1 потоком, потом с 8 потоками, и хеш в конце строки совпадет. Пример печатает и архитектуру, так что можно сравнить две машины. Код короткий:
 
-<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step(&pool, tiles_per_task, &mut writes);\n    }"} title="state_hash: одна сцена, любое число потоков" />
+<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step();\n    }"} title="state_hash: одна сцена, любое число потоков" />
 
 Пример проверяет дизайн и о скорости ничего не говорит. Ему нужен тулчейн nightly, и в руководство по установке он не входит, а само руководство пока WIP.
 

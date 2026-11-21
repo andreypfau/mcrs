@@ -20,9 +20,9 @@ use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_engine_physics::EntityMotionPlugin;
-use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::PhysicsTables;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::palette::SectionStates;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -111,8 +111,8 @@ fn relaunch(state: &mut EntityState, starts: &[Body]) {
 }
 
 struct RowsSide {
-    scene: TestScene<()>,
-    writes: EntityWrites,
+    scene: RowScene<()>,
+    writes: RowWrites,
     tiles_per_task: usize,
     starts: Vec<Body>,
     placed: Vec<Placed>,
@@ -120,7 +120,7 @@ struct RowsSide {
 
 impl RowsSide {
     fn new(half: i32, items: u32) -> Self {
-        let mut scene = TestScene::new(half, 0, items, SEED);
+        let mut scene = RowScene::new(half, 0, items, SEED);
         let mut rows = RowStore::default();
         for (_, tile) in scene.rows.tiles() {
             for row in tile.rows() {
@@ -134,7 +134,7 @@ impl RowsSide {
             tiles_per_task: tiles_per_task(pool(), scene.rows.tile_count()),
             starts: start_bodies(&scene.rows),
             scene,
-            writes: EntityWrites::default(),
+            writes: RowWrites::default(),
             placed: Vec::new(),
         }
     }
@@ -177,7 +177,7 @@ struct ComponentsSide {
 
 impl ComponentsSide {
     fn new(half: i32, items: u32) -> Self {
-        let scene = TestScene::<()>::new(half, 0, items, SEED);
+        let scene = RowScene::<()>::new(half, 0, items, SEED);
         let starts = start_bodies(&scene.rows);
         let mut app = App::new();
         app.configure_sets(
@@ -336,7 +336,7 @@ fn million_case<S: PassSide>(
 
 fn spawns(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("spawn 10k items");
-    let source = TestScene::<()>::new(HALF, 0, SPAWNS, SEED);
+    let source = RowScene::<()>::new(HALF, 0, SPAWNS, SEED);
     let mut items = Vec::new();
     for (_, tile) in source.rows.tiles() {
         items.extend(tile.rows().map(|row| (row.id, *row.state, *row.motion)));

@@ -4,7 +4,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
-use mcrs_minecraft_engine_mob_attributes::{AttributeChanged, AttributeTarget, RowAttributes};
+use mcrs_minecraft_engine_mob_attributes::{AttributeTarget, RowAttributeChanged, RowAttributes};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -12,7 +12,7 @@ use mcrs_minecraft_replication::AttributeState;
 use mcrs_minecraft_replication::MobReport;
 
 pub(crate) fn publish_mob_attributes<M: Send + Sync + 'static>(
-    mut changed: MessageReader<AttributeChanged>,
+    mut changed: MessageReader<RowAttributeChanged>,
     attributes: Res<RowAttributes>,
     rows: Res<RowStore<M>>,
     mut events: ResMut<TileEvents>,

@@ -11,13 +11,13 @@ use mcrs_minecraft_entity_rows::MobRows;
 use mcrs_minecraft_volume::BlockVolume;
 
 use crate::BlockGoalWorld;
+use crate::BrainState;
 use crate::HotTick;
-use crate::MobColumn;
-use crate::mob_column_ext::MobColumnExt;
+use crate::brain_state_ext::BrainStateExt;
 
 pub(crate) struct TileTask<'a> {
     pub(crate) tile: TileKey,
-    pub(crate) mobs: MobRows<'a, MobColumn>,
+    pub(crate) mobs: MobRows<'a, BrainState>,
     pub(crate) due: &'a [Decision],
     pub(crate) players: &'a PlayerTable,
     pub(crate) panic_causes: &'a PanicCauses,
@@ -71,8 +71,15 @@ impl TileTask<'_> {
             }
         }
         for row in self.mobs.iter_mut() {
-            if let Some((intent, ended)) = row.mob.steer(&world, self.tick, row.id, row.state) {
-                out.intents.push(intent);
+            if let Some((intent, ended)) = row.mob.steer(&world, self.tick, row.state) {
+                out.intents.push(MobIntent {
+                    target: row.id,
+                    steering: intent.steering,
+                    yaw: intent.yaw,
+                    pitch: intent.pitch,
+                    head_yaw: intent.head_yaw,
+                    body_yaw: intent.body_yaw,
+                });
                 if ended.is_some() {
                     out.ended.push(row.id);
                 }

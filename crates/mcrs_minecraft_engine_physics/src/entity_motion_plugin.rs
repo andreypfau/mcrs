@@ -28,7 +28,7 @@ use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Side;
 
 use crate::PhysicsTables;
-use crate::entity_physics_plugin::CrowdDamageType;
+use crate::row_physics_plugin::CrowdDamageType;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionPlugin;
@@ -80,14 +80,17 @@ fn step_motion(
         Side::Server { authority: true },
         clock.0,
         &Crowding {
-            rules: PushRules {
-                max_entity_cramming: rules
-                    .map_or(PushRules::default().max_entity_cramming, |rules| {
-                        rules.get(GameRule::MaxEntityCramming)
-                    }),
-                ..PushRules::default()
-            },
+            rules: push_rules(rules.as_deref()),
             damage_type: crowd.and_then(|crowd| crowd.0),
         },
     );
+}
+
+pub(crate) fn push_rules(rules: Option<&GameRules>) -> PushRules {
+    PushRules {
+        max_entity_cramming: rules.map_or(PushRules::default().max_entity_cramming, |rules| {
+            rules.get(GameRule::MaxEntityCramming)
+        }),
+        ..PushRules::default()
+    }
 }

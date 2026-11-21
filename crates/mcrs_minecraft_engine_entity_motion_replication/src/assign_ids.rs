@@ -8,7 +8,7 @@ use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_entity_motion::MotionHold;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
-use mcrs_minecraft_physics::Body;
+use mcrs_minecraft_physics::EntityState;
 
 use crate::Appearance;
 use crate::MotionId;
@@ -20,7 +20,7 @@ pub(crate) struct Assigned(pub(crate) Vec<Release>);
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Release {
     pub(crate) subject: Subject,
-    pub(crate) body: Body,
+    pub(crate) state: EntityState,
 }
 
 pub(crate) fn assign_ids(
@@ -40,7 +40,7 @@ pub(crate) fn assign_ids(
             .try_remove::<MotionHold>();
         assigned.0.push(Release {
             subject: Subject { id, entity },
-            body: state.0.body,
+            state: state.0,
         });
     }
 }

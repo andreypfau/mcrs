@@ -1,3 +1,4 @@
+use bevy_ecs::component::Component;
 use bevy_ecs::resource::Resource;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -10,7 +11,7 @@ pub struct Mobs(pub FxHashMap<EntityId, Mob>);
 #[derive(Resource, Debug, Default)]
 pub struct MobUuids(pub FxHashMap<u128, EntityId>);
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct Mob {
     pub kind: &'static EntityTypeData,
     pub uuid: u128,
