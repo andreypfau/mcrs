@@ -14,8 +14,8 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_attributes::PlayerAttributesPlugin;
-use mcrs_minecraft_engine_brain::MobBrainPlugin;
-use mcrs_minecraft_engine_brain::MobColumn;
+use mcrs_minecraft_engine_brain::BrainState;
+use mcrs_minecraft_engine_brain::RowBrainPlugin;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
 use mcrs_minecraft_engine_mob_attributes::RowAttributesPlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
@@ -102,8 +102,8 @@ pub struct VanillaEntityPhysicsPlugin;
 
 impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(RowPhysicsPlugin::<MobColumn>::default());
-        app.add_dimension_plugin(MobReplicationPlugin::<MobColumn>::default());
+        app.add_dimension_plugin(RowPhysicsPlugin::<BrainState>::default());
+        app.add_dimension_plugin(MobReplicationPlugin::<BrainState>::default());
     }
 }
 
@@ -120,7 +120,7 @@ pub struct VanillaEntityAttributesPlugin;
 impl Plugin for VanillaEntityAttributesPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(PlayerAttributesPlugin);
-        app.add_dimension_plugin(RowAttributesPlugin::<MobColumn>::default());
+        app.add_dimension_plugin(RowAttributesPlugin::<BrainState>::default());
     }
 }
 
@@ -144,7 +144,7 @@ pub struct VanillaMobBrainPlugin;
 
 impl Plugin for VanillaMobBrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(MobBrainPlugin::new(
+        app.add_dimension_plugin(RowBrainPlugin::new(
             vanilla_brains::vanilla_brain,
             PANIC_CAUSES,
         ));

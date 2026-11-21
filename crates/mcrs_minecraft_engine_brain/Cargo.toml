@@ -16,9 +16,11 @@ mcrs_minecraft_entity_key = { workspace = true, features = ["bevy"] }
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true
+bevy_utils.workspace = true
 glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_world.workspace = true
@@ -39,4 +41,5 @@ mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_pose = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true

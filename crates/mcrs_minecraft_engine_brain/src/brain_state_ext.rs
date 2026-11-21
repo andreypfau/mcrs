@@ -7,8 +7,8 @@ use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
+use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::BodyFlags;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -22,7 +22,7 @@ use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
 
 use crate::BlockGoalWorld;
-use crate::MobColumn;
+use crate::BrainState;
 
 pub(crate) struct Observed {
     pub(crate) view: MobView,
@@ -31,7 +31,7 @@ pub(crate) struct Observed {
     pub(crate) resumed: bool,
 }
 
-pub(crate) trait MobColumnExt {
+pub(crate) trait BrainStateExt {
     fn observe(
         &mut self,
         panic_causes: &PanicCauses,
@@ -47,12 +47,11 @@ pub(crate) trait MobColumnExt {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         tick: u64,
-        id: EntityId,
         state: &EntityState,
     ) -> Option<(MobIntent, Option<PathEnd>)>;
 }
 
-impl MobColumnExt for MobColumn {
+impl BrainStateExt for BrainState {
     fn observe(
         &mut self,
         panic_causes: &PanicCauses,
@@ -137,7 +136,6 @@ impl MobColumnExt for MobColumn {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         tick: u64,
-        id: EntityId,
         state: &EntityState,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
         let living = state.living.filter(Living::is_alive)?;
@@ -168,7 +166,6 @@ impl MobColumnExt for MobColumn {
         let out = self.control.before_travel(&input);
         self.travelled = Some(input);
         let intent = MobIntent {
-            target: id,
             steering: out.steering.map(|steering| Steering {
                 input: MoveInput {
                     sideways: steering.sideways,
