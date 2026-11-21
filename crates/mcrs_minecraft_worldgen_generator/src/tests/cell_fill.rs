@@ -4,12 +4,13 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
 use mcrs_voxel::ColumnPos;
 
 use crate::task::CancellationToken;
-use crate::{ColumnBlocks, NO_TOP, column_fluid_field, fill_column_dense_any};
+use crate::{ColumnBlocks, NO_TOP, column_fluid_field, cover_fill_group, fill_column_dense_any};
 
 use super::build_settings_router as build_router;
 use super::ladder::structure_dimension;
@@ -20,13 +21,16 @@ fn cell_elimination_matches_the_block_by_block_fill() {
     let y_sections: Vec<i32> = (-4..20).collect();
     let (section_x, section_z) = (3, -7);
     let mut column = ColumnBlocks::new(&y_sections);
+    let mut cells = AquiferCells::default();
     let filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         &y_sections,
         &router,
+        &mut cells,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )
@@ -34,7 +38,8 @@ fn cell_elimination_matches_the_block_by_block_fill() {
 
     let stone = router.default_block_state;
     let mut ws = Workspace::new();
-    let mut oracle = column_fluid_field(&router, section_x * 16, section_z * 16);
+    let mut cells = AquiferCells::default();
+    let mut oracle = column_fluid_field(&router, &mut cells, section_x * 16, section_z * 16);
     let mut barrier_ws = Workspace::new();
     let mut barrier = point_barrier(&router, &mut barrier_ws);
     let mut checked = 0usize;
@@ -46,7 +51,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         );
         let mut density = vec![0.0f32; volume.len()];
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
         for z in 0..16 {
             for x in 0..16 {
@@ -122,13 +127,16 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
             .unwrap_or_else(|| panic!("{col:?} beside the village carries no beard"));
         let fill = |beard: Option<&Beard>| {
             let mut column = ColumnBlocks::new(y_sections);
+            let mut cells = AquiferCells::default();
             fill_column_dense_any(
                 &mut column,
                 col.x,
                 col.z,
                 y_sections,
                 router,
+                &mut cells,
                 &ColumnBiomes::None,
+                None,
                 beard,
                 &CancellationToken::new(),
             )
@@ -139,7 +147,8 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
         let bare = fill(None);
 
         let mut ws = Workspace::new();
-        let mut oracle = column_fluid_field(router, col.x * 16, col.z * 16);
+        let mut cells = AquiferCells::default();
+        let mut oracle = column_fluid_field(router, &mut cells, col.x * 16, col.z * 16);
         let mut barrier_ws = Workspace::new();
         let mut barrier = point_barrier(router, &mut barrier_ws);
         for &section_y in y_sections {
@@ -149,7 +158,7 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
             );
             let mut density = vec![0.0f32; volume.len()];
             router
-                .program
+                .program()
                 .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
             for z in 0..16 {
                 for x in 0..16 {
@@ -182,4 +191,47 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
         "the beard raised no air to stone around the village"
     );
     assert!(carved > 0, "the beard carved no stone around the village");
+}
+
+#[test]
+fn a_fill_group_sharing_its_aquifer_cells_fills_each_column_as_alone() {
+    let router = build_router("overworld", 845);
+    let y_sections: Vec<i32> = (-4..20).collect();
+    let group: Vec<ColumnPos> = (-8..-4)
+        .flat_map(|z| (0..4).map(move |x| ColumnPos::new(x, z)))
+        .collect();
+    let blocks = |col: ColumnPos, cells: &mut AquiferCells| {
+        let mut column = ColumnBlocks::new(&y_sections);
+        fill_column_dense_any(
+            &mut column,
+            col.x,
+            col.z,
+            &y_sections,
+            &router,
+            cells,
+            &ColumnBiomes::None,
+            None,
+            None,
+            &CancellationToken::new(),
+        )
+        .expect("the column is not cancelled");
+        let mut states = Vec::new();
+        for y in -64..320 {
+            for z in 0..16 {
+                states.extend((0..16).map(|x| column.get(x, y, z)));
+            }
+        }
+        states
+    };
+
+    let mut shared = AquiferCells::default();
+    cover_fill_group(&router, group.iter().copied(), &mut shared);
+    for &col in &group {
+        let grouped = blocks(col, &mut shared);
+        let alone = blocks(col, &mut AquiferCells::default());
+        assert!(
+            grouped == alone,
+            "column {col:?} differs when its group shares the aquifer cells"
+        );
+    }
 }

@@ -1,8 +1,10 @@
 use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
+use crate::column_bound::{ColumnBound, ColumnBoundScratch};
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{DensityFunctionHolder, ValueRange};
+use crate::router_key::{self, RouterKey};
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
@@ -173,7 +175,7 @@ pub struct RouterBlocks {
 }
 
 pub struct NoiseRouter {
-    pub program: Program,
+    pub(crate) program: Program,
     pub sea_level: i32,
     pub noise: NoiseSettings,
     pub world_seed: u64,
@@ -181,22 +183,27 @@ pub struct NoiseRouter {
     pub default_block_state: VoxelId,
     pub default_fluid_state: VoxelId,
     pub water_state: VoxelId,
-    pub lava_state: VoxelId,
-    pub global_fluid: GlobalFluid,
-    pub aquifer: Option<AquiferConfig>,
+    pub(crate) lava_state: VoxelId,
+    pub(crate) global_fluid: GlobalFluid,
+    pub(crate) aquifer: Option<AquiferConfig>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
+    column_bound: Option<ColumnBound>,
+    build: u64,
 }
 
 impl NoiseRouter {
     pub fn new(
-        program: Program,
+        mut program: Program,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         blocks: RouterBlocks,
         aquifer: Option<AquiferConfig>,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
+        let column_bound = cell_bounds
+            .chain_input()
+            .and_then(|input| ColumnBound::new(&mut program, input, cell_bounds.inputs()));
         Self {
             program,
             sea_level: settings.sea_level,
@@ -213,11 +220,33 @@ impl NoiseRouter {
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
+            column_bound,
+            build: router_key::next_build(),
         }
     }
 
     pub fn beta_noises(&self) -> Option<&BetaTerrainNoises> {
         self.beta.as_deref()
+    }
+
+    #[must_use]
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    #[must_use]
+    pub fn lava_state(&self) -> VoxelId {
+        self.lava_state
+    }
+
+    #[must_use]
+    pub fn aquifer(&self) -> Option<&AquiferConfig> {
+        self.aquifer.as_ref()
+    }
+
+    #[must_use]
+    pub fn key(&self) -> RouterKey {
+        RouterKey::new(self.build, self.world_seed)
     }
 }
 
@@ -251,6 +280,23 @@ impl NoiseRouter {
             if let Some(row) = out.get_mut(k * n..(k + 1) * n) {
                 self.program.fill_node(ws, volume, node, row);
             }
+        }
+    }
+
+    pub fn fill_cell_inputs(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        scratch: &ColumnBoundScratch,
+        out: &mut [f32],
+    ) {
+        let seeded = scratch.serves(self.key())
+            && self
+                .column_bound
+                .as_ref()
+                .is_some_and(|bound| bound.fill_inputs(&self.program, ws, volume, scratch, out));
+        if !seeded {
+            self.fill_nodes(ws, volume, self.cell_inputs(), out);
         }
     }
 
@@ -290,6 +336,32 @@ impl NoiseRouter {
     #[inline]
     pub fn cell_size(&self) -> Option<IVec3> {
         self.cell_bounds.cell_size()
+    }
+
+    pub fn final_density_chain_bound(
+        &self,
+        values: &[f32],
+        lattice: &SampleGrid,
+        at: IVec3,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        self.cell_bounds
+            .chain_bound(&self.program, values, lattice, at, min, max)
+    }
+
+    pub fn final_density_first_air_row(
+        &self,
+        ws: &mut Workspace,
+        lattice: &SampleGrid,
+        hint: Option<i32>,
+        scratch: &mut ColumnBoundScratch,
+    ) -> i32 {
+        let top = lattice.size().y - 1;
+        scratch.bind(self.key());
+        self.column_bound.as_ref().map_or(top, |bound| {
+            bound.first_air_row(&self.program, &self.cell_bounds, ws, lattice, hint, scratch)
+        })
     }
 
     pub fn final_density_cell_bounds(

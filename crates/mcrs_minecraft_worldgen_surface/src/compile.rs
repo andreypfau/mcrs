@@ -1,3 +1,4 @@
+use crate::noise_band::NoiseBands;
 use crate::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
@@ -171,6 +172,7 @@ pub struct MaterialProgram {
     clay_bands: [VoxelId; CLAY_BAND_COUNT],
     surface_noises: [(NoiseId, Arc<NoiseStack<Octave>>); 9],
     vein_bounds: Box<[CellBounds]>,
+    noise_bands: NoiseBands,
     #[cfg(test)]
     noise_ids: HashMap<(ResourceLocationBuf, bool), NoiseId>,
     #[cfg(test)]
@@ -193,6 +195,10 @@ impl MaterialProgram {
             }
         }
         None
+    }
+
+    pub(crate) fn noise_bands(&self) -> &NoiseBands {
+        &self.noise_bands
     }
 
     pub fn conditions(&self) -> &[CompiledCondition] {
@@ -322,7 +328,7 @@ pub fn build_router_and_material(
     material.vein_bounds = material
         .veins
         .iter()
-        .map(|vein| CellBounds::new(&router.program, router.program.root_node(vein.density)))
+        .map(|vein| CellBounds::new(router.program(), router.program().root_node(vein.density)))
         .collect();
     Ok((router, material))
 }
@@ -386,6 +392,7 @@ fn compile_material<'a>(
     ];
     let clay_bands = builder.clay_bands()?;
 
+    let noise_bands = NoiseBands::compile(&builder.tape, &builder.conditions);
     Ok(MaterialProgram {
         tape: builder.tape.into_boxed_slice(),
         conditions: builder.conditions.into_boxed_slice(),
@@ -397,6 +404,7 @@ fn compile_material<'a>(
         clay_bands,
         surface_noises,
         vein_bounds: Box::default(),
+        noise_bands,
         #[cfg(test)]
         noise_ids: builder.noise_ids,
         #[cfg(test)]
@@ -996,7 +1004,9 @@ pub(crate) mod tests {
         for vein in material.veins() {
             for root in [vein.density, vein.richness, vein.filler_gap] {
                 assert!(root >= 8, "vein roots come after the eight terrain roots");
-                router.program.fill(&mut workspace, &volume, root, &mut out);
+                router
+                    .program()
+                    .fill(&mut workspace, &volume, root, &mut out);
                 assert!(out[0].is_finite(), "root {root} is not finite");
             }
         }

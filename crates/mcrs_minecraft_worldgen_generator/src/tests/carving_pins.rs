@@ -1,3 +1,4 @@
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -215,10 +216,13 @@ fn block_key(keys: &mut HashMap<u16, u64>, state: VoxelId) -> u64 {
 
 fn column_digest(context: &FillContext, column: (i32, i32), keys: &mut HashMap<u16, u64>) -> u64 {
     let mut buffer = ColumnBlocks::new(&context.y_sections);
+    let mut cells = AquiferCells::default();
     let snapshot = fill_column(
         context,
         ColumnPos::new(column.0, column.1),
         &mut buffer,
+        None,
+        &mut cells,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

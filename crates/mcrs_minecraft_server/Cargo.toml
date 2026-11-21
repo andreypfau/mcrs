@@ -79,6 +79,8 @@ bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
 anyhow.workspace = true
+libc.workspace = true
+tracing-subscriber.workspace = true
 mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
@@ -157,4 +159,8 @@ harness = false
 
 [[bench]]
 name = "random_ticks_save"
+harness = false
+
+[[bench]]
+name = "worldgen_throughput"
 harness = false

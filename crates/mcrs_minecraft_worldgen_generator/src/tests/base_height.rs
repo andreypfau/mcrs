@@ -1,5 +1,6 @@
 use crate::ColumnBiomes;
 use crate::probe_lattice::ProbeLattice;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::stages::build_terrain_heightmaps;
@@ -22,13 +23,16 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
     let mut ws = Workspace::new();
     let mut lattice = ProbeLattice::default();
     for (chunk_x, chunk_z) in [(3, -7), (-12, 5), (0, 0), (40, 0)] {
+        let mut cells = AquiferCells::default();
         fill_column_dense_any(
             &mut column,
             chunk_x,
             chunk_z,
             &y_sections,
             &router,
+            &mut cells,
             &ColumnBiomes::None,
+            None,
             None,
             &CancellationToken::new(),
         )

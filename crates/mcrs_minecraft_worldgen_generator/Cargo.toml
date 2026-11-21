@@ -60,6 +60,7 @@ mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"]
 base64.workspace = true
 bytes.workspace = true
 criterion = { workspace = true }
+libc.workspace = true
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

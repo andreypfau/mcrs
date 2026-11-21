@@ -105,7 +105,7 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
             &router,
             Some(&material),
             vein.density,
-            |corners, min, max| bounds.eval(&router.program, corners, min, max, &mut terms),
+            |corners, min, max| bounds.eval(router.program(), corners, min, max, &mut terms),
         );
         assert!(checked > 0, "vein {index} produced no bound");
     }
@@ -156,7 +156,7 @@ fn check_root(
                 };
                 let dense = SampleGrid::dense(cell, origin);
                 let mut density = vec![0.0f32; dense.len()];
-                router.program.fill(&mut ws, &dense, root, &mut density);
+                router.program().fill(&mut ws, &dense, root, &mut density);
                 for (i, &value) in density.iter().enumerate() {
                     assert!(
                         value >= bounds.min() - SLACK && value <= bounds.max() + SLACK,

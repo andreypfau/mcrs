@@ -10,6 +10,7 @@ use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
@@ -393,7 +394,14 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
     let mut filled: BTreeMap<ColumnPos, Arc<FilledSnapshot>> = BTreeMap::new();
     let fill = |col: ColumnPos| {
         Arc::new(
-            fill_pooled(ctx, col, &CancellationToken::new()).expect("the fill was not cancelled"),
+            fill_pooled(
+                ctx,
+                col,
+                None,
+                &mut AquiferCells::default(),
+                &CancellationToken::new(),
+            )
+            .expect("the fill was not cancelled"),
         )
     };
     let (mut carried, mut crossed) = (0usize, 0usize);
@@ -628,8 +636,16 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     );
 
     let mut buffer = ColumnBlocks::new(&y_sections);
-    let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
-        .expect("the fill was not cancelled");
+    let mut cells = AquiferCells::default();
+    let alone = fill_column(
+        &ctx,
+        col,
+        &mut buffer,
+        None,
+        &mut cells,
+        &CancellationToken::new(),
+    )
+    .expect("the fill was not cancelled");
     let bottom = y_sections[0];
     for (y, got) in &generated {
         let want = alone.sections[(y - bottom) as usize]
@@ -736,8 +752,16 @@ fn a_filled_column_lays_its_bedrock_floor() {
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
-    let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
-        .expect("the fill was not cancelled");
+    let mut cells = AquiferCells::default();
+    let snapshot = fill_column(
+        &ctx,
+        col,
+        &mut column,
+        None,
+        &mut cells,
+        &CancellationToken::new(),
+    )
+    .expect("the fill was not cancelled");
 
     let bedrock = VoxelId::from(
         corpus()
@@ -793,10 +817,13 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     let ctx = surface_fill_context(router, material, registries.clone(), source);
 
     let mut column = ColumnBlocks::new(&ctx.y_sections);
+    let mut cells = AquiferCells::default();
     let snapshot = fill_column(
         &ctx,
         ColumnPos::new(3, -7),
         &mut column,
+        None,
+        &mut cells,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

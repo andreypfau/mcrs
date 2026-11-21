@@ -11,7 +11,21 @@ use std::fmt;
 use std::sync::Arc;
 
 thread_local! {
-    static LIMITS: RefCell<(Vec<f32>, ColumnScratch)> = RefCell::new(Default::default());
+    static LIMITS: RefCell<LimitScratch> = RefCell::new(LimitScratch::default());
+}
+
+#[derive(Default)]
+struct LimitScratch {
+    min: Vec<f32>,
+    max: Vec<f32>,
+    read: ReadScratch,
+}
+
+#[derive(Default)]
+struct ReadScratch {
+    heights: Vec<i32>,
+    values: Vec<f32>,
+    column: ColumnScratch,
 }
 
 const BASE_SCALE: f64 = 684.412;
@@ -142,48 +156,34 @@ impl BlendedNoise {
         let n = ext.size().y as usize;
         let inner = &*self.inner;
 
-        LIMITS.with_borrow_mut(|(floats, scratch)| {
-            floats.clear();
-            floats.resize(2 * n, 0.0);
+        LIMITS.with_borrow_mut(|limits| {
+            let LimitScratch { min, max, read } = limits;
+            min.clear();
+            min.resize(n, 0.0);
+            max.clear();
+            max.resize(n, 0.0);
             each_column(out, ext, |run, ix, iz| {
-                let (min, max) = floats.split_at_mut(n);
-                let bx = ext.block_x(ix as i32);
-                let bz = ext.block_z(iz as i32);
+                let column = LimitColumn {
+                    inner,
+                    ext,
+                    block_x: ext.block_x(ix as i32),
+                    block_z: ext.block_z(iz as i32),
+                };
 
                 inner.fbm.main.fill_column_at(
                     run,
-                    bx,
-                    bz,
+                    column.block_x,
+                    column.block_z,
                     ext,
                     inner.main_xz_multiplier,
                     inner.main_y_multiplier,
-                    scratch,
+                    &mut read.column,
                 );
                 for alpha in run.iter_mut() {
                     *alpha = numeric::clamp_f32(*alpha + 0.5, 0.0, 1.0);
                 }
-                if run.iter().any(|&alpha| alpha != 1.0) {
-                    inner.fbm.min_limit.fill_column_at(
-                        min,
-                        bx,
-                        bz,
-                        ext,
-                        inner.xz_multiplier,
-                        inner.y_multiplier,
-                        scratch,
-                    );
-                }
-                if run.iter().any(|&alpha| alpha != 0.0) {
-                    inner.fbm.max_limit.fill_column_at(
-                        max,
-                        bx,
-                        bz,
-                        ext,
-                        inner.xz_multiplier,
-                        inner.y_multiplier,
-                        scratch,
-                    );
-                }
+                column.fill_where_read(&inner.fbm.min_limit, 1.0, run, min, read);
+                column.fill_where_read(&inner.fbm.max_limit, 0.0, run, max, read);
 
                 for ((slot, &min), &max) in run.iter_mut().zip(&*min).zip(&*max) {
                     let alpha = *slot;
@@ -197,6 +197,51 @@ impl BlendedNoise {
                 }
             });
         });
+    }
+}
+
+struct LimitColumn<'a> {
+    inner: &'a Inner,
+    ext: &'a SampleGrid,
+    block_x: i32,
+    block_z: i32,
+}
+
+impl LimitColumn<'_> {
+    fn fill_where_read(
+        &self,
+        limit: &NoiseStack<SmearedPerlinNoise>,
+        unread: f32,
+        alphas: &[f32],
+        out: &mut [f32],
+        scratch: &mut ReadScratch,
+    ) {
+        let read_rows = (0i32..).zip(alphas).filter(|(_, alpha)| **alpha != unread);
+        scratch.heights.clear();
+        scratch
+            .heights
+            .extend(read_rows.map(|(row, _)| self.ext.block_y(row)));
+        if scratch.heights.is_empty() {
+            return;
+        }
+        scratch.values.clear();
+        scratch.values.resize(scratch.heights.len(), 0.0);
+        limit.fill_heights_at(
+            &mut scratch.values,
+            self.block_x,
+            self.block_z,
+            &scratch.heights,
+            self.inner.xz_multiplier,
+            self.inner.y_multiplier,
+            &mut scratch.column,
+        );
+        let read_slots = out
+            .iter_mut()
+            .zip(alphas)
+            .filter(|(_, alpha)| **alpha != unread);
+        for ((slot, _), &value) in read_slots.zip(&scratch.values) {
+            *slot = value;
+        }
     }
 }
 
@@ -329,6 +374,62 @@ mod tests {
         params.eval(&mut out, &ext);
         for v in out {
             assert!(v.abs() <= 2.1670623, "{v} escapes the published bound");
+        }
+    }
+
+    #[test]
+    fn a_column_crossing_both_factor_bounds_matches_the_full_limit_columns() {
+        let params = overworld();
+        let inner = &*params.inner;
+        let ext = SampleGrid::new(
+            IVec3::new(1, 49, 1),
+            IVec3::new(0, -64, 0),
+            IVec3::new(1, 8, 1),
+        );
+        let mut scratch = ColumnScratch::default();
+        let mut fill = |stack: &NoiseStack<SmearedPerlinNoise>, xz: f64, y: f64| {
+            let mut column = vec![0.0f32; ext.len()];
+            stack.fill_column_at(&mut column, 0, 0, &ext, xz, y, &mut scratch);
+            column
+        };
+        let alphas: Vec<f32> = fill(
+            &inner.fbm.main,
+            inner.main_xz_multiplier,
+            inner.main_y_multiplier,
+        )
+        .into_iter()
+        .map(|value| (value + 0.5).clamp(0.0, 1.0))
+        .collect();
+        let min = fill(
+            &inner.fbm.min_limit,
+            inner.xz_multiplier,
+            inner.y_multiplier,
+        );
+        let max = fill(
+            &inner.fbm.max_limit,
+            inner.xz_multiplier,
+            inner.y_multiplier,
+        );
+        for bound in [0.0, 1.0] {
+            assert!(
+                alphas.contains(&bound),
+                "the column must reach factor {bound}"
+            );
+        }
+        assert!(
+            alphas.iter().any(|alpha| *alpha > 0.0 && *alpha < 1.0),
+            "the column must hold a fractional factor"
+        );
+
+        let mut run = vec![0.0f32; ext.len()];
+        params.eval(&mut run, &ext);
+        for (row, &value) in run.iter().enumerate() {
+            let expected = match alphas[row] {
+                0.0 => min[row],
+                1.0 => max[row],
+                alpha => jmath::lerp(alpha, min[row], max[row]),
+            };
+            assert_eq!(value.to_bits(), expected.to_bits(), "at row {row}");
         }
     }
 }

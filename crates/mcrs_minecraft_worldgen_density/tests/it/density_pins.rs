@@ -15,7 +15,7 @@ mod exhaustive {
         let mut ws = Workspace::new();
         ws.take_count();
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
 
         let count = ws.take_count();

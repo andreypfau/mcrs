@@ -3,6 +3,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
@@ -62,7 +63,7 @@ mod exhaustive {
 #[test]
 fn a_surface_level_does_not_depend_on_the_volume_around_it() {
     let router = overworld(42, |_| {});
-    let root = router.aquifer.as_ref().unwrap().surface_level;
+    let root = router.aquifer().unwrap().surface_level;
     let mut ws = Workspace::new();
     let mut compared = 0usize;
     for (chunk_x, chunk_z) in COLUMNS {
@@ -72,13 +73,13 @@ fn a_surface_level_does_not_depend_on_the_volume_around_it() {
             IVec3::new(4, 1, 4),
         );
         let mut together = vec![0.0f32; grid.len()];
-        router.program.fill(&mut ws, &grid, root, &mut together);
+        router.program().fill(&mut ws, &grid, root, &mut together);
         for z in 0..grid.size().z {
             for x in 0..grid.size().x {
                 let at = IVec3::new(grid.block_x(x), 0, grid.block_z(z));
                 let mut alone = [0.0f32];
                 router
-                    .program
+                    .program()
                     .fill(&mut ws, &SampleGrid::point(at), root, &mut alone);
                 assert_eq!(
                     alone[0].to_bits(),
@@ -97,9 +98,16 @@ fn kept_surface_levels_do_not_change_a_field() {
     let first = overworld(42, |_| {});
     let second = overworld(2, |_| {});
     let mut kept = SurfaceLevels::default();
+    let mut warm_cells = AquiferCells::default();
+    warm_cells.cover(
+        &first,
+        column_volume(&first, -1, 0).min_block(),
+        column_volume(&first, 1, 0).max_block(),
+    );
     let mut checked = 0usize;
     for (router, (chunk_x, chunk_z)) in [
         (&first, (0, 0)),
+        (&first, (-1, 0)),
         (&first, (1, 0)),
         (&first, (32, 0)),
         (&first, (1, 0)),
@@ -108,8 +116,15 @@ fn kept_surface_levels_do_not_change_a_field() {
     ] {
         let volume = column_volume(router, chunk_x, chunk_z);
         let (min, max) = (volume.min_block(), volume.max_block());
-        let mut warm = FluidField::new(router, &mut kept, min, max);
-        let mut cold = FluidField::new(router, &mut SurfaceLevels::default(), min, max);
+        let mut cold_cells = AquiferCells::default();
+        let mut warm = FluidField::new(router, &mut kept, &mut warm_cells, min, max);
+        let mut cold = FluidField::new(
+            router,
+            &mut SurfaceLevels::default(),
+            &mut cold_cells,
+            min,
+            max,
+        );
         let mut warm_ws = Workspace::new();
         let mut cold_ws = Workspace::new();
         for z in (min.z..=max.z).step_by(3) {
@@ -126,7 +141,46 @@ fn kept_surface_levels_do_not_change_a_field() {
         }
         warm.keep_surface_levels(&mut kept);
     }
-    assert_eq!(checked, 6 * 6 * 6 * first.noise.height as usize);
+    assert_eq!(checked, 7 * 6 * 6 * first.noise.height as usize);
+}
+
+#[test]
+fn caches_filled_by_a_replaced_router_are_not_reused() {
+    let mut router = overworld(42, |_| {});
+    let volume = column_volume(&router, 0, 0);
+    let (min, max) = (volume.min_block(), volume.max_block());
+    let mut kept = SurfaceLevels::default();
+    let mut warm_cells = AquiferCells::default();
+    let mut ws = Workspace::new();
+    let mut warm = FluidField::new(&router, &mut kept, &mut warm_cells, min, max);
+    for y in min.y..=max.y {
+        warm.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut ws));
+    }
+    warm.keep_surface_levels(&mut kept);
+    router = overworld(42, |raw| {
+        let surface = raw["aquifers"]["surface_level"].take();
+        raw["aquifers"]["surface_level"] = serde_json::json!({
+            "type": "minecraft:mul",
+            "left": 0.5,
+            "right": surface,
+        });
+        raw["aquifers"]["fluid_level_floodedness"] = serde_json::json!(1.0);
+    });
+    let mut cold_cells = AquiferCells::default();
+    let mut warm = FluidField::new(&router, &mut kept, &mut warm_cells, min, max);
+    let mut cold = FluidField::new(
+        &router,
+        &mut SurfaceLevels::default(),
+        &mut cold_cells,
+        min,
+        max,
+    );
+    let mut cold_ws = Workspace::new();
+    for y in min.y..=max.y {
+        let got = warm.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut ws));
+        let want = cold.substance(0, y, 0, 0.0, &mut point_barrier(&router, &mut cold_ws));
+        assert_eq!(got, want, "block 0,{y},0");
+    }
 }
 
 #[test]
@@ -141,7 +195,7 @@ fn a_louder_barrier_widens_the_shell_and_stays_exact() {
         });
     });
     let margins = |router: &NoiseRouter| {
-        let aquifer = router.aquifer.as_ref().unwrap();
+        let aquifer = router.aquifer().unwrap();
         (aquifer.margin_above, aquifer.margin_below)
     };
     assert_eq!(margins(&quiet), (5, 23));
@@ -159,17 +213,20 @@ fn check_parity(router: &NoiseRouter) {
         let volume = column_volume(router, chunk_x, chunk_z);
         let mut density = vec![0.0f32; volume.len()];
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
+        let (mut oracle_cells, mut fast_cells) = (AquiferCells::default(), AquiferCells::default());
         let mut oracle = FluidField::new(
             router,
             &mut SurfaceLevels::default(),
+            &mut oracle_cells,
             volume.min_block(),
             volume.max_block(),
         );
         let mut fast = FluidField::new(
             router,
             &mut SurfaceLevels::default(),
+            &mut fast_cells,
             volume.min_block(),
             volume.max_block(),
         );

@@ -343,7 +343,7 @@ impl CarverBiomeTable {
             SourceBiomes::Climate(table) => {
                 let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * points];
                 router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
-                let mut last = None;
+                let mut cursor = table.cursor();
                 for dx in 0..TILE {
                     for dz in 0..TILE {
                         let at = volume.index_unchecked(dx, 0, dz);
@@ -355,7 +355,7 @@ impl CarverBiomeTable {
                             values[4 * points + at],
                             values[5 * points + at],
                         );
-                        if let Some(slot) = table.find_slot_from(target, &mut last) {
+                        if let Some(slot) = cursor.find_slot(target) {
                             slots[(dx * TILE + dz) as usize] =
                                 u16::try_from(slot).expect("a climate table fits in u16 slots");
                         }
@@ -632,6 +632,12 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
         self.mask.contains(x, y, z)
     }
 
+    #[inline]
+    #[must_use]
+    pub fn highest_carved(&self, x: i32, z: i32, bottom: i32, top: i32) -> Option<i32> {
+        self.mask.highest_carved(x, z, bottom, top)
+    }
+
     pub fn substance(&mut self, x: i32, y: i32, z: i32, block: Option<VoxelId>) -> Option<VoxelId> {
         if !self.is_carved(x, y, z) || block.is_some_and(|block| self.ids.is_uncarvable(block)) {
             return None;
@@ -672,7 +678,7 @@ pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, 
         VoxelId::default(),
         router.default_fluid_state,
         router.water_state,
-        router.lava_state,
+        router.lava_state(),
     ];
     let mask = carving.mask;
     mask.visit(|x, z, bottom_y, top_y| {
