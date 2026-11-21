@@ -1,6 +1,6 @@
 ---
 paths:
-  - "crates/mcrs_minecraft_{chunk,volume,block,entity_rows,light_engine,heightmap,anvil}/**"
+  - "crates/mcrs_minecraft_{chunk,volume,block,entity_rows,engine_entity_motion,light_engine,heightmap,anvil}/**"
   - "crates/mcrs_voxel/**"
   - "crates/mcrs_engine_store/**"
   - "crates/mcrs_minecraft_engine_world/**"

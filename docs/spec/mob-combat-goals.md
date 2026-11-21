@@ -469,12 +469,13 @@ reference costs of the goal:
 - One reach test in each tick in which the cooldown is 0. One ray only when the target is in reach,
   or when the goal does not follow an unseen target.
 
-**CGOAL-MELEE-010** (`design`, semantic, confidence: medium, fidelity: exact). Place of each part
-(AIT-RFX-003): the cooldown, the reach test, the ray of the hit, the hit and the look target are a
-reflex. The start check and each path request are decisions. The path timer is a part of the
-decision state: the reflex counts it down, and the decision reads it at its issue tick. A melee hit
-changes another entity. It is a hit of DMG section 3, and DMG-ORD-002 states the order of the hits
-of one tick.
+**CGOAL-MELEE-010** Place of each part (AIT-RFX-003): the cooldown, the reach test, the ray of the
+hit, the hit and the look target are a reflex. The start check and each path request are decisions.
+The path timer is a part of the decision state: the reflex counts it down, and the decision reads it
+at its issue tick. A melee hit changes another entity. It is a hit of DMG section 3, and DMG-ORD-001
+states its place in the tick: the apply step of PHY-CMP-015.
+
+Provenance: `design`. Kind: semantic. Fidelity: exact. Confidence: medium.
 
 ### 3.2 Leap at the target
 

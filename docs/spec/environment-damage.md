@@ -46,7 +46,8 @@ DMG-FALL-005, DMG-HOT-001). This document does not repeat them.
 
 The labels are those of `entity-physics.md`, section 0.2. Each rule states its kind and its
 confidence, for example `(source_suggested, semantic, confidence: medium)`. The kinds are those of
-`docs/spec/README.md`.
+`docs/spec/README.md`. A new or revised rule states them on its provenance line, as
+`docs/spec/README.md` requires.
 
 ### 0.3 ID prefix
 
@@ -221,9 +222,9 @@ contact test for `lava_cauldron`. It does these effects, in this order:
 A hit that the entity takes (not a rejected hit) plays the sound of ENV-NET-002. A lava contact
 ignites the entity at once for each entity type, with no grace.
 
-**ENV-FIR-010** (`source_suggested`, semantic, confidence: medium). In the block effects step,
-the effects of the blocks run in this fixed order of types. The hit of a type runs right after its
-effect, and a removed or dead entity stops the sequence.
+**ENV-FIR-010** In the block effects step, the effects of the blocks run in this fixed order of
+types. The hit of a type runs right after its effect, and a removed or dead entity stops the
+sequence. mcrs applies these hits after the tick, so a hit never stops the sequence (DMG-DEV-003).
 
 1. The effect "freeze" of powder snow (ENV-FRZ-002).
 2. The effect "clear the frozen ticks" of fire, lava and `lava_cauldron`.
@@ -234,6 +235,9 @@ effect, and a removed or dead entity stops the sequence.
 The order is visible. An entity that stands in fire and in water in one tick takes the `in_fire`
 hit and is extinguished in that tick. Contact blocks of other kinds (section 5) hit at the point
 where their block comes in the walk of the box. Section 12 records the walk as U2.
+
+Provenance: `source_suggested`. Kind: deviation (`entity-damage.md`, DMG-DEV-003). Confidence:
+medium.
 
 ### 2.3 Extinguishing
 
@@ -561,8 +565,8 @@ to 0.
 
 ## 11. Intentional deviations
 
-None. Each reference behaviour that this document states is behaviour that a player can meet in
-normal play, and the document keeps it.
+See DMG-DEV-003 of `entity-damage.md`. It records the one deviation of this document, in
+ENV-FIR-010.
 
 ## 12. Unresolved
 
