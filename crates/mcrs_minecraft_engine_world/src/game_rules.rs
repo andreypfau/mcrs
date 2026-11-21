@@ -32,6 +32,11 @@ impl GameRules {
         self.get(rule) != 0
     }
 
+    #[must_use]
+    pub fn sends_command_feedback(&self) -> bool {
+        self.is_on(GameRule::SendCommandFeedback)
+    }
+
     pub fn set(&mut self, rule: GameRule, value: i32) {
         if let Some(slot) = self.0.get_mut(usize::from(rule.id().number())) {
             *slot = value;

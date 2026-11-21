@@ -16,9 +16,12 @@ use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::MobExtras;
 use mcrs_minecraft_engine_physics::MobIndex;
 use mcrs_minecraft_engine_physics::MobSpawnRequest;
+use mcrs_minecraft_engine_physics::MobSwing;
+use mcrs_minecraft_engine_physics::MobSwingSpec;
 use mcrs_minecraft_engine_physics::SpawnSetup;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::hurt_mob;
+use mcrs_minecraft_engine_physics::swing_mob;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -29,6 +32,7 @@ use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::ReplicationData;
@@ -156,6 +160,16 @@ fn hurt(scene: &mut TestScene, pig: Entity, amount: f32) -> Option<HitOutcome> {
     world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
         let mut state = world.get_mut::<MotionState>(pig)?;
         hurt_mob(pig, &mut state.0, &mut changes, Hit::new(amount, 7), tick)
+    })
+}
+
+fn swing(scene: &mut TestScene, pig: Entity, spec: MobSwingSpec) -> bool {
+    let tick = scene.tick;
+    let world = scene.app.world_mut();
+    world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
+        let state = world.get::<MotionState>(pig).expect("pig state").0;
+        let mut tracker = world.get_mut::<MobSwing>(pig).expect("pig swing");
+        swing_mob(pig, &state, &mut tracker, &mut changes, spec, tick)
     })
 }
 
@@ -304,5 +318,51 @@ fn a_killed_mob_is_hurt_dies_and_is_removed_after_its_death_time() {
     assert!(
         scene.app.world().get_entity(pig).is_err(),
         "the pig left the world"
+    );
+}
+
+#[test]
+fn a_stationary_mob_publishes_only_swing_signal_and_respects_cooldown() {
+    let mut scene = scene();
+    let pig = summon(&mut scene, DVec3::new(4.5, f64::from(FLOOR), 4.5));
+    ticks(&mut scene, 5);
+
+    let stab = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 6);
+    assert!(swing(&mut scene, pig, stab), "first swing starts");
+    assert!(
+        !swing(&mut scene, pig, stab),
+        "SWG-STA-004: second swing in same tick is suppressed"
+    );
+    assert_eq!(
+        tick(&mut scene),
+        [Seen::Signal {
+            id: FIRST_ID,
+            signal: MobSignal::Swing {
+                hand: Hand::Off,
+                animation: SwingAnimationKind::Stab,
+                duration: 6,
+            },
+        }],
+        "a stationary mob swing publishes only the signal without an extraneous move"
+    );
+
+    for _ in 0..3 {
+        assert!(!swing(&mut scene, pig, stab), "cooldown blocks T+1..T+3");
+        assert_eq!(tick(&mut scene), [], "blocked swing publishes nothing");
+    }
+
+    let whack = MobSwingSpec::new(Hand::Main, SwingAnimationKind::Whack, 6);
+    assert!(swing(&mut scene, pig, whack), "D=6 unlocks at T+4");
+    assert_eq!(
+        tick(&mut scene),
+        [Seen::Signal {
+            id: FIRST_ID,
+            signal: MobSignal::Swing {
+                hand: Hand::Main,
+                animation: SwingAnimationKind::Whack,
+                duration: 6,
+            },
+        }],
+        "unlocked swing emits one signal"
     );
 }

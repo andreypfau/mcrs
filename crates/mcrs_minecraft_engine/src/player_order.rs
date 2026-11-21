@@ -9,17 +9,67 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
+use mcrs_minecraft_replication::SwingRecipients;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::bus::{self, PacketPayload};
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
+use crate::swing::{PlayerSwing, SwingEligibility, SwingPlayer};
 use crate::teleport::TeleportState;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlayerOrder {
     Teleport(TeleportOrder),
     SetGameMode(GameMode),
+    Swing(SwingOrder),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SwingOrder {
+    pub hand: Hand,
+    pub animation: SwingAnimationKind,
+    pub duration: i32,
+    pub recipients: SwingRecipients,
+    pub eligibility: SwingEligibility,
+}
+
+impl SwingOrder {
+    #[must_use]
+    pub const fn new(hand: Hand, animation: SwingAnimationKind, duration: i32) -> Self {
+        Self {
+            hand,
+            animation,
+            duration,
+            recipients: SwingRecipients::Observers,
+            eligibility: SwingEligibility::AliveActor,
+        }
+    }
+
+    #[must_use]
+    pub const fn self_included(hand: Hand, animation: SwingAnimationKind, duration: i32) -> Self {
+        Self {
+            hand,
+            animation,
+            duration,
+            recipients: SwingRecipients::SelfAndObservers,
+            eligibility: SwingEligibility::CommandTarget,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_recipients(mut self, recipients: SwingRecipients) -> Self {
+        self.recipients = recipients;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_eligibility(mut self, eligibility: SwingEligibility) -> Self {
+        self.eligibility = eligibility;
+        self
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +123,7 @@ pub fn obey(
     match order {
         PlayerOrder::Teleport(order) => teleport(world, player, order),
         PlayerOrder::SetGameMode(mode) => set_game_mode(world, player, mode),
+        PlayerOrder::Swing(order) => swing(world, player, order),
     }
 }
 
@@ -134,6 +185,24 @@ pub fn set_game_mode(
         .get_mut::<PlayerGameMode>(player)
         .ok_or(DimensionChangeError::NoPlayer)?;
     current.set_if_neq(PlayerGameMode(mode));
+    Ok(())
+}
+
+pub fn swing(
+    world: &mut World,
+    player: Entity,
+    order: SwingOrder,
+) -> Result<(), DimensionChangeError> {
+    if world.get::<PlayerSwing>(player).is_none() {
+        return Err(DimensionChangeError::NoPlayer);
+    }
+    if let Some(mut messages) = world.get_resource_mut::<Messages<SwingPlayer>>() {
+        messages.write(
+            SwingPlayer::new(player, order.hand, order.animation, order.duration)
+                .with_recipients(order.recipients)
+                .with_eligibility(order.eligibility),
+        );
+    }
     Ok(())
 }
 

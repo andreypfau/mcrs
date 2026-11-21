@@ -105,6 +105,13 @@ pub(crate) fn publish_motion(
         }
     }
     news.strikes.clear();
+    for swing in news.swings.drain(..) {
+        if let Ok((_, _, _, published)) = entities.get(swing.subject.entity)
+            && let Some(tile) = published.tile()
+        {
+            push_signal(&mut events, tile, swing.subject.id, swing.signal);
+        }
+    }
     let departures = &mut departures.0;
     departures.sort_unstable();
     for departure in departures.drain(..) {

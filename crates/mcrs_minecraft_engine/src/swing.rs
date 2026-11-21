@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
-use mcrs_minecraft_replication::PlayerData;
+use mcrs_minecraft_replication::{PlayerData, SwingRecipients};
 use mcrs_minecraft_swing::{SwingModifiers, SwingTracker};
 
 use crate::loaded_client::LoadedClientTickSet;
@@ -21,6 +21,7 @@ use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
 const DEFAULT_DURATION: i32 = 6;
+const CORPSE_REMOVAL_TICKS: i16 = 20;
 
 pub struct PlayerSwingPlugin;
 
@@ -54,6 +55,13 @@ pub struct SwingSimulateSet;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PlayerSwing(pub SwingTracker);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SwingEligibility {
+    #[default]
+    AliveActor,
+    CommandTarget,
+}
+
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SwingPlayer {
@@ -61,6 +69,8 @@ pub struct SwingPlayer {
     pub hand: Hand,
     pub animation: SwingAnimationKind,
     pub duration: i32,
+    pub recipients: SwingRecipients,
+    pub eligibility: SwingEligibility,
 }
 
 impl SwingPlayer {
@@ -76,17 +86,48 @@ impl SwingPlayer {
             hand,
             animation,
             duration,
+            recipients: SwingRecipients::Observers,
+            eligibility: SwingEligibility::AliveActor,
         }
     }
 
     #[must_use]
     pub const fn default_main(player: Entity) -> Self {
+        Self::new(
+            player,
+            Hand::Main,
+            SwingAnimationKind::Whack,
+            DEFAULT_DURATION,
+        )
+    }
+
+    #[must_use]
+    pub const fn self_included(
+        player: Entity,
+        hand: Hand,
+        animation: SwingAnimationKind,
+        duration: i32,
+    ) -> Self {
         Self {
             player,
-            hand: Hand::Main,
-            animation: SwingAnimationKind::Whack,
-            duration: DEFAULT_DURATION,
+            hand,
+            animation,
+            duration,
+            recipients: SwingRecipients::SelfAndObservers,
+            eligibility: SwingEligibility::CommandTarget,
         }
+    }
+
+    #[must_use]
+    pub const fn with_recipients(mut self, recipients: SwingRecipients) -> Self {
+        self.recipients = recipients;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_eligibility(mut self, eligibility: SwingEligibility) -> Self {
+        self.eligibility = eligibility;
+        self
     }
 }
 
@@ -99,8 +140,22 @@ pub(crate) fn has_pending_player_swings(pending: Res<PendingPlayerSwings>) -> bo
     !pending.swings.is_empty()
 }
 
-fn player_is_dead(state: Option<&PlayerFileState>) -> bool {
-    state.is_some_and(|file| file.health <= 0.0 || file.death_time > 0)
+fn player_can_swing(
+    eligibility: SwingEligibility,
+    mode: Option<&PlayerGameMode>,
+    state: Option<&PlayerFileState>,
+) -> bool {
+    match eligibility {
+        SwingEligibility::AliveActor => {
+            let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
+            let dead = state.is_some_and(|file| file.health <= 0.0 || file.death_time > 0);
+            !spectator && !dead
+        }
+        SwingEligibility::CommandTarget => {
+            let corpse_removed = state.is_some_and(|file| file.death_time >= CORPSE_REMOVAL_TICKS);
+            !corpse_removed
+        }
+    }
 }
 
 fn swing_modifiers_for_player(state: Option<&PlayerFileState>) -> SwingModifiers {
@@ -131,10 +186,7 @@ fn apply_player_swings(
         let Ok((mode, file_state, mut swing)) = players.get_mut(request.player) else {
             continue;
         };
-        if mode.is_some_and(|mode| mode.0 == GameMode::Spectator) || player_is_dead(file_state) {
-            continue;
-        }
-        if !swing.0.can_start(now) {
+        if !player_can_swing(request.eligibility, mode, file_state) {
             continue;
         }
         let modifiers = swing_modifiers_for_player(file_state);
@@ -143,12 +195,10 @@ fn apply_player_swings(
             continue;
         }
         if let Some(pending) = pending.as_deref_mut() {
-            pending.swings.push(SwingPlayer::new(
-                request.player,
-                request.hand,
-                request.animation,
-                base_duration,
-            ));
+            pending.swings.push(SwingPlayer {
+                duration: base_duration,
+                ..request
+            });
         }
     }
 }
@@ -168,6 +218,7 @@ pub(crate) fn publish_player_swings(
                         hand: swing.hand,
                         animation: swing.animation,
                         duration: swing.duration,
+                        recipients: swing.recipients,
                     }
                     .into(),
                 ),
@@ -185,8 +236,18 @@ mod tests {
     use mcrs_minecraft_replication::ReplicationData;
 
     use crate::bus::InboundPlayerDespawn;
+    use crate::dimension_change::DimensionChangeError;
+    use crate::player_order::{self, PlayerOrder, SwingOrder};
     use crate::player_state::Effect;
     use crate::player_tracker::PlayerTrackerPlugin;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct EmittedSwing {
+        hand: Hand,
+        animation: SwingAnimationKind,
+        duration: i32,
+        recipients: SwingRecipients,
+    }
 
     fn test_app() -> (App, Entity) {
         let mut app = App::new();
@@ -211,7 +272,7 @@ mod tests {
         (app, player)
     }
 
-    fn run_and_take_swings(app: &mut App) -> Vec<(Hand, SwingAnimationKind, i32)> {
+    fn run_and_take_swings(app: &mut App) -> Vec<EmittedSwing> {
         app.update();
         let deltas = app.world_mut().resource_mut::<TileEvents>().take();
         deltas
@@ -223,7 +284,13 @@ mod tests {
                     hand,
                     animation,
                     duration,
-                })) => Some((*hand, *animation, *duration)),
+                    recipients,
+                })) => Some(EmittedSwing {
+                    hand: *hand,
+                    animation: *animation,
+                    duration: *duration,
+                    recipients: *recipients,
+                }),
                 _ => None,
             })
             .collect()
@@ -242,7 +309,12 @@ mod tests {
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
             run_and_take_swings(&mut app),
-            vec![(Hand::Off, SwingAnimationKind::Stab, 10)],
+            vec![EmittedSwing {
+                hand: Hand::Off,
+                animation: SwingAnimationKind::Stab,
+                duration: 10,
+                recipients: SwingRecipients::Observers,
+            }],
             "SWG-STA-004: at most one swing per player per tick"
         );
 
@@ -272,7 +344,12 @@ mod tests {
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
             run_and_take_swings(&mut app),
-            vec![(Hand::Main, SwingAnimationKind::Whack, 6)],
+            vec![EmittedSwing {
+                hand: Hand::Main,
+                animation: SwingAnimationKind::Whack,
+                duration: 6,
+                recipients: SwingRecipients::Observers,
+            }],
             "SWG-CMP-003: wire duration remains unscaled under mining fatigue"
         );
 
@@ -289,14 +366,30 @@ mod tests {
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
             run_and_take_swings(&mut app),
-            vec![(Hand::Main, SwingAnimationKind::Whack, 6)],
+            vec![EmittedSwing {
+                hand: Hand::Main,
+                animation: SwingAnimationKind::Whack,
+                duration: 6,
+                recipients: SwingRecipients::Observers,
+            }],
             "SWG-STA-002/005: D=10 unlocks at T+6"
         );
     }
 
     #[test]
-    fn apply_player_swings_ignores_spectator_and_dead_players() {
+    fn apply_player_swings_distinguishes_action_and_command_eligibility() {
         let (mut app, player) = test_app();
+        let non_player = app.world_mut().spawn_empty().id();
+        assert_eq!(
+            player_order::swing(
+                app.world_mut(),
+                non_player,
+                SwingOrder::self_included(Hand::Main, SwingAnimationKind::Whack, 6),
+            ),
+            Err(DimensionChangeError::NoPlayer),
+            "player_order::swing rejects non-player entities"
+        );
+
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
@@ -305,9 +398,43 @@ mod tests {
             .write_message(SwingPlayer::default_main(player));
         assert!(
             run_and_take_swings(&mut app).is_empty(),
-            "spectators must not emit swings"
+            "SWG-DEV-003: observer-only swings ignore spectators"
         );
 
+        player_order::obey(
+            app.world_mut(),
+            player,
+            PlayerOrder::Swing(SwingOrder::self_included(
+                Hand::Off,
+                SwingAnimationKind::Stab,
+                8,
+            )),
+        )
+        .expect("swing order applies");
+        assert_eq!(
+            run_and_take_swings(&mut app),
+            vec![EmittedSwing {
+                hand: Hand::Off,
+                animation: SwingAnimationKind::Stab,
+                duration: 8,
+                recipients: SwingRecipients::SelfAndObservers,
+            }],
+            "CMD-SWG-006: self-included command swing reaches spectators"
+        );
+
+        app.world_mut().resource_mut::<BirthClock>().0 = 14;
+        app.world_mut().write_message(SwingPlayer::self_included(
+            player,
+            Hand::Main,
+            SwingAnimationKind::Whack,
+            6,
+        ));
+        assert!(
+            run_and_take_swings(&mut app).is_empty(),
+            "CMD-SWG-006: D=8 blocks T+4 across swing sources"
+        );
+
+        app.world_mut().resource_mut::<BirthClock>().0 = 15;
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
@@ -320,7 +447,39 @@ mod tests {
             .write_message(SwingPlayer::default_main(player));
         assert!(
             run_and_take_swings(&mut app).is_empty(),
-            "dead players must not emit swings"
+            "SWG-DEV-003: action swings ignore dead players"
+        );
+        app.world_mut().write_message(SwingPlayer::self_included(
+            player,
+            Hand::Main,
+            SwingAnimationKind::Whack,
+            6,
+        ));
+        assert_eq!(
+            run_and_take_swings(&mut app),
+            vec![EmittedSwing {
+                hand: Hand::Main,
+                animation: SwingAnimationKind::Whack,
+                duration: 6,
+                recipients: SwingRecipients::SelfAndObservers,
+            }],
+            "CMD-SWG-006: command swing still emits before corpse removal"
+        );
+
+        app.world_mut().resource_mut::<BirthClock>().0 = 20;
+        app.world_mut()
+            .get_mut::<PlayerFileState>(player)
+            .expect("player state")
+            .death_time = CORPSE_REMOVAL_TICKS;
+        app.world_mut().write_message(SwingPlayer::self_included(
+            player,
+            Hand::Main,
+            SwingAnimationKind::Whack,
+            6,
+        ));
+        assert!(
+            run_and_take_swings(&mut app).is_empty(),
+            "CMD-SWG-006: past corpse removal emits zero swing packets"
         );
     }
 }

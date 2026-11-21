@@ -13,6 +13,7 @@ use crate::player_list::{Dispatch, Member, PlayerList, ProfileNeed};
 use crate::player_spawn::PlayerSpawn;
 use crate::replication_data::ReplicationData;
 use crate::subject_attributes::SubjectAttributes;
+use crate::swing_recipients::SwingRecipients;
 use crate::wire_id::wire_id;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
@@ -60,6 +61,7 @@ struct PendingSwing {
     hand: Hand,
     animation: SwingAnimationKind,
     duration: i32,
+    recipients: SwingRecipients,
 }
 
 #[derive(Debug)]
@@ -234,12 +236,14 @@ impl EntityCodec {
                     hand,
                     animation,
                     duration,
+                    recipients,
                 })) => {
                     self.swings.push(PendingSwing {
                         subject,
                         hand: *hand,
                         animation: *animation,
                         duration: *duration,
+                        recipients: *recipients,
                     });
                 }
                 EntityEvent::Enter { .. } => {
@@ -269,7 +273,8 @@ impl EntityCodec {
                 continue;
             };
             let observers = holds.holders(swing.subject);
-            if !observers.iter().any(|&viewer| viewer != owner) {
+            let include_self = swing.recipients == SwingRecipients::SelfAndObservers;
+            if !include_self && !observers.iter().any(|&viewer| viewer != owner) {
                 continue;
             }
             let packet = match record(&ClientboundSwingAnimation {
@@ -288,6 +293,9 @@ impl EntityCodec {
                 if viewer != owner {
                     delivery.owe(viewer, packet.clone());
                 }
+            }
+            if include_self {
+                delivery.owe(owner, packet);
             }
         }
     }
@@ -814,6 +822,7 @@ mod tests {
         hand: Hand,
         animation: SwingAnimationKind,
         duration: i32,
+        recipients: SwingRecipients,
     ) -> SubjectEvent<ReplicationData> {
         SubjectEvent {
             subject: PLAYER,
@@ -822,6 +831,7 @@ mod tests {
                     hand,
                     animation,
                     duration,
+                    recipients,
                 }
                 .into(),
             ),
@@ -835,7 +845,12 @@ mod tests {
             1,
             &TileDelta {
                 tile: TileKey::new(0, 0, 0),
-                events: vec![swing_event(Hand::Off, SwingAnimationKind::Stab, 9)],
+                events: vec![swing_event(
+                    Hand::Off,
+                    SwingAnimationKind::Stab,
+                    9,
+                    SwingRecipients::Observers,
+                )],
             },
         );
         let packets_by_viewer = finish_by_viewer(&mut codec, 1);
@@ -877,6 +892,211 @@ mod tests {
     }
 
     #[test]
+    fn self_included_player_swing_reaches_owner_once_and_works_without_observers() {
+        let mut codec = setup_swing_codec();
+        codec.apply(
+            1,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![swing_event(
+                    Hand::Main,
+                    SwingAnimationKind::Whack,
+                    6,
+                    SwingRecipients::SelfAndObservers,
+                )],
+            },
+        );
+        let by_viewer = finish_by_viewer(&mut codec, 1);
+        let expected = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(PLAYER),
+            hand: Hand::Main,
+            animation: SwingAnimationKind::Whack,
+            duration: VarInt(6),
+        })
+        .unwrap();
+        let owner = by_viewer.get(&SUBJECT_VIEWER).expect("owner");
+        let observer_a = by_viewer.get(&OBSERVER_A).expect("observer A");
+        let observer_b = by_viewer.get(&OBSERVER_B).expect("observer B");
+        assert_eq!(owner.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(observer_a.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(observer_b.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(
+            owner[0].as_ptr(),
+            observer_a[0].as_ptr(),
+            "owner and observers share one encoded Bytes buffer"
+        );
+
+        let mut lost = Vec::new();
+        for viewer in [OBSERVER_A, OBSERVER_B, SUBJECT_VIEWER] {
+            codec.hold(
+                viewer,
+                Hold::Lose {
+                    subjects: &[PLAYER],
+                },
+                &mut lost,
+            );
+        }
+        codec.apply(
+            2,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![swing_event(
+                    Hand::Off,
+                    SwingAnimationKind::Stab,
+                    12,
+                    SwingRecipients::SelfAndObservers,
+                )],
+            },
+        );
+        let solo = finish_by_viewer(&mut codec, 2);
+        let solo_expected = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(PLAYER),
+            hand: Hand::Off,
+            animation: SwingAnimationKind::Stab,
+            duration: VarInt(12),
+        })
+        .unwrap();
+        assert_eq!(
+            solo.get(&SUBJECT_VIEWER).map(Vec::as_slice),
+            Some(std::slice::from_ref(&solo_expected)),
+            "solo self-included swing still reaches its owner"
+        );
+        assert!(
+            !solo.contains_key(&OBSERVER_A) && !solo.contains_key(&OBSERVER_B),
+            "non-holding observers receive nothing"
+        );
+    }
+
+    fn setup_pig_codec(pig: EntityId) -> EntityCodec {
+        let mut codec = EntityCodec::default();
+        let state = MobState {
+            position: DVec3::new(1.5, 64.0, 1.5),
+            on_ground: true,
+            ..MobState::default()
+        };
+        codec.apply(
+            0,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![SubjectEvent {
+                    subject: pig,
+                    event: EntityEvent::Spawn(
+                        MobReport::Spawn(MobSpawn {
+                            kind: &EntityTypeData::PIG,
+                            uuid: Uuid::from_u128(44),
+                            state,
+                            look: SpawnLook::Mob(Default::default()),
+                        })
+                        .into(),
+                    ),
+                }],
+            },
+        );
+        let mut out = Vec::new();
+        for viewer in [OBSERVER_A, OBSERVER_B] {
+            codec.hold(
+                viewer,
+                Hold::Gain {
+                    subject: pig,
+                    tier: Tier::NEAREST,
+                },
+                &mut out,
+            );
+        }
+        let _ = finish_by_viewer(&mut codec, 0);
+        codec
+    }
+
+    #[test]
+    fn mob_swings_share_one_buffer_never_replay_and_skip_lost_or_despawned() {
+        let pig = EntityId(44);
+        let mut codec = setup_pig_codec(pig);
+        let mob_swing = |hand, animation, duration| SubjectEvent {
+            subject: pig,
+            event: EntityEvent::Data(
+                MobReport::Signal(MobSignal::Swing {
+                    hand,
+                    animation,
+                    duration,
+                })
+                .into(),
+            ),
+        };
+        codec.apply(
+            1,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![mob_swing(Hand::Off, SwingAnimationKind::Stab, 15)],
+            },
+        );
+        let by_viewer = finish_by_viewer(&mut codec, 1);
+        let expected = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(pig),
+            hand: Hand::Off,
+            animation: SwingAnimationKind::Stab,
+            duration: VarInt(15),
+        })
+        .unwrap();
+        let observer_a = by_viewer.get(&OBSERVER_A).expect("observer A");
+        let observer_b = by_viewer.get(&OBSERVER_B).expect("observer B");
+        assert_eq!(observer_a.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(observer_b.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(
+            observer_a[0].as_ptr(),
+            observer_b[0].as_ptr(),
+            "mob observers share one encoded Bytes buffer"
+        );
+
+        let mut late = Vec::new();
+        codec.hold(
+            LATE_VIEWER,
+            Hold::Gain {
+                subject: pig,
+                tier: Tier::NEAREST,
+            },
+            &mut late,
+        );
+        assert!(
+            !late.contains(&expected),
+            "SWG-DST-002: mob swing never replays on late join"
+        );
+
+        codec.apply(
+            2,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![
+                    mob_swing(Hand::Main, SwingAnimationKind::Whack, 6),
+                    SubjectEvent {
+                        subject: pig,
+                        event: EntityEvent::Despawn,
+                    },
+                ],
+            },
+        );
+        let mut farewell = Vec::new();
+        codec.hold(OBSERVER_A, Hold::Lose { subjects: &[pig] }, &mut farewell);
+        let whack = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(pig),
+            hand: Hand::Main,
+            animation: SwingAnimationKind::Whack,
+            duration: VarInt(6),
+        })
+        .unwrap();
+        assert!(
+            !farewell.contains(&whack),
+            "despawned mob must not emit SwingAnimation as a farewell"
+        );
+        let after = finish_by_viewer(&mut codec, 2);
+        assert!(
+            after
+                .values()
+                .all(|chunks| chunks.iter().all(|chunk| chunk != &whack)),
+            "same-tick despawn suppresses mob SwingAnimation"
+        );
+    }
+
+    #[test]
     fn player_swings_skip_lost_observers_and_same_tick_despawn() {
         let mut codec = setup_swing_codec();
         let expected = record(&ClientboundSwingAnimation {
@@ -891,7 +1111,12 @@ mod tests {
             1,
             &TileDelta {
                 tile: TileKey::new(0, 0, 0),
-                events: vec![swing_event(Hand::Off, SwingAnimationKind::Stab, 9)],
+                events: vec![swing_event(
+                    Hand::Off,
+                    SwingAnimationKind::Stab,
+                    9,
+                    SwingRecipients::Observers,
+                )],
             },
         );
         let mut lost = Vec::new();
@@ -918,7 +1143,12 @@ mod tests {
             &TileDelta {
                 tile: TileKey::new(0, 0, 0),
                 events: vec![
-                    swing_event(Hand::Main, SwingAnimationKind::Whack, 6),
+                    swing_event(
+                        Hand::Main,
+                        SwingAnimationKind::Whack,
+                        6,
+                        SwingRecipients::SelfAndObservers,
+                    ),
                     SubjectEvent {
                         subject: PLAYER,
                         event: EntityEvent::Despawn,

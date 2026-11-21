@@ -32,6 +32,8 @@ use crate::mob_index::forget_mob;
 use crate::mob_spawn::WaitingSpawns;
 use crate::mob_spawn::spawn_mob_entities;
 use crate::mob_spawn_request::MobSpawnRequest;
+use crate::mob_swing::MobSwing;
+use crate::mobs::Mob;
 use crate::physics_tables::build_tables;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -50,6 +52,9 @@ impl Plugin for EntityPhysicsPlugin {
         app.init_resource::<CrowdDamageType>();
         app.init_resource::<WaitingSpawns>();
         app.add_message::<MobSpawnRequest>();
+        if let Err(error) = app.try_register_required_components::<Mob, MobSwing>() {
+            tracing::error!("a mob does not require its swing state: {error}");
+        }
         app.add_observer(forget_mob);
         app.add_systems(
             FixedUpdate,

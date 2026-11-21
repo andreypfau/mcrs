@@ -6,11 +6,13 @@ use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
     pub(crate) strikes: Vec<Struck>,
+    pub(crate) swings: Vec<Swung>,
 }
 
 impl MobChanges {
@@ -22,6 +24,11 @@ impl MobChanges {
     #[must_use]
     pub fn strikes(&self) -> &[Struck] {
         &self.strikes
+    }
+
+    #[must_use]
+    pub fn swings(&self) -> &[Swung] {
+        &self.swings
     }
 }
 
@@ -44,7 +51,17 @@ pub struct Struck {
     pub died: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Swung {
+    pub entity: Entity,
+    pub hand: Hand,
+    pub animation: SwingAnimationKind,
+    pub duration: i32,
+}
+
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {
     changes.spawned.clear();
     changes.strikes.clear();
+    changes.swings.clear();
 }
