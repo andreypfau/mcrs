@@ -1,19 +1,10 @@
 #![expect(clippy::unwrap_used, reason = "a malformed fixture fails the test")]
 
-use bevy_tasks::TaskPool;
-use bevy_tasks::TaskPoolBuilder;
+use bevy_ecs::entity::Entity;
 use mcrs_engine_muxer::EntityId;
-use mcrs_engine_muxer::TileGrid;
-use mcrs_minecraft_engine_physics::RowScene;
-use mcrs_minecraft_engine_physics::RowWrites;
+use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity_key::EntityUuid;
-use mcrs_minecraft_entity_key::TILE_WIDTH;
-use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_physics::BodyGrid;
-use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
-use mcrs_minecraft_volume::BlockVolumeMut;
-use mcrs_minecraft_volume::SparseVolume;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
@@ -30,22 +21,15 @@ const AREA: i32 = 3;
 
 const SKIPPED: [&str; 2] = ["e15_border", "e16_shulker"];
 
-fn scene_of(fixture: &Fixture) -> RowScene {
-    let mut scene = RowScene {
-        blocks: SparseVolume::unbounded(),
-        tables: Tables::new(common::table().clone()),
-        rows: RowStore::default(),
-        grid: BodyGrid::default(),
-        tick: 1,
-        push: PushRules::default(),
-        crowd_damage_type: None,
-    };
+fn scene_of(fixture: &Fixture) -> TestScene {
+    let mut scene = TestScene::empty(Tables::new(common::table().clone()));
+    scene.tick = 1;
     let [ox, oy, oz] = fixture.origin.map(|value| value.div_euclid(16));
     for y in -AREA..=AREA {
         for z in -AREA..=AREA {
             for x in -AREA..=AREA {
                 let section = SectionPos::new(ox + x, oy + y, oz + z);
-                scene.blocks.insert(section, BlockStateId::AIR);
+                scene.load_section(section, BlockStateId::AIR);
             }
         }
     }
@@ -55,34 +39,25 @@ fn scene_of(fixture: &Fixture) -> RowScene {
     scene
 }
 
-fn fill(scene: &mut RowScene, min: BlockPos, max: BlockPos, state: BlockStateId) {
-    let tiles = TileGrid {
-        x: TILE_WIDTH,
-        y: TILE_WIDTH,
-        z: TILE_WIDTH,
-    };
+fn fill(scene: &mut TestScene, min: BlockPos, max: BlockPos, state: BlockStateId) {
     for y in min.y..=max.y {
         for z in min.z..=max.z {
             for x in min.x..=max.x {
-                scene
-                    .blocks
-                    .set_block(BlockPos::new(x, y, z), state)
-                    .unwrap();
-                scene.rows.stir(tiles.tile_at(x, 0, z));
+                scene.place_block(BlockPos::new(x, y, z), state).unwrap();
             }
         }
     }
 }
 
-fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
+fn replay(fixture: &Fixture, phase: u8) -> Vec<Failure> {
     let mut scene = scene_of(fixture);
     let recorded: Vec<_> = fixture::simulated(fixture).collect();
-    let ids: Vec<EntityId> = (1..=recorded.len() as u64).map(EntityId).collect();
-    for ((index, (entity, row)), &id) in recorded.iter().enumerate().zip(&ids) {
+    let mut entities: Vec<Entity> = Vec::new();
+    for (index, (entity, row)) in recorded.iter().enumerate() {
         let first = entity.ticks.first().copied().flatten().unwrap();
         let key = EntityUuid::from_u128(u128::from(index as u32));
         let state = start_state(entity, row, key, &first, phase);
-        scene.rows.spawn(id, state, *row);
+        entities.push(scene.spawn(EntityId(index as u64 + 1), state, *row));
     }
     let mut failures: Vec<Failure> = vec![None; recorded.len()];
     let ticks = recorded.iter().map(|(entity, _)| entity.ticks.len()).max();
@@ -90,20 +65,15 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
         for (min, max, state) in fixture::changes_before(fixture, tick) {
             fill(&mut scene, min, max, state);
         }
-        scene.step(pool, 1, &mut RowWrites::default());
-        for (((entity, _), failure), &id) in recorded.iter().zip(&mut failures).zip(&ids) {
+        scene.step();
+        for (((entity, _), failure), &spawned) in recorded.iter().zip(&mut failures).zip(&entities)
+        {
             let (None, Some(Some(expected))) = (&failure, entity.ticks.get(tick).copied()) else {
                 continue;
             };
-            let body = scene
-                .rows
-                .tiles()
-                .flat_map(|(_, rows)| rows.rows())
-                .find(|row| row.id == id)
-                .map(|row| row.state.body);
-            *failure = match body {
-                Some(body) => compare(&body, &expected),
-                None => Some("the row is gone".to_owned()),
+            *failure = match scene.state(spawned) {
+                Some(state) => compare(&state.body, &expected),
+                None => Some("the entity is gone".to_owned()),
             }
             .map(|text| (tick, text));
         }
@@ -113,7 +83,6 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
 
 #[test]
 fn the_pass_follows_the_vanilla_fixtures() {
-    let pool = TaskPoolBuilder::new().num_threads(1).build();
     let mut failures = String::new();
     let mut checked = 0;
     for fixture in fixture::fixtures(&mcrs_minecraft_fixtures::fixture("physics").files()) {
@@ -128,7 +97,7 @@ fn the_pass_follows_the_vanilla_fixtures() {
         if unsupported {
             continue;
         }
-        let runs: Vec<Vec<Failure>> = (0..4).map(|phase| replay(&fixture, &pool, phase)).collect();
+        let runs: Vec<Vec<Failure>> = (0..4).map(|phase| replay(&fixture, phase)).collect();
         checked += fixture::report(&fixture, &runs, &mut failures);
     }
     println!("{checked} recorded entities");

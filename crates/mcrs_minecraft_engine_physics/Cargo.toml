@@ -32,6 +32,7 @@ mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 rustc-hash.workspace = true
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_simulation = { workspace = true, optional = true }
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 tracing.workspace = true
@@ -48,7 +49,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 [features]
-testing = ["mcrs_minecraft_physics/testing"]
+testing = ["dep:mcrs_minecraft_simulation", "mcrs_minecraft_physics/testing"]
 
 [[bench]]
 name = "entity_pass"

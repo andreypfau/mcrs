@@ -69,7 +69,7 @@ cargo run --release -p mcrs_minecraft_engine_physics --example state_hash -- <th
 
 Run it with 1 thread and then with 8 threads, and the hash at the end of the line is the same. The example also prints the architecture, so you can compare two machines. The code is short:
 
-<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step(&pool, tiles_per_task, &mut writes);\n    }"} title="state_hash: same scene, any number of threads" />
+<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step();\n    }"} title="state_hash: same scene, any number of threads" />
 
 The example checks the design and makes no claim about speed. It needs a nightly toolchain and is not part of the install guide, which is WIP.
 

@@ -159,7 +159,11 @@ impl<M: Send + Sync + 'static> Plugin for RowPhysicsPlugin<M> {
     }
 }
 
-fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<CurrentRegistries>) {
+pub(crate) fn build_tables(
+    mut commands: Commands,
+    blocks: Res<Blocks>,
+    registries: Res<CurrentRegistries>,
+) {
     let Some(tags) = registries.tags::<Block>() else {
         tracing::error!("the registries declare no block tags; entities keep their tables");
         return;
@@ -169,7 +173,10 @@ fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Cur
     ))));
 }
 
-fn find_crowd_damage_type(mut found: ResMut<CrowdDamageType>, registries: Res<CurrentRegistries>) {
+pub(crate) fn find_crowd_damage_type(
+    mut found: ResMut<CrowdDamageType>,
+    registries: Res<CurrentRegistries>,
+) {
     found.0 = registries
         .id_of(
             DAMAGE_TYPE.location(),

@@ -196,7 +196,7 @@ pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
     changes.strikes.clear();
 }
 
-fn first_looks(
+pub(crate) fn first_looks(
     kind: &EntityTypeData,
     stream: &KeyedStream,
     registries: Option<&Registries>,
