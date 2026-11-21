@@ -1,5 +1,5 @@
 use crate::bounds::{Bounds, node_bounds};
-use crate::cell::{CELL_BOUNDS_SLACK, CellBounds};
+use crate::cell::{CELL_BOUNDS_SLACK, CellBounds, interpolation_hull};
 use crate::program::{Node, NodeId, Program, Seed, SeededPlan, Workspace};
 use crate::surface_levels::Owner;
 use glam::IVec3;
@@ -259,7 +259,12 @@ impl ColumnBound {
                     lattice.block_z(cell_z + 1) - 1,
                 );
                 if !cells
-                    .chain_over(program, hull, min, max)
+                    .chain_over(
+                        program,
+                        interpolation_hull(hull, lattice.step_block().y),
+                        min,
+                        max,
+                    )
                     .is_some_and(|bound| bound.max() < -CELL_BOUNDS_SLACK)
                 {
                     return false;

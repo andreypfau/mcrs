@@ -65,7 +65,16 @@ fn corner_hull(row: &[f32], lattice: &SampleGrid, at: IVec3) -> Interval {
             }
         }
     }
-    Interval::of(lo, hi)
+    interpolation_hull(Interval::of(lo, hi), lattice.step_block().y)
+}
+
+pub(crate) fn interpolation_hull(corners: Interval, cell_y: i32) -> Interval {
+    if corners.is_nai() {
+        return corners;
+    }
+    let magnitude = corners.min().abs().max(corners.max().abs());
+    let slop = (cell_y as f32 + 20.0) * f32::EPSILON * magnitude;
+    Interval::of(corners.min() - slop, corners.max() + slop)
 }
 
 pub fn sampled_bounds(
@@ -422,5 +431,50 @@ mod tests {
             tighter > 40,
             "only {tighter} of 125 cells came out tighter than the corner hull"
         );
+    }
+
+    #[test]
+    fn a_corner_hull_contains_every_value_the_fill_writes_at_a_large_magnitude() {
+        const CELL: IVec3 = IVec3::new(4, 8, 4);
+        let nodes = vec![
+            Node::Gradient(GradientParams {
+                axis: Axis::Y,
+                tiling: Tiling::ClampToEdge,
+                from: 0.0,
+                to: 8.0,
+                from_value: 16_777_238.0,
+                to_value: 16_777_248.0,
+            }),
+            Node::Interpolated {
+                input: 0,
+                cell_xz: CELL.x,
+                cell_y: CELL.y,
+                cell: 0,
+            },
+        ];
+        let program = Program::new(
+            nodes,
+            vec![AXIS_Y, ALL_AXES],
+            vec![Interval::INFINITE; 2],
+            vec![1],
+        );
+        let mut ws = Workspace::new();
+
+        let lattice = SampleGrid::new(IVec3::splat(2), IVec3::ZERO, CELL);
+        let mut corners = vec![0.0f32; lattice.len()];
+        program.fill(&mut ws, &lattice, 0, &mut corners);
+        let mut hull = [Interval::NAI];
+        corner_bounds(&corners, &lattice, IVec3::ZERO, &mut hull);
+
+        let blocks = SampleGrid::dense(CELL, IVec3::ZERO);
+        let mut values = vec![0.0f32; blocks.len()];
+        program.fill(&mut ws, &blocks, 0, &mut values);
+        for (at, &value) in values.iter().enumerate() {
+            assert!(
+                hull[0].contains(value),
+                "block {at} is {value}, outside the corner hull {:?} of {corners:?}",
+                hull[0]
+            );
+        }
     }
 }
