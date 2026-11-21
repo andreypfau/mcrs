@@ -28,7 +28,7 @@ use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Side;
 
 use crate::PhysicsTables;
-use crate::row_physics_plugin::CrowdDamageType;
+use crate::crowd_damage_type::CrowdDamageType;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionPlugin;

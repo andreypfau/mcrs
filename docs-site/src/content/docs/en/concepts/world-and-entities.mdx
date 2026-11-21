@@ -1,6 +1,6 @@
 ---
 title: "World data: sections, columns, entities"
-description: How a world is laid out in memory, how code reads it through volumes, and why mobs are rows by tile.
+description: How a world is laid out in memory, how code reads it through volumes, and why mobs are ECS entities.
 sidebar:
   order: 5
 kind: explanation
@@ -9,7 +9,7 @@ stability: wip
 tracking: [486, 324]
 sources:
   - crates/mcrs_minecraft_volume/src/lib.rs
-  - crates/mcrs_minecraft_entity_rows/src/lib.rs
+  - crates/mcrs_minecraft_engine_entity_motion/src/lib.rs
   - docs/physics-architecture.md
   - issue:486
   - issue:324
@@ -21,7 +21,7 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page shows how mcrs lays out a world in memory: blocks in sections and columns, and mobs as rows in a table. The layout is settled for blocks and still moving for entities and for the world-access API, so the page is short. If you know Paper, expect two changes. A "chunk" is two different things here, and a mob is not an object.
+This page shows how mcrs lays out a world in memory: blocks in sections and columns, and mobs as ECS entities. The layout is settled for blocks and still moving for entities and for the world-access API, so the page is short. If you know Paper, expect two changes. A "chunk" is two different things here, and a mob is not an object.
 
 ## A dimension holds columns, and a column holds sections
 
@@ -55,13 +55,13 @@ The crate exists and exports these types. The callers move to it in seven steps 
 Treat the volume API as the direction. The migration is in progress and the traits may still change.[^486]
 </Aside>
 
-## Mobs are rows in a store by tile
+## Mobs are ECS entities
 
-A Bevy entity per mob would be flexible and expensive. So for the entities that the server simulates, mcrs keeps rows in a store by tile, in the crate `mcrs_minecraft_entity_rows`. Mobs get a dense column of hot state. Items and experience orbs are rows only, and players are rows too. Each tick, one pass steps every row in parallel over tiles against a frozen snapshot. [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains why that gives one result on any thread count.
+Each mob, item, falling block and experience orb that the server simulates is a Bevy entity. Its motion is in components of the crate `mcrs_minecraft_engine_entity_motion` (`MotionState`, `MotionKind`, `MotionId`), and the attributes and the brain of a mob are components too. Players are the exception: they stay rows by tile. Each tick, one pass steps every moving entity in parallel against a frozen snapshot of the previous tick. Effects on another entity go into a queue that one system applies in a fixed order. [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains why that gives one result on any thread count.
 
-The cold state of a mob stays in the ECS, as components that you may want to read from a normal system. The design note calls this split "hybrid", with hot state in rows and cold state in components. The core of the store has no Bevy, and a `bevy` feature turns the store into a resource.
+An earlier design kept mobs as rows in a store by tile. The rows were deleted, so a mob is a normal entity that your own system can query.
 
-The exact shape of the API for reading and changing these rows from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either.[^324]
+The exact shape of the API for reading and changing mobs from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either.[^324]
 
 Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).
 

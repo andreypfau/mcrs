@@ -16,6 +16,8 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::EntityMotionPlugin;
 use crate::MobPublish;
+use crate::crowd_damage_type::CrowdDamageType;
+use crate::crowd_damage_type::find_crowd_damage_type;
 use crate::crowd_hits::has_crowds;
 use crate::crowd_hits::hit_crowds;
 use crate::despawn_expired::despawn_expired;
@@ -30,9 +32,7 @@ use crate::mob_index::forget_mob;
 use crate::mob_spawn::WaitingSpawns;
 use crate::mob_spawn::spawn_mob_entities;
 use crate::mob_spawn_request::MobSpawnRequest;
-use crate::row_physics_plugin::CrowdDamageType;
-use crate::row_physics_plugin::build_tables;
-use crate::row_physics_plugin::find_crowd_damage_type;
+use crate::physics_tables::build_tables;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityPhysicsPlugin;

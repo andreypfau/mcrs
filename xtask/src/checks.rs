@@ -50,7 +50,7 @@ const NO_STD_PACKAGES: [&str; 19] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 143] = [
+const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -106,7 +106,6 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_entity_attribute",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_entity_model",
-    "mcrs_minecraft_entity_rows",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_falling_block",
     "mcrs_minecraft_fixtures",
