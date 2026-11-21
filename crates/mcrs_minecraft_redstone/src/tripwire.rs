@@ -207,7 +207,7 @@ pub(crate) fn string_placed<K, V, F, B>(
         return;
     }
     if let Some(memory) = cx.memory() {
-        memory.redstone().sensors.insert(pos, Sensor::Tripwire);
+        memory.redstone().add_sensor(pos, Sensor::Tripwire);
     }
     update_hooks(cx, table, pos);
 }
@@ -226,7 +226,7 @@ pub(crate) fn string_removed<K, V, F, B>(
     B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().sensors.remove(&pos);
+        memory.redstone().remove_sensor(pos);
     }
     if !moved_by_piston {
         update_hooks(cx, table, pos);

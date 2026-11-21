@@ -138,9 +138,8 @@ fn a_comparator_queues_its_changed_output_once() {
     world.ticks(3);
     let queued = world
         .memory
-        .comparator_dirty
-        .iter()
-        .filter(|pos| **pos == diode)
+        .dirty_comparators()
+        .filter(|pos| *pos == diode)
         .count();
     assert_eq!(
         queued, 1,
@@ -223,7 +222,7 @@ fn a_comparator_reads_an_analog_input_behind_it() {
         "the fill signal of the container comes out"
     );
     assert!(
-        world.memory.comparator_dirty.contains(&diode),
+        world.memory.dirty_comparators().any(|pos| pos == diode),
         "a changed output is marked for the save"
     );
 

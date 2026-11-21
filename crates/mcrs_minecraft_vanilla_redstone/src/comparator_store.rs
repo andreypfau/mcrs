@@ -26,12 +26,7 @@ pub(crate) fn restore_comparator_outputs<B>(
             continue;
         };
         let signal = u8::try_from((*output_signal).clamp(0, i32::from(MAX_SIGNAL))).unwrap_or(0);
-        memory
-            .0
-            .redstone()
-            .comparators
-            .entry(pos.0)
-            .or_insert(signal);
+        memory.0.redstone().restore_comparator_output(pos.0, signal);
     }
 }
 
@@ -47,18 +42,15 @@ pub(crate) fn persist_comparator_outputs<B>(
     B::Memory: HasRedstoneMemory,
 {
     let redstone = memory.0.redstone();
-    if redstone.comparator_dirty.is_empty() {
+    if !redstone.has_dirty_comparators() {
         return;
     }
+    let dirty = redstone.take_dirty_comparators();
     let Ok((dimension, index)) = dims.single() else {
-        redstone.comparator_dirty.clear();
         return;
     };
     let mut spawned = Vec::new();
-    for pos in redstone.comparator_dirty.drain(..) {
-        let Some(signal) = redstone.comparators.get(&pos).copied() else {
-            continue;
-        };
+    for (pos, signal) in dirty {
         let found = entity_at(index, &sections, &positions, pos)
             .and_then(|entity| entities.get_mut(entity).ok());
         match found {

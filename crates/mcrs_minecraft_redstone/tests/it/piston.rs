@@ -86,15 +86,14 @@ fn a_moving_block_without_its_record_waits_for_the_record() {
     assert!(world.is(moving, "minecraft:moving_piston"));
     let payload = world
         .memory
-        .moving
-        .remove(&moving)
+        .stop_moving(moving)
         .expect("the record of the moving block");
     world.ticks(3);
     assert!(
         world.is(moving, "minecraft:moving_piston"),
         "a moving block without its record keeps its place"
     );
-    world.memory.moving.insert(moving, payload);
+    world.memory.start_moving(moving, payload);
     world.request_update(UpdateRequest::Single {
         target: moving,
         block: Block::MovingPiston.id(),

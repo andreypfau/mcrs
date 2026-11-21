@@ -32,13 +32,13 @@ pub trait BlockFacts<K: Kinds> {
 }
 
 pub trait MemoryPartition: Sized {
-    fn split<C: Fn(BlockPos) -> u64>(&mut self, cell: C) -> Vec<(u64, Self)>;
+    fn split(&mut self) -> Vec<(u64, Self)>;
 
     fn merge(&mut self, part: Self);
 }
 
 impl MemoryPartition for () {
-    fn split<C: Fn(BlockPos) -> u64>(&mut self, _cell: C) -> Vec<(u64, Self)> {
+    fn split(&mut self) -> Vec<(u64, Self)> {
         Vec::new()
     }
 

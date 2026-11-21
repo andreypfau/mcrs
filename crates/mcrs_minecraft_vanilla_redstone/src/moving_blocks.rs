@@ -138,11 +138,11 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
     B: BlockBehaviour<WorldKinds> + Send + Sync + 'static,
     B::Memory: HasRedstoneMemory,
 {
-    let moving = &memory.0.redstone_ref().moving;
-    if moving.is_empty() {
+    let moving = memory.0.redstone_ref();
+    if !moving.has_moving_blocks() {
         return;
     }
-    movers(&blocks, moving.iter(), time.0, &mut shapes);
+    movers(&blocks, moving.moving_blocks(), time.0, &mut shapes);
     if shapes.is_empty() {
         return;
     }

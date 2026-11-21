@@ -40,6 +40,7 @@ pub use random_tick::{
     RandomHit, RandomPick, RandomPicks, RandomTickTable, RandomTicks, block_tile,
     draw_random_picks, random_step,
 };
+pub use region::cell_key as memory_cell;
 pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};
 pub use sequence::{SequenceClock, SubTick, TickKey};

@@ -25,7 +25,7 @@ use mcrs_minecraft_redstone::{
 };
 use mcrs_minecraft_simulation::{BlockBehaviour, UpdateRequest};
 use mcrs_minecraft_volume::BlockVolume;
-use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos};
 use rustc_hash::FxHashMap;
 
 const ITEM_WIDTH: f32 = 0.25;
@@ -112,10 +112,10 @@ pub(crate) fn publish_plate_presence<B>(
         return;
     };
     let table = rules.0.redstone().table();
-    let known = &memory.0.redstone_ref().sensors;
+    let known = memory.0.redstone_ref();
     let plates = &mut shared.0.redstone_mut().plates;
     plates.clear();
-    if known.is_empty() {
+    if !known.has_sensors() {
         return;
     }
     for list in nearby.values_mut() {
@@ -141,7 +141,7 @@ pub(crate) fn publish_plate_presence<B>(
             .or_default()
             .push((body, Occupant::Other));
     }
-    for (&pos, &sensor) in known {
+    for (pos, sensor) in known.sensors() {
         let Some(sensing) = sensing_box(pos, sensor) else {
             continue;
         };
@@ -200,11 +200,7 @@ pub(crate) fn index_loaded_sensors<B>(
     for change in stages.read() {
         if change.left() {
             let section = change.pos;
-            memory
-                .0
-                .redstone()
-                .sensors
-                .retain(|pos, _| SectionPos::from(*pos) != section);
+            memory.0.redstone().remove_sensors_in(section);
             continue;
         }
         if !change.landed() {
@@ -223,12 +219,12 @@ pub(crate) fn index_loaded_sensors<B>(
             continue;
         }
         let origin = change.pos.min_block();
-        let sensors = &mut memory.0.redstone().sensors;
+        let sensors = memory.0.redstone();
         for y in 0..SECTION_EDGE {
             for z in 0..SECTION_EDGE {
                 for x in 0..SECTION_EDGE {
                     if let Some(sensor) = sensor_of(table, blocks.get(LocalPos::new(x, y, z))) {
-                        sensors.insert(
+                        sensors.add_sensor(
                             BlockPos::new(
                                 origin.x + i32::from(x),
                                 origin.y + i32::from(y),

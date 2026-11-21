@@ -127,11 +127,11 @@ pub(crate) fn capture_carried_entities<B>(
     };
     let at = |pos| block_entity_at(index, &sections, &positions, &entities, pos);
     let table = rules.0.redstone().table();
-    let moving = &memory.0.redstone_ref().moving;
+    let moving = memory.0.redstone_ref();
     for change in placed.read() {
         let pos = change.block_pos;
         if is_moving(table, change.new_state) {
-            let Some(payload) = moving.get(&pos) else {
+            let Some(payload) = moving.moving(pos) else {
                 continue;
             };
             if payload.carried != Carried::Block || !table.info(payload.state).block_entity {
@@ -190,14 +190,14 @@ pub(crate) fn record_moving_blocks<B>(
         return;
     };
     let table = rules.0.redstone().table();
-    let moving = &memory.0.redstone_ref().moving;
+    let moving = memory.0.redstone_ref();
     let mut spawned = core::mem::take(&mut records.released);
     for change in placed.read() {
         let pos = change.block_pos;
         if !is_moving(table, change.new_state) {
             continue;
         }
-        let Some(payload) = moving.get(&pos) else {
+        let Some(payload) = moving.moving(pos) else {
             continue;
         };
         let Some(block_state) = state_compound(&blocks, payload.state) else {
@@ -244,15 +244,15 @@ pub(crate) fn restore_moving_blocks<B>(
         else {
             continue;
         };
-        let moving = &mut memory.0.redstone().moving;
-        if moving.contains_key(&pos.0) {
+        let moving = memory.0.redstone();
+        if moving.moving(pos.0).is_some() {
             continue;
         }
         let (Some(state), Some(facing)) = (state_of(&blocks, block_state), direction_of(*facing))
         else {
             continue;
         };
-        moving.insert(
+        moving.start_moving(
             pos.0,
             MovingPayload {
                 state,
