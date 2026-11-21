@@ -37,6 +37,8 @@ Before you open a pull request, get the login of your user with
   and do not open the pull request. Typical cases: no issue, an issue that is
   taken, more than 1000 added lines, a new crate or dependency without an
   accepted design note, or a third open pull request.
+  In the section "Models" of the pull request body, list your model and what
+  you did, and each other model that took part.
 
 ## Layers
 
