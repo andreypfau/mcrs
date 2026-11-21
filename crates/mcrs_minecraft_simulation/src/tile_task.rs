@@ -6,7 +6,7 @@ use crate::behaviour::{BlockBehaviour, BlockFacts, MemoryPartition};
 use crate::cx::{Cx, TileCx};
 use crate::footprints::Footprints;
 use crate::message::MessageBody;
-use crate::output::StepOutput;
+use crate::output::{StepOutput, StepReport};
 use crate::overlay::{OverlaidVolume, Overlay};
 use crate::policy::OrderingPolicy;
 use crate::random_tick::block_tile;
@@ -61,7 +61,6 @@ const LIVE_PHASE: u8 = 5;
 
 pub(crate) struct TileTask<K: Kinds, M> {
     region: Region,
-    whole: bool,
     phase: u8,
     items: Vec<usize>,
     memory: Option<M>,
@@ -75,10 +74,9 @@ pub(crate) struct TileTask<K: Kinds, M> {
 }
 
 impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
-    fn new(region: Region, whole: bool, phase: u8, items: Vec<usize>) -> Self {
+    fn new(region: Region, phase: u8, items: Vec<usize>) -> Self {
         Self {
             region,
-            whole,
             phase,
             items,
             memory: None,
@@ -93,7 +91,19 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
     }
 
     fn whole(phase: u8, items: Vec<usize>) -> Self {
-        Self::new(Region::WHOLE, true, phase, items)
+        Self::new(Region::WHOLE, phase, items)
+    }
+
+    fn reset(&mut self, item: usize) {
+        self.items.clear();
+        self.items.push(item);
+        self.before.clear();
+        self.out.clear();
+        self.out.report = StepReport::default();
+        self.overlay.clear();
+        self.reruns.clear();
+        self.produced.clear();
+        self.consumed.clear();
     }
 
     fn plan(tasks: &mut Vec<Self>, positions: impl Iterator<Item = (usize, BlockPos)>) {
@@ -115,7 +125,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             let phase = u8::try_from(x.saturating_add(z.saturating_mul(2)))
                 .unwrap_or(0)
                 .saturating_add(1);
-            Self::new(Region::of(tile), false, phase, items)
+            Self::new(Region::of(tile), phase, items)
         }));
     }
 
@@ -128,6 +138,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
         world: &V,
         base: &BlockShard<K>,
         env: &Env<'_, F, B, P>,
+        memory: Option<&mut M>,
         shared: &B::Shared,
         footprints: &Footprints,
         now: GameTick,
@@ -152,7 +163,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             &mut volume,
             &mut self.out,
             env,
-            self.memory.as_mut(),
+            memory,
             shared,
             now,
         );
@@ -209,16 +220,20 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
     }
 
     fn discard(&mut self, memory: &mut M) {
-        let Some(mut part) = self.memory.take() else {
-            return;
+        let mut part = self.memory.take();
+        let target: &mut M = match part.as_mut() {
+            Some(lent) => lent,
+            None => memory,
         };
         for produced in &mut self.produced {
             for (cell, snapshot) in produced.cells.drain(..) {
-                part.drop_cell(cell);
-                part.merge(snapshot);
+                target.drop_cell(cell);
+                target.merge(snapshot);
             }
         }
-        memory.merge(part);
+        if let Some(part) = part {
+            memory.merge(part);
+        }
     }
 
     fn revert_item<V: SimulationVolume>(&self, entry: usize, volume: &mut V, memory: &mut M) {
@@ -452,7 +467,7 @@ where
     out.report.hot_items = out.report.hot_items.saturating_add(count(hot.len()));
     let mut tasks: Vec<TileTask<K, B::Memory>> = hot_components(positions, &hot)
         .into_iter()
-        .map(|(region, items)| TileTask::new(region, false, HOT_PHASE, items))
+        .map(|(region, items)| TileTask::new(region, HOT_PHASE, items))
         .collect();
     TileTask::plan(
         &mut tasks,
@@ -466,7 +481,18 @@ where
         lend_memory(memory, phase);
         let (world, base) = (&*volume, &*shard);
         spread.spread(phase, &|task: &mut TileTask<K, B::Memory>| {
-            task.run(world, base, env, shared, footprints, now, run);
+            let mut part = task.memory.take();
+            task.run(
+                world,
+                base,
+                env,
+                part.as_mut(),
+                shared,
+                footprints,
+                now,
+                run,
+            );
+            task.memory = part;
         });
         for task in phase.iter_mut() {
             task.publish(volume, memory, shard);
@@ -477,15 +503,18 @@ where
         .flat_map(|task| task.reruns.iter().copied())
         .collect();
     overflowed.sort_unstable();
-    let mut reruns = Vec::new();
-    if !overflowed.is_empty() {
-        let mut task = TileTask::whole(LIVE_PHASE, overflowed.clone());
-        lend_memory(memory, core::slice::from_mut(&mut task));
-        task.run(&*volume, &*shard, env, shared, footprints, now, run);
-        task.publish(volume, memory, shard);
-        reruns = core::mem::take(&mut task.reruns);
-        tasks.push(task);
-    }
+    let reruns = rerun_overflowed(
+        &mut tasks,
+        &overflowed,
+        shard,
+        volume,
+        env,
+        memory,
+        shared,
+        footprints,
+        now,
+        run,
+    );
     let left = count(overflowed.len());
     if mode == Mode::Colour {
         finish_colour(&mut tasks, shard, volume, env, memory, shared, out, now);
@@ -520,6 +549,50 @@ where
         .collect();
     mark_hot(shard, hot_ticks, now, &overflowed);
     Tiled::Done { reruns, left }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the rerun reads"
+)]
+fn rerun_overflowed<K, V, F, B, P, R>(
+    tasks: &mut Vec<TileTask<K, B::Memory>>,
+    overflowed: &[usize],
+    shard: &mut BlockShard<K>,
+    volume: &mut V,
+    env: &Env<'_, F, B, P>,
+    memory: &mut B::Memory,
+    shared: &B::Shared,
+    footprints: &Footprints,
+    now: GameTick,
+    run: &R,
+) -> Vec<usize>
+where
+    K: Kinds,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+    P: OrderingPolicy,
+    R: Fn(&mut Cx<'_, K, OverlaidVolume<'_, V>, F, B>, usize),
+{
+    if overflowed.is_empty() {
+        return Vec::new();
+    }
+    let mut task = TileTask::whole(LIVE_PHASE, overflowed.to_vec());
+    task.run(
+        &*volume,
+        &*shard,
+        env,
+        Some(&mut *memory),
+        shared,
+        footprints,
+        now,
+        run,
+    );
+    task.publish(volume, memory, shard);
+    let reruns = core::mem::take(&mut task.reruns);
+    tasks.push(task);
+    reruns
 }
 
 #[expect(
@@ -601,61 +674,114 @@ struct Replay<'a, K: Kinds, M> {
     now: GameTick,
 }
 
-fn record<'a, K: Kinds, M>(
-    tasks: &'a [TileTask<K, M>],
-    held: &FxHashMap<usize, (usize, usize)>,
-    index: usize,
-) -> Option<&'a Produced<K, M>> {
-    let (slot, entry) = held.get(&index)?;
-    tasks.get(*slot)?.produced.get(*entry)
+#[derive(Default)]
+struct Held {
+    records: FxHashMap<usize, (usize, usize)>,
+    by_cell: FxHashMap<u64, Vec<usize>>,
+}
+
+impl Held {
+    fn of<K: Kinds, M>(tasks: &[TileTask<K, M>], bad: &FxHashSet<usize>) -> Self {
+        let mut held = Self::default();
+        for (slot, task) in tasks.iter().enumerate() {
+            if bad.contains(&slot) {
+                continue;
+            }
+            for (entry, produced) in task.produced.iter().enumerate() {
+                held.records.insert(produced.index, (slot, entry));
+                for cell in record_cells(produced) {
+                    held.by_cell.entry(cell).or_default().push(produced.index);
+                }
+            }
+        }
+        for indices in held.by_cell.values_mut() {
+            indices.sort_unstable();
+            indices.dedup();
+        }
+        held
+    }
+
+    fn record<'a, K: Kinds, M>(
+        &self,
+        tasks: &'a [TileTask<K, M>],
+        index: usize,
+    ) -> Option<&'a Produced<K, M>> {
+        let (slot, entry) = self.records.get(&index)?;
+        tasks.get(*slot)?.produced.get(*entry)
+    }
+
+    fn later_than(&self, index: usize) -> Vec<usize> {
+        let mut later: Vec<usize> = self
+            .records
+            .keys()
+            .copied()
+            .filter(|held| *held > index)
+            .collect();
+        later.sort_unstable_by(|a, b| b.cmp(a));
+        later
+    }
+}
+
+fn record_cells<K: Kinds, M>(produced: &Produced<K, M>) -> impl Iterator<Item = u64> + '_ {
+    produced
+        .reads
+        .cells()
+        .chain(produced.writes.cells())
+        .chain(produced.cells.iter().map(|(cell, _)| *cell))
 }
 
 fn stale_after<K: Kinds, M>(
     tasks: &[TileTask<K, M>],
-    held: &FxHashMap<usize, (usize, usize)>,
+    held: &Held,
     fresh: &Produced<K, M>,
 ) -> Vec<usize> {
-    let mut later: Vec<usize> = held
-        .keys()
-        .copied()
-        .filter(|index| *index > fresh.index)
-        .collect();
-    later.sort_unstable();
     let mut stale: Vec<usize> = Vec::new();
-    for index in later {
-        let Some(theirs) = record(tasks, held, index) else {
-            continue;
-        };
-        let touched = theirs.touches(fresh)
-            || stale.iter().any(|other| {
-                record(tasks, held, *other).is_some_and(|older| older.touches(theirs))
-            });
-        if touched {
-            stale.push(index);
+    let mut queue: Vec<&Produced<K, M>> = vec![fresh];
+    while let Some(record) = queue.pop() {
+        for cell in record_cells(record) {
+            let Some(indices) = held.by_cell.get(&cell) else {
+                continue;
+            };
+            let first = indices.partition_point(|index| *index <= record.index);
+            for &index in indices.get(first..).unwrap_or_default() {
+                if stale.contains(&index) {
+                    continue;
+                }
+                let Some(theirs) = held.record(tasks, index) else {
+                    continue;
+                };
+                if theirs.touches(record) {
+                    stale.push(index);
+                    queue.push(theirs);
+                }
+            }
         }
     }
-    stale.reverse();
+    stale.sort_unstable_by(|a, b| b.cmp(a));
     stale
 }
 
 fn revert_all<K, V, M>(
     tasks: &[TileTask<K, M>],
-    held: &mut FxHashMap<usize, (usize, usize)>,
+    held: &mut Held,
     stale: Vec<usize>,
     volume: &mut V,
     memory: &mut M,
-) where
+) -> u32
+where
     K: Kinds,
     V: SimulationVolume,
     M: MemoryPartition + Default + Clone,
 {
+    let reverted = count(stale.len());
     for index in stale {
-        if let Some((slot, entry)) = held.remove(&index)
+        if let Some((slot, entry)) = held.records.remove(&index)
             && let Some(task) = tasks.get(slot)
         {
             task.revert_item(entry, volume, memory);
         }
     }
+    reverted
 }
 
 #[expect(
@@ -692,33 +818,33 @@ fn finish_sequence<K, V, F, B, P, R, L, Before>(
     } = replay;
     shard.published_ticks.clear();
     shard.published_consumed.clear();
-    let mut held: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
-    for (slot, task) in tasks.iter().enumerate() {
-        if bad.contains(&slot) {
-            continue;
-        }
-        for (entry, produced) in task.produced.iter().enumerate() {
-            held.insert(produced.index, (slot, entry));
-        }
-    }
+    let mut held = Held::of(tasks, bad);
+    let mut task = TileTask::whole(LIVE_PHASE, Vec::new());
     for item in 0..items {
         before(shard, item);
-        if let Some((slot, entry)) = held.remove(&item) {
-            if let Some(task) = tasks.get(slot) {
-                task.apply_item(entry, shard, volume, env, memory, shared, out, now);
+        if let Some((slot, entry)) = held.records.remove(&item) {
+            if let Some(kept) = tasks.get(slot) {
+                kept.apply_item(entry, shard, volume, env, memory, shared, out, now);
             }
             continue;
         }
         loop {
-            let mut task = TileTask::whole(LIVE_PHASE, vec![item]);
-            lend_memory(memory, core::slice::from_mut(&mut task));
-            task.run(&*volume, &*shard, env, shared, footprints, now, run);
+            task.reset(item);
+            task.run(
+                &*volume,
+                &*shard,
+                env,
+                Some(&mut *memory),
+                shared,
+                footprints,
+                now,
+                run,
+            );
+            out.report.tile_replays = out.report.tile_replays.saturating_add(1);
             if !task.reruns.is_empty() {
-                task.discard(memory);
-                let mut later: Vec<usize> =
-                    held.keys().copied().filter(|index| *index > item).collect();
-                later.sort_unstable_by(|a, b| b.cmp(a));
-                revert_all(tasks, &mut held, later, volume, memory);
+                let later = held.later_than(item);
+                let reverted = revert_all(tasks, &mut held, later, volume, memory);
+                out.report.tile_stale_items = out.report.tile_stale_items.saturating_add(reverted);
                 let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
                 live(&mut cx, item);
                 break;
@@ -734,12 +860,13 @@ fn finish_sequence<K, V, F, B, P, R, L, Before>(
                 break;
             }
             task.discard(memory);
-            revert_all(tasks, &mut held, stale, volume, memory);
+            let reverted = revert_all(tasks, &mut held, stale, volume, memory);
+            out.report.tile_stale_items = out.report.tile_stale_items.saturating_add(reverted);
         }
     }
-    for (slot, task) in tasks.iter().enumerate() {
+    for (slot, kept) in tasks.iter().enumerate() {
         if !bad.contains(&slot) {
-            out.report.absorb(task.out.report);
+            out.report.absorb(kept.out.report);
         }
     }
     shard.published_ticks.clear();
@@ -865,15 +992,9 @@ fn lend_memory<K: Kinds, M: MemoryPartition + Default>(
     let mut parts: FxHashMap<u64, M> = memory.split().into_iter().collect();
     for task in phase.iter_mut() {
         let mut part = M::default();
-        if task.whole {
-            for (_, found) in parts.drain() {
+        for cell in task.region.cells() {
+            if let Some(found) = parts.remove(&cell) {
                 part.merge(found);
-            }
-        } else {
-            for cell in task.region.cells() {
-                if let Some(found) = parts.remove(&cell) {
-                    part.merge(found);
-                }
             }
         }
         task.memory = Some(part);
