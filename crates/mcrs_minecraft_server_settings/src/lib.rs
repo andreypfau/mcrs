@@ -5,5 +5,5 @@ extern crate alloc;
 mod server_settings;
 mod setting_error;
 
-pub use server_settings::ServerSettings;
+pub use server_settings::{RedstonePreset, RedstoneSettings, ServerSettings};
 pub use setting_error::SettingError;

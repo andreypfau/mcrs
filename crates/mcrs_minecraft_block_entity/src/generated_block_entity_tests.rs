@@ -71,6 +71,12 @@ fn sign_text(text: &str) -> SignText {
     }
 }
 
+fn moved_stone() -> NbtCompound {
+    let mut state = NbtCompound::new();
+    state.put_string("Name", "minecraft:stone".to_owned());
+    state
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "lists one block entity of every kind with its own field values"
@@ -133,6 +139,17 @@ fn one_of_each() -> Vec<GeneratedBlockEntity> {
             z: 3,
             output_signal: 7,
             components: None,
+        },
+        Piston {
+            x: 1,
+            y: -2,
+            z: 3,
+            block_state: moved_stone(),
+            facing: 1,
+            progress: 0.5,
+            extending: true,
+            source: false,
+            carried: None,
         },
         Bell {
             x: 1,

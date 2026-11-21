@@ -31,6 +31,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
+use mcrs_minecraft_redstone::{HasRedstone, Redstone, RedstoneMemory, RedstoneRules};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
@@ -40,7 +41,7 @@ pub struct VanillaBlocksPlugin;
 
 impl Plugin for VanillaBlocksPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DimensionBlockRules(add_loot_rules));
+        app.insert_resource(DimensionBlockRules(add_vanilla_block_rules));
     }
 }
 
@@ -52,9 +53,74 @@ pub struct VanillaBlocks {
     blocks: Blocks,
     air: BlockStateId,
     void_air: BlockStateId,
+    redstone: Redstone,
+}
+
+impl HasRedstone for VanillaBlocks {
+    fn redstone(&self) -> &Redstone {
+        &self.redstone
+    }
+
+    fn redstone_mut(&mut self) -> &mut Redstone {
+        &mut self.redstone
+    }
 }
 
 impl BlockBehaviour<WorldKinds> for VanillaBlocks {
+    type Memory = RedstoneMemory;
+
+    fn block_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+    ) {
+        self.redstone.block_tick(cx, at, state);
+    }
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        a: i32,
+        b: i32,
+    ) -> bool {
+        self.redstone.block_event(cx, at, state, a, b)
+    }
+
+    fn removed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        old: BlockStateId,
+        moved_by_piston: bool,
+    ) {
+        self.redstone.removed(cx, at, old, moved_by_piston);
+    }
+
+    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        new: BlockStateId,
+        old: BlockStateId,
+        _moved_by_piston: bool,
+    ) {
+        self.redstone.placed(cx, at, new, old);
+    }
+
+    fn neighbour_changed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        _source: Id<Block>,
+        _moved_by_piston: bool,
+    ) {
+        self.redstone.neighbour_changed(cx, at, state);
+    }
+
     fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
         &self,
         cx: &mut Cx<'_, WorldKinds, V, F, Self>,
@@ -62,7 +128,7 @@ impl BlockBehaviour<WorldKinds> for VanillaBlocks {
         state: BlockStateId,
         from: Direction,
         _neighbour: BlockPos,
-        _neighbour_state: BlockStateId,
+        neighbour_state: BlockStateId,
     ) -> BlockStateId {
         let mut unavailable = false;
         let read = |pos| {
@@ -71,11 +137,11 @@ impl BlockBehaviour<WorldKinds> for VanillaBlocks {
                 self.void_air
             })
         };
-        if self.support.stays_after_update(state, at, from, read) || unavailable {
-            state
-        } else {
-            self.air
+        if !self.support.stays_after_update(state, at, from, read) && !unavailable {
+            return self.air;
         }
+        self.redstone
+            .update_shape(cx, at, state, from, neighbour_state)
     }
 }
 
@@ -349,7 +415,7 @@ impl<F> ClockView for BlockAt<F> {
     }
 }
 
-fn add_loot_rules(sub_app: &mut SubApp) {
+pub fn add_vanilla_block_rules(sub_app: &mut SubApp) {
     let world = sub_app.world();
     let parts = (
         world.get_resource::<Blocks>(),
@@ -375,6 +441,10 @@ fn add_loot_rules(sub_app: &mut SubApp) {
         support: support.clone(),
         air: blocks.default_state_of(Block::Air.id()),
         void_air: blocks.default_state_of(Block::VoidAir.id()),
+        redstone: Redstone::new(
+            mcrs_minecraft_vanilla_redstone::redstone_table(blocks, registries),
+            RedstoneRules::JAVA,
+        ),
         blocks: blocks.clone(),
     };
     sub_app.world_mut().insert_resource(support);
