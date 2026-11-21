@@ -379,8 +379,9 @@ It does these steps:
    - the square of its distance from the attacker is 9.0 or more. The distance is between the two
      feet positions, in f64.
 4. Hit each selected entity with the damage source of ATK-DMG-001 and the sweep amount. After each
-   accepted hit, apply the procedure of DMG-KB-001, steps 1 to 4, with the power `0.4` and the
-   direction `(sin(r), -cos(r))`.
+   accepted hit, full or partial, apply the procedure of DMG-KB-001, steps 1 to 4, with the power
+   `0.4` and the direction `(sin(r), -cos(r))`. This sweep knockback is not the default knockback
+   of ATK-KB-001. For a partial hit on a player target, it changes no velocity (ATK-DEV-002).
 5. Send the sweep particle (ATK-NET-006).
 
 The sweep sets no last-hit record and adds no exhaustion. ATK-ORD-003 states the place and the
@@ -595,8 +596,8 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
 
 ### ATK-DEV-002: A partial hit does not change the velocity of a player target
 
-- **Rule:** ATK-KB-004.
-- **Reference:** the extra knockback of a partial hit changes the server copy of the velocity of
+- **Rule:** ATK-KB-004, ATK-SWP-002.
+- **Reference:** the extra knockback and the sweep knockback of a partial hit change the server copy of the velocity of
   the target player (PHY-SRV-004). The server does not send that change to the target player. The copy keeps
   the change, and a later knockback starts from it.
 - **Reason:** the client of the target never applies that change. A copy that differs from the

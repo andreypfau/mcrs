@@ -776,12 +776,14 @@ corpus, so only a data pack makes this case.
   the target (PHY-CMP-015). Thus the deaths of a crowd do not depend on the thread count or on the
   order of the births. In a layout of many cells, a death in the halo of another cell counts one
   tick late (DMG-CRW-002). Then the cell layout can change the crowd hits of that tick.
-- **Visible to the client:** yes, as the choice of the entity that dies. When no other hit kills
-  an entity of the crowd in the tick, the number of deaths of the crowd in that tick is the same.
+- **Visible to the client:** yes, as the choice of the entity that dies. When the crowd is in one
+  cell and no other hit kills an entity of the crowd in the tick, the number of deaths of the crowd
+  in that tick is the same. Across cells, each cell can apply a lethal crowd hit in one tick.
   The tick of a death can differ, as PHY-DEV-004 states.
 - **Bug reference:** none.
-- **Test:** for a crowd that no other hit kills, a differential test compares the number of crowd
-  deaths and the distribution of the ticks of the deaths. It does not compare which entity dies.
+- **Test:** for a crowd in one cell that no other hit kills, a differential test compares the
+  number of crowd deaths and the distribution of the ticks of the deaths. It does not compare
+  which entity dies.
 
 ### DMG-DEV-002: Own hits after the tick of the entity
 
@@ -835,13 +837,20 @@ corpus, so only a data pack makes this case.
   on the order of the births, the loads and the cell layout. The writer key is total and fixed.
   Thus, for the writes that reach the same apply step, the result does not depend on the thread
   count or on the cell layout. A write from another cell can apply one tick late (PHY-CMP-015).
+  In the reference, a hit from an entity that ticks before the target sees the damage cooldown
+  before the decrease of DMG-HIT-006. In mcrs, it sees the cooldown after that decrease. Example:
+  the cooldown is 11 and the last amount is 10. In the reference, an external hit of 5 is rejected,
+  and the own hit of 2 is then full: the health changes by 2. In mcrs, both hits see the cooldown
+  10: the health changes by 5.
 - **Visible to the client:** yes, when two writers hit one target in one tick. The damage type of
   `damage_event` and of the death can differ. Only a full hit gives knockback, `hurt_animation` and
-  a hurt sound (DMG-HIT-005), so these can differ too. Without reductions and without the tag
-  `bypasses_cooldown`, the health after the tick is the same (DMG-ORD-003).
+  a hurt sound (DMG-HIT-005), so these can differ too. Without reductions, without the tag
+  `bypasses_cooldown`, and with a cooldown other than 11 at the start of the tick, the health after
+  the tick is the same (DMG-ORD-003).
 - **Bug reference:** none.
 - **Test:** when two writers hit one target in one tick without a reduction of armor or
-  `resistance`, and no damage type has the tag `bypasses_cooldown`, a differential test compares
+  `resistance`, no damage type has the tag `bypasses_cooldown`, and the cooldown of the target is
+  not 11 at the start of the tick, a differential test compares
   the health after the tick. Else it does not compare the health (DMG-ORD-003). It does not compare the damage type of `damage_event`, the knockback, the
   `hurt_animation` packet or the hurt sound of that tick.
 
