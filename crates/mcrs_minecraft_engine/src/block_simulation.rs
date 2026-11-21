@@ -566,15 +566,17 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             ledgers: chains,
         };
         let at = StepAt { now, phase };
-        if let Err(error) = mcrs_minecraft_simulation::step(
+        if let Err(error) = mcrs_minecraft_simulation::step_tiled(
             &mut simulation.shard,
             at,
             &mut volume,
             &env,
             &mut *memory,
             shared,
+            &simulation.footprints,
             input,
             &mut out,
+            &spread,
         ) {
             tracing::error!(%error, ?phase, "the block step refused its input");
         }

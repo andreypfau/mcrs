@@ -884,13 +884,18 @@ the walk, the calling thread removes the slots of sections that are no longer li
 |--------|--------------------|------|
 | Random ticks, precipitation | streams, section order: free | §7.4 |
 | Block entities | claims (PHY-CMP-017); bounds not stated yet (SIM OQ-13) | per block tile once SIM states their bounds; until then one serial step per phase |
-| Scheduled block and fluid ticks | sequence, budget, collect order | per block tile; each tile collects due ticks by the global key; when the budget binds, a merge of the sorted keys finds the cut; calculated sequence |
+| Scheduled block and fluid ticks | sequence, budget, collect order | **implemented** (`step_tiled`): the serial collector takes the due ticks by the global key and the budget (SIM-SCH-006), then the ticks run on the block tiles of §7.4 in the four colour phases, each tile in collection order; a tick whose footprint leaves its region is undone and runs again on the serial path after the colours, in collection order; the ticks that a tile schedules take their sequence at the commit of the tile (P-SEQ) |
 | Neighbour and shape updates | the chain | inside the phase that causes them; bounds checked per item; undo and re-run |
-| Block events | one FIFO per dimension | per tile FIFO; undo and re-run |
-| Redstone mechanisms, flying machines, long tripwires, structure blocks | chains and ticks that cross regions every tick | causal groups (SIM-MODEL-102(a), second way; ARCH §9): a group whose items overflowed in recent ticks becomes its own partition, the union of the regions it touched, **started first** in each phase; a per-tick split by footprints (union-find over SIM-MODEL-009 bounds) separates parts that no longer touch |
+| Block events | one FIFO per dimension | **implemented**: each drain of the FIFO is one batch; the batch runs on the tiles with undo and re-run; the events that a batch queues form the next batch |
+| Behaviour memory (comparator payloads, piston payloads, torch records, sensors) | a map by position for each dimension | **implemented** (`MemoryPartition`): before each colour phase the memory splits by 32 × 32 column cells; a tile takes the 4 × 4 cells of its region, which regions of one colour never share, and gives them back at its commit. The host snapshot (`BlockBehaviour::Shared`) is read-only and needs no split |
+| Redstone mechanisms, flying machines, long tripwires, structure blocks | chains and ticks that cross regions every tick | **implemented as hot cells**: a cell whose item left its region in the last 40 ticks (`KernelConfig::hot_ticks`) is hot; the ticks and events of a hot cell run on the serial path **before** the colour phases, so a circuit that crosses regions every tick is not undone every tick. A hot cell cools when 40 ticks pass without an overflow. The union-find of footprints of the earlier plan is not needed: a hot cell is its own group, and groups that touch meet on the same serial path. Random ticks keep the plan of §7.4 and never use the hot path |
 
 The phases keep their order (A.4): scheduled block ticks, fluid ticks, random ticks and
-precipitation, the broadcast cut, block events, block entities. Raids run in `DomainInput`
+precipitation, the broadcast cut, block events, block entities. The colour phases run with
+global barriers, as §7.4 decided for random ticks. Two runs with different thread counts give
+the same blocks, the same queues and the same delivered events: the colour order and the commit
+order are fixed, and the tests `tiled` of the simulation crate and `parallel` of the redstone
+crate check it on worlds whose circuits straddle tile boundaries. Raids run in `DomainInput`
 (AIT-CPL-006). Each phase ends when its tiles and
 its serial step end; the next phase starts per tile by dependency, not by a global barrier. Messages
 between tiles exist only in a boundary-level instance.

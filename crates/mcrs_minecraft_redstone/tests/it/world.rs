@@ -14,9 +14,9 @@ use mcrs_minecraft_redstone::{
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainOrigin, Cx, Env,
-    GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
-    SectionProperties, ShardId, SimulatedSections, SimulationVolume, StepAt, StepOutput, SubTick,
-    UpdateRequest, VanillaOrder, step,
+    Footprints, GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase,
+    PhaseInput, SectionProperties, ShardId, SimulatedSections, SimulationVolume, Spread, StepAt,
+    StepOutput, SubTick, UpdateRequest, VanillaOrder, step, step_tiled,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PalettedSection, PalettedSectionMut, SparseVolume,
@@ -247,6 +247,7 @@ pub struct World {
     pub memory: RedstoneMemory,
     pub snapshot: RedstoneSnapshot,
     pub events: Vec<BlockEvent<Id<Block>>>,
+    footprints: Footprints,
     rig: Rig,
     out: StepOutput<TestKinds>,
     pending: Vec<Message<TestKinds>>,
@@ -274,15 +275,15 @@ impl World {
                 }
             }
         }
+        let redstone = Redstone::new(table().clone(), rules);
         let mut world = Self {
             host: Host { volume },
             shard: BlockShard::new(),
             memory: RedstoneMemory::default(),
             snapshot: RedstoneSnapshot::default(),
             events: Vec::new(),
-            rig: Rig {
-                redstone: Redstone::new(table().clone(), rules),
-            },
+            footprints: Footprints::new(definitions().states(), |state| redstone.reach(state)),
+            rig: Rig { redstone },
             out: StepOutput::default(),
             pending: Vec::new(),
             counter: 0,
@@ -416,6 +417,77 @@ impl World {
         for _ in 0..count {
             self.tick();
         }
+    }
+
+    pub fn tick_tiled<S: Spread>(&mut self, spread: &S) {
+        let inbound = std::mem::take(&mut self.pending);
+        let config = KernelConfig::default();
+        let env = Env {
+            partition: ShardId(0),
+            facts: &Facts,
+            behaviour: &self.rig,
+            policy: &VanillaOrder,
+            kind: PartitionKind::Shard,
+            config: &config,
+        };
+        let phases = [
+            (Phase::BlockTicks, inbound.as_slice()),
+            (Phase::FluidTicks, [].as_slice()),
+            (Phase::BlockEvents, [].as_slice()),
+        ];
+        for (phase, messages) in phases {
+            let input = PhaseInput {
+                inbound: messages,
+                ledgers: &[],
+            };
+            step_tiled(
+                &mut self.shard,
+                StepAt {
+                    now: GameTick(self.now),
+                    phase,
+                },
+                &mut self.host,
+                &env,
+                &mut self.memory,
+                &self.snapshot,
+                &self.footprints,
+                input,
+                &mut self.out,
+                spread,
+            )
+            .expect("a step over owned sections");
+        }
+        self.events.append(&mut self.out.delivered);
+        self.out.clear();
+        self.now += 1;
+        self.counter = 0;
+    }
+
+    pub fn pending_ticks(&self) -> Vec<(BlockPos, i64)> {
+        let queue = self.shard.block_ticks();
+        let mut ticks: Vec<(BlockPos, i64)> = queue
+            .sections()
+            .filter_map(|section| queue.section_ticks(section))
+            .flat_map(|ticks| ticks.active().collect::<Vec<_>>())
+            .map(|tick| (tick.pos, tick.key.due.0))
+            .collect();
+        ticks.sort_by_key(|(pos, due)| (*due, pos.x, pos.y, pos.z));
+        ticks
+    }
+
+    pub fn blocks(&self) -> Vec<((i32, i32, i32), u16)> {
+        let mut blocks = Vec::new();
+        for x in -24..24 {
+            for z in -24..24 {
+                for y in FLOOR - 1..FLOOR + 6 {
+                    let state = self.state(BlockPos::new(x, y, z));
+                    if state != BlockStateId::AIR {
+                        blocks.push(((x, y, z), state.number()));
+                    }
+                }
+            }
+        }
+        blocks
     }
 
     pub fn rig_toggle(&self, pos: BlockPos) -> Option<BlockStateId> {

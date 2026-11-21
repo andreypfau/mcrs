@@ -25,7 +25,7 @@ mod ticking_positions;
 mod tile_task;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
-pub use behaviour::{BlockBehaviour, BlockFacts};
+pub use behaviour::{BlockBehaviour, BlockFacts, MemoryPartition};
 pub use chain::neighbour;
 pub use cx::{Cx, Drops};
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
@@ -44,7 +44,7 @@ pub use scalar::{GameTick, ShardId, TickPriority};
 pub use schedule::{PendingTick, ScheduleTicks};
 pub use sequence::{SequenceClock, SubTick, TickKey};
 pub use shard::{BlockShard, ChainLimit, Env, KernelConfig, Phase, PhaseInput, StepAt};
-pub use step::step;
+pub use step::{step, step_tiled};
 pub use stream::{SectionStreams, StreamKey, StreamSeed};
 pub use tick_queue::{
     Collected, Kinds, Queued, SavedTick, ScheduledTick, SectionOccupied, SectionTicks,

@@ -8,10 +8,9 @@ use crate::precipitation::PrecipitationHit;
 use crate::scalar::{GameTick, ShardId};
 use crate::sequence::SequenceClock;
 use crate::tick_queue::{Collected, Kinds, TickQueue};
-use crate::tile_task::TileTask;
 use mcrs_minecraft_volume::PaletteBuffer;
 use mcrs_voxel::BlockPos;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 pub struct BlockShard<K: Kinds> {
     pub(crate) clock: SequenceClock,
@@ -25,8 +24,8 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) palette: PaletteBuffer,
     pub(crate) chain: Chain<K>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
-    pub(crate) tiles: Vec<TileTask<K>>,
     pub(crate) reruns: Vec<usize>,
+    pub(crate) hot: FxHashMap<u64, i64>,
 }
 
 impl<K: Kinds> BlockShard<K> {
@@ -65,8 +64,8 @@ impl<K: Kinds> Default for BlockShard<K> {
             palette: PaletteBuffer::default(),
             chain: Chain::default(),
             rain_hits: Vec::new(),
-            tiles: Vec::new(),
             reruns: Vec::new(),
+            hot: FxHashMap::default(),
         }
     }
 }
@@ -76,6 +75,7 @@ pub struct KernelConfig {
     pub tick_budget: u32,
     pub event_drain_bound: u32,
     pub chain_limit: ChainLimit,
+    pub hot_ticks: i64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,6 +96,7 @@ impl Default for KernelConfig {
             tick_budget: 65_536,
             event_drain_bound: 1_000_000,
             chain_limit: ChainLimit::Limited(1_000_000),
+            hot_ticks: 40,
         }
     }
 }
