@@ -15,7 +15,7 @@ migration. A name that does not exist in the code yet is planned.
 | `HitRecord` on a living entity | authoritative truth: the last accepted hit and the strike count | `apply_hits` |
 | maximum health | derived from the attribute `max_health` on each read | none |
 | "is alive", "is dying" | derived: `Vitals::is_alive`, `Vitals::death_time` | none |
-| `Defence` on a living entity | materialized derived state: armor, toughness, resistance, protection | one replaceable system in `DamageSet::Collect`; cost: one write for each change of an attribute or an effect |
+| `Defence` on a living entity | materialized derived state: armor, toughness, resistance, protection | one replaceable system; it runs before the motion pass and in `DamageSet::Collect`; cost: one write for each change of an attribute or an effect |
 | `DamageTypeRules` | materialized derived state: one bit row for each damage type id, baked from the tags of the `damage_type` registry | one bake system, gated on a registry change |
 | `PendingHits` | work queue of the tick; empty after `DamageSet::Apply` | each hit source appends; `apply_hits` drains |
 | `Damaged`, `Died` | temporal facts (messages) | `apply_hits` |
@@ -77,14 +77,15 @@ pass.
 1. `Collect`. Each source appends a `DamageRequest { target: Entity, hit: Hit, writer: WriterKey,
    tick: u64, sequence: u32 }` to `PendingHits`. `tick` is the write tick and `sequence` the order of
    the writes of one writer to one target in that tick. A write from another cell keeps both values. The motion step appends the own hits of an entity (step action, inside
-   actions, freezing, fall, crowd; DMG-ORD-002) through a per-thread queue. The system that fills `Defence` runs here.
+   actions, freezing, fall, crowd; DMG-ORD-002) through a per-thread queue. The system that fills `Defence` runs here again, after the changes of the pass.
 2. `Filter`. A user system takes `ResMut<PendingHits>`. It changes an amount or removes a request.
    The engine adds no system to this set. A mutable queue, not an observer: the order is stable,
    the hits of a tick are one batch, and no dispatch runs for each hit.
 3. `Apply`. `apply_hits` sorts the queue by (`EntityUuid` of the target, `WriterKey`, write tick,
    sequence). It calls `hurt` for each request. It writes `Vitals` only on a real change.
 4. `Report`. `apply_hits` has written one `Damaged { target, source, report }` for each accepted hit
-   and one `Died { target, source }` for each death. Consumers run here.
+   and one `Died { target, position, source }` for each death. `position` is the position of the
+   target (DMG-DTH-002). Consumers run here.
 
 `tick_vitals` runs in `TickSet::Simulate`. It decreases `damage_cooldown` and `hurt_time` and
 advances `death_time`. It is gated on a set of entities with a non-zero counter, not on the
@@ -100,12 +101,16 @@ Rules:
   step (DMG-ORD-002): that step takes its own requests from the queue and applies them in the order
   of `Apply`. `Apply` after the pass takes all other requests. Later issues of
   `docs/spec/environment-damage.md` decide the systems of that step and how `Filter` sees its requests.
+- A hit of the base entity tick reads `Defence` from the run before the motion pass. That value has
+  each change before the pass. The hit comes before the effect tick of its step (ENV-ORD-001,
+  EFX-TCK-001), so no later change of the same tick reaches it in the reference either.
 - The order of the queue does not depend on the thread order or on the spawn order.
 - A death removes nothing by itself. A layer 5 plugin appends a mob to the sorted despawn queue when its death
   time reaches 20 (DMG-DTH-003). A
   player stays until a `RespawnRequest` arrives.
 - A respawn starts only from a `RespawnRequest`. The engine never writes one.
-- The owner of a player gets the health packet from `Changed<Vitals>` on players only. Viewers get
+- The owner of a player gets the health packet when the health, the food level or the state "the
+  saturation is 0" changes (DMG-NET-005), on players only. Viewers get
   the damage event from `Damaged` through the tile events, encoded once.
 - Knockback is a velocity write through the ping bracket of #93 for a player and a motion impulse
   for a mob. `apply_hits` writes no velocity.
@@ -119,7 +124,7 @@ Rules:
 | RPG server | A data pack adds damage types. It replaces the system that fills `Defence`. Damage indicators and lifesteal read `HitReport` in `Damaged`. |
 | Headless bot | It reads `Vitals` on its own player. The damage event packet gives the `Cause`. |
 | Anticheat or proxy | It reads `DamageRequest` in `Filter`: the reach (#95), the attack rate, the `Cause`. |
-| Online map or statistics | It reads `Died`: position and source are in `DamageSource`. |
+| Online map or statistics | It reads `Died`: the position of the target and the `DamageSource`. |
 | Balance calculator | It calls `hurt` in a loop with a `Defence` value. No Bevy. |
 | Bedrock edge (#655) | `KnockbackRules` and `HurtRules` hold the differences. |
 

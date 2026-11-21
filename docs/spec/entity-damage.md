@@ -765,8 +765,9 @@ are not linear, so with them the total can differ by a small amount.
 - **Reference:** the reference ticks the entities in the order of its tick list. A death removes
   the entity from the count of each entity that ticks later in the same tick.
 - **Reason:** the apply step applies the hits of the sorted queue in the order of the order key of
-  the target (PHY-CMP-015). Thus the deaths of a crowd do not depend on the thread count, on the
-  cell layout or on the order of the births.
+  the target (PHY-CMP-015). Thus the deaths of a crowd do not depend on the thread count or on the
+  order of the births. In a layout of many cells, a death in the halo of another cell counts one
+  tick late (DMG-CRW-002). Then the cell layout can change the crowd hits of that tick.
 - **Visible to the client:** yes, as the choice of the entity that dies. The number of deaths of
   a crowd in one tick is the same. The tick of a death can differ, as PHY-DEV-004 states.
 - **Bug reference:** none.
@@ -829,8 +830,9 @@ are not linear, so with them the total can differ by a small amount.
   a hurt sound (DMG-HIT-005), so these can differ too. Without reductions, the health after the
   tick is the same (DMG-ORD-003).
 - **Bug reference:** none.
-- **Test:** when two writers hit one target in one tick, a differential test compares the health
-  after the tick. It does not compare the damage type of `damage_event`, the knockback, the
+- **Test:** when two writers hit one target in one tick without a reduction of armor or
+  `resistance`, a differential test compares the health after the tick. With a reduction, it does
+  not compare the health (DMG-ORD-003). It does not compare the damage type of `damage_event`, the knockback, the
   `hurt_animation` packet or the hurt sound of that tick.
 
 ## 14. Unresolved

@@ -311,7 +311,13 @@ change `k`; that change is out of scope. After an accepted hit with `k > 0`:
 
 For a full hit, the extra knockback applies after the default knockback. Thus the target first
 moves away from the attacker and then along the look direction. A player with no modifier has
-`k = 0` except in a sprint attack.
+`k = 0` except in a sprint attack. For a partial hit on a player target, step 1 does not change the
+velocity of the target (ATK-KB-004). Steps 3 and 4 still apply to the attacker.
+
+The result of step 4 is the result of a reset at the moment of the attack packet. The server can
+handle more packets of the same client before the apply step. When one of them sets the sprint
+state, step 4 does not change the sprint state. Thus a sprint-start packet after a sprint attack
+leaves the sprint state on, as on the vanilla client (ATK-KB-003).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -521,6 +527,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 It applies before the tracker sends the updates of that tick. The sounds and the packets of section 8 go in
 the same tick. The target uses the knockback velocity in its motion step of that tick or of the
 next tick. The exact tick is unspecified.
+
+When the target is in another cell, the hit can apply one tick later (PHY-CMP-015). This is the
+exception "write across a cell boundary" of PHY-INV-014. The bound is one tick, and the packets
+of the result of the hit go in the tick of the hit.
 
 Provenance: `source_suggested`. Kind: unspecified. Confidence: medium.
 

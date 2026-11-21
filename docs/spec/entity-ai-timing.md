@@ -99,7 +99,8 @@ this server. Section 10 gives the experiments.
 - **Merge point**: the one global step at the start of a tick in which the proposals apply
   (AIT-CPL-002). The grants of the proposals apply there. A write between entities that is neither
   a grant nor a claim does not apply there. It applies in the apply step of PHY-CMP-015, after the
-  entity pass of the same tick. A claim does not apply at the merge point. It enters the
+  entity pass of the same tick. A write from another cell can apply in the apply step of the next
+  tick (PHY-CMP-015). A claim does not apply at the merge point. It enters the
   arbitration of PHY-CMP-017.
 - **Player table**: the positions of all players of one dimension at the end of the previous tick.
   Each cell has the same copy (AIT-CDN-002).

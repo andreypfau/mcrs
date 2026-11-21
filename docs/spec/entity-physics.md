@@ -2428,8 +2428,11 @@ Exception "claim across a cell boundary": a claim from another cell can join the
 the next tick (PHY-CMP-017). The bound is one tick, only for the target of the claim.
 
 Exception "write across a cell boundary": a write from another cell, for example a hit, can join
-the apply step of the next tick (PHY-CMP-015). The bound is one tick, only for the target of the
-write.
+the apply step of the next tick (PHY-CMP-015). The write reaches its target at most one tick late.
+The tick of the target in the next tick runs without the write. The results of that tick, also
+the writes of the target to other entities, can thus differ from a layout of one cell. Example: a
+late hit kills the target. In the next tick, the target is still alive, and it can hit another
+entity.
 
 Exception "action across a cell boundary": an entity can start a block action in a column that
 another cell owns. This can be a step action, an inside action or a fall action. The owner applies that action one
@@ -2881,8 +2884,8 @@ DMG-ORD-001, states the place of a hit.
 The apply step of a tick must contain each write of that tick from the cell of the target. An own
 hit (DMG-ORD-002) always comes from that cell. A write from another cell can arrive one tick late,
 as a claim can (PHY-CMP-017). The late write then joins the apply step of the next tick. Its write
-tick is earlier, so it comes before each write of the same writer to the same target. The bound is
-one tick, only for the target of the write. This is the exception "write across a cell boundary" of
+tick is earlier, so it comes before each write of the same writer to the same target. The write reaches
+its target at most one tick late. This is the exception "write across a cell boundary" of
 PHY-INV-014. The health and the death of the target can then change one tick later than in a layout
 of one cell. The order of the writes on that target can then also differ from a layout of one cell.
 
@@ -3229,9 +3232,12 @@ the deviations of this section for server-simulated entities. An implementation 
   - The health of a target, and its death, change in the same tick as in the reference. But the
     tick of the target in that tick runs with the health before the hit.
   - In a layout of many cells, a write from another cell can apply one tick later (PHY-CMP-015).
-    Then the health and the death of the target change one tick later than in the reference.
+    Then the health and the death of the target change one tick later than in the reference. A
+    target that a late hit kills still does its tick of the next tick alive. Its writes of that
+    tick, for example a hit on another entity, then also differ from the reference.
 - **Test:** a differential test accepts a delay of one tick for each write to another entity. For a
-  write from another cell, it accepts one more tick. For a conflict, it accepts each winner.
+  write from another cell, it accepts one more tick, and other writes of the target in that tick.
+  For a conflict, it accepts each winner.
 
 ### PHY-DEV-006: Keyed random value for crowd damage
 
