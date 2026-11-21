@@ -134,6 +134,12 @@ fn start(seed: u64) -> App {
 }
 
 #[cfg(unix)]
+const PROCESS_CLOCK: &str = "cpu";
+
+#[cfg(not(unix))]
+const PROCESS_CLOCK: &str = "wall";
+
+#[cfg(unix)]
 fn process_cpu() -> Duration {
     let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
     // SAFETY: `usage` is a valid, writable rusage and RUSAGE_SELF is a valid target.
@@ -267,7 +273,7 @@ fn main() {
         boot.as_secs_f64()
     );
     println!(
-        "wall={:.0} ms  ticks={ticks}  {:.1} columns/s  {:.2} ms/column  {:.2} cpu-ms/column",
+        "wall={:.0} ms  ticks={ticks}  {:.1} columns/s  {:.2} ms/column  {:.2} {PROCESS_CLOCK}-ms/column",
         wall.as_secs_f64() * 1e3,
         count / wall.as_secs_f64(),
         wall.as_secs_f64() * 1e3 / count,

@@ -83,6 +83,12 @@ fn biome_hash(sections: &[Option<(BlockPalette, BiomePalette)>]) -> u64 {
 }
 
 #[cfg(unix)]
+const THREAD_CLOCK: &str = "thread cpu time";
+
+#[cfg(not(unix))]
+const THREAD_CLOCK: &str = "wall time";
+
+#[cfg(unix)]
 fn thread_time() -> Duration {
     let mut now = libc::timespec {
         tv_sec: 0,
@@ -353,7 +359,7 @@ fn main() {
     let ms = |d: Duration| d.as_secs_f64() * 1e3 / n;
     let all = total.fill + total.biomes + total.surface + total.carve + total.pack;
     let pct = |d: Duration| 100.0 * d.as_secs_f64() / all.as_secs_f64();
-    println!("times are thread cpu time, minimum over {repeats} repeat(s) per stage");
+    println!("times are {THREAD_CLOCK}, minimum over {repeats} repeat(s) per stage");
     println!(
         "seed={seed} columns={} at [{offset}..{}) sections={sink} wall={:.1} ms",
         side * side,
