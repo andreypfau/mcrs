@@ -317,7 +317,8 @@ impl ColumnViews {
         &mut self,
         dim: Entity,
         published: DimColumns,
-        out: &mut Vec<OutboundPlayerPacket>,
+        views_out: &mut Vec<OutboundPlayerPacket>,
+        changes_out: &mut Vec<OutboundPlayerPacket>,
     ) {
         let DimColumns {
             views,
@@ -327,7 +328,7 @@ impl ColumnViews {
             acks,
         } = published;
         for view in views {
-            self.apply_view(dim, view, out);
+            self.apply_view(dim, view, views_out);
         }
         for ViewerPosition { session, position } in positions {
             if let Some(player) = self.players.get_mut(&session) {
@@ -338,9 +339,9 @@ impl ColumnViews {
             self.take_version(dim, version);
         }
         for change in changes {
-            self.take_change(dim, change, out);
+            self.take_change(dim, change, changes_out);
         }
-        out.extend(acks.into_iter().map(|ack| {
+        changes_out.extend(acks.into_iter().map(|ack| {
             to(
                 ack.session,
                 PacketPayload::BlockChangedAck(ClientboundBlockChangedAck {
@@ -586,14 +587,16 @@ mod tests {
     }
 
     fn stand(views: &mut ColumnViews, dim: Entity, session: PlayerSession, position: DVec3) {
-        let mut out = Vec::new();
+        let mut views_out = Vec::new();
+        let mut changes_out = Vec::new();
         views.take_dim(
             dim,
             DimColumns {
                 positions: vec![ViewerPosition { session, position }],
                 ..DimColumns::default()
             },
-            &mut out,
+            &mut views_out,
+            &mut changes_out,
         );
     }
 
@@ -757,6 +760,7 @@ mod tests {
             except: Some(breaker),
         };
 
+        let mut views_out = Vec::new();
         let mut out = Vec::new();
         views.take_dim(
             dim,
@@ -768,6 +772,7 @@ mod tests {
                 }],
                 ..DimColumns::default()
             },
+            &mut views_out,
             &mut out,
         );
 

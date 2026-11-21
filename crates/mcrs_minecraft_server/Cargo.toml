@@ -64,6 +64,7 @@ mcrs_minecraft_inventory_server.workspace = true
 mcrs_minecraft_vanilla_inventory.workspace = true
 mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
+mcrs_minecraft_vanilla_swing.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 bevy_app.workspace = true

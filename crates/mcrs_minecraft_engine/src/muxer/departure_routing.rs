@@ -60,6 +60,7 @@ fn send(host: &mut World, dim: Entity, transfer: PlayerTransfer) {
 
 fn announce(host: &mut World, anchor: Entity, destination: Destination, departure: &mut Departure) {
     entity_replication::leave(host, departure.session);
+    muxer_link::flush(host);
     muxer_link::deliver(host, Answers::All);
     if let Err(error) = host.try_run_schedule(OutboundFlush) {
         tracing::warn!("the packets of a player leaving were not flushed: {error}");

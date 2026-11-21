@@ -9,6 +9,7 @@ mod close_inventory_menu;
 mod close_menu_moves;
 mod close_place;
 mod close_scope;
+mod drop_swing;
 mod ender_items;
 mod from_holders;
 mod hand_action;
