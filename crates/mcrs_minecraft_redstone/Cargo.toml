@@ -1,0 +1,26 @@
+[package]
+name = "mcrs_minecraft_redstone"
+description = "The redstone rules: the power model, wire, power sources, lamps, diodes, observers and pistons as block behaviour over the simulation kernel"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_block_support.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_simulation.workspace = true
+mcrs_voxel.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_volume.workspace = true
+serde_json.workspace = true
