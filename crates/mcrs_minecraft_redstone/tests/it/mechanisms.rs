@@ -305,3 +305,36 @@ fn a_daylight_detector_follows_the_sun_and_inverts_on_a_use() {
         "an inverted detector under the open sky shows 0"
     );
 }
+
+#[test]
+fn a_tripwire_line_of_forty_strings_attaches_and_one_of_forty_one_does_not() {
+    for (strings, attaches) in [(39, true), (40, true), (41, false)] {
+        let mut world = World::new();
+        let near_wall = at(-22, 0);
+        world.fill(near_wall, world.default("minecraft:stone"));
+        let far_wall = east(near_wall, strings + 3);
+        world.fill(far_wall, world.default("minecraft:stone"));
+        let hook = world.default("minecraft:tripwire_hook");
+        let string = world.default("minecraft:tripwire");
+        for x in 2..=strings + 1 {
+            world.place(east(near_wall, x), string);
+        }
+        world.tick();
+        world.place(east(near_wall, 1), world.facing(hook, Direction::East));
+        world.place(
+            east(near_wall, strings + 2),
+            world.facing(hook, Direction::West),
+        );
+        world.ticks(2);
+        assert_eq!(
+            table().attached(world.state(east(near_wall, 1))),
+            attaches,
+            "{strings} strings between two hooks"
+        );
+        assert_eq!(
+            table().attached(world.state(east(near_wall, strings + 2))),
+            attaches,
+            "the far hook with {strings} strings"
+        );
+    }
+}

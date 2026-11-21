@@ -17,7 +17,9 @@ use crate::comparator_store::{persist_comparator_outputs, restore_comparator_out
 use crate::container_signal::publish_container_signals;
 use crate::daylight_signal::publish_daylight;
 use crate::moving_blocks::push_entities_with_moving_blocks;
-use crate::moving_store::{record_moving_blocks, restore_moving_blocks};
+use crate::moving_store::{
+    CarriedRecords, capture_carried_entities, record_moving_blocks, restore_moving_blocks,
+};
 use crate::plate_presence::{index_loaded_sensors, publish_plate_presence};
 use crate::use_blocks::use_redstone_blocks;
 
@@ -87,6 +89,14 @@ where
                 .in_set(TickSet::Simulate)
                 .before(MotionPass)
                 .before(PoseSystems::Select)
+                .run_if(resource_exists::<BlockMemory<B>>),
+        );
+        app.init_resource::<CarriedRecords>();
+        app.add_systems(
+            FixedPostUpdate,
+            capture_carried_entities::<B>
+                .before(VoxelUpdateSet::NetworkSync)
+                .run_if(resource_exists::<BlockRules<B>>)
                 .run_if(resource_exists::<BlockMemory<B>>),
         );
         app.add_systems(

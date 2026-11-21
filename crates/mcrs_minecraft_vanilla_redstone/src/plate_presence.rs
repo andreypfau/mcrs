@@ -121,6 +121,7 @@ pub(crate) fn publish_plate_presence<B>(
     for list in nearby.values_mut() {
         list.clear();
     }
+    nearby.retain(|_, list| list.capacity() > 0);
     for (transform, mode, body) in &players {
         if mode.0 == GameMode::Spectator {
             continue;

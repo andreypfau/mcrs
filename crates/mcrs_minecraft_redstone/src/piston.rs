@@ -215,13 +215,6 @@ where
     let push = push_direction(facing, movement);
     let sticky = state_at(cx, pos).is_some_and(|state| sticky_of(table, state));
     let now = cx.now();
-    let mut destroyed: Vec<(BlockPos, BlockStateId)> = Vec::with_capacity(set.to_destroy.len());
-    for &at in set.to_destroy.as_slice().iter().rev() {
-        if let Some(state) = state_at(cx, at) {
-            destroyed.push((at, state));
-            cx.destroy(at, Drops::Released, LIMIT);
-        }
-    }
     let mut moved: Vec<(BlockPos, BlockStateId)> = Vec::with_capacity(set.to_push.len());
     for &at in set.to_push.as_slice() {
         let Some(state) = state_at(cx, at) else {
@@ -232,12 +225,19 @@ where
     let Some(moving) = table.moving_piston(push, sticky) else {
         return false;
     };
+    if !destinations_owned(cx, &moved, push, movement, pos, facing) {
+        return false;
+    }
     let phase = match movement {
         Move::Extend => MovePhase::Extending,
         Move::Retract => MovePhase::Retracting,
     };
-    if !destinations_owned(cx, &moved, push, movement, pos, facing) {
-        return false;
+    let mut destroyed: Vec<(BlockPos, BlockStateId)> = Vec::with_capacity(set.to_destroy.len());
+    for &at in set.to_destroy.as_slice().iter().rev() {
+        if let Some(state) = state_at(cx, at) {
+            destroyed.push((at, state));
+            cx.destroy(at, Drops::Released, LIMIT);
+        }
     }
     let mut occupied: Vec<BlockPos> = Vec::with_capacity(moved.len().saturating_add(1));
     for &(at, state) in moved.iter().rev() {

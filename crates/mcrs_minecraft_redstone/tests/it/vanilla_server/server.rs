@@ -32,6 +32,7 @@ impl VanillaServer {
         std::fs::write(work.join("server.properties"), properties(port))
             .expect("server.properties is written");
         let log = File::create(work.join("server.log")).expect("the server log can be created");
+        let jar = std::path::absolute(jar).expect("the jar path can be made absolute");
         let mut process = Command::new("java")
             .args(["-Xmx2G", "-jar"])
             .arg(jar)
@@ -183,16 +184,7 @@ pub fn server_jar() -> Option<PathBuf> {
         return Some(jar.into());
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let release = root.join("crates/mcrs_minecraft_client_jar/src/release.json");
-    let text = std::fs::read_to_string(&release).expect("release.json is readable");
-    let id = text
-        .lines()
-        .find_map(|line| {
-            let line = line.trim();
-            let value = line.strip_prefix("\"id\": \"")?;
-            value.split('"').next()
-        })
-        .expect("release.json names its version");
+    let id = mcrs_minecraft_core::VERSION.id;
     let jar = root.join(format!("target/vanilla-server/{id}/server.jar"));
     if jar.exists() {
         Some(jar)

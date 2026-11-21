@@ -49,7 +49,7 @@ where
         strings: Vec::new(),
         end: None,
     };
-    for step in 1..=LINE_LIMIT {
+    for step in 1..=LINE_LIMIT.saturating_add(1) {
         let Some(pos) = offset_by(hook, facing, step) else {
             break;
         };
