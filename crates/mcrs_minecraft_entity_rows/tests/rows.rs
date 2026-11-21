@@ -2,18 +2,17 @@ use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
-use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_key::WriterKey;
+use mcrs_minecraft_entity_key::YzxPos;
 use mcrs_minecraft_entity_rows::EffectBuffer;
 use mcrs_minecraft_entity_rows::Executor;
 use mcrs_minecraft_entity_rows::Keyed;
 use mcrs_minecraft_entity_rows::Pass;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_entity_rows::TileBodies;
 use mcrs_minecraft_entity_rows::TileQueues;
-use mcrs_minecraft_entity_rows::WriterKey;
-use mcrs_minecraft_entity_rows::YzxPos;
 use mcrs_minecraft_physics::Body;
+use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
@@ -25,6 +24,7 @@ use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TeamSlot;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestWorld;
+use mcrs_minecraft_physics::TileBodies;
 use mcrs_voxel::BlockPos;
 
 const TILE: TileKey = TileKey::new(0, 0, 0);
@@ -126,9 +126,10 @@ fn grid_row(x: f64) -> GridRow {
 
 #[test]
 fn the_freeze_swaps_only_written_tiles_and_gives_back_the_old_front() {
-    let bodies = |x: f64| TileBodies {
-        rows: vec![grid_row(x)],
-        starts: vec![0, 1],
+    let bodies = |x: f64| {
+        let mut filled = TileBodies::default();
+        filled.fill(TILE, &[grid_row(x)]);
+        filled
     };
     let mut grid = BodyGrid::default();
     let quiet = TileKey::new(1, 0, 0);
@@ -140,7 +141,7 @@ fn the_freeze_swaps_only_written_tiles_and_gives_back_the_old_front() {
     let mut back = bodies(2.0);
     grid.swap(TILE, &mut back);
     assert_eq!(
-        grid.front(TILE),
+        grid.tile(TILE),
         &bodies(2.0),
         "the back buffer becomes the front"
     );
@@ -150,7 +151,7 @@ fn the_freeze_swaps_only_written_tiles_and_gives_back_the_old_front() {
         "the old front comes back for the next write"
     );
     assert_eq!(
-        grid.front(quiet),
+        grid.tile(quiet),
         &bodies(9.0),
         "a quiet tile keeps its front"
     );
