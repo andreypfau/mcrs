@@ -1,9 +1,10 @@
 use mcrs_minecraft_block::definition::BlockEntry;
+use mcrs_minecraft_block::definition::schema::NoteBlockInstrument;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_core::Direction;
 use mcrs_voxel::BlockStateId;
 
-use crate::component::{Connection, DiodeMode, Face};
+use crate::component::{Connection, DiodeMode, Face, Half, RailShape, instrument_named};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Digit {
@@ -61,6 +62,17 @@ pub(crate) struct BlockLayout {
     pub(crate) mode: Option<Property<DiodeMode>>,
     pub(crate) sticky: Option<Property<bool>>,
     pub(crate) sides: [Option<Property<Connection>>; 4],
+    pub(crate) open: Option<Property<bool>>,
+    pub(crate) enabled: Option<Property<bool>>,
+    pub(crate) triggered: Option<Property<bool>>,
+    pub(crate) attached: Option<Property<bool>>,
+    pub(crate) disarmed: Option<Property<bool>>,
+    pub(crate) inverted: Option<Property<bool>>,
+    pub(crate) note: Option<Property<u8>>,
+    pub(crate) half: Option<Property<Half>>,
+    pub(crate) shape: Option<Property<RailShape>>,
+    pub(crate) instrument: Option<Property<NoteBlockInstrument>>,
+    pub(crate) links: [Option<Property<bool>>; 4],
 }
 
 fn property<T: Copy>(
@@ -133,6 +145,27 @@ fn connection(value: &PropertyValue) -> Option<Connection> {
     }
 }
 
+fn half(value: &PropertyValue) -> Option<Half> {
+    match value {
+        PropertyValue::Str(text) => Half::parse(text),
+        _ => None,
+    }
+}
+
+fn rail_shape(value: &PropertyValue) -> Option<RailShape> {
+    match value {
+        PropertyValue::Str(text) => RailShape::parse(text),
+        _ => None,
+    }
+}
+
+fn instrument(value: &PropertyValue) -> Option<NoteBlockInstrument> {
+    match value {
+        PropertyValue::Str(text) => instrument_named(text),
+        _ => None,
+    }
+}
+
 impl BlockLayout {
     pub(crate) fn of(entry: &BlockEntry) -> Self {
         Self {
@@ -154,6 +187,22 @@ impl BlockLayout {
                 property(entry, "east", connection),
                 property(entry, "south", connection),
                 property(entry, "west", connection),
+            ],
+            open: property(entry, "open", bool_value),
+            enabled: property(entry, "enabled", bool_value),
+            triggered: property(entry, "triggered", bool_value),
+            attached: property(entry, "attached", bool_value),
+            disarmed: property(entry, "disarmed", bool_value),
+            inverted: property(entry, "inverted", bool_value),
+            note: property(entry, "note", small_int),
+            half: property(entry, "half", half),
+            shape: property(entry, "shape", rail_shape),
+            instrument: property(entry, "instrument", instrument),
+            links: [
+                property(entry, "north", bool_value),
+                property(entry, "east", bool_value),
+                property(entry, "south", bool_value),
+                property(entry, "west", bool_value),
             ],
         }
     }
@@ -192,14 +241,21 @@ impl BlockLayout {
         self.state(offset)
     }
 
+    fn horizontal_index(direction: Direction) -> Option<usize> {
+        match direction {
+            Direction::North => Some(0),
+            Direction::East => Some(1),
+            Direction::South => Some(2),
+            Direction::West => Some(3),
+            Direction::Down | Direction::Up => None,
+        }
+    }
+
     pub(crate) fn side(&self, direction: Direction) -> Option<&Property<Connection>> {
-        let index = match direction {
-            Direction::North => 0,
-            Direction::East => 1,
-            Direction::South => 2,
-            Direction::West => 3,
-            Direction::Down | Direction::Up => return None,
-        };
-        self.sides.get(index)?.as_ref()
+        self.sides.get(Self::horizontal_index(direction)?)?.as_ref()
+    }
+
+    pub(crate) fn link(&self, direction: Direction) -> Option<&Property<bool>> {
+        self.links.get(Self::horizontal_index(direction)?)?.as_ref()
     }
 }

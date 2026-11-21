@@ -4,7 +4,9 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use glam::DVec3;
 use mcrs_minecraft_engine::PlayerBody;
-use mcrs_minecraft_engine::block_simulation::{BlockMemory, BlockRules, BlockSimulation};
+use mcrs_minecraft_engine::block_simulation::{
+    BlockMemory, BlockRules, BlockShared, BlockSimulation,
+};
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::Bodies;
@@ -18,50 +20,66 @@ use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_redstone::{
-    HasRedstone, HasRedstoneMemory, Kind, Presence, RedstoneTable, plate_signal_for,
+    HasRedstone, HasRedstoneMemory, HasRedstoneSnapshot, Kind, Presence, RedstoneTable, Sensor,
+    plate_signal_for,
 };
 use mcrs_minecraft_simulation::{BlockBehaviour, UpdateRequest};
 use mcrs_minecraft_volume::BlockVolume;
-use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
+use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 
 const ITEM_WIDTH: f32 = 0.25;
 const ITEM_HEIGHT: f32 = 0.25;
 const SENSING_INSET: f64 = 1.0 / 16.0;
 const SENSING_HEIGHT: f64 = 0.25;
+const TRIPWIRE_HEIGHT: f64 = 0.5;
 const SECTION_EDGE: u8 = 16;
+const BODY_REACH: f64 = 2.0;
+const COLUMN_REACH: i32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Occupant {
+pub(crate) enum Occupant {
     Living,
     Other,
 }
 
-fn sensing_box(pos: BlockPos) -> Aabb {
+fn sensing_box(pos: BlockPos, sensor: Sensor) -> Option<Aabb> {
     let origin = DVec3::new(f64::from(pos.x), f64::from(pos.y), f64::from(pos.z));
-    Aabb::new(
-        origin + DVec3::new(SENSING_INSET, 0.0, SENSING_INSET),
-        origin + DVec3::new(1.0 - SENSING_INSET, SENSING_HEIGHT, 1.0 - SENSING_INSET),
-    )
+    match sensor {
+        Sensor::Plate => Some(Aabb::new(
+            origin + DVec3::new(SENSING_INSET, 0.0, SENSING_INSET),
+            origin + DVec3::new(1.0 - SENSING_INSET, SENSING_HEIGHT, 1.0 - SENSING_INSET),
+        )),
+        Sensor::Tripwire => Some(Aabb::new(
+            origin,
+            origin + DVec3::new(1.0, TRIPWIRE_HEIGHT, 1.0),
+        )),
+        Sensor::Daylight => None,
+    }
 }
 
 fn floor(value: f64) -> i32 {
     i32::try_from(value.floor() as i64).unwrap_or(0)
 }
 
-fn candidates(body: &Aabb) -> impl Iterator<Item = BlockPos> {
-    let xs = floor(body.min.x)..=floor(body.max.x);
-    let zs = floor(body.min.z)..=floor(body.max.z);
-    let ys = floor(body.min.y - SENSING_HEIGHT)..=floor(body.max.y);
-    xs.flat_map(move |x| {
-        let zs = zs.clone();
-        let ys = ys.clone();
-        zs.flat_map(move |z| ys.clone().map(move |y| BlockPos::new(x, y, z)))
-    })
+fn column_of(position: DVec3) -> (i32, i32) {
+    (floor(position.x), floor(position.z))
 }
 
-fn is_plate(table: &RedstoneTable, state: mcrs_voxel::BlockStateId) -> bool {
-    matches!(table.kind(state), Some(Kind::Plate(_)))
+fn sensor_of(table: &RedstoneTable, state: BlockStateId) -> Option<Sensor> {
+    match table.kind(state)? {
+        Kind::Plate(_) => Some(Sensor::Plate),
+        Kind::Tripwire => Some(Sensor::Tripwire),
+        Kind::DaylightDetector => Some(Sensor::Daylight),
+        _ => None,
+    }
+}
+
+fn count(presence: &mut Presence, occupant: Occupant) {
+    presence.entities = presence.entities.saturating_add(1);
+    if occupant == Occupant::Living {
+        presence.living = presence.living.saturating_add(1);
+    }
 }
 
 type PlayerItem<'a> = (&'a Transform, &'a PlayerGameMode, PlayerBody);
@@ -77,12 +95,14 @@ pub(crate) fn publish_plate_presence<B>(
     dims: Query<Entity, With<Dimension>>,
     world: WorldView,
     rules: Res<BlockRules<B>>,
-    mut memory: ResMut<BlockMemory<B>>,
+    memory: Res<BlockMemory<B>>,
+    mut shared: ResMut<BlockShared<B>>,
     mut simulation: ResMut<BlockSimulation>,
-    mut found: Local<FxHashMap<BlockPos, Presence>>,
+    mut nearby: Local<FxHashMap<(i32, i32), Vec<(Aabb, Occupant)>>>,
 ) where
     B: BlockBehaviour<WorldKinds> + HasRedstone + Send + Sync + 'static,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(view) = dims
         .single()
@@ -92,56 +112,70 @@ pub(crate) fn publish_plate_presence<B>(
         return;
     };
     let table = rules.0.redstone().table();
-    found.clear();
-    let known = &memory.0.redstone().plate_positions;
+    let known = &memory.0.redstone_ref().sensors;
+    let plates = &mut shared.0.redstone_mut().plates;
+    plates.clear();
     if known.is_empty() {
-        memory.0.redstone().plates.clear();
         return;
     }
-    let mut visit = |body: Aabb, occupant: Occupant| {
-        for pos in candidates(&body) {
-            if !known.contains(&pos) || !sensing_box(pos).intersects(&body) {
-                continue;
-            }
-            let presence = found.entry(pos).or_default();
-            presence.entities = presence.entities.saturating_add(1);
-            if occupant == Occupant::Living {
-                presence.living = presence.living.saturating_add(1);
-            }
-        }
-    };
-    for (_, tile) in bodies.0.tiles() {
-        for row in &tile.rows {
-            visit(row.bounds(), Occupant::Living);
-        }
+    for list in nearby.values_mut() {
+        list.clear();
     }
     for (transform, mode, body) in &players {
         if mode.0 == GameMode::Spectator {
             continue;
         }
         let dimensions = body.dimensions();
-        visit(
-            Aabb::of_body(transform.translation, dimensions.width, dimensions.height),
-            Occupant::Living,
-        );
+        let body = Aabb::of_body(transform.translation, dimensions.width, dimensions.height);
+        nearby
+            .entry(column_of(transform.translation))
+            .or_default()
+            .push((body, Occupant::Living));
     }
     for state in &items {
-        visit(
-            Aabb::of_body(state.0.body.position, ITEM_WIDTH, ITEM_HEIGHT),
-            Occupant::Other,
-        );
+        let position = state.0.body.position;
+        let body = Aabb::of_body(position, ITEM_WIDTH, ITEM_HEIGHT);
+        nearby
+            .entry(column_of(position))
+            .or_default()
+            .push((body, Occupant::Other));
     }
-    let plates = &mut memory.0.redstone().plates;
-    plates.clear();
-    for (&pos, &presence) in found.iter() {
+    for (&pos, &sensor) in known {
+        let Some(sensing) = sensing_box(pos, sensor) else {
+            continue;
+        };
+        let mut presence = Presence::default();
+        let reach = DVec3::new(BODY_REACH, BODY_REACH, BODY_REACH);
+        for row in bodies.0.in_box(sensing.min - reach, sensing.max + reach) {
+            if row.bounds().intersects(&sensing) {
+                count(&mut presence, Occupant::Living);
+            }
+        }
+        for dx in -COLUMN_REACH..=COLUMN_REACH {
+            for dz in -COLUMN_REACH..=COLUMN_REACH {
+                let Some(list) = nearby.get(&(pos.x.saturating_add(dx), pos.z.saturating_add(dz)))
+                else {
+                    continue;
+                };
+                for (body, occupant) in list {
+                    if body.intersects(&sensing) {
+                        count(&mut presence, *occupant);
+                    }
+                }
+            }
+        }
+        if presence.entities == 0 {
+            continue;
+        }
         plates.insert(pos, presence);
         let Ok(state) = view.block(pos) else {
             continue;
         };
-        let Some(Kind::Plate(kind)) = table.kind(state) else {
-            continue;
+        let pressed = match table.kind(state) {
+            Some(Kind::Plate(kind)) => plate_signal_for(kind, presence) > 0,
+            Some(Kind::Tripwire) => !table.disarmed(state),
+            _ => false,
         };
-        let pressed = plate_signal_for(kind, presence) > 0;
         let resting = table.powered(state) || table.power(state) > 0;
         if pressed && !resting {
             simulation.request_update(UpdateRequest::Single {
@@ -152,7 +186,7 @@ pub(crate) fn publish_plate_presence<B>(
     }
 }
 
-pub(crate) fn index_loaded_plates<B>(
+pub(crate) fn index_loaded_sensors<B>(
     mut stages: MessageReader<SectionStageChanged>,
     sections: Query<&SectionIndex>,
     rules: Res<BlockRules<B>>,
@@ -164,13 +198,11 @@ pub(crate) fn index_loaded_plates<B>(
     let table = rules.0.redstone().table();
     for change in stages.read() {
         if change.left() {
-            let redstone = memory.0.redstone();
             let section = change.pos;
-            redstone
-                .plate_positions
-                .retain(|pos| SectionPos::from(*pos) != section);
-            redstone
-                .plates
+            memory
+                .0
+                .redstone()
+                .sensors
                 .retain(|pos, _| SectionPos::from(*pos) != section);
             continue;
         }
@@ -185,21 +217,24 @@ pub(crate) fn index_loaded_plates<B>(
             continue;
         };
         let mut any = false;
-        blocks.for_each_distinct(|state| any |= is_plate(table, state));
+        blocks.for_each_distinct(|state| any |= sensor_of(table, state).is_some());
         if !any {
             continue;
         }
         let origin = change.pos.min_block();
-        let positions = &mut memory.0.redstone().plate_positions;
+        let sensors = &mut memory.0.redstone().sensors;
         for y in 0..SECTION_EDGE {
             for z in 0..SECTION_EDGE {
                 for x in 0..SECTION_EDGE {
-                    if is_plate(table, blocks.get(LocalPos::new(x, y, z))) {
-                        positions.insert(BlockPos::new(
-                            origin.x + i32::from(x),
-                            origin.y + i32::from(y),
-                            origin.z + i32::from(z),
-                        ));
+                    if let Some(sensor) = sensor_of(table, blocks.get(LocalPos::new(x, y, z))) {
+                        sensors.insert(
+                            BlockPos::new(
+                                origin.x + i32::from(x),
+                                origin.y + i32::from(y),
+                                origin.z + i32::from(z),
+                            ),
+                            sensor,
+                        );
                     }
                 }
             }

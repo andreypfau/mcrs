@@ -63,6 +63,8 @@ pub struct InertBlocks;
 
 impl BlockBehaviour<WorldKinds> for InertBlocks {
     type Memory = ();
+
+    type Shared = ();
 }
 
 impl BlockDrops for InertBlocks {}
@@ -72,6 +74,9 @@ pub struct BlockRules<B>(pub B);
 
 #[derive(Resource, Debug, Default)]
 pub struct BlockMemory<B: BlockBehaviour<WorldKinds>>(pub B::Memory);
+
+#[derive(Resource, Debug, Default)]
+pub struct BlockShared<B: BlockBehaviour<WorldKinds>>(pub B::Shared);
 
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DimensionBlockRules(pub fn(&mut SubApp));
@@ -101,6 +106,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     fn build(&self, app: &mut App) {
         app.insert_resource(BlockRules(self.rules.clone()));
         app.insert_resource(BlockMemory::<B>(B::Memory::default()));
+        app.insert_resource(BlockShared::<B>(B::Shared::default()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<RandomTickSpeed>();
         app.init_resource::<LandedTicks>();
@@ -341,6 +347,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     landed: ResMut<'w, LandedTicks>,
     rules: Res<'w, BlockRules<B>>,
     memory: ResMut<'w, BlockMemory<B>>,
+    shared: Res<'w, BlockShared<B>>,
     definitions: Option<Res<'w, Blocks>>,
     time: Res<'w, GameTime>,
 }
@@ -490,6 +497,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 
     let rules = &kernel.rules.0;
     let memory = &mut kernel.memory.0;
+    let shared = &kernel.shared.0;
     let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
     let seed = *simulation.random_seed.get_or_insert_with(|| {
@@ -542,6 +550,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 &mut volume,
                 &env,
                 &mut *memory,
+                shared,
                 picks,
                 &mut out,
                 &spread,
@@ -563,6 +572,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             &mut volume,
             &env,
             &mut *memory,
+            shared,
             input,
             &mut out,
         ) {

@@ -212,7 +212,7 @@ fn a_comparator_reads_an_analog_input_behind_it() {
     world.fill(chest, world.default("minecraft:chest"));
     world.fill(output, world.default("minecraft:redstone_wire"));
     world
-        .memory
+        .snapshot
         .analog
         .insert(chest, AnalogSource::Container(7));
     world.place(diode, comparator(&world, "compare"));
@@ -228,7 +228,7 @@ fn a_comparator_reads_an_analog_input_behind_it() {
     );
 
     world
-        .memory
+        .snapshot
         .analog
         .insert(chest, AnalogSource::Container(3));
     world.request_update(UpdateRequest::Comparators {
@@ -252,7 +252,7 @@ fn a_comparator_reads_an_item_frame_behind_a_solid_block() {
     let output = east(diode, 1);
     world.fill(wall, world.default("minecraft:stone"));
     world.fill(output, world.default("minecraft:redstone_wire"));
-    world.memory.analog.insert(
+    world.snapshot.analog.insert(
         frame,
         AnalogSource::Frame {
             facing: Direction::West,
@@ -267,7 +267,7 @@ fn a_comparator_reads_an_item_frame_behind_a_solid_block() {
         "the frame on the far side of the block is read"
     );
 
-    world.memory.analog.insert(
+    world.snapshot.analog.insert(
         frame,
         AnalogSource::Frame {
             facing: Direction::North,

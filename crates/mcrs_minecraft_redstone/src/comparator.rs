@@ -10,35 +10,33 @@ use crate::component::DiodeMode;
 use crate::diode::{
     LateralInputs, feeds_a_diode, input_signal, lateral_signal, survives_on, update_front,
 };
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::power::{MAX_SIGNAL, neighbour_state};
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
 
 pub(crate) const DELAY: i32 = 2;
 
-fn container_at<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos) -> Option<u8>
+fn container_at<K, V, F, B>(cx: &Cx<'_, K, V, F, B>, pos: BlockPos) -> Option<u8>
 where
     K: Kinds,
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
-        .and_then(|memory| memory.redstone().container_output(pos))
+    cx.shared().redstone().container_output(pos)
 }
 
-fn frame_at<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos, facing: Direction) -> Option<u8>
+fn frame_at<K, V, F, B>(cx: &Cx<'_, K, V, F, B>, pos: BlockPos, facing: Direction) -> Option<u8>
 where
     K: Kinds,
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
-        .and_then(|memory| memory.redstone().frame_output(pos, facing))
+    cx.shared().redstone().frame_output(pos, facing)
 }
 
 fn full_input<K, V, F, B>(
@@ -53,6 +51,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let direct = input_signal(cx, table, pos, facing);
     let Some((behind, state)) = neighbour_state(cx, pos, facing) else {
@@ -93,6 +92,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let input = full_input(cx, table, pos, facing);
     if input == 0 {
@@ -115,6 +115,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     cx.memory()
         .map_or(0, |memory| memory.redstone().comparator_output(pos))
@@ -131,6 +132,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -163,6 +165,7 @@ pub(crate) fn refresh<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -201,6 +204,7 @@ pub(crate) fn placed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -228,6 +232,7 @@ pub(crate) fn removed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
         memory.redstone().comparators.remove(&pos);

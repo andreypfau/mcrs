@@ -9,7 +9,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::Kind;
-use crate::memory::{Carried, HasRedstoneMemory, MovingPayload};
+use crate::memory::{Carried, HasRedstoneMemory, HasRedstoneSnapshot, MovingPayload};
 use crate::power::{has_signal_from, neighbour_state, offset_by, state_at};
 use crate::push_set::{Destroy, Move, is_pushable, push_direction, resolve};
 use crate::rules::RedstoneRules;
@@ -20,6 +20,7 @@ pub(crate) const EVENT_EXTEND: i32 = 0;
 pub(crate) const EVENT_RETRACT: i32 = 1;
 pub(crate) const EVENT_RETRACT_WITHOUT_PULL: i32 = 2;
 pub const MOVE_TICKS: i32 = 2;
+pub(crate) const REACH: u8 = 14;
 
 const MOVING_FLAGS: BlockUpdateFlags =
     BlockUpdateFlags::MOVE_BY_PISTON.union(BlockUpdateFlags::INVISIBLE);
@@ -58,6 +59,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     for direction in Direction::all() {
         if direction != facing && has_signal_from(cx, table, pos, direction) {
@@ -82,6 +84,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     cx.memory()
         .and_then(|memory| memory.redstone().moving.get(&pos).copied())
@@ -94,6 +97,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
         memory.redstone().moving.insert(pos, payload);
@@ -112,6 +116,7 @@ pub(crate) fn check_extend<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = table.facing(state) else {
         return;
@@ -152,6 +157,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if movement == Move::Retract
         && let Some(front) = neighbour(pos, facing)
@@ -264,6 +270,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(facing) = direction_from_index(facing_index) else {
         return false;
@@ -367,6 +374,7 @@ pub(crate) fn complete_move<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let payload = cx
         .memory()
@@ -391,6 +399,7 @@ pub(crate) fn moving_neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let due = payload_at(cx, pos).is_some_and(|payload| {
         cx.now().0.saturating_sub(payload.started.0) >= i64::from(MOVE_TICKS)
@@ -407,6 +416,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
         memory.redstone().moving.remove(&pos);

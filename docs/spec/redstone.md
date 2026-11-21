@@ -41,8 +41,13 @@ document are in `block-simulation.md`, Tables 2 to 7.
   neighbor in that direction. The **output side** is the opposite direction. The **output block**
   is the neighbor on the output side. The **lateral sides** are the two horizontal directions
   that are not the input side or the output side.
-- **Attached block** of a lever, a button or a torch: the block that holds the component
-  (RS-SRC-001).
+- **Attached block** of a lever, a button, a torch or a tripwire hook: the block that holds the
+  component (RS-SRC-001).
+- **Mechanism**: a block that reacts to the powered-position test and gives no signal, except
+  as section 10 states (doors, trapdoors, fence gates, rails, note blocks, hoppers, dispensers,
+  droppers, crafters, copper bulbs).
+- **Sensor**: a block whose state the server reads from the entities or the sky: a pressure
+  plate, a tripwire, a daylight detector. The host indexes the sensors of each loaded section.
 - **Push set**: the blocks that one piston move carries (RS-PST-004).
 - **Moving block**: a block state of `minecraft:moving_piston`, with its **payload**: the carried
   block state, the direction of the move and the kind of the carried block (RS-PST-001).
@@ -127,6 +132,8 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
 | repeater, powered | 15 if d is the output side, else 0 | the same as the output signal |
 | comparator, powered, with payload p | p if d is the output side, else 0 | the same as the output signal |
 | observer, powered | 15 if d is the opposite of F, else 0 | the same as the output signal |
+| tripwire hook, powered (RS-MEC-007) | 15 toward each neighbor | 15 if d = A, else 0 |
+| daylight detector with power p (RS-MEC-008) | p toward each neighbor | 0 |
 | a block with `minecraft:redstone_producer` and power p | p toward each neighbor | 0 |
 
 - **Edge cases:** a dot has no horizontal connection (RS-WIR-002) and gives its power only to
@@ -207,7 +214,8 @@ semantic. Confidence: high.
     are the blocks whose definition has the component `minecraft:redstone_producer`, and the
     components of Table 1 that are not conductors: the block of redstone, the lever, the
     buttons, the pressure plates, the redstone torch, the target, the daylight detector, the
-    trapped chest, the lectern, the tripwire hook, the detector rail and the lightning rod;
+    trapped chest, the lectern, the tripwire hook, the daylight detector, the detector rail and
+    the lightning rod;
   - it is a repeater, and e is on the axis of its `facing`;
   - it is a comparator, from each direction (a wire on a lateral side is a lateral input,
     RS-REP-002);
@@ -846,7 +854,162 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ---
 
-## 10. World rules
+## 10. Mechanisms that react to power
+
+The mechanisms of this section react to the powered-position test (RS-PWR-005) and have no
+output signal, except the tripwire hook and the daylight detector, which are signal sources
+(Table 1). A **rising edge** is a change of the test from false to true.
+
+### RS-MEC-001: Doors, trapdoors and fence gates
+
+- **Inputs:** a neighbor update at a block of the tag `minecraft:doors`, `minecraft:trapdoors`
+  or `minecraft:fence_gates`, or a placement of such a block.
+- **Behavior:** the block reads the powered-position test at P. A door reads the test at both
+  halves: the lower half and the upper half. When the result is not equal to `powered`, the
+  block sets `powered` and `open` to the result with the flags 2. A door also sets the other
+  half the same way. A player use of a block of `minecraft:wooden_doors`,
+  `minecraft:wooden_trapdoors` or `minecraft:fence_gates` changes `open` to the other value with
+  the flags 2; the other half of a door follows the half that the player used. An iron door and
+  an iron trapdoor do not react to a use.
+- **Edge cases:** power keeps a door open while the test is true; a use while powered changes
+  `open`, and the next update with power sets it back. A fence gate keeps `in_wall`.
+- **Conformance tests:** put a block of redstone beside the upper half of an iron door. Result:
+  both halves are `open` and `powered`. Remove the block. Result: both halves close. Use the upper
+  half of an oak door. Result: both halves open.
+
+Provenance: `documentation`. Kind: semantic. Confidence: high.
+
+### RS-MEC-002: Powered and activator rails
+
+- **Inputs:** a neighbor update at a `minecraft:powered_rail` or a `minecraft:activator_rail`,
+  or a placement of one.
+- **Behavior:** the rail is powered when the powered-position test at P is true, or when a rail
+  of the same block in its line is powered and that rail is powered itself. The **line** of a
+  rail follows the axis of its `shape`: the next rail is the neighbor along the axis at the same
+  height, one block higher when this rail is `ascending` toward it, or one block lower. The
+  search follows the line in both directions, for at most 8 rails. When the result is not equal
+  to `powered`, the rail sets `powered` with the flags 3, makes a neighbor request at the block
+  below it, and at the block above it when it is ascending. The reach of a rail is 10 blocks
+  (`block-simulation.md`, Table 2).
+- **Conformance tests:** a line of 12 powered rails with a block of redstone beside the first.
+  Result: the first 9 rails are powered and the tenth is not. Remove the block. Result: no rail
+  is powered.
+
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
+
+### RS-MEC-003: Note block
+
+- **Inputs:** a neighbor update at a `minecraft:note_block`, a placement of one, or a player
+  use.
+- **Behavior:** the note block sets `instrument` to the instrument of the block below it (the
+  component `minecraft:note_block_instrument` of the block definition), or to the instrument of
+  the block above it when that instrument is one that works above a note block. When the
+  powered-position test changes, the note block sets `powered` with the flags 3. A rising edge
+  **plays** the note: the note block queues a block event with `a` = 0 and `b` = 0 at P
+  (SIM-BEV-001), and the event is delivered to the clients, which play the sound of
+  `instrument` and `note`. A use sets `note` to (`note` + 1) modulo 25 with the flags 3 and
+  plays the note.
+- **Conformance tests:** power a note block. Result: one block event at P. Remove the power.
+  Result: no event. Use the note block. Result: `note` is 1 and one block event at P.
+
+Provenance: `documentation`. Kind: semantic. Confidence: high.
+
+### RS-MEC-004: Hopper lock
+
+- **Inputs:** a neighbor update at a `minecraft:hopper`, or a placement of one.
+- **Behavior:** `enabled` is the opposite of the powered-position test at P. When the value
+  changes, the hopper sets it with the flags 2. A hopper that is not `enabled` moves no items.
+- **Conformance tests:** a block of redstone beside a hopper. Result: `enabled` is false.
+
+Provenance: `documentation`. Kind: semantic. Confidence: high.
+
+### RS-MEC-005: Dispenser, dropper and crafter triggers
+
+- **Inputs:** a neighbor update at a `minecraft:dispenser`, a `minecraft:dropper` or a
+  `minecraft:crafter`, or a placement of one.
+- **Behavior:** the block is powered when the powered-position test at P is true. A dispenser
+  and a dropper are also powered when the test at P + U is true, when the world rule
+  `mcrs:quasi_connectivity` is on (RS-RUL-001). When powered and not `triggered`, the block sets
+  `triggered` to true with the flags 2 and schedules a tick at P with the delay 4. When not
+  powered and `triggered`, it sets `triggered` to false with the flags 2. The tick is the moment
+  of the **dispense** or the **craft**: the item logic of these blocks is not part of this
+  document (section 13).
+- **Conformance tests:** a block of redstone beside a dispenser. Result: `triggered` is true
+  and stays true. Remove the block. Result: `triggered` is false.
+
+Provenance: `documentation`. Kind: semantic. Confidence: high.
+
+### RS-MEC-006: Copper bulb
+
+- **Inputs:** a neighbor update at a copper bulb (the eight `*copper_bulb` blocks), or a
+  placement of one.
+- **Behavior:** when the powered-position test at P is not equal to `powered`, the bulb sets
+  `powered` to the test. On a rising edge it also changes `lit` to the other value. The set
+  has the flags 3. A falling edge keeps `lit`.
+- **Conformance tests:** power a dark bulb. Result: `lit` is true. Remove the power and power it
+  again. Result: `lit` is false.
+
+Provenance: `documentation`. Kind: semantic. Confidence: high.
+
+### RS-MEC-007: Tripwire and tripwire hook
+
+- **Inputs:** a placement or a removal of a `minecraft:tripwire_hook` or a `minecraft:tripwire`,
+  a neighbor update at a tripwire, a tick at a tripwire or at a hook.
+- **Behavior:**
+  - The **line** of a hook at P with `facing` F is the run of tripwire blocks at P + F, P + 2F,
+    ... up to 40 blocks, that ends at a hook whose `facing` is the opposite of F. A line with
+    another block in it, or without the far hook, is **loose**.
+  - A **check** of a hook reads its line. Each tripwire of the line sets `attached` to true when
+    the line is not loose, and `powered` to its own presence: an entity inside its block while it
+    is not `disarmed`. Both hooks set `attached` the same way and `powered` to true when the
+    line is not loose and a tripwire of the line is `powered`. Each set has the flags 2 for a
+    tripwire and the flags 3 for a hook. A hook whose `powered` changed makes a neighbor request
+    at P and at its attached block (RS-SRC-001). A powered hook schedules a tick at P with the
+    delay 10, which runs the check again.
+  - A placement of a hook, and a tick at a hook, run its check. A removal of a hook sets the
+    tripwires of its line and the far hook to not `attached` and not `powered`, and makes the
+    neighbor requests of a powered hook.
+  - A placement or a removal of a tripwire finds the hooks at the ends of the runs of tripwire
+    through its position in each horizontal direction and runs their checks.
+  - The server reports the entities inside each tripwire as it does for pressure plates
+    (RS-PLT-003); the host knows the tripwires of a section from the moment the section loads.
+    A neighbor update at a tripwire whose presence became true runs the checks of its hooks. A
+    tripwire whose presence became false schedules a tick at P with the delay 10, and the tick
+    runs the checks when the presence is still false.
+  - A shape update at a tripwire sets its connection toward the changed neighbor (`north`,
+    `east`, `south` or `west`) to true when the neighbor is a tripwire or a hook. A hook pops
+    when its attached block loses its full face.
+  - The output signal of a hook is as in Table 1. The reach of a tripwire and a hook is 42
+    blocks along the line (`block-simulation.md`, Table 5), so their items take the serial
+    path of a partitioned step.
+- **Conformance tests:** two hooks on facing walls 5 blocks apart with tripwire between them.
+  Result: the hooks and the tripwire are `attached`. An entity on a tripwire. Result: both hooks
+  are `powered` and a lamp beside a hook lights. The entity leaves. Result: the hooks release
+  within 10 ticks and the lamp goes dark 4 ticks later.
+
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
+
+### RS-MEC-008: Daylight detector
+
+- **Inputs:** a placement of a `minecraft:daylight_detector`, a neighbor update at one, or a
+  player use.
+- **Behavior:** the server computes two values for each detector every 20 ticks: the **sky
+  level**, the sky light at P (0..15), and the **sun power**, the sky level scaled by the cosine
+  of the sun angle of the clock of the dimension, where the angle is pulled 1/5 of the way
+  toward midnight before the cosine, and rounded, and not less than 0. The server reports
+  both values to the detector with a neighbor request when they change. The detector sets
+  `power` to the sun power, or to 15 minus the sky level when `inverted`, with the flags 3. A
+  use changes `inverted` to the other value with the flags 2, and the detector recomputes
+  `power`. The output signal is as in Table 1.
+- **Conformance tests:** a detector with the sun power 9 and the sky level 15. Result: `power`
+  is 9. Use it. Result: `inverted` is true and `power` is 0.
+
+Provenance: `documentation` for the inputs; the sun angle is the celestial angle that the
+documentation of the daylight cycle gives. Kind: semantic. Confidence: medium.
+
+---
+
+## 11. World rules
 
 ### RS-RUL-001: World rules of this domain
 
@@ -872,7 +1035,7 @@ semantic. Confidence: high.
 
 ---
 
-## 11. Intentional deviations
+## 12. Intentional deviations
 
 - **Rule:** RS-PST-007. **Reference:** a moving block completes its move in the block entity
   phase of the tick. **Reason:** this project completes it in a scheduled tick of the moving
@@ -883,7 +1046,7 @@ semantic. Confidence: high.
   partition keeps its own record, as the threaded instance of `block-simulation.md` does.
   **Visible to the client:** no. **Bug reference:** none. **Test:** none.
 
-## 12. Unresolved
+## 13. Unresolved
 
 - Projectiles (RS-SRC-003) and item frames (RS-CMP-002): the block rules are stated, and no
   projectile or item frame entity exists in this version, so the server has nothing to report
@@ -892,3 +1055,10 @@ semantic. Confidence: high.
   the client animates the move from a record that arrives during the move is not checked.
 - The update order of the experimental wire evaluator (RS-WIR-009) is semantic; the orientation
   of SIM-NBR-007 is not used.
+- Blocks that need a system this version does not have: the explosion of TNT and the primed
+  TNT entity; the detector rail and its minecarts; the sculk sensors and the vibration events;
+  the lightning rod and lightning; the target block and its projectiles; the trapped chest and
+  the count of players that look into a container; the lectern and its book; the jukebox and
+  its record. Each of these is a Table 1 row or a mechanism once its system exists. The item
+  logic of the dispenser, the dropper and the crafter (RS-MEC-005) belongs to the inventory
+  domain.

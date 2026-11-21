@@ -5,7 +5,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::{Kind, PlateKind, attached_direction};
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::table::RedstoneTable;
 
 pub const MAX_SIGNAL: u8 = 15;
@@ -36,6 +36,7 @@ pub(crate) fn attached_of(table: &RedstoneTable, state: BlockStateId) -> Option<
         }
         Kind::Torch { wall: false } => Some(Direction::Down),
         Kind::Torch { wall: true } => Some(table.facing(state)?.opposite()),
+        Kind::TripwireHook => Some(table.facing(state)?.opposite()),
         _ => None,
     }
 }
@@ -97,6 +98,14 @@ pub(crate) fn output_signal(
             }
         }
         Kind::RedstoneBlock => MAX_SIGNAL,
+        Kind::TripwireHook => {
+            if table.powered(state) {
+                MAX_SIGNAL
+            } else {
+                0
+            }
+        }
+        Kind::DaylightDetector => table.power(state),
         Kind::Wire => match toward {
             Direction::Down => table.power(state),
             Direction::Up => 0,
@@ -123,7 +132,19 @@ pub(crate) fn output_signal(
             }
         }
         Kind::Target => table.power(state),
-        Kind::Lamp | Kind::Piston { .. } | Kind::PistonHead | Kind::MovingPiston => 0,
+        Kind::Lamp
+        | Kind::Piston { .. }
+        | Kind::PistonHead
+        | Kind::MovingPiston
+        | Kind::Door { .. }
+        | Kind::Trapdoor { .. }
+        | Kind::FenceGate
+        | Kind::Rail { .. }
+        | Kind::NoteBlock
+        | Kind::Hopper
+        | Kind::Trigger(_)
+        | Kind::CopperBulb
+        | Kind::Tripwire => 0,
     }
 }
 
@@ -143,6 +164,11 @@ pub(crate) fn strong_output(
             }
         }
         Some(Kind::Plate(_)) if into == Direction::Down => plate_signal(table, state),
+        Some(Kind::TripwireHook)
+            if table.powered(state) && attached_of(table, state) == Some(into) =>
+        {
+            MAX_SIGNAL
+        }
         Some(Kind::Torch { .. }) if into == Direction::Up && table.lit(state) => MAX_SIGNAL,
         Some(Kind::Repeater | Kind::Comparator | Kind::Observer | Kind::Wire) => {
             output_signal(table, state, into, comparator)
@@ -158,6 +184,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     cx.memory()
         .map_or(0, |memory| memory.redstone().comparator_output(pos))
@@ -203,6 +230,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let mut best = 0;
     for direction in Direction::all() {
@@ -243,6 +271,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(state) = state_at(cx, pos) else {
         return 0;
@@ -274,6 +303,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let mut best = 0;
     for direction in Direction::all() {
@@ -299,6 +329,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     best_neighbour_signal(cx, table, pos, WireSignals::Count) > 0
 }
@@ -315,6 +346,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(next) = neighbour(pos, direction) else {
         return false;

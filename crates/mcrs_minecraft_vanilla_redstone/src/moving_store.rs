@@ -12,8 +12,9 @@ use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, BlockEntityPos, spawn_block_entities,
+    BlockEntity, BlockEntityPos, SectionBlockEntities, spawn_block_entities,
 };
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::to_nbt_compound;
@@ -23,6 +24,8 @@ use mcrs_minecraft_redstone::{
 use mcrs_minecraft_resource::{ResourceLocationBuf, parse_parts};
 use mcrs_minecraft_simulation::{BlockBehaviour, GameTick, UpdateRequest, neighbour};
 use mcrs_voxel::{BlockPos, BlockStateId};
+
+use crate::block_entities::entity_at;
 
 fn state_compound(blocks: &Blocks, state: BlockStateId) -> Option<NbtCompound> {
     let (name, properties) = blocks.properties_of(state.number())?;
@@ -80,21 +83,32 @@ fn is_moving(table: &RedstoneTable, state: BlockStateId) -> bool {
     table.kind(state) == Some(Kind::MovingPiston)
 }
 
-fn carried_entity<'a>(
-    entities: impl Iterator<Item = (&'a BlockEntityPos, &'a BlockEntity)>,
-    source: BlockPos,
-) -> Option<NbtCompound> {
-    entities
-        .filter(|(at, entity)| {
-            at.0 == source && !matches!(entity.0, GeneratedBlockEntity::Piston { .. })
-        })
-        .find_map(|(_, entity)| to_nbt_compound(&entity.0).ok())
+fn block_entity_at<'a>(
+    index: &SectionIndex,
+    sections: &Query<&SectionBlockEntities>,
+    positions: &Query<&BlockEntityPos>,
+    entities: &'a Query<&BlockEntity>,
+    pos: BlockPos,
+) -> Option<&'a GeneratedBlockEntity> {
+    let entity = entity_at(index, sections, positions, pos)?;
+    entities.get(entity).ok().map(|entity| &entity.0)
 }
 
-fn moving_record(
+fn carried_entity<'a>(
+    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
+    source: BlockPos,
+) -> Option<NbtCompound> {
+    let entity = at(source)?;
+    if matches!(entity, GeneratedBlockEntity::Piston { .. }) {
+        return None;
+    }
+    to_nbt_compound(entity).ok()
+}
+
+fn moving_record<'a>(
     blocks: &Blocks,
     table: &RedstoneTable,
-    entities: &Query<(&BlockEntityPos, &BlockEntity)>,
+    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
     pos: BlockPos,
     payload: &MovingPayload,
 ) -> Option<GeneratedBlockEntity> {
@@ -103,7 +117,7 @@ fn moving_record(
         payload.carried == Carried::Block && table.info(payload.state).block_entity;
     let carried = neighbour(pos, payload.facing.opposite())
         .filter(|_| carries_entity)
-        .and_then(|source| carried_entity(entities.iter(), source));
+        .and_then(|source| carried_entity(at, source));
     Some(GeneratedBlockEntity::Piston {
         x: pos.x,
         y: pos.y,
@@ -117,31 +131,45 @@ fn moving_record(
     })
 }
 
-fn released_entity(
-    entities: &Query<(&BlockEntityPos, &BlockEntity)>,
+fn released_entity<'a>(
+    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
     pos: BlockPos,
 ) -> Option<GeneratedBlockEntity> {
-    let carried = entities.iter().find_map(|(at, entity)| match &entity.0 {
-        GeneratedBlockEntity::Piston { carried, .. } if at.0 == pos => carried.as_ref(),
-        _ => None,
-    })?;
+    let GeneratedBlockEntity::Piston {
+        carried: Some(carried),
+        ..
+    } = at(pos)?
+    else {
+        return None;
+    };
     GeneratedBlockEntity::from_template(carried, pos, None)
         .ok()
         .flatten()
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each query, resource and command buffer is its own parameter"
+)]
 pub(crate) fn record_moving_blocks<B>(
     mut placed: MessageReader<BlockPlaced>,
     rules: Res<BlockRules<B>>,
     memory: Res<BlockMemory<B>>,
     blocks: Res<Blocks>,
-    dims: Query<Entity, With<Dimension>>,
-    entities: Query<(&BlockEntityPos, &BlockEntity)>,
+    dims: Query<(Entity, &SectionIndex), With<Dimension>>,
+    sections: Query<&SectionBlockEntities>,
+    positions: Query<&BlockEntityPos>,
+    entities: Query<&BlockEntity>,
     mut commands: Commands,
 ) where
     B: BlockBehaviour<WorldKinds> + HasRedstone + Send + Sync + 'static,
     B::Memory: HasRedstoneMemory,
 {
+    let Ok((dimension, index)) = dims.single() else {
+        placed.clear();
+        return;
+    };
+    let at = |pos| block_entity_at(index, &sections, &positions, &entities, pos);
     let table = rules.0.redstone().table();
     let moving = &memory.0.redstone_ref().moving;
     let mut spawned = Vec::new();
@@ -149,7 +177,7 @@ pub(crate) fn record_moving_blocks<B>(
         let pos = change.block_pos;
         if is_moving(table, change.new_state) {
             if let Some(payload) = moving.get(&pos)
-                && let Some(record) = moving_record(&blocks, table, &entities, pos, payload)
+                && let Some(record) = moving_record(&blocks, table, &at, pos, payload)
             {
                 spawned.push(record);
             }
@@ -157,7 +185,7 @@ pub(crate) fn record_moving_blocks<B>(
         }
         if is_moving(table, change.old_state)
             && table.info(change.new_state).block_entity
-            && let Some(released) = released_entity(&entities, pos)
+            && let Some(released) = released_entity(&at, pos)
         {
             spawned.push(released);
         }
@@ -165,9 +193,6 @@ pub(crate) fn record_moving_blocks<B>(
     if spawned.is_empty() {
         return;
     }
-    let Ok(dimension) = dims.single() else {
-        return;
-    };
     spawn_block_entities(&mut commands, InDimension(dimension), spawned);
 }
 

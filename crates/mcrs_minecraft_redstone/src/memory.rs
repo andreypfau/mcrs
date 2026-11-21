@@ -1,17 +1,39 @@
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_simulation::GameTick;
 use mcrs_voxel::{BlockPos, BlockStateId};
-use rustc_hash::{FxHashMap, FxHashSet};
-
-use crate::wire_network::WireScratch;
+use rustc_hash::FxHashMap;
 
 pub(crate) const TOGGLE_WINDOW: i64 = 60;
 pub(crate) const BURNOUT_TOGGLES: usize = 8;
+const TOGGLE_SWEEP: usize = 1024;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Toggle {
-    pos: BlockPos,
-    at: GameTick,
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ToggleRing {
+    times: [i64; BURNOUT_TOGGLES],
+    len: u8,
+    next: u8,
+}
+
+impl ToggleRing {
+    fn record(&mut self, now: i64) {
+        if let Some(slot) = self.times.get_mut(usize::from(self.next)) {
+            *slot = now;
+        }
+        self.next = (self.next.wrapping_add(1)) % BURNOUT_TOGGLES as u8;
+        self.len = self.len.saturating_add(1).min(BURNOUT_TOGGLES as u8);
+    }
+
+    fn recent(&self, now: i64) -> usize {
+        self.times
+            .iter()
+            .take(usize::from(self.len))
+            .filter(|at| now.saturating_sub(**at) <= TOGGLE_WINDOW)
+            .count()
+    }
+
+    fn is_stale(&self, now: i64) -> bool {
+        self.recent(now) == 0
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,19 +68,30 @@ pub struct Presence {
 pub enum AnalogSource {
     Container(u8),
     Frame { facing: Direction, signal: u8 },
+    Daylight { sun: u8, sky: u8 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sensor {
+    Plate,
+    Tripwire,
+    Daylight,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct RedstoneMemory {
-    toggles: Vec<Toggle>,
+    toggles: FxHashMap<BlockPos, ToggleRing>,
     pub comparators: FxHashMap<BlockPos, u8>,
     pub comparator_dirty: Vec<BlockPos>,
     pub moving: FxHashMap<BlockPos, MovingPayload>,
+    pub sensors: FxHashMap<BlockPos, Sensor>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct RedstoneSnapshot {
     pub plates: FxHashMap<BlockPos, Presence>,
-    pub plate_positions: FxHashSet<BlockPos>,
     pub projectiles: FxHashMap<BlockPos, u16>,
     pub analog: FxHashMap<BlockPos, AnalogSource>,
-    pub wire_scratch: WireScratch,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,23 +102,27 @@ pub enum ToggleLog {
 
 impl RedstoneMemory {
     pub fn burns_out(&mut self, pos: BlockPos, now: GameTick, log: ToggleLog) -> bool {
-        self.toggles
-            .retain(|toggle| now.0.saturating_sub(toggle.at.0) <= TOGGLE_WINDOW);
-        if log == ToggleLog::Record {
-            self.toggles.push(Toggle { pos, at: now });
+        if self.toggles.len() >= TOGGLE_SWEEP {
+            self.toggles.retain(|_, ring| !ring.is_stale(now.0));
         }
-        self.toggles
-            .iter()
-            .filter(|toggle| toggle.pos == pos)
-            .count()
-            >= BURNOUT_TOGGLES
+        let ring = self.toggles.entry(pos).or_default();
+        if log == ToggleLog::Record {
+            ring.record(now.0);
+        }
+        let burnt = ring.recent(now.0) >= BURNOUT_TOGGLES;
+        if ring.is_stale(now.0) {
+            self.toggles.remove(&pos);
+        }
+        burnt
     }
 
     #[must_use]
     pub fn comparator_output(&self, pos: BlockPos) -> u8 {
         self.comparators.get(&pos).copied().unwrap_or(0)
     }
+}
 
+impl RedstoneSnapshot {
     #[must_use]
     pub fn presence(&self, pos: BlockPos) -> Presence {
         self.plates.get(&pos).copied().unwrap_or_default()
@@ -114,6 +151,14 @@ impl RedstoneMemory {
     pub fn projectiles_in(&self, pos: BlockPos) -> u16 {
         self.projectiles.get(&pos).copied().unwrap_or(0)
     }
+
+    #[must_use]
+    pub fn daylight(&self, pos: BlockPos) -> Option<(u8, u8)> {
+        match self.analog.get(&pos) {
+            Some(AnalogSource::Daylight { sun, sky }) => Some((*sun, *sky)),
+            _ => None,
+        }
+    }
 }
 
 pub trait HasRedstoneMemory {
@@ -128,6 +173,22 @@ impl HasRedstoneMemory for RedstoneMemory {
     }
 
     fn redstone_ref(&self) -> &RedstoneMemory {
+        self
+    }
+}
+
+pub trait HasRedstoneSnapshot {
+    fn redstone(&self) -> &RedstoneSnapshot;
+
+    fn redstone_mut(&mut self) -> &mut RedstoneSnapshot;
+}
+
+impl HasRedstoneSnapshot for RedstoneSnapshot {
+    fn redstone(&self) -> &RedstoneSnapshot {
+        self
+    }
+
+    fn redstone_mut(&mut self) -> &mut RedstoneSnapshot {
         self
     }
 }

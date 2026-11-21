@@ -1,6 +1,7 @@
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_block::definition::placement_filter::FaceTest;
+use mcrs_minecraft_block::definition::schema::NoteBlockInstrument;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, ShapeId};
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block_support::face_passes;
@@ -10,7 +11,9 @@ use mcrs_minecraft_resource::{Id, TagKey};
 use mcrs_voxel::BlockStateId;
 use rustc_hash::FxHashMap;
 
-use crate::component::{Connection, DiodeMode, Face, Kind, PlateKind, Stickiness};
+use crate::component::{
+    Connection, DiodeMode, Face, Half, Kind, PlateKind, RailShape, Stickiness, Trigger,
+};
 use crate::layout::BlockLayout;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,6 +31,7 @@ pub struct StateInfo {
     pub producer: u8,
     pub stickiness: Stickiness,
     pub faces: SupportFaces,
+    pub instrument: NoteBlockInstrument,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -103,6 +107,38 @@ fn kind_of(
         Kind::MovingPiston
     } else if is(Block::Target) {
         Kind::Target
+    } else if is(Block::PoweredRail) {
+        Kind::Rail { activator: false }
+    } else if is(Block::ActivatorRail) {
+        Kind::Rail { activator: true }
+    } else if is(Block::NoteBlock) {
+        Kind::NoteBlock
+    } else if is(Block::Hopper) {
+        Kind::Hopper
+    } else if is(Block::Dispenser) {
+        Kind::Trigger(Trigger::Dispenser)
+    } else if is(Block::Dropper) {
+        Kind::Trigger(Trigger::Dropper)
+    } else if is(Block::Crafter) {
+        Kind::Trigger(Trigger::Crafter)
+    } else if is(Block::TripwireHook) {
+        Kind::TripwireHook
+    } else if is(Block::Tripwire) {
+        Kind::Tripwire
+    } else if is(Block::DaylightDetector) {
+        Kind::DaylightDetector
+    } else if is_copper_bulb(block) {
+        Kind::CopperBulb
+    } else if tagged(block, block_tag_keys::DOORS) {
+        Kind::Door {
+            wooden: tagged(block, block_tag_keys::WOODEN_DOORS),
+        }
+    } else if tagged(block, block_tag_keys::TRAPDOORS) {
+        Kind::Trapdoor {
+            wooden: tagged(block, block_tag_keys::WOODEN_TRAPDOORS),
+        }
+    } else if tagged(block, block_tag_keys::FENCE_GATES) {
+        Kind::FenceGate
     } else if is(Block::LightWeightedPressurePlate) {
         Kind::Plate(PlateKind::LightWeighted)
     } else if is(Block::HeavyWeightedPressurePlate) {
@@ -121,6 +157,21 @@ fn kind_of(
         return None;
     };
     Some(kind)
+}
+
+const COPPER_BULBS: [Block; 8] = [
+    Block::CopperBulb,
+    Block::ExposedCopperBulb,
+    Block::WeatheredCopperBulb,
+    Block::OxidizedCopperBulb,
+    Block::WaxedCopperBulb,
+    Block::WaxedExposedCopperBulb,
+    Block::WaxedWeatheredCopperBulb,
+    Block::WaxedOxidizedCopperBulb,
+];
+
+fn is_copper_bulb(block: Id<Block>) -> bool {
+    COPPER_BULBS.iter().any(|bulb| bulb.id() == block)
 }
 
 fn stickiness_of(block: Id<Block>) -> Stickiness {
@@ -166,6 +217,7 @@ impl RedstoneTable {
                     producer: data.redstone_power,
                     stickiness: stickiness_of(block),
                     faces,
+                    instrument: data.instrument,
                 }
             })
             .collect();
@@ -214,6 +266,7 @@ impl RedstoneTable {
                 producer: 0,
                 stickiness: Stickiness::None,
                 faces: SupportFaces::default(),
+                instrument: NoteBlockInstrument::Harp,
             })
     }
 
@@ -382,6 +435,137 @@ impl RedstoneTable {
     pub fn with_mode(&self, state: BlockStateId, value: DiodeMode) -> Option<BlockStateId> {
         let layout = self.layout(state)?;
         layout.write(layout.mode.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn open(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.open.as_ref(), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn enabled(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.enabled.as_ref(), state))
+            .unwrap_or(true)
+    }
+
+    #[must_use]
+    pub fn triggered(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.triggered.as_ref(), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn attached(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.attached.as_ref(), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn disarmed(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.disarmed.as_ref(), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn inverted(&self, state: BlockStateId) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.inverted.as_ref(), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn note(&self, state: BlockStateId) -> u8 {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.note.as_ref(), state))
+            .unwrap_or(0)
+    }
+
+    #[must_use]
+    pub fn half(&self, state: BlockStateId) -> Option<Half> {
+        self.layout(state)?
+            .read(self.layout(state)?.half.as_ref(), state)
+    }
+
+    #[must_use]
+    pub fn rail_shape(&self, state: BlockStateId) -> Option<RailShape> {
+        self.layout(state)?
+            .read(self.layout(state)?.shape.as_ref(), state)
+    }
+
+    #[must_use]
+    pub fn instrument(&self, state: BlockStateId) -> Option<NoteBlockInstrument> {
+        self.layout(state)?
+            .read(self.layout(state)?.instrument.as_ref(), state)
+    }
+
+    #[must_use]
+    pub fn link(&self, state: BlockStateId, direction: Direction) -> bool {
+        self.layout(state)
+            .and_then(|layout| layout.read(layout.link(direction), state))
+            .unwrap_or(false)
+    }
+
+    #[must_use]
+    pub fn with_open(&self, state: BlockStateId, value: bool) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.open.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_enabled(&self, state: BlockStateId, value: bool) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.enabled.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_triggered(&self, state: BlockStateId, value: bool) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.triggered.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_attached(&self, state: BlockStateId, value: bool) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.attached.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_inverted(&self, state: BlockStateId, value: bool) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.inverted.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_note(&self, state: BlockStateId, value: u8) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.note.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_instrument(
+        &self,
+        state: BlockStateId,
+        value: NoteBlockInstrument,
+    ) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.instrument.as_ref(), state, value)
+    }
+
+    #[must_use]
+    pub fn with_link(
+        &self,
+        state: BlockStateId,
+        direction: Direction,
+        value: bool,
+    ) -> Option<BlockStateId> {
+        let layout = self.layout(state)?;
+        layout.write(layout.link(direction), state, value)
     }
 
     #[must_use]

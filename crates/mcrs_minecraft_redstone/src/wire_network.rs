@@ -1,5 +1,3 @@
-use core::mem;
-
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_resource::Id;
@@ -10,7 +8,7 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 use rustc_hash::FxHashMap;
 
 use crate::component::Kind;
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::power::{MAX_SIGNAL, WireSignals, best_neighbour_signal, neighbour_state, state_at};
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
@@ -33,7 +31,7 @@ struct Feed {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct WireScratch {
+struct WireScratch {
     nodes: Vec<WireNode>,
     index: FxHashMap<BlockPos, usize>,
     feeds: Vec<Feed>,
@@ -41,13 +39,6 @@ pub struct WireScratch {
 }
 
 impl WireScratch {
-    fn clear(&mut self) {
-        self.nodes.clear();
-        self.index.clear();
-        self.feeds.clear();
-        self.changed.clear();
-    }
-
     fn admit(
         &mut self,
         table: &RedstoneTable,
@@ -178,12 +169,9 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
-    let Some(memory) = cx.memory() else {
-        return false;
-    };
-    let mut scratch = mem::take(&mut memory.redstone().wire_scratch);
-    scratch.clear();
+    let mut scratch = WireScratch::default();
     scratch.admit(table, start, start, state);
     let mut found = Vec::new();
     let mut at = 0;
@@ -246,9 +234,6 @@ where
                 cx.update_neighbours(next, wire, None);
             }
         }
-    }
-    if let Some(memory) = cx.memory() {
-        memory.redstone().wire_scratch = scratch;
     }
     true
 }

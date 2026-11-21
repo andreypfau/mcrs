@@ -7,7 +7,7 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-use crate::memory::{HasRedstoneMemory, ToggleLog};
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot, ToggleLog};
 use crate::power::{attached_of, has_signal_from};
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
@@ -27,6 +27,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     attached_of(table, state).is_some_and(|attached| has_signal_from(cx, table, pos, attached))
 }
@@ -89,6 +90,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let block = table.block_of(state);
     let lit = table.lit(state);
@@ -116,6 +118,7 @@ pub(crate) fn block_tick<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let off = must_be_off(cx, table, pos, state);
     let now = cx.now();

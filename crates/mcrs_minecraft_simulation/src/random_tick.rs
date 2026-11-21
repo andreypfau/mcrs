@@ -134,6 +134,7 @@ pub fn random_step<K, V, F, B, P, S>(
     volume: &mut V,
     env: &Env<'_, F, B, P>,
     memory: &mut B::Memory,
+    shared: &B::Shared,
     picks: RandomPicks<'_>,
     out: &mut StepOutput<K>,
     spread: &S,
@@ -146,7 +147,7 @@ pub fn random_step<K, V, F, B, P, S>(
     S: Spread,
 {
     shard.chain.reset();
-    let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
     cx.precipitation_step(picks);
 
     let mut tasks = mem::take(&mut shard.tiles);
@@ -155,10 +156,19 @@ pub fn random_step<K, V, F, B, P, S>(
     for phase in tasks.chunk_by_mut(|a, b| colour(a.tile) == colour(b.tile)) {
         let (world, base) = (&*volume, &*shard);
         spread.spread(phase, &|task: &mut TileTask<K>| {
-            task.run(world, base, env, picks, now);
+            task.run(world, base, env, shared, picks, now);
         });
         for task in phase {
-            task.commit(shard, volume, env, &mut *memory, out, now, &mut reruns);
+            task.commit(
+                shard,
+                volume,
+                env,
+                &mut *memory,
+                shared,
+                out,
+                now,
+                &mut reruns,
+            );
         }
     }
     shard.tiles = tasks;
@@ -168,7 +178,7 @@ pub fn random_step<K, V, F, B, P, S>(
         .report
         .random_reruns
         .saturating_add(u32::try_from(reruns.len()).unwrap_or(u32::MAX));
-    let mut cx = Cx::new(shard, volume, out, env, Some(memory), now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
     for hit in reruns.iter().filter_map(|&index| picks.hits.get(index)) {
         cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
     }

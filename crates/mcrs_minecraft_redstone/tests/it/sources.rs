@@ -167,7 +167,7 @@ fn a_projectile_keeps_a_wooden_button_pressed_and_not_a_stone_one() {
         let press = above(block);
         world.fill(block, world.default("minecraft:stone"));
         world.fill(press, world.with(world.default(button), "face", "floor"));
-        world.memory.projectiles.insert(press, 1);
+        world.snapshot.projectiles.insert(press, 1);
         world.request_update(UpdateRequest::Single {
             target: press,
             block: Facts.block_of(world.state(press)),
@@ -186,7 +186,7 @@ fn a_projectile_keeps_a_wooden_button_pressed_and_not_a_stone_one() {
             world.powered(press),
             "the button stays pressed while the arrow is inside"
         );
-        world.memory.projectiles.clear();
+        world.snapshot.projectiles.clear();
         world.ticks(31);
         assert!(
             !world.powered(press),

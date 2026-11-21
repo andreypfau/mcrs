@@ -7,10 +7,12 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::Kind;
-use crate::memory::HasRedstoneMemory;
-use crate::rules::RedstoneRules;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
+use crate::rules::{RedstoneRules, WireEvaluator};
 use crate::table::RedstoneTable;
 use crate::{comparator, lamp, observer, piston, plate, repeater, source, torch, wire};
+use crate::{daylight, mechanism, rail, tripwire, wire_network};
+use mcrs_minecraft_simulation::Footprints;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Toggle {
@@ -58,6 +60,19 @@ impl Redstone {
     }
 
     #[must_use]
+    pub fn reach(&self, state: BlockStateId) -> u8 {
+        match self.table.kind(state) {
+            Some(Kind::Rail { .. }) => rail::REACH,
+            Some(Kind::Tripwire | Kind::TripwireHook) => tripwire::REACH,
+            Some(Kind::Piston { .. }) => piston::REACH,
+            Some(Kind::Wire) if self.rules.wire_evaluator == WireEvaluator::Experimental => {
+                u8::try_from(wire_network::NETWORK_REACH).unwrap_or(Footprints::DEFAULT)
+            }
+            _ => Footprints::DEFAULT,
+        }
+    }
+
+    #[must_use]
     pub fn handles(&self, state: BlockStateId) -> bool {
         self.table.kind(state).is_some()
     }
@@ -68,20 +83,28 @@ impl Redstone {
         let Some(kind) = table.kind(state) else {
             return BlockUse::Unhandled;
         };
-        let toggled = match kind {
-            Kind::Lever | Kind::Button { .. } => {
-                source::toggled_by_use(table, state).map(|state| (state, BlockUpdateFlags::ALL))
-            }
-            Kind::Repeater => {
-                repeater::toggled_by_use(table, state).map(|state| (state, BlockUpdateFlags::ALL))
-            }
-            Kind::Comparator => comparator::toggled_by_use(table, state)
-                .map(|state| (state, BlockUpdateFlags::CLIENTS)),
-            Kind::Wire => {
-                wire::toggled_by_use(table, state).map(|state| (state, BlockUpdateFlags::ALL))
-            }
-            _ => return BlockUse::Unhandled,
-        };
+        let toggled =
+            match kind {
+                Kind::Lever | Kind::Button { .. } => {
+                    source::toggled_by_use(table, state).map(|state| (state, BlockUpdateFlags::ALL))
+                }
+                Kind::Repeater => repeater::toggled_by_use(table, state)
+                    .map(|state| (state, BlockUpdateFlags::ALL)),
+                Kind::Comparator => comparator::toggled_by_use(table, state)
+                    .map(|state| (state, BlockUpdateFlags::CLIENTS)),
+                Kind::Wire => {
+                    wire::toggled_by_use(table, state).map(|state| (state, BlockUpdateFlags::ALL))
+                }
+                Kind::Door { wooden: true } | Kind::Trapdoor { wooden: true } | Kind::FenceGate => {
+                    mechanism::toggled_by_use(table, state)
+                        .map(|state| (state, BlockUpdateFlags::CLIENTS))
+                }
+                Kind::NoteBlock => mechanism::toggled_by_use(table, state)
+                    .map(|state| (state, BlockUpdateFlags::ALL)),
+                Kind::DaylightDetector => mechanism::toggled_by_use(table, state)
+                    .map(|state| (state, BlockUpdateFlags::CLIENTS)),
+                _ => return BlockUse::Unhandled,
+            };
         match toggled {
             Some((state, flags)) => BlockUse::Toggle(Toggle { state, flags }),
             None if matches!(kind, Kind::Button { .. }) => BlockUse::Consumed,
@@ -100,6 +123,7 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         let table = &self.table;
         match table.kind(state) {
@@ -111,6 +135,8 @@ impl Redstone {
             Some(Kind::Observer) => observer::block_tick(cx, table, at, state),
             Some(Kind::Plate(_)) => plate::block_tick(cx, table, at, state),
             Some(Kind::MovingPiston) => piston::complete_move(cx, table, at),
+            Some(Kind::Tripwire) => tripwire::string_tick(cx, table, at, state),
+            Some(Kind::TripwireHook) => tripwire::hook_tick(cx, table, at, state),
             _ => {}
         }
     }
@@ -127,6 +153,7 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         let table = &self.table;
         match table.kind(new) {
@@ -143,6 +170,19 @@ impl Redstone {
             Some(Kind::Piston { .. }) if table.block_of(old) != table.block_of(new) => {
                 piston::check_extend(cx, table, &self.rules, at, new);
             }
+            Some(Kind::Door { .. }) => mechanism::door_placed(cx, table, at, new, old),
+            Some(
+                Kind::Trapdoor { .. }
+                | Kind::FenceGate
+                | Kind::Hopper
+                | Kind::Trigger(_)
+                | Kind::CopperBulb,
+            ) => mechanism::placed_powered(cx, table, &self.rules, at, new, old),
+            Some(Kind::NoteBlock) => mechanism::note_placed(cx, table, at, new, old),
+            Some(Kind::Rail { .. }) => rail::neighbour_changed(cx, table, at, new),
+            Some(Kind::Tripwire) => tripwire::string_placed(cx, table, at, new, old),
+            Some(Kind::TripwireHook) => tripwire::hook_placed(cx, table, at, new, old),
+            Some(Kind::DaylightDetector) => daylight::placed(cx, table, at, new, old),
             _ => {}
         }
     }
@@ -159,6 +199,7 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         let table = &self.table;
         match table.kind(old) {
@@ -172,6 +213,11 @@ impl Redstone {
             Some(Kind::Observer) => observer::removed(cx, table, at, old, moved_by_piston),
             Some(Kind::Plate(_)) => plate::removed(cx, table, at, old, moved_by_piston),
             Some(Kind::MovingPiston) => piston::moving_removed(cx, at),
+            Some(Kind::Tripwire) => tripwire::string_removed(cx, table, at, moved_by_piston),
+            Some(Kind::TripwireHook) => {
+                tripwire::hook_removed(cx, table, at, old, moved_by_piston);
+            }
+            Some(Kind::DaylightDetector) => daylight::removed(cx, at),
             _ => {}
         }
     }
@@ -187,6 +233,7 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         let table = &self.table;
         match table.kind(state) {
@@ -200,6 +247,19 @@ impl Redstone {
             Some(Kind::Piston { .. }) => piston::check_extend(cx, table, &self.rules, at, state),
             Some(Kind::PistonHead) => piston::head_neighbour_changed(cx, table, at, state),
             Some(Kind::MovingPiston) => piston::moving_neighbour_changed(cx, table, at),
+            Some(Kind::Door { .. }) => mechanism::door_neighbour_changed(cx, table, at, state),
+            Some(Kind::Trapdoor { .. } | Kind::FenceGate) => {
+                mechanism::gate_neighbour_changed(cx, table, at, state);
+            }
+            Some(Kind::Hopper) => mechanism::hopper_neighbour_changed(cx, table, at, state),
+            Some(Kind::Trigger(trigger)) => {
+                mechanism::trigger_neighbour_changed(cx, table, &self.rules, at, state, trigger);
+            }
+            Some(Kind::CopperBulb) => mechanism::bulb_neighbour_changed(cx, table, at, state),
+            Some(Kind::NoteBlock) => mechanism::note_neighbour_changed(cx, table, at, state),
+            Some(Kind::Rail { .. }) => rail::neighbour_changed(cx, table, at, state),
+            Some(Kind::Tripwire) => tripwire::string_neighbour_changed(cx, table, at, state),
+            Some(Kind::DaylightDetector) => daylight::refresh(cx, table, at, state),
             _ => {}
         }
     }
@@ -218,6 +278,7 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         let table = &self.table;
         match table.kind(state) {
@@ -237,6 +298,12 @@ impl Redstone {
             Some(Kind::PistonHead) => {
                 piston::head_update_shape(table, state, from, neighbour_state)
             }
+            Some(Kind::Tripwire) => {
+                tripwire::string_update_shape(table, state, from, neighbour_state)
+            }
+            Some(Kind::TripwireHook) => {
+                tripwire::hook_update_shape(table, state, from, neighbour_state)
+            }
             _ => state,
         }
     }
@@ -255,11 +322,13 @@ impl Redstone {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
         B::Memory: HasRedstoneMemory,
+        B::Shared: HasRedstoneSnapshot,
     {
         match self.table.kind(state) {
             Some(Kind::Piston { .. }) => {
                 piston::block_event(cx, &self.table, &self.rules, at, state, a, b)
             }
+            Some(Kind::NoteBlock) => mechanism::note_event(&self.table, state, a),
             _ => false,
         }
     }

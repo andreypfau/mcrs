@@ -7,7 +7,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::{Kind, left_of, right_of};
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::power::{
     MAX_SIGNAL, WireSignals, comparator_output, neighbour_state, signal_toward, strong_output,
 };
@@ -31,6 +31,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some((input, state)) = neighbour_state(cx, pos, facing) else {
         return 0;
@@ -55,6 +56,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some((at, state)) = neighbour_state(cx, pos, side) else {
         return 0;
@@ -84,6 +86,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let left = lateral_input(cx, table, pos, left_of(facing), inputs);
     let right = lateral_input(cx, table, pos, right_of(facing), inputs);

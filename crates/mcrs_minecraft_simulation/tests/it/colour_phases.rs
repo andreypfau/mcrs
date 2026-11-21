@@ -19,6 +19,8 @@ const UNBOUNDED: BlockStateId = STACK;
 impl BlockBehaviour<ProbeKinds> for Spreading {
     type Memory = ();
 
+    type Shared = ();
+
     fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
         if [A, FAR, UNBOUNDED].contains(&state) {
             RandomTicks::BLOCK
@@ -176,6 +178,7 @@ fn run<S: Spread>(spread: &S, batches: impl Fn(Vec<RandomHit>) -> Vec<Vec<Random
                 &mut host,
                 &env,
                 &mut (),
+                &(),
                 picks,
                 &mut out,
                 spread,

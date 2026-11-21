@@ -5,7 +5,7 @@ use mcrs_minecraft_simulation::{
 };
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-use crate::memory::HasRedstoneMemory;
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot};
 use crate::power::is_powered;
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
@@ -24,6 +24,7 @@ pub(crate) fn placed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if table.block_of(old) == table.block_of(state) {
         return;
@@ -47,6 +48,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let lit = table.lit(state);
     let powered = is_powered(cx, table, pos);
@@ -74,6 +76,7 @@ pub(crate) fn block_tick<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if table.lit(state)
         && !is_powered(cx, table, pos)

@@ -8,7 +8,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::{Kind, PlateKind};
-use crate::memory::{HasRedstoneMemory, Presence};
+use crate::memory::{HasRedstoneMemory, HasRedstoneSnapshot, Presence, Sensor};
 use crate::power::{MAX_SIGNAL, plate_signal};
 use crate::table::RedstoneTable;
 use crate::wire::LIMIT;
@@ -68,16 +68,15 @@ fn with_signal(
     }
 }
 
-fn presence_at<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos) -> Presence
+fn presence_at<K, V, F, B>(cx: &Cx<'_, K, V, F, B>, pos: BlockPos) -> Presence
 where
     K: Kinds,
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
-    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
-        .map_or_else(Presence::default, |memory| memory.redstone().presence(pos))
+    cx.shared().redstone().presence(pos)
 }
 
 fn check_pressed<K, V, F, B>(
@@ -93,6 +92,7 @@ fn check_pressed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let presence = presence_at(cx, pos);
     let next = signal_for(kind, presence);
@@ -122,6 +122,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(Kind::Plate(kind)) = table.kind(state) else {
         return;
@@ -143,6 +144,7 @@ pub(crate) fn block_tick<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     let Some(Kind::Plate(kind)) = table.kind(state) else {
         return;
@@ -160,9 +162,10 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().plate_positions.insert(pos);
+        memory.redstone().sensors.insert(pos, Sensor::Plate);
     }
 }
 
@@ -178,11 +181,10 @@ pub(crate) fn removed<K, V, F, B>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        let redstone = memory.redstone();
-        redstone.plate_positions.remove(&pos);
-        redstone.plates.remove(&pos);
+        memory.redstone().sensors.remove(&pos);
     }
     if moved_by_piston || plate_signal(table, old) == 0 {
         return;
