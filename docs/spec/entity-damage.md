@@ -195,7 +195,8 @@ true, the hit is rejected and the procedure stops.
 6. The entity is in the dying state (section 8).
 7. The damage type has the tag `is_fire` and the entity has the effect `fire_resistance`.
 
-Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`; step 5 as DMG-PLR-001. Kind: semantic.
+Confidence: high; step 5 as DMG-PLR-001.
 
 **DMG-HIT-002** (`source_suggested_black_box_confirmed`, semantic, confidence: high). After the
 tests of DMG-HIT-001, the hit does these steps before the cooldown:
@@ -730,8 +731,9 @@ Provenance: `design`. Kind: deviation (DMG-DEV-002, DMG-DEV-003, DMG-DEV-004). C
 
 **DMG-ORD-003** (`black_box_confirmed`, semantic, confidence: high). Two hits on one entity in one
 tick, with the amounts `a` and `b`, no reduction and no damage type of the tag `bypasses_cooldown`,
-change the health by `max(a, b)` in each order.
-The first is a full hit. The second is a partial hit with the difference, or a rejected hit. The
+change the health by the same value in each order. Let `c` and `L` be the values of DMG-HIT-003
+before the hits. When `c` is 10 or less, the value is `max(a, b)`: the first is a full hit, and the second is a partial hit with the
+difference, or a rejected hit. When `c > 10`, the value is `max(a, b, L) - L`. The
 order changes only the damage type of the damage event and of the death. Armor and `resistance`
 are not linear, so with them the total can differ by a small amount.
 
@@ -774,11 +776,12 @@ corpus, so only a data pack makes this case.
   the target (PHY-CMP-015). Thus the deaths of a crowd do not depend on the thread count or on the
   order of the births. In a layout of many cells, a death in the halo of another cell counts one
   tick late (DMG-CRW-002). Then the cell layout can change the crowd hits of that tick.
-- **Visible to the client:** yes, as the choice of the entity that dies. The number of deaths of
-  a crowd in one tick is the same. The tick of a death can differ, as PHY-DEV-004 states.
+- **Visible to the client:** yes, as the choice of the entity that dies. When no other hit kills
+  an entity of the crowd in the tick, the number of deaths of the crowd in that tick is the same.
+  The tick of a death can differ, as PHY-DEV-004 states.
 - **Bug reference:** none.
-- **Test:** a differential test compares the number of crowd deaths and the distribution of the
-  ticks of the deaths. It does not compare which entity dies.
+- **Test:** for a crowd that no other hit kills, a differential test compares the number of crowd
+  deaths and the distribution of the ticks of the deaths. It does not compare which entity dies.
 
 ### DMG-DEV-002: Own hits after the tick of the entity
 

@@ -164,8 +164,9 @@ of PHY-CMP-012 step 4 without a sort.
 `BodyGrid` (planned: one resource in `mcrs_minecraft_physics`) holds `F_T` for each tile: the
 bodies in bucket order and the index of the first body of each bucket, so a query takes the bodies
 of a bucket as one slice. The grid has one owner system. Before `MotionStep`, the owner system
-updates the tiles of the movers, of the spawns and of the despawns. The step reads the grid of the
-previous tick. The step does not write the grid, so it needs no back buffer and no swap.
+updates the tiles of the movers, of the spawns and of the despawns. It also updates the rows of
+the movers of the pass before, so the previous position of an entity that stopped becomes its
+position (PHY-CMP-027). The step reads the grid of the previous tick. The step does not write the grid, so it needs no back buffer and no swap.
 
 Other writers can change a body after the pass: explosion groups, the block domain (pistons), claim
 grants, the apply step, commands and the life cycle. Each of them changes
@@ -301,8 +302,8 @@ centres (y, z, x).
 are effects. They apply in `WorldWrite`, before the scheduled ticks of the block domain, in the order
 `(block position y, z, x, writer key)`, against the current state (PHY-CMP-010). A part of an action
 that writes only the own entity is not an effect: it applies in the pass, at the step of the
-reference, with the block of the copy. The damage of the step and fall actions is such a part
-(DMG-ORD-002).
+reference, with the block of the copy. The damage of the step and fall actions is not such a part:
+it is an own hit of the sorted queue, applied after the pass (DMG-ORD-002).
 
 ### 3.8 Exact-parity mode
 

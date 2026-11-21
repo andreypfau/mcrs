@@ -13,7 +13,7 @@
 > - Section 4, row "Entity motion": the rule stays for a layout of many cells. The bodies near a
 >   boundary also carry the push fields of PHY-RCH-006, and the halo holds a copy of the position
 >   table of every entity. Writes to an entity of another cell, and block-domain writes to it,
->   apply at the sync point before the next pass (PHY-CMP-015, PHY-BLK-001); a claim joins the
+>   apply in the apply step of the tick, or of the next tick for a write from another cell (PHY-CMP-015, PHY-BLK-001); a claim joins the
 >   arbitration of the next tick.
 > - Section 3, "A player belongs to the cell ...": the order key of entities is the UUID of
 >   PHY-CMP-013, not the id from the coordinator's ranges.

@@ -3238,7 +3238,7 @@ the deviations of this section for server-simulated entities. An implementation 
     target that a late hit kills still does its tick of the next tick alive. Its writes of that
     tick, for example a hit on another entity, then also differ from the reference.
 - **Test:** a differential test accepts a delay of one tick for each write to another entity. For a
-  write from another cell, it accepts one more tick, and other writes of the target in that tick.
+  write from another cell, it accepts one more tick and each result that PHY-INV-014 permits.
   For a conflict, it accepts each winner.
 
 ### PHY-DEV-006: Keyed random value for crowd damage

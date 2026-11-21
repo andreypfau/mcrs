@@ -174,8 +174,8 @@ the dying state. Its default is false. The preset `java` sets it to true.
 
 - When the rule is false, an entity in the dying state is not a target. The server casts its own
   ray from the attacker. The ray leaves out each entity in the dying state. The target is the
-  first entity on that ray within the attack reach. When the ray has no such entity, the attack
-  has no effect.
+  first entity on that ray within the attack reach and inside the world border (ATK-PKT-003 step
+  2). When the ray has no such entity, the attack has no effect.
 - When the rule is true, the entity in the dying state is the target. Its hit is rejected
   (DMG-HIT-001 step 6), so the attack gives the result of ATK-DMG-005.
 
