@@ -10,20 +10,25 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use mcrs_minecraft_collision_table::BlockWorld;
+use mcrs_minecraft_engine_entity_motion::Crowding;
 use mcrs_minecraft_engine_entity_motion::MotionPass;
 use mcrs_minecraft_engine_entity_motion::MotionPassPlugin;
 use mcrs_minecraft_engine_entity_motion::MotionStep;
 use mcrs_minecraft_engine_entity_motion::MotionSteps;
 use mcrs_minecraft_engine_entity_motion::StirredTiles;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Side;
 
 use crate::PhysicsTables;
+use crate::entity_physics_plugin::CrowdDamageType;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionPlugin;
@@ -58,6 +63,8 @@ fn step_motion(
     world: WorldView,
     tables: Res<PhysicsTables>,
     clock: Res<BirthClock>,
+    crowd: Option<Res<CrowdDamageType>>,
+    rules: Option<Res<GameRules>>,
     mut step: MotionStep,
 ) {
     let Some(blocks) = world.get(*dimension) else {
@@ -72,5 +79,15 @@ fn step_motion(
         tables.tables(),
         Side::Server { authority: true },
         clock.0,
+        &Crowding {
+            rules: PushRules {
+                max_entity_cramming: rules
+                    .map_or(PushRules::default().max_entity_cramming, |rules| {
+                        rules.get(GameRule::MaxEntityCramming)
+                    }),
+                ..PushRules::default()
+            },
+            damage_type: crowd.and_then(|crowd| crowd.0),
+        },
     );
 }

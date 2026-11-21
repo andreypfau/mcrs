@@ -218,7 +218,11 @@ impl ComponentsSide {
         world.spawn((Dimension, DimensionTypeConfig::new(-64, 384), index));
         let tiles = scene.rows.tiles();
         let rows = tiles.flat_map(|(_, tile)| tile.rows());
-        world.spawn_batch(rows.map(|row| (MotionState(*row.state), MotionKind(*row.motion))));
+        world.spawn_batch(rows.map(|row| {
+            let mut motion = *row.motion;
+            motion.lifetime = None;
+            (MotionState(*row.state), MotionKind(motion))
+        }));
         Self { app, starts }
     }
 }

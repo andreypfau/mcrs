@@ -2,7 +2,9 @@ use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::columns::{ColumnChange, ColumnStore};
 use mcrs_minecraft_collision_table::BlockWorld;
-use mcrs_minecraft_engine_entity_motion::{MotionHold, MotionState, MotionStep, StirredTiles};
+use mcrs_minecraft_engine_entity_motion::{
+    Crowding, MotionHold, MotionState, MotionStep, StirredTiles,
+};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_visual::{Age, ClientEntity};
@@ -57,5 +59,11 @@ pub(crate) fn step_simulated_entities(
         blocks: &*columns,
         table: &tables.0.collision,
     };
-    step.run(&world, &tables.0, Side::Viewer, tick.0);
+    step.run(
+        &world,
+        &tables.0,
+        Side::Viewer,
+        tick.0,
+        &Crowding::default(),
+    );
 }

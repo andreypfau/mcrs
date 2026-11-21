@@ -1,5 +1,4 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_key::TileKey;
 
@@ -22,21 +21,40 @@ pub(crate) static NO_BODIES: TileBodies = TileBodies {
 
 impl TileBodies {
     pub fn fill(&mut self, tile: TileKey, bodies: &[GridRow]) -> f32 {
-        let mut order: Vec<(usize, EntityUuid, usize)> = bodies
-            .iter()
-            .enumerate()
-            .map(|(index, row)| (bucket(tile, row.position), row.key, index))
-            .collect();
-        order.sort_unstable();
-        self.rows.clear();
-        self.rows
-            .extend(order.iter().filter_map(|&(.., index)| bodies.get(index)));
         self.starts.clear();
-        let mut at = 0;
-        for bucket in 0..=BUCKETS * BUCKETS {
-            self.starts.push(at);
-            while order.get(at).is_some_and(|&(of, ..)| of == bucket) {
-                at += 1;
+        self.starts.resize(BUCKETS * BUCKETS + 1, 0);
+        for body in bodies {
+            if let Some(count) = self.starts.get_mut(bucket(tile, body.position)) {
+                *count += 1;
+            }
+        }
+        let mut total = 0;
+        for start in &mut self.starts {
+            let count = *start;
+            *start = total;
+            total += count;
+        }
+        self.rows.clear();
+        self.rows.extend_from_slice(bodies);
+        for body in bodies {
+            let Some(cursor) = self.starts.get_mut(bucket(tile, body.position)) else {
+                continue;
+            };
+            if let Some(slot) = self.rows.get_mut(*cursor) {
+                *slot = *body;
+            }
+            *cursor += 1;
+        }
+        self.starts.rotate_right(1);
+        if let Some(first) = self.starts.first_mut() {
+            *first = 0;
+        }
+        for cell in self.starts.windows(2) {
+            if let [start, end] = *cell
+                && end > start.saturating_add(1)
+                && let Some(rows) = self.rows.get_mut(start..end)
+            {
+                rows.sort_unstable_by_key(|row| row.key);
             }
         }
         bodies

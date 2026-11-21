@@ -5173,6 +5173,7 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_tasks",
  "bevy_utils",
  "glam",
  "mcrs_minecraft_entity_key",
@@ -6487,6 +6488,7 @@ dependencies = [
 name = "mcrs_minecraft_physics"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "bitflags 2.10.0",
  "criterion",
  "glam",

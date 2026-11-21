@@ -15,6 +15,7 @@ use crate::tile_bodies::NO_BODIES;
 use crate::tile_bodies::bucket_xz;
 
 #[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct BodyGrid {
     tiles: FxHashMap<TileKey, TileBodies>,
     reach: f32,
