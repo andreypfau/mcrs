@@ -81,6 +81,8 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
+    defences: Query<&Defence>,
+    types: Option<Res<DamageTypeRules>>,
     mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
@@ -109,11 +111,12 @@ pub(crate) fn run(
                 hit,
             },
         );
-        let types = DamageTypeRules::default();
+        let defence = defences.get(view.entity).copied().unwrap_or_default();
+        let no_rules = DamageTypeRules::default();
         let report = preview(
             vitals,
-            &Defence::default(),
-            &types,
+            &defence,
+            types.as_deref().unwrap_or(&no_rules),
             &HurtRules::default(),
             hit,
         );

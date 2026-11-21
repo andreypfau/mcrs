@@ -23,6 +23,7 @@ mcrs_minecraft_physics = { workspace = true, features = ["bevy"] }
 mcrs_voxel.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_engine_damage.workspace = true
 bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
 mcrs_minecraft_physics = { workspace = true, features = ["bevy", "testing"] }

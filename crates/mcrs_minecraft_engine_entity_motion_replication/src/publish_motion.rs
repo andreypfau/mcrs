@@ -192,7 +192,9 @@ fn publish_mob_spawns(
 
 fn push_strikes(strikes: &[Strike], events: &mut TileEvents) {
     for strike in strikes {
-        push_signal(events, strike.tile, strike.subject.id, strike.signal);
+        if let Some(signal) = strike.signal {
+            push_signal(events, strike.tile, strike.subject.id, signal);
+        }
     }
 }
 

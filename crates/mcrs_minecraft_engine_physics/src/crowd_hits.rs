@@ -1,101 +1,53 @@
-use bevy_ecs::system::Local;
-use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
-use mcrs_minecraft_damage::HitOutcome;
-use mcrs_minecraft_damage::HitRecord;
-use mcrs_minecraft_damage::Vitals;
-use mcrs_minecraft_engine_entity_motion::CrowdCandidate;
+use mcrs_minecraft_engine_damage::CrowdCount;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::CrowdCandidates;
 use mcrs_minecraft_engine_entity_motion::Expired;
-use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_physics::CROWD_DAMAGE;
-use mcrs_minecraft_physics::GridFlags;
-use mcrs_minecraft_physics::GridRow;
-use mcrs_minecraft_physics::Rest;
-use mcrs_minecraft_physics::pushes;
 
 use crate::crowd_damage_type::CrowdDamageType;
 use crate::entity_motion_plugin::push_rules;
-use crate::hurt_mob::hurt_mob;
-use crate::mob_changes::MobChanges;
 
 pub(crate) fn has_crowds(crowds: Res<CrowdCandidates>) -> bool {
     !crowds.entries().is_empty()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn hit_crowds(
     crowds: Res<CrowdCandidates>,
     expired: Res<Expired>,
     damage_type: Res<CrowdDamageType>,
     clock: Res<BirthClock>,
     rules: Option<Res<GameRules>>,
-    mut states: Query<(&mut MotionState, &mut Vitals, &mut HitRecord)>,
-    mut changes: ResMut<MobChanges>,
-    mut dead: Local<Vec<GridRow>>,
+    mut pending: ResMut<PendingHits>,
 ) {
     let Some(damage_type) = damage_type.0 else {
         return;
     };
     let hit = Hit::new(CROWD_DAMAGE, DamageSource::of(damage_type));
     let limit = i64::from(push_rules(rules.as_deref()).max_entity_cramming) - 1;
-    dead.clear();
+    let gone = expired.entries();
     for candidate in crowds.entries() {
-        if !overcrowded(candidate, &dead, limit) {
-            continue;
-        }
         let own = candidate.own;
-        let gone = expired.entries();
         if gone
             .binary_search_by_key(&own.key, |expiry| expiry.key)
             .is_ok()
         {
             continue;
         }
-        let Ok((mut state, mut vitals, mut record)) = states.get_mut(candidate.entity) else {
-            continue;
+        let writer = WriterKey::Entity { key: own.key };
+        let crowd = CrowdCount {
+            own,
+            candidates: candidate.candidates,
+            free: candidate.free,
+            limit,
         };
-        let state = &mut state.0;
-        if state.living.is_none() {
-            continue;
-        }
-        let report = hurt_mob(
-            candidate.entity,
-            state,
-            &mut vitals,
-            &mut record,
-            &mut changes,
-            hit,
-            clock.0,
-        );
-        if report.outcome == HitOutcome::Rejected {
-            continue;
-        }
-        state.rest = Rest::Awake;
-        if !vitals.is_alive() {
-            dead.push(own);
-        }
+        pending.push(DamageRequest::new(candidate.entity, hit, writer, clock.0, 0).in_crowd(crowd));
     }
-}
-
-fn overcrowded(candidate: &CrowdCandidate, dead: &[GridRow], limit: i64) -> bool {
-    let own = &candidate.own;
-    let bounds = own.bounds();
-    let mut count = i64::from(candidate.candidates);
-    let mut free = i64::from(candidate.free);
-    for gone in dead {
-        if pushes(own, gone) && gone.bounds().intersects(&bounds) {
-            count -= 1;
-            free -= i64::from(!gone.flags.contains(GridFlags::IS_PASSENGER));
-        }
-    }
-    count > limit && free > limit
 }

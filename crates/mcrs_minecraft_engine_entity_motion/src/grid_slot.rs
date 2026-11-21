@@ -9,6 +9,13 @@ use crate::regrids::Regrids;
 #[component(on_remove = leave_grid)]
 pub struct GridSlot(pub(crate) Option<GridRow>);
 
+impl GridSlot {
+    #[must_use]
+    pub const fn row(&self) -> Option<GridRow> {
+        self.0
+    }
+}
+
 fn leave_grid(mut world: DeferredWorld, context: HookContext) {
     let Some(row) = (world.get::<GridSlot>(context.entity)).and_then(|slot| slot.0) else {
         return;

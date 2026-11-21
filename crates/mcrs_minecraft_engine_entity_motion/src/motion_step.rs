@@ -71,7 +71,7 @@ type Moving<'a> = (
     Option<Mut<'a, MobIntent>>,
     Option<&'a MotionId>,
     Option<Mut<'a, GridSlot>>,
-    Option<Mut<'a, Vitals>>,
+    Option<&'a Vitals>,
     bool,
 );
 
@@ -102,7 +102,7 @@ pub struct MotionStep<'w, 's> {
             Option<&'static mut MobIntent>,
             Option<&'static MotionId>,
             Option<&'static mut GridSlot>,
-            Option<&'static mut Vitals>,
+            Option<&'static Vitals>,
             Has<MotionHold>,
         ),
     >,
@@ -177,7 +177,7 @@ struct Stepping<'a> {
 }
 
 fn step<W: CollisionWorld>(
-    (entity, mut state, kind, mut outcome, intent, id, slot, mut vitals, held): Moving<'_>,
+    (entity, mut state, kind, mut outcome, intent, id, slot, vitals, held): Moving<'_>,
     pass: &PassInput<'_, W>,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,
@@ -197,8 +197,8 @@ fn step<W: CollisionWorld>(
     let external = written && !state.is_added();
     let motion = &mut state.bypass_change_detection().0;
     let looked = motion.living.as_ref().map(rotations);
-    let flags = living_flags(vitals.as_deref());
-    if steer(motion, vitals.as_deref(), intent.as_deref()) {
+    let flags = living_flags(vitals);
+    if steer(motion, vitals, intent.as_deref()) || vitals.is_some_and(Vitals::is_counting) {
         motion.rest = Rest::Awake;
     }
     if let Some(mut intent) = intent {
@@ -208,7 +208,7 @@ fn step<W: CollisionWorld>(
     let at = Stepping {
         entity,
         kind: &kind.0,
-        vitals: vitals.as_deref().copied(),
+        vitals: vitals.copied(),
         own: id.and_then(|id| grid_row(motion, &kind.0, id.0, flags)),
         start,
         looked,
@@ -221,7 +221,7 @@ fn step<W: CollisionWorld>(
     let changed = match cache {
         Some(cache) => {
             let changed = simulate(&at, &cache, motion, &mut outcome, pass, scratch, actions);
-            if let Some(expiry) = expire(&at, motion, vitals.as_mut()) {
+            if let Some(expiry) = expire(&at, motion, vitals) {
                 pass.expired.scope(|queue| queue.push(expiry));
             }
             changed
@@ -405,19 +405,13 @@ fn push<W>(
     )
 }
 
-fn expire(
-    at: &Stepping<'_>,
-    motion: &mut EntityState,
-    vitals: Option<&mut Mut<'_, Vitals>>,
-) -> Option<Expiry> {
+fn expire(at: &Stepping<'_>, motion: &EntityState, vitals: Option<&Vitals>) -> Option<Expiry> {
     let expires = (at.kind.lifetime).is_some_and(|lifetime| motion.age >= lifetime);
     let living = motion.living.is_some();
-    let vitals = vitals.filter(|_| living);
-    let dying = vitals.as_ref().is_some_and(|vitals| !vitals.is_alive());
-    let died = vitals.is_some_and(count_down);
-    if dying {
-        motion.rest = Rest::Awake;
-    }
+    let died = vitals
+        .filter(|_| living)
+        .and_then(|vitals| vitals.death_time)
+        .is_some_and(|ticks| ticks >= DEATH_TICKS);
     (died || expires).then_some(Expiry {
         entity: at.entity,
         key: motion.key,
@@ -463,15 +457,6 @@ fn apply_intent(intent: &MobIntent, living: &mut Living) {
             *angle = turn;
         }
     }
-}
-
-fn count_down(vitals: &mut Mut<'_, Vitals>) -> bool {
-    let mut next = **vitals;
-    next.hurt_time = next.hurt_time.saturating_sub(1);
-    next.damage_cooldown = next.damage_cooldown.saturating_sub(1);
-    next.death_time = next.death_time.map(|ticks| ticks.saturating_add(1));
-    vitals.set_if_neq(next);
-    next.death_time.is_some_and(|ticks| ticks >= DEATH_TICKS)
 }
 
 fn turned(at: &Stepping<'_>, motion: &EntityState) -> bool {

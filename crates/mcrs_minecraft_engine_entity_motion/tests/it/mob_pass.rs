@@ -7,7 +7,13 @@ use bevy_ecs::system::ResMut;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
+use mcrs_minecraft_damage::DamageSource;
+use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::HitRecord;
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine_damage::DamagePlugin;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::CrowdCandidates;
 use mcrs_minecraft_engine_entity_motion::Crowding;
 use mcrs_minecraft_engine_entity_motion::Expired;
@@ -23,6 +29,7 @@ use mcrs_minecraft_engine_entity_motion::MotionSteps;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
@@ -231,11 +238,34 @@ fn an_intent_turns_a_mob_once() {
     assert_eq!(yaw(&app), Some(10.0));
 }
 
+fn kill(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(HitRecord::default());
+    app.world_mut()
+        .resource_mut::<PendingHits>()
+        .push(DamageRequest::new(
+            entity,
+            Hit::new(f32::MAX, DamageSource::of(0)),
+            WriterKey::Command { sequence: 0 },
+            0,
+            0,
+        ));
+}
+
 #[test]
 fn a_dying_mob_expires_on_the_twentieth_tick() {
     let mut app = app(Crowding::default());
+    app.add_plugins(DamagePlugin);
     let zombie = mob(&mut app, 1, DVec3::new(0.5, 64.0, 0.5));
-    die(&mut app, zombie);
+    kill(&mut app, zombie);
+    tick(&mut app);
+    let vitals = app.world().get::<Vitals>(zombie).copied();
+    assert_eq!(
+        vitals.and_then(|vitals| vitals.death_time),
+        Some(0),
+        "the hit kills the mob after its step"
+    );
     for _ in 1..20 {
         tick(&mut app);
         assert_eq!(app.world().resource::<Expired>().entries(), []);

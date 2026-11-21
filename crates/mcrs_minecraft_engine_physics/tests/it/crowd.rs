@@ -2,21 +2,26 @@
 
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageReader;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::Res;
+use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_damage::DamageSource;
+use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::DamageSet;
+use mcrs_minecraft_engine_damage::Damaged;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::FLOOR;
-use mcrs_minecraft_engine_physics::MobChanges;
-use mcrs_minecraft_engine_physics::MobPublish;
-use mcrs_minecraft_engine_physics::Struck;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
@@ -39,12 +44,29 @@ enum SpawnOrder {
     Reverse,
 }
 
-#[derive(Resource, Default)]
-struct Strikes(Vec<Struck>);
+#[derive(Clone, Copy, Debug)]
+struct Strike {
+    uuid: EntityUuid,
+    died: bool,
+}
 
-fn record_strikes(changes: Res<MobChanges>, mut strikes: ResMut<Strikes>) {
+#[derive(Resource, Default)]
+struct Strikes(Vec<Strike>);
+
+fn record_strikes(
+    mut damaged: MessageReader<Damaged>,
+    states: Query<&MotionState>,
+    mut strikes: ResMut<Strikes>,
+) {
     strikes.0.clear();
-    strikes.0.extend_from_slice(changes.strikes());
+    for hit in damaged.read() {
+        if let Ok(state) = states.get(hit.target) {
+            strikes.0.push(Strike {
+                uuid: state.0.key,
+                died: hit.report.died,
+            });
+        }
+    }
 }
 
 fn scene() -> TestScene {
@@ -52,11 +74,11 @@ fn scene() -> TestScene {
     scene.app.init_resource::<Strikes>();
     scene
         .app
-        .add_systems(FixedUpdate, record_strikes.in_set(MobPublish));
+        .add_systems(FixedUpdate, record_strikes.in_set(DamageSet::Report));
     scene
 }
 
-fn strikes(scene: &TestScene) -> &[Struck] {
+fn strikes(scene: &TestScene) -> &[Strike] {
     &scene.app.world().resource::<Strikes>().0
 }
 
@@ -241,6 +263,59 @@ fn crw_002_a_crowd_of_30_loses_exactly_6() {
     assert_eq!(alive(&mut scene), 24);
     let living = scene.states().len();
     assert_eq!(living, 24, "the dead mobs left");
+}
+
+fn strike_the_first_pig_outside_the_crowd(
+    states: Query<&MotionState>,
+    mut pending: ResMut<PendingHits>,
+) {
+    let first = (pending.requests().iter())
+        .filter_map(|request| Some((states.get(request.target).ok()?.0.key, request)))
+        .min_by_key(|(key, _)| *key)
+        .map(|(_, request)| (request.target, request.tick));
+    let Some((victim, tick)) = first else {
+        return;
+    };
+    pending.retain(|request| request.target != victim);
+    let hit = Hit::new(100.0, DamageSource::of(CRAMMING));
+    pending.push(DamageRequest::new(
+        victim,
+        hit,
+        WriterKey::Command { sequence: 0 },
+        tick,
+        0,
+    ));
+}
+
+const VICTIM: EntityUuid = EntityUuid::from_u128(2);
+
+#[test]
+fn crw_002_a_death_by_another_hit_relieves_the_crowd() {
+    for launch in [0.0, 2.0] {
+        let mut scene = crowd_in_hole(0, 0, 25, 5.0, SpawnOrder::Forward);
+        scene.app.add_systems(
+            FixedUpdate,
+            strike_the_first_pig_outside_the_crowd.in_set(DamageSet::Filter),
+        );
+        let world = scene.app.world_mut();
+        let mut states = world.query::<&mut MotionState>();
+        for mut state in states.iter_mut(world) {
+            if state.0.key == VICTIM {
+                state.0.body.velocity.y = launch;
+            }
+        }
+        scene.tick = 1;
+        scene.step();
+        let hits: Vec<(EntityUuid, bool)> = strikes(&scene)
+            .iter()
+            .map(|hit| (hit.uuid, hit.died))
+            .collect();
+        assert_eq!(
+            hits,
+            [(VICTIM, true)],
+            "24 pigs are left after the first death, so no crowd hit lands; the victim leaves the crowd at {launch} blocks per tick"
+        );
+    }
 }
 
 #[test]

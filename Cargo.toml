@@ -108,6 +108,7 @@ mcrs_minecraft_pose = { path = "crates/mcrs_minecraft_pose" }
 mcrs_minecraft_swing = { path = "crates/mcrs_minecraft_swing" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
+mcrs_minecraft_engine_damage = { path = "crates/mcrs_minecraft_engine_damage" }
 mcrs_minecraft_engine_entity_motion = { path = "crates/mcrs_minecraft_engine_entity_motion" }
 mcrs_minecraft_engine_entity_motion_replication = { path = "crates/mcrs_minecraft_engine_entity_motion_replication" }
 mcrs_minecraft_engine_mob_attributes = { path = "crates/mcrs_minecraft_engine_mob_attributes" }

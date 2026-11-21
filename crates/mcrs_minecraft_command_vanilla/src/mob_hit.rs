@@ -1,17 +1,11 @@
-use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::change_detection::Mut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_damage::Hit;
-use mcrs_minecraft_damage::HitRecord;
-use mcrs_minecraft_damage::Vitals;
-use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_engine_physics::Mob;
-use mcrs_minecraft_engine_physics::MobChanges;
-use mcrs_minecraft_engine_physics::hurt_mob;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_entity_key::WriterKey;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HitMob {
@@ -24,26 +18,16 @@ pub(crate) fn apply(worlds: &mut Worlds, HitMob { target, hit }: HitMob) {
     let tick = world
         .get_resource::<BirthClock>()
         .map_or(0, |clock| clock.0);
-    let outcome = world
-        .try_resource_scope(|world, mut changes: Mut<MobChanges>| {
-            let mut mobs = world
-                .query_filtered::<(&mut MotionState, &mut Vitals, &mut HitRecord), With<Mob>>();
-            let (mut state, mut vitals, mut record) = mobs.get_mut(world, target).ok()?;
-            state.set_changed();
-            state.0.living?;
-            let report = hurt_mob(
-                target,
-                &state.0,
-                &mut vitals,
-                &mut record,
-                &mut changes,
-                hit,
-                tick,
-            );
-            Some(report.outcome)
-        })
-        .flatten();
-    if outcome.is_none() {
-        tracing::debug!(?target, "a command hit finds no mob; it does nothing");
-    }
+    let Some(mut pending) = world.get_resource_mut::<PendingHits>() else {
+        tracing::debug!(?target, "a command hit finds no hit queue; it does nothing");
+        return;
+    };
+    let sequence = u32::try_from(pending.len()).unwrap_or(u32::MAX);
+    pending.push(DamageRequest::new(
+        target,
+        hit,
+        WriterKey::Command { sequence: 0 },
+        tick,
+        sequence,
+    ));
 }

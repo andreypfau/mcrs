@@ -26,6 +26,7 @@ pub use crowding::Crowding;
 pub use expired::Expired;
 pub use expired::Expiry;
 pub use expiry_cause::ExpiryCause;
+pub use grid_slot::GridSlot;
 pub use mob_intent::MobIntent;
 pub use motion_hold::MotionHold;
 pub use motion_id::MotionId;

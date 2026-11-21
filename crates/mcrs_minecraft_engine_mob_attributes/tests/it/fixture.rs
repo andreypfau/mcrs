@@ -31,8 +31,12 @@ pub fn scene() -> TestScene {
 }
 
 pub fn spawn_pig(scene: &mut TestScene, uuid: u128) -> Entity {
+    spawn(scene, &EntityTypeData::PIG, uuid)
+}
+
+pub fn spawn(scene: &mut TestScene, kind: &'static EntityTypeData, uuid: u128) -> Entity {
     scene.app.world_mut().write_message(MobSpawnRequest {
-        kind: &EntityTypeData::PIG,
+        kind,
         position: DVec3::new(0.5, 64.0, 0.5),
         uuid,
         setup: SpawnSetup::None,
@@ -44,7 +48,7 @@ pub fn spawn_pig(scene: &mut TestScene, uuid: u128) -> Entity {
         .world()
         .resource::<MobIndex>()
         .get(EntityUuid::from_u128(uuid))
-        .expect("the pig is spawned")
+        .expect("the mob is spawned")
 }
 
 pub fn edit(

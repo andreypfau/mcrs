@@ -7,6 +7,8 @@ use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine_damage::DamagePlugin;
+use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_entity_motion::MotionEffects;
 use mcrs_minecraft_engine_entity_motion::MotionPass;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
@@ -42,6 +44,9 @@ impl Plugin for EntityPhysicsPlugin {
         if !app.is_plugin_added::<EntityMotionPlugin>() {
             app.add_plugins(EntityMotionPlugin);
         }
+        if !app.is_plugin_added::<DamagePlugin>() {
+            app.add_plugins(DamagePlugin);
+        }
         app.init_resource::<BirthClock>();
         app.init_resource::<CellEntityIds>();
         app.init_resource::<MobIndex>();
@@ -69,12 +74,12 @@ impl Plugin for EntityPhysicsPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                hit_crowds.run_if(has_crowds),
-                despawn_expired.run_if(has_expired),
-            )
-                .chain()
-                .in_set(MotionPass)
-                .after(MotionEffects),
+                despawn_expired
+                    .run_if(has_expired)
+                    .in_set(MotionPass)
+                    .after(MotionEffects),
+                hit_crowds.run_if(has_crowds).in_set(DamageSet::Collect),
+            ),
         );
         app.configure_sets(
             FixedUpdate,
