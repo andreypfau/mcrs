@@ -1,6 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::{Added, With};
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Query, Res, ResMut};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
@@ -28,6 +29,12 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 use rustc_hash::FxHashMap;
 
 use crate::block_entities::{entity_at, spawn_linked};
+
+#[derive(Resource, Debug, Default)]
+pub(crate) struct CarriedRecords {
+    taken: FxHashMap<BlockPos, NbtCompound>,
+    released: Vec<GeneratedBlockEntity>,
+}
 
 fn state_compound(blocks: &Blocks, state: BlockStateId) -> Option<NbtCompound> {
     let (name, properties) = blocks.properties_of(state.number())?;
@@ -96,84 +103,81 @@ fn block_entity_at<'a>(
     entities.get(entity).ok().map(|entity| &entity.0)
 }
 
-fn carried_entity<'a>(
-    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
-    released: &FxHashMap<BlockPos, NbtCompound>,
-    source: BlockPos,
-) -> Option<NbtCompound> {
-    if let Some(compound) = released.get(&source) {
-        return Some(compound.clone());
-    }
-    let entity = at(source)?;
-    if matches!(entity, GeneratedBlockEntity::Piston { .. }) {
-        return None;
-    }
-    to_nbt_compound(entity).ok()
-}
-
-fn moving_record<'a>(
-    blocks: &Blocks,
-    table: &RedstoneTable,
-    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
-    released: &FxHashMap<BlockPos, NbtCompound>,
-    pos: BlockPos,
-    payload: &MovingPayload,
-) -> Option<GeneratedBlockEntity> {
-    let block_state = state_compound(blocks, payload.state)?;
-    let carries_entity =
-        payload.carried == Carried::Block && table.info(payload.state).block_entity;
-    let carried = neighbour(pos, payload.facing.opposite())
-        .filter(|_| carries_entity)
-        .and_then(|source| carried_entity(at, released, source));
-    Some(GeneratedBlockEntity::Piston {
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
-        block_state,
-        facing: direction_index(payload.facing),
-        progress: 0.0,
-        extending: payload.is_extending(),
-        source: payload.carried != Carried::Block,
-        carried,
-    })
-}
-
-fn released_entity<'a>(
-    blocks: &Blocks,
-    at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
-    pos: BlockPos,
-    arrived: BlockStateId,
-) -> Option<(NbtCompound, GeneratedBlockEntity)> {
-    let GeneratedBlockEntity::Piston {
-        block_state,
-        carried: Some(carried),
-        ..
-    } = at(pos)?
-    else {
-        return None;
-    };
-    if state_of(blocks, block_state) != Some(arrived) {
-        return None;
-    }
-    let entity = GeneratedBlockEntity::from_template(carried, pos, None)
-        .ok()
-        .flatten()?;
-    Some((carried.clone(), entity))
-}
-
 #[expect(
     clippy::too_many_arguments,
-    reason = "a Bevy system: each query, resource and command buffer is its own parameter"
+    reason = "a Bevy system: each query and resource is its own parameter"
 )]
+pub(crate) fn capture_carried_entities<B>(
+    mut placed: MessageReader<BlockPlaced>,
+    rules: Res<BlockRules<B>>,
+    memory: Res<BlockMemory<B>>,
+    blocks: Res<Blocks>,
+    dims: Query<&SectionIndex, With<Dimension>>,
+    sections: Query<&SectionBlockEntities>,
+    positions: Query<&BlockEntityPos>,
+    entities: Query<&BlockEntity>,
+    mut records: ResMut<CarriedRecords>,
+) where
+    B: BlockBehaviour<WorldKinds> + HasRedstone + Send + Sync + 'static,
+    B::Memory: HasRedstoneMemory,
+{
+    let Ok(index) = dims.single() else {
+        placed.clear();
+        return;
+    };
+    let at = |pos| block_entity_at(index, &sections, &positions, &entities, pos);
+    let table = rules.0.redstone().table();
+    let moving = &memory.0.redstone_ref().moving;
+    for change in placed.read() {
+        let pos = change.block_pos;
+        if is_moving(table, change.new_state) {
+            let Some(payload) = moving.get(&pos) else {
+                continue;
+            };
+            if payload.carried != Carried::Block || !table.info(payload.state).block_entity {
+                continue;
+            }
+            let Some(source) = neighbour(pos, payload.facing.opposite()) else {
+                continue;
+            };
+            let carried = records.taken.get(&source).cloned().or_else(|| {
+                at(source)
+                    .filter(|entity| !matches!(entity, GeneratedBlockEntity::Piston { .. }))
+                    .and_then(|entity| to_nbt_compound(entity).ok())
+            });
+            if let Some(carried) = carried {
+                records.taken.insert(pos, carried);
+            }
+            continue;
+        }
+        if !is_moving(table, change.old_state) || !table.info(change.new_state).block_entity {
+            continue;
+        }
+        let Some(GeneratedBlockEntity::Piston {
+            block_state,
+            carried: Some(carried),
+            ..
+        }) = at(pos)
+        else {
+            continue;
+        };
+        if state_of(&blocks, block_state) != Some(change.new_state) {
+            continue;
+        }
+        if let Ok(Some(entity)) = GeneratedBlockEntity::from_template(carried, pos, None) {
+            records.taken.insert(pos, carried.clone());
+            records.released.push(entity);
+        }
+    }
+}
+
 pub(crate) fn record_moving_blocks<B>(
     mut placed: MessageReader<BlockPlaced>,
     rules: Res<BlockRules<B>>,
     memory: Res<BlockMemory<B>>,
     blocks: Res<Blocks>,
     dims: Query<(Entity, &SectionIndex), With<Dimension>>,
-    sections: Query<&SectionBlockEntities>,
-    positions: Query<&BlockEntityPos>,
-    entities: Query<&BlockEntity>,
+    mut records: ResMut<CarriedRecords>,
     mut commands: Commands,
 ) where
     B: BlockBehaviour<WorldKinds> + HasRedstone + Send + Sync + 'static,
@@ -181,31 +185,37 @@ pub(crate) fn record_moving_blocks<B>(
 {
     let Ok((dimension, index)) = dims.single() else {
         placed.clear();
+        records.taken.clear();
+        records.released.clear();
         return;
     };
-    let at = |pos| block_entity_at(index, &sections, &positions, &entities, pos);
     let table = rules.0.redstone().table();
     let moving = &memory.0.redstone_ref().moving;
-    let mut spawned = Vec::new();
-    let mut released: FxHashMap<BlockPos, NbtCompound> = FxHashMap::default();
+    let mut spawned = core::mem::take(&mut records.released);
     for change in placed.read() {
         let pos = change.block_pos;
-        if is_moving(table, change.new_state) {
-            if let Some(payload) = moving.get(&pos)
-                && let Some(record) = moving_record(&blocks, table, &at, &released, pos, payload)
-            {
-                spawned.push(record);
-            }
+        if !is_moving(table, change.new_state) {
             continue;
         }
-        if is_moving(table, change.old_state)
-            && table.info(change.new_state).block_entity
-            && let Some((compound, entity)) = released_entity(&blocks, &at, pos, change.new_state)
-        {
-            released.insert(pos, compound);
-            spawned.push(entity);
-        }
+        let Some(payload) = moving.get(&pos) else {
+            continue;
+        };
+        let Some(block_state) = state_compound(&blocks, payload.state) else {
+            continue;
+        };
+        spawned.push(GeneratedBlockEntity::Piston {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            block_state,
+            facing: direction_index(payload.facing),
+            progress: 0.0,
+            extending: payload.is_extending(),
+            source: payload.carried != Carried::Block,
+            carried: records.taken.remove(&pos),
+        });
     }
+    records.taken.clear();
     if spawned.is_empty() {
         return;
     }

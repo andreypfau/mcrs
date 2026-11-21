@@ -244,22 +244,22 @@ pub fn corpus() -> Vec<Scenario> {
         Scenario {
             name: "a wire line lights a lamp fifteen blocks away",
             build: {
-                let mut build = vec![at(0, 0, 0, "minecraft:redstone_lamp")];
-                for x in 1..=15 {
+                let mut build = vec![at(-16, 0, 0, "minecraft:redstone_lamp")];
+                for x in -15..=-1 {
                     build.push(at(x, 0, 0, "minecraft:redstone_wire"));
                 }
-                build.push(at(16, 0, 0, "minecraft:redstone_lamp"));
-                for x in 17..=32 {
+                build.push(at(0, 0, 0, "minecraft:redstone_lamp"));
+                for x in 1..=16 {
                     build.push(at(x, 0, 0, "minecraft:redstone_wire"));
                 }
                 build
             },
-            actions: vec![(2, at(16, 1, 0, "minecraft:redstone_block"))],
+            actions: vec![(2, at(0, 1, 0, "minecraft:redstone_block"))],
             probes: vec![
-                probe(0, 0, 0, &LAMP),
-                probe(1, 0, 0, &wire_powers()),
-                probe(15, 0, 0, &wire_powers()),
-                probe(32, 0, 0, &wire_powers()),
+                probe(-16, 0, 0, &LAMP),
+                probe(-15, 0, 0, &wire_powers()),
+                probe(-1, 0, 0, &wire_powers()),
+                probe(16, 0, 0, &wire_powers()),
             ],
             ticks: 6,
         },
