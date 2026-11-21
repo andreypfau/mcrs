@@ -1,6 +1,7 @@
 use crate::bounds::{Bounds, node_bounds};
 use crate::cell::{CELL_BOUNDS_SLACK, CellBounds};
 use crate::program::{Node, NodeId, Program, Seed, SeededPlan, Workspace};
+use crate::surface_levels::Owner;
 use glam::IVec3;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
@@ -67,6 +68,15 @@ impl ColumnBound {
                 });
                 term
             };
+            if let Node::FindTopSurface { upper_bound, .. } = node
+                && term != Term::Exact
+                && matches!(
+                    terms.get(*upper_bound as usize),
+                    Some(Term::Banded | Term::Varying)
+                )
+            {
+                return None;
+            }
             if term == Term::Fixed {
                 let at = |dep: NodeId| fixed.get(dep as usize).copied().unwrap_or(Interval::NAI);
                 let bound = term_bound(node, IVec3::ZERO, IVec3::ZERO, at)?;
@@ -427,8 +437,19 @@ pub struct ColumnBoundScratch {
     stack: Vec<NodeId>,
     columns: Vec<Interval>,
     plane: Option<SampleGrid>,
+    owner: Option<Owner>,
     epoch: u64,
     band: u64,
+}
+
+impl ColumnBoundScratch {
+    pub(crate) fn bind(&mut self, owner: Owner) {
+        self.owner = Some(owner);
+    }
+
+    pub(crate) fn serves(&self, owner: Owner) -> bool {
+        self.owner == Some(owner)
+    }
 }
 
 fn term_bound(
@@ -440,4 +461,68 @@ fn term_bound(
     let bound = node_bounds(node, Bounds::Cell { min, max }, &at)
         .or_else(|| node_bounds(node, Bounds::Declared, &at))?;
     (!bound.is_nai()).then_some(bound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::gradient::{GradientParams, Tiling};
+    use crate::program::BinaryOp;
+    use mcrs_minecraft_noise::sample_grid::Axis;
+    use mcrs_minecraft_noise::strata::ALL_AXES;
+
+    #[test]
+    fn a_top_surface_probe_is_not_bounded_by_the_band_of_its_upper_bound() {
+        let nodes = vec![
+            Node::Constant(1.0),
+            Node::Gradient(GradientParams {
+                axis: Axis::Y,
+                tiling: Tiling::ClampToEdge,
+                from: 0.0,
+                to: 16.0,
+                from_value: 16.0,
+                to_value: 0.0,
+            }),
+            Node::FindTopSurface {
+                density: 0,
+                upper_bound: 1,
+                lower_bound: -64,
+                cell_height: 8,
+            },
+            Node::Constant(-8.0),
+            Node::Binary {
+                op: BinaryOp::Add,
+                a: 2,
+                b: 3,
+            },
+            Node::Interpolated {
+                input: 4,
+                cell_xz: 4,
+                cell_y: 8,
+                cell: 0,
+            },
+        ];
+        let axes = vec![NO_AXES, AXIS_Y, NO_AXES, NO_AXES, NO_AXES, ALL_AXES];
+        let mut program = Program::new(nodes, axes, vec![Interval::INFINITE; 6], vec![5]);
+        let cells = CellBounds::new(&program, 5);
+        let lattice = SampleGrid::new(IVec3::new(2, 5, 2), IVec3::ZERO, IVec3::new(4, 8, 4));
+        let top = lattice.size().y - 1;
+        let first_air = cells
+            .chain_input()
+            .and_then(|input| ColumnBound::new(&mut program, input, cells.inputs()))
+            .map_or(top, |bound| {
+                bound.first_air_row(
+                    &program,
+                    &cells,
+                    &mut Workspace::new(),
+                    &lattice,
+                    None,
+                    &mut ColumnBoundScratch::default(),
+                )
+            });
+        assert_eq!(
+            first_air, top,
+            "the probe reads its upper bound at y = 0, so every row holds density 8"
+        );
+    }
 }

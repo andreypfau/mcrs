@@ -543,7 +543,7 @@ impl Program {
             if let Some(plan) = plan_of.get_mut(entry as usize) {
                 *plan = index as u32;
             }
-            plans.push(Plan::new(&nodes, &axes, &ranges, entry, &[]));
+            plans.push(Plan::new(&nodes, &axes, &ranges, entry, &[], &[]));
         }
 
         Self {
@@ -612,7 +612,7 @@ impl Program {
             axes.push(ALL_AXES);
             ranges.push(range);
         }
-        let plan = Plan::new(&nodes, &axes, &ranges, sum, &[]);
+        let plan = Plan::new(&nodes, &axes, &ranges, sum, &[], targets);
         self.nodes = nodes.into_boxed_slice();
         self.axes = axes.into_boxed_slice();
         self.ranges = ranges.into_boxed_slice();
@@ -629,7 +629,7 @@ impl Program {
     }
 
     pub(crate) fn seeded_plan(&mut self, target: NodeId, given: &[NodeId]) -> Option<SeededPlan> {
-        let plan = Plan::new(&self.nodes, &self.axes, &self.ranges, target, given);
+        let plan = Plan::new(&self.nodes, &self.axes, &self.ranges, target, given, &[]);
         let id = SeededPlan {
             plan: u32::try_from(self.plans.len()).ok()?,
             target,
@@ -1667,6 +1667,7 @@ impl Plan {
         ranges: &[Interval],
         target: NodeId,
         given: &[NodeId],
+        kept: &[NodeId],
     ) -> Self {
         let mut live = vec![false; nodes.len()];
         if let Some(live) = live.get_mut(target as usize) {
@@ -1703,8 +1704,8 @@ impl Plan {
                 });
             }
         }
-        for &kept in given.iter().chain([&target]) {
-            if let Some(last) = last_use.get_mut(kept as usize) {
+        for &id in given.iter().chain([&target]).chain(kept) {
+            if let Some(last) = last_use.get_mut(id as usize) {
                 *last = usize::MAX;
             }
         }
@@ -2300,6 +2301,44 @@ mod tests {
         let (out, count) = run_counting(&p, &v, 0);
         assert!(out[0] == 0.0 && out[0].is_sign_negative());
         assert_eq!((count.evaluated, count.skipped), (1, 2));
+    }
+
+    #[test]
+    fn a_gathered_target_keeps_its_value_until_it_is_copied() {
+        let nodes = vec![
+            gradient(Axis::Y, 0.0, 8.0, 1.0, 1.0),
+            gradient(Axis::Y, 0.0, 8.0, 2.0, 2.0),
+            gradient(Axis::Y, 0.0, 8.0, 4.0, 4.0),
+        ];
+        let mut p = program(nodes, vec![ALL_AXES; 3], vec![0]);
+        let targets = [0, 1, 2];
+        let gather = p.gather(&targets).unwrap();
+        let v = SampleGrid::point(IVec3::ZERO);
+        let mut out = [0.0; 3];
+        p.fill_gathered(&mut Workspace::new(), &v, gather, &targets, &mut out);
+        assert_eq!(out, [1.0, 2.0, 4.0]);
+    }
+
+    #[test]
+    fn a_lerp_at_zero_alpha_keeps_a_first_input_that_the_second_reads() {
+        let nodes = vec![
+            Node::Constant(0.0),
+            gradient(Axis::Y, 0.0, 4.0, 0.0, 4.0),
+            Node::Affine {
+                input: 1,
+                scale: 2.0,
+                offset: 0.0,
+            },
+            Node::Lerp {
+                alpha: 0,
+                first: 1,
+                second: 2,
+            },
+        ];
+        let axes = vec![NO_AXES, AXIS_Y, AXIS_Y, AXIS_Y];
+        let p = program(nodes, axes, vec![3]);
+        let v = SampleGrid::dense(IVec3::new(1, 4, 1), IVec3::ZERO);
+        assert_eq!(run(&p, &v, 0), vec![0.0, 1.0, 2.0, 3.0]);
     }
 
     fn y_plus_three_x() -> Vec<Node> {

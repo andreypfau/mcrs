@@ -98,9 +98,16 @@ fn kept_surface_levels_do_not_change_a_field() {
     let first = overworld(42, |_| {});
     let second = overworld(2, |_| {});
     let mut kept = SurfaceLevels::default();
+    let mut warm_cells = AquiferCells::default();
+    warm_cells.cover(
+        &first,
+        column_volume(&first, -1, 0).min_block(),
+        column_volume(&first, 1, 0).max_block(),
+    );
     let mut checked = 0usize;
     for (router, (chunk_x, chunk_z)) in [
         (&first, (0, 0)),
+        (&first, (-1, 0)),
         (&first, (1, 0)),
         (&first, (32, 0)),
         (&first, (1, 0)),
@@ -109,7 +116,7 @@ fn kept_surface_levels_do_not_change_a_field() {
     ] {
         let volume = column_volume(router, chunk_x, chunk_z);
         let (min, max) = (volume.min_block(), volume.max_block());
-        let (mut warm_cells, mut cold_cells) = (AquiferCells::default(), AquiferCells::default());
+        let mut cold_cells = AquiferCells::default();
         let mut warm = FluidField::new(router, &mut kept, &mut warm_cells, min, max);
         let mut cold = FluidField::new(
             router,
@@ -134,7 +141,7 @@ fn kept_surface_levels_do_not_change_a_field() {
         }
         warm.keep_surface_levels(&mut kept);
     }
-    assert_eq!(checked, 6 * 6 * 6 * first.noise.height as usize);
+    assert_eq!(checked, 7 * 6 * 6 * first.noise.height as usize);
 }
 
 #[test]

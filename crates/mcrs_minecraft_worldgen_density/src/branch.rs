@@ -346,8 +346,12 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
                 })
                 .collect(),
         }),
-        Node::Lerp { alpha, second, .. } => Some(Site {
-            always: vec![*alpha],
+        Node::Lerp {
+            alpha,
+            first,
+            second,
+        } => Some(Site {
+            always: vec![*alpha, *first],
             arms: vec![plain(*second, GuardTest::LeftNonZero { left: *alpha })],
         }),
         Node::Binary { op, a, b } => {

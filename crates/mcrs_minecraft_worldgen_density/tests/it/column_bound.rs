@@ -116,9 +116,15 @@ fn the_cell_inputs_seeded_by_the_column_bound_match_an_unseeded_fill() {
         );
         for volume in [lattice, inner] {
             let mut expected = vec![0.0f32; inputs.len() * volume.len()];
+            ws.take_count();
             router.fill_nodes(&mut ws, &volume, inputs, &mut expected);
+            let unseeded = ws.take_count();
             let mut seeded = vec![0.0f32; expected.len()];
             router.fill_cell_inputs(&mut ws, &volume, &scratch, &mut seeded);
+            assert!(
+                ws.take_count().evaluated < unseeded.evaluated,
+                "chunk ({chunk_x}, {chunk_z}) volume {volume:?} took the unseeded fill"
+            );
             let bits = |values: &[f32]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
             assert_eq!(
                 bits(&seeded),
@@ -127,4 +133,31 @@ fn the_cell_inputs_seeded_by_the_column_bound_match_an_unseeded_fill() {
             );
         }
     }
+}
+
+#[test]
+fn a_seed_prepared_by_another_router_is_not_used() {
+    let prepared_by = overworld_router(846);
+    let router = &*ROUTER;
+    let cell = router.cell_size().unwrap();
+    let noise = router.noise;
+    let lattice = SampleGrid::new(
+        IVec3::new(
+            16 / cell.x + 1,
+            noise.height as i32 / cell.y + 1,
+            16 / cell.z + 1,
+        ),
+        IVec3::new(0, noise.min_y, 0),
+        cell,
+    );
+    let inputs = router.cell_inputs();
+    let mut ws = Workspace::new();
+    let mut scratch = ColumnBoundScratch::default();
+    prepared_by.final_density_first_air_row(&mut ws, &lattice, None, &mut scratch);
+    let mut expected = vec![0.0f32; inputs.len() * lattice.len()];
+    router.fill_nodes(&mut ws, &lattice, inputs, &mut expected);
+    let mut filled = vec![0.0f32; expected.len()];
+    router.fill_cell_inputs(&mut ws, &lattice, &scratch, &mut filled);
+    let bits = |values: &[f32]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+    assert_eq!(bits(&filled), bits(&expected));
 }
