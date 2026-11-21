@@ -145,9 +145,19 @@ where
     }
 
     pub fn memory(&mut self) -> Option<&mut B::Memory> {
+        if self.memory.is_none() || self.task.is_some() {
+            self.task_leaves();
+            return None;
+        }
+        self.memory.as_deref_mut()
+    }
+
+    pub fn memory_at(&mut self, pos: BlockPos) -> Option<&mut B::Memory> {
         if self.memory.is_none() {
             self.task_leaves();
+            return None;
         }
+        self.touch_write(pos);
         if self.task.is_some()
             && let Some(memory) = self.memory.as_deref()
         {
@@ -351,6 +361,7 @@ where
             return self.shard.block_ticks.contains(pos, block);
         };
         task.base.block_ticks.contains(pos, block)
+            || task.base.published_ticks.contains(&(pos, block))
             || self.out.outbound.iter().any(|message| {
                 matches!(message.body, MessageBody::BlockTick { pos: at, block: kind, .. }
                     if at == pos && kind == block)
@@ -362,7 +373,9 @@ where
         let Some(task) = self.task.as_ref() else {
             return self.shard.ticking.contains(&(pos, block));
         };
-        task.base.ticking.contains(&(pos, block)) && !task.consumed.contains(&(pos, block))
+        task.base.ticking.contains(&(pos, block))
+            && !task.base.published_consumed.contains(&(pos, block))
+            && !task.consumed.contains(&(pos, block))
     }
 
     pub fn set(
@@ -554,7 +567,10 @@ where
 
     pub(crate) fn run_block_tick(&mut self, tick: Collected<K::Block>) {
         match self.task.as_mut() {
-            Some(task) => task.consumed.push((tick.pos, tick.kind)),
+            Some(task) => {
+                task.consumed.push((tick.pos, tick.kind));
+                self.touch_write(tick.pos);
+            }
             None => {
                 self.shard.ticking.remove(&(tick.pos, tick.kind));
             }

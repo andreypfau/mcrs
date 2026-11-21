@@ -71,7 +71,7 @@ fn run_kernel(scenario: &Scenario) -> Trace {
     let mut world = World::new();
     let origin = BlockPos::new(0, FLOOR, 0);
     for Placement { at, state } in &scenario.build {
-        world.fill(kernel_pos(origin, *at), state_of(state));
+        world.place(kernel_pos(origin, *at), state_of(state));
     }
     let mut trace = Vec::with_capacity(scenario.ticks);
     for tick in 0..scenario.ticks {
@@ -128,18 +128,25 @@ fn run_vanilla(server: &mut VanillaServer, scenario: &Scenario, offset: i32) -> 
 
 fn clear_vanilla(server: &mut VanillaServer, offset: i32) {
     let (x, y, z) = VANILLA_ORIGIN;
-    let (low, high) = (offset + z - SCENARIO_REACH, offset + z + SCENARIO_REACH);
-    server.run(&format!(
-        "fill {} {} {} {} {} {} minecraft:air",
-        x - SCENARIO_REACH,
-        y,
-        low,
-        x + SCENARIO_REACH,
-        y + 4,
-        high
-    ));
-    server.run("say cleared");
-    server.expect_line("cleared", std::time::Duration::from_secs(20));
+    let centre = offset + z;
+    for (low, high) in [
+        (centre - SCENARIO_REACH, centre),
+        (centre + 1, centre + SCENARIO_REACH),
+    ] {
+        server.run(&format!(
+            "fill {} {} {} {} {} {} minecraft:air",
+            x - SCENARIO_REACH,
+            y,
+            low,
+            x + SCENARIO_REACH,
+            y + 4,
+            high
+        ));
+        server.expect_any(
+            &["Successfully filled", "No blocks were filled"],
+            std::time::Duration::from_secs(20),
+        );
+    }
 }
 
 fn describe(scenario: &Scenario, trace: &Trace) -> String {
@@ -167,7 +174,7 @@ fn the_corpus_ticks_as_the_vanilla_server_does() {
     let mut server = VanillaServer::start(&jar, &work);
     server.run("tick freeze");
     server.expect_line("frozen", std::time::Duration::from_secs(20));
-    server.run("forceload add -64 -64 63 127");
+    server.run("forceload add -64 -64 63 383");
     server.run("gamerule doDaylightCycle false");
     server.run("gamerule randomTickSpeed 0");
     server.run("gamerule doWeatherCycle false");

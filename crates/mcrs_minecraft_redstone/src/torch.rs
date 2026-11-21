@@ -100,7 +100,7 @@ pub(crate) fn neighbour_changed<K, V, F, B>(
     let now = cx.now();
     let burnt = !lit
         && cx
-            .memory()
+            .memory_at(pos)
             .is_some_and(|memory| memory.redstone().burns_out(pos, now, ToggleLog::OnlyCount));
     if !burnt {
         cx.schedule_block_tick(pos, block, TOGGLE_DELAY, TickPriority::Normal);
@@ -128,7 +128,7 @@ pub(crate) fn block_tick<K, V, F, B>(
             return;
         }
         let burnt = cx
-            .memory()
+            .memory_at(pos)
             .is_some_and(|memory| memory.redstone().burns_out(pos, now, ToggleLog::Record));
         if let Some(dark) = table.with_lit(state, false) {
             cx.set(pos, dark, BlockUpdateFlags::ALL, LIMIT);
@@ -138,7 +138,7 @@ pub(crate) fn block_tick<K, V, F, B>(
         }
     } else if !off {
         let burnt = cx
-            .memory()
+            .memory_at(pos)
             .is_some_and(|memory| memory.redstone().burns_out(pos, now, ToggleLog::OnlyCount));
         if !burnt && let Some(lit) = table.with_lit(state, true) {
             cx.set(pos, lit, BlockUpdateFlags::ALL, LIMIT);

@@ -69,6 +69,13 @@ impl VanillaServer {
         );
     }
 
+    pub fn expect_any(&mut self, wanted: &[&str], timeout: Duration) {
+        assert!(
+            self.wait_for_any(wanted, timeout).is_some(),
+            "the vanilla server did not print one of {wanted:?} in {timeout:?}"
+        );
+    }
+
     pub fn wait_for_line(&mut self, wanted: &str, timeout: Duration) -> bool {
         self.wait_for_any(&[wanted], timeout).is_some()
     }

@@ -5,6 +5,7 @@ use crate::SimulationVolume;
 use crate::behaviour::{BlockBehaviour, BlockFacts, MemoryPartition};
 use crate::cx::{Cx, TileCx};
 use crate::footprints::Footprints;
+use crate::message::MessageBody;
 use crate::output::StepOutput;
 use crate::overlay::{OverlaidVolume, Overlay};
 use crate::policy::OrderingPolicy;
@@ -151,7 +152,12 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
         self.before = cx.task_memory.take();
     }
 
-    fn publish<V: SimulationVolume>(&mut self, volume: &mut V, memory: &mut M) {
+    fn publish<V: SimulationVolume>(
+        &mut self,
+        volume: &mut V,
+        memory: &mut M,
+        shard: &mut BlockShard<K>,
+    ) {
         if let Some(part) = self.memory.take() {
             memory.merge(part);
         }
@@ -159,6 +165,19 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             let _ = volume.set_block(write.pos, write.new);
         }
         self.overlay.clear();
+        for produced in &self.produced {
+            let Some(messages) = self.out.outbound.get(produced.outbound.clone()) else {
+                continue;
+            };
+            for message in messages {
+                if let MessageBody::BlockTick { pos, block, .. } = message.body {
+                    shard.published_ticks.insert((pos, block));
+                }
+            }
+        }
+        shard
+            .published_consumed
+            .extend(self.consumed.iter().copied());
     }
 
     fn unpublish<V: SimulationVolume>(&self, volume: &mut V) {
@@ -237,6 +256,8 @@ where
     Before: Fn(&mut BlockShard<K>, usize),
 {
     let hot_ticks = env.config.hot_ticks;
+    shard.published_ticks.clear();
+    shard.published_consumed.clear();
     let hot: Vec<usize> = positions
         .iter()
         .enumerate()
@@ -262,7 +283,7 @@ where
             task.run(world, base, env, shared, footprints, now, run);
         });
         for task in phase.iter_mut() {
-            task.publish(volume, memory);
+            task.publish(volume, memory, shard);
         }
     }
     let mut overflowed: Vec<usize> = tasks
@@ -275,7 +296,7 @@ where
         let mut task = TileTask::new(None, overflowed.clone());
         lend_memory(memory, core::slice::from_mut(&mut task));
         task.run(&*volume, &*shard, env, shared, footprints, now, run);
-        task.publish(volume, memory);
+        task.publish(volume, memory, shard);
         reruns = core::mem::take(&mut task.reruns);
         tasks.push(task);
     }
@@ -286,13 +307,16 @@ where
         );
         return Tiled::Done { reruns, left };
     }
-    let conflicts = conflicts(&tasks, positions);
+    let mut conflicts = conflicts(&tasks, positions);
+    conflicts.extend(reruns.iter().filter_map(|&index| positions.get(index)));
     if !conflicts.is_empty() {
         for task in tasks.iter().rev() {
             task.unpublish(volume);
         }
         restore_memory(memory, &mut tasks);
         shard.chain.reset();
+        shard.published_ticks.clear();
+        shard.published_consumed.clear();
         mark_hot(shard, hot_ticks, now, &conflicts);
         out.report.tile_redos = out.report.tile_redos.saturating_add(1);
         return Tiled::Redo { left };
@@ -380,6 +404,8 @@ fn finish<K, V, F, B, P, Before>(
         }
         out.report.absorb(task.out.report);
     }
+    shard.published_ticks.clear();
+    shard.published_consumed.clear();
 }
 
 struct Seen<'a> {
@@ -420,7 +446,9 @@ fn conflicts<K: Kinds, M>(tasks: &[TileTask<K, M>], positions: &[BlockPos]) -> V
         let Some(first) = seen.first() else {
             continue;
         };
-        if seen.iter().all(|other| other.task == first.task) {
+        if seen.iter().all(|other| other.task == first.task)
+            || seen.iter().all(|other| other.produced.writes.is_empty())
+        {
             continue;
         }
         for (n, a) in seen.iter().enumerate() {

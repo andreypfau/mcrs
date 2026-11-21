@@ -189,6 +189,10 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
         }
     }
 
+    pub fn pending_len(&self) -> usize {
+        self.pending.len()
+    }
+
     pub fn len(&self) -> usize {
         self.pending.len().saturating_add(self.deferred.len())
     }

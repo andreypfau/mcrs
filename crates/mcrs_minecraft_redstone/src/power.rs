@@ -186,7 +186,7 @@ where
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
+    cx.memory_at(pos)
         .map_or(0, |memory| memory.redstone().comparator_output(pos))
 }
 

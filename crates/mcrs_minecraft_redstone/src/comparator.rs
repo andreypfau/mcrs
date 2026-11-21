@@ -117,7 +117,7 @@ where
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
+    cx.memory_at(pos)
         .map_or(0, |memory| memory.redstone().comparator_output(pos))
 }
 
@@ -172,7 +172,7 @@ pub(crate) fn refresh<K, V, F, B>(
     };
     let output = output_signal(cx, table, pos, state, facing);
     let stored = stored_output(cx, pos);
-    if let Some(memory) = cx.memory() {
+    if let Some(memory) = cx.memory_at(pos) {
         memory
             .redstone()
             .set_comparator_output(pos, output, stored != output);
@@ -232,7 +232,7 @@ pub(crate) fn removed<K, V, F, B>(
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    if let Some(memory) = cx.memory() {
+    if let Some(memory) = cx.memory_at(pos) {
         memory.redstone().forget_comparator(pos);
     }
     if moved_by_piston {
