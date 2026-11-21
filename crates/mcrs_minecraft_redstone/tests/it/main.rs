@@ -6,6 +6,7 @@
 mod diodes;
 mod mechanisms;
 mod observer;
+mod parallel;
 mod piston;
 mod plates;
 mod power;

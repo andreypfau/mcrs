@@ -296,8 +296,13 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
   (SIM-NBR-001) at P and at each of the six neighbors of P. Each wire that these requests reach
   does the same. As a result, the whole network has its target power at the end of the chain.
 - **Ordering constraints:** the order of the updates inside the chain is the wire evaluation
-  policy (P-WIRE of `block-simulation.md`). The observable result is the final power of each
-  wire and of each component that the network feeds. A component that reacts at once (a lamp
+  policy (P-WIRE of `block-simulation.md`). The default evaluator, which the `java` preset uses,
+  runs the chain in the vanilla order of SIM-NBR-003 (depth first, west, east, down, up, north,
+  south), so circuits that depend on the update order of wire behave as in the reference; the
+  vanilla differential test (`tests/it/vanilla_server`) checks this with circuits whose result
+  depends on the order, such as two sticky pistons that pull one block. The experimental
+  evaluator (RS-WIR-009) keeps only the final powers. The observable result is the final power of
+  each wire and of each component that the network feeds. A component that reacts at once (a lamp
   that turns on, RS-LMP-001) can react more than one time inside one chain, when the wire
   evaluation visits it with two values. A component that schedules a tick reacts one time
   (SIM-SCH-004).
@@ -1058,6 +1063,18 @@ semantic. Confidence: high.
 - **Rule:** RS-SRC-005. **Reference:** one toggle record for each dimension. **Reason:** a
   partition keeps its own record, as the threaded instance of `block-simulation.md` does.
   **Visible to the client:** no. **Bug reference:** none. **Test:** none.
+- **Rule:** SIM-SCH-006 (the order of ticks across sections) and SIM-BEV-002 (the order of the
+  drain). **Reference:** one global order by (priority, sequence) across all sections. **Reason:**
+  the ticks and the block events of one phase run on block tiles in four colour phases
+  (`physics-architecture.md`, §7.5). Inside one tile the collection order holds, and inside one
+  section the full-key order holds (the observable result of SIM-SCH-006). Between tiles whose
+  regions do not touch, the order does not change any result. Between tiles of different colours
+  whose regions touch, the colour order replaces the sequence order; this is a semantic-level
+  freedom. The ticks of a hot cell (a cell that left its region in the last 40 ticks) run before
+  the colour phases. **Visible to the client:** only through circuits that depend on the order of
+  two ticks in different tiles within one phase. **Bug reference:** none. **Test:** `tiled` of
+  the simulation crate and `parallel` of this crate compare one thread with four; the vanilla
+  differential test runs each circuit inside one tile.
 
 ## 13. Unresolved
 

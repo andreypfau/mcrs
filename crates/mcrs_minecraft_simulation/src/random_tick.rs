@@ -15,10 +15,8 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
 use crate::footprints::Footprints;
-use crate::output::OutputMark;
 use crate::precipitation::{PRECIPITATION_TILE, precipitation_hits};
-use crate::region::colour;
-use crate::tile_task::{Spread, TileTask};
+use crate::tile_task::{HotCells, Spread, run_tiled};
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -150,40 +148,38 @@ pub fn random_step<K, V, F, B, P, S>(
     let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
     cx.precipitation_step(picks);
 
-    let mut tasks = mem::take(&mut shard.tiles);
-    let mut reruns = mem::take(&mut shard.reruns);
-    TileTask::plan(&mut tasks, picks.hits);
-    for phase in tasks.chunk_by_mut(|a, b| colour(a.tile) == colour(b.tile)) {
-        let (world, base) = (&*volume, &*shard);
-        spread.spread(phase, &|task: &mut TileTask<K>| {
-            task.run(world, base, env, shared, picks, now);
-        });
-        for task in phase {
-            task.commit(
-                shard,
-                volume,
-                env,
-                &mut *memory,
-                shared,
-                out,
-                now,
-                &mut reruns,
-            );
-        }
-    }
-    shard.tiles = tasks;
-
-    reruns.sort_unstable();
+    let positions: Vec<BlockPos> = picks.hits.iter().map(|hit| hit.at).collect();
+    let split = run_tiled(
+        shard,
+        volume,
+        env,
+        memory,
+        shared,
+        picks.footprints,
+        out,
+        now,
+        spread,
+        &positions,
+        HotCells::Ignore,
+        &|cx, index| {
+            if let Some(hit) = picks.hits.get(index) {
+                cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
+            }
+        },
+    );
     out.report.random_reruns = out
         .report
         .random_reruns
-        .saturating_add(u32::try_from(reruns.len()).unwrap_or(u32::MAX));
+        .saturating_add(u32::try_from(split.reruns.len()).unwrap_or(u32::MAX));
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
-    for hit in reruns.iter().filter_map(|&index| picks.hits.get(index)) {
+    for hit in split
+        .hot
+        .iter()
+        .chain(split.reruns.iter())
+        .filter_map(|&index| picks.hits.get(index))
+    {
         cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
     }
-    reruns.clear();
-    cx.shard.reruns = reruns;
 }
 
 impl<K, V, F, B> Cx<'_, K, V, F, B>
@@ -216,36 +212,12 @@ where
         self.shard.rain_hits = hits;
     }
 
-    pub(crate) fn random_hit(
+    pub(crate) fn random_pick(
         &mut self,
-        index: usize,
-        picks: RandomPicks<'_>,
-        reruns: &mut Vec<usize>,
+        at: BlockPos,
+        random: &mut LegacyRandom,
+        table: &RandomTickTable,
     ) {
-        let Some(hit) = picks.hits.get(index) else {
-            return;
-        };
-        let mark = self.out.mark();
-        self.random_pick(hit.at, &mut hit.random.clone(), picks.table);
-        if self
-            .task
-            .as_mut()
-            .is_some_and(|task| mem::take(&mut task.overflowed))
-        {
-            self.undo(mark);
-            reruns.push(index);
-        }
-    }
-
-    fn undo(&mut self, mark: OutputMark) {
-        for write in self.out.writes.drain(mark.writes..).rev() {
-            let _ = self.volume.set_block(write.pos, write.old);
-        }
-        self.out.truncate(mark);
-        self.shard.chain.reset();
-    }
-
-    fn random_pick(&mut self, at: BlockPos, random: &mut LegacyRandom, table: &RandomTickTable) {
         let Ok(state) = self.volume.block(at) else {
             return;
         };

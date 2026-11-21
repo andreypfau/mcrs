@@ -31,8 +31,22 @@ pub trait BlockFacts<K: Kinds> {
     fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId;
 }
 
+pub trait MemoryPartition: Sized {
+    fn split<C: Fn(BlockPos) -> u64>(&mut self, cell: C) -> Vec<(u64, Self)>;
+
+    fn merge(&mut self, part: Self);
+}
+
+impl MemoryPartition for () {
+    fn split<C: Fn(BlockPos) -> u64>(&mut self, _cell: C) -> Vec<(u64, Self)> {
+        Vec::new()
+    }
+
+    fn merge(&mut self, (): Self) {}
+}
+
 pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
-    type Memory: Default + Send + Sync + 'static;
+    type Memory: Default + Send + Sync + MemoryPartition + 'static;
 
     type Shared: Default + Send + Sync + 'static;
 

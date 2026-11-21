@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_simulation::GameTick;
+use mcrs_minecraft_simulation::{GameTick, MemoryPartition};
 use mcrs_voxel::{BlockPos, BlockStateId};
 use rustc_hash::FxHashMap;
 
@@ -165,6 +165,49 @@ impl RedstoneSnapshot {
             Some(AnalogSource::Daylight { sun, sky }) => Some((*sun, *sky)),
             _ => None,
         }
+    }
+}
+
+fn split_map<V, C: Fn(BlockPos) -> u64>(
+    map: &mut FxHashMap<BlockPos, V>,
+    cell: &C,
+    parts: &mut FxHashMap<u64, RedstoneMemory>,
+    pick: impl Fn(&mut RedstoneMemory) -> &mut FxHashMap<BlockPos, V>,
+) {
+    for (pos, value) in map.drain() {
+        pick(parts.entry(cell(pos)).or_default()).insert(pos, value);
+    }
+}
+
+impl MemoryPartition for RedstoneMemory {
+    fn split<C: Fn(BlockPos) -> u64>(&mut self, cell: C) -> Vec<(u64, Self)> {
+        let mut parts: FxHashMap<u64, RedstoneMemory> = FxHashMap::default();
+        split_map(&mut self.toggles, &cell, &mut parts, |part| {
+            &mut part.toggles
+        });
+        split_map(&mut self.comparators, &cell, &mut parts, |part| {
+            &mut part.comparators
+        });
+        split_map(&mut self.moving, &cell, &mut parts, |part| &mut part.moving);
+        split_map(&mut self.sensors, &cell, &mut parts, |part| {
+            &mut part.sensors
+        });
+        for pos in self.comparator_dirty.drain(..) {
+            parts
+                .entry(cell(pos))
+                .or_default()
+                .comparator_dirty
+                .push(pos);
+        }
+        parts.into_iter().collect()
+    }
+
+    fn merge(&mut self, part: Self) {
+        self.toggles.extend(part.toggles);
+        self.comparators.extend(part.comparators);
+        self.moving.extend(part.moving);
+        self.sensors.extend(part.sensors);
+        self.comparator_dirty.extend(part.comparator_dirty);
     }
 }
 

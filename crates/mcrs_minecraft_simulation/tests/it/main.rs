@@ -16,3 +16,4 @@ mod random_ticks;
 mod sequence;
 mod tick_model;
 mod ticks;
+mod tiled;

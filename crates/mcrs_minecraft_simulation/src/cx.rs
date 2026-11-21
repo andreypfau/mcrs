@@ -3,7 +3,7 @@ use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::event_queue::{BlockEvent, QueuedEvent};
 use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
-use crate::output::{BlockWrite, Destroyed, StepOutput};
+use crate::output::{BlockWrite, Destroyed, OutputMark, StepOutput};
 use crate::policy::{ChainOrder, OrderingPolicy};
 use crate::region::Region;
 use crate::scalar::{GameTick, ShardId, TickPriority};
@@ -509,6 +509,7 @@ where
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(tick.pos)
             && self.facts.block_of(state) == tick.kind
+            && self.fits(tick.pos, state)
         {
             behaviour.block_tick(self, tick.pos, state);
         }
@@ -518,6 +519,7 @@ where
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(tick.pos)
             && self.facts.fluid_of(state) == Some(tick.kind)
+            && self.fits(tick.pos, state)
         {
             behaviour.fluid_tick(self, tick.pos, state, tick.kind);
         }
@@ -527,9 +529,34 @@ where
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(event.pos)
             && self.facts.block_of(state) == event.block
+            && self.fits(event.pos, state)
             && behaviour.block_event(self, event.pos, state, event.a, event.b)
         {
             self.out.delivered.push(event);
         }
+    }
+
+    pub(crate) fn tile_item<R>(&mut self, index: usize, reruns: &mut Vec<usize>, run: &R)
+    where
+        R: Fn(&mut Self, usize),
+    {
+        let mark = self.out.mark();
+        run(self, index);
+        if self
+            .task
+            .as_mut()
+            .is_some_and(|task| core::mem::take(&mut task.overflowed))
+        {
+            self.undo(mark);
+            reruns.push(index);
+        }
+    }
+
+    fn undo(&mut self, mark: OutputMark) {
+        for write in self.out.writes.drain(mark.writes..).rev() {
+            let _ = self.volume.set_block(write.pos, write.old);
+        }
+        self.out.truncate(mark);
+        self.shard.chain.reset();
     }
 }

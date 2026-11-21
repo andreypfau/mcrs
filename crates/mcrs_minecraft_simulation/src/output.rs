@@ -35,6 +35,7 @@ pub struct StepReport {
     pub first_chain_overflow: Option<BlockPos>,
     pub chain_overflows: u32,
     pub random_reruns: u32,
+    pub tile_reruns: u32,
 }
 
 impl StepReport {
@@ -49,6 +50,7 @@ impl StepReport {
             first_chain_overflow,
             chain_overflows,
             random_reruns,
+            tile_reruns,
         } = other;
         let add = |count: &mut u32, more: u32| *count = count.saturating_add(more);
         add(&mut self.unaccepted_ticks, unaccepted_ticks);
@@ -59,6 +61,7 @@ impl StepReport {
         add(&mut self.foreign_reads, foreign_reads);
         add(&mut self.chain_overflows, chain_overflows);
         add(&mut self.random_reruns, random_reruns);
+        add(&mut self.tile_reruns, tile_reruns);
         self.first_chain_overflow = self.first_chain_overflow.or(first_chain_overflow);
     }
 }
