@@ -9,7 +9,6 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_replication::MobSignal;
 
 use crate::MotionId;
-use crate::PublishedTile;
 use crate::subject::Subject;
 
 #[derive(Resource, Debug, Default)]
@@ -44,18 +43,16 @@ pub(crate) fn has_mob_changes(changes: Res<MobChanges>) -> bool {
 
 pub(crate) fn take_mob_news(
     changes: Res<MobChanges>,
-    entities: Query<(&MotionId, &PublishedTile)>,
+    ids: Query<&MotionId>,
     mut news: ResMut<MobNews>,
 ) {
     let news = &mut *news;
     news.spawned.extend_from_slice(changes.spawned());
     for struck in changes.strikes() {
-        let Ok((id, published)) = entities.get(struck.entity) else {
+        let Ok(id) = ids.get(struck.entity) else {
             continue;
         };
-        let Some(tile) = published.tile() else {
-            continue;
-        };
+        let tile = struck.tile;
         let subject = Subject {
             id: id.0,
             entity: struck.entity,

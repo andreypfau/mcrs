@@ -1,6 +1,7 @@
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
 
 use crate::mob_changes::MobChanges;
@@ -21,6 +22,7 @@ pub fn hurt_mob(
     changes.strikes.push(Struck {
         entity,
         uuid: state.key,
+        tile: TileKey::at(state.body.position),
         damage_type: hit.damage_type,
         outcome,
         died: !living.is_alive(),

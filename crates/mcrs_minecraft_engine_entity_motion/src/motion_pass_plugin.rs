@@ -26,6 +26,9 @@ pub struct MotionRelease;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MotionSteps;
 
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MotionEffects;
+
 impl Plugin for MotionPassPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StirredTiles>();
@@ -36,7 +39,9 @@ impl Plugin for MotionPassPlugin {
         app.init_resource::<Expired>();
         app.configure_sets(
             FixedUpdate,
-            (MotionRelease, MotionSteps).chain().in_set(MotionPass),
+            (MotionRelease, MotionSteps, MotionEffects)
+                .chain()
+                .in_set(MotionPass),
         );
         app.add_systems(
             FixedUpdate,
@@ -45,9 +50,7 @@ impl Plugin for MotionPassPlugin {
                     .in_set(MotionPass)
                     .after(MotionRelease)
                     .before(MotionSteps),
-                (collect_movers, collect_step_effects)
-                    .in_set(MotionPass)
-                    .after(MotionSteps),
+                (collect_movers, collect_step_effects).in_set(MotionEffects),
             ),
         );
     }

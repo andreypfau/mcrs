@@ -7,6 +7,7 @@ use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine_entity_motion::MotionEffects;
 use mcrs_minecraft_engine_entity_motion::MotionPass;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
@@ -72,8 +73,8 @@ impl Plugin for EntityPhysicsPlugin {
                 despawn_expired.run_if(has_expired),
             )
                 .chain()
-                .in_set(TickSet::Simulate)
-                .after(MotionPass),
+                .in_set(MotionPass)
+                .after(MotionEffects),
         );
         app.configure_sets(
             FixedUpdate,

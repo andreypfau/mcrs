@@ -29,6 +29,7 @@ pub use mob_intent::MobIntent;
 pub use motion_hold::MotionHold;
 pub use motion_id::MotionId;
 pub use motion_kind::MotionKind;
+pub use motion_pass_plugin::MotionEffects;
 pub use motion_pass_plugin::MotionPass;
 pub use motion_pass_plugin::MotionPassPlugin;
 pub use motion_pass_plugin::MotionRelease;

@@ -14,13 +14,11 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_attributes::PlayerAttributesPlugin;
-use mcrs_minecraft_engine_brain::BrainState;
-use mcrs_minecraft_engine_brain::RowBrainPlugin;
+use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
-use mcrs_minecraft_engine_mob_attributes::RowAttributesPlugin;
-use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
-use mcrs_minecraft_engine_physics::RowPhysicsPlugin;
+use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
+use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlugin};
@@ -102,8 +100,9 @@ pub struct VanillaEntityPhysicsPlugin;
 
 impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(RowPhysicsPlugin::<BrainState>::default());
-        app.add_dimension_plugin(MobReplicationPlugin::<BrainState>::default());
+        app.world_mut()
+            .get_resource_or_init::<DimensionBuilders>()
+            .add(entity_motion::build_dimension_mobs);
     }
 }
 
@@ -120,7 +119,7 @@ pub struct VanillaEntityAttributesPlugin;
 impl Plugin for VanillaEntityAttributesPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(PlayerAttributesPlugin);
-        app.add_dimension_plugin(RowAttributesPlugin::<BrainState>::default());
+        app.add_dimension_plugin(MobAttributesPlugin);
     }
 }
 
@@ -144,7 +143,7 @@ pub struct VanillaMobBrainPlugin;
 
 impl Plugin for VanillaMobBrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(RowBrainPlugin::new(
+        app.add_dimension_plugin(MobBrainPlugin::new(
             vanilla_brains::vanilla_brain,
             PANIC_CAUSES,
         ));
