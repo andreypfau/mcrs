@@ -55,7 +55,7 @@ pub(crate) fn run(
             output.effect(
                 &mut hits,
                 HitMob {
-                    at: mob.at,
+                    target: mob.entity,
                     hit: Hit::new(f32::MAX, damage_type),
                 },
             );

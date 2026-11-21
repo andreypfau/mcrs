@@ -114,3 +114,29 @@ fn hostile_lines_fail_with_an_answer_and_the_server_keeps_ticking() {
         "the pig left the world after its death time, so its UUID is free"
     );
 }
+
+#[test]
+fn a_selector_lists_the_mobs_by_tile_before_the_summon_order() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    server.ticks(operator, 2);
+    for line in [
+        "summon minecraft:pig 40 64 4 {UUID:[I;1,1,1,1]}",
+        "summon minecraft:pig 4 64 4 {UUID:[I;2,2,2,2]}",
+    ] {
+        assert_eq!(
+            answer(&mut server, operator, line),
+            ("commands.summon.success".to_owned(), false),
+            "{line}"
+        );
+    }
+    server.ticks(operator, 2);
+    let first_is_near =
+        "execute as @e[type=minecraft:pig,limit=1] if entity @s[x=4,y=64,z=4,distance=..10]";
+    assert_eq!(
+        answer(&mut server, operator, first_is_near),
+        ("commands.execute.conditional.pass_count".to_owned(), false),
+        "the pig of the tile at x 0 comes before the pig of the tile at x 32 that was summoned first"
+    );
+}

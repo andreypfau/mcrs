@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_physics"
-description = "The entity pass of a dimension world in Bevy: the row store as a resource generic over the mob column, the merge point, the freeze and the pass as systems, the row-only items, and the mob rows with their life cycle and tile events"
+description = "The entity pass of a dimension world in Bevy: the motion plugin, the mob spawn and the crowd damage over the entity components"
 version.workspace = true
 edition.workspace = true
 
@@ -25,7 +25,6 @@ mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
-mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_protocol_game.workspace = true

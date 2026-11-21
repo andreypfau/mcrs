@@ -117,7 +117,6 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_enchantment` | The enchantment file and the keys of the enchantment registries | yes | - | yes |
 | `mcrs_minecraft_entity` | Plain identity types of the entity domain registries and the type data table of the entity types | yes | - | - |
 | `mcrs_minecraft_entity_key` | The keys of an entity without the physics kernel: its id, its UUID as its order key, the sources of a new UUID, its keyed random stream and the tile that holds it | yes | yes | - |
-| `mcrs_minecraft_entity_rows` | The rows of the server entities by tile, with a column for the hot state of the mobs: the body grid, the merge point, the rest and wake of tiles and the entity pass over the physics kernel | yes | - | - |
 | `mcrs_minecraft_environment` | Environment attributes, timelines and world clocks | yes | - | - |
 | `mcrs_minecraft_game_registries` | Vanilla Minecraft block/item type vocabulary and static registries | yes | - | - |
 | `mcrs_minecraft_game_rule` | Game rules, their categories, value types, defaults and bounds | yes | - | yes |
@@ -170,9 +169,8 @@ The table below names the crates to start with for five kinds of project. None o
 | `mcrs_minecraft_command_engine` | The command tree, the registration of commands and the run of the command lines of the players inside the tick of each dimension world | - | - | - |
 | `mcrs_minecraft_dimension_environment` | Dimension types and the environment attribute layers of a dimension | yes | - | - |
 | `mcrs_minecraft_engine` | The packet bus, the bridge between the network and the dimension worlds, sessions, the host side of the dimension channels, the player state that the host and the dimensions share, the world clocks of the host, and heightmap upkeep | - | - | - |
-| `mcrs_minecraft_engine_brain` | The AI stage of the mobs of a dimension world: the host that publishes the snapshot of the mob rows, runs the stage per tile beside the entity pass, applies the decisions through the mob controls and steers the rows | - | - | - |
-| `mcrs_minecraft_engine_mob_replication` | The replication projection of the mobs of a dimension world in Bevy: reads the row store and the mob changes of the tick and writes the tile events of the mobs for the muxer | - | - | - |
-| `mcrs_minecraft_engine_physics` | The entity pass of a dimension world in Bevy: the row store as a resource generic over the mob column, the merge point, the freeze and the pass as systems, the row-only items, and the mob rows with their life cycle and tile events | - | - | - |
+| `mcrs_minecraft_engine_brain` | The AI stage of the mobs of a dimension world: the host that publishes the snapshot of the mob entities, runs the stage per tile beside the entity pass and applies the decisions through the mob controls | - | - | - |
+| `mcrs_minecraft_engine_physics` | The entity pass of a dimension world in Bevy: mobs as entities with their spawn, damage, despawn and tile events, the writes between entities, and the pass as systems | - | - | - |
 | `mcrs_minecraft_engine_registries` | Loads the registries, blocks and items of an app from its pack files, walks it to playing, and hands the snapshot to each dimension world | - | - | - |
 | `mcrs_minecraft_engine_server` | The server plugins of the engine without vanilla behaviour: the core, the dimension worlds, the listener with login, configuration, keep-alive and status, and the server loop | - | - | - |
 | `mcrs_minecraft_engine_world` | Chunk and column entities, dimensions, tickets, area of interest, sessions, the server loop, block updates and drops, game rules, and the world seed, birth clock and entity ids that new entities take | - | - | - |

@@ -5,18 +5,22 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
-use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_mob_attributes::{AttributeTarget, RowAttributeEdit, RowAttributes};
-use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_entity_motion::MotionId;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
+use mcrs_minecraft_engine_mob_attributes::MobAttributes;
+use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
+use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::packets::table::Decoded;
 use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePacket as BasePacket;
@@ -259,16 +263,33 @@ fn start() -> PlayServer {
     PlayServer::start(app, &[(OPERATOR, 2)], 0)
 }
 
-fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
-    server
-        .world()
-        .resource::<EntityRows>()
-        .tiles()
-        .flat_map(|(_, rows)| {
-            rows.rows()
-                .map(|row| row.state.body.position)
-                .collect::<Vec<_>>()
+pub(crate) struct MobEntity {
+    pub(crate) entity: Entity,
+    pub(crate) id: EntityId,
+    pub(crate) state: EntityState,
+    pub(crate) mob: Mob,
+}
+
+pub(crate) fn mob_entities(server: &mut PlayServer) -> Vec<MobEntity> {
+    let world = server.world();
+    let mut mobs: Vec<MobEntity> = world
+        .query::<(Entity, &MotionId, &MotionState, &Mob)>()
+        .iter(world)
+        .map(|(entity, id, state, mob)| MobEntity {
+            entity,
+            id: id.0,
+            state: state.0,
+            mob: mob.clone(),
         })
+        .collect();
+    mobs.sort_by_key(|mob| mob.id);
+    mobs
+}
+
+fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
+    mob_entities(server)
+        .iter()
+        .map(|mob| mob.state.body.position)
         .collect()
 }
 
@@ -294,11 +315,10 @@ fn trk_spn_001_summoned_pig_reaches_viewer_as_one_bundle_and_falls() {
     viewer.receive(replies);
     viewer.receive(server.ticks(operator, 60));
 
-    let mobs = server.world().resource::<Mobs>().0.clone();
+    let mobs = mob_entities(&mut server);
     assert_eq!(mobs.len(), 1, "one summon makes one mob");
-    let (&row_id, mob) = mobs.iter().next().unwrap();
-    let id = row_id.0 as i32;
-    let uuid = Uuid::from_u128(mob.uuid);
+    let id = mobs[0].id.0 as i32;
+    let uuid = Uuid::from_u128(mobs[0].mob.uuid);
     assert_eq!(
         viewer.seen.get(..4),
         Some(
@@ -358,8 +378,8 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
         "summon minecraft:pig 4 64 4",
     );
     viewer.receive(server.ticks(operator, 5));
-    let row = *server.world().resource::<Mobs>().0.keys().next().unwrap();
-    let id = row.0 as i32;
+    let pig = &mob_entities(&mut server)[0];
+    let (entity, id) = (pig.entity, pig.id.0 as i32);
     let attribute_updates = |viewer: &mut Viewer| -> Vec<Seen> {
         viewer
             .seen
@@ -367,8 +387,8 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
             .filter(|seen| matches!(seen, Seen::Attributes { .. }))
             .collect()
     };
-    let slow = |attribute| RowAttributeEdit {
-        target: AttributeTarget::Row(row),
+    let slow = |attribute| AttributeEdit {
+        target: entity,
         attribute,
         edit: InstanceEdit::Put(InstanceModifier::new(
             "test:slow".parse().unwrap(),
@@ -405,9 +425,8 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
     assert_eq!(
         server
             .world()
-            .resource::<RowAttributes>()
-            .get(row)
-            .map(|set| set.instances().count()),
+            .get::<MobAttributes>(entity)
+            .map(|attributes| attributes.set().instances().count()),
         Some(2),
         "the edit of follow_range applies"
     );
@@ -559,7 +578,7 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     );
     viewer.receive(server.ticks(operator, 25));
 
-    let mobs = server.world().resource::<Mobs>().0.len();
+    let mobs = mob_entities(&mut server).len();
     assert_eq!(mobs, 0, "the pigs left the world");
     assert!(pig_rows(&mut server).is_empty(), "and their rows");
     assert_each_death_in_order(&viewer);
@@ -740,7 +759,7 @@ fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {
         "the second summon answers the refusal"
     );
     assert_eq!(
-        server.world().resource::<Mobs>().0.len(),
+        mob_entities(&mut server).len(),
         1,
         "the second pig with the UUID does not spawn"
     );

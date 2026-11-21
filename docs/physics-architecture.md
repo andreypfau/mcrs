@@ -17,10 +17,8 @@ the technique and its numbers.
 
 ## 0. Decisions
 
-Status: the decision "mobs are ECS entities, entity rows are deleted" (#1067) is approved. The
-code still has rows. The migration pull request (step 3 of #1067) moves the mobs to components and
-deletes `mcrs_minecraft_entity_rows`. Text below that describes the entity side is the target
-design. A name that does not exist yet is marked "planned".
+Status: the decision "mobs are ECS entities, entity rows are deleted" (#1067) is done. The
+migration (step 3 of #1067) moved the mobs to components and deleted the entity rows crate. A name that does not exist yet is marked "planned".
 The decision of #1067 does not change the player part (`PlayerRows`, the player layer of `BodyGrid`). It keeps its
 current path, and its own issue decides who writes it.
 
