@@ -813,7 +813,15 @@ impl BlockBehaviour<ProbeKinds> for Dependent {
     }
 }
 
-fn dependent_outcome(path: &Path<'_>) -> (BlockStateId, BlockStateId, u32) {
+struct DependentOutcome {
+    probe: BlockStateId,
+    watcher: BlockStateId,
+    redos: u32,
+    replays: u32,
+    stale: u32,
+}
+
+fn dependent_outcome(path: &Path<'_>) -> DependentOutcome {
     let mut lab = Lab::new(tiles_always());
     for at in [WEST_EDGE, EAST_EDGE, FLAG, DUMMY, PROBE, WATCHER] {
         lab.host.put(at, A);
@@ -825,25 +833,36 @@ fn dependent_outcome(path: &Path<'_>) -> (BlockStateId, BlockStateId, u32) {
         event_message(2, WATCHER, block),
     ];
     let out = lab.tick(&Dependent, 1, &seeds, path);
-    (
-        lab.host.state(PROBE),
-        lab.host.state(WATCHER),
-        out.report.tile_redos,
-    )
+    DependentOutcome {
+        probe: lab.host.state(PROBE),
+        watcher: lab.host.state(WATCHER),
+        redos: out.report.tile_redos,
+        replays: out.report.tile_replays,
+        stale: out.report.tile_stale_items,
+    }
 }
 
 #[test]
 fn a_kept_item_that_read_what_a_replayed_item_now_writes_runs_again() {
-    let (probe, watcher, redos) = dependent_outcome(&Path::Scalar);
-    assert_eq!((probe, watcher, redos), (C, B, 0));
+    let scalar = dependent_outcome(&Path::Scalar);
+    assert_eq!((scalar.probe, scalar.watcher, scalar.redos), (C, B, 0));
+    assert_eq!((scalar.replays, scalar.stale), (0, 0));
     for seed in [1, 2, 3] {
         let shuffled = Shuffled { threads: 4, seed };
-        let (probe, watcher, redos) = dependent_outcome(&Path::Tiled(&shuffled));
-        assert_eq!(probe, C, "the replayed item wrote the probe");
+        let tiled = dependent_outcome(&Path::Tiled(&shuffled));
+        assert_eq!(tiled.probe, C, "the replayed item wrote the probe");
         assert_eq!(
-            watcher, B,
+            tiled.watcher, B,
             "the watcher read the probe after the replay, not the stale value of the parallel run"
         );
-        assert_eq!(redos, 1);
+        assert_eq!(tiled.redos, 1);
+        assert_eq!(
+            tiled.stale, 1,
+            "the watcher is the one kept item that the replay of the west edge made stale"
+        );
+        assert_eq!(
+            tiled.replays, 4,
+            "both edges run again, the west edge twice, and the stale watcher once"
+        );
     }
 }

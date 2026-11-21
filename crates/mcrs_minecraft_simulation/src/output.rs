@@ -39,6 +39,8 @@ pub struct StepReport {
     pub tile_redos: u32,
     pub tile_redo_items: u32,
     pub hot_items: u32,
+    pub tile_replays: u32,
+    pub tile_stale_items: u32,
 }
 
 impl StepReport {
@@ -57,6 +59,8 @@ impl StepReport {
             tile_redos,
             tile_redo_items,
             hot_items,
+            tile_replays,
+            tile_stale_items,
         } = other;
         let add = |count: &mut u32, more: u32| *count = count.saturating_add(more);
         add(&mut self.unaccepted_ticks, unaccepted_ticks);
@@ -71,6 +75,8 @@ impl StepReport {
         add(&mut self.tile_redos, tile_redos);
         add(&mut self.tile_redo_items, tile_redo_items);
         add(&mut self.hot_items, hot_items);
+        add(&mut self.tile_replays, tile_replays);
+        add(&mut self.tile_stale_items, tile_stale_items);
         self.first_chain_overflow = self.first_chain_overflow.or(first_chain_overflow);
     }
 }
