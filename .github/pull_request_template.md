@@ -19,5 +19,7 @@ run or a browser run. A test names the rule ID it checks. -->
 
 ## Checklist
 
+- [ ] I follow [CONTRIBUTING.md](../CONTRIBUTING.md): one issue, at most 1000 added lines, one crate group.
+- [ ] Written by: <!-- agent and model, or "by hand" -->
 - [ ] Docs updated or not needed (`docs-site/`). A page whose `sources` you touched gets a warning in this PR.
 - [ ] Clean-room: no names from the game's code in code, comments, tests or this PR (`docs/clean-room.md`).

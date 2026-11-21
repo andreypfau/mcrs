@@ -133,6 +133,12 @@ pub(crate) fn send(world: &mut World) {
         .send(MuxerCall::Send { blocked });
 }
 
+pub(crate) fn flush(world: &mut World) {
+    if let Some(mut link) = world.get_resource_mut::<MuxerLink>() {
+        link.link.send(MuxerCall::Flush);
+    }
+}
+
 pub fn deliver(world: &mut World, answers: Answers) {
     if !world.contains_resource::<MuxerLink>() {
         return;

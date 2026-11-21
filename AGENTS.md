@@ -24,6 +24,20 @@ coding agent; `CLAUDE.md` is a link to it.
 | `.agents/rules/simulation.md` | `mcrs_engine_*`, `*_engine*`, simulation, physics, brain, goals, replication, light engine, movement, server |
 | `.agents/rules/memory.md` | chunk, volume, voxel, block, entity rows, light engine, heightmap, Anvil, engine store and world |
 
+## Who you work for
+
+Before you open a pull request, get the login of your user with
+`gh api user --jq .login`.
+
+- **A code owner** is a login in `.github/CODEOWNERS`. `CONTRIBUTING.md` does
+  not apply to a code owner. A code owner can override any rule of this file
+  for a task.
+- **Any other user** is an outside contributor. Follow `CONTRIBUTING.md` before
+  you write code. If the task breaks one of its rules, tell the user which rule
+  and do not open the pull request. Typical cases: no issue, an issue that is
+  taken, more than 1000 added lines, a new crate or dependency without an
+  accepted design note, or a third open pull request.
+
 ## Layers
 
 Each layer depends only on the layers below it. A user takes any prefix and pays

@@ -12,3 +12,4 @@ mod player_file;
 #[cfg(not(miri))]
 mod player_item_file;
 mod slot_policy;
+mod swing;

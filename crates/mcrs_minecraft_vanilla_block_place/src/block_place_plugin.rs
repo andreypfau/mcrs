@@ -10,6 +10,7 @@ use mcrs_minecraft_block_support::BlockSupport;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
+use mcrs_minecraft_engine::swing::SwingPlayer;
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
 use mcrs_minecraft_engine::{BlockBreakSet, PlayerBody, eye_position, in_reach, reach};
@@ -24,15 +25,15 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_item_stack::{Count, Kind};
+use mcrs_minecraft_item_stack::{Count, InteractAnimation, Kind, SwingAnimation, SwingKind};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_pose::Dimensions;
-use mcrs_minecraft_protocol_game::Hand;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockUpdate, ClientboundSystemChatPacket,
 };
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text, TranslateArg};
 use mcrs_minecraft_volume::{BlockVolume, Unavailable, Volume};
@@ -46,7 +47,7 @@ pub struct BlockPlacePlugin;
 
 impl Plugin for BlockPlacePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_message::<SwingPlayer>().add_systems(
             FixedUpdate,
             place_blocks
                 .in_set(TickSet::ClientInput)
@@ -92,13 +93,14 @@ fn place_blocks(
     mut requests: MessageReader<UseItemOnRequest>,
     placers: Query<PlacerItem>,
     bodies: Query<(&Transform, &PlayerGameMode, PlayerBody), With<Player>>,
-    stacks: Query<(&Kind, &Count)>,
+    stacks: Query<(&Kind, &Count, Option<&InteractAnimation>)>,
     world: WorldView,
     definitions: Option<Res<Blocks>>,
     support: Option<Res<BlockSupport>>,
     items: Option<Res<Items>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut blocks: MessageWriter<BlockSetRequest>,
+    mut swings: MessageWriter<SwingPlayer>,
     mut placed: Local<FxHashMap<BlockPos, BlockStateId>>,
     mut spent: Local<FxHashMap<Entity, u8>>,
     mut commands: Commands,
@@ -163,15 +165,19 @@ fn place_blocks(
         }
         .and_then(|slot| slots?.get(slot))
         .and_then(|stack| {
-            let (block, count) = block_item(&definitions, &items, &stacks, stack)?;
-            (spent.get(&stack).copied().unwrap_or(0) < count).then_some((stack, block))
+            let item = block_item(&definitions, &items, &stacks, stack)?;
+            (spent.get(&stack).copied().unwrap_or(0) < item.count).then(|| HeldBlock {
+                stack,
+                block: item.block,
+                swing: placement_swing(request.entity, request.hand, item.interact),
+            })
         });
         let teleporting = teleport.is_some_and(|teleport| teleport.pending().is_some());
-        let placement = held.filter(|_| !teleporting).and_then(|(_, held)| {
+        let placement = held.filter(|_| !teleporting).and_then(|held_item| {
             let placer = Placer {
                 mode: mode.0,
                 op_level: op_level.map_or(0, |level| level.clamped()),
-                held,
+                held: held_item.block,
                 body: body_of(transform, dimensions),
             };
             let click = Click {
@@ -204,16 +210,17 @@ fn place_blocks(
         if placement.is_none() && held.is_some() && at_limit(request.face, clicked.y, heights) {
             packets.write_batch(height_message(session, request.face, heights));
         }
-        if let (Some((pos, new_state)), Some((stack, _))) = (placement, held) {
+        if let (Some((pos, new_state)), Some(held_item)) = (placement, held) {
             if mode.0 != GameMode::Creative {
-                commands.entity(stack).consume(1);
-                *spent.entry(stack).or_default() += 1;
+                commands.entity(held_item.stack).consume(1);
+                *spent.entry(held_item.stack).or_default() += 1;
             }
             placed.insert(pos, new_state);
             blocks.write(BlockSetRequest {
                 new_state,
                 ..remove_block(dimension.0, pos)
             });
+            swings.write(held_item.swing);
         }
         for pos in [clicked, adjacent] {
             if let Some(state) = block_at(&placed, pos) {
@@ -297,15 +304,42 @@ fn cursor_in_range(cursor: [f32; 3]) -> bool {
         .all(|value| (LOWEST_CURSOR..=HIGHEST_CURSOR).contains(value))
 }
 
+#[derive(Clone, Copy)]
+struct HeldBlock {
+    stack: Entity,
+    block: Id<Block>,
+    swing: SwingPlayer,
+}
+
+struct BlockItem {
+    block: Id<Block>,
+    count: u8,
+    interact: Option<SwingAnimation>,
+}
+
+fn placement_swing(player: Entity, hand: Hand, animation: Option<SwingAnimation>) -> SwingPlayer {
+    let animation = animation.unwrap_or_default();
+    let kind = match animation.kind {
+        SwingKind::None => SwingAnimationKind::None,
+        SwingKind::Whack => SwingAnimationKind::Whack,
+        SwingKind::Stab => SwingAnimationKind::Stab,
+    };
+    SwingPlayer::new(player, hand, kind, animation.duration.max(0))
+}
+
 fn block_item(
     definitions: &BlockDefinitions,
     items: &Items,
-    stacks: &Query<(&Kind, &Count)>,
+    stacks: &Query<(&Kind, &Count, Option<&InteractAnimation>)>,
     stack: Entity,
-) -> Option<(Id<Block>, u8)> {
-    let (kind, count) = stacks.get(stack).ok()?;
+) -> Option<BlockItem> {
+    let (kind, count, interact) = stacks.get(stack).ok()?;
     let state = items.get(Id::checked(kind.0, items.len())?)?.block_placer?;
-    Some((definitions.block_index(state)?, count.get()))
+    Some(BlockItem {
+        block: definitions.block_index(state)?,
+        count: count.get(),
+        interact: interact.map(|animation| animation.0),
+    })
 }
 
 fn height_message(

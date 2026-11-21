@@ -5,6 +5,7 @@ pub mod operator_broadcast;
 mod player_pose;
 mod vanilla_blocks;
 mod vanilla_brains;
+mod vanilla_swing;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
 use mcrs_minecraft_chat_server::ChatPlugin;
@@ -31,6 +32,7 @@ pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
+pub use vanilla_swing::VanillaSwingPlugin;
 
 pub struct MinecraftServerPlugins {
     pub core: ServerCorePlugin,
@@ -89,6 +91,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
             .add(VanillaBlockPlacePlugin)
+            .add(VanillaSwingPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
