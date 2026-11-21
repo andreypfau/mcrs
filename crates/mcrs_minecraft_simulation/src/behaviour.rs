@@ -35,6 +35,10 @@ pub trait MemoryPartition: Sized {
     fn split(&mut self) -> Vec<(u64, Self)>;
 
     fn merge(&mut self, part: Self);
+
+    fn copy_cell(&self, cell: u64) -> Self;
+
+    fn drop_cell(&mut self, cell: u64);
 }
 
 impl MemoryPartition for () {
@@ -43,6 +47,10 @@ impl MemoryPartition for () {
     }
 
     fn merge(&mut self, (): Self) {}
+
+    fn copy_cell(&self, _cell: u64) -> Self {}
+
+    fn drop_cell(&mut self, _cell: u64) {}
 }
 
 pub trait BlockBehaviour<K: Kinds>: Sync + Sized {

@@ -24,7 +24,7 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) palette: PaletteBuffer,
     pub(crate) chain: Chain<K>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
-    pub(crate) hot: FxHashMap<u64, i64>,
+    pub(crate) hot: FxHashMap<u64, HotCell>,
     pub(crate) published_ticks: FxHashSet<(BlockPos, K::Block)>,
     pub(crate) published_consumed: FxHashSet<(BlockPos, K::Block)>,
 }
@@ -72,12 +72,19 @@ impl<K: Kinds> Default for BlockShard<K> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct HotCell {
+    pub(crate) until: i64,
+    pub(crate) streak: u32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KernelConfig {
     pub tick_budget: u32,
     pub event_drain_bound: u32,
     pub chain_limit: ChainLimit,
     pub hot_ticks: i64,
+    pub tile_threshold: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,6 +106,7 @@ impl Default for KernelConfig {
             event_drain_bound: 1_000_000,
             chain_limit: ChainLimit::Limited(1_000_000),
             hot_ticks: 40,
+            tile_threshold: 16,
         }
     }
 }

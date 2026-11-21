@@ -437,7 +437,7 @@ impl BlockBehaviour<ProbeKinds> for Membership {
 }
 
 fn membership_marks(path: &Path<'_>) -> (BlockStateId, BlockStateId, bool) {
-    let mut lab = Lab::new(KernelConfig::default());
+    let mut lab = Lab::new(tiles_always());
     lab.host.put(P, A);
     lab.host.put(Q, A);
     let block = ProbeFacts.block_of(A);
@@ -490,7 +490,7 @@ impl BlockBehaviour<ProbeKinds> for Requeue {
 }
 
 fn requeue_deliveries(path: &Path<'_>) -> (Vec<(BlockPos, i32)>, Vec<(BlockPos, i32)>) {
-    let mut lab = Lab::new(KernelConfig::default());
+    let mut lab = Lab::new(tiles_always());
     lab.host.put(EVENT_A, A);
     lab.host.put(EVENT_B, A);
     let block = ProbeFacts.block_of(A);
@@ -526,6 +526,7 @@ fn a_copy_of_a_later_pending_event_is_dropped_and_a_copy_of_a_delivered_one_is_k
 fn the_event_drain_bound_holds_for_the_whole_tiled_phase() {
     let config = KernelConfig {
         event_drain_bound: 1,
+        tile_threshold: 0,
         ..KernelConfig::default()
     };
     for path in [Path::Scalar, Path::Single] {
@@ -562,6 +563,7 @@ fn the_event_drain_bound_holds_for_the_whole_tiled_phase() {
 
 const WEST_EDGE: BlockPos = BlockPos::new(63, 0, 40);
 const EAST_EDGE: BlockPos = BlockPos::new(64, 0, 40);
+const FAR_AWAY: BlockPos = BlockPos::new(150, 0, 150);
 
 struct Replacer;
 
@@ -587,36 +589,57 @@ impl BlockBehaviour<ProbeKinds> for Replacer {
     }
 }
 
-fn replacer_outcome(path: &Path<'_>) -> (Vec<BlockPos>, BlockStateId, u32) {
-    let mut lab = Lab::new(KernelConfig::default());
+fn tiles_always() -> KernelConfig {
+    KernelConfig {
+        tile_threshold: 0,
+        ..KernelConfig::default()
+    }
+}
+
+fn replacer_outcome(path: &Path<'_>) -> (Vec<BlockPos>, BlockStateId, u32, u32) {
+    let mut lab = Lab::new(tiles_always());
     lab.host.put(WEST_EDGE, A);
     lab.host.put(EAST_EDGE, A);
+    lab.host.put(FAR_AWAY, A);
     let block = ProbeFacts.block_of(A);
     let seeds = [
         event_message(0, EAST_EDGE, block),
         event_message(1, WEST_EDGE, block),
+        event_message(2, FAR_AWAY, block),
     ];
     let out = lab.tick(&Replacer, 1, &seeds, path);
     let delivered = out.delivered.iter().map(|event| event.pos).collect();
-    (delivered, lab.host.state(WEST_EDGE), out.report.tile_redos)
+    (
+        delivered,
+        lab.host.state(WEST_EDGE),
+        out.report.tile_redos,
+        out.report.tile_redo_items,
+    )
 }
 
 #[test]
 fn an_earlier_event_in_a_later_tile_still_runs_before_the_event_it_invalidates() {
-    let (delivered, west, redos) = replacer_outcome(&Path::Scalar);
-    assert_eq!(delivered, vec![EAST_EDGE]);
+    let (delivered, west, redos, redone) = replacer_outcome(&Path::Scalar);
+    assert_eq!(delivered, vec![EAST_EDGE, FAR_AWAY]);
     assert_eq!(west, B, "the first event replaced the block of the second");
-    assert_eq!(redos, 0);
+    assert_eq!((redos, redone), (0, 0));
     for seed in [1, 2] {
         let shuffled = Shuffled { threads: 4, seed };
-        let (delivered, west, redos) = replacer_outcome(&Path::Tiled(&shuffled));
+        let (delivered, west, redos, redone) = replacer_outcome(&Path::Tiled(&shuffled));
         assert_eq!(
             delivered,
-            vec![EAST_EDGE],
+            vec![EAST_EDGE, FAR_AWAY],
             "the tiles give the scalar result"
         );
         assert_eq!(west, B);
-        assert_eq!(redos, 1, "the phase ran again on the serial path");
+        assert_eq!(
+            redos, 1,
+            "the out-of-order pair sent its tiles to the serial path"
+        );
+        assert_eq!(
+            redone, 2,
+            "only the two conflicting tiles ran again, the far tile kept its result"
+        );
     }
 }
 
@@ -704,7 +727,7 @@ fn a_tick_in_a_later_tile_sees_what_an_earlier_tile_consumed_and_scheduled() {
     for seed in [1, 2] {
         let shuffled = Shuffled { threads: 4, seed };
         for path in [Path::Scalar, Path::Tiled(&shuffled)] {
-            let mut lab = Lab::new(KernelConfig::default());
+            let mut lab = Lab::new(tiles_always());
             lab.host.put(WEST_MARK, A);
             lab.host.put(EAST_MARK, A);
             let block = ProbeFacts.block_of(A);
@@ -721,4 +744,35 @@ fn a_tick_in_a_later_tile_sees_what_an_earlier_tile_consumed_and_scheduled() {
             assert_eq!(out.report.tile_redos, 0, "the tiles ran in sequence order");
         }
     }
+}
+
+#[test]
+fn a_cell_that_conflicts_again_after_it_cooled_stays_hot_longer() {
+    let shuffled = Shuffled {
+        threads: 4,
+        seed: 1,
+    };
+    let mut lab = Lab::new(tiles_always());
+    let block = ProbeFacts.block_of(A);
+    let mut redos = Vec::new();
+    for now in [1, 50, 120, 260, 400] {
+        lab.host.put(WEST_EDGE, A);
+        lab.host.put(EAST_EDGE, A);
+        let seeds = [
+            event_message(0, EAST_EDGE, block),
+            event_message(1, WEST_EDGE, block),
+        ];
+        let out = lab.tick(&Replacer, now, &seeds, &Path::Tiled(&shuffled));
+        assert_eq!(
+            lab.host.state(WEST_EDGE),
+            B,
+            "the scalar result at tick {now}"
+        );
+        redos.push(out.report.tile_redos);
+    }
+    assert_eq!(
+        redos,
+        vec![1, 1, 0, 1, 0],
+        "each conflict after the cell cooled doubles its window: 40, 80, then 160 ticks"
+    );
 }
