@@ -223,11 +223,13 @@ semantic. Confidence: high.
   - a piston does not accept a connection, unless the world rule
     `mcrs:redstone_dust_connects_to_pistons` is on.
 
-  After the four connections are calculated, the wire is **straightened**: if neither `north`
-  nor `south` is connected, each of `west` and `east` that is not connected becomes `side`. If
-  neither `west` nor `east` is connected, each of `north` and `south` that is not connected
-  becomes `side`. As a result, a wire with no connected neighbor is a cross, unless it is a kept
-  dot (RS-WIR-004).
+  After the four connections are calculated, the wire is **straightened**. Both tests of the
+  straightening read the four connections as they were calculated, before the straightening
+  changes any of them: if neither `north` nor `south` is connected, each of `west` and `east`
+  that is not connected becomes `side`; if neither `west` nor `east` is connected, each of
+  `north` and `south` that is not connected becomes `side`. As a result, a wire with no
+  connected neighbor is a cross, and a wire with connections on one axis only is a line on that
+  axis, unless it is a kept dot (RS-WIR-004).
 - **Edge cases:** a wire with a single neighbor wire is a line, and it gives its power to both
   ends of the line (Table 1). A dot is a wire with four `none` connections; it gives its power
   only to the block below it.
@@ -275,10 +277,12 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
   - a wire at P + d + U, for each horizontal d, if P + d is a conductor and P + U is not a
     conductor.
 
-- **Edge cases:** a wire on a glass block gives its power to a wire one block lower next to the
-  glass, because glass is not a conductor and the lower wire reads the wire above its neighbor
-  only through a conductor. The lower wire does not give its power up onto the glass. This is
-  the one-way step of glass, top slabs and upside-down stairs.
+- **Edge cases:** a wire one block lower beside a glass block gives its power up to the wire on
+  the glass: the upper wire reads the wire below its neighbor, because that neighbor (air) is
+  not a conductor. The wire on the glass does not give its power down: the lower wire reads a
+  wire above its neighbor only when that neighbor is a conductor, and glass is not. Power
+  climbs the step and does not come down it. This is the one-way step of glass, top slabs and
+  upside-down stairs.
 
 Provenance: `documentation`. Kind: semantic. Confidence: high.
 
@@ -472,7 +476,8 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
 - **Edge cases:** players and mobs are living entities; a spectator is not an entity to a
   plate. Items are entities. The server reports the entities on each plate every tick. The
   server knows the plates of a section from the moment the section loads, so a saved plate
-  senses entities as a placed plate does.
+  senses entities as a placed plate does. A player that another cell owns is not reported to
+  the plates of this cell (section 13).
 
 Provenance: `documentation`. Kind: semantic. Confidence: high.
 
@@ -740,7 +745,9 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
     the block and arrives with it (RS-PST-007);
   - a piston that is `extended`, a piston head and a moving block are not movable;
   - air ends a line; a position outside the world (void air) makes the set fail, so a piston
-    never pushes a block out of the world;
+    never pushes a block out of the world; a position that this partition cannot read, or a
+    destination that it cannot write (a column of another cell, `cells.md`), makes the set fail,
+    so a move never leaves its payload behind in one partition and its block in another;
   - a block with the explosion resistance of bedrock (hardness −1) is not movable.
 
   The push set is built from the start position in this way. A **line** from a position Q in the
@@ -819,11 +826,17 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium.
   `mcrs:carried`, the block entity that the payload carries (RS-PST-004). When a column loads
   with a moving block, the server restores the payload from the record and makes a neighbor
   request at the moving block; a neighbor request at a moving block whose move is due and has no
-  scheduled tick completes the move.
+  scheduled tick completes the move. The server writes the record in the tick of the move,
+  after the block entities that the move replaced are removed, and links it to its section at
+  once, so the save of that tick holds it.
 - **Edge cases:** a moving block is not movable, not a conductor and has no output signal. A set
   that replaces a moving block before its tick discards its payload. A moving block whose tick
-  finds no payload keeps its place until a record restores the payload. A moving block has the
-  collision shape of its payload, offset by the progress (RS-PST-009).
+  finds no payload keeps its place until a record restores the payload. A tick that comes before
+  the payload is 2 ticks old (a tick left by an earlier payload at the same position) schedules
+  itself again for the ticks that are left. A moving block has the collision shape of its
+  payload, offset by the progress (RS-PST-009). A block event whose direction is not the
+  `facing` of the piston at that time is stale: the piston checks its power again and the event
+  does nothing.
 
 Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
@@ -1055,6 +1068,9 @@ semantic. Confidence: high.
   the client animates the move from a record that arrives during the move is not checked.
 - The update order of the experimental wire evaluator (RS-WIR-009) is semantic; the orientation
   of SIM-NBR-007 is not used.
+- A player that stands on a plate in a column of another cell presses it only when the player's
+  cell owns the plate: the players of a cell are not replicated to the other cells of the world
+  (`cells.md`, "Ownership of players and entities").
 - Blocks that need a system this version does not have: the explosion of TNT and the primed
   TNT entity; the detector rail and its minecarts; the sculk sensors and the vibration events;
   the lightning rod and lightning; the target block and its projectiles; the trapped chest and

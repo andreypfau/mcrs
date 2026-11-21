@@ -9,7 +9,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::Kind;
-use crate::memory::{Carried, HasRedstoneMemory, HasRedstoneSnapshot, MovingPayload};
+use crate::memory::{Carried, HasRedstoneMemory, HasRedstoneSnapshot, MovePhase, MovingPayload};
 use crate::power::{has_signal_from, neighbour_state, offset_by, state_at};
 use crate::push_set::{Destroy, Move, is_pushable, push_direction, resolve};
 use crate::rules::RedstoneRules;
@@ -143,6 +143,50 @@ pub(crate) fn check_extend<K, V, F, B>(
     }
 }
 
+fn start_moving<K, V, F, B>(
+    cx: &mut Cx<'_, K, V, F, B>,
+    table: &RedstoneTable,
+    at: BlockPos,
+    moving: BlockStateId,
+    payload: MovingPayload,
+) where
+    K: Kinds<Block = Id<Block>>,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
+{
+    store_payload(cx, at, payload);
+    cx.set(at, moving, MOVING_FLAGS, LIMIT);
+    cx.schedule_block_tick(at, table.block_of(moving), MOVE_TICKS, TickPriority::Normal);
+}
+
+fn destinations_owned<K, V, F, B>(
+    cx: &mut Cx<'_, K, V, F, B>,
+    moved: &[(BlockPos, BlockStateId)],
+    push: Direction,
+    movement: Move,
+    pos: BlockPos,
+    facing: Direction,
+) -> bool
+where
+    K: Kinds,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+{
+    for &(at, _) in moved {
+        let Some(destination) = neighbour(at, push) else {
+            return false;
+        };
+        if !cx.owns(destination) {
+            return false;
+        }
+    }
+    movement == Move::Retract || neighbour(pos, facing).is_some_and(|front| cx.owns(front))
+}
+
 fn move_blocks<K, V, F, B>(
     cx: &mut Cx<'_, K, V, F, B>,
     table: &RedstoneTable,
@@ -188,27 +232,30 @@ where
     let Some(moving) = table.moving_piston(push, sticky) else {
         return false;
     };
+    let phase = match movement {
+        Move::Extend => MovePhase::Extending,
+        Move::Retract => MovePhase::Retracting,
+    };
+    if !destinations_owned(cx, &moved, push, movement, pos, facing) {
+        return false;
+    }
     let mut occupied: Vec<BlockPos> = Vec::with_capacity(moved.len().saturating_add(1));
     for &(at, state) in moved.iter().rev() {
         let Some(destination) = neighbour(at, push) else {
             return false;
         };
-        store_payload(
+        start_moving(
             cx,
+            table,
             destination,
+            moving,
             MovingPayload {
                 state,
                 facing: push,
                 carried: Carried::Block,
+                phase,
                 started: now,
             },
-        );
-        cx.set(destination, moving, MOVING_FLAGS, LIMIT);
-        cx.schedule_block_tick(
-            destination,
-            table.block_of(moving),
-            MOVE_TICKS,
-            TickPriority::Normal,
         );
         occupied.push(destination);
     }
@@ -217,22 +264,18 @@ where
         && let Some(head) = table.piston_head(facing, sticky)
         && let Some(moving_head) = table.moving_piston(facing, sticky)
     {
-        store_payload(
+        start_moving(
             cx,
+            table,
             front,
+            moving_head,
             MovingPayload {
                 state: head,
                 facing,
                 carried: Carried::Head,
+                phase: MovePhase::Extending,
                 started: now,
             },
-        );
-        cx.set(front, moving_head, MOVING_FLAGS, LIMIT);
-        cx.schedule_block_tick(
-            front,
-            table.block_of(moving_head),
-            MOVE_TICKS,
-            TickPriority::Normal,
         );
         occupied.push(front);
     }
@@ -275,6 +318,10 @@ where
     let Some(facing) = direction_from_index(facing_index) else {
         return false;
     };
+    if table.facing(state) != Some(facing) {
+        check_extend(cx, table, rules, pos, state);
+        return false;
+    }
     let sticky = sticky_of(table, state);
     let powered = is_powered(cx, table, rules, pos, facing);
     if powered && (event == EVENT_RETRACT || event == EVENT_RETRACT_WITHOUT_PULL) {
@@ -314,6 +361,7 @@ where
             state: base,
             facing,
             carried: Carried::Base,
+            phase: MovePhase::Retracting,
             started: cx.now(),
         },
     );
@@ -357,11 +405,36 @@ where
             } else {
                 cx.set(front, table.air(), BlockUpdateFlags::ALL, LIMIT);
             }
+        } else {
+            cx.set(front, table.air(), BlockUpdateFlags::ALL, LIMIT);
         }
     } else {
         cx.set(front, table.air(), BlockUpdateFlags::ALL, LIMIT);
     }
     true
+}
+
+pub(crate) fn tick_complete<K, V, F, B>(
+    cx: &mut Cx<'_, K, V, F, B>,
+    table: &RedstoneTable,
+    pos: BlockPos,
+) where
+    K: Kinds<Block = Id<Block>>,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+    B::Memory: HasRedstoneMemory,
+    B::Shared: HasRedstoneSnapshot,
+{
+    let now = cx.now().0;
+    let age = payload_at(cx, pos).map(|payload| now.saturating_sub(payload.started.0));
+    match age {
+        Some(age) if age < i64::from(MOVE_TICKS) => {
+            let left = i32::try_from(i64::from(MOVE_TICKS).saturating_sub(age)).unwrap_or(1);
+            cx.schedule_block_tick(pos, Block::MovingPiston.id(), left, TickPriority::Normal);
+        }
+        _ => complete_move(cx, table, pos),
+    }
 }
 
 pub(crate) fn complete_move<K, V, F, B>(

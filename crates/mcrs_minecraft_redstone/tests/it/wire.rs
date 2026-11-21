@@ -94,7 +94,17 @@ fn fifteen_wires(mut world: World) {
 
 #[test]
 fn wire_climbs_onto_glass_and_does_not_come_down_from_it() {
-    let mut world = World::new();
+    glass_step(World::new);
+    glass_step(|| {
+        World::with_rules(RedstoneRules {
+            wire_evaluator: WireEvaluator::Experimental,
+            ..RedstoneRules::JAVA
+        })
+    });
+}
+
+fn glass_step(new_world: impl Fn() -> World) {
+    let mut world = new_world();
     let wire = world.default("minecraft:redstone_wire");
     let low = at(0, 0);
     let glass = east(low, 1);
@@ -112,7 +122,7 @@ fn wire_climbs_onto_glass_and_does_not_come_down_from_it() {
         "the low wire shows the climb"
     );
 
-    let mut world = World::new();
+    let mut world = new_world();
     world.fill(glass, world.default("minecraft:glass"));
     world.fill(high, wire);
     world.fill(low, wire);

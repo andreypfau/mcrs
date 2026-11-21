@@ -44,17 +44,24 @@ pub enum Carried {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MovePhase {
+    Extending,
+    Retracting,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MovingPayload {
     pub state: BlockStateId,
     pub facing: Direction,
     pub carried: Carried,
+    pub phase: MovePhase,
     pub started: GameTick,
 }
 
 impl MovingPayload {
     #[must_use]
     pub fn is_extending(&self) -> bool {
-        self.carried != Carried::Base
+        self.phase == MovePhase::Extending
     }
 }
 

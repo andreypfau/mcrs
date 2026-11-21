@@ -6,11 +6,16 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::world::{World, above, at, east, south};
 
-fn piston(world: &World, sticky: bool) -> BlockStateId {
-    let block = if sticky {
-        "minecraft:sticky_piston"
-    } else {
-        "minecraft:piston"
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PistonKind {
+    Normal,
+    Sticky,
+}
+
+fn piston(world: &World, kind: PistonKind) -> BlockStateId {
+    let block = match kind {
+        PistonKind::Sticky => "minecraft:sticky_piston",
+        PistonKind::Normal => "minecraft:piston",
     };
     world.facing(world.default(block), Direction::East)
 }
@@ -26,7 +31,7 @@ fn stones(world: &mut World, from: BlockPos, count: i32) {
 fn a_piston_pushes_twelve_blocks_and_not_thirteen() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     stones(&mut world, east(base, 1), 12);
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.tick();
@@ -42,7 +47,7 @@ fn a_piston_pushes_twelve_blocks_and_not_thirteen() {
     }
 
     let mut world = World::new();
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     stones(&mut world, east(base, 1), 13);
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.ticks(3);
@@ -54,7 +59,10 @@ fn a_piston_pushes_twelve_blocks_and_not_thirteen() {
 fn a_piston_does_not_push_a_block_out_of_the_world() {
     let mut world = World::new();
     let base = BlockPos::new(0, 126, 0);
-    world.fill(base, world.facing(piston(&world, false), Direction::Up));
+    world.fill(
+        base,
+        world.facing(piston(&world, PistonKind::Normal), Direction::Up),
+    );
     world.fill(above(base), world.default("minecraft:stone"));
     world.place(east(base, 1), world.default("minecraft:redstone_block"));
     world.ticks(3);
@@ -71,7 +79,7 @@ fn a_moving_block_without_its_record_waits_for_the_record() {
     let mut world = World::new();
     let base = at(0, 0);
     let moving = east(base, 2);
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.fill(east(base, 1), world.default("minecraft:stone"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.tick();
@@ -102,7 +110,7 @@ fn a_moving_block_without_its_record_waits_for_the_record() {
 fn a_chest_stops_a_piston() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.fill(east(base, 1), world.default("minecraft:chest"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.ticks(3);
@@ -113,7 +121,7 @@ fn a_chest_stops_a_piston() {
 fn a_piston_pops_a_torch_in_its_way() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.fill(east(base, 1), world.default("minecraft:torch"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.ticks(3);
@@ -125,7 +133,7 @@ fn a_piston_pops_a_torch_in_its_way() {
 fn a_sticky_piston_pulls_its_block_back() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, true));
+    world.fill(base, piston(&world, PistonKind::Sticky));
     world.fill(east(base, 1), world.default("minecraft:stone"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.ticks(3);
@@ -144,18 +152,30 @@ fn a_sticky_piston_pulls_its_block_back() {
 fn a_sticky_piston_on_a_one_tick_pulse_leaves_its_block() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, true));
+    world.fill(base, piston(&world, PistonKind::Sticky));
     world.fill(east(base, 1), world.default("minecraft:stone"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.tick();
     world.place(above(base), world.default("minecraft:air"));
-    world.ticks(4);
+    world.tick();
+    assert!(
+        world.is(east(base, 2), "minecraft:stone"),
+        "the short pulse finishes the move of the pushed stone at once"
+    );
+    assert!(
+        world.is(base, "minecraft:moving_piston"),
+        "the base retracts for two ticks"
+    );
+    world.ticks(2);
     assert_eq!(world.value(world.state(base), "extended"), "false");
     assert!(
         world.is(east(base, 2), "minecraft:stone"),
         "the block stays away"
     );
-    assert!(world.is(east(base, 1), "minecraft:air"));
+    assert!(
+        world.is(east(base, 1), "minecraft:air"),
+        "the head of the short pulse is gone"
+    );
 }
 
 #[test]
@@ -165,7 +185,7 @@ fn a_sticky_piston_without_the_short_pulse_rule_pulls_its_block_back() {
         ..RedstoneRules::JAVA
     });
     let base = at(0, 0);
-    world.fill(base, piston(&world, true));
+    world.fill(base, piston(&world, PistonKind::Sticky));
     world.fill(east(base, 1), world.default("minecraft:stone"));
     world.place(above(base), world.default("minecraft:redstone_block"));
     world.tick();
@@ -181,7 +201,7 @@ fn a_sticky_piston_without_the_short_pulse_rule_pulls_its_block_back() {
 fn quasi_connectivity_powers_a_piston_from_above_after_an_update() {
     let mut world = World::new();
     let base = at(0, 0);
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.place(
         east(above(base), 1),
         world.default("minecraft:redstone_block"),
@@ -200,7 +220,7 @@ fn quasi_connectivity_powers_a_piston_from_above_after_an_update() {
         quasi_connectivity: false,
         ..RedstoneRules::JAVA
     });
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.place(
         east(above(base), 1),
         world.default("minecraft:redstone_block"),
@@ -214,7 +234,7 @@ fn quasi_connectivity_powers_a_piston_from_above_after_an_update() {
 fn slime_carries_a_block_on_its_side_and_not_honey() {
     let mut world = World::new();
     let base = above(above(at(0, 0)));
-    world.fill(base, piston(&world, false));
+    world.fill(base, piston(&world, PistonKind::Normal));
     world.fill(east(base, 1), world.default("minecraft:slime_block"));
     world.fill(south(east(base, 1), 1), world.default("minecraft:stone"));
     world.fill(

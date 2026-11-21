@@ -27,8 +27,8 @@ pub use component::{
 };
 pub use daylight::detector_power;
 pub use memory::{
-    AnalogSource, Carried, HasRedstoneMemory, HasRedstoneSnapshot, MovingPayload, Presence,
-    RedstoneMemory, RedstoneSnapshot, Sensor, ToggleLog,
+    AnalogSource, Carried, HasRedstoneMemory, HasRedstoneSnapshot, MovePhase, MovingPayload,
+    Presence, RedstoneMemory, RedstoneSnapshot, Sensor, ToggleLog,
 };
 pub use piston::MOVE_TICKS;
 pub use plate::signal_for as plate_signal_for;

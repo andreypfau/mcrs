@@ -134,7 +134,7 @@ impl Redstone {
             Some(Kind::Comparator) => comparator::refresh(cx, table, at, state),
             Some(Kind::Observer) => observer::block_tick(cx, table, at, state),
             Some(Kind::Plate(_)) => plate::block_tick(cx, table, at, state),
-            Some(Kind::MovingPiston) => piston::complete_move(cx, table, at),
+            Some(Kind::MovingPiston) => piston::tick_complete(cx, table, at),
             Some(Kind::Tripwire) => tripwire::string_tick(cx, table, at, state),
             Some(Kind::TripwireHook) => tripwire::hook_tick(cx, table, at, state),
             _ => {}

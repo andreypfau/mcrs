@@ -4,15 +4,15 @@ use bevy_ecs::system::{Commands, Query, ResMut};
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_engine::block_simulation::BlockMemory;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
-use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
+use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, BlockEntityPos, SectionBlockEntities, spawn_block_entities,
+    BlockEntity, BlockEntityPos, SectionBlockEntities,
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_redstone::{HasRedstoneMemory, MAX_SIGNAL};
 use mcrs_minecraft_simulation::BlockBehaviour;
 
-use crate::block_entities::entity_at;
+use crate::block_entities::{entity_at, spawn_linked};
 
 pub(crate) fn restore_comparator_outputs<B>(
     loaded: Query<(&BlockEntityPos, &BlockEntity), Added<BlockEntity>>,
@@ -77,6 +77,6 @@ pub(crate) fn persist_comparator_outputs<B>(
         }
     }
     if !spawned.is_empty() {
-        spawn_block_entities(&mut commands, InDimension(dimension), spawned);
+        spawn_linked(&mut commands, dimension, index, spawned);
     }
 }

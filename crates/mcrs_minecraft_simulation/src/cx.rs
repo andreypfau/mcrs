@@ -147,6 +147,17 @@ where
         self.shared
     }
 
+    pub fn owns(&mut self, pos: BlockPos) -> bool {
+        match self.volume.access(SectionPos::from(pos)) {
+            Access::Write => true,
+            Access::Foreign => {
+                self.task_leaves();
+                false
+            }
+            Access::Read | Access::Unloaded | Access::Outside => false,
+        }
+    }
+
     pub fn state(&mut self, pos: BlockPos) -> Result<BlockStateId, Unavailable> {
         match self.volume.block(pos) {
             Err(Unavailable::Outside) => Ok(self.facts.void_air()),
