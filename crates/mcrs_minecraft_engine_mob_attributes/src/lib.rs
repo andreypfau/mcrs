@@ -1,17 +1,27 @@
+mod apply_attribute_edits;
 mod apply_row_attribute_edits;
 mod attribute_changed;
 mod attribute_edit;
 mod attribute_edits;
 mod attribute_target;
 mod forget_removed_rows;
+mod mob_attributes;
 mod mob_attributes_plugin;
 mod motion_field;
+mod project_motion;
 mod project_row_motion;
+mod row_attribute_changed;
+mod row_attribute_edit;
 mod row_attributes;
+mod row_attributes_plugin;
 
 pub use attribute_changed::AttributeChanged;
 pub use attribute_edit::AttributeEdit;
 pub use attribute_edits::AttributeEdits;
 pub use attribute_target::AttributeTarget;
+pub use mob_attributes::MobAttributes;
 pub use mob_attributes_plugin::MobAttributesPlugin;
+pub use row_attribute_changed::RowAttributeChanged;
+pub use row_attribute_edit::RowAttributeEdit;
 pub use row_attributes::RowAttributes;
+pub use row_attributes_plugin::RowAttributesPlugin;

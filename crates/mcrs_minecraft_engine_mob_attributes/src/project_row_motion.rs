@@ -4,13 +4,13 @@ use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity_rows::{Placed, RowStore};
 use mcrs_minecraft_physics::Rest;
 
-use crate::attribute_changed::AttributeChanged;
 use crate::attribute_target::AttributeTarget;
 use crate::motion_field::motion_field;
+use crate::row_attribute_changed::RowAttributeChanged;
 use crate::row_attributes::RowAttributes;
 
 pub(crate) fn project_row_motion<M: Send + Sync + 'static>(
-    mut changed: MessageReader<AttributeChanged>,
+    mut changed: MessageReader<RowAttributeChanged>,
     attributes: Res<RowAttributes>,
     mobs: Res<Mobs>,
     mut rows: ResMut<RowStore<M>>,

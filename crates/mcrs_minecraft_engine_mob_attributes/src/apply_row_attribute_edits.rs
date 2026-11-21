@@ -3,14 +3,14 @@ use bevy_ecs::system::{Res, ResMut};
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity_attribute::{AttributeSet, InstanceChange};
 
-use crate::attribute_changed::AttributeChanged;
-use crate::attribute_edit::AttributeEdit;
 use crate::attribute_target::AttributeTarget;
+use crate::row_attribute_changed::RowAttributeChanged;
+use crate::row_attribute_edit::RowAttributeEdit;
 use crate::row_attributes::RowAttributes;
 
 pub(crate) fn apply_row_attribute_edits(
-    mut edits: MessageReader<AttributeEdit>,
-    mut changed: MessageWriter<AttributeChanged>,
+    mut edits: MessageReader<RowAttributeEdit>,
+    mut changed: MessageWriter<RowAttributeChanged>,
     mut rows: ResMut<RowAttributes>,
     mobs: Res<Mobs>,
 ) {
@@ -38,7 +38,7 @@ pub(crate) fn apply_row_attribute_edits(
             change
         };
         if change == InstanceChange::Changed {
-            changed.write(AttributeChanged {
+            changed.write(RowAttributeChanged {
                 target: edit.target,
                 attribute: edit.attribute,
             });

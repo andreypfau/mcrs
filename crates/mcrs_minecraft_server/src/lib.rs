@@ -17,7 +17,7 @@ use mcrs_minecraft_engine_attributes::PlayerAttributesPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
-use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
+use mcrs_minecraft_engine_mob_attributes::RowAttributesPlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::RowPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
@@ -120,7 +120,7 @@ pub struct VanillaEntityAttributesPlugin;
 impl Plugin for VanillaEntityAttributesPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(PlayerAttributesPlugin);
-        app.add_dimension_plugin(MobAttributesPlugin::<MobColumn>::default());
+        app.add_dimension_plugin(RowAttributesPlugin::<MobColumn>::default());
     }
 }
 
