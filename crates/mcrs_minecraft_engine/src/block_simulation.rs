@@ -33,7 +33,7 @@ use mcrs_minecraft_simulation::{
     Env, Footprints, GameTick, KernelConfig, Message, MessageBody, PartitionKind, Phase,
     PhaseInput, RandomPicks, RandomTickTable, SavedTick, SectionProperties, SectionTicksRef,
     Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
-    TickQueue, VanillaOrder,
+    TickQueue, UpdateRequest, VanillaOrder,
 };
 use mcrs_minecraft_volume::{BlockVolume, PalettedSection};
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
@@ -61,12 +61,17 @@ use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InertBlocks;
 
-impl BlockBehaviour<WorldKinds> for InertBlocks {}
+impl BlockBehaviour<WorldKinds> for InertBlocks {
+    type Memory = ();
+}
 
 impl BlockDrops for InertBlocks {}
 
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct BlockRules<B>(pub B);
+
+#[derive(Resource, Debug, Default)]
+pub struct BlockMemory<B: BlockBehaviour<WorldKinds>>(pub B::Memory);
 
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DimensionBlockRules(pub fn(&mut SubApp));
@@ -95,6 +100,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
 {
     fn build(&self, app: &mut App) {
         app.insert_resource(BlockRules(self.rules.clone()));
+        app.insert_resource(BlockMemory::<B>(B::Memory::default()));
         app.init_resource::<BlockSimulation>();
         app.init_resource::<RandomTickSpeed>();
         app.init_resource::<LandedTicks>();
@@ -138,6 +144,7 @@ pub struct BlockSimulation {
     shard: BlockShard<WorldKinds>,
     out: StepOutput<WorldKinds>,
     inbound: Vec<Message<WorldKinds>>,
+    requests: Vec<UpdateRequest<WorldKinds>>,
     ledgers: Vec<ChainLedger>,
     held: FxHashSet<SectionPos>,
     activated: FxHashSet<ColumnPos>,
@@ -156,6 +163,10 @@ impl BlockSimulation {
     ) {
         self.inbound.append(messages);
         self.ledgers.append(ledgers);
+    }
+
+    pub fn request_update(&mut self, request: UpdateRequest<WorldKinds>) {
+        self.requests.push(request);
     }
 
     fn hold(&mut self, ticks: &ColumnTicks) {
@@ -329,6 +340,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     simulation: ResMut<'w, BlockSimulation>,
     landed: ResMut<'w, LandedTicks>,
     rules: Res<'w, BlockRules<B>>,
+    memory: ResMut<'w, BlockMemory<B>>,
     definitions: Option<Res<'w, Blocks>>,
     time: Res<'w, GameTime>,
 }
@@ -448,6 +460,19 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         });
     }
 
+    for request in simulation.requests.drain(..) {
+        if !owned_columns::owns(owned, ColumnPos::from(request.pos())) {
+            continue;
+        }
+        let stamp = SubTick::runtime(now, counter);
+        counter = counter.saturating_add(1);
+        inbound.push(Message {
+            stamp,
+            origin: ChainOrigin { stamp, partition },
+            body: MessageBody::Update(request),
+        });
+    }
+
     let Some(view) = blocks.get_mut(dimension) else {
         return;
     };
@@ -464,6 +489,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.activate(&volume, now);
 
     let rules = &kernel.rules.0;
+    let memory = &mut kernel.memory.0;
     let table = simulation.random_table.get_or_insert_default();
     let speed = random.speed.0;
     let seed = *simulation.random_seed.get_or_insert_with(|| {
@@ -515,6 +541,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 now,
                 &mut volume,
                 &env,
+                &mut *memory,
                 picks,
                 &mut out,
                 &spread,
@@ -535,6 +562,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             at,
             &mut volume,
             &env,
+            &mut *memory,
             input,
             &mut out,
         ) {

@@ -102,7 +102,7 @@ impl PhysicsTables {
 }
 
 #[derive(Resource, Debug, Default)]
-pub(crate) struct Bodies(pub(crate) BodyGrid);
+pub struct Bodies(pub BodyGrid);
 
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub(crate) struct CrowdDamageType(pub(crate) Option<u32>);

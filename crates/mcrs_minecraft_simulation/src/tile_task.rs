@@ -96,7 +96,7 @@ impl<K: Kinds> TileTask<K> {
             overlay: &mut self.overlay,
             last: Cell::default(),
         };
-        let mut cx = Cx::new(&mut self.shard, &mut volume, &mut self.out, env, now);
+        let mut cx = Cx::new(&mut self.shard, &mut volume, &mut self.out, env, None, now);
         cx.task = Some(TileCx {
             region,
             base,
@@ -108,11 +108,16 @@ impl<K: Kinds> TileTask<K> {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each parameter is a distinct part of the world that the commit writes"
+    )]
     pub(crate) fn commit<V, F, B, P>(
         &mut self,
         shard: &mut BlockShard<K>,
         volume: &mut V,
         env: &Env<'_, F, B, P>,
+        memory: &mut B::Memory,
         out: &mut StepOutput<K>,
         now: GameTick,
         reruns: &mut Vec<usize>,
@@ -129,7 +134,7 @@ impl<K: Kinds> TileTask<K> {
         out.writes.append(&mut self.out.writes);
         out.destroyed.append(&mut self.out.destroyed);
         out.report.absorb(self.out.report);
-        let mut cx = Cx::new(shard, volume, out, env, now);
+        let mut cx = Cx::new(shard, volume, out, env, Some(memory), now);
         for mut message in self.out.outbound.drain(..) {
             message.stamp = cx.shard.clock.stamp(now);
             cx.apply(message);

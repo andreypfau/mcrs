@@ -124,11 +124,16 @@ pub fn draw_random_picks(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the step reads or writes"
+)]
 pub fn random_step<K, V, F, B, P, S>(
     shard: &mut BlockShard<K>,
     now: GameTick,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
+    memory: &mut B::Memory,
     picks: RandomPicks<'_>,
     out: &mut StepOutput<K>,
     spread: &S,
@@ -141,7 +146,7 @@ pub fn random_step<K, V, F, B, P, S>(
     S: Spread,
 {
     shard.chain.reset();
-    let mut cx = Cx::new(shard, volume, out, env, now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), now);
     cx.precipitation_step(picks);
 
     let mut tasks = mem::take(&mut shard.tiles);
@@ -153,7 +158,7 @@ pub fn random_step<K, V, F, B, P, S>(
             task.run(world, base, env, picks, now);
         });
         for task in phase {
-            task.commit(shard, volume, env, out, now, &mut reruns);
+            task.commit(shard, volume, env, &mut *memory, out, now, &mut reruns);
         }
     }
     shard.tiles = tasks;
@@ -163,7 +168,7 @@ pub fn random_step<K, V, F, B, P, S>(
         .report
         .random_reruns
         .saturating_add(u32::try_from(reruns.len()).unwrap_or(u32::MAX));
-    let mut cx = Cx::new(shard, volume, out, env, now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(memory), now);
     for hit in reruns.iter().filter_map(|&index| picks.hits.get(index)) {
         cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
     }

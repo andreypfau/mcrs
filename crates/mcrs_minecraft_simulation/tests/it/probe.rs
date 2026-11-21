@@ -426,6 +426,8 @@ impl ProbeBehaviour {
 }
 
 impl BlockBehaviour<ProbeKinds> for ProbeBehaviour {
+    type Memory = ();
+
     fn block_tick<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
         &self,
         cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
@@ -760,6 +762,7 @@ impl Runner {
             at,
             &mut self.host,
             &env,
+            &mut (),
             PhaseInput { inbound, ledgers },
             out,
         )

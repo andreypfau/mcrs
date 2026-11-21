@@ -41,6 +41,12 @@ fn event_lane(kind: PartitionKind, access: Access) -> Lane {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Drops {
+    Released,
+    Withheld,
+}
+
 pub(crate) fn bump(counter: &mut u32) {
     *counter = counter.saturating_add(1);
 }
@@ -49,8 +55,9 @@ fn due_after(now: GameTick, delay: i32) -> GameTick {
     GameTick(now.0.saturating_add(i64::from(delay)))
 }
 
-pub struct Cx<'a, K: Kinds, V, F, B> {
+pub struct Cx<'a, K: Kinds, V, F, B: BlockBehaviour<K>> {
     pub(crate) shard: &'a mut BlockShard<K>,
+    pub(crate) memory: Option<&'a mut B::Memory>,
     pub(crate) volume: &'a mut V,
     pub(crate) out: &'a mut StepOutput<K>,
     pub(crate) facts: &'a F,
@@ -82,10 +89,12 @@ where
         volume: &'a mut V,
         out: &'a mut StepOutput<K>,
         env: &Env<'a, F, B, P>,
+        memory: Option<&'a mut B::Memory>,
         now: GameTick,
     ) -> Self {
         Self {
             shard,
+            memory,
             volume,
             out,
             facts: env.facts,
@@ -122,6 +131,13 @@ where
 
     pub fn now(&self) -> GameTick {
         self.now
+    }
+
+    pub fn memory(&mut self) -> Option<&mut B::Memory> {
+        if self.memory.is_none() {
+            self.task_leaves();
+        }
+        self.memory.as_deref_mut()
     }
 
     pub fn state(&mut self, pos: BlockPos) -> Result<BlockStateId, Unavailable> {
@@ -386,7 +402,7 @@ where
         true
     }
 
-    pub(crate) fn destroy(&mut self, pos: BlockPos, drops: bool, limit: u16) -> bool {
+    pub fn destroy(&mut self, pos: BlockPos, drops: Drops, limit: u16) -> bool {
         let Ok(old) = self.state(pos) else {
             return false;
         };
@@ -396,7 +412,7 @@ where
         self.out.destroyed.push(Destroyed {
             pos,
             state: old,
-            drops,
+            drops: drops == Drops::Released,
         });
         let replacement = self.facts.legacy_block_of_fluid(old);
         self.set(

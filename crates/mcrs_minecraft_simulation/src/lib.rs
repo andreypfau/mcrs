@@ -26,7 +26,8 @@ mod tile_task;
 
 pub use access::{PartitionKind, SectionProperties, SimulatedSections, SimulationVolume};
 pub use behaviour::{BlockBehaviour, BlockFacts};
-pub use cx::Cx;
+pub use chain::neighbour;
+pub use cx::{Cx, Drops};
 pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
 pub use footprints::Footprints;
 pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};

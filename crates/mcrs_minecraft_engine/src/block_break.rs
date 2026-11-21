@@ -9,7 +9,9 @@ use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
 use crate::player_dimensions::PlayerBody;
-use crate::use_item_on_request::{UseItemOnRequest, handle_use_item_on};
+use crate::use_item_on_request::{
+    BlockUseSet, UseItemOnConsumed, UseItemOnRequest, handle_use_item_on,
+};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
@@ -74,6 +76,7 @@ impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
         app.add_message::<UseItemOnRequest>();
+        app.add_message::<UseItemOnConsumed>();
         app.add_message::<BlockActionAck>();
         app.add_message::<BlockBroken>();
         app.add_observer(handle_player_action);
@@ -82,6 +85,12 @@ impl Plugin for BlockBreakPlugin {
         if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
             tracing::error!("a player does not require its dig session: {error}");
         }
+        app.configure_sets(
+            FixedUpdate,
+            BlockUseSet
+                .in_set(TickSet::ClientInput)
+                .after(BlockBreakSet),
+        );
         app.add_systems(
             FixedUpdate,
             (

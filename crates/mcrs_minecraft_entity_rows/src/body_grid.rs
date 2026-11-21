@@ -21,6 +21,10 @@ impl BodyGrid {
         self.tiles.get(&tile).unwrap_or(&NO_BODIES)
     }
 
+    pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileBodies)> {
+        self.tiles.iter().map(|(tile, bodies)| (*tile, bodies))
+    }
+
     pub fn swap(&mut self, tile: TileKey, back: &mut TileBodies) {
         mem::swap(self.tiles.entry(tile).or_default(), back);
     }

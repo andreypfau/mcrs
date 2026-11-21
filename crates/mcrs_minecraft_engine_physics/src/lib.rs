@@ -9,6 +9,7 @@ mod mobs;
 mod test_scene;
 
 pub use entity_motion_plugin::EntityMotionPlugin;
+pub use entity_physics_plugin::Bodies;
 pub use entity_physics_plugin::EntityPass;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::MobPublish;
