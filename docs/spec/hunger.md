@@ -107,12 +107,14 @@ The amount is 0.2 when the player sprints, and 0.05 when it does not. The two am
 add. The server detects a jump from a move packet. The player was on the ground, the client
 says that it is not on the ground, and the move goes up.
 
-**HNG-EXH-004** (`source_suggested`, semantic, confidence: medium). An attack of a player on an
-entity adds 0.1 to the exhaustion when two conditions are true. The attack damage or the enchantment bonus
-is more than 0. The target does not reject the hit (`entity-damage.md`, DMG-HIT-001 to
-DMG-HIT-003). An attack with a rejected hit adds nothing. A target that is not a living entity
-counts as a target that accepts the hit when the game accepts it. `player-attack.md` states the
-attack itself.
+**HNG-EXH-004** An attack of a player on an entity adds 0.1 to the exhaustion when two conditions
+are true. The attack damage or the enchantment bonus is more than 0. The target does not reject the
+hit (`entity-damage.md`, DMG-HIT-001 to DMG-HIT-003). A partial hit counts as a hit that the target
+does not reject, so it adds 0.1, as a full hit does (`player-attack.md`, ATK-DMG-004). An attack
+with a rejected hit adds nothing. A target that is not a living entity counts as a target that
+accepts the hit when the game accepts it. `player-attack.md` states the attack itself.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 **HNG-EXH-005** (`black_box_confirmed`, semantic, confidence: high). A survival break of a block
 with a harvest adds 0.005. `block-breaking.md` states this rule as BRK-LOOT-002 and does not
@@ -409,8 +411,7 @@ None. This document states no behaviour that differs from the reference.
   of -3 then stays until the next change. The question to the owner: state a clamp, or keep the
   stored value?
 - **U3.** The condition of the attack exhaustion (HNG-EXH-004) is "the hit is not rejected". The
-  rule for a target that is not a living entity is not known. The rule for a second hit
-  in the cooldown that is a partial hit is not known.
+  rule for a target that is not a living entity is not known.
 - **U4.** The tick of the first `set_health` after the join is not known. The packet after a respawn has the same open point. The login specification can fix its
   place among the packets of the join.
 - **U5.** The server does not check the sprint permission at a food level of 6 or less. A modified

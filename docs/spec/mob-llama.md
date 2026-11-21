@@ -920,8 +920,8 @@ and it is not in `panic_causes`. Thus no revenge and no panic starts.
 
 ### 14.4 The parallel tick of a caravan
 
-**LLAMA-COST-007** (`design`, semantic, fidelity: envelope, confidence: medium). A caravan is a
-dependency between entities. These rules make the result independent of the thread count:
+**LLAMA-COST-007** A caravan is a dependency between entities. These rules make the result
+independent of the thread count:
 
 1. A join is a pair action (AIT-CPL-001). The proposer is the follower. The proposal names the
    anchor `c` of LLAMA-CAR-003.
@@ -933,10 +933,10 @@ dependency between entities. These rules make the result independent of the thre
    not start, and the follower tries again in its next full evaluation.
 4. A grant writes both links in one step. A new follower is an anchor A for the snapshots of the
    next ticks, not for the proposals of the same merge point.
-5. A stop is a write of the follower to its own head link, and a clear of the tail link of its
-   former head. The tail link of the head names the follower (LLAMA-CAR-001), so only one stop can
-   clear it. The clear applies at the merge point as an unconditional write: clear the tail link
-   when it names this follower.
+5. A stop is also a pair action. Its proposal names the follower and its former head. The grant
+   clears the head link of the follower. In the same step, it clears the tail link of the former
+   head when that link names this follower. No condition makes the proposal stale. The grant
+   applies at the merge point, as the grant of a join does. It is not a write of PHY-CMP-015.
 6. The chain walks of LLAMA-CAR-003 and LLAMA-CAR-005 read the snapshot. They read at most 9 rows
    each.
 
@@ -945,7 +945,10 @@ when two llamas select one anchor in one tick. The reference then gives the anch
 ticks first; that order is not a rule. A break of a caravan travels down the chain one link in each
 full evaluation, with the extra delay of the snapshot. These invariants stay true. Each llama has at
 most one head link and one tail link. When the tail link of `b` names `a`, the head link of `a`
-names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
+names `b`. Only the stale links of LLAMA-CAR-008 break this rule. The reference also changes both
+links of a stop in one step, so a grant keeps this invariant at each point of the tick.
+
+Provenance: `design`. Kind: semantic. Fidelity: envelope. Confidence: medium.
 
 ## 15. Intentional deviations and known vanilla quirks
 

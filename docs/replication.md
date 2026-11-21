@@ -162,6 +162,11 @@ pub enum EntityEvent { Spawn(..), Move(..), Data(..), Enter { from: TileKey }, L
 
 - The cell publishes only subjects that changed: a new transform, a spawn, a despawn, a move to
   another tile.
+- One publisher path produces the events of mobs, items and falling blocks. A mob is a Bevy
+  entity, so it has no row move and no separate mob path. The publisher derives the tile
+  crossing of each entity from its position (`Assigned`, `PublishedTile` and `Departures` of
+  `mcrs_minecraft_engine_entity_motion_replication`). Planned: `mcrs_minecraft_engine_mob_replication`
+  joins this path in the migration of mobs to entities (issue #1067).
 - `count` is the number of subjects in the tile. The Muxer uses it for the cap and the track
   radius, and does not read the events for that.
 - All other entity packets become events of the tile: equipment, animation, sound, passengers,
