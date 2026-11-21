@@ -3,9 +3,9 @@
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
@@ -26,8 +26,8 @@ const PEN: i32 = 14;
 const DENSITY: f64 = 0.8;
 const TICKS: u32 = 400;
 
-fn pen() -> TestScene {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
+fn pen() -> RowScene {
+    let mut scene = RowScene::<()>::new(1, 0, 0, 3);
     scene.push = PushRules {
         max_entity_cramming: 0,
         ..PushRules::default()
@@ -75,7 +75,7 @@ fn a_dense_crowd_with_room_to_spread_comes_to_rest() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
     let mut scene = pen();
     for _ in 0..TICKS {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
     let mut rows = 0;
     let mut resting = 0;
@@ -91,7 +91,7 @@ fn a_dense_crowd_with_room_to_spread_comes_to_rest() {
 
 const CRAMMING: u32 = 7;
 
-fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
+fn add_pig(scene: &mut RowScene, index: u32, position: DVec3, health: f32) {
     let motion = MotionRow::living(Category::Walker, Dimensions::scalable(0.9, 0.9));
     let mut living = Living::of(&motion);
     living.health = health;
@@ -103,7 +103,7 @@ fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
     scene.rows.spawn(EntityId(u64::from(index)), state, motion);
 }
 
-fn alive(scene: &TestScene) -> usize {
+fn alive(scene: &RowScene) -> usize {
     scene
         .rows
         .living_rows()
@@ -114,7 +114,7 @@ fn alive(scene: &TestScene) -> usize {
 #[test]
 fn a_stack_at_one_point_spreads_once_one_body_moves() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
+    let mut scene = RowScene::<()>::new(1, 0, 0, 3);
     let at = DVec3::new(0.5, f64::from(FLOOR), 0.5);
     for index in 0..65 {
         add_pig(&mut scene, index, at, 10.0);
@@ -130,7 +130,7 @@ fn a_stack_at_one_point_spreads_once_one_body_moves() {
         .body
         .velocity = DVec3::new(-0.05, 0.0, 0.05);
     for _ in 0..TICKS {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
     let positions: Vec<DVec3> = scene
         .rows
@@ -150,8 +150,8 @@ fn a_stack_at_one_point_spreads_once_one_body_moves() {
     );
 }
 
-fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> TestScene {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
+fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> RowScene {
+    let mut scene = RowScene::<()>::new(1, 0, 0, 3);
     scene.crowd_damage_type = Some(CRAMMING);
     let stone = TestBlocks::new().stone;
     for x in first - 1..=last + 1 {
@@ -186,12 +186,12 @@ fn crw_002_a_crowd_of_30_loses_exactly_6() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
     let mut scene = crowd_in_hole(0, 0, 30, 5.0);
     scene.tick = 1;
-    scene.step(&pool, 1, &mut EntityWrites::default());
+    scene.step(&pool, 1, &mut RowWrites::default());
     let hits = scene.rows.crowd_hits();
     assert_eq!(hits.len(), 6);
     assert!(hits.iter().all(|hit| hit.died));
     for _ in 1..1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
         assert!(scene.rows.crowd_hits().is_empty());
     }
     assert_eq!(alive(&scene), 24);
@@ -204,7 +204,7 @@ fn psh_007_a_crowd_of_25_loses_one_and_a_crowd_of_24_takes_no_damage() {
     let mut scene = crowd_in_hole(0, 0, 25, 10.0);
     let mut first_death = None;
     for tick in 1..=1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
         if first_death.is_none() && alive(&scene) < 25 {
             first_death = Some(tick);
         }
@@ -217,7 +217,7 @@ fn psh_007_a_crowd_of_25_loses_one_and_a_crowd_of_24_takes_no_damage() {
 
     let mut scene = crowd_in_hole(0, 0, 24, 10.0);
     for _ in 0..1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
         assert!(scene.rows.crowd_hits().is_empty());
     }
     assert_eq!(alive(&scene), 24);
@@ -229,7 +229,7 @@ fn crw_002_the_crowd_hits_do_not_depend_on_the_task_split() {
         let pool = TaskPoolBuilder::new().num_threads(threads).build();
         let mut scene = crowd_in_hole(-1, 0, 40, 5.0);
         for _ in 0..30 {
-            scene.step(&pool, tiles_per_task, &mut EntityWrites::default());
+            scene.step(&pool, tiles_per_task, &mut RowWrites::default());
         }
         (alive(&scene), format!("{:?}", scene.rows))
     };
@@ -238,7 +238,7 @@ fn crw_002_the_crowd_hits_do_not_depend_on_the_task_split() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
     let mut scene = crowd_in_hole(-1, 0, 40, 5.0);
     scene.tick = 1;
-    scene.step(&pool, 1, &mut EntityWrites::default());
+    scene.step(&pool, 1, &mut RowWrites::default());
     let hit: Vec<u64> = scene
         .rows
         .crowd_hits()

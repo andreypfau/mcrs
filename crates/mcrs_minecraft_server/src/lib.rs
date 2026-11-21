@@ -19,7 +19,7 @@ use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
 use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
-use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
+use mcrs_minecraft_engine_physics::RowPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
@@ -102,7 +102,7 @@ pub struct VanillaEntityPhysicsPlugin;
 
 impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(EntityPhysicsPlugin::<MobColumn>::default());
+        app.add_dimension_plugin(RowPhysicsPlugin::<MobColumn>::default());
         app.add_dimension_plugin(MobReplicationPlugin::<MobColumn>::default());
     }
 }

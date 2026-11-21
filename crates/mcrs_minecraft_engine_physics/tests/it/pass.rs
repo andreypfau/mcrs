@@ -1,8 +1,8 @@
 use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
-use mcrs_minecraft_engine_physics::EntityWrites;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_entity_rows::EffectBuffer;
@@ -17,11 +17,11 @@ fn pool(threads: usize) -> TaskPool {
     TaskPoolBuilder::new().num_threads(threads).build()
 }
 
-fn dense_scene() -> TestScene {
-    TestScene::<()>::new(2, 400, 400, 7)
+fn dense_scene() -> RowScene {
+    RowScene::<()>::new(2, 400, 400, 7)
 }
 
-fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
+fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> RowWrites {
     let mut tasks = [EffectBuffer::default(), EffectBuffer::default()];
     for (tile, tile_rows) in rows.tiles() {
         for (index, row) in tile_rows.rows().take(3).enumerate() {
@@ -43,7 +43,7 @@ fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
     if reversed {
         tasks.reverse();
     }
-    let mut writes = EntityWrites::default();
+    let mut writes = RowWrites::default();
     for buffer in &mut tasks {
         writes.0.gather(buffer);
     }
@@ -51,17 +51,17 @@ fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
 }
 
 fn run(
-    mut scene: TestScene,
+    mut scene: RowScene,
     threads: usize,
     tiles_per_task: usize,
     reversed: bool,
-) -> (String, TestScene) {
+) -> (String, RowScene) {
     let pool = pool(threads);
     for tick in 0..TICKS {
         let mut writes = if tick % 10 == 3 {
             writes(&scene.rows, tick, reversed)
         } else {
-            EntityWrites::default()
+            RowWrites::default()
         };
         scene.step(&pool, tiles_per_task, &mut writes);
     }
@@ -89,9 +89,9 @@ fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() 
 
 #[test]
 fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
-    for start in [dense_scene(), TestScene::<()>::new(2, 12, 0, 3)] {
+    for start in [dense_scene(), RowScene::<()>::new(2, 12, 0, 3)] {
         let (_, mut scene) = run(start, 4, 2, false);
-        scene.rows.apply_writes(&mut EntityWrites::default().0);
+        scene.rows.apply_writes(&mut RowWrites::default().0);
         scene.rows.freeze(&pool(1), &mut scene.grid);
 
         let mut rebuilt: RowStore<()> = RowStore::default();
@@ -149,7 +149,7 @@ fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it()
             effect,
         },
     );
-    let mut writes = EntityWrites::default();
+    let mut writes = RowWrites::default();
     writes.0.gather(&mut buffer);
     scene.rows.apply_writes(&mut writes.0);
     let after: Vec<_> = scene

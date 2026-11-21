@@ -7,8 +7,8 @@ use std::hash::DefaultHasher;
 use std::hash::Hasher;
 
 use bevy_tasks::TaskPoolBuilder;
-use mcrs_minecraft_engine_physics::EntityWrites;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_physics::Rest;
 
 fn main() {
@@ -16,9 +16,9 @@ fn main() {
     let threads: usize = arguments.next().unwrap().parse().unwrap();
     let ticks: u32 = arguments.next().unwrap().parse().unwrap();
     let pool = TaskPoolBuilder::new().num_threads(threads).build();
-    let mut scene = TestScene::<()>::new(16, 50_000, 50_000, 11);
+    let mut scene = RowScene::<()>::new(16, 50_000, 50_000, 11);
     let tiles_per_task = (32 * 32_usize).div_ceil(threads * 4);
-    let mut writes = EntityWrites::default();
+    let mut writes = RowWrites::default();
     for _ in 0..ticks {
         scene.step(&pool, tiles_per_task, &mut writes);
     }

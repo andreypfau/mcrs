@@ -4,8 +4,8 @@ use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileGrid;
-use mcrs_minecraft_engine_physics::EntityWrites;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -30,8 +30,8 @@ const AREA: i32 = 3;
 
 const SKIPPED: [&str; 2] = ["e15_border", "e16_shulker"];
 
-fn scene_of(fixture: &Fixture) -> TestScene {
-    let mut scene = TestScene {
+fn scene_of(fixture: &Fixture) -> RowScene {
+    let mut scene = RowScene {
         blocks: SparseVolume::unbounded(),
         tables: Tables::new(common::table().clone()),
         rows: RowStore::default(),
@@ -55,7 +55,7 @@ fn scene_of(fixture: &Fixture) -> TestScene {
     scene
 }
 
-fn fill(scene: &mut TestScene, min: BlockPos, max: BlockPos, state: BlockStateId) {
+fn fill(scene: &mut RowScene, min: BlockPos, max: BlockPos, state: BlockStateId) {
     let tiles = TileGrid {
         x: TILE_WIDTH,
         y: TILE_WIDTH,
@@ -90,7 +90,7 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
         for (min, max, state) in fixture::changes_before(fixture, tick) {
             fill(&mut scene, min, max, state);
         }
-        scene.step(pool, 1, &mut EntityWrites::default());
+        scene.step(pool, 1, &mut RowWrites::default());
         for (((entity, _), failure), &id) in recorded.iter().zip(&mut failures).zip(&ids) {
             let (None, Some(Some(expected))) = (&failure, entity.ticks.get(tick).copied()) else {
                 continue;

@@ -3,12 +3,12 @@ use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
 
-use crate::mob_life::MobChanges;
-use crate::mob_life::Struck;
+use crate::row_mob_life::RowMobChanges;
+use crate::row_mob_life::RowStruck;
 
-pub fn hurt_mob<M>(
+pub fn hurt_row<M>(
     rows: &mut RowStore<M>,
-    changes: &mut MobChanges,
+    changes: &mut RowMobChanges,
     at: Placed,
     hit: Hit,
     tick: u64,
@@ -19,7 +19,7 @@ pub fn hurt_mob<M>(
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
     }
-    changes.strikes.push(Struck {
+    changes.strikes.push(RowStruck {
         at,
         damage_type: hit.damage_type,
         outcome,
@@ -29,9 +29,13 @@ pub fn hurt_mob<M>(
     Some(outcome)
 }
 
-pub(crate) fn report_crowd_hits<M>(rows: &RowStore<M>, changes: &mut MobChanges, damage_type: u32) {
+pub(crate) fn report_crowd_hits<M>(
+    rows: &RowStore<M>,
+    changes: &mut RowMobChanges,
+    damage_type: u32,
+) {
     for hit in rows.crowd_hits() {
-        changes.strikes.push(Struck {
+        changes.strikes.push(RowStruck {
             at: hit.at,
             damage_type,
             outcome: hit.outcome,

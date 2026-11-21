@@ -41,30 +41,30 @@ use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::EntityWrites;
-use crate::mob_damage::report_crowd_hits;
-use crate::mob_life::MobChanges;
-use crate::mob_life::PendingSpawns;
-use crate::mob_life::end_mob_changes;
-use crate::mob_life::spawn_mobs;
+use crate::RowWrites;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
+use crate::row_damage::report_crowd_hits;
+use crate::row_mob_life::PendingSpawns;
+use crate::row_mob_life::RowMobChanges;
+use crate::row_mob_life::end_mob_changes;
+use crate::row_mob_life::spawn_mobs;
 
 #[derive(Debug)]
-pub struct EntityPhysicsPlugin<M> {
+pub struct RowPhysicsPlugin<M> {
     column: PhantomData<fn() -> M>,
 }
 
-impl<M> Clone for EntityPhysicsPlugin<M> {
+impl<M> Clone for RowPhysicsPlugin<M> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<M> Copy for EntityPhysicsPlugin<M> {}
+impl<M> Copy for RowPhysicsPlugin<M> {}
 
-impl<M> Default for EntityPhysicsPlugin<M> {
+impl<M> Default for RowPhysicsPlugin<M> {
     fn default() -> Self {
         Self {
             column: PhantomData,
@@ -107,15 +107,15 @@ pub(crate) struct Bodies(pub(crate) BodyGrid);
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub(crate) struct CrowdDamageType(pub(crate) Option<u32>);
 
-impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
+impl<M: Send + Sync + 'static> Plugin for RowPhysicsPlugin<M> {
     fn build(&self, app: &mut App) {
         app.init_resource::<RowStore<M>>();
         app.init_resource::<Bodies>();
-        app.init_resource::<EntityWrites>();
+        app.init_resource::<RowWrites>();
         app.init_resource::<BirthClock>();
         app.init_resource::<Mobs>();
         app.init_resource::<MobUuids>();
-        app.init_resource::<MobChanges>();
+        app.init_resource::<RowMobChanges>();
         app.init_resource::<CrowdDamageType>();
         app.init_resource::<PendingSpawns>();
         app.add_message::<MobSpawnRequest>();
@@ -183,7 +183,7 @@ fn find_crowd_damage_type(mut found: ResMut<CrowdDamageType>, registries: Res<Cu
 
 fn apply_writes<M: Send + Sync + 'static>(
     mut rows: ResMut<RowStore<M>>,
-    mut writes: ResMut<EntityWrites>,
+    mut writes: ResMut<RowWrites>,
 ) {
     rows.apply_writes(&mut writes.0);
 }
@@ -213,7 +213,7 @@ fn entity_tick<M: Send + Sync + 'static>(
     clock: Res<BirthClock>,
     mut rows: ResMut<RowStore<M>>,
     bodies: Res<Bodies>,
-    mut changes: ResMut<MobChanges>,
+    mut changes: ResMut<RowMobChanges>,
     crowd: Res<CrowdDamageType>,
     rules: Option<Res<GameRules>>,
 ) {

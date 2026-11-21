@@ -3,9 +3,9 @@
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -15,7 +15,7 @@ use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
 
-fn pig(scene: &mut TestScene, id: u64, position: DVec3) {
+fn pig(scene: &mut RowScene, id: u64, position: DVec3) {
     let row = mob_row(&EntityTypeData::PIG);
     let key = EntityUuid::from_u128(u128::from(id));
     scene.rows.spawn(
@@ -25,7 +25,7 @@ fn pig(scene: &mut TestScene, id: u64, position: DVec3) {
     );
 }
 
-fn position(scene: &TestScene, id: u64) -> DVec3 {
+fn position(scene: &RowScene, id: u64) -> DVec3 {
     scene
         .rows
         .tiles()
@@ -35,17 +35,17 @@ fn position(scene: &TestScene, id: u64) -> DVec3 {
         .expect("the pig keeps its row")
 }
 
-fn run(scene: &mut TestScene, ticks: u32, before: impl Fn(&mut TestScene)) {
+fn run(scene: &mut RowScene, ticks: u32, before: impl Fn(&mut RowScene)) {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
     for _ in 0..ticks {
         before(scene);
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
 }
 
 #[test]
 fn psh_two_pigs_in_one_point_push_each_other_apart_on_the_floor() {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 1);
+    let mut scene = RowScene::<()>::new(1, 0, 0, 1);
     let start = DVec3::new(5.5, f64::from(FLOOR) + 2.0, 5.5);
     pig(&mut scene, 2, start);
     pig(&mut scene, 4, start + DVec3::new(0.01, 0.0, 0.0));
@@ -66,7 +66,7 @@ fn psh_two_pigs_in_one_point_push_each_other_apart_on_the_floor() {
 
 #[test]
 fn an_intent_steers_a_pig_before_its_step() {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 1);
+    let mut scene = RowScene::<()>::new(1, 0, 0, 1);
     let start = DVec3::new(5.5, f64::from(FLOOR), 5.5);
     pig(&mut scene, 2, start);
     let forward = Steering {
@@ -100,10 +100,10 @@ fn an_intent_steers_a_pig_before_its_step() {
 #[test]
 fn an_intent_that_steers_a_resting_walker_wakes_it() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = TestScene::<()>::new(1, 2, 0, 7);
+    let mut scene = RowScene::<()>::new(1, 2, 0, 7);
     let standing = EntityId(1);
     for _ in 0..60 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
     let (tile, start) = scene
         .rows
@@ -126,7 +126,7 @@ fn an_intent_that_steers_a_resting_walker_wakes_it() {
         },
     );
     for _ in 0..5 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
     let end = scene
         .rows
@@ -143,10 +143,10 @@ fn an_intent_that_steers_a_resting_walker_wakes_it() {
 #[test]
 fn an_intent_that_only_turns_the_head_publishes_a_move() {
     let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = TestScene::<()>::new(1, 2, 0, 7);
+    let mut scene = RowScene::<()>::new(1, 2, 0, 7);
     let standing = EntityId(1);
     for _ in 0..60 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step(&pool, 1, &mut RowWrites::default());
     }
     assert!(
         scene.rows.moved().iter().all(|moved| moved.id != standing),
@@ -165,7 +165,7 @@ fn an_intent_that_only_turns_the_head_publishes_a_move() {
             ..MobIntent::new(standing)
         },
     );
-    scene.step(&pool, 1, &mut EntityWrites::default());
+    scene.step(&pool, 1, &mut RowWrites::default());
     assert!(
         scene.rows.moved().iter().any(|moved| moved.id == standing),
         "the turn of the head reaches the viewers"

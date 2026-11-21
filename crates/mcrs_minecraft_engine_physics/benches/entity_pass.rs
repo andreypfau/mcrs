@@ -3,17 +3,17 @@ use bevy_tasks::available_parallelism;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use mcrs_minecraft_engine_physics::EntityWrites;
-use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
 
 const WARM_UP_TICKS: u32 = 100;
 
 fn entity_pass(criterion: &mut Criterion) {
     let threads = available_parallelism();
     let pool = TaskPoolBuilder::new().num_threads(threads).build();
-    let mut scene = TestScene::<()>::new(16, 50_000, 50_000, 11);
+    let mut scene = RowScene::<()>::new(16, 50_000, 50_000, 11);
     let tiles_per_task = (32 * 32_usize).div_ceil(threads * 4);
-    let mut writes = EntityWrites::default();
+    let mut writes = RowWrites::default();
     for _ in 0..WARM_UP_TICKS {
         scene.step(&pool, tiles_per_task, &mut writes);
     }

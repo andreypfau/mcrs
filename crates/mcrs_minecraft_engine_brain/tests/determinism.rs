@@ -16,13 +16,13 @@ use mcrs_minecraft_engine_brain::BlockGoalWorld;
 use mcrs_minecraft_engine_brain::HotTick;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::MobColumn;
-use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
-use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::Mobs;
-use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_engine_physics::hurt_mob;
+use mcrs_minecraft_engine_physics::RowMobChanges;
+use mcrs_minecraft_engine_physics::RowScene;
+use mcrs_minecraft_engine_physics::RowWrites;
+use mcrs_minecraft_engine_physics::hurt_row;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -44,7 +44,7 @@ fn pig_brain(kind: &'static EntityTypeData) -> Option<PigBrain> {
 }
 
 struct Run {
-    scene: TestScene<MobColumn>,
+    scene: RowScene<MobColumn>,
     mobs: Mobs,
     ai: MobAi<PigBrain>,
     players: Vec<PlayerRow>,
@@ -53,7 +53,7 @@ struct Run {
 
 impl Run {
     fn new(threads: usize) -> Self {
-        let mut scene = TestScene::new(HALF_TILES, 0, 0, 1);
+        let mut scene = RowScene::new(HALF_TILES, 0, 0, 1);
         let mut mobs = Mobs::default();
         let edge = f64::from(HALF_TILES * 32 - 2);
         let mut seed = 0x9E37_79B9_7F4A_7C15_u64;
@@ -115,9 +115,9 @@ impl Run {
                 .map(|(at, _)| at)
                 .filter(|at| at.id.0 < 40)
                 .collect();
-            let mut changes = MobChanges::default();
+            let mut changes = RowMobChanges::default();
             for at in struck {
-                hurt_mob(
+                hurt_row(
                     &mut self.scene.rows,
                     &mut changes,
                     at,
@@ -139,7 +139,7 @@ impl Run {
         let tiles = self.scene.rows.tile_count();
         let per_task = tiles.div_ceil(self.pool.thread_num() * 4).max(1);
         self.scene
-            .step(&self.pool, per_task, &mut EntityWrites::default());
+            .step(&self.pool, per_task, &mut RowWrites::default());
         self.hash()
     }
 

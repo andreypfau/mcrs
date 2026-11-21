@@ -23,11 +23,11 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-use crate::EntityWrites;
+use crate::RowWrites;
 
 pub const FLOOR: i32 = 4;
 
-pub struct TestScene<M = ()> {
+pub struct RowScene<M = ()> {
     pub blocks: SparseVolume,
     pub tables: Tables,
     pub rows: RowStore<M>,
@@ -37,7 +37,7 @@ pub struct TestScene<M = ()> {
     pub crowd_damage_type: Option<u32>,
 }
 
-impl<M: Send> TestScene<M> {
+impl<M: Send> RowScene<M> {
     #[must_use]
     pub fn new(half: i32, walkers: u32, items: u32, seed: u64) -> Self {
         let test_blocks = TestBlocks::new();
@@ -114,7 +114,7 @@ impl<M: Send> TestScene<M> {
         }
     }
 
-    pub fn step(&mut self, pool: &TaskPool, tiles_per_task: usize, writes: &mut EntityWrites) {
+    pub fn step(&mut self, pool: &TaskPool, tiles_per_task: usize, writes: &mut RowWrites) {
         self.rows.apply_writes(&mut writes.0);
         self.rows.freeze(pool, &mut self.grid);
         let pass = Pass {
