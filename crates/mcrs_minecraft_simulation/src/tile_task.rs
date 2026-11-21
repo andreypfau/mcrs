@@ -10,7 +10,7 @@ use crate::output::StepOutput;
 use crate::overlay::{OverlaidVolume, Overlay};
 use crate::policy::OrderingPolicy;
 use crate::random_tick::block_tile;
-use crate::region::{Region, Touch, cell_key, colour};
+use crate::region::{CELL, Region, Touch, cell_key, colour};
 use crate::scalar::GameTick;
 use crate::shard::{BlockShard, Env};
 use crate::tick_queue::Kinds;
@@ -32,10 +32,12 @@ impl Spread for Serial {
     }
 }
 
-pub(crate) struct Produced {
+pub(crate) struct Produced<K: Kinds, M> {
     pub(crate) index: usize,
     pub(crate) reads: Touch,
     pub(crate) writes: Touch,
+    pub(crate) cells: Vec<(u64, M)>,
+    pub(crate) consumed: Vec<(BlockPos, K::Block)>,
     pub(crate) blocks: Range<usize>,
     pub(crate) outbound: Range<usize>,
     pub(crate) delivered: Range<usize>,
@@ -43,8 +45,24 @@ pub(crate) struct Produced {
     pub(crate) chains: Range<usize>,
 }
 
+impl<K: Kinds, M> Produced<K, M> {
+    fn touches(&self, other: &Self) -> bool {
+        self.reads.intersects(&other.writes)
+            || self.writes.intersects(&other.reads)
+            || self
+                .cells
+                .iter()
+                .any(|(cell, _)| other.cells.iter().any(|(theirs, _)| theirs == cell))
+    }
+}
+
+const HOT_PHASE: u8 = 0;
+const LIVE_PHASE: u8 = 5;
+
 pub(crate) struct TileTask<K: Kinds, M> {
-    tile: Option<ColumnPos>,
+    region: Region,
+    whole: bool,
+    phase: u8,
     items: Vec<usize>,
     memory: Option<M>,
     before: FxHashMap<u64, M>,
@@ -52,14 +70,16 @@ pub(crate) struct TileTask<K: Kinds, M> {
     out: StepOutput<K>,
     overlay: Overlay,
     reruns: Vec<usize>,
-    produced: Vec<Produced>,
+    produced: Vec<Produced<K, M>>,
     consumed: Vec<(BlockPos, K::Block)>,
 }
 
 impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
-    fn new(tile: Option<ColumnPos>, items: Vec<usize>) -> Self {
+    fn new(region: Region, whole: bool, phase: u8, items: Vec<usize>) -> Self {
         Self {
-            tile,
+            region,
+            whole,
+            phase,
             items,
             memory: None,
             before: FxHashMap::default(),
@@ -70,6 +90,10 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             produced: Vec::new(),
             consumed: Vec::new(),
         }
+    }
+
+    fn whole(phase: u8, items: Vec<usize>) -> Self {
+        Self::new(Region::WHOLE, true, phase, items)
     }
 
     fn plan(tasks: &mut Vec<Self>, positions: impl Iterator<Item = (usize, BlockPos)>) {
@@ -86,15 +110,13 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             }
         }
         groups.sort_unstable_by_key(|(tile, _)| (colour(*tile), *tile));
-        tasks.extend(
-            groups
-                .into_iter()
-                .map(|(tile, items)| Self::new(Some(tile), items)),
-        );
-    }
-
-    fn region(&self) -> Region {
-        self.tile.map_or(Region::WHOLE, Region::of)
+        tasks.extend(groups.into_iter().map(|(tile, items)| {
+            let [x, z] = colour(tile);
+            let phase = u8::try_from(x.saturating_add(z.saturating_mul(2)))
+                .unwrap_or(0)
+                .saturating_add(1);
+            Self::new(Region::of(tile), false, phase, items)
+        }));
     }
 
     #[expect(
@@ -118,7 +140,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
         R: Fn(&mut Cx<'_, K, OverlaidVolume<'_, V>, F, B>, usize),
     {
         self.shard.chain.reset();
-        let region = self.region();
+        let region = self.region;
         let mut volume = OverlaidVolume {
             world,
             region,
@@ -185,6 +207,82 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             let _ = volume.set_block(write.pos, write.old);
         }
     }
+
+    fn discard(&mut self, memory: &mut M) {
+        let Some(mut part) = self.memory.take() else {
+            return;
+        };
+        for produced in &mut self.produced {
+            for (cell, snapshot) in produced.cells.drain(..) {
+                part.drop_cell(cell);
+                part.merge(snapshot);
+            }
+        }
+        memory.merge(part);
+    }
+
+    fn revert_item<V: SimulationVolume>(&self, entry: usize, volume: &mut V, memory: &mut M) {
+        let Some(produced) = self.produced.get(entry) else {
+            return;
+        };
+        if let Some(writes) = self.out.writes.get(produced.blocks.clone()) {
+            for write in writes.iter().rev() {
+                let _ = volume.set_block(write.pos, write.old);
+            }
+        }
+        for (cell, snapshot) in &produced.cells {
+            memory.drop_cell(*cell);
+            memory.merge(snapshot.clone());
+        }
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each parameter is a distinct part of the world that the commit writes"
+    )]
+    fn apply_item<V, F, B, P>(
+        &self,
+        entry: usize,
+        shard: &mut BlockShard<K>,
+        volume: &mut V,
+        env: &Env<'_, F, B, P>,
+        memory: &mut M,
+        shared: &B::Shared,
+        out: &mut StepOutput<K>,
+        now: GameTick,
+    ) where
+        V: SimulationVolume,
+        F: BlockFacts<K>,
+        B: BlockBehaviour<K, Memory = M>,
+        P: OrderingPolicy,
+    {
+        let Some(produced) = self.produced.get(entry) else {
+            return;
+        };
+        if let Some(writes) = self.out.writes.get(produced.blocks.clone()) {
+            out.writes.extend_from_slice(writes);
+        }
+        if let Some(delivered) = self.out.delivered.get(produced.delivered.clone()) {
+            out.delivered.extend_from_slice(delivered);
+        }
+        if let Some(destroyed) = self.out.destroyed.get(produced.destroyed.clone()) {
+            out.destroyed.extend_from_slice(destroyed);
+        }
+        if let Some(chains) = self.out.chains.get(produced.chains.clone()) {
+            out.chains.extend_from_slice(chains);
+        }
+        for consumed in &produced.consumed {
+            shard.ticking.remove(consumed);
+        }
+        let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
+        if let Some(messages) = self.out.outbound.get(produced.outbound.clone()) {
+            for message in messages {
+                let mut message = *message;
+                message.stamp = cx.shard.clock.stamp(now);
+                cx.apply(message);
+            }
+        }
+    }
 }
 
 pub(crate) enum Tiled {
@@ -206,12 +304,7 @@ fn hot_window(hot_ticks: i64, streak: u32) -> i64 {
     hot_ticks.saturating_mul(1_i64 << streak.min(HOT_STREAK_LIMIT))
 }
 
-pub(crate) fn is_hot<K: Kinds>(
-    shard: &BlockShard<K>,
-    _hot_ticks: i64,
-    now: GameTick,
-    at: BlockPos,
-) -> bool {
+pub(crate) fn is_hot<K: Kinds>(shard: &BlockShard<K>, now: GameTick, at: BlockPos) -> bool {
     shard
         .hot
         .get(&cell_key(at))
@@ -230,8 +323,14 @@ fn mark_hot<K: Kinds>(shard: &mut BlockShard<K>, hot_ticks: i64, now: GameTick, 
     }
     for at in at {
         let hot = shard.hot.entry(cell_key(*at)).or_default();
-        if hot.until < now.0 && hot.until != 0 {
-            hot.streak = hot.streak.saturating_add(1);
+        if hot.until != 0 && hot.until < now.0 {
+            let window = hot_window(hot_ticks, hot.streak);
+            let quiet = now.0.saturating_sub(hot.until);
+            if quiet <= window {
+                hot.streak = hot.streak.saturating_add(1);
+            } else if quiet > window.saturating_mul(4) {
+                hot.streak /= 2;
+            }
         }
         hot.until = now.0.saturating_add(hot_window(hot_ticks, hot.streak));
     }
@@ -239,6 +338,72 @@ fn mark_hot<K: Kinds>(shard: &mut BlockShard<K>, hot_ticks: i64, now: GameTick, 
 
 fn count(items: usize) -> u32 {
     u32::try_from(items).unwrap_or(u32::MAX)
+}
+
+type Bounds = ((i64, i64), (i64, i64));
+
+fn cell_box(at: BlockPos) -> Bounds {
+    let cell = i64::from(CELL);
+    let min_x = i64::from(at.x.div_euclid(CELL)).saturating_mul(cell);
+    let min_z = i64::from(at.z.div_euclid(CELL)).saturating_mul(cell);
+    (
+        (min_x, min_z),
+        (
+            min_x.saturating_add(cell.saturating_sub(1)),
+            min_z.saturating_add(cell.saturating_sub(1)),
+        ),
+    )
+}
+
+fn hot_components(positions: &[BlockPos], hot: &[usize]) -> Vec<(Region, Vec<usize>)> {
+    let mut groups: Vec<(Bounds, Vec<usize>)> = Vec::new();
+    let mut by_cell: FxHashMap<u64, usize> = FxHashMap::default();
+    for &index in hot {
+        let Some(at) = positions.get(index) else {
+            continue;
+        };
+        let slot = *by_cell.entry(cell_key(*at)).or_insert_with(|| {
+            groups.push((cell_box(*at), Vec::new()));
+            groups.len().saturating_sub(1)
+        });
+        if let Some((_, items)) = groups.get_mut(slot) {
+            items.push(index);
+        }
+    }
+    let mut components: Vec<(Region, Bounds, Vec<usize>)> = groups
+        .into_iter()
+        .map(|(bounds, items)| (Region::around(bounds.0, bounds.1), bounds, items))
+        .collect();
+    loop {
+        let mut merged = false;
+        let mut kept: Vec<(Region, Bounds, Vec<usize>)> = Vec::new();
+        for (region, bounds, items) in components {
+            match kept.iter_mut().find(|(held, _, _)| held.overlaps(&region)) {
+                Some((held, held_bounds, held_items)) => {
+                    held_bounds.0.0 = held_bounds.0.0.min(bounds.0.0);
+                    held_bounds.0.1 = held_bounds.0.1.min(bounds.0.1);
+                    held_bounds.1.0 = held_bounds.1.0.max(bounds.1.0);
+                    held_bounds.1.1 = held_bounds.1.1.max(bounds.1.1);
+                    *held = Region::around(held_bounds.0, held_bounds.1);
+                    held_items.extend(items);
+                    merged = true;
+                }
+                None => kept.push((region, bounds, items)),
+            }
+        }
+        components = kept;
+        if !merged {
+            break;
+        }
+    }
+    components.sort_by_key(|(_, bounds, _)| *bounds);
+    components
+        .into_iter()
+        .map(|(region, _, mut items)| {
+            items.sort_unstable();
+            (region, items)
+        })
+        .collect()
 }
 
 #[expect(
@@ -281,14 +446,14 @@ where
     let hot: Vec<usize> = positions
         .iter()
         .enumerate()
-        .filter(|(_, at)| mode == Mode::Sequence && is_hot(shard, hot_ticks, now, **at))
+        .filter(|(_, at)| mode == Mode::Sequence && is_hot(shard, now, **at))
         .map(|(index, _)| index)
         .collect();
     out.report.hot_items = out.report.hot_items.saturating_add(count(hot.len()));
-    let mut tasks: Vec<TileTask<K, B::Memory>> = Vec::new();
-    if !hot.is_empty() {
-        tasks.push(TileTask::new(None, hot.clone()));
-    }
+    let mut tasks: Vec<TileTask<K, B::Memory>> = hot_components(positions, &hot)
+        .into_iter()
+        .map(|(region, items)| TileTask::new(region, false, HOT_PHASE, items))
+        .collect();
     TileTask::plan(
         &mut tasks,
         positions
@@ -297,7 +462,7 @@ where
             .filter(|(index, _)| hot.binary_search(index).is_err())
             .map(|(index, at)| (index, *at)),
     );
-    for phase in tasks.chunk_by_mut(|a, b| a.tile.map(colour) == b.tile.map(colour)) {
+    for phase in tasks.chunk_by_mut(|a, b| a.phase == b.phase) {
         lend_memory(memory, phase);
         let (world, base) = (&*volume, &*shard);
         spread.spread(phase, &|task: &mut TileTask<K, B::Memory>| {
@@ -314,7 +479,7 @@ where
     overflowed.sort_unstable();
     let mut reruns = Vec::new();
     if !overflowed.is_empty() {
-        let mut task = TileTask::new(None, overflowed.clone());
+        let mut task = TileTask::whole(LIVE_PHASE, overflowed.clone());
         lend_memory(memory, core::slice::from_mut(&mut task));
         task.run(&*volume, &*shard, env, shared, footprints, now, run);
         task.publish(volume, memory, shard);
@@ -322,43 +487,38 @@ where
         tasks.push(task);
     }
     let left = count(overflowed.len());
-    let mut bad: FxHashSet<usize> = FxHashSet::default();
-    if mode == Mode::Sequence {
-        if !reruns.is_empty() {
-            bad.extend(0..tasks.len());
-        }
-        undo_conflicts(
-            &mut tasks, &mut bad, shard, volume, memory, out, now, hot_ticks, positions,
-        );
-        if !reruns.is_empty() {
-            shard.published_ticks.clear();
-            shard.published_consumed.clear();
-            return Tiled::Redo { left };
-        }
+    if mode == Mode::Colour {
+        finish_colour(&mut tasks, shard, volume, env, memory, shared, out, now);
+        return Tiled::Done { reruns, left };
     }
-    finish(
-        &mut tasks,
-        &bad,
-        positions.len(),
-        shard,
-        volume,
-        env,
-        memory,
-        shared,
-        out,
+    let mut bad: FxHashSet<usize> = FxHashSet::default();
+    if !reruns.is_empty() {
+        bad.extend(0..tasks.len());
+    }
+    undo_conflicts(
+        &mut tasks, &mut bad, shard, volume, memory, out, now, hot_ticks, positions,
+    );
+    if !reruns.is_empty() {
+        shard.published_ticks.clear();
+        shard.published_consumed.clear();
+        return Tiled::Redo { left };
+    }
+    let replay = Replay {
+        tasks: &mut tasks,
+        bad: &bad,
+        items: positions.len(),
+        footprints,
         now,
-        live,
-        before,
-        mode,
+    };
+    finish_sequence(
+        replay, shard, volume, env, memory, shared, out, run, live, before,
     );
     let overflowed: Vec<BlockPos> = overflowed
         .iter()
         .filter_map(|&index| positions.get(index))
         .copied()
         .collect();
-    if mode == Mode::Sequence {
-        mark_hot(shard, hot_ticks, now, &overflowed);
-    }
+    mark_hot(shard, hot_ticks, now, &overflowed);
     Tiled::Done { reruns, left }
 }
 
@@ -407,10 +567,8 @@ fn undo_conflicts<K, V, M>(
     clippy::too_many_arguments,
     reason = "each parameter is a distinct part of the world that the commit writes"
 )]
-fn finish<K, V, F, B, P, L, Before>(
+fn finish_colour<K, V, F, B, P>(
     tasks: &mut [TileTask<K, B::Memory>],
-    bad: &FxHashSet<usize>,
-    items: usize,
     shard: &mut BlockShard<K>,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
@@ -418,72 +576,16 @@ fn finish<K, V, F, B, P, L, Before>(
     shared: &B::Shared,
     out: &mut StepOutput<K>,
     now: GameTick,
-    live: &L,
-    before: &Before,
-    mode: Mode,
 ) where
     K: Kinds,
     V: SimulationVolume,
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     P: OrderingPolicy,
-    L: Fn(&mut Cx<'_, K, V, F, B>, usize),
-    Before: Fn(&mut BlockShard<K>, usize),
 {
-    let mut held: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
-    let mut order: Vec<usize> = Vec::new();
-    for (slot, task) in tasks.iter().enumerate() {
-        if bad.contains(&slot) {
-            continue;
-        }
-        for (entry, produced) in task.produced.iter().enumerate() {
-            held.insert(produced.index, (slot, entry));
-            order.push(produced.index);
-        }
-    }
-    if mode == Mode::Sequence {
-        order = (0..items).collect();
-    }
-    for item in order {
-        before(shard, item);
-        let Some(&(slot, entry)) = held.get(&item) else {
-            let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-            live(&mut cx, item);
-            continue;
-        };
-        let Some(task) = tasks.get(slot) else {
-            continue;
-        };
-        let Some(produced) = task.produced.get(entry) else {
-            continue;
-        };
-        if let Some(writes) = task.out.writes.get(produced.blocks.clone()) {
-            out.writes.extend_from_slice(writes);
-        }
-        if let Some(delivered) = task.out.delivered.get(produced.delivered.clone()) {
-            out.delivered.extend_from_slice(delivered);
-        }
-        if let Some(destroyed) = task.out.destroyed.get(produced.destroyed.clone()) {
-            out.destroyed.extend_from_slice(destroyed);
-        }
-        if let Some(chains) = task.out.chains.get(produced.chains.clone()) {
-            out.chains.extend_from_slice(chains);
-        }
-        let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-        if let Some(messages) = task.out.outbound.get(produced.outbound.clone()) {
-            for message in messages {
-                let mut message = *message;
-                message.stamp = cx.shard.clock.stamp(now);
-                cx.apply(message);
-            }
-        }
-    }
-    for (slot, task) in tasks.iter_mut().enumerate() {
-        if bad.contains(&slot) {
-            continue;
-        }
-        for consumed in task.consumed.drain(..) {
-            shard.ticking.remove(&consumed);
+    for task in tasks.iter_mut() {
+        for entry in 0..task.produced.len() {
+            task.apply_item(entry, shard, volume, env, memory, shared, out, now);
         }
         out.report.absorb(task.out.report);
     }
@@ -491,45 +593,200 @@ fn finish<K, V, F, B, P, L, Before>(
     shard.published_consumed.clear();
 }
 
-struct Seen<'a> {
+struct Replay<'a, K: Kinds, M> {
+    tasks: &'a mut Vec<TileTask<K, M>>,
+    bad: &'a FxHashSet<usize>,
+    items: usize,
+    footprints: &'a Footprints,
+    now: GameTick,
+}
+
+fn record<'a, K: Kinds, M>(
+    tasks: &'a [TileTask<K, M>],
+    held: &FxHashMap<usize, (usize, usize)>,
+    index: usize,
+) -> Option<&'a Produced<K, M>> {
+    let (slot, entry) = held.get(&index)?;
+    tasks.get(*slot)?.produced.get(*entry)
+}
+
+fn stale_after<K: Kinds, M>(
+    tasks: &[TileTask<K, M>],
+    held: &FxHashMap<usize, (usize, usize)>,
+    fresh: &Produced<K, M>,
+) -> Vec<usize> {
+    let mut later: Vec<usize> = held
+        .keys()
+        .copied()
+        .filter(|index| *index > fresh.index)
+        .collect();
+    later.sort_unstable();
+    let mut stale: Vec<usize> = Vec::new();
+    for index in later {
+        let Some(theirs) = record(tasks, held, index) else {
+            continue;
+        };
+        let touched = theirs.touches(fresh)
+            || stale.iter().any(|other| {
+                record(tasks, held, *other).is_some_and(|older| older.touches(theirs))
+            });
+        if touched {
+            stale.push(index);
+        }
+    }
+    stale.reverse();
+    stale
+}
+
+fn revert_all<K, V, M>(
+    tasks: &[TileTask<K, M>],
+    held: &mut FxHashMap<usize, (usize, usize)>,
+    stale: Vec<usize>,
+    volume: &mut V,
+    memory: &mut M,
+) where
+    K: Kinds,
+    V: SimulationVolume,
+    M: MemoryPartition + Default + Clone,
+{
+    for index in stale {
+        if let Some((slot, entry)) = held.remove(&index)
+            && let Some(task) = tasks.get(slot)
+        {
+            task.revert_item(entry, volume, memory);
+        }
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the commit writes"
+)]
+fn finish_sequence<K, V, F, B, P, R, L, Before>(
+    replay: Replay<'_, K, B::Memory>,
+    shard: &mut BlockShard<K>,
+    volume: &mut V,
+    env: &Env<'_, F, B, P>,
+    memory: &mut B::Memory,
+    shared: &B::Shared,
+    out: &mut StepOutput<K>,
+    run: &R,
+    live: &L,
+    before: &Before,
+) where
+    K: Kinds,
+    V: SimulationVolume,
+    F: BlockFacts<K>,
+    B: BlockBehaviour<K>,
+    P: OrderingPolicy,
+    R: Fn(&mut Cx<'_, K, OverlaidVolume<'_, V>, F, B>, usize),
+    L: Fn(&mut Cx<'_, K, V, F, B>, usize),
+    Before: Fn(&mut BlockShard<K>, usize),
+{
+    let Replay {
+        tasks,
+        bad,
+        items,
+        footprints,
+        now,
+    } = replay;
+    shard.published_ticks.clear();
+    shard.published_consumed.clear();
+    let mut held: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
+    for (slot, task) in tasks.iter().enumerate() {
+        if bad.contains(&slot) {
+            continue;
+        }
+        for (entry, produced) in task.produced.iter().enumerate() {
+            held.insert(produced.index, (slot, entry));
+        }
+    }
+    for item in 0..items {
+        before(shard, item);
+        if let Some((slot, entry)) = held.remove(&item) {
+            if let Some(task) = tasks.get(slot) {
+                task.apply_item(entry, shard, volume, env, memory, shared, out, now);
+            }
+            continue;
+        }
+        loop {
+            let mut task = TileTask::whole(LIVE_PHASE, vec![item]);
+            lend_memory(memory, core::slice::from_mut(&mut task));
+            task.run(&*volume, &*shard, env, shared, footprints, now, run);
+            if !task.reruns.is_empty() {
+                task.discard(memory);
+                let mut later: Vec<usize> =
+                    held.keys().copied().filter(|index| *index > item).collect();
+                later.sort_unstable_by(|a, b| b.cmp(a));
+                revert_all(tasks, &mut held, later, volume, memory);
+                let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
+                live(&mut cx, item);
+                break;
+            }
+            let stale = task
+                .produced
+                .first()
+                .map_or_else(Vec::new, |fresh| stale_after(tasks, &held, fresh));
+            if stale.is_empty() {
+                task.publish(volume, memory, shard);
+                task.apply_item(0, shard, volume, env, memory, shared, out, now);
+                out.report.absorb(task.out.report);
+                break;
+            }
+            task.discard(memory);
+            revert_all(tasks, &mut held, stale, volume, memory);
+        }
+    }
+    for (slot, task) in tasks.iter().enumerate() {
+        if !bad.contains(&slot) {
+            out.report.absorb(task.out.report);
+        }
+    }
+    shard.published_ticks.clear();
+    shard.published_consumed.clear();
+}
+
+struct Seen<'a, K: Kinds, M> {
     task: usize,
-    produced: &'a Produced,
+    produced: &'a Produced<K, M>,
 }
 
-fn touches(a: &Seen<'_>, b: &Seen<'_>) -> bool {
-    a.produced.reads.intersects(&b.produced.writes)
-        || a.produced.writes.intersects(&b.produced.reads)
-}
-
-fn out_of_order(a: &Seen<'_>, b: &Seen<'_>) -> bool {
+fn out_of_order<K: Kinds, M>(a: &Seen<'_, K, M>, b: &Seen<'_, K, M>) -> bool {
     let (early, late) = if a.produced.index < b.produced.index {
         (a, b)
     } else {
         (b, a)
     };
-    late.task < early.task && touches(a, b)
+    late.task < early.task && a.produced.touches(b.produced)
 }
 
-fn buckets<'a, K: Kinds, M>(tasks: &'a [TileTask<K, M>]) -> Vec<Vec<Seen<'a>>> {
-    let mut by_cell: FxHashMap<u64, Vec<Seen<'a>>> = FxHashMap::default();
+fn buckets<K: Kinds, M>(tasks: &[TileTask<K, M>]) -> Vec<Vec<Seen<'_, K, M>>> {
+    let mut by_cell: FxHashMap<u64, Vec<Seen<'_, K, M>>> = FxHashMap::default();
     for (task, produced) in tasks
         .iter()
         .enumerate()
         .flat_map(|(task, held)| held.produced.iter().map(move |produced| (task, produced)))
     {
-        for cell in produced.reads.cells() {
+        let cells: FxHashSet<u64> = produced
+            .reads
+            .cells()
+            .chain(produced.cells.iter().map(|(cell, _)| *cell))
+            .collect();
+        for cell in cells {
             by_cell
                 .entry(cell)
                 .or_default()
                 .push(Seen { task, produced });
         }
     }
-    let mut mixed: Vec<Vec<Seen<'a>>> = by_cell
+    let mut mixed: Vec<Vec<Seen<'_, K, M>>> = by_cell
         .into_values()
         .filter(|seen| {
             seen.first()
                 .is_some_and(|first| seen.iter().any(|other| other.task != first.task))
-                && seen.iter().any(|other| !other.produced.writes.is_empty())
+                && seen.iter().any(|other| {
+                    !other.produced.writes.is_empty() || !other.produced.cells.is_empty()
+                })
         })
         .collect();
     for seen in &mut mixed {
@@ -538,9 +795,9 @@ fn buckets<'a, K: Kinds, M>(tasks: &'a [TileTask<K, M>]) -> Vec<Vec<Seen<'a>>> {
     mixed
 }
 
-fn cross_pairs<'a, 'b>(
-    seen: &'b [Seen<'a>],
-) -> impl Iterator<Item = (&'b Seen<'a>, &'b Seen<'a>)> + 'b {
+fn cross_pairs<'a, 'b, K: Kinds, M>(
+    seen: &'b [Seen<'a, K, M>],
+) -> impl Iterator<Item = (&'b Seen<'a, K, M>, &'b Seen<'a, K, M>)> + 'b {
     seen.iter().enumerate().flat_map(move |(n, a)| {
         seen.iter()
             .skip(n.saturating_add(1))
@@ -584,7 +841,7 @@ fn redo_set<K: Kinds, M>(
                     (true, false) => (b, a),
                     _ => continue,
                 };
-                if broken.task < good.task && touches(good, broken) {
+                if broken.task < good.task && good.produced.touches(broken.produced) {
                     bad.insert(good.task);
                 }
             }
@@ -608,16 +865,13 @@ fn lend_memory<K: Kinds, M: MemoryPartition + Default>(
     let mut parts: FxHashMap<u64, M> = memory.split().into_iter().collect();
     for task in phase.iter_mut() {
         let mut part = M::default();
-        match task.tile {
-            Some(tile) => {
-                for cell in Region::of(tile).cells() {
-                    if let Some(found) = parts.remove(&cell) {
-                        part.merge(found);
-                    }
-                }
+        if task.whole {
+            for (_, found) in parts.drain() {
+                part.merge(found);
             }
-            None => {
-                for (_, found) in parts.drain() {
+        } else {
+            for cell in task.region.cells() {
+                if let Some(found) = parts.remove(&cell) {
                     part.merge(found);
                 }
             }

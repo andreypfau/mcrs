@@ -755,7 +755,7 @@ fn a_cell_that_conflicts_again_after_it_cooled_stays_hot_longer() {
     let mut lab = Lab::new(tiles_always());
     let block = ProbeFacts.block_of(A);
     let mut redos = Vec::new();
-    for now in [1, 50, 120, 260, 400] {
+    for now in [1, 50, 120, 200, 300] {
         lab.host.put(WEST_EDGE, A);
         lab.host.put(EAST_EDGE, A);
         let seeds = [
@@ -773,6 +773,77 @@ fn a_cell_that_conflicts_again_after_it_cooled_stays_hot_longer() {
     assert_eq!(
         redos,
         vec![1, 1, 0, 1, 0],
-        "each conflict after the cell cooled doubles its window: 40, 80, then 160 ticks"
+        "a conflict soon after the cell cooled doubles its window: 40, 80, then 160 ticks"
     );
+}
+
+const FLAG: BlockPos = BlockPos::new(60, 0, 40);
+const DUMMY: BlockPos = BlockPos::new(62, 0, 45);
+const PROBE: BlockPos = BlockPos::new(70, 0, 50);
+const WATCHER: BlockPos = BlockPos::new(70, 0, 70);
+
+struct Dependent;
+
+impl BlockBehaviour<ProbeKinds> for Dependent {
+    type Memory = ();
+
+    type Shared = ();
+
+    fn block_event<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        at: BlockPos,
+        _state: BlockStateId,
+        _a: i32,
+        _b: i32,
+    ) -> bool {
+        if at == EAST_EDGE {
+            cx.set(FLAG, B, FLAGS, 512);
+        } else if at == WEST_EDGE {
+            if cx.state(FLAG).ok() == Some(B) {
+                cx.set(PROBE, C, FLAGS, 512);
+            } else {
+                cx.set(DUMMY, B, FLAGS, 512);
+            }
+        } else {
+            let seen = cx.state(PROBE).ok() == Some(C);
+            cx.set(WATCHER, if seen { B } else { C }, FLAGS, 512);
+        }
+        true
+    }
+}
+
+fn dependent_outcome(path: &Path<'_>) -> (BlockStateId, BlockStateId, u32) {
+    let mut lab = Lab::new(tiles_always());
+    for at in [WEST_EDGE, EAST_EDGE, FLAG, DUMMY, PROBE, WATCHER] {
+        lab.host.put(at, A);
+    }
+    let block = ProbeFacts.block_of(A);
+    let seeds = [
+        event_message(0, EAST_EDGE, block),
+        event_message(1, WEST_EDGE, block),
+        event_message(2, WATCHER, block),
+    ];
+    let out = lab.tick(&Dependent, 1, &seeds, path);
+    (
+        lab.host.state(PROBE),
+        lab.host.state(WATCHER),
+        out.report.tile_redos,
+    )
+}
+
+#[test]
+fn a_kept_item_that_read_what_a_replayed_item_now_writes_runs_again() {
+    let (probe, watcher, redos) = dependent_outcome(&Path::Scalar);
+    assert_eq!((probe, watcher, redos), (C, B, 0));
+    for seed in [1, 2, 3] {
+        let shuffled = Shuffled { threads: 4, seed };
+        let (probe, watcher, redos) = dependent_outcome(&Path::Tiled(&shuffled));
+        assert_eq!(probe, C, "the replayed item wrote the probe");
+        assert_eq!(
+            watcher, B,
+            "the watcher read the probe after the replay, not the stale value of the parallel run"
+        );
+        assert_eq!(redos, 1);
+    }
 }
