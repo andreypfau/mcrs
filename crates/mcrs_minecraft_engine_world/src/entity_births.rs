@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::With;
 use bevy_ecs::system::{Query, Res, SystemParam};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
+use mcrs_minecraft_entity_key::{BirthSource, EntityUuid};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::birth_clock::BirthClock;
@@ -22,10 +22,10 @@ impl EntityBirths<'_, '_> {
     }
 
     #[must_use]
-    pub fn born(&self, source: &BirthSource, sequence: u32) -> EntityKey {
+    pub fn born(&self, source: &BirthSource, sequence: u32) -> EntityUuid {
         let dimension = self.dimensions.single().map_or("", |key| key.as_str());
         let seed = self.seed.as_deref().map_or(0, |seed| seed.0);
-        EntityKey::born(seed, dimension, self.clock.0, source, sequence)
+        EntityUuid::born(seed, dimension, self.clock.0, source, sequence)
     }
 }
 
@@ -69,7 +69,7 @@ mod tests {
         world
     }
 
-    fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityKey> {
+    fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityUuid> {
         let summons = summons.to_vec();
         world
             .run_system_once(move |births: EntityBirths| {
@@ -77,7 +77,7 @@ mod tests {
                 summons
                     .iter()
                     .map(|source| births.born(source, sequences.next(births.tick(), source)))
-                    .collect::<Vec<EntityKey>>()
+                    .collect::<Vec<EntityUuid>>()
             })
             .expect("the system runs")
     }
@@ -86,7 +86,7 @@ mod tests {
     fn cmp_013_024_summons_of_one_tick_keep_uuids_across_layouts() {
         let one_cell = summon(&mut world(None), &SUMMONS);
         assert_ne!(one_cell[0], one_cell[1], "two spawn points give two UUIDs");
-        let two_cells: Vec<EntityKey> = [0, 1]
+        let two_cells: Vec<EntityUuid> = [0, 1]
             .into_iter()
             .zip(&SUMMONS)
             .flat_map(|(cell, source)| {

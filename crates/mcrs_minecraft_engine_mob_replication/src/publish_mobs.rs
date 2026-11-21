@@ -270,7 +270,7 @@ mod tests {
     use mcrs_minecraft_engine_physics::mob_body;
     use mcrs_minecraft_engine_physics::mob_row;
     use mcrs_minecraft_entity::EntityTypeData;
-    use mcrs_minecraft_entity_key::EntityKey;
+    use mcrs_minecraft_entity_key::EntityUuid;
     use mcrs_minecraft_protocol_game::entity::MobLooks;
 
     use super::*;
@@ -284,7 +284,7 @@ mod tests {
         let mut state = mob_body(
             &EntityTypeData::PIG,
             &row,
-            EntityKey(2),
+            EntityUuid::from_u128(2),
             DVec3::new(31.9, f64::from(FLOOR), 5.5),
         );
         state.body.velocity = DVec3::new(0.5, 0.0, 0.0);

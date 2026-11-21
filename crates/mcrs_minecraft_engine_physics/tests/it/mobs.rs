@@ -9,7 +9,7 @@ use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_physics::MoveInput;
@@ -17,7 +17,7 @@ use mcrs_minecraft_physics::Steering;
 
 fn pig(scene: &mut TestScene, id: u64, position: DVec3) {
     let row = mob_row(&EntityTypeData::PIG);
-    let key = EntityKey(u128::from(id));
+    let key = EntityUuid::from_u128(u128::from(id));
     scene.rows.spawn(
         EntityId(id),
         mob_body(&EntityTypeData::PIG, &row, key, position),

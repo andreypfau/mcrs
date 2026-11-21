@@ -6,7 +6,7 @@ use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_entity::HandVelocity;
@@ -68,7 +68,7 @@ fn ien_net_001_003_004_the_spawns_the_merged_stack_and_the_take_before_the_remov
         STONE,
         10,
         Launch {
-            source: BirthSource::Entity(EntityKey(PLAYER)),
+            source: BirthSource::Entity(EntityUuid::from_u128(PLAYER)),
             form: Form::Hand {
                 feet,
                 eye_height: 1.62,

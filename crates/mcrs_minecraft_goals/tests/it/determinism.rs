@@ -9,7 +9,7 @@ use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_brain::WakeMode;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_goals::FlatGround;
 use mcrs_minecraft_goals::HashScope;
 use mcrs_minecraft_goals::IdleRule;
@@ -96,7 +96,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64, hit_tick: u64) {
     let mut players: Vec<PlayerRow> = (0..2)
         .map(|index| PlayerRow {
             player: EntityId(100 + index),
-            key: EntityKey(u128::from(100 + index) << 64 | 1),
+            key: EntityUuid::from_u128(u128::from(100 + index) << 64 | 1),
             position: DVec3::new(f64::from(index as u32) * 200.0 + 20.0, 0.0, 30.0),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,
@@ -106,7 +106,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64, hit_tick: u64) {
         .collect();
     players.push(PlayerRow {
         player: EntityId(7),
-        key: EntityKey(7 << 64 | 1),
+        key: EntityUuid::from_u128(7 << 64 | 1),
         position: DVec3::new(tick as f64 * 0.4, 0.0, 128.0),
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,

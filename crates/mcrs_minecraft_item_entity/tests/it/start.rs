@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::Start;
@@ -10,7 +10,7 @@ use mcrs_minecraft_item_entity::hand_form;
 const FEET: DVec3 = DVec3::new(0.5, -60.0, 0.5);
 
 fn streams() -> impl Iterator<Item = KeyedStream> {
-    (0..2000_u128).map(|key| KeyedStream::new(&EntityKey(key), 7))
+    (0..2000_u128).map(|key| KeyedStream::new(&EntityUuid::from_u128(key), 7))
 }
 
 fn bounds(starts: &[Start], value: impl Fn(&Start) -> f64) -> (f64, f64) {

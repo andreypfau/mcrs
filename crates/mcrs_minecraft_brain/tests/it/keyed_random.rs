@@ -2,10 +2,15 @@ use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::KeyedRandom;
 use mcrs_minecraft_brain::Part;
 use mcrs_minecraft_brain::WorldSeed;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 fn first_values(seed: u64, key: u128, tick: u64, part: u32) -> [u64; 4] {
-    let mut random = KeyedRandom::new(WorldSeed(seed), &EntityKey(key), tick, Part(part));
+    let mut random = KeyedRandom::new(
+        WorldSeed(seed),
+        &EntityUuid::from_u128(key),
+        tick,
+        Part(part),
+    );
     [(); 4].map(|()| random.next_u64())
 }
 
@@ -42,7 +47,12 @@ fn trials_to_success_follow_the_geometric_law() {
     let mut sum = 0.0;
     let mut first = 0_u32;
     for draw in 0..samples {
-        let mut random = KeyedRandom::new(WorldSeed(5), &EntityKey(u128::from(draw)), 0, Part(0));
+        let mut random = KeyedRandom::new(
+            WorldSeed(5),
+            &EntityUuid::from_u128(u128::from(draw)),
+            0,
+            Part(0),
+        );
         let trials = random.trials_to_success(chance);
         sum += f64::from(trials);
         first += u32::from(trials == 1);

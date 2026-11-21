@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_physics::{NoBodies, PoseInputs, QueryEntity, Scratch, View, select_pose};
 use mcrs_minecraft_pose::Pose;
@@ -62,7 +62,7 @@ fn select_player_poses(
         let inputs = PoseInputs {
             current: *pose,
             entity: QueryEntity {
-                key: EntityKey::default(),
+                key: EntityUuid::default(),
                 position: transform.translation,
                 fall_distance: 0.0,
                 shift,

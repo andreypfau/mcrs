@@ -3,7 +3,7 @@ use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
@@ -21,7 +21,7 @@ pub(crate) fn drop_item(
     definitions: &BlockDefinitions,
     carried: BlockStateId,
     position: DVec3,
-    key: EntityKey,
+    key: EntityUuid,
 ) {
     let (Some(kind), Some(count)) = (rules.item_of(definitions, carried), Count::new(1)) else {
         return;

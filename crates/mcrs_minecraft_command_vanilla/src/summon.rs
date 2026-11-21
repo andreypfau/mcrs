@@ -17,7 +17,7 @@ use mcrs_minecraft_engine_world::entity_births::EntityBirths;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_entity_key::{BirthSequences, BirthSource, EntityKey};
+use mcrs_minecraft_entity_key::{BirthSequences, BirthSource, EntityUuid};
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::{ItemStack, read_saved};
 use mcrs_minecraft_item_table::ItemTable;
@@ -191,7 +191,7 @@ pub(crate) fn run(
         source: BlockPos::from(source.position),
     };
     let sequence = order.sequences.next(births.tick(), &birth);
-    let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).0);
+    let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).as_u128());
     order.uuids.insert(uuid);
     let custom_name = match &summon {
         Summon::Mob { extras, .. } => extras.custom_name.as_deref(),
@@ -204,7 +204,7 @@ pub(crate) fn run(
             ItemSpawnRequest {
                 stack: item.stack,
                 position,
-                key: EntityKey(uuid),
+                key: EntityUuid::from_u128(uuid),
                 values: item.values,
                 owner: item.owner,
                 thrower: item.thrower,

@@ -1,13 +1,13 @@
 use mcrs_voxel::BlockPos;
 
-use crate::EntityKey;
+use crate::EntityUuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BirthSource {
     Command { spawn: BlockPos, source: BlockPos },
     Block(BlockPos),
-    Entity(EntityKey),
+    Entity(EntityUuid),
 }
 
 impl BirthSource {
@@ -23,7 +23,7 @@ impl BirthSource {
         let [first, second] = match *self {
             Self::Command { spawn, source } => [block(spawn), block(source)],
             Self::Block(pos) => [block(pos), 0],
-            Self::Entity(parent) => [parent.0, 0],
+            Self::Entity(parent) => [parent.as_u128(), 0],
         };
         [
             (first >> 64) as u64,

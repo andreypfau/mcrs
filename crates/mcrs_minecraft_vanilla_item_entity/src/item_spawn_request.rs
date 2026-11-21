@@ -5,7 +5,7 @@ use bevy_ecs::system::Commands;
 use glam::DVec3;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Start;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -20,14 +20,14 @@ use crate::Thrower;
 pub struct ItemSpawnRequest {
     pub stack: ItemStack,
     pub position: DVec3,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub values: ItemEntity,
     pub owner: Option<u128>,
     pub thrower: Option<u128>,
 }
 
 #[derive(Component, Clone, Copy, Debug)]
-pub(crate) struct FixedKey(pub(crate) EntityKey);
+pub(crate) struct FixedKey(pub(crate) EntityUuid);
 
 pub(crate) fn spawn_requested(
     mut requests: MessageReader<ItemSpawnRequest>,

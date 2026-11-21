@@ -4,7 +4,7 @@
 )]
 
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::BlockMotion;
@@ -77,7 +77,7 @@ fn entity(position: DVec3, velocity: DVec3, living: bool) -> EntityState {
         ..Body::default()
     };
     let living = living.then(Living::default);
-    EntityState::new(EntityKey(0), body, living)
+    EntityState::new(EntityUuid::from_u128(0), body, living)
 }
 
 fn velocity_after(

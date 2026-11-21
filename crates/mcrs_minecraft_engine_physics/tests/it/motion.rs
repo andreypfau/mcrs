@@ -23,7 +23,7 @@ use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
@@ -90,7 +90,7 @@ fn spawn(world: &mut World, row: MotionRow, position: DVec3) -> Entity {
     };
     world
         .spawn((
-            MotionState(EntityState::new(EntityKey(7), body, None)),
+            MotionState(EntityState::new(EntityUuid::from_u128(7), body, None)),
             MotionKind(row),
         ))
         .id()

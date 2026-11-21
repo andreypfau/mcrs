@@ -1,9 +1,9 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QueryEntity {
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub position: DVec3,
     pub fall_distance: f64,
     pub shift: bool,

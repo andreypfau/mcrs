@@ -28,7 +28,7 @@ use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
@@ -70,7 +70,7 @@ impl Run {
                 (unit() * 2.0 - 1.0) * edge,
             );
             let row = mob_row(&EntityTypeData::PIG);
-            let key = EntityKey(u128::from(index));
+            let key = EntityUuid::from_u128(u128::from(index));
             let id = EntityId(u64::from(index));
             scene
                 .rows
@@ -88,7 +88,7 @@ impl Run {
         }
         let players = vec![PlayerRow {
             player: EntityId(1),
-            key: EntityKey(u128::MAX),
+            key: EntityUuid::from_u128(u128::MAX),
             position: DVec3::new(0.5, f64::from(FLOOR), 0.5),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,

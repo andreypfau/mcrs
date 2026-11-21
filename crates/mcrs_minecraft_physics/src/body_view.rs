@@ -1,11 +1,11 @@
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Aabb;
 use crate::GridRow;
 
 pub trait BodyView {
-    fn colliders(&self, query: Aabb, mover: EntityKey, out: &mut Vec<EntityCollider>);
+    fn colliders(&self, query: Aabb, mover: EntityUuid, out: &mut Vec<EntityCollider>);
 
     fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>);
 }
@@ -20,7 +20,7 @@ pub struct EntityCollider {
 pub struct NoBodies;
 
 impl BodyView for NoBodies {
-    fn colliders(&self, _query: Aabb, _mover: EntityKey, _out: &mut Vec<EntityCollider>) {}
+    fn colliders(&self, _query: Aabb, _mover: EntityUuid, _out: &mut Vec<EntityCollider>) {}
 
     fn neighbours(&self, _of: &GridRow, _out: &mut Vec<GridRow>) {}
 }
@@ -34,7 +34,7 @@ pub struct ListedBodies {
 
 #[cfg(feature = "testing")]
 impl BodyView for ListedBodies {
-    fn colliders(&self, query: Aabb, _mover: EntityKey, out: &mut Vec<EntityCollider>) {
+    fn colliders(&self, query: Aabb, _mover: EntityUuid, out: &mut Vec<EntityCollider>) {
         out.extend(
             self.colliders
                 .iter()

@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BlockOverlay;
@@ -20,8 +20,8 @@ use rustc_hash::FxHashMap;
 
 const TILE: TileKey = TileKey::new(0, 0, 0);
 
-fn key(tick: u64) -> EntityKey {
-    EntityKey(u128::from(tick))
+fn key(tick: u64) -> EntityUuid {
+    EntityUuid::from_u128(u128::from(tick))
 }
 
 #[test]

@@ -12,7 +12,7 @@ use crate::StageConfig;
 use crate::TickContext;
 use crate::TileWork;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 
 #[derive(Clone, Debug)]
@@ -61,7 +61,7 @@ impl<B> AiDriver<B> {
         &mut self,
         tile: TileKey,
         mob: EntityId,
-        key: EntityKey,
+        key: EntityUuid,
         cadence: Cadence,
         brain: B,
     ) {

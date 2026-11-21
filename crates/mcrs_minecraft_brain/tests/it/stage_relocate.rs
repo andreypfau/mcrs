@@ -3,10 +3,10 @@ use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 
-type Snapshot = Vec<(TileKey, Vec<(EntityId, EntityKey, u64, u32)>)>;
+type Snapshot = Vec<(TileKey, Vec<(EntityId, EntityUuid, u64, u32)>)>;
 
 fn snapshot(stage: &Stage<u32>) -> Snapshot {
     stage
@@ -33,7 +33,7 @@ fn relocating_brains_at_once_equals_relocating_them_one_by_one() {
     let mut stage = Stage::new(StageConfig::new(WorldSeed(1)));
     for mob in 0..600_u64 {
         let tile = TileKey::new(next(4) as i32, 0, next(4) as i32);
-        let key = EntityKey(u128::from(next(1 << 40)) << 20 | u128::from(mob));
+        let key = EntityUuid::from_u128(u128::from(next(1 << 40)) << 20 | u128::from(mob));
         stage.spawn(
             tile,
             EntityId(mob),

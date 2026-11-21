@@ -14,7 +14,7 @@ use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Lifetime;
 use mcrs_minecraft_item_entity::merge_due;
@@ -28,7 +28,7 @@ pub(crate) struct Stepped(pub(crate) Vec<SteppedItem>);
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SteppedItem {
     pub(crate) stack: Entity,
-    pub(crate) key: EntityKey,
+    pub(crate) key: EntityUuid,
     pub(crate) position: DVec3,
     pub(crate) merges: bool,
 }

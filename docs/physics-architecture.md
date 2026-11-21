@@ -276,7 +276,7 @@ same in each layout.
 ```rust
 pub enum WriterKey {              // variant order is the order of PHY-CMP-017
     Command { sequence: u64 },
-    Entity { key: EntityKey },
+    Entity { key: EntityUuid },
     Block { pos: YzxPos },        // compared by y, then z, then x
 }
 ```
@@ -364,16 +364,16 @@ Output:       tile events from mover lists; AI delta (versioned), block changes,
 
 | Key | What it is | Persisted | Used for |
 |-----|------------|-----------|----------|
-| `EntityKey` | PHY-CMP-013: the UUID of the entity, compared as an unsigned 128-bit integer. Kept across a change of dimension | yes, as the UUID of the entity | the push order, the item phase, the crowd damage stream, the groups, the AI random streams, the bins, claims |
+| `EntityUuid` | PHY-CMP-013: the UUID of the entity, compared as an unsigned 128-bit integer. Kept across a change of dimension | yes, as the UUID of the entity | the push order, the item phase, the crowd damage stream, the groups, the AI random streams, the bins, claims |
 | `EntityId` | the global runtime id from the coordinator's ranges; the wire id | no | the slot map of the store, side tables, the protocol |
 | `Entity` | the Bevy entity of a moving entity that is not living, or of the cold state of a mob or a player | no | ECS only |
 
 The order key is the UUID. An entity without a UUID gets a new one from its birth inputs:
 
 ```rust
-pub struct EntityKey(pub u128);   // the UUID; Ord by value
+pub struct EntityUuid(pub Uuid);   // Ord equals the order of the u128 value
 
-impl EntityKey {
+impl EntityUuid {
     // A fixed 128-bit hash of the world seed, the dimension key (its length, then its
     // bytes), the birth tick, the source kind number (load 0, player 1, command 2,
     // spawn 3, block 4, entity 5), the 128-bit source key (block: y, z, x; spawn: chunk
@@ -548,7 +548,7 @@ pub struct TileRows {                       // SoA; sorted by motion class; moun
     size: Vec<BodySize>,
     rest: Vec<Rest>,
     steering: Vec<Steering>,
-    key: Vec<EntityKey>,
+    key: Vec<EntityUuid>,
     id: Vec<EntityId>,
     awake: Vec<u32>,
     movers: Vec<u32>,
@@ -607,7 +607,7 @@ pub struct GridRow {                        // 104 bytes; bodies only
     pub previous: DVec3,                    // at the start of the last tick (PHY-CMP-027)
     pub half_width: f32,
     pub height: f32,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub root_vehicle: EntityId,
     pub team: TeamSlot,
     pub flags: GridFlags,                   // pushable, push_targets, collider kind, spectator,
@@ -1020,7 +1020,7 @@ pub struct BlockOverlay<'a, W> { base: &'a W, blocks: &'a FxHashMap<BlockPos, Bl
 
 /// The driver picks the front grid plus `ColliderEnds`, or a live view (exact-parity mode).
 pub trait BodyView {
-    fn colliders(&self, query: Aabb, mover: EntityKey, out: &mut Vec<EntityCollider>); // PHY-SHP-009
+    fn colliders(&self, query: Aabb, mover: EntityUuid, out: &mut Vec<EntityCollider>); // PHY-SHP-009
     fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>);                     // PHY-RCH-006
     fn position(&self, entity: EntityId) -> Option<PositionRow>;
 }
@@ -1145,7 +1145,7 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
 /// Writes or claims of one task, binned by target tile. `E` is the write or the claim type.
 pub struct EffectBuffer<E> { bins: Vec<EffectBin<E>> }   // a bin: a tile and its entries
 pub struct Keyed<E> {
-    pub target: EntityKey, pub target_id: EntityId, pub writer: WriterKey, pub sequence: u32,
+    pub target: EntityUuid, pub target_id: EntityId, pub writer: WriterKey, pub sequence: u32,
     pub effect: E,
 }
 /// Per tile: late AI decisions (`T` = a decision), or the gathered bins (`T` = `Keyed<E>`),

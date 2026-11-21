@@ -10,7 +10,6 @@ use bevy_ecs::prelude::{
     Ref, Without,
 };
 use mcrs_voxel::SectionPos;
-use uuid::Uuid;
 
 pub mod physics;
 pub mod player;
@@ -171,13 +170,4 @@ fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform)>) {
         .for_each(|(mut old_transform, transform)| {
             old_transform.0 = *transform;
         });
-}
-
-#[derive(Debug, Clone, Copy, Component, Deref, PartialEq, Eq)]
-pub struct EntityUuid(pub Uuid);
-
-impl Default for EntityUuid {
-    fn default() -> Self {
-        EntityUuid(Uuid::new_v4())
-    }
 }
