@@ -73,6 +73,10 @@ fn wire_powers() -> Vec<&'static str> {
     POWERS.to_vec()
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the corpus lists each circuit with its blocks and probes in one place"
+)]
 pub fn corpus() -> Vec<Scenario> {
     vec![
         Scenario {

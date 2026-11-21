@@ -10,22 +10,24 @@ use mcrs_minecraft_engine::block_simulation::{BlockMemory, BlockRules, BlockSimu
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
-use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
+use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
-    BlockEntity, BlockEntityPos, SectionBlockEntities, spawn_block_entities,
+    BlockEntity, BlockEntityPos, SectionBlockEntities,
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_redstone::{
-    Carried, HasRedstone, HasRedstoneMemory, Kind, MOVE_TICKS, MovingPayload, RedstoneTable,
+    Carried, HasRedstone, HasRedstoneMemory, Kind, MOVE_TICKS, MovePhase, MovingPayload,
+    RedstoneTable,
 };
 use mcrs_minecraft_resource::{ResourceLocationBuf, parse_parts};
 use mcrs_minecraft_simulation::{BlockBehaviour, GameTick, UpdateRequest, neighbour};
 use mcrs_voxel::{BlockPos, BlockStateId};
+use rustc_hash::FxHashMap;
 
-use crate::block_entities::entity_at;
+use crate::block_entities::{entity_at, spawn_linked};
 
 fn state_compound(blocks: &Blocks, state: BlockStateId) -> Option<NbtCompound> {
     let (name, properties) = blocks.properties_of(state.number())?;
@@ -96,8 +98,12 @@ fn block_entity_at<'a>(
 
 fn carried_entity<'a>(
     at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
+    released: &FxHashMap<BlockPos, NbtCompound>,
     source: BlockPos,
 ) -> Option<NbtCompound> {
+    if let Some(compound) = released.get(&source) {
+        return Some(compound.clone());
+    }
     let entity = at(source)?;
     if matches!(entity, GeneratedBlockEntity::Piston { .. }) {
         return None;
@@ -109,6 +115,7 @@ fn moving_record<'a>(
     blocks: &Blocks,
     table: &RedstoneTable,
     at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
+    released: &FxHashMap<BlockPos, NbtCompound>,
     pos: BlockPos,
     payload: &MovingPayload,
 ) -> Option<GeneratedBlockEntity> {
@@ -117,7 +124,7 @@ fn moving_record<'a>(
         payload.carried == Carried::Block && table.info(payload.state).block_entity;
     let carried = neighbour(pos, payload.facing.opposite())
         .filter(|_| carries_entity)
-        .and_then(|source| carried_entity(at, source));
+        .and_then(|source| carried_entity(at, released, source));
     Some(GeneratedBlockEntity::Piston {
         x: pos.x,
         y: pos.y,
@@ -132,19 +139,26 @@ fn moving_record<'a>(
 }
 
 fn released_entity<'a>(
+    blocks: &Blocks,
     at: &impl Fn(BlockPos) -> Option<&'a GeneratedBlockEntity>,
     pos: BlockPos,
-) -> Option<GeneratedBlockEntity> {
+    arrived: BlockStateId,
+) -> Option<(NbtCompound, GeneratedBlockEntity)> {
     let GeneratedBlockEntity::Piston {
+        block_state,
         carried: Some(carried),
         ..
     } = at(pos)?
     else {
         return None;
     };
-    GeneratedBlockEntity::from_template(carried, pos, None)
+    if state_of(blocks, block_state) != Some(arrived) {
+        return None;
+    }
+    let entity = GeneratedBlockEntity::from_template(carried, pos, None)
         .ok()
-        .flatten()
+        .flatten()?;
+    Some((carried.clone(), entity))
 }
 
 #[expect(
@@ -173,11 +187,12 @@ pub(crate) fn record_moving_blocks<B>(
     let table = rules.0.redstone().table();
     let moving = &memory.0.redstone_ref().moving;
     let mut spawned = Vec::new();
+    let mut released: FxHashMap<BlockPos, NbtCompound> = FxHashMap::default();
     for change in placed.read() {
         let pos = change.block_pos;
         if is_moving(table, change.new_state) {
             if let Some(payload) = moving.get(&pos)
-                && let Some(record) = moving_record(&blocks, table, &at, pos, payload)
+                && let Some(record) = moving_record(&blocks, table, &at, &released, pos, payload)
             {
                 spawned.push(record);
             }
@@ -185,15 +200,16 @@ pub(crate) fn record_moving_blocks<B>(
         }
         if is_moving(table, change.old_state)
             && table.info(change.new_state).block_entity
-            && let Some(released) = released_entity(&at, pos)
+            && let Some((compound, entity)) = released_entity(&blocks, &at, pos, change.new_state)
         {
-            spawned.push(released);
+            released.insert(pos, compound);
+            spawned.push(entity);
         }
     }
     if spawned.is_empty() {
         return;
     }
-    spawn_block_entities(&mut commands, InDimension(dimension), spawned);
+    spawn_linked(&mut commands, dimension, index, spawned);
 }
 
 pub(crate) fn restore_moving_blocks<B>(
@@ -212,6 +228,7 @@ pub(crate) fn restore_moving_blocks<B>(
         let GeneratedBlockEntity::Piston {
             block_state,
             facing,
+            extending,
             ..
         } = &entity.0
         else {
@@ -231,6 +248,11 @@ pub(crate) fn restore_moving_blocks<B>(
                 state,
                 facing,
                 carried: carried_kind(table, state),
+                phase: if *extending {
+                    MovePhase::Extending
+                } else {
+                    MovePhase::Retracting
+                },
                 started: GameTick(time.0.saturating_sub(i64::from(MOVE_TICKS))),
             },
         );

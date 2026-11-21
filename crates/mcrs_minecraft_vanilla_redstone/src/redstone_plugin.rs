@@ -73,7 +73,6 @@ where
                 publish_plate_presence::<B>,
                 publish_daylight::<B>,
                 publish_container_signals::<B>,
-                persist_comparator_outputs::<B>,
             )
                 .chain()
                 .in_set(TickSet::Simulate)
@@ -92,8 +91,9 @@ where
         );
         app.add_systems(
             FixedPostUpdate,
-            record_moving_blocks::<B>
-                .before(VoxelUpdateSet::NetworkSync)
+            (record_moving_blocks::<B>, persist_comparator_outputs::<B>)
+                .chain()
+                .after(VoxelUpdateSet::NetworkSync)
                 .run_if(resource_exists::<BlockRules<B>>)
                 .run_if(resource_exists::<BlockMemory<B>>),
         );

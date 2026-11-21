@@ -6,7 +6,7 @@ use mcrs_minecraft_simulation::{
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::component::{Kind, Stickiness};
-use crate::power::{offset_by, state_at};
+use crate::power::offset_by;
 use crate::rules::RedstoneRules;
 use crate::table::RedstoneTable;
 
@@ -122,19 +122,27 @@ struct Resolver<'a> {
     table: &'a RedstoneTable,
     rules: &'a RedstoneRules,
     piston: BlockPos,
+    facing: Direction,
     push_direction: Direction,
+    unreadable: bool,
     set: PushSet,
 }
 
 impl Resolver<'_> {
-    fn state<K, V, F, B>(&self, cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos) -> BlockStateId
+    fn state<K, V, F, B>(&mut self, cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos) -> BlockStateId
     where
         K: Kinds,
         V: SimulationVolume,
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
     {
-        state_at(cx, pos).unwrap_or(self.table.void_air())
+        match cx.state(pos) {
+            Ok(state) => state,
+            Err(_) => {
+                self.unreadable = true;
+                self.table.void_air()
+            }
+        }
     }
 
     fn stickiness(&self, state: BlockStateId) -> Stickiness {
@@ -145,14 +153,14 @@ impl Resolver<'_> {
         more.saturating_add(self.set.to_push.len()) > PUSH_LIMIT
     }
 
-    fn pushable(&self, state: BlockStateId, destroy: Destroy, line: Direction) -> bool {
+    fn pushable(&self, state: BlockStateId, destroy: Destroy) -> bool {
         is_pushable(
             self.table,
             self.rules,
             state,
             self.push_direction,
             destroy,
-            line,
+            self.facing,
         )
     }
 
@@ -168,11 +176,12 @@ impl Resolver<'_> {
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
     {
+        let _ = direction;
         let state = self.state(cx, origin);
         if state == self.table.void_air() {
             return false;
         }
-        if self.table.is_air(state) || !self.pushable(state, Destroy::Refused, direction) {
+        if self.table.is_air(state) || !self.pushable(state, Destroy::Refused) {
             return true;
         }
         if origin == self.piston || self.set.to_push.contains(origin) {
@@ -220,7 +229,7 @@ impl Resolver<'_> {
             if self.table.is_air(next) {
                 return true;
             }
-            if !self.pushable(next, Destroy::Allowed, self.push_direction) || pos == self.piston {
+            if !self.pushable(next, Destroy::Allowed) || pos == self.piston {
                 return false;
             }
             if self.table.info(next).push == PushReaction::Destroy {
@@ -235,7 +244,7 @@ impl Resolver<'_> {
     }
 
     fn count_behind<K, V, F, B>(
-        &self,
+        &mut self,
         cx: &mut Cx<'_, K, V, F, B>,
         origin: BlockPos,
         state: BlockStateId,
@@ -259,7 +268,7 @@ impl Resolver<'_> {
             let next = self.state(cx, back);
             if self.table.is_air(next)
                 || !sticks(self.stickiness(current), self.stickiness(next))
-                || !self.pushable(next, Destroy::Refused, self.push_direction.opposite())
+                || !self.pushable(next, Destroy::Refused)
                 || back == self.piston
             {
                 break;
@@ -339,7 +348,9 @@ where
         table,
         rules,
         piston,
+        facing,
         push_direction: push,
+        unreadable: false,
         set: PushSet::EMPTY,
     };
     let state = resolver.state(cx, start);
@@ -360,6 +371,9 @@ where
             return None;
         }
         index = index.saturating_add(1);
+    }
+    if resolver.unreadable {
+        return None;
     }
     Some(resolver.set)
 }

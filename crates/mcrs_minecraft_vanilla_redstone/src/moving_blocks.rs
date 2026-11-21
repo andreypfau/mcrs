@@ -39,7 +39,7 @@ pub(crate) struct Mover {
 }
 
 fn progress(payload: &MovingPayload, now: i64) -> f64 {
-    let elapsed = now.saturating_sub(payload.started.0).saturating_add(1);
+    let elapsed = now.saturating_sub(payload.started.0);
     (elapsed as f64 / TICKS_PER_MOVE).clamp(0.0, 1.0)
 }
 
@@ -60,7 +60,9 @@ fn movers<'a>(
     out: &mut Vec<Mover>,
 ) {
     out.clear();
-    for (pos, payload) in moving {
+    let mut ordered: Vec<(&BlockPos, &MovingPayload)> = moving.collect();
+    ordered.sort_by_key(|(pos, _)| (pos.x, pos.y, pos.z));
+    for (pos, payload) in ordered {
         if payload.carried == Carried::Base {
             continue;
         }
@@ -145,7 +147,7 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
         return;
     }
     for mut state in &mut items {
-        let body = Aabb::of_body(state.0.body.position, ITEM_WIDTH, ITEM_HEIGHT);
+        let mut body = Aabb::of_body(state.0.body.position, ITEM_WIDTH, ITEM_HEIGHT);
         for mover in shapes.iter() {
             let Some(delta) = displacement(mover, &body) else {
                 continue;
@@ -154,6 +156,7 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
                 state.0.body.velocity = launch(mover);
             } else {
                 state.0.body.position += delta;
+                body = body.translate(delta);
             }
         }
     }
@@ -161,11 +164,14 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
     let mut sequence: u32 = 0;
     for (tile, bodies) in bodies.0.tiles() {
         for row in &bodies.rows {
-            let body = row.bounds();
+            let mut body = row.bounds();
             for mover in shapes.iter() {
                 let Some(delta) = displacement(mover, &body) else {
                     continue;
                 };
+                if !mover.slime {
+                    body = body.translate(delta);
+                }
                 let effect = if mover.slime { launch(mover) } else { delta };
                 let origin = BlockPos::new(
                     mover.box_.min.x.floor() as i32,
@@ -191,11 +197,12 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
     writes.0.gather(&mut kicks);
     for (owner, mut transform, mut teleport, body) in &mut players {
         let dimensions = body.dimensions();
-        let box_ = Aabb::of_body(transform.translation, dimensions.width, dimensions.height);
+        let mut box_ = Aabb::of_body(transform.translation, dimensions.width, dimensions.height);
         let mut moved = DVec3::ZERO;
         for mover in shapes.iter() {
             if let Some(delta) = displacement(mover, &box_) {
                 moved += delta;
+                box_ = box_.translate(delta);
             }
         }
         if moved == DVec3::ZERO {

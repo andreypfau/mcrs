@@ -22,28 +22,36 @@ const BASE: BlockPos = BlockPos::new(0, 120, 0);
 const LAMP: BlockPos = BlockPos::new(1, 120, 0);
 const LEVER: BlockPos = BlockPos::new(0, 121, 0);
 
-fn lever(app: &App, powered: bool) -> BlockStateId {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PoweredState {
+    Unpowered,
+    Powered,
+}
+
+impl PoweredState {
+    fn value(self) -> PropertyValue {
+        PropertyValue::Bool(self == Self::Powered)
+    }
+}
+
+fn lever(app: &App, powered: PoweredState) -> BlockStateId {
     let blocks = app.world().resource::<Blocks>();
     let lever = blocks.block("minecraft:lever").expect("a lever");
     let state = lever
         .with_text(lever.default_state_id, "face", "floor")
         .expect("a floor lever");
     lever
-        .with(state, "powered", &PropertyValue::Bool(powered))
+        .with(state, "powered", &powered.value())
         .expect("a lever state")
 }
 
-fn stone_plate(app: &App, powered: bool) -> BlockStateId {
+fn stone_plate(app: &App, powered: PoweredState) -> BlockStateId {
     let blocks = app.world().resource::<Blocks>();
     let plate = blocks
         .block("minecraft:stone_pressure_plate")
         .expect("a stone plate");
     plate
-        .with(
-            plate.default_state_id,
-            "powered",
-            &PropertyValue::Bool(powered),
-        )
+        .with(plate.default_state_id, "powered", &powered.value())
         .expect("a plate state")
 }
 
@@ -117,8 +125,8 @@ fn a_lever_on_a_block_lights_and_darkens_the_lamp_beside_it() {
     let stone = block_state(&app, "minecraft:stone");
     let lamp = block_state(&app, "minecraft:redstone_lamp");
     let lit = lit_lamp(&app);
-    let pulled = lever(&app, true);
-    let released = lever(&app, false);
+    let pulled = lever(&app, PoweredState::Powered);
+    let released = lever(&app, PoweredState::Unpowered);
     let mut seen = Vec::new();
     for tick in 0..70 {
         match tick {
@@ -164,8 +172,8 @@ fn a_player_standing_on_a_stone_plate_presses_it() {
     wait_for_generation(&mut app, label);
     let actor = admit(&mut app, label);
     let stone = block_state(&app, "minecraft:stone");
-    let released = stone_plate(&app, false);
-    let pressed = stone_plate(&app, true);
+    let released = stone_plate(&app, PoweredState::Unpowered);
+    let pressed = stone_plate(&app, PoweredState::Powered);
     let under_feet = BlockPos::new(0, 121, 2);
     let plate = BlockPos::new(0, 122, 2);
     let mut seen = Vec::new();
@@ -225,9 +233,13 @@ fn a_pushed_block_leaves_a_moving_record_and_arrives() {
             arrived = Some(tick);
         }
     }
-    let (_, record) = records
-        .first()
-        .expect("the moving block leaves a record in the block entities");
+    let piston_state = block_at(&mut app, label, base);
+    let moved_state = block_at(&mut app, label, destination);
+    let (_, record) = records.first().unwrap_or_else(|| {
+        panic!(
+            "the moving block leaves a record in the block entities: piston {piston_state:?} expected {piston:?}, destination {moved_state:?} stone {stone:?} arrived {arrived:?}"
+        )
+    });
     let GeneratedBlockEntity::Piston {
         block_state,
         extending,

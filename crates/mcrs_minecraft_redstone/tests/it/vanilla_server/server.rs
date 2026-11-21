@@ -167,6 +167,10 @@ fn forward_lines(output: impl std::io::Read + Send + 'static, copy: PathBuf) -> 
     receiver
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the harness reads the acceptance of the EULA and the jar path from the environment"
+)]
 pub fn server_jar() -> Option<PathBuf> {
     if !std::env::var("MINECRAFT_EULA").is_ok_and(|accepted| accepted == "true") {
         eprintln!(

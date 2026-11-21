@@ -62,7 +62,7 @@ That test also calls `MinecraftServerPlugins::embedded()`. It gives a server tha
 
 The binary reads its settings from the environment and turns them into plugin fields in `src/main.rs`:
 
-<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
+<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".set(VanillaRedstonePlugin::from_settings(&settings.redstone));" title="src/main.rs: from settings to plugin fields" />
 
 Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it.[^278]
 

@@ -46,7 +46,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Бинарник читает настройки из окружения и превращает их в поля плагинов в `src/main.rs`:
 
-<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: от настроек к полям плагинов" />
+<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".set(VanillaRedstonePlugin::from_settings(&settings.redstone));" title="src/main.rs: от настроек к полям плагинов" />
 
 Так делает только бинарник. Библиотечный крейт не читает ради своих настроек ни переменные окружения, ни файлы, и каждая настройка - поле того плагина, который ее использует.[^278]
 
