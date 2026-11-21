@@ -84,6 +84,14 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
         Queued::Accepted
     }
 
+    pub fn hold(&mut self, event: BlockEvent<B>) {
+        self.undelivered.insert(event);
+    }
+
+    pub fn release(&mut self, event: BlockEvent<B>) {
+        self.undelivered.remove(&event);
+    }
+
     pub fn next_eligible<E>(&mut self, bound: u32, mut eligible: E) -> Drained<B>
     where
         E: FnMut(SectionPos) -> bool,
@@ -179,6 +187,10 @@ impl<B: Copy + Eq + Hash + Debug> EventQueue<B> {
         if let Some(taken) = out.get_mut(start..) {
             taken.sort_by_key(QueuedEvent::order);
         }
+    }
+
+    pub fn pending_len(&self) -> usize {
+        self.pending.len()
     }
 
     pub fn len(&self) -> usize {

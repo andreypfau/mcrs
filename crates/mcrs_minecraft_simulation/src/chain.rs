@@ -1,5 +1,5 @@
 use crate::behaviour::{BlockBehaviour, BlockFacts};
-use crate::cx::{Cx, bump};
+use crate::cx::{Cx, Drops, bump};
 use crate::message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 use crate::output::ChainLedger;
 use crate::shard::ChainLimit;
@@ -11,7 +11,7 @@ use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use Direction::{Down, East, North, South, Up, West};
 
-pub(crate) fn neighbour(pos: BlockPos, direction: Direction) -> Option<BlockPos> {
+pub fn neighbour(pos: BlockPos, direction: Direction) -> Option<BlockPos> {
     let normal = direction.normal();
     Some(BlockPos::new(
         pos.x.checked_add(normal.x)?,
@@ -205,7 +205,7 @@ where
         }
     }
 
-    pub(crate) fn update_comparators(&mut self, pos: BlockPos, source: K::Block) {
+    pub fn update_comparators(&mut self, pos: BlockPos, source: K::Block) {
         let facts = self.facts;
         for direction in [North, East, South, West] {
             let Some(target) = neighbour(pos, direction) else {
@@ -392,6 +392,10 @@ where
                 self.run_shape(target, from, neighbour_state, flags, limit);
                 false
             }
+            UpdateRequest::Comparators { source, block } => {
+                self.update_comparators(source, block);
+                false
+            }
         }
     }
 
@@ -446,11 +450,12 @@ where
             return;
         }
         if self.facts.is_air(next) {
-            self.destroy(
-                target,
-                !flags.contains(BlockUpdateFlags::SUPPRESS_DROPS),
-                limit,
-            );
+            let drops = if flags.contains(BlockUpdateFlags::SUPPRESS_DROPS) {
+                Drops::Withheld
+            } else {
+                Drops::Released
+            };
+            self.destroy(target, drops, limit);
         } else {
             self.set(
                 target,

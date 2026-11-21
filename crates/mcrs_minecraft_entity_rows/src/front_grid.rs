@@ -1,7 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
-use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BodyView;
@@ -12,13 +11,10 @@ use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::PushTargets;
 use mcrs_minecraft_physics::TeamSlot;
-use mcrs_minecraft_physics::floor_block;
 
 use crate::BodyGrid;
 use crate::TileBodies;
-
-const BUCKET: i32 = 1;
-const BUCKETS: usize = (TILE_WIDTH.get() / BUCKET.unsigned_abs()) as usize;
+use crate::tile_bodies::{BUCKETS, bucket_xz};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FrontGrid<'a> {
@@ -105,13 +101,4 @@ pub(crate) fn sort_bodies(tile: TileKey, bodies: &[GridRow], out: &mut TileBodie
 fn bucket(tile: TileKey, position: DVec3) -> usize {
     let [x, z] = bucket_xz(tile, position);
     z * BUCKETS + x
-}
-
-fn bucket_xz(tile: TileKey, position: DVec3) -> [usize; 2] {
-    let width = TILE_WIDTH.get().cast_signed();
-    let local = |value: f64, origin: i32| {
-        let block = floor_block(value).saturating_sub(origin.saturating_mul(width));
-        usize::try_from(block / BUCKET).map_or(0, |bucket| bucket.min(BUCKETS - 1))
-    };
-    [local(position.x, tile.x), local(position.z, tile.z)]
 }

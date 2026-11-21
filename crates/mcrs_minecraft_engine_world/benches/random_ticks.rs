@@ -83,6 +83,10 @@ struct Counted {
 }
 
 impl BlockBehaviour<Bench> for Counted {
+    type Memory = ();
+
+    type Shared = ();
+
     fn random_tick<V: SimulationVolume, F: BlockFacts<Bench>>(
         &self,
         cx: &mut Cx<'_, Bench, V, F, Self>,
@@ -221,6 +225,8 @@ fn random_ticks(c: &mut Criterion) {
                 GameTick(now),
                 &mut world,
                 &env,
+                &mut (),
+                &(),
                 picks,
                 &mut out,
                 &Serial,

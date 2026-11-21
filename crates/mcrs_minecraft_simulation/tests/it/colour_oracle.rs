@@ -138,6 +138,10 @@ impl Rules {
 }
 
 impl BlockBehaviour<ProbeKinds> for Rules {
+    type Memory = ();
+
+    type Shared = ();
+
     fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
         match self.get(state) {
             Some(rule) if rule.ticks => RandomTicks::BLOCK,
@@ -359,6 +363,8 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
             GameTick(now),
             &mut host,
             &env,
+            &mut (),
+            &(),
             picks,
             &mut out,
             spread,
@@ -391,6 +397,8 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
         },
         &mut host,
         &env,
+        &mut (),
+        &(),
         PhaseInput {
             inbound: &[],
             ledgers: &[],

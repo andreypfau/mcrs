@@ -1,18 +1,20 @@
 use crate::access::{PartitionKind, SectionProperties};
-use crate::behaviour::{BlockBehaviour, BlockFacts};
+use crate::behaviour::{BlockBehaviour, BlockFacts, MemoryPartition};
 use crate::event_queue::{BlockEvent, QueuedEvent};
 use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
-use crate::output::{BlockWrite, Destroyed, StepOutput};
+use crate::output::{BlockWrite, Destroyed, OutputMark, StepOutput};
 use crate::policy::{ChainOrder, OrderingPolicy};
-use crate::region::Region;
+use crate::region::{Region, Touch, cell_key};
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
 use crate::tick_queue::{Collected, Kinds, ScheduledTick};
+use crate::tile_task::Produced;
 use crate::{BlockUpdateFlags, SimulationVolume};
 use mcrs_minecraft_volume::{Access, SectionBlocks, Unavailable};
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Lane {
@@ -41,6 +43,12 @@ fn event_lane(kind: PartitionKind, access: Access) -> Lane {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Drops {
+    Released,
+    Withheld,
+}
+
 pub(crate) fn bump(counter: &mut u32) {
     *counter = counter.saturating_add(1);
 }
@@ -49,8 +57,10 @@ fn due_after(now: GameTick, delay: i32) -> GameTick {
     GameTick(now.0.saturating_add(i64::from(delay)))
 }
 
-pub struct Cx<'a, K: Kinds, V, F, B> {
+pub struct Cx<'a, K: Kinds, V, F, B: BlockBehaviour<K>> {
     pub(crate) shard: &'a mut BlockShard<K>,
+    pub(crate) memory: Option<&'a mut B::Memory>,
+    pub(crate) shared: &'a B::Shared,
     pub(crate) volume: &'a mut V,
     pub(crate) out: &'a mut StepOutput<K>,
     pub(crate) facts: &'a F,
@@ -61,6 +71,8 @@ pub struct Cx<'a, K: Kinds, V, F, B> {
     pub(crate) now: GameTick,
     pub(crate) chain_order: ChainOrder,
     pub(crate) task: Option<TileCx<'a, K>>,
+    pub(crate) task_cells: FxHashMap<u64, B::Memory>,
+    item_cells: FxHashMap<u64, B::Memory>,
 }
 
 pub(crate) struct TileCx<'a, K: Kinds> {
@@ -68,6 +80,9 @@ pub(crate) struct TileCx<'a, K: Kinds> {
     pub(crate) base: &'a BlockShard<K>,
     pub(crate) footprints: &'a Footprints,
     pub(crate) overflowed: bool,
+    pub(crate) consumed: Vec<(BlockPos, K::Block)>,
+    pub(crate) reads: Touch,
+    pub(crate) writes: Touch,
 }
 
 impl<'a, K, V, F, B> Cx<'a, K, V, F, B>
@@ -82,10 +97,14 @@ where
         volume: &'a mut V,
         out: &'a mut StepOutput<K>,
         env: &Env<'a, F, B, P>,
+        memory: Option<&'a mut B::Memory>,
+        shared: &'a B::Shared,
         now: GameTick,
     ) -> Self {
         Self {
             shard,
+            memory,
+            shared,
             volume,
             out,
             facts: env.facts,
@@ -96,6 +115,8 @@ where
             now,
             chain_order: env.policy.chain_order(),
             task: None,
+            task_cells: FxHashMap::default(),
+            item_cells: FxHashMap::default(),
         }
     }
 
@@ -124,7 +145,71 @@ where
         self.now
     }
 
+    pub fn memory(&mut self) -> Option<&mut B::Memory> {
+        if self.memory.is_none() || self.task.is_some() {
+            self.task_leaves();
+            return None;
+        }
+        self.memory.as_deref_mut()
+    }
+
+    pub fn memory_at(&mut self, pos: BlockPos) -> Option<&mut B::Memory> {
+        if self.memory.is_none() {
+            self.task_leaves();
+            return None;
+        }
+        self.touch_write(pos);
+        if self.task.is_some()
+            && let Some(memory) = self.memory.as_deref()
+        {
+            let cell = cell_key(pos);
+            self.task_cells
+                .entry(cell)
+                .or_insert_with(|| memory.copy_cell(cell));
+            self.item_cells
+                .entry(cell)
+                .or_insert_with(|| memory.copy_cell(cell));
+        }
+        self.memory.as_deref_mut()
+    }
+
+    pub(crate) fn touch_read(&mut self, at: BlockPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend(at);
+        }
+    }
+
+    fn touch_write(&mut self, at: BlockPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend(at);
+            task.writes.extend(at);
+        }
+    }
+
+    fn touch_section(&mut self, section: SectionPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend_section(section);
+        }
+    }
+
+    pub fn shared(&self) -> &B::Shared {
+        self.shared
+    }
+
+    pub fn owns(&mut self, pos: BlockPos) -> bool {
+        self.touch_read(pos);
+        match self.volume.access(SectionPos::from(pos)) {
+            Access::Write => true,
+            Access::Foreign => {
+                self.task_leaves();
+                false
+            }
+            Access::Read | Access::Unloaded | Access::Outside => false,
+        }
+    }
+
     pub fn state(&mut self, pos: BlockPos) -> Result<BlockStateId, Unavailable> {
+        self.touch_read(pos);
         match self.volume.block(pos) {
             Err(Unavailable::Outside) => Ok(self.facts.void_air()),
             Err(Unavailable::Foreign) => {
@@ -179,6 +264,7 @@ where
         delay: i32,
         priority: TickPriority,
     ) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
         let body = MessageBody::BlockTick {
@@ -210,6 +296,7 @@ where
         delay: i32,
         priority: TickPriority,
     ) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
         let body = MessageBody::FluidTick {
@@ -247,6 +334,7 @@ where
     }
 
     pub fn queue_block_event(&mut self, pos: BlockPos, block: K::Block, a: i32, b: i32) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let event = BlockEvent { pos, block, a, b };
         match self.lane_for_event(pos) {
@@ -262,6 +350,7 @@ where
     }
 
     pub fn has_scheduled_block_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        self.touch_read(pos);
         match self.lane_for_tick(pos) {
             Lane::Own => {}
             Lane::Away => {
@@ -274,15 +363,21 @@ where
             return self.shard.block_ticks.contains(pos, block);
         };
         task.base.block_ticks.contains(pos, block)
+            || task.base.published_ticks.contains(&(pos, block))
             || self.out.outbound.iter().any(|message| {
                 matches!(message.body, MessageBody::BlockTick { pos: at, block: kind, .. }
                     if at == pos && kind == block)
             })
     }
 
-    pub fn will_tick_this_tick(&self, pos: BlockPos, block: K::Block) -> bool {
-        let shard = self.task.as_ref().map_or(&*self.shard, |task| task.base);
-        shard.ticking.contains(&(pos, block))
+    pub fn will_tick_this_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        self.touch_read(pos);
+        let Some(task) = self.task.as_ref() else {
+            return self.shard.ticking.contains(&(pos, block));
+        };
+        task.base.ticking.contains(&(pos, block))
+            && !task.base.published_consumed.contains(&(pos, block))
+            && !task.consumed.contains(&(pos, block))
     }
 
     pub fn set(
@@ -318,6 +413,7 @@ where
     }
 
     fn section_is_air(&mut self, pos: BlockPos) -> bool {
+        self.touch_section(SectionPos::from(pos));
         let facts = self.facts;
         let Ok(section) = self.volume.section(SectionPos::from(pos)) else {
             return false;
@@ -341,6 +437,7 @@ where
         flags: BlockUpdateFlags,
         limit: u16,
     ) -> bool {
+        self.touch_write(pos);
         if self.facts.is_air(state) && self.section_is_air(pos) {
             return false;
         }
@@ -386,7 +483,7 @@ where
         true
     }
 
-    pub(crate) fn destroy(&mut self, pos: BlockPos, drops: bool, limit: u16) -> bool {
+    pub fn destroy(&mut self, pos: BlockPos, drops: Drops, limit: u16) -> bool {
         let Ok(old) = self.state(pos) else {
             return false;
         };
@@ -396,7 +493,7 @@ where
         self.out.destroyed.push(Destroyed {
             pos,
             state: old,
-            drops,
+            drops: drops == Drops::Released,
         });
         let replacement = self.facts.legacy_block_of_fluid(old);
         self.set(
@@ -471,10 +568,19 @@ where
     }
 
     pub(crate) fn run_block_tick(&mut self, tick: Collected<K::Block>) {
-        self.shard.ticking.remove(&(tick.pos, tick.kind));
+        match self.task.as_mut() {
+            Some(task) => {
+                task.consumed.push((tick.pos, tick.kind));
+                self.touch_write(tick.pos);
+            }
+            None => {
+                self.shard.ticking.remove(&(tick.pos, tick.kind));
+            }
+        }
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(tick.pos)
             && self.facts.block_of(state) == tick.kind
+            && self.fits(tick.pos, state)
         {
             behaviour.block_tick(self, tick.pos, state);
         }
@@ -484,6 +590,7 @@ where
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(tick.pos)
             && self.facts.fluid_of(state) == Some(tick.kind)
+            && self.fits(tick.pos, state)
         {
             behaviour.fluid_tick(self, tick.pos, state, tick.kind);
         }
@@ -493,9 +600,82 @@ where
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(event.pos)
             && self.facts.block_of(state) == event.block
+            && self.fits(event.pos, state)
             && behaviour.block_event(self, event.pos, state, event.a, event.b)
         {
             self.out.delivered.push(event);
         }
+    }
+
+    pub(crate) fn tile_item<R>(
+        &mut self,
+        index: usize,
+        reruns: &mut Vec<usize>,
+        produced: &mut Vec<Produced<K, B::Memory>>,
+        run: &R,
+    ) where
+        R: Fn(&mut Self, usize),
+    {
+        let mark = self.out.mark();
+        let consumed = self.task.as_ref().map_or(0, |task| task.consumed.len());
+        if let Some(task) = self.task.as_mut() {
+            task.reads.clear();
+            task.writes.clear();
+        }
+        self.item_cells.clear();
+        run(self, index);
+        if self
+            .task
+            .as_mut()
+            .is_some_and(|task| core::mem::take(&mut task.overflowed))
+        {
+            self.undo(mark);
+            if let Some(task) = self.task.as_mut() {
+                task.consumed.truncate(consumed);
+            }
+            let saved: Vec<(u64, B::Memory)> = self.item_cells.drain().collect();
+            if let Some(memory) = self.memory.as_deref_mut() {
+                for (cell, snapshot) in saved {
+                    memory.drop_cell(cell);
+                    memory.merge(snapshot);
+                }
+            }
+            reruns.push(index);
+            return;
+        }
+        let cells: Vec<(u64, B::Memory)> = self.item_cells.drain().collect();
+        let (reads, writes, consumed) = self.task.as_mut().map_or_else(
+            || (Touch::EMPTY, Touch::EMPTY, Vec::new()),
+            |task| {
+                (
+                    core::mem::take(&mut task.reads),
+                    core::mem::take(&mut task.writes),
+                    task.consumed
+                        .get(consumed..)
+                        .map(<[_]>::to_vec)
+                        .unwrap_or_default(),
+                )
+            },
+        );
+        produced.push(Produced {
+            index,
+            reads,
+            writes,
+            cells,
+            consumed,
+            blocks: mark.writes..self.out.writes.len(),
+            outbound: mark.outbound..self.out.outbound.len(),
+            delivered: mark.delivered..self.out.delivered.len(),
+            destroyed: mark.destroyed..self.out.destroyed.len(),
+            chains: mark.chains..self.out.chains.len(),
+        });
+    }
+
+    fn undo(&mut self, mark: OutputMark) {
+        for write in self.out.writes.drain(mark.writes..).rev() {
+            let _ = self.volume.set_block(write.pos, write.old);
+        }
+        self.out.truncate(mark);
+        self.shard.chain.reset();
     }
 }

@@ -19,6 +19,10 @@ struct Picks {
 }
 
 impl BlockBehaviour<ProbeKinds> for Picks {
+    type Memory = ();
+
+    type Shared = ();
+
     fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
         if state == A {
             RandomTicks::BLOCK
@@ -83,6 +87,8 @@ fn run(
             GameTick(now),
             host,
             &env,
+            &mut (),
+            &(),
             picks,
             &mut out,
             &Serial,
@@ -250,6 +256,10 @@ struct Rain {
 }
 
 impl BlockBehaviour<ProbeKinds> for Rain {
+    type Memory = ();
+
+    type Shared = ();
+
     fn precipitation<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
         &self,
         _cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
@@ -295,6 +305,8 @@ fn precipitation_hits_of_a_column_do_not_depend_on_other_tiles() {
                 GameTick(now),
                 &mut host,
                 &env,
+                &mut (),
+                &(),
                 picks,
                 &mut out,
                 &Serial,
