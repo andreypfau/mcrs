@@ -328,7 +328,7 @@ pub fn build_router_and_material(
     material.vein_bounds = material
         .veins
         .iter()
-        .map(|vein| CellBounds::new(&router.program, router.program.root_node(vein.density)))
+        .map(|vein| CellBounds::new(router.program(), router.program().root_node(vein.density)))
         .collect();
     Ok((router, material))
 }
@@ -1004,7 +1004,9 @@ pub(crate) mod tests {
         for vein in material.veins() {
             for root in [vein.density, vein.richness, vein.filler_gap] {
                 assert!(root >= 8, "vein roots come after the eight terrain roots");
-                router.program.fill(&mut workspace, &volume, root, &mut out);
+                router
+                    .program()
+                    .fill(&mut workspace, &volume, root, &mut out);
                 assert!(out[0].is_finite(), "root {root} is not finite");
             }
         }

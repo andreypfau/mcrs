@@ -102,7 +102,7 @@ pub fn apply_material_surface(
     let sea_level = router.sea_level;
     let stone = router.default_block_state;
     let fluid = router.default_fluid_state;
-    let lava = router.lava_state;
+    let lava = router.lava_state();
 
     let present = present_biomes(biomes);
 

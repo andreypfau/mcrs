@@ -146,7 +146,7 @@ mod exhaustive {
 
                             let volume = SampleGrid::dense(cell, min);
                             router
-                                .program
+                                .program()
                                 .fill(&mut fill.ws, &volume, FINAL_DENSITY, &mut dense);
 
                             cells += 1;

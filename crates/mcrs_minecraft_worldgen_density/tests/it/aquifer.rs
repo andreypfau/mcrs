@@ -63,7 +63,7 @@ mod exhaustive {
 #[test]
 fn a_surface_level_does_not_depend_on_the_volume_around_it() {
     let router = overworld(42, |_| {});
-    let root = router.aquifer.as_ref().unwrap().surface_level;
+    let root = router.aquifer().unwrap().surface_level;
     let mut ws = Workspace::new();
     let mut compared = 0usize;
     for (chunk_x, chunk_z) in COLUMNS {
@@ -73,13 +73,13 @@ fn a_surface_level_does_not_depend_on_the_volume_around_it() {
             IVec3::new(4, 1, 4),
         );
         let mut together = vec![0.0f32; grid.len()];
-        router.program.fill(&mut ws, &grid, root, &mut together);
+        router.program().fill(&mut ws, &grid, root, &mut together);
         for z in 0..grid.size().z {
             for x in 0..grid.size().x {
                 let at = IVec3::new(grid.block_x(x), 0, grid.block_z(z));
                 let mut alone = [0.0f32];
                 router
-                    .program
+                    .program()
                     .fill(&mut ws, &SampleGrid::point(at), root, &mut alone);
                 assert_eq!(
                     alone[0].to_bits(),
@@ -156,7 +156,7 @@ fn a_louder_barrier_widens_the_shell_and_stays_exact() {
         });
     });
     let margins = |router: &NoiseRouter| {
-        let aquifer = router.aquifer.as_ref().unwrap();
+        let aquifer = router.aquifer().unwrap();
         (aquifer.margin_above, aquifer.margin_below)
     };
     assert_eq!(margins(&quiet), (5, 23));
@@ -174,7 +174,7 @@ fn check_parity(router: &NoiseRouter) {
         let volume = column_volume(router, chunk_x, chunk_z);
         let mut density = vec![0.0f32; volume.len()];
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
         let (mut oracle_cells, mut fast_cells) = (AquiferCells::default(), AquiferCells::default());
         let mut oracle = FluidField::new(

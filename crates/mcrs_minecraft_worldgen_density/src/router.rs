@@ -175,7 +175,7 @@ pub struct RouterBlocks {
 }
 
 pub struct NoiseRouter {
-    pub program: Program,
+    pub(crate) program: Program,
     pub sea_level: i32,
     pub noise: NoiseSettings,
     pub world_seed: u64,
@@ -183,9 +183,9 @@ pub struct NoiseRouter {
     pub default_block_state: VoxelId,
     pub default_fluid_state: VoxelId,
     pub water_state: VoxelId,
-    pub lava_state: VoxelId,
-    pub global_fluid: GlobalFluid,
-    pub aquifer: Option<AquiferConfig>,
+    pub(crate) lava_state: VoxelId,
+    pub(crate) global_fluid: GlobalFluid,
+    pub(crate) aquifer: Option<AquiferConfig>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
     column_bound: Option<ColumnBound>,
@@ -225,6 +225,21 @@ impl NoiseRouter {
 
     pub fn beta_noises(&self) -> Option<&BetaTerrainNoises> {
         self.beta.as_deref()
+    }
+
+    #[must_use]
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    #[must_use]
+    pub fn lava_state(&self) -> VoxelId {
+        self.lava_state
+    }
+
+    #[must_use]
+    pub fn aquifer(&self) -> Option<&AquiferConfig> {
+        self.aquifer.as_ref()
     }
 }
 

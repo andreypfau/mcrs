@@ -604,7 +604,7 @@ fn fill_blocks(
     density.clear();
     density.resize(volume.len(), 0.0);
     noise_router
-        .program
+        .program()
         .fill(ws, volume, FINAL_DENSITY, density);
     if let Some(beard) = beard {
         beard.fill(volume, density);
@@ -647,12 +647,12 @@ fn volume_barrier<'a>(
     barrier: &'a mut Vec<f32>,
 ) -> impl FnMut(i32, i32, i32) -> f64 + 'a {
     barrier.clear();
-    let barrier_root = noise_router.aquifer.as_ref().map(|aquifer| aquifer.barrier);
+    let barrier_root = noise_router.aquifer().map(|aquifer| aquifer.barrier);
     move |bx: i32, by: i32, bz: i32| {
         if barrier.is_empty() {
             barrier.resize(volume.len(), 0.0);
             let root = barrier_root.expect("only a field with a barrier asks for it");
-            noise_router.program.fill(ws, volume, root, barrier);
+            noise_router.program().fill(ws, volume, root, barrier);
         }
         let at = volume
             .index_of_block(bx, by, bz)
@@ -736,7 +736,7 @@ pub fn base_column(
     let mut density = vec![0.0f32; volume.len()];
     lattice.pin(router, ws, x, z);
     router
-        .program
+        .program()
         .fill(ws, &volume, FINAL_DENSITY, &mut density);
     let (min, max) = (
         IVec3::new(x, min_y, z),

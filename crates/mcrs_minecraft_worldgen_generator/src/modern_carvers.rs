@@ -678,7 +678,7 @@ pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, 
         VoxelId::default(),
         router.default_fluid_state,
         router.water_state,
-        router.lava_state,
+        router.lava_state(),
     ];
     let mask = carving.mask;
     mask.visit(|x, z, bottom_y, top_y| {

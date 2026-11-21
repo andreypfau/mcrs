@@ -257,7 +257,7 @@ where
         let preliminary = SampleGrid::dense(IVec3::new(16, 1, 16), IVec3::new(block_x, 0, block_z));
         scratch.preliminary.clear();
         scratch.preliminary.resize(preliminary.len(), 0.0);
-        router.program.fill(
+        router.program().fill(
             &mut scratch.workspace,
             &preliminary,
             CHUNK_SURFACE_LEVEL,
@@ -1040,7 +1040,7 @@ where
 
     fn sample(&mut self, root: usize, pos: IVec3) -> f32 {
         let mut out = [0.0f32];
-        self.router.program.fill(
+        self.router.program().fill(
             &mut self.scratch.workspace,
             &SampleGrid::point(pos),
             root,
@@ -1114,7 +1114,7 @@ where
         let closed = cell_min.y <= self.veins.max_block().y
             && bounds
                 .eval(
-                    &self.router.program,
+                    self.router.program(),
                     &self.scratch.corners,
                     cell_min,
                     cell_max,
@@ -1132,7 +1132,7 @@ where
                 );
                 bounds
                     .eval(
-                        &self.router.program,
+                        self.router.program(),
                         &self.scratch.corners,
                         cell_min,
                         cell_max,
@@ -1204,7 +1204,7 @@ where
         let dense = SampleGrid::dense(IVec3::new(layout.cell.x, rows, layout.cell.z), cell_min);
         self.scratch.cell_density.clear();
         self.scratch.cell_density.resize(dense.len(), 0.0);
-        self.router.program.fill(
+        self.router.program().fill(
             &mut self.scratch.workspace,
             &dense,
             density,
@@ -1448,7 +1448,7 @@ fn plan_veins(
                 .get_mut(index * points..(index + 1) * points)
             {
                 router
-                    .program
+                    .program()
                     .fill(&mut scratch.workspace, veins, vein.density, row);
             }
             continue;
@@ -1495,7 +1495,7 @@ fn open_vein_rows(
         let max = min + IVec3::new(15, cell.y - 1, 15);
         let closed = bounds
             .eval(
-                &router.program,
+                router.program(),
                 &scratch.corners,
                 min,
                 max,
@@ -1641,7 +1641,7 @@ mod tests {
                 density.clear();
                 density.resize(grid.len(), 0.0);
                 router
-                    .program
+                    .program()
                     .fill(&mut workspace, &grid, vein.density, &mut density);
                 for point in 0..64 * height {
                     let (column, dy) = (point / height, point % height);

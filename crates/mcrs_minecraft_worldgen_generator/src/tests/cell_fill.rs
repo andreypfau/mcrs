@@ -51,7 +51,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         );
         let mut density = vec![0.0f32; volume.len()];
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
         for z in 0..16 {
             for x in 0..16 {
@@ -158,7 +158,7 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
             );
             let mut density = vec![0.0f32; volume.len()];
             router
-                .program
+                .program()
                 .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
             for z in 0..16 {
                 for x in 0..16 {
