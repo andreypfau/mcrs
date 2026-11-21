@@ -439,7 +439,7 @@ fn lend_memory<K: Kinds, M: MemoryPartition + Default>(
     memory: &mut M,
     phase: &mut [TileTask<K, M>],
 ) {
-    let mut parts: FxHashMap<u64, M> = memory.split(cell_key).into_iter().collect();
+    let mut parts: FxHashMap<u64, M> = memory.split().into_iter().collect();
     for task in phase.iter_mut() {
         let mut part = M::default();
         match task.tile {
@@ -474,7 +474,7 @@ fn restore_memory<K: Kinds, M: MemoryPartition + Default>(
         let Some(mut before) = task.before.take() else {
             continue;
         };
-        for (cell, part) in before.split(cell_key) {
+        for (cell, part) in before.split() {
             if !clear_all && !cleared.contains(&cell) {
                 restored.entry(cell).or_insert(part);
             }
@@ -490,7 +490,7 @@ fn restore_memory<K: Kinds, M: MemoryPartition + Default>(
             None => clear_all = true,
         }
     }
-    for (cell, part) in memory.split(cell_key) {
+    for (cell, part) in memory.split() {
         if clear_all || cleared.contains(&cell) || restored.contains_key(&cell) {
             continue;
         }

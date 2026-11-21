@@ -173,11 +173,9 @@ pub(crate) fn refresh<K, V, F, B>(
     let output = output_signal(cx, table, pos, state, facing);
     let stored = stored_output(cx, pos);
     if let Some(memory) = cx.memory() {
-        let redstone = memory.redstone();
-        redstone.comparators.insert(pos, output);
-        if stored != output && !redstone.comparator_dirty.contains(&pos) {
-            redstone.comparator_dirty.push(pos);
-        }
+        memory
+            .redstone()
+            .set_comparator_output(pos, output, stored != output);
     }
     if stored == output && table.mode(state) == DiodeMode::Subtract {
         return;
@@ -235,7 +233,7 @@ pub(crate) fn removed<K, V, F, B>(
     B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().comparators.remove(&pos);
+        memory.redstone().forget_comparator(pos);
     }
     if moved_by_piston {
         return;

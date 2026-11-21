@@ -86,8 +86,7 @@ where
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    cx.memory()
-        .and_then(|memory| memory.redstone().moving.get(&pos).copied())
+    cx.memory().and_then(|memory| memory.redstone().moving(pos))
 }
 
 fn store_payload<K, V, F, B>(cx: &mut Cx<'_, K, V, F, B>, pos: BlockPos, payload: MovingPayload)
@@ -100,7 +99,7 @@ where
     B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().moving.insert(pos, payload);
+        memory.redstone().start_moving(pos, payload);
     }
 }
 
@@ -451,7 +450,7 @@ pub(crate) fn complete_move<K, V, F, B>(
 {
     let payload = cx
         .memory()
-        .and_then(|memory| memory.redstone().moving.remove(&pos));
+        .and_then(|memory| memory.redstone().stop_moving(pos));
     if !state_at(cx, pos).is_some_and(|state| table.kind(state) == Some(Kind::MovingPiston)) {
         return;
     }
@@ -492,7 +491,7 @@ where
     B::Shared: HasRedstoneSnapshot,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().moving.remove(&pos);
+        memory.redstone().stop_moving(pos);
     }
 }
 

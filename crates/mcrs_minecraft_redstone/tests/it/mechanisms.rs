@@ -270,10 +270,7 @@ fn a_tripwire_line_attaches_its_hooks_and_powers_them_while_an_entity_stands_on_
     );
     world.ticks(5);
     assert!(!world.lit(lamp), "the lamp goes dark after its delay");
-    assert_eq!(
-        world.memory.sensors.get(&string_pos),
-        Some(&Sensor::Tripwire)
-    );
+    assert_eq!(world.memory.sensor(string_pos), Some(Sensor::Tripwire));
 }
 
 #[test]
@@ -285,7 +282,7 @@ fn a_daylight_detector_follows_the_sun_and_inverts_on_a_use() {
     let detector = at(0, 0);
     world.place(detector, world.default("minecraft:daylight_detector"));
     world.tick();
-    assert_eq!(world.memory.sensors.get(&detector), Some(&Sensor::Daylight));
+    assert_eq!(world.memory.sensor(detector), Some(Sensor::Daylight));
     world
         .snapshot
         .analog

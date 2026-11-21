@@ -109,10 +109,10 @@ pub(crate) fn publish_daylight<B>(
         time.0,
     );
     let angle = sun_angle(ticks);
-    let sensors = &memory.0.redstone_ref().sensors;
+    let sensors = memory.0.redstone_ref().sensors();
     let analog = &mut shared.0.redstone_mut().analog;
-    for (&pos, sensor) in sensors {
-        if *sensor != Sensor::Daylight {
+    for (pos, sensor) in sensors {
+        if sensor != Sensor::Daylight {
             continue;
         }
         let sky = sky_light(index, &lights, pos);

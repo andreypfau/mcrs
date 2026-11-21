@@ -5,7 +5,7 @@ const MARGIN: i32 = 32;
 pub(crate) const CELL: i32 = 32;
 
 #[must_use]
-pub(crate) fn cell_key(pos: BlockPos) -> u64 {
+pub fn cell_key(pos: BlockPos) -> u64 {
     let x = pos.x.div_euclid(CELL);
     let z = pos.z.div_euclid(CELL);
     (u64::from(x.cast_unsigned()) << 32) | u64::from(z.cast_unsigned())

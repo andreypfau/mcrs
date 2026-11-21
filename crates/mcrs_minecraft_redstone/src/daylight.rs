@@ -60,7 +60,7 @@ pub(crate) fn placed<K, V, F, B>(
     if table.block_of(old) != table.block_of(state)
         && let Some(memory) = cx.memory()
     {
-        memory.redstone().sensors.insert(pos, Sensor::Daylight);
+        memory.redstone().add_sensor(pos, Sensor::Daylight);
     }
     refresh(cx, table, pos, state);
 }
@@ -74,6 +74,6 @@ where
     B::Memory: HasRedstoneMemory,
 {
     if let Some(memory) = cx.memory() {
-        memory.redstone().sensors.remove(&pos);
+        memory.redstone().remove_sensor(pos);
     }
 }
