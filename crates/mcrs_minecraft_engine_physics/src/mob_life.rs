@@ -18,7 +18,7 @@ use mcrs_minecraft_entity::registry_keys::CHICKEN_SOUND_VARIANT;
 use mcrs_minecraft_entity::registry_keys::COW_SOUND_VARIANT;
 use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -97,7 +97,7 @@ pub fn mob_row(kind: &EntityTypeData) -> MotionRow {
 pub fn mob_body(
     kind: &EntityTypeData,
     row: &MotionRow,
-    key: EntityKey,
+    key: EntityUuid,
     position: DVec3,
 ) -> EntityState {
     let mut living = Living::of(row);
@@ -155,7 +155,7 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
             break;
         };
         let row = mob_row(request.kind);
-        let key = EntityKey(request.uuid);
+        let key = EntityUuid::from_u128(request.uuid);
         let state = mob_body(request.kind, &row, key, request.position);
         let mut looks = match request.setup {
             SpawnSetup::First => {
@@ -278,7 +278,7 @@ mod tests {
             for uuid in 0..3000u128 {
                 let looks = first_looks(
                     kind,
-                    &KeyedStream::new(&EntityKey(uuid), 0),
+                    &KeyedStream::new(&EntityUuid::from_u128(uuid), 0),
                     Some(test_registries()),
                 );
                 let drawn = match looks.type_entries.as_slice() {

@@ -14,7 +14,6 @@ use mcrs_minecraft_physics::TickOutcome;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSpawn;
 use mcrs_minecraft_replication::MobState;
-use uuid::Uuid;
 
 use crate::Appearance;
 use crate::MotionId;
@@ -57,7 +56,7 @@ pub(crate) fn publish_motion(
         published.0 = Some(tile);
         let spawn = MobSpawn {
             kind: appearance.kind,
-            uuid: Uuid::from_u128(state.0.key.0),
+            uuid: state.0.key.0,
             state: viewed(&release.body, &TickOutcome::default()),
             look: appearance.look.clone(),
         };

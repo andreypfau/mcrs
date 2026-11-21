@@ -1,9 +1,24 @@
+use uuid::Uuid;
+
 use crate::BirthSource;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct EntityKey(pub u128);
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
+pub struct EntityUuid(pub Uuid);
 
-impl EntityKey {
+impl EntityUuid {
+    #[inline]
+    #[must_use]
+    pub const fn from_u128(value: u128) -> Self {
+        Self(Uuid::from_u128(value))
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn as_u128(&self) -> u128 {
+        self.0.as_u128()
+    }
+
     #[must_use]
     pub fn born(
         world_seed: u64,
@@ -30,19 +45,20 @@ impl EntityKey {
         lanes.push(u64::from(sequence));
         let Lanes { high, low } = lanes;
         let hash = u128::from(mix(high)) << 64 | u128::from(mix(low ^ high));
-        Self(hash & !(0xF << 76) & !(0x3 << 62) | 0x4 << 76 | 0x2 << 62)
+        Self::from_u128(hash & !(0xF << 76) & !(0x3 << 62) | 0x4 << 76 | 0x2 << 62)
     }
 
     #[inline]
     #[must_use]
     pub const fn phase_offset(&self) -> u8 {
-        (self.0 & 3) as u8
+        (self.as_u128() & 3) as u8
     }
 
     #[inline]
     #[must_use]
     pub const fn words(&self) -> [u64; 2] {
-        [(self.0 >> 64) as u64, self.0 as u64]
+        let value = self.as_u128();
+        [(value >> 64) as u64, value as u64]
     }
 }
 

@@ -16,7 +16,7 @@ use mcrs_minecraft_engine_world::block_update::remove_block;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_falling_block::LandingEvent;
 use mcrs_minecraft_falling_block::LandingOutcome;
 use mcrs_minecraft_falling_block::LandingSite;
@@ -41,7 +41,7 @@ use crate::falling_block_rules::FallingBlockRules;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Kept {
     target: BlockPos,
-    key: EntityKey,
+    key: EntityUuid,
     entity: Entity,
 }
 

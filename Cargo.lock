@@ -5070,6 +5070,7 @@ dependencies = [
  "bevy_platform",
  "bevy_state",
  "bevy_tasks",
+ "bevy_time",
  "bytes",
  "derive_more",
  "flume",
@@ -5112,6 +5113,7 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_save",
  "mcrs_minecraft_simulation",
+ "mcrs_minecraft_swing",
  "mcrs_minecraft_text",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_generator",
@@ -5421,7 +5423,6 @@ dependencies = [
  "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -5476,8 +5477,10 @@ dependencies = [
 name = "mcrs_minecraft_entity_key"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "glam",
  "mcrs_voxel",
+ "uuid",
 ]
 
 [[package]]
@@ -6997,6 +7000,7 @@ dependencies = [
  "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
+ "mcrs_minecraft_vanilla_swing",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_builtin",
@@ -7262,6 +7266,7 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_time",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
@@ -7346,6 +7351,29 @@ dependencies = [
  "rayon",
  "rustc-hash 2.1.1",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_swing"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_time",
+ "bytes",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_voxel",
 ]
 
 [[package]]

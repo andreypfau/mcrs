@@ -38,6 +38,7 @@ serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+bevy_time.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }

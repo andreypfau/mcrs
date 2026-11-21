@@ -68,6 +68,7 @@ mod session_lifecycle;
 mod sprint_attribute;
 mod subapp_lifecycle;
 mod support;
+mod swing;
 mod teleport_confirmation;
 mod tick_determinism;
 mod view_distance;

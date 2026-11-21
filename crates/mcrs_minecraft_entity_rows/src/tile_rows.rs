@@ -240,14 +240,14 @@ impl<M> TileRows<M> {
 #[cfg(test)]
 mod tests {
     use glam::DVec3;
-    use mcrs_minecraft_entity_key::EntityKey;
+    use mcrs_minecraft_entity_key::EntityUuid;
     use mcrs_minecraft_physics::Body;
 
     use super::*;
 
     fn state(x: f64) -> EntityState {
         EntityState::new(
-            EntityKey(0),
+            EntityUuid::from_u128(0),
             Body {
                 position: DVec3::new(x, 0.0, 0.0),
                 ..Body::default()
@@ -290,7 +290,7 @@ mod tests {
     fn rows_keep_id_and_mob_column_after_despawns_mid_and_end() {
         let mut rows: TileRows<u64> = TileRows::default();
         for index in 0_u32..6 {
-            let key = EntityKey(u128::from(index));
+            let key = EntityUuid::from_u128(u128::from(index));
             let id = u64::from(index) + 10;
             rows.insert_row(Row {
                 state: EntityState::new(key, Body::default(), None),

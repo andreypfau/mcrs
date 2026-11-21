@@ -4,15 +4,15 @@ Design note for server-side arm-swing state, cooldowns, item animations, and the
 Behaviour comes from `docs/spec/arm-swing.md` (SWG), `docs/spec/block-placing.md` (PLC), and
 `docs/spec/command-swing.md` (CMD-SWG).
 
-## 1. Classification of the state (planned)
+## 1. Classification of the state
 
 | Value | Kind | Owner |
 |-------|------|-------|
-| `PlayerSwing(SwingTracker)` on a player | authoritative truth (`started_at`, `scaled_duration`) | `apply_player_swings` and `swing::swing_player` in `mcrs_minecraft_engine` |
-| `LoadedClient` on a player | authoritative truth (`Waiting(u8)` / `Loaded`) | `on_player_loaded` and `tick_loaded_clients` in `mcrs_minecraft_engine`; preserved across cell crossings, reset on dimension change |
-| `MobSwingStates` (`EntityId -> SwingTracker`) | authoritative truth per living mob row | `swing_mob` and `end_mob_changes` in `mcrs_minecraft_engine_physics` |
+| `PlayerSwing(SwingTracker)` on a player | authoritative truth (`started_at`, `scaled_duration`) | `apply_player_swings` in `mcrs_minecraft_engine`; preserved across cell crossings and dimension changes |
+| `UnloadedClient(u8)` on a player | authoritative truth (transient `SparseSet` component removed once loaded) | `on_player_loaded` and `tick_loaded_clients` in `mcrs_minecraft_engine`; preserved across cell crossings, reset on dimension change |
+| `MobSwingStates` (`EntityId -> SwingTracker`, planned) | authoritative truth per living mob row | `swing_mob` and `end_mob_changes` in `mcrs_minecraft_engine_physics` |
 | `SwingPlayer` message | temporal fact (request to start a player swing) | emitted by gameplay plugins (`vanilla_swing`, `vanilla_block_place`, `vanilla_inventory`) or user plugins; consumed by `apply_player_swings` |
-| `PendingPlayerSwings` / `MobChanges::swings` | per-tick replication outbox | drained into `TileEvents` once per tick; `EntityCodec` encodes one `ClientboundSwingAnimation` `Bytes` buffer and shares it across observers |
+| `PendingPlayerSwings` / `MobChanges::swings` (planned) | per-tick replication outbox | drained into `TileEvents` once per tick; `EntityCodec` encodes one `ClientboundSwingAnimation` `Bytes` buffer and shares it across observers |
 
 ## 2. Crate map
 
@@ -21,11 +21,11 @@ Behaviour comes from `docs/spec/arm-swing.md` (SWG), `docs/spec/block-placing.md
 | `mcrs_minecraft_swing` (`no_std`) | 3, rules | `SwingModifiers`, `SwingTracker` |
 | `mcrs_minecraft_item_stack` | 3, data | `SwingKind`, `SwingAnimation`, `AttackAnimation`, `InteractAnimation`, `PiercingWeapon` |
 | `mcrs_minecraft_protocol_game` | 3, data | `ClientboundSwingAnimation`, `ClientboundAnimate` |
-| `mcrs_minecraft_replication` (planned swing variants) | 3, data | `PlayerData::Swing` and `MobSignal::Swing` encoded once and delivered to tracking observers without backlog replay |
-| `mcrs_minecraft_engine` (planned swing APIs) | 4 | `PlayerSwingPlugin`, `LoadedClient`, `SwingPlayer` message, `PlayerOrder::Swing`, `MuxerStage` ordering (`views_out` -> `Entities` -> `changes_out`) |
+| `mcrs_minecraft_replication` | 3, data | `PlayerData::Swing` (and planned `MobSignal::Swing`) encoded once and delivered to tracking observers without backlog replay |
+| `mcrs_minecraft_engine` | 4 | `LoadedClientPlugin`, `UnloadedClient`, `PlayerSwingPlugin`, `SwingPlayer` message, `MuxerStage` ordering (`views_out` -> `Entities` -> `changes_out`); planned `PlayerOrder::Swing` |
 | `mcrs_minecraft_engine_physics`, `mcrs_minecraft_engine_mob_replication` (planned swing APIs) | 4 | `MobSwingStates`, `swing_mob`, `publish_swings` |
-| `mcrs_minecraft_vanilla_swing` (planned); `mcrs_minecraft_vanilla_block_place`, `mcrs_minecraft_vanilla_inventory`, `mcrs_minecraft_command_vanilla` (planned swing additions) | 5 | `SwingPlugin` (`punch` and `stab`), placement swing (`PLC-PLA-007`), hand-drop swing, `/swing` command (`SwingAnimationArgument`, `SwingEntity`) |
-| `mcrs_minecraft_server` | 7 | `VanillaSwingPlugin` (planned) in `MinecraftServerPlugins` |
+| `mcrs_minecraft_vanilla_swing`, `mcrs_minecraft_vanilla_block_place`, `mcrs_minecraft_vanilla_inventory`; planned `mcrs_minecraft_command_vanilla` swing additions | 5 | `SwingPlugin` (`punch` and `stab`), placement swing (`PLC-PLA-007`), hand-drop swing; planned `/swing` command (`SwingAnimationArgument`, `SwingEntity`) |
+| `mcrs_minecraft_server` | 7 | `VanillaSwingPlugin` in `MinecraftServerPlugins` |
 
 Reason for `mcrs_minecraft_swing`: bots, proxies, and dimension plugins share the cooldown
 arithmetic and effect scaling without taking Bevy, tokio, item codecs, or engine registries.
@@ -35,12 +35,12 @@ arithmetic and effect scaling without taking Bevy, tokio, item codecs, or engine
 | User | Takes | Does not take |
 |------|-------|---------------|
 | proxy, replay viewer | `mcrs_minecraft_protocol_game`, `mcrs_minecraft_swing` | physics, Bevy, server engine |
-| minigame server (planned) | `mcrs_minecraft_engine`; writes `SwingPlayer` directly or replaces `VanillaSwingPlugin` | vanilla `punch`/`stab` rules |
+| minigame server | `mcrs_minecraft_engine`; writes `SwingPlayer` directly or replaces `VanillaSwingPlugin` | vanilla `punch`/`stab` rules |
 | headless bot | `mcrs_minecraft_swing` cooldown and `SwingModifiers` math | rendering, server engine |
 
-## 4. Server tick (planned)
+## 4. Server tick
 
 1. `TickSet::ClientInput`: `place_blocks` reads `InteractAnimation` before consuming the held item and writes `SwingPlayer`.
-2. `TickSet::Simulate`: `tick_loaded_clients` advances unloaded players toward the 60-tick fallback; `SwingSimulateSet` (`process_swing_inputs`) handles `ServerboundPunch` and `PlayerAction::Stab` (emitting any stab `sound` packet via `OutboundPlayerPacket` when a stab starts); `swing_on_hand_drop` runs after `SwingSimulateSet`.
-3. `TickSet::Project`: `apply_player_swings` (gated on `on_message::<SwingPlayer>`) checks `SpectatorRule`, `BirthClock` cooldown (`SWG-STA-003`, `SWG-STA-004`), and status-effect scaling (`SWG-STA-002`), then queues outbound packets before `tick_player_effects_system` decays active effects.
-4. `FixedPostUpdate`, `dim_outputs::receive`, and `MuxerStage`: `publish_player_swings` and `publish_swings` emit `TileEvents`; `dim_outputs::receive` flushes direct dimension `OutboundPlayerPacket`s (including stab `sound` from `SwingSimulateSet`) before queuing `MuxerCall::Entities`; then `MuxerStage` flushes view packets, entity packets (`ClientboundSwingAnimation`), and block updates (`BlockUpdate`) in order within each `Send` step (`SWG-DST-003`).
+2. `TickSet::Simulate`: `tick_loaded_clients` (`LoadedClientTickSet`) advances unloaded players toward the 60-tick fallback; `SwingSimulateSet` (`process_swing_inputs`) handles `ServerboundPunch` and `PlayerAction::Stab`; `swing_on_hand_drop` runs after `SwingSimulateSet`.
+3. `TickSet::Project`: `apply_player_swings` (gated on `on_message::<SwingPlayer>`) checks spectator/dead state, `BirthClock` cooldown (`SWG-STA-003`, `SWG-STA-004`, `SWG-STA-005`), and status-effect scaling (`SWG-STA-002`), then queues `PendingPlayerSwings`.
+4. `FixedPostUpdate`, `dim_outputs::receive`, and `MuxerStage`: `publish_player_swings` (and planned `publish_swings`) emit `TileEvents`; `MuxerStage` buffers `Dim` and `Entities` calls and flushes view packets, entity packets (`ClientboundSwingAnimation`), and block updates (`BlockUpdate`) in order at each `Send`/`Flush` batch boundary (`SWG-DST-003`).

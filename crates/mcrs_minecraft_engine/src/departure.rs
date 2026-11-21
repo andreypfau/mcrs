@@ -2,10 +2,10 @@ use bevy_ecs::message::Message;
 use bevy_ecs::query::With;
 use bevy_ecs::world::{EntityWorldMut, World};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -16,6 +16,7 @@ use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::persisted_registry::{CaptureCause, PersistedRegistry, PersistedSnapshot};
 use crate::persistence::UnreadablePlayerDat;
+use crate::swing::PlayerSwing;
 use crate::teleport::TeleportState;
 
 #[derive(Clone, Debug)]
@@ -35,6 +36,7 @@ pub enum PlayerTransfer {
 #[derive(Clone, Debug)]
 pub(crate) struct CarriedPlayer {
     snapshot: PersistedSnapshot,
+    swing: Option<PlayerSwing>,
     unreadable: bool,
     pub(crate) departed_at: GameTime,
 }
@@ -68,6 +70,7 @@ impl CarriedPlayer {
             return Err(DimensionChangeError::NoArrivalState);
         }
         let id = player.id();
+        let swing = player.get::<PlayerSwing>().copied();
         let unreadable = player.contains::<UnreadablePlayerDat>();
         let (snapshot, departed_at) = player.world_scope(|world| {
             let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
@@ -88,6 +91,7 @@ impl CarriedPlayer {
         })?;
         Ok(Self {
             snapshot,
+            swing,
             unreadable,
             departed_at,
         })
@@ -126,6 +130,9 @@ impl CarriedPlayer {
         snapshot.forget_placement();
         if self.unreadable {
             world.entity_mut(player).insert(UnreadablePlayerDat);
+        }
+        if let Some(swing) = self.swing {
+            world.entity_mut(player).insert(swing);
         }
         let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
             error!("player transfer has no persisted-component registry");
@@ -174,8 +181,11 @@ mod tests {
         app.register_persisted::<CarriedMarker>(&["TestCarried"], PersistScope::TravelOnly);
         app.insert_resource(GameTime(42));
         let world = app.world_mut();
+        let mut tracker = mcrs_minecraft_swing::SwingTracker::default();
+        tracker.try_start(42, 12, mcrs_minecraft_swing::SwingModifiers::default());
+        let expected_swing = PlayerSwing(tracker);
         let old = world
-            .spawn((player_bundle(), profile(), CarriedMarker(9)))
+            .spawn((player_bundle(), profile(), CarriedMarker(9), expected_swing))
             .id();
 
         let carried = {
@@ -190,6 +200,11 @@ mod tests {
 
         assert_eq!(world.get::<CarriedMarker>(arrived), Some(&CarriedMarker(9)));
         assert_eq!(world.get::<PlayerOpLevel>(arrived), Some(&PlayerOpLevel(1)));
+        assert_eq!(
+            world.get::<PlayerSwing>(arrived),
+            Some(&expected_swing),
+            "SWG-STA-005: active swing cooldown survives dimension transfer"
+        );
         assert_eq!(
             world.get::<GameProfile>(arrived).map(|profile| profile.id),
             Some(profile().id)

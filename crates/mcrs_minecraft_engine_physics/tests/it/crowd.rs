@@ -6,7 +6,7 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_physics::Body;
@@ -63,7 +63,7 @@ fn pen() -> TestScene {
             position,
             ..Body::default()
         };
-        let key = EntityKey(u128::from(index));
+        let key = EntityUuid::from_u128(u128::from(index));
         let state = EntityState::new(key, body, Some(Living::of(&motion)));
         scene.rows.spawn(EntityId(u64::from(index)), state, motion);
     }
@@ -99,7 +99,7 @@ fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
         position,
         ..Body::default()
     };
-    let state = EntityState::new(EntityKey(u128::from(index)), body, Some(living));
+    let state = EntityState::new(EntityUuid::from_u128(u128::from(index)), body, Some(living));
     scene.rows.spawn(EntityId(u64::from(index)), state, motion);
 }
 

@@ -29,7 +29,6 @@ use mcrs_minecraft_engine::PlayerBody;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_physics::PhysicsTables;
-use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -41,7 +40,7 @@ use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::TagKey;
@@ -177,7 +176,7 @@ fn prepare<B>(
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
         PlayerRow {
             player: EntityId(u64::from(player_network_id(owner.0).cast_unsigned())),
-            key: EntityKey(uuid.0.as_u128()),
+            key: *uuid,
             position: transform.translation,
             eye_height: body.dimensions().eye_height,
             flags: if spectator {

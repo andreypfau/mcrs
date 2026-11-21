@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::ItemEntity;
@@ -33,7 +33,7 @@ fn ien_spn_mrg_pck_a_thrown_stack_lands_merges_with_a_near_stack_and_is_picked_u
         STONE,
         10,
         Launch {
-            source: BirthSource::Entity(EntityKey(PLAYER)),
+            source: BirthSource::Entity(EntityUuid::from_u128(PLAYER)),
             form: Form::Hand {
                 feet,
                 eye_height: 1.62,
@@ -96,7 +96,7 @@ fn ien_spn_002_a_thrown_stack_starts_0_3_below_the_eyes() {
         STONE,
         1,
         Launch {
-            source: BirthSource::Entity(EntityKey(PLAYER)),
+            source: BirthSource::Entity(EntityUuid::from_u128(PLAYER)),
             form: Form::Hand {
                 feet,
                 eye_height: 1.62,

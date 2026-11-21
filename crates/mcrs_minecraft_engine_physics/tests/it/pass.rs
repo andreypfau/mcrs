@@ -3,7 +3,7 @@ use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::EffectBuffer;
 use mcrs_minecraft_entity_rows::Keyed;
@@ -26,7 +26,7 @@ fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
     for (tile, tile_rows) in rows.tiles() {
         for (index, row) in tile_rows.rows().take(3).enumerate() {
             for (task, buffer) in tasks.iter_mut().enumerate() {
-                let writer = EntityKey(u128::from(tick) << 64 | task as u128);
+                let writer = EntityUuid::from_u128(u128::from(tick) << 64 | task as u128);
                 buffer.push(
                     tile,
                     Keyed {
@@ -142,7 +142,9 @@ fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it()
         Keyed {
             target: key,
             target_id: target,
-            writer: WriterKey::Entity { key: EntityKey(0) },
+            writer: WriterKey::Entity {
+                key: EntityUuid::from_u128(0),
+            },
             sequence: 0,
             effect,
         },

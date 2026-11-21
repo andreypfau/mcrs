@@ -13,6 +13,7 @@ use crate::despawn_inbound_player::despawn_inbound_player;
 use crate::dim_tick::DimInboxDrain;
 use crate::dim_tick::drain_dim_inbox;
 use crate::game_mode::{self, GameModePlugin};
+use crate::loaded_client::LoadedClientPlugin;
 use crate::movement::MovementPlugin;
 use crate::op_level::{refresh_op_levels, send_op_level};
 use crate::persistence;
@@ -23,6 +24,7 @@ use crate::pose_systems::PoseSystems;
 use crate::publish_pose::{OwnPoseEntries, publish_pose};
 use crate::send_own_attributes::{OwnAttributesSet, send_own_attributes};
 use crate::shift_key::{ShiftKey, handle_interact, handle_player_input};
+use crate::swing::PlayerSwingPlugin;
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
@@ -71,6 +73,7 @@ impl Plugin for DimPlayerPlugin {
         if let Err(error) = app.try_register_required_components::<Player, OwnPoseEntries>() {
             tracing::error!("a player does not require its own pose entries: {error}");
         }
+        app.add_plugins((LoadedClientPlugin, PlayerSwingPlugin));
         app.add_observer(handle_player_input);
         app.add_observer(handle_interact);
         app.configure_sets(

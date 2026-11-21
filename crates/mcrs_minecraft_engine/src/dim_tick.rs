@@ -363,10 +363,10 @@ mod tests {
     #[test]
     fn a_departing_player_waits_for_the_running_write_of_its_file() {
         use crate::persistence::tests::{app, profile, temp_world};
-        use mcrs_minecraft_engine_world::entity::EntityUuid;
         use mcrs_minecraft_engine_world::entity::physics::Transform;
         use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
         use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+        use mcrs_minecraft_entity_key::EntityUuid;
         use std::sync::Arc;
         use std::sync::atomic::{AtomicBool, Ordering};
 

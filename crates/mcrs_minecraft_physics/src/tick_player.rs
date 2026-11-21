@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_numeric as numeric;
 use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_pose::Pose;
@@ -178,7 +178,7 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
     flight
 }
 
-pub(crate) fn player_mover(key: EntityKey, side: Side, state: &PlayerState) -> Mover {
+pub(crate) fn player_mover(key: EntityUuid, side: Side, state: &PlayerState) -> Mover {
     let attributes = &state.attributes;
     Mover {
         step_height: attributes.step_height as f32,

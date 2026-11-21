@@ -4,12 +4,12 @@ use crate::Cadence;
 use crate::Decision;
 use crate::PlayerRow;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileBrains<B> {
     pub(crate) ids: Vec<EntityId>,
-    pub(crate) keys: Vec<EntityKey>,
+    pub(crate) keys: Vec<EntityUuid>,
     pub(crate) cadences: Vec<Cadence>,
     pub(crate) wakes: Vec<u64>,
     pub(crate) brains: Vec<B>,
@@ -36,7 +36,7 @@ impl<B> Default for TileBrains<B> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BrainEntry<'a, B> {
     pub mob: EntityId,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub cadence: Cadence,
     pub wake: u64,
     pub brain: &'a B,
@@ -77,7 +77,7 @@ impl<B> TileBrains<B> {
     pub(crate) fn insert(
         &mut self,
         mob: EntityId,
-        key: EntityKey,
+        key: EntityUuid,
         cadence: Cadence,
         wake: u64,
         brain: B,
@@ -90,7 +90,7 @@ impl<B> TileBrains<B> {
         self.brains.insert(at, brain);
     }
 
-    pub(crate) fn remove(&mut self, key: &EntityKey) -> Option<Removed<B>> {
+    pub(crate) fn remove(&mut self, key: &EntityUuid) -> Option<Removed<B>> {
         let at = self.keys.binary_search(key).ok()?;
         if at >= self.ids.len() {
             return None;
@@ -104,7 +104,7 @@ impl<B> TileBrains<B> {
         })
     }
 
-    pub(crate) fn remove_all(&mut self, keys: &[EntityKey]) -> Vec<Removed<B>> {
+    pub(crate) fn remove_all(&mut self, keys: &[EntityUuid]) -> Vec<Removed<B>> {
         let leaves: Vec<bool> = self
             .keys
             .iter()
@@ -190,7 +190,7 @@ impl<B> TileBrains<B> {
 
 pub(crate) struct Removed<B> {
     pub(crate) mob: EntityId,
-    pub(crate) key: EntityKey,
+    pub(crate) key: EntityUuid,
     pub(crate) cadence: Cadence,
     pub(crate) wake: u64,
     pub(crate) brain: B,

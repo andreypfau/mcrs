@@ -16,6 +16,7 @@ use crate::departure::{Carriable, CarriedPlayer};
 use crate::dimension_change::DimensionChangeError;
 use crate::hot_ticket;
 use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
+use crate::loaded_client::UnloadedClient;
 use crate::persisted_registry::CaptureCause;
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
@@ -25,6 +26,7 @@ pub struct Crossing {
     pub(crate) session: PlayerSession,
     pub(crate) carried: CarriedPlayer,
     pub(crate) replicated: Option<Replicated>,
+    pub(crate) unloaded: Option<UnloadedClient>,
     pub(crate) view: SentChunkView,
     pub(crate) ticket: Option<HotTicket>,
 }
@@ -67,6 +69,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         }
     };
     let replicated = leaving.take::<Replicated>();
+    let unloaded = leaving.take::<UnloadedClient>();
     let view = leaving.take::<SentChunkView>().unwrap_or_default();
     let ticket = leaving.take::<HotTicket>();
     world.despawn(player);
@@ -77,6 +80,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         session,
         carried,
         replicated,
+        unloaded,
         view,
         ticket,
     })
@@ -90,6 +94,7 @@ pub(crate) fn arrive(
         session,
         carried,
         replicated,
+        unloaded,
         view,
         ticket,
     } = crossing;
@@ -100,6 +105,14 @@ pub(crate) fn arrive(
     let Some(&InDimension(dimension)) = arrived.get::<InDimension>() else {
         return Err(DimensionChangeError::NoDimension);
     };
+    match unloaded {
+        Some(unloaded) => {
+            arrived.insert(unloaded);
+        }
+        None => {
+            arrived.remove::<UnloadedClient>();
+        }
+    }
     if let Some(replicated) = replicated {
         arrived.insert((replicated, CrossedAt(transform)));
     }
@@ -155,5 +168,98 @@ fn release_remote(world: &mut World, session: PlayerSession) {
         .and_then(|mut tickets| tickets.0.remove(&session));
     if let Some(holder) = held {
         world.despawn(holder);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::App;
+    use mcrs_minecraft_engine_world::entity::EntityUuid;
+    use mcrs_minecraft_engine_world::entity::player::Player;
+    use mcrs_minecraft_engine_world::world::dimension::Dimension;
+    use mcrs_minecraft_game_mode::PlayerGameMode;
+    use mcrs_minecraft_protocol::uuid::Uuid;
+    use mcrs_minecraft_swing::{SwingModifiers, SwingTracker};
+
+    use crate::ability::{PlayerFlying, PlayerOpLevel};
+    use crate::loaded_client::LoadedClientPlugin;
+    use crate::persistence::PlayerPersistencePlugin;
+    use crate::persistence::tests::profile;
+    use crate::swing::{PlayerSwing, PlayerSwingPlugin};
+    use crate::teleport::TeleportState;
+
+    fn test_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((
+            PlayerPersistencePlugin,
+            LoadedClientPlugin,
+            PlayerSwingPlugin,
+        ));
+        app.world_mut().spawn(Dimension);
+        app
+    }
+
+    fn spawn_crossing_player(world: &mut World, session: PlayerSession) -> Entity {
+        world
+            .spawn((
+                Player,
+                Owner(session),
+                EntityUuid(Uuid::nil()),
+                Transform::default(),
+                PlayerGameMode::default(),
+                PlayerFlying(false),
+                PlayerOpLevel(1),
+                TeleportState::default(),
+                profile(),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn cell_crossing_preserves_loaded_state_and_swing_cooldown() {
+        let mut app = test_app();
+        let mut tracker = SwingTracker::default();
+        tracker.try_start(40, 10, SwingModifiers::default());
+        let expected_swing = PlayerSwing(tracker);
+
+        let loaded_player = spawn_crossing_player(app.world_mut(), PlayerSession(1));
+        app.world_mut()
+            .entity_mut(loaded_player)
+            .remove::<UnloadedClient>()
+            .insert(expected_swing);
+        let crossing = cross(app.world_mut(), loaded_player).expect("loaded player crosses");
+        let arrived_loaded = arrive(app.world_mut(), crossing).expect("loaded player arrives");
+        assert!(
+            app.world().get::<UnloadedClient>(arrived_loaded).is_none(),
+            "loaded client stays loaded across same-dimension cell crossing"
+        );
+        assert_eq!(
+            app.world().get::<PlayerSwing>(arrived_loaded),
+            Some(&expected_swing),
+            "active swing cooldown survives same-dimension cell crossing"
+        );
+
+        let waiting_player = spawn_crossing_player(app.world_mut(), PlayerSession(2));
+        {
+            let mut waiting = app
+                .world_mut()
+                .get_mut::<UnloadedClient>(waiting_player)
+                .expect("waiting player starts unloaded");
+            for _ in 0..25 {
+                assert!(!waiting.tick());
+            }
+        }
+        let expected_waiting = *app
+            .world()
+            .get::<UnloadedClient>(waiting_player)
+            .expect("waiting state");
+        let crossing = cross(app.world_mut(), waiting_player).expect("waiting player crosses");
+        let arrived_waiting = arrive(app.world_mut(), crossing).expect("waiting player arrives");
+        assert_eq!(
+            app.world().get::<UnloadedClient>(arrived_waiting),
+            Some(&expected_waiting),
+            "in-progress client load timer survives cell crossing without resetting"
+        );
     }
 }

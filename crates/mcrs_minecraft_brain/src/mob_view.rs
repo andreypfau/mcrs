@@ -2,12 +2,12 @@ use crate::ControlFlags;
 use crate::Ticket;
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MobView {
     pub mob: EntityId,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub position: DVec3,
     pub eye_height: f32,
     pub flags: MobFlags,

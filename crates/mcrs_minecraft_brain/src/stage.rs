@@ -17,7 +17,7 @@ use crate::WakeMode;
 use crate::tile_brains::Removed;
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 
 #[derive(Clone, Debug)]
@@ -30,7 +30,7 @@ pub struct Stage<B> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Location {
     tile: TileKey,
-    key: EntityKey,
+    key: EntityUuid,
 }
 
 #[derive(Debug)]
@@ -66,7 +66,7 @@ impl<B> Stage<B> {
         &mut self,
         tile: TileKey,
         mob: EntityId,
-        key: EntityKey,
+        key: EntityUuid,
         cadence: Cadence,
         brain: B,
     ) {
@@ -117,8 +117,8 @@ impl<B> Stage<B> {
     }
 
     pub fn relocate_all(&mut self, moves: impl IntoIterator<Item = (EntityId, TileKey)>) {
-        let mut leaving: BTreeMap<TileKey, Vec<EntityKey>> = BTreeMap::new();
-        let mut targets: BTreeMap<EntityKey, TileKey> = BTreeMap::new();
+        let mut leaving: BTreeMap<TileKey, Vec<EntityUuid>> = BTreeMap::new();
+        let mut targets: BTreeMap<EntityUuid, TileKey> = BTreeMap::new();
         for (mob, to) in moves {
             let Some(location) = self.locations.get_mut(&mob) else {
                 continue;
@@ -284,7 +284,7 @@ fn view_of<'a>(
     views: &'a [MobView],
     index: usize,
     mob: EntityId,
-    key: &EntityKey,
+    key: &EntityUuid,
 ) -> Option<&'a MobView> {
     if let Some(view) = views.get(index)
         && view.mob == mob

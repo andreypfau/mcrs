@@ -8,7 +8,7 @@ use mcrs_minecraft_engine_physics::{Mob, Mobs, mob_body, mob_row};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_attribute::InstanceEdit;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_key::{EntityId, EntityKey};
+use mcrs_minecraft_entity_key::{EntityId, EntityUuid};
 use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 
@@ -24,7 +24,7 @@ pub fn spawn_pig(app: &mut App, id: EntityId) {
     let state = mob_body(
         &EntityTypeData::PIG,
         &row,
-        EntityKey(u128::from(id.0)),
+        EntityUuid::from_u128(u128::from(id.0)),
         DVec3::new(0.5, 64.0, 0.5),
     );
     world.resource_mut::<RowStore<()>>().spawn(id, state, row);

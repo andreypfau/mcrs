@@ -6,7 +6,7 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileGrid;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -80,7 +80,7 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
     let ids: Vec<EntityId> = (1..=recorded.len() as u64).map(EntityId).collect();
     for ((index, (entity, row)), &id) in recorded.iter().enumerate().zip(&ids) {
         let first = entity.ticks.first().copied().flatten().unwrap();
-        let key = EntityKey(u128::from(index as u32));
+        let key = EntityUuid::from_u128(u128::from(index as u32));
         let state = start_state(entity, row, key, &first, phase);
         scene.rows.spawn(id, state, *row);
     }

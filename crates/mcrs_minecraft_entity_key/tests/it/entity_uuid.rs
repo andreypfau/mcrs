@@ -1,12 +1,12 @@
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_voxel::BlockPos;
 
 const OVERWORLD: &str = "minecraft:overworld";
 
-fn from_block(x: i32, y: i32, z: i32) -> EntityKey {
-    EntityKey::born(
+fn from_block(x: i32, y: i32, z: i32) -> EntityUuid {
+    EntityUuid::born(
         7,
         OVERWORLD,
         3,
@@ -15,14 +15,14 @@ fn from_block(x: i32, y: i32, z: i32) -> EntityKey {
     )
 }
 
-fn command(spawn: BlockPos, source: BlockPos) -> EntityKey {
-    EntityKey::born(7, OVERWORLD, 3, &BirthSource::Command { spawn, source }, 0)
+fn command(spawn: BlockPos, source: BlockPos) -> EntityUuid {
+    EntityUuid::born(7, OVERWORLD, 3, &BirthSource::Command { spawn, source }, 0)
 }
 
 #[test]
 fn cmp_013_a_new_uuid_is_a_random_uuid_of_rfc_9562() {
     for order in 0_u32..64 {
-        let uuid = EntityKey::born(
+        let uuid = EntityUuid::born(
             order.into(),
             OVERWORLD,
             9,
@@ -32,7 +32,7 @@ fn cmp_013_a_new_uuid_is_a_random_uuid_of_rfc_9562() {
             },
             order,
         )
-        .0;
+        .as_u128();
         assert_eq!((uuid >> 76) & 0xF, 4, "version 4");
         assert_eq!((uuid >> 62) & 0x3, 2, "the variant of RFC 9562");
     }
@@ -41,31 +41,31 @@ fn cmp_013_a_new_uuid_is_a_random_uuid_of_rfc_9562() {
 #[test]
 fn cmp_013_each_birth_input_changes_the_new_uuid() {
     let parent = from_block(0, 0, 0);
-    let child = EntityKey::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 0);
+    let child = EntityUuid::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 0);
     assert_eq!(
         child,
-        EntityKey::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 0),
+        EntityUuid::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 0),
         "the same inputs give the same UUID"
     );
     let others = [
-        EntityKey::born(8, OVERWORLD, 3, &BirthSource::Entity(parent), 0),
-        EntityKey::born(7, OVERWORLD, 4, &BirthSource::Entity(parent), 0),
-        EntityKey::born(
+        EntityUuid::born(8, OVERWORLD, 3, &BirthSource::Entity(parent), 0),
+        EntityUuid::born(7, OVERWORLD, 4, &BirthSource::Entity(parent), 0),
+        EntityUuid::born(
             7,
             OVERWORLD,
             3,
             &BirthSource::Entity(from_block(1, 0, 0)),
             0,
         ),
-        EntityKey::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 1),
-        EntityKey::born(
+        EntityUuid::born(7, OVERWORLD, 3, &BirthSource::Entity(parent), 1),
+        EntityUuid::born(
             7,
             "minecraft:the_nether",
             3,
             &BirthSource::Entity(parent),
             0,
         ),
-        EntityKey::born(
+        EntityUuid::born(
             7,
             "minecraft:overworld2",
             3,
@@ -92,7 +92,7 @@ fn cmp_013_each_birth_input_changes_the_new_uuid() {
 fn cmp_016_the_phase_offset_of_new_uuids_covers_zero_to_three() {
     let mut seen = [false; 4];
     for order in 0_u32..64 {
-        let uuid = EntityKey::born(
+        let uuid = EntityUuid::born(
             0,
             OVERWORLD,
             0,
