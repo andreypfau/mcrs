@@ -1,3 +1,4 @@
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use std::sync::Arc;
 
 use mcrs_minecraft_biome::source::BiomeSource;
@@ -52,10 +53,13 @@ fn a_flat_dimension_fills_its_layers_with_no_router_carver_feature_or_structure(
     assert_eq!(ctx.height_context().min_y, -64);
 
     let mut column = ColumnBlocks::new(&y_sections);
+    let mut cells = AquiferCells::default();
     let snapshot = fill_column(
         &ctx,
         ColumnPos::new(3, -7),
         &mut column,
+        None,
+        &mut cells,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

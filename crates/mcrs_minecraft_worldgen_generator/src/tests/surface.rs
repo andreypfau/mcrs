@@ -6,7 +6,7 @@ use crate::ColumnBiomes;
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 #[cfg(test)]
-use crate::surface::{Visit, descend_strip, set_block};
+use crate::surface::{Descent, Visit, descend_strip, set_block};
 #[cfg(test)]
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, SurfaceStates};
@@ -24,6 +24,8 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
+#[cfg(test)]
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 #[cfg(test)]
@@ -52,6 +54,7 @@ fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i
         {
             seen.push((y, depth_above, depth_below, water_level));
         }
+        Descent::Step
     });
     seen
 }
@@ -182,18 +185,28 @@ pub(super) fn surfaced_column(
     let table = table_over(ids);
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let biomes = multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let biomes = multi_noise_palettes(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    );
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -290,19 +303,28 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
 
         let table = table_over(&ids);
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let mut filled = fill_column_dense_any(
             &mut column,
             section_x,
             section_z,
             &y_sections,
             &router,
+            &mut cells,
             &ColumnBiomes::None,
+            None,
             None,
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let biomes =
-            multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
+        let biomes = multi_noise_palettes(
+            &router,
+            &table,
+            None,
+            section_x * 16,
+            section_z * 16,
+            &y_sections,
+        );
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
             &column,
@@ -430,8 +452,15 @@ fn grid_biomes(
     y_sections: &[i32],
 ) -> usize {
     let table = table_over(ids);
-    let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
-        .expect("the multi-noise fill widens a grid");
+    let grid = multi_noise_grid(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    )
+    .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
     for id in &grid.ids {
         present[*id as usize] = true;
@@ -534,10 +563,13 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
 
         let y_sections = ctx.y_sections.clone();
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let snapshot = fill_column(
             &ctx,
             ColumnPos::new(3, -7),
             &mut column,
+            None,
+            &mut cells,
             &CancellationToken::new(),
         )
         .expect("the fill was not cancelled");
@@ -612,13 +644,16 @@ fn surfaced_column_fixed(
     use mcrs_minecraft_chunk::palette::BiomePalette;
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )

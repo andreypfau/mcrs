@@ -101,6 +101,7 @@ use crate::staging::{
 };
 use crate::task::{CancellationToken, ColumnSource};
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
@@ -347,8 +348,9 @@ pub fn generate_region(
 
     let rungs = ctx.rungs();
     let mut buffer = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     for col in region(2 * rungs as i32) {
-        let Some(snapshot) = fill_column(ctx, col, &mut buffer, &cancel) else {
+        let Some(snapshot) = fill_column(ctx, col, &mut buffer, None, &mut cells, &cancel) else {
             continue;
         };
         store.insert_filled(snapshot);

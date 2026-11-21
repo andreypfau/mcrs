@@ -135,31 +135,41 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         let mut index: FxHashMap<V, usize> = FxHashMap::default();
 
         let mut last: Option<(V, usize)> = None;
-        for val in cube.as_flattened().as_flattened().iter() {
+        for row in cube.as_flattened() {
             if let Some((prev, idx)) = last
-                && prev == *val
+                && *row == [prev; DIM]
             {
                 if let Some(count) = counts.get_mut(idx) {
-                    *count += 1;
+                    *count += DIM as u16;
                 }
                 continue;
             }
-            let idx = match index.get(val) {
-                Some(&idx) => {
+            for val in row {
+                if let Some((prev, idx)) = last
+                    && prev == *val
+                {
                     if let Some(count) = counts.get_mut(idx) {
                         *count += 1;
                     }
-                    idx
+                    continue;
                 }
-                None => {
-                    let idx = palette.len();
-                    index.insert(*val, idx);
-                    palette.push(*val);
-                    counts.push(1);
-                    idx
-                }
-            };
-            last = Some((*val, idx));
+                let idx = match index.get(val) {
+                    Some(&idx) => {
+                        if let Some(count) = counts.get_mut(idx) {
+                            *count += 1;
+                        }
+                        idx
+                    }
+                    None => {
+                        let idx = palette.len();
+                        index.insert(*val, idx);
+                        palette.push(*val);
+                        counts.push(1);
+                        idx
+                    }
+                };
+                last = Some((*val, idx));
+            }
         }
 
         if let &[only] = palette.as_slice() {

@@ -6914,6 +6914,7 @@ dependencies = [
  "criterion",
  "flume",
  "glam",
+ "libc",
  "mcrs_command",
  "mcrs_engine_link",
  "mcrs_engine_muxer",
@@ -7012,6 +7013,7 @@ dependencies = [
  "smallvec",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7644,6 +7646,7 @@ dependencies = [
  "criterion",
  "fixedbitset",
  "glam",
+ "libc",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",

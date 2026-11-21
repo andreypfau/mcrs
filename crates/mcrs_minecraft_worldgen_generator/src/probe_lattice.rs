@@ -2,11 +2,12 @@ use glam::IVec3;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_density::router_key::RouterKey;
 use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct ProbeLattice {
-    owner: Option<(usize, u64)>,
+    owner: Option<RouterKey>,
     columns: HashMap<(i32, i32), Box<[f32]>>,
     values: Vec<f32>,
 }
@@ -24,7 +25,7 @@ impl ProbeLattice {
         if inputs.is_empty() {
             return;
         }
-        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
+        let owner = router.key();
         if self.owner != Some(owner) {
             self.owner = Some(owner);
             self.columns.clear();

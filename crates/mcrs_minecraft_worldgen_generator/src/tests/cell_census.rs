@@ -1,7 +1,10 @@
 use mcrs_minecraft_noise::interval::Interval;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::corner_bounds;
 
-use crate::{CellFill, CellLattice, FillBuffers, column_fluid_field};
+use crate::{
+    CellFill, CellLattice, FillBuffers, LATTICE_PLANES, LatticePlanes, column_fluid_field,
+};
 
 use super::build_settings_router;
 
@@ -9,23 +12,24 @@ use super::build_settings_router;
 fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
     use glam::IVec3;
     use mcrs_minecraft_noise::sample_grid::SampleGrid;
-    use mcrs_minecraft_worldgen_density::program::Workspace;
 
     let router = build_settings_router("overworld", 777);
     let cell = router.cell_size().expect("the router has a cell lattice");
-    let mut ws = Workspace::default();
+    let mut fill = FillBuffers::default();
     let inputs = router.cell_inputs();
     let min_y = router.noise.min_y;
     let rows = router.noise.height as i32 / cell.y + 1;
 
-    let whole = CellLattice::fill(&router, 0, 0, &mut ws).expect("the lattice fills");
+    let mut whole = CellLattice::fill(&router, 0, 0, None, &mut fill).expect("the lattice fills");
+    whole.extend(&router, &mut fill);
+    let ws = &mut fill.ws;
     let part = SampleGrid::new(
         IVec3::new(4, rows, 4),
         IVec3::new(cell.x, min_y, cell.z),
         cell,
     );
     let mut values = vec![0.0f32; inputs.len() * part.len()];
-    router.fill_nodes(&mut ws, &part, inputs, &mut values);
+    router.fill_nodes(ws, &part, inputs, &mut values);
 
     let mut compared = 0;
     for k in 0..inputs.len() {
@@ -46,6 +50,47 @@ fn a_lattice_node_does_not_depend_on_the_volume_around_it() {
         }
     }
     assert_eq!(compared, inputs.len() * 4 * 4 * rows as usize);
+}
+
+#[test]
+fn a_lattice_borrowing_shorter_neighbour_planes_matches_a_lattice_filled_alone() {
+    use glam::IVec3;
+    use mcrs_minecraft_noise::sample_grid::SampleGrid;
+
+    let router = build_settings_router("overworld", 845);
+    let mut fill = FillBuffers::default();
+
+    let mut west = CellLattice::fill(&router, 0, 0, None, &mut fill).expect("the lattice fills");
+    let size = west.volume.size();
+    west.volume = SampleGrid::new(
+        IVec3::new(size.x, 3, size.z),
+        west.volume.min_block(),
+        west.cell,
+    );
+    west.compute(&router, &mut fill);
+    let mut north =
+        CellLattice::fill(&router, 16, -16, None, &mut fill).expect("the lattice fills");
+    north.extend(&router, &mut fill);
+
+    let mut borrowing =
+        CellLattice::fill(&router, 16, 0, None, &mut fill).expect("the lattice fills");
+    borrowing.extend(&router, &mut fill);
+
+    LATTICE_PLANES.with_borrow_mut(|planes| *planes = LatticePlanes::default());
+    let mut alone = CellLattice::fill(&router, 16, 0, None, &mut fill).expect("the lattice fills");
+    alone.extend(&router, &mut fill);
+
+    assert_eq!(borrowing.volume.size(), alone.volume.size());
+    let differing = borrowing
+        .values
+        .iter()
+        .zip(&alone.values)
+        .filter(|(left, right)| left.to_bits() != right.to_bits())
+        .count();
+    assert_eq!(
+        differing, 0,
+        "lattice nodes differ from the lattice filled alone"
+    );
 }
 
 mod exhaustive {
@@ -72,9 +117,11 @@ mod exhaustive {
         for (label, origin) in [("ocean", (0, 0)), ("inland", (40, 40))] {
             for i in 0..SIDE * SIDE {
                 let (cx, cz) = (origin.0 + i % SIDE, origin.1 + i / SIDE);
-                let lattice = CellLattice::fill(&router, cx * 16, cz * 16, &mut fill.ws)
+                let mut lattice = CellLattice::fill(&router, cx * 16, cz * 16, None, &mut fill)
                     .expect("the router has a cell lattice");
-                let mut fluid = column_fluid_field(&router, cx * 16, cz * 16);
+                lattice.extend(&router, &mut fill);
+                let mut aquifer = AquiferCells::default();
+                let mut fluid = column_fluid_field(&router, &mut aquifer, cx * 16, cz * 16);
                 fill.corners.resize(lattice.width, Interval::exact(0.0));
                 let size = lattice.volume.size();
                 for z in 0..size.z - 1 {
@@ -99,7 +146,7 @@ mod exhaustive {
 
                             let volume = SampleGrid::dense(cell, min);
                             router
-                                .program
+                                .program()
                                 .fill(&mut fill.ws, &volume, FINAL_DENSITY, &mut dense);
 
                             cells += 1;

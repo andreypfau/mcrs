@@ -9,16 +9,20 @@ use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_registries::Diagnostics;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::program::Workspace;
-use mcrs_voxel::BlockPos;
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 use super::build_settings_router;
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::{
     BiomeNames, BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables, UnknownEntry,
 };
-use crate::{multi_noise_grid, multi_noise_palettes};
+use crate::{ClimateBox, multi_noise_grid, multi_noise_palettes};
 use glam::IVec3;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_worldgen_density::router::{
+    CONTINENTS, DEPTH, EROSION, RIDGES, TEMPERATURE, VEGETATION,
+};
 
 pub(super) fn preset_ids() -> HashMap<String, u8> {
     let mut ids = HashMap::new();
@@ -111,8 +115,8 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome(
 ) {
     let sections = y_sections();
 
-    let palettes = multi_noise_palettes(router, table, 0, 0, &sections);
-    let grid = multi_noise_grid(router, table, 0, 0, &sections)
+    let palettes = multi_noise_palettes(router, table, None, 0, 0, &sections);
+    let grid = multi_noise_grid(router, table, None, 0, 0, &sections)
         .expect("the multi-noise path builds a grid");
     let first = sections[0];
     let column: Vec<u8> = sections
@@ -369,8 +373,9 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
     let (chunk_x, chunk_z) = (26, 90);
     let first = sections[0];
 
-    let palettes = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
-    let grid = multi_noise_grid(&router, &table, chunk_x * 16, chunk_z * 16, &sections)
+    let palettes =
+        multi_noise_palettes(&router, &table, None, chunk_x * 16, chunk_z * 16, &sections);
+    let grid = multi_noise_grid(&router, &table, None, chunk_x * 16, chunk_z * 16, &sections)
         .expect("the multi-noise path builds a grid");
     assert_eq!(
         grid.volume.size(),
@@ -430,6 +435,136 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
             Some(grid.get(gx, gy, gz)),
             table.biome_at(target),
             "grid cell {gx},{gy},{gz}"
+        );
+    }
+}
+
+fn column_quarts_sampled_alone(
+    router: &mcrs_minecraft_worldgen_density::router::NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    col: ColumnPos,
+    sections: &[i32],
+) -> (SampleGrid, Vec<u8>) {
+    let height = (sections[sections.len() - 1] - sections[0] + 1) * 4;
+    let volume = SampleGrid::new(
+        IVec3::new(6, height, 6),
+        IVec3::new(col.x * 16 - 4, sections[0] * 16, col.z * 16 - 4),
+        IVec3::splat(4),
+    );
+    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
+    let points = volume.len();
+    let mut values = vec![0.0f32; roots.len() * points];
+    router.fill_roots(&mut Workspace::new(), &volume, &roots, &mut values);
+    let mut cursor = table.cursor();
+    let ids = (0..points)
+        .map(|at| {
+            let root = |k: usize| values[k * points + at];
+            let target = TargetPoint::new(root(0), root(1), root(2), root(3), root(4), root(5));
+            *cursor.find_value(target).unwrap()
+        })
+        .collect();
+    (volume, ids)
+}
+
+#[test]
+fn a_fill_group_lends_each_column_the_quarts_it_samples_alone() {
+    let (table, _) = overworld_table();
+    let sections = y_sections();
+    let full: Vec<ColumnPos> = (0..16)
+        .map(|at| ColumnPos::new(-8 + at / 4, 4 + at % 4))
+        .collect();
+    let partial = [
+        ColumnPos::new(13, -3),
+        ColumnPos::new(14, -3),
+        ColumnPos::new(12, -1),
+        ColumnPos::new(15, -4),
+    ];
+    for seed in [2, 845] {
+        let router = build_settings_router("overworld", seed);
+        for group in [&full[..], &partial[..]] {
+            let climate =
+                ClimateBox::sample(&router, &table, group.iter().copied(), &sections).unwrap();
+            for &col in group {
+                let grid = climate.window(col).unwrap().to_grid();
+                let (volume, ids) = column_quarts_sampled_alone(&router, &table, col, &sections);
+                assert_eq!(grid.volume, volume, "seed {seed} column {col:?}");
+                assert!(
+                    grid.ids == ids,
+                    "seed {seed} column {col:?} reads other quarts"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_climate_tie_resolves_in_a_fill_group_as_in_the_column_alone() {
+    use mcrs_minecraft_biome::climate::ParameterRange;
+    use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+    use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, RouterFunctions};
+
+    let at = |temperature: f64| ClimateParameters {
+        temperature: ParameterRange::Point(temperature),
+        humidity: ParameterRange::Point(0.0),
+        continentalness: ParameterRange::Point(0.0),
+        erosion: ParameterRange::Point(0.0),
+        depth: ParameterRange::Point(0.0),
+        weirdness: ParameterRange::Point(0.0),
+        offset: 0.0,
+    };
+    let registry = super::biome_registry(&["minecraft:snowy_plains", "minecraft:desert"]);
+    let cold = super::biome_id(&registry, "minecraft:snowy_plains");
+    let hot = super::biome_id(&registry, "minecraft:desert");
+    let table =
+        MultiNoiseBiomeTable::from_entries(&[entry(at(-0.5), cold), entry(at(0.5001), hot)])
+            .expect("an explicit list resolves");
+    let tie = TargetPoint::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let warm = if table.biome_at(tie) == cold.narrow::<u8>().ok() {
+        0.5
+    } else {
+        -0.5
+    };
+
+    let mut settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocationBuf::minecraft("overworld").unwrap(),
+    );
+    settings.noise_router = RouterFunctions {
+        temperature: DensityFunctionHolder::y_gradient(-64, 0, 0.0, warm),
+        ..RouterFunctions::of_density(DensityFunctionHolder::ZERO)
+    };
+    let router = mcrs_minecraft_worldgen_density::compile::build_router(
+        &settings,
+        &mcrs_minecraft_worldgen_testing::registry("density_function"),
+        &mcrs_minecraft_worldgen_testing::registry("noise"),
+        0,
+        super::router_blocks(super::corpus()),
+    )
+    .unwrap();
+    let sections = y_sections();
+    let left = ColumnPos::new(0, 0);
+    let right = ColumnPos::new(1, 0);
+    let group = ClimateBox::sample(&router, &table, [left, right], &sections).unwrap();
+    let alone = ClimateBox::sample(&router, &table, [right], &sections).unwrap();
+    assert!(
+        group.window(right).unwrap().to_grid().ids == alone.window(right).unwrap().to_grid().ids,
+        "the right column reads a tie through the history of the left one"
+    );
+}
+
+#[test]
+fn a_climate_box_beyond_its_budget_or_the_coordinate_range_is_declined() {
+    let (table, _) = overworld_table();
+    let router = build_settings_router("overworld", 0);
+    let sections = y_sections();
+    for columns in [
+        [ColumnPos::new(0, 0), ColumnPos::new(256, 256)],
+        [ColumnPos::new(i32::MAX, 0), ColumnPos::new(i32::MAX, 1)],
+        [ColumnPos::new(i32::MIN, 0), ColumnPos::new(i32::MAX, 0)],
+    ] {
+        assert!(
+            ClimateBox::sample(&router, &table, columns, &sections).is_none(),
+            "{columns:?}"
         );
     }
 }

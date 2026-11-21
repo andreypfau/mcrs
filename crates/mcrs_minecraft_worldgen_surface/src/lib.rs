@@ -10,6 +10,7 @@ pub mod material_rule_type_keys;
 pub mod registry_keys;
 pub mod compile;
 pub mod eval;
+mod noise_band;
 #[cfg(test)]
 mod oracle;
 pub mod proto;
