@@ -611,7 +611,7 @@ where
         &mut self,
         index: usize,
         reruns: &mut Vec<usize>,
-        produced: &mut Vec<Produced>,
+        produced: &mut Vec<Produced<K, B::Memory>>,
         run: &R,
     ) where
         R: Fn(&mut Self, usize),
@@ -619,8 +619,8 @@ where
         let mark = self.out.mark();
         let consumed = self.task.as_ref().map_or(0, |task| task.consumed.len());
         if let Some(task) = self.task.as_mut() {
-            task.reads = Touch::EMPTY;
-            task.writes = Touch::EMPTY;
+            task.reads.clear();
+            task.writes.clear();
         }
         self.item_cells.clear();
         run(self, index);
@@ -643,17 +643,26 @@ where
             reruns.push(index);
             return;
         }
-        self.item_cells.clear();
-        let (reads, writes) = self
-            .task
-            .as_ref()
-            .map_or((Touch::EMPTY, Touch::EMPTY), |task| {
-                (task.reads, task.writes)
-            });
+        let cells: Vec<(u64, B::Memory)> = self.item_cells.drain().collect();
+        let (reads, writes, consumed) = self.task.as_mut().map_or_else(
+            || (Touch::EMPTY, Touch::EMPTY, Vec::new()),
+            |task| {
+                (
+                    core::mem::take(&mut task.reads),
+                    core::mem::take(&mut task.writes),
+                    task.consumed
+                        .get(consumed..)
+                        .map(<[_]>::to_vec)
+                        .unwrap_or_default(),
+                )
+            },
+        );
         produced.push(Produced {
             index,
             reads,
             writes,
+            cells,
+            consumed,
             blocks: mark.writes..self.out.writes.len(),
             outbound: mark.outbound..self.out.outbound.len(),
             delivered: mark.delivered..self.out.delivered.len(),

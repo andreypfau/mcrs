@@ -46,6 +46,23 @@ impl Region {
         }
     }
 
+    pub(crate) fn around(min: (i64, i64), max: (i64, i64)) -> Self {
+        let margin = i64::from(MARGIN);
+        Self {
+            min_x: min.0.saturating_sub(margin),
+            min_z: min.1.saturating_sub(margin),
+            max_x: max.0.saturating_add(margin),
+            max_z: max.1.saturating_add(margin),
+        }
+    }
+
+    pub(crate) fn overlaps(&self, other: &Self) -> bool {
+        self.min_x <= other.max_x
+            && other.min_x <= self.max_x
+            && self.min_z <= other.max_z
+            && other.min_z <= self.max_z
+    }
+
     pub(crate) fn holds(&self, section: SectionPos) -> bool {
         let first = |section: i32| i32::try_from(i64::from(section).saturating_mul(16)).ok();
         match (first(section.x), first(section.z)) {
@@ -87,18 +104,17 @@ pub(crate) fn colour(tile: ColumnPos) -> [i32; 2] {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Touch {
+struct Box3 {
     min: BlockPos,
     max: BlockPos,
 }
 
-impl Touch {
-    pub(crate) const EMPTY: Self = Self {
-        min: BlockPos::new(i32::MAX, i32::MAX, i32::MAX),
-        max: BlockPos::new(i32::MIN, i32::MIN, i32::MIN),
-    };
+impl Box3 {
+    fn of(at: BlockPos) -> Self {
+        Self { min: at, max: at }
+    }
 
-    pub(crate) fn extend(&mut self, at: BlockPos) {
+    fn extend(&mut self, at: BlockPos) {
         self.min = BlockPos::new(
             self.min.x.min(at.x),
             self.min.y.min(at.y),
@@ -109,6 +125,32 @@ impl Touch {
             self.max.y.max(at.y),
             self.max.z.max(at.z),
         );
+    }
+
+    fn intersects(&self, other: &Self) -> bool {
+        self.min.x <= other.max.x
+            && other.min.x <= self.max.x
+            && self.min.y <= other.max.y
+            && other.min.y <= self.max.y
+            && self.min.z <= other.max.z
+            && other.min.z <= self.max.z
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Touch {
+    boxes: Vec<(u64, Box3)>,
+}
+
+impl Touch {
+    pub(crate) const EMPTY: Self = Self { boxes: Vec::new() };
+
+    pub(crate) fn extend(&mut self, at: BlockPos) {
+        let cell = cell_key(at);
+        match self.boxes.iter_mut().find(|(key, _)| *key == cell) {
+            Some((_, held)) => held.extend(at),
+            None => self.boxes.push((cell, Box3::of(at))),
+        }
     }
 
     pub(crate) fn extend_section(&mut self, section: SectionPos) {
@@ -127,40 +169,24 @@ impl Touch {
         ));
     }
 
+    pub(crate) fn clear(&mut self) {
+        self.boxes.clear();
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
-        self.min.x > self.max.x
+        self.boxes.is_empty()
     }
 
     pub(crate) fn intersects(&self, other: &Self) -> bool {
-        !self.is_empty()
-            && !other.is_empty()
-            && self.min.x <= other.max.x
-            && other.min.x <= self.max.x
-            && self.min.y <= other.max.y
-            && other.min.y <= self.max.y
-            && self.min.z <= other.max.z
-            && other.min.z <= self.max.z
+        self.boxes.iter().any(|(cell, held)| {
+            other
+                .boxes
+                .iter()
+                .any(|(key, theirs)| key == cell && held.intersects(theirs))
+        })
     }
 
-    pub(crate) fn cells(&self) -> impl Iterator<Item = u64> {
-        let (first_x, last_x, first_z, last_z) = if self.is_empty() {
-            (0, -1, 0, -1)
-        } else {
-            (
-                self.min.x.div_euclid(CELL),
-                self.max.x.div_euclid(CELL),
-                self.min.z.div_euclid(CELL),
-                self.max.z.div_euclid(CELL),
-            )
-        };
-        (first_x..=last_x).flat_map(move |x| {
-            (first_z..=last_z).map(move |z| {
-                cell_key(BlockPos::new(
-                    x.saturating_mul(CELL),
-                    0,
-                    z.saturating_mul(CELL),
-                ))
-            })
-        })
+    pub(crate) fn cells(&self) -> impl Iterator<Item = u64> + '_ {
+        self.boxes.iter().map(|(cell, _)| *cell)
     }
 }
