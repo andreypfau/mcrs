@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct WorldSeed(pub u64);
@@ -13,7 +13,7 @@ pub struct KeyedRandom {
 
 impl KeyedRandom {
     #[must_use]
-    pub fn new(seed: WorldSeed, key: &EntityKey, tick: u64, part: Part) -> Self {
+    pub fn new(seed: WorldSeed, key: &EntityUuid, tick: u64, part: Part) -> Self {
         let mut state = mix(seed.0 ^ 0x6A09_E667_F3BC_C908);
         for word in key.words() {
             state = mix(state ^ word);

@@ -5421,7 +5421,6 @@ dependencies = [
  "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -5476,8 +5475,10 @@ dependencies = [
 name = "mcrs_minecraft_entity_key"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "glam",
  "mcrs_voxel",
+ "uuid",
 ]
 
 [[package]]

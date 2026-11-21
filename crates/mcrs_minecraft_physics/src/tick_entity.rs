@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
@@ -208,7 +208,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
 }
 
 fn living_mover(
-    key: EntityKey,
+    key: EntityUuid,
     side: Side,
     row: &MotionRow,
     living: &Living,

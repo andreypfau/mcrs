@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::EffectBuffer;
@@ -29,8 +29,8 @@ use mcrs_voxel::BlockPos;
 
 const TILE: TileKey = TileKey::new(0, 0, 0);
 
-fn key(tick: u64) -> EntityKey {
-    EntityKey(u128::from(tick))
+fn key(tick: u64) -> EntityUuid {
+    EntityUuid::from_u128(u128::from(tick))
 }
 
 fn write(target: u64, writer: WriterKey, sequence: u32) -> Keyed<u32> {
@@ -47,7 +47,7 @@ fn applied(queues: &mut TileQueues<Keyed<u32>>) -> Vec<(u64, WriterKey, u32)> {
     queues
         .take_in_order(TILE)
         .into_iter()
-        .map(|entry| (entry.target.0 as u64, entry.writer, entry.sequence))
+        .map(|entry| (entry.target.as_u128() as u64, entry.writer, entry.sequence))
         .collect()
 }
 

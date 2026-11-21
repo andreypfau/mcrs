@@ -29,7 +29,7 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_entity_rows::tiles_per_task;
@@ -68,10 +68,10 @@ enum Launch {
 }
 
 impl Launch {
-    fn includes(self, key: EntityKey) -> bool {
+    fn includes(self, key: EntityUuid) -> bool {
         match self {
             Launch::All => true,
-            Launch::Quarter => (key.0 >> 2).is_multiple_of(4),
+            Launch::Quarter => (key.as_u128() >> 2).is_multiple_of(4),
         }
     }
 }
@@ -95,12 +95,12 @@ fn start_bodies(rows: &RowStore<()>) -> Vec<Body> {
     bodies
 }
 
-fn start_of(bodies: &mut [Body], key: EntityKey) -> Option<&mut Body> {
-    bodies.get_mut(usize::try_from(key.0).ok()?)
+fn start_of(bodies: &mut [Body], key: EntityUuid) -> Option<&mut Body> {
+    bodies.get_mut(usize::try_from(key.as_u128()).ok()?)
 }
 
 fn relaunch(state: &mut EntityState, starts: &[Body]) {
-    let Some(start) = usize::try_from(state.key.0)
+    let Some(start) = usize::try_from(state.key.as_u128())
         .ok()
         .and_then(|at| starts.get(at))
     else {

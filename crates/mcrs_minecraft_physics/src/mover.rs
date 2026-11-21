@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Body;
 use crate::QueryEntity;
@@ -15,7 +15,7 @@ pub enum Physics {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Mover {
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub width: f32,
     pub height: f32,
     pub step_height: f32,
@@ -35,7 +35,7 @@ pub struct Mover {
 
 impl Mover {
     #[must_use]
-    pub fn new(key: EntityKey, dimensions: Dimensions, side: Side) -> Self {
+    pub fn new(key: EntityUuid, dimensions: Dimensions, side: Side) -> Self {
         Self {
             key,
             width: dimensions.width,

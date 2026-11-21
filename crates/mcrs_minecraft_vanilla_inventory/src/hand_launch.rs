@@ -1,6 +1,6 @@
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::ItemEntity;
@@ -14,7 +14,7 @@ pub(crate) fn hand_launch(
     cause: Cause,
 ) -> Launch {
     Launch {
-        source: BirthSource::Entity(EntityKey(source)),
+        source: BirthSource::Entity(EntityUuid::from_u128(source)),
         form: Form::Hand {
             feet: transform.translation,
             eye_height,

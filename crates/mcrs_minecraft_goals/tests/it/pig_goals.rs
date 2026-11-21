@@ -17,7 +17,7 @@ use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::Turn;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_goals::ChickenBrain;
 use mcrs_minecraft_goals::CowBrain;
 use mcrs_minecraft_goals::FlatGround;
@@ -196,7 +196,7 @@ fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
     }
     pen.set_players(vec![PlayerRow {
         player: EntityId(1),
-        key: EntityKey(1 << 64 | 1),
+        key: EntityUuid::from_u128(1 << 64 | 1),
         position: centre,
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,
@@ -285,7 +285,7 @@ fn panic_modifier<B: MobBrain<FlatGround> + Default>() -> Option<f32> {
     (0..32u128).find_map(|key| {
         let view = MobView {
             mob: EntityId(0),
-            key: EntityKey(key << 64),
+            key: EntityUuid::from_u128(key << 64),
             position: DVec3::new(32.5, 0.0, 32.5),
             eye_height: 1.0,
             flags: MobFlags::ALIVE.union(MobFlags::ON_GROUND),

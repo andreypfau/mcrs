@@ -2,7 +2,7 @@ use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_collision_table::BlockWorld;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::Pass;
 use mcrs_minecraft_entity_rows::RowStore;
@@ -62,7 +62,7 @@ impl<M: Send> TestScene<M> {
         let mut rows = RowStore::default();
         let range = f64::from(edge) - 1.0;
         for index in 0..walkers.saturating_add(items) {
-            let key = EntityKey(u128::from(index));
+            let key = EntityUuid::from_u128(u128::from(index));
             let x = rng.range(-range, range);
             let z = rng.range(-range, range);
             let walker = index < walkers;
