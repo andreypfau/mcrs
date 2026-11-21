@@ -8,6 +8,33 @@ use mcrs_minecraft_game_mode::GameMode;
 
 use crate::setting_error::SettingError;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RedstonePreset {
+    #[default]
+    Java,
+    Bedrock,
+}
+
+impl RedstonePreset {
+    fn parse(raw: &str) -> Option<Self> {
+        match raw.to_ascii_lowercase().as_str() {
+            "java" => Some(Self::Java),
+            "bedrock" => Some(Self::Bedrock),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RedstoneSettings {
+    pub preset: RedstonePreset,
+    pub quasi_connectivity: Option<bool>,
+    pub sticky_piston_short_pulse: Option<bool>,
+    pub pistons_move_block_entities: Option<bool>,
+    pub dust_connects_to_pistons: Option<bool>,
+    pub experimental_wire: Option<bool>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ServerSettings {
@@ -25,6 +52,7 @@ pub struct ServerSettings {
     pub forwarding: bool,
     pub forwarding_secret: String,
     pub proxy_upstreams: Vec<IpAddr>,
+    pub redstone: RedstoneSettings,
 }
 
 impl Default for ServerSettings {
@@ -44,6 +72,7 @@ impl Default for ServerSettings {
             forwarding: false,
             forwarding_secret: String::new(),
             proxy_upstreams: Vec::new(),
+            redstone: RedstoneSettings::default(),
         }
     }
 }
@@ -93,6 +122,16 @@ impl ServerSettings {
                     |raw| raw.split(',').map(|ip| ip.trim().parse().ok()).collect(),
                 )
                 .unwrap_or(defaults.proxy_upstreams),
+            redstone: RedstoneSettings {
+                preset: reader
+                    .read("REDSTONE_PRESET", "java or bedrock", RedstonePreset::parse)
+                    .unwrap_or(defaults.redstone.preset),
+                quasi_connectivity: reader.switch("REDSTONE_QUASI_CONNECTIVITY"),
+                sticky_piston_short_pulse: reader.switch("REDSTONE_STICKY_PISTON_SHORT_PULSE"),
+                pistons_move_block_entities: reader.switch("REDSTONE_PISTONS_MOVE_BLOCK_ENTITIES"),
+                dust_connects_to_pistons: reader.switch("REDSTONE_DUST_CONNECTS_TO_PISTONS"),
+                experimental_wire: reader.switch("REDSTONE_EXPERIMENTAL_WIRE"),
+            },
         }
     }
 }
@@ -121,7 +160,7 @@ impl<L: Fn(&str) -> Option<String>, R: FnMut(SettingError)> Reader<'_, L, R> {
         parsed
     }
 
-    fn flag(&mut self, name: &'static str, default: bool) -> bool {
+    fn switch(&mut self, name: &'static str) -> Option<bool> {
         self.read(name, "on or off", |raw| {
             match raw.to_ascii_lowercase().as_str() {
                 "on" | "1" | "true" | "yes" => Some(true),
@@ -129,7 +168,10 @@ impl<L: Fn(&str) -> Option<String>, R: FnMut(SettingError)> Reader<'_, L, R> {
                 _ => None,
             }
         })
-        .unwrap_or(default)
+    }
+
+    fn flag(&mut self, name: &'static str, default: bool) -> bool {
+        self.switch(name).unwrap_or(default)
     }
 }
 
@@ -190,6 +232,11 @@ mod tests {
             ("FORWARDING", "on"),
             ("FORWARDING_SECRET", " secret "),
             ("PROXY_UPSTREAMS", " 192.0.2.1, ::1 "),
+            ("REDSTONE_PRESET", " Bedrock "),
+            ("REDSTONE_QUASI_CONNECTIVITY", "on"),
+            ("REDSTONE_STICKY_PISTON_SHORT_PULSE", "maybe"),
+            ("REDSTONE_PISTONS_MOVE_BLOCK_ENTITIES", "0"),
+            ("REDSTONE_EXPERIMENTAL_WIRE", "yes"),
         ]);
         assert_eq!(
             settings,
@@ -208,9 +255,20 @@ mod tests {
                 forwarding: true,
                 forwarding_secret: " secret ".to_owned(),
                 proxy_upstreams: vec![[192, 0, 2, 1].into(), core::net::Ipv6Addr::LOCALHOST.into()],
+                redstone: RedstoneSettings {
+                    preset: RedstonePreset::Bedrock,
+                    quasi_connectivity: Some(true),
+                    sticky_piston_short_pulse: None,
+                    pistons_move_block_entities: Some(false),
+                    dust_connects_to_pistons: None,
+                    experimental_wire: Some(true),
+                },
             }
         );
-        assert_eq!(rejected, ["ENABLE_STATUS"]);
+        assert_eq!(
+            rejected,
+            ["ENABLE_STATUS", "REDSTONE_STICKY_PISTON_SHORT_PULSE"]
+        );
     }
 
     #[test]
@@ -223,8 +281,10 @@ mod tests {
             ("MOB_AI", "2"),
             ("FORWARDING", "enabled"),
             ("PROXY_UPSTREAMS", "192.0.2.1,localhost"),
+            ("REDSTONE_PRESET", "pocket"),
         ]);
         assert_eq!(settings.world_seed, u64::MAX, "an unsigned seed reads");
+        assert_eq!(settings.redstone.preset, RedstonePreset::Java);
         assert_eq!(
             (
                 settings.port,
@@ -242,7 +302,8 @@ mod tests {
                 "DEFAULT_GAMEMODE",
                 "MOB_AI",
                 "FORWARDING",
-                "PROXY_UPSTREAMS"
+                "PROXY_UPSTREAMS",
+                "REDSTONE_PRESET"
             ]
         );
     }

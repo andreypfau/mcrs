@@ -270,6 +270,7 @@ mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features 
 mcrs_minecraft_heightmap = { path = "crates/mcrs_minecraft_heightmap", default-features = false }
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
 mcrs_minecraft_redstone = { path = "crates/mcrs_minecraft_redstone" }
+mcrs_minecraft_vanilla_redstone = { path = "crates/mcrs_minecraft_vanilla_redstone" }
 mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
 mcrs_minecraft_client_ticks = { path = "tools/mcrs_minecraft_client_ticks" }
 mcrs_minecraft_bench_support = { path = "tools/mcrs_minecraft_bench_support" }

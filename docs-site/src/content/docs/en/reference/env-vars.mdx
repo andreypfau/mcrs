@@ -22,7 +22,7 @@ import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The server reads 11 of the variables. The client reads many more, and most of those are development knobs.
+This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The server reads 17 of the variables. The client reads many more, and most of those are development knobs.
 
 <Aside type="caution" title="WIP">
 The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The server binary runs the `public` profile: a player who joins from the same machine is not an operator unless `ops.json` names them.
@@ -47,6 +47,12 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 | `MCRS_ACCEPT_TRANSFERS` | off | Whether the server accepts players that another server transfers. |
 | `MCRS_ENABLE_STATUS` | on | Whether the server answers status requests (the server list ping). |
 | `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
+| `MCRS_REDSTONE_PRESET` | `java` | Redstone world rules preset: `java` or `bedrock`. |
+| `MCRS_REDSTONE_QUASI_CONNECTIVITY` | preset | Whether a piston also reads power at the block above it. |
+| `MCRS_REDSTONE_STICKY_PISTON_SHORT_PULSE` | preset | Whether a sticky piston on a one-tick pulse leaves its block behind. |
+| `MCRS_REDSTONE_PISTONS_MOVE_BLOCK_ENTITIES` | preset | Whether pistons move blocks with a block entity, such as chests. |
+| `MCRS_REDSTONE_DUST_CONNECTS_TO_PISTONS` | preset | Whether redstone dust points at pistons. |
+| `MCRS_REDSTONE_EXPERIMENTAL_WIRE` | preset | Whether redstone dust uses the experimental network evaluator. |
 
 <Aside type="caution" title="No authentication">
 The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.

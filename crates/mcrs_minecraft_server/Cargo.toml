@@ -51,6 +51,8 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_nbt_path.workspace = true
 mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_redstone.workspace = true
+mcrs_minecraft_server_settings.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_simulation.workspace = true
@@ -64,6 +66,7 @@ mcrs_minecraft_vanilla_inventory.workspace = true
 mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_swing.workspace = true
+mcrs_minecraft_vanilla_redstone.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 bevy_app.workspace = true

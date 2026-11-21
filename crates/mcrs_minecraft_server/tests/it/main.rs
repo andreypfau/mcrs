@@ -62,6 +62,7 @@ mod player_file;
 mod player_pose;
 mod probe_bans;
 mod proxy_forwarding;
+mod redstone;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;

@@ -20,7 +20,7 @@ use mcrs_minecraft_engine_server::{
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_lang::{EN_US, Language};
-use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
+use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin, VanillaRedstonePlugin};
 use mcrs_minecraft_server_settings::ServerSettings;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
@@ -109,7 +109,8 @@ fn serve() -> AppExit {
         world_gen: WorldGenPlugin,
         network,
     }
-    .build();
+    .build()
+    .set(VanillaRedstonePlugin::from_settings(&settings.redstone));
     if !settings.mob_ai {
         server = server.disable::<VanillaMobBrainPlugin>();
     }

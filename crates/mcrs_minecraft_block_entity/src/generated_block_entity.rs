@@ -106,6 +106,25 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
+    Piston {
+        x: i32,
+        y: i32,
+        z: i32,
+        #[serde(rename = "blockState")]
+        block_state: NbtCompound,
+        facing: i32,
+        progress: f32,
+        #[serde(default, deserialize_with = "nbt_flag")]
+        extending: bool,
+        #[serde(default, deserialize_with = "nbt_flag")]
+        source: bool,
+        #[serde(
+            rename = "mcrs:carried",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
+        carried: Option<NbtCompound>,
+    },
     Bell {
         x: i32,
         y: i32,
@@ -392,6 +411,7 @@ impl GeneratedBlockEntity {
             | GeneratedBlockEntity::BrewingStand { x, y, z, .. }
             | GeneratedBlockEntity::Campfire { x, y, z, .. }
             | GeneratedBlockEntity::Comparator { x, y, z, .. }
+            | GeneratedBlockEntity::Piston { x, y, z, .. }
             | GeneratedBlockEntity::Bell { x, y, z, .. }
             | GeneratedBlockEntity::EnderChest { x, y, z, .. }
             | GeneratedBlockEntity::CopperGolemStatue { x, y, z, .. }
