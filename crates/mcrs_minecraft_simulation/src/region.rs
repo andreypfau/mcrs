@@ -20,6 +20,13 @@ pub(crate) struct Region {
 }
 
 impl Region {
+    pub(crate) const WHOLE: Self = Self {
+        min_x: i64::MIN,
+        min_z: i64::MIN,
+        max_x: i64::MAX,
+        max_z: i64::MAX,
+    };
+
     pub(crate) fn of(tile: ColumnPos) -> Self {
         let edge = i64::from(PRECIPITATION_TILE).saturating_mul(SectionPos::SIZE as i64);
         let min = |tile: i32| {
@@ -77,4 +84,83 @@ impl Region {
 
 pub(crate) fn colour(tile: ColumnPos) -> [i32; 2] {
     [tile.x & 1, tile.z & 1]
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Touch {
+    min: BlockPos,
+    max: BlockPos,
+}
+
+impl Touch {
+    pub(crate) const EMPTY: Self = Self {
+        min: BlockPos::new(i32::MAX, i32::MAX, i32::MAX),
+        max: BlockPos::new(i32::MIN, i32::MIN, i32::MIN),
+    };
+
+    pub(crate) fn extend(&mut self, at: BlockPos) {
+        self.min = BlockPos::new(
+            self.min.x.min(at.x),
+            self.min.y.min(at.y),
+            self.min.z.min(at.z),
+        );
+        self.max = BlockPos::new(
+            self.max.x.max(at.x),
+            self.max.y.max(at.y),
+            self.max.z.max(at.z),
+        );
+    }
+
+    pub(crate) fn extend_section(&mut self, section: SectionPos) {
+        let first = |axis: i32| axis.saturating_mul(SectionPos::SIZE as i32);
+        let last =
+            |axis: i32| first(axis).saturating_add((SectionPos::SIZE as i32).saturating_sub(1));
+        self.extend(BlockPos::new(
+            first(section.x),
+            first(section.y),
+            first(section.z),
+        ));
+        self.extend(BlockPos::new(
+            last(section.x),
+            last(section.y),
+            last(section.z),
+        ));
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.min.x > self.max.x
+    }
+
+    pub(crate) fn intersects(&self, other: &Self) -> bool {
+        !self.is_empty()
+            && !other.is_empty()
+            && self.min.x <= other.max.x
+            && other.min.x <= self.max.x
+            && self.min.y <= other.max.y
+            && other.min.y <= self.max.y
+            && self.min.z <= other.max.z
+            && other.min.z <= self.max.z
+    }
+
+    pub(crate) fn cells(&self) -> impl Iterator<Item = u64> {
+        let (first_x, last_x, first_z, last_z) = if self.is_empty() {
+            (0, -1, 0, -1)
+        } else {
+            (
+                self.min.x.div_euclid(CELL),
+                self.max.x.div_euclid(CELL),
+                self.min.z.div_euclid(CELL),
+                self.max.z.div_euclid(CELL),
+            )
+        };
+        (first_x..=last_x).flat_map(move |x| {
+            (first_z..=last_z).map(move |z| {
+                cell_key(BlockPos::new(
+                    x.saturating_mul(CELL),
+                    0,
+                    z.saturating_mul(CELL),
+                ))
+            })
+        })
+    }
 }

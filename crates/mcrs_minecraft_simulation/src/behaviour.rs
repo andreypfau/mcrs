@@ -46,7 +46,7 @@ impl MemoryPartition for () {
 }
 
 pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
-    type Memory: Default + Send + Sync + MemoryPartition + 'static;
+    type Memory: Default + Clone + Send + Sync + MemoryPartition + 'static;
 
     type Shared: Default + Send + Sync + 'static;
 
