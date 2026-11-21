@@ -16,7 +16,7 @@ use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
 use crate::footprints::Footprints;
 use crate::precipitation::{PRECIPITATION_TILE, precipitation_hits};
-use crate::tile_task::{HotCells, Spread, run_tiled};
+use crate::tile_task::{Mode, Spread, Tiled, run_tiled};
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -149,7 +149,7 @@ pub fn random_step<K, V, F, B, P, S>(
     cx.precipitation_step(picks);
 
     let positions: Vec<BlockPos> = picks.hits.iter().map(|hit| hit.at).collect();
-    let split = run_tiled(
+    let tiled = run_tiled(
         shard,
         volume,
         env,
@@ -160,24 +160,26 @@ pub fn random_step<K, V, F, B, P, S>(
         now,
         spread,
         &positions,
-        HotCells::Ignore,
+        Mode::Colour,
         &|cx, index| {
             if let Some(hit) = picks.hits.get(index) {
                 cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
             }
         },
+        &|_, _| {},
     );
-    out.report.random_reruns = out
-        .report
-        .random_reruns
-        .saturating_add(u32::try_from(split.reruns.len()).unwrap_or(u32::MAX));
+    let again: Vec<usize> = match tiled {
+        Tiled::Done { reruns, left } => {
+            out.report.random_reruns = out.report.random_reruns.saturating_add(left);
+            reruns
+        }
+        Tiled::Redo { left } => {
+            out.report.random_reruns = out.report.random_reruns.saturating_add(left);
+            (0..picks.hits.len()).collect()
+        }
+    };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
-    for hit in split
-        .hot
-        .iter()
-        .chain(split.reruns.iter())
-        .filter_map(|&index| picks.hits.get(index))
-    {
+    for hit in again.iter().filter_map(|&index| picks.hits.get(index)) {
         cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
     }
 }
@@ -218,6 +220,7 @@ where
         random: &mut LegacyRandom,
         table: &RandomTickTable,
     ) {
+        self.touch_read(at);
         let Ok(state) = self.volume.block(at) else {
             return;
         };

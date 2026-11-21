@@ -298,11 +298,10 @@ Provenance: `documentation`. Kind: semantic. Confidence: high.
 - **Ordering constraints:** the order of the updates inside the chain is the wire evaluation
   policy (P-WIRE of `block-simulation.md`). The default evaluator, which the `java` preset uses,
   runs the chain in the vanilla order of SIM-NBR-003 (depth first, west, east, down, up, north,
-  south), so circuits that depend on the update order of wire behave as in the reference; the
-  vanilla differential test (`tests/it/vanilla_server`) checks this with circuits whose result
-  depends on the order, such as two sticky pistons that pull one block. The experimental
-  evaluator (RS-WIR-009) keeps only the final powers. The observable result is the final power of
-  each wire and of each component that the network feeds. A component that reacts at once (a lamp
+  south), so a circuit whose result depends on the update order of wire, such as two sticky
+  pistons that pull one block, gives the result of the reference. The experimental evaluator
+  (RS-WIR-009) keeps only the final powers. The observable result is the final power of each wire
+  and of each component that the network feeds. A component that reacts at once (a lamp
   that turns on, RS-LMP-001) can react more than one time inside one chain, when the wire
   evaluation visits it with two values. A component that schedules a tick reacts one time
   (SIM-SCH-004).
@@ -889,8 +888,9 @@ output signal, except the tripwire hook and the daylight detector, which are sig
   `minecraft:wooden_trapdoors` or `minecraft:fence_gates` changes `open` to the other value with
   the flags 2; the other half of a door follows the half that the player used. An iron door and
   an iron trapdoor do not react to a use.
-- **Edge cases:** power keeps a door open while the test is true; a use while powered changes
-  `open`, and the next update with power sets it back. A fence gate keeps `in_wall`.
+- **Edge cases:** a block reacts only when the result of the test changes. A use while powered
+  changes `open`, and the block keeps that `open` until the test changes again: a door that a
+  player closes under power stays closed while the power stays. A fence gate keeps `in_wall`.
 - **Conformance tests:** put a block of redstone beside the upper half of an iron door. Result:
   both halves are `open` and `powered`. Remove the block. Result: both halves close. Use the upper
   half of an oak door. Result: both halves open.
@@ -1063,18 +1063,6 @@ semantic. Confidence: high.
 - **Rule:** RS-SRC-005. **Reference:** one toggle record for each dimension. **Reason:** a
   partition keeps its own record, as the threaded instance of `block-simulation.md` does.
   **Visible to the client:** no. **Bug reference:** none. **Test:** none.
-- **Rule:** SIM-SCH-006 (the order of ticks across sections) and SIM-BEV-002 (the order of the
-  drain). **Reference:** one global order by (priority, sequence) across all sections. **Reason:**
-  the ticks and the block events of one phase run on block tiles in four colour phases
-  (`physics-architecture.md`, §7.5). Inside one tile the collection order holds, and inside one
-  section the full-key order holds (the observable result of SIM-SCH-006). Between tiles whose
-  regions do not touch, the order does not change any result. Between tiles of different colours
-  whose regions touch, the colour order replaces the sequence order; this is a semantic-level
-  freedom. The ticks of a hot cell (a cell that left its region in the last 40 ticks) run before
-  the colour phases. **Visible to the client:** only through circuits that depend on the order of
-  two ticks in different tiles within one phase. **Bug reference:** none. **Test:** `tiled` of
-  the simulation crate and `parallel` of this crate compare one thread with four; the vanilla
-  differential test runs each circuit inside one tile.
 
 ## 13. Unresolved
 

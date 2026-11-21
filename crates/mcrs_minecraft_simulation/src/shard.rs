@@ -24,7 +24,6 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) palette: PaletteBuffer,
     pub(crate) chain: Chain<K>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
-    pub(crate) reruns: Vec<usize>,
     pub(crate) hot: FxHashMap<u64, i64>,
 }
 
@@ -64,7 +63,6 @@ impl<K: Kinds> Default for BlockShard<K> {
             palette: PaletteBuffer::default(),
             chain: Chain::default(),
             rain_hits: Vec::new(),
-            reruns: Vec::new(),
             hot: FxHashMap::default(),
         }
     }

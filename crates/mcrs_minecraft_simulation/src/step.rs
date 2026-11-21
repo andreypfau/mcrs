@@ -2,6 +2,7 @@ use crate::SimulationVolume;
 use crate::access::{PartitionKind, SimulatedSections};
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::Cx;
+use crate::event_queue::BlockEvent;
 use crate::event_queue::Drained;
 use crate::footprints::Footprints;
 use crate::message::{Message, MessageBody};
@@ -10,7 +11,7 @@ use crate::policy::OrderingPolicy;
 use crate::scalar::GameTick;
 use crate::shard::{BlockShard, Env, Phase, PhaseInput, StepAt};
 use crate::tick_queue::{Collected, Kinds};
-use crate::tile_task::{HotCells, Spread, run_tiled};
+use crate::tile_task::{Mode, Spread, Tiled, run_tiled};
 use mcrs_minecraft_volume::{Access, Volume};
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::SectionPos;
@@ -343,17 +344,7 @@ fn run_block_ticks<K, V, F, B, P, S>(
     S: Spread,
 {
     let positions: Vec<BlockPos> = collected.iter().map(|tick| tick.pos).collect();
-    let hot: Vec<usize> = positions
-        .iter()
-        .enumerate()
-        .filter(|(_, at)| crate::tile_task::is_hot(shard, env.config.hot_ticks, now, **at))
-        .map(|(index, _)| index)
-        .collect();
-    let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-    for tick in hot.iter().filter_map(|&index| collected.get(index)) {
-        cx.run_block_tick(*tick);
-    }
-    let split = run_tiled(
+    let tiled = run_tiled(
         shard,
         volume,
         env,
@@ -364,19 +355,26 @@ fn run_block_ticks<K, V, F, B, P, S>(
         now,
         spread,
         &positions,
-        HotCells::Use,
+        Mode::Sequence,
         &|cx, index| {
             if let Some(tick) = collected.get(index) {
                 cx.run_block_tick(*tick);
             }
         },
+        &|_, _| {},
     );
+    let again: Vec<usize> = match tiled {
+        Tiled::Done { reruns, left } => {
+            out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+            reruns
+        }
+        Tiled::Redo { left } => {
+            out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+            (0..collected.len()).collect()
+        }
+    };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
-    for tick in split
-        .reruns
-        .iter()
-        .filter_map(|&index| collected.get(index))
-    {
+    for tick in again.iter().filter_map(|&index| collected.get(index)) {
         cx.run_block_tick(*tick);
     }
 }
@@ -405,17 +403,7 @@ fn run_fluid_ticks<K, V, F, B, P, S>(
     S: Spread,
 {
     let positions: Vec<BlockPos> = collected.iter().map(|tick| tick.pos).collect();
-    let hot: Vec<usize> = positions
-        .iter()
-        .enumerate()
-        .filter(|(_, at)| crate::tile_task::is_hot(shard, env.config.hot_ticks, now, **at))
-        .map(|(index, _)| index)
-        .collect();
-    let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-    for tick in hot.iter().filter_map(|&index| collected.get(index)) {
-        cx.run_fluid_tick(*tick);
-    }
-    let split = run_tiled(
+    let tiled = run_tiled(
         shard,
         volume,
         env,
@@ -426,19 +414,26 @@ fn run_fluid_ticks<K, V, F, B, P, S>(
         now,
         spread,
         &positions,
-        HotCells::Use,
+        Mode::Sequence,
         &|cx, index| {
             if let Some(tick) = collected.get(index) {
                 cx.run_fluid_tick(*tick);
             }
         },
+        &|_, _| {},
     );
+    let again: Vec<usize> = match tiled {
+        Tiled::Done { reruns, left } => {
+            out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+            reruns
+        }
+        Tiled::Redo { left } => {
+            out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+            (0..collected.len()).collect()
+        }
+    };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
-    for tick in split
-        .reruns
-        .iter()
-        .filter_map(|&index| collected.get(index))
-    {
+    for tick in again.iter().filter_map(|&index| collected.get(index)) {
         cx.run_fluid_tick(*tick);
     }
 }
@@ -465,14 +460,16 @@ fn run_events<K, V, F, B, P, S>(
     P: OrderingPolicy,
     S: Spread,
 {
+    let mut budget = env.config.event_drain_bound;
     loop {
-        let mut batch = Vec::new();
+        if budget == 0 {
+            return;
+        }
+        let mut batch: Vec<BlockEvent<K::Block>> = Vec::new();
         loop {
             let next = shard
                 .events
-                .next_eligible(env.config.event_drain_bound, |section| {
-                    delivers_events(&*volume, section)
-                });
+                .next_eligible(budget, |section| delivers_events(&*volume, section));
             match next {
                 Drained::Event(queued) => batch.push(queued.event),
                 Drained::Done(end) => {
@@ -488,18 +485,12 @@ fn run_events<K, V, F, B, P, S>(
         if batch.is_empty() {
             return;
         }
-        let positions: Vec<BlockPos> = batch.iter().map(|event| event.pos).collect();
-        let hot: Vec<usize> = positions
-            .iter()
-            .enumerate()
-            .filter(|(_, at)| crate::tile_task::is_hot(shard, env.config.hot_ticks, now, **at))
-            .map(|(index, _)| index)
-            .collect();
-        let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-        for event in hot.iter().filter_map(|&index| batch.get(index)) {
-            cx.deliver(*event);
+        budget = budget.saturating_sub(u32::try_from(batch.len()).unwrap_or(u32::MAX));
+        for event in &batch {
+            shard.events.hold(*event);
         }
-        let split = run_tiled(
+        let positions: Vec<BlockPos> = batch.iter().map(|event| event.pos).collect();
+        let tiled = run_tiled(
             shard,
             volume,
             env,
@@ -510,15 +501,31 @@ fn run_events<K, V, F, B, P, S>(
             now,
             spread,
             &positions,
-            HotCells::Use,
+            Mode::Sequence,
             &|cx, index| {
                 if let Some(event) = batch.get(index) {
                     cx.deliver(*event);
                 }
             },
+            &|shard, index| {
+                if let Some(event) = batch.get(index) {
+                    shard.events.release(*event);
+                }
+            },
         );
+        let again: Vec<usize> = match tiled {
+            Tiled::Done { reruns, left } => {
+                out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+                reruns
+            }
+            Tiled::Redo { left } => {
+                out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
+                (0..batch.len()).collect()
+            }
+        };
         let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
-        for event in split.reruns.iter().filter_map(|&index| batch.get(index)) {
+        for event in again.iter().filter_map(|&index| batch.get(index)) {
+            cx.shard.events.release(*event);
             cx.deliver(*event);
         }
         if shard.events.is_empty() {

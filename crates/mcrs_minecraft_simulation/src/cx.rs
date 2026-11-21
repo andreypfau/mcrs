@@ -5,11 +5,12 @@ use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
 use crate::output::{BlockWrite, Destroyed, OutputMark, StepOutput};
 use crate::policy::{ChainOrder, OrderingPolicy};
-use crate::region::Region;
+use crate::region::{Region, Touch};
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
 use crate::tick_queue::{Collected, Kinds, ScheduledTick};
+use crate::tile_task::Produced;
 use crate::{BlockUpdateFlags, SimulationVolume};
 use mcrs_minecraft_volume::{Access, SectionBlocks, Unavailable};
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
@@ -69,6 +70,8 @@ pub struct Cx<'a, K: Kinds, V, F, B: BlockBehaviour<K>> {
     pub(crate) now: GameTick,
     pub(crate) chain_order: ChainOrder,
     pub(crate) task: Option<TileCx<'a, K>>,
+    pub(crate) task_memory: Option<B::Memory>,
+    item_memory: Option<B::Memory>,
 }
 
 pub(crate) struct TileCx<'a, K: Kinds> {
@@ -76,6 +79,9 @@ pub(crate) struct TileCx<'a, K: Kinds> {
     pub(crate) base: &'a BlockShard<K>,
     pub(crate) footprints: &'a Footprints,
     pub(crate) overflowed: bool,
+    pub(crate) consumed: Vec<(BlockPos, K::Block)>,
+    pub(crate) reads: Touch,
+    pub(crate) writes: Touch,
 }
 
 impl<'a, K, V, F, B> Cx<'a, K, V, F, B>
@@ -108,6 +114,8 @@ where
             now,
             chain_order: env.policy.chain_order(),
             task: None,
+            task_memory: None,
+            item_memory: None,
         }
     }
 
@@ -140,7 +148,36 @@ where
         if self.memory.is_none() {
             self.task_leaves();
         }
+        if self.task.is_some()
+            && let Some(memory) = self.memory.as_deref()
+        {
+            if self.task_memory.is_none() {
+                self.task_memory = Some(memory.clone());
+            }
+            if self.item_memory.is_none() {
+                self.item_memory = Some(memory.clone());
+            }
+        }
         self.memory.as_deref_mut()
+    }
+
+    pub(crate) fn touch_read(&mut self, at: BlockPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend(at);
+        }
+    }
+
+    fn touch_write(&mut self, at: BlockPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend(at);
+            task.writes.extend(at);
+        }
+    }
+
+    fn touch_section(&mut self, section: SectionPos) {
+        if let Some(task) = &mut self.task {
+            task.reads.extend_section(section);
+        }
     }
 
     pub fn shared(&self) -> &B::Shared {
@@ -148,6 +185,7 @@ where
     }
 
     pub fn owns(&mut self, pos: BlockPos) -> bool {
+        self.touch_read(pos);
         match self.volume.access(SectionPos::from(pos)) {
             Access::Write => true,
             Access::Foreign => {
@@ -159,6 +197,7 @@ where
     }
 
     pub fn state(&mut self, pos: BlockPos) -> Result<BlockStateId, Unavailable> {
+        self.touch_read(pos);
         match self.volume.block(pos) {
             Err(Unavailable::Outside) => Ok(self.facts.void_air()),
             Err(Unavailable::Foreign) => {
@@ -213,6 +252,7 @@ where
         delay: i32,
         priority: TickPriority,
     ) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
         let body = MessageBody::BlockTick {
@@ -244,6 +284,7 @@ where
         delay: i32,
         priority: TickPriority,
     ) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let due = due_after(self.now, delay);
         let body = MessageBody::FluidTick {
@@ -281,6 +322,7 @@ where
     }
 
     pub fn queue_block_event(&mut self, pos: BlockPos, block: K::Block, a: i32, b: i32) {
+        self.touch_write(pos);
         let stamp = self.shard.clock.stamp(self.now);
         let event = BlockEvent { pos, block, a, b };
         match self.lane_for_event(pos) {
@@ -296,6 +338,7 @@ where
     }
 
     pub fn has_scheduled_block_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        self.touch_read(pos);
         match self.lane_for_tick(pos) {
             Lane::Own => {}
             Lane::Away => {
@@ -314,9 +357,12 @@ where
             })
     }
 
-    pub fn will_tick_this_tick(&self, pos: BlockPos, block: K::Block) -> bool {
-        let shard = self.task.as_ref().map_or(&*self.shard, |task| task.base);
-        shard.ticking.contains(&(pos, block))
+    pub fn will_tick_this_tick(&mut self, pos: BlockPos, block: K::Block) -> bool {
+        self.touch_read(pos);
+        let Some(task) = self.task.as_ref() else {
+            return self.shard.ticking.contains(&(pos, block));
+        };
+        task.base.ticking.contains(&(pos, block)) && !task.consumed.contains(&(pos, block))
     }
 
     pub fn set(
@@ -352,6 +398,7 @@ where
     }
 
     fn section_is_air(&mut self, pos: BlockPos) -> bool {
+        self.touch_section(SectionPos::from(pos));
         let facts = self.facts;
         let Ok(section) = self.volume.section(SectionPos::from(pos)) else {
             return false;
@@ -375,6 +422,7 @@ where
         flags: BlockUpdateFlags,
         limit: u16,
     ) -> bool {
+        self.touch_write(pos);
         if self.facts.is_air(state) && self.section_is_air(pos) {
             return false;
         }
@@ -505,7 +553,12 @@ where
     }
 
     pub(crate) fn run_block_tick(&mut self, tick: Collected<K::Block>) {
-        self.shard.ticking.remove(&(tick.pos, tick.kind));
+        match self.task.as_mut() {
+            Some(task) => task.consumed.push((tick.pos, tick.kind)),
+            None => {
+                self.shard.ticking.remove(&(tick.pos, tick.kind));
+            }
+        }
         let behaviour = self.behaviour;
         if let Ok(state) = self.state(tick.pos)
             && self.facts.block_of(state) == tick.kind
@@ -536,11 +589,22 @@ where
         }
     }
 
-    pub(crate) fn tile_item<R>(&mut self, index: usize, reruns: &mut Vec<usize>, run: &R)
-    where
+    pub(crate) fn tile_item<R>(
+        &mut self,
+        index: usize,
+        reruns: &mut Vec<usize>,
+        produced: &mut Vec<Produced>,
+        run: &R,
+    ) where
         R: Fn(&mut Self, usize),
     {
         let mark = self.out.mark();
+        let consumed = self.task.as_ref().map_or(0, |task| task.consumed.len());
+        if let Some(task) = self.task.as_mut() {
+            task.reads = Touch::EMPTY;
+            task.writes = Touch::EMPTY;
+        }
+        self.item_memory = None;
         run(self, index);
         if self
             .task
@@ -548,8 +612,34 @@ where
             .is_some_and(|task| core::mem::take(&mut task.overflowed))
         {
             self.undo(mark);
+            if let Some(task) = self.task.as_mut() {
+                task.consumed.truncate(consumed);
+            }
+            if let (Some(memory), Some(saved)) =
+                (self.memory.as_deref_mut(), self.item_memory.take())
+            {
+                *memory = saved;
+            }
             reruns.push(index);
+            return;
         }
+        self.item_memory = None;
+        let (reads, writes) = self
+            .task
+            .as_ref()
+            .map_or((Touch::EMPTY, Touch::EMPTY), |task| {
+                (task.reads, task.writes)
+            });
+        produced.push(Produced {
+            index,
+            reads,
+            writes,
+            blocks: mark.writes..self.out.writes.len(),
+            outbound: mark.outbound..self.out.outbound.len(),
+            delivered: mark.delivered..self.out.delivered.len(),
+            destroyed: mark.destroyed..self.out.destroyed.len(),
+            chains: mark.chains..self.out.chains.len(),
+        });
     }
 
     fn undo(&mut self, mark: OutputMark) {

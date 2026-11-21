@@ -36,6 +36,7 @@ pub struct StepReport {
     pub chain_overflows: u32,
     pub random_reruns: u32,
     pub tile_reruns: u32,
+    pub tile_redos: u32,
 }
 
 impl StepReport {
@@ -51,6 +52,7 @@ impl StepReport {
             chain_overflows,
             random_reruns,
             tile_reruns,
+            tile_redos,
         } = other;
         let add = |count: &mut u32, more: u32| *count = count.saturating_add(more);
         add(&mut self.unaccepted_ticks, unaccepted_ticks);
@@ -62,6 +64,7 @@ impl StepReport {
         add(&mut self.chain_overflows, chain_overflows);
         add(&mut self.random_reruns, random_reruns);
         add(&mut self.tile_reruns, tile_reruns);
+        add(&mut self.tile_redos, tile_redos);
         self.first_chain_overflow = self.first_chain_overflow.or(first_chain_overflow);
     }
 }
@@ -69,10 +72,10 @@ impl StepReport {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OutputMark {
     pub(crate) writes: usize,
-    outbound: usize,
-    delivered: usize,
-    destroyed: usize,
-    chains: usize,
+    pub(crate) outbound: usize,
+    pub(crate) delivered: usize,
+    pub(crate) destroyed: usize,
+    pub(crate) chains: usize,
     report: StepReport,
 }
 
