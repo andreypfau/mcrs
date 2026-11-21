@@ -4989,7 +4989,10 @@ dependencies = [
 name = "mcrs_minecraft_damage"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_physics",
+ "bevy_ecs",
+ "glam",
+ "libm",
+ "mcrs_minecraft_entity_key",
 ]
 
 [[package]]
@@ -5177,6 +5180,7 @@ dependencies = [
  "bevy_tasks",
  "bevy_utils",
  "glam",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_physics",
  "mcrs_voxel",

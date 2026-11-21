@@ -1,11 +1,15 @@
 use bevy_app::FixedUpdate;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::LogLevel;
 use bevy_ecs::schedule::ScheduleBuildSettings;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
@@ -154,8 +158,20 @@ fn hurt(scene: &mut TestScene, pig: Entity, amount: f32) -> Option<HitOutcome> {
     let tick = scene.tick;
     let world = scene.app.world_mut();
     world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
-        let mut state = world.get_mut::<MotionState>(pig)?;
-        hurt_mob(pig, &mut state.0, &mut changes, Hit::new(amount, 7), tick)
+        let mut query = world.query::<(&mut MotionState, &mut Vitals, &mut HitRecord)>();
+        let (mut state, mut vitals, mut record) = query.get_mut(world, pig).ok()?;
+        let hit = Hit::new(amount, DamageSource::of(7));
+        state.set_changed();
+        let report = hurt_mob(
+            pig,
+            &state.0,
+            &mut vitals,
+            &mut record,
+            &mut changes,
+            hit,
+            tick,
+        );
+        Some(report.outcome)
     })
 }
 

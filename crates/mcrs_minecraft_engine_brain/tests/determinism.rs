@@ -2,6 +2,7 @@ use std::hash::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::Mut;
 use bevy_tasks::ComputeTaskPool;
@@ -10,7 +11,10 @@ use glam::DVec3;
 use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
@@ -24,6 +28,7 @@ use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
+use mcrs_minecraft_engine_physics::mob_vitals;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -115,6 +120,8 @@ impl Run {
                     MotionKind(row),
                     MotionId(EntityId(u64::from(index))),
                     MobIntent::default(),
+                    mob_vitals(&EntityTypeData::PIG),
+                    HitRecord::default(),
                     Mob {
                         kind: &EntityTypeData::PIG,
                         uuid: u128::from(index),
@@ -139,12 +146,19 @@ impl Run {
                 .world_mut()
                 .resource_scope(|world, mut changes: Mut<MobChanges>| {
                     for &entity in struck {
-                        if let Some(mut state) = world.get_mut::<MotionState>(entity) {
+                        let mut query =
+                            world.query::<(&mut MotionState, &mut Vitals, &mut HitRecord)>();
+                        if let Ok((mut state, mut vitals, mut record)) =
+                            query.get_mut(world, entity)
+                        {
+                            state.set_changed();
                             hurt_mob(
                                 entity,
-                                &mut state.0,
+                                &state.0,
+                                &mut vitals,
+                                &mut record,
                                 &mut changes,
-                                Hit::new(1.0, CACTUS),
+                                Hit::new(1.0, DamageSource::of(CACTUS)),
                                 tick,
                             );
                         }

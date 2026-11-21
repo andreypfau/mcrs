@@ -3,6 +3,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
@@ -31,6 +32,7 @@ pub struct Spawned {
     pub entity: Entity,
     pub id: EntityId,
     pub start: EntityState,
+    pub vitals: Vitals,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

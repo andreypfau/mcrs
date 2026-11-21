@@ -3,6 +3,7 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::Movers;
@@ -36,6 +37,7 @@ type Entities<'world, 'state> = Query<
         &'static MotionState,
         &'static StepOutcome,
         Option<&'static Appearance>,
+        Option<&'static Vitals>,
         &'static mut PublishedTile,
     ),
 >;
@@ -66,7 +68,8 @@ pub(crate) fn publish_motion(
     }
     moved.sort_unstable();
     for &subject in moved.iter() {
-        let Ok((state, outcome, _, mut published)) = entities.get_mut(subject.entity) else {
+        let Ok((state, outcome, _, vitals, mut published)) = entities.get_mut(subject.entity)
+        else {
             continue;
         };
         let Some(before) = published.0 else {
@@ -84,7 +87,12 @@ pub(crate) fn publish_motion(
             events.push(tile, subject.id, EntityEvent::Enter { from: before });
         }
         push_strikes(news.strikes_of(subject), &mut events);
-        push_move(&mut events, tile, subject.id, viewed(&state.0, &kernel));
+        push_move(
+            &mut events,
+            tile,
+            subject.id,
+            viewed(&state.0, vitals, &kernel),
+        );
     }
     for strikes in news
         .strikes
@@ -97,10 +105,10 @@ pub(crate) fn publish_motion(
             continue;
         }
         push_strikes(strikes, &mut events);
-        if let Ok((state, _, _, published)) = entities.get(first.subject.entity)
+        if let Ok((state, _, _, vitals, published)) = entities.get(first.subject.entity)
             && let Some(tile) = published.tile()
         {
-            let view = viewed(&state.0, &TickOutcome::default());
+            let view = viewed(&state.0, vitals, &TickOutcome::default());
             push_move(&mut events, tile, first.subject.id, view);
         }
     }
@@ -125,7 +133,8 @@ fn publish_releases(assigned: &mut Assigned, entities: &mut Entities, events: &m
     assigned.sort_unstable_by_key(|release| release.subject);
     for release in assigned.drain(..) {
         let subject = release.subject;
-        let Ok((state, _, appearance, mut published)) = entities.get_mut(subject.entity) else {
+        let Ok((state, _, appearance, vitals, mut published)) = entities.get_mut(subject.entity)
+        else {
             continue;
         };
         let Some(appearance) = appearance else {
@@ -137,7 +146,7 @@ fn publish_releases(assigned: &mut Assigned, entities: &mut Entities, events: &m
         let spawn = MobSpawn {
             kind: appearance.kind,
             uuid: state.0.key.0,
-            state: viewed(&release.state, &TickOutcome::default()),
+            state: viewed(&release.state, vitals, &TickOutcome::default()),
             look: appearance.look.clone(),
         };
         events.push(
@@ -158,7 +167,7 @@ fn publish_mob_spawns(
         let Ok(mob) = mobs.get(spawned.entity) else {
             continue;
         };
-        let Ok((state, _, _, mut published)) = entities.get_mut(spawned.entity) else {
+        let Ok((state, _, _, _, mut published)) = entities.get_mut(spawned.entity) else {
             continue;
         };
         let tile = TileKey::at(state.0.body.position);
@@ -166,7 +175,11 @@ fn publish_mob_spawns(
         let spawn = MobSpawn {
             kind: mob.kind,
             uuid: spawned.start.key.0,
-            state: viewed(&spawned.start, &TickOutcome::default()),
+            state: viewed(
+                &spawned.start,
+                Some(&spawned.vitals),
+                &TickOutcome::default(),
+            ),
             look: SpawnLook::Mob(mob.looks.clone()),
         };
         events.push(
@@ -195,7 +208,7 @@ fn push_move(events: &mut TileEvents, tile: TileKey, id: EntityId, state: MobSta
     events.push(tile, id, EntityEvent::Move(MobReport::Move(state).into()));
 }
 
-fn viewed(state: &EntityState, outcome: &TickOutcome) -> MobState {
+fn viewed(state: &EntityState, vitals: Option<&Vitals>, outcome: &TickOutcome) -> MobState {
     let body = &state.body;
     let mut view = MobState {
         position: body.position,
@@ -210,8 +223,10 @@ fn viewed(state: &EntityState, outcome: &TickOutcome) -> MobState {
         view.yaw = living.orientation.yaw;
         view.pitch = living.orientation.pitch;
         view.head_yaw = living.orientation.head_yaw;
-        view.health = living.health;
-        view.dying = !living.is_alive();
+        if let Some(vitals) = vitals {
+            view.health = vitals.health;
+            view.dying = !vitals.is_alive();
+        }
     }
     view
 }

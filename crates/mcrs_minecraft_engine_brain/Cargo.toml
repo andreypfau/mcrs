@@ -19,6 +19,7 @@ bevy_tasks.workspace = true
 bevy_utils.workspace = true
 glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_brain.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_entity.workspace = true
@@ -36,7 +37,6 @@ tracing.workspace = true
 
 [dev-dependencies]
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
-mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_physics = { workspace = true, features = ["testing"] }

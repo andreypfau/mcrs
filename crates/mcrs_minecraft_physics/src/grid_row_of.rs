@@ -8,7 +8,12 @@ use crate::PushTargets;
 use crate::TeamSlot;
 
 #[must_use]
-pub fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option<GridRow> {
+pub fn grid_row(
+    state: &EntityState,
+    motion: &MotionRow,
+    id: EntityId,
+    flags: GridFlags,
+) -> Option<GridRow> {
     let living = state.living?;
     let dimensions = motion.dimensions.scaled(living.attributes.scale as f32);
     let position = state.body.position;
@@ -26,11 +31,7 @@ pub fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option
         id,
         root_vehicle: id,
         team: TeamSlot::default(),
-        flags: if living.is_alive() {
-            GridFlags::PUSHABLE
-        } else {
-            GridFlags::empty()
-        },
+        flags,
         push_targets: PushTargets::Each,
     })
 }

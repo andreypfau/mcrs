@@ -9,8 +9,9 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_damage::{Hit, HitOutcome, preview};
-use mcrs_minecraft_physics::Living;
+use mcrs_minecraft_damage::{
+    DamageSource, DamageTypeRules, Defence, Hit, HitOutcome, HurtRules, preview,
+};
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
 
@@ -91,20 +92,32 @@ pub(crate) fn run(
     found.with(|targets| {
         select(&context, &call.invocation, command.target, targets)?;
         let view = targets.single_mob()?;
-        let Some(living) = view.state.living.filter(Living::is_alive) else {
+        let Some(vitals) = view
+            .vitals
+            .filter(|vitals| view.state.living.is_some() && vitals.is_alive())
+        else {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],
             ));
         };
+        let hit = Hit::new(amount, DamageSource::of(damage_type));
         output.effect(
             &mut hits,
             HitMob {
                 target: view.entity,
-                hit: Hit::new(amount, damage_type),
+                hit,
             },
         );
-        if preview(&living, amount) == HitOutcome::Rejected {
+        let types = DamageTypeRules::default();
+        let report = preview(
+            vitals,
+            &Defence::default(),
+            &types,
+            &HurtRules::default(),
+            hit,
+        );
+        if report.outcome == HitOutcome::Rejected {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],

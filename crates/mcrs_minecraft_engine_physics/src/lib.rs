@@ -15,6 +15,7 @@ mod mob_publish;
 mod mob_row;
 mod mob_spawn;
 mod mob_spawn_request;
+mod mob_vitals;
 mod mobs;
 mod physics_tables;
 #[cfg(feature = "testing")]
@@ -37,6 +38,7 @@ pub use mob_row::mob_row;
 pub use mob_spawn_request::MobExtras;
 pub use mob_spawn_request::MobSpawnRequest;
 pub use mob_spawn_request::SpawnSetup;
+pub use mob_vitals::mob_vitals;
 pub use mobs::Mob;
 pub use physics_tables::PhysicsTables;
 #[cfg(feature = "testing")]

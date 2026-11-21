@@ -1,6 +1,7 @@
 const NO_HIT: u16 = u16::MAX;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct HitRecord {
     last_tick: u32,
     last_damage_type: u16,

@@ -12,6 +12,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::Mut;
 use bevy_utils::Parallel;
 use glam::DVec3;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BlockAction;
@@ -53,6 +54,7 @@ use crate::Movers;
 use crate::StepOutcome;
 use crate::StirredTiles;
 use crate::grid_slot::GridSlot;
+use crate::living_flags::living_flags;
 use crate::regrids::Regrids;
 use crate::section_cache::SectionCache;
 use crate::tile_edits::SlotChange;
@@ -69,6 +71,7 @@ type Moving<'a> = (
     Option<Mut<'a, MobIntent>>,
     Option<&'a MotionId>,
     Option<Mut<'a, GridSlot>>,
+    Option<Mut<'a, Vitals>>,
     bool,
 );
 
@@ -99,6 +102,7 @@ pub struct MotionStep<'w, 's> {
             Option<&'static mut MobIntent>,
             Option<&'static MotionId>,
             Option<&'static mut GridSlot>,
+            Option<&'static mut Vitals>,
             Has<MotionHold>,
         ),
     >,
@@ -164,6 +168,7 @@ impl<W> PassInput<'_, W> {
 struct Stepping<'a> {
     entity: Entity,
     kind: &'a MotionRow,
+    vitals: Option<Vitals>,
     own: Option<GridRow>,
     start: Body,
     looked: Option<[u32; 3]>,
@@ -172,7 +177,7 @@ struct Stepping<'a> {
 }
 
 fn step<W: CollisionWorld>(
-    (entity, mut state, kind, mut outcome, intent, id, slot, held): Moving<'_>,
+    (entity, mut state, kind, mut outcome, intent, id, slot, mut vitals, held): Moving<'_>,
     pass: &PassInput<'_, W>,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,
@@ -192,7 +197,8 @@ fn step<W: CollisionWorld>(
     let external = written && !state.is_added();
     let motion = &mut state.bypass_change_detection().0;
     let looked = motion.living.as_ref().map(rotations);
-    if steer(motion, intent.as_deref()) {
+    let flags = living_flags(vitals.as_deref());
+    if steer(motion, vitals.as_deref(), intent.as_deref()) {
         motion.rest = Rest::Awake;
     }
     if let Some(mut intent) = intent {
@@ -202,7 +208,8 @@ fn step<W: CollisionWorld>(
     let at = Stepping {
         entity,
         kind: &kind.0,
-        own: id.and_then(|id| grid_row(motion, &kind.0, id.0)),
+        vitals: vitals.as_deref().copied(),
+        own: id.and_then(|id| grid_row(motion, &kind.0, id.0, flags)),
         start,
         looked,
         wake: written || pass.stirred.wakes(TileKey::at(start.position)),
@@ -212,7 +219,13 @@ fn step<W: CollisionWorld>(
         .then(|| SectionCache::cover(pass.world, start.position))
         .filter(|cache| loaded(cache, start.position));
     let changed = match cache {
-        Some(cache) => simulate(&at, &cache, motion, &mut outcome, pass, scratch, actions),
+        Some(cache) => {
+            let changed = simulate(&at, &cache, motion, &mut outcome, pass, scratch, actions);
+            if let Some(expiry) = expire(&at, motion, vitals.as_mut()) {
+                pass.expired.scope(|queue| queue.push(expiry));
+            }
+            changed
+        }
         None => {
             if at.wake {
                 motion.rest = Rest::Awake;
@@ -229,7 +242,7 @@ fn step<W: CollisionWorld>(
             start: start.position,
             end: motion.body.position,
         };
-        grid_row(motion, &kind.0, own.id)
+        grid_row(motion, &kind.0, own.id, flags)
     });
     if let Some(mut slot) = slot
         && row != slot.0
@@ -334,7 +347,7 @@ fn simulate<W: CollisionWorld>(
     actions: &mut Vec<BlockAction>,
 ) -> bool {
     if let Some(own) = at.own
-        && let Some(crowd) = push(pass, at.entity, &own, motion, scratch)
+        && let Some(crowd) = push(pass, at, &own, motion, scratch)
     {
         pass.crowds.scope(|queue| queue.push(crowd));
     }
@@ -351,9 +364,6 @@ fn simulate<W: CollisionWorld>(
         kernel,
         stepped_at,
     });
-    if let Some(expiry) = expire(at, motion) {
-        pass.expired.scope(|queue| queue.push(expiry));
-    }
     let start = at.start;
     let moved = at.external
         || changed
@@ -370,7 +380,7 @@ fn simulate<W: CollisionWorld>(
 
 fn push<W>(
     pass: &PassInput<'_, W>,
-    entity: Entity,
+    at: &Stepping<'_>,
     own: &GridRow,
     motion: &mut EntityState,
     scratch: &mut Scratch,
@@ -384,10 +394,10 @@ fn push<W>(
     if pushed.pushed || crowded {
         motion.rest = Rest::Awake;
     }
-    let alive = motion.living.as_ref().is_some_and(Living::is_alive);
+    let alive = motion.living.is_some() && at.vitals.as_ref().is_none_or(Vitals::is_alive);
     (pushed.crowd_damage && pass.crowding.damage_type.is_some() && alive).then_some(
         CrowdCandidate {
-            entity,
+            entity: at.entity,
             own: *own,
             candidates: pushed.candidates,
             free: pushed.free_candidates,
@@ -395,14 +405,17 @@ fn push<W>(
     )
 }
 
-fn expire(at: &Stepping<'_>, motion: &mut EntityState) -> Option<Expiry> {
+fn expire(
+    at: &Stepping<'_>,
+    motion: &mut EntityState,
+    vitals: Option<&mut Mut<'_, Vitals>>,
+) -> Option<Expiry> {
     let expires = (at.kind.lifetime).is_some_and(|lifetime| motion.age >= lifetime);
-    let died = motion.living.as_mut().is_some_and(count_down);
-    if motion
-        .living
-        .as_ref()
-        .is_some_and(|living| !living.is_alive())
-    {
+    let living = motion.living.is_some();
+    let vitals = vitals.filter(|_| living);
+    let dying = vitals.as_ref().is_some_and(|vitals| !vitals.is_alive());
+    let died = vitals.is_some_and(count_down);
+    if dying {
         motion.rest = Rest::Awake;
     }
     (died || expires).then_some(Expiry {
@@ -416,11 +429,11 @@ fn expire(at: &Stepping<'_>, motion: &mut EntityState) -> Option<Expiry> {
     })
 }
 
-fn steer(motion: &mut EntityState, intent: Option<&MobIntent>) -> bool {
+fn steer(motion: &mut EntityState, vitals: Option<&Vitals>, intent: Option<&MobIntent>) -> bool {
     let Some(living) = motion.living.as_mut() else {
         return false;
     };
-    if !living.is_alive() {
+    if vitals.is_some_and(|vitals| !vitals.is_alive()) {
         living.steering = None;
         living.input = MoveInput::default();
         living.jump = false;
@@ -452,14 +465,13 @@ fn apply_intent(intent: &MobIntent, living: &mut Living) {
     }
 }
 
-fn count_down(living: &mut Living) -> bool {
-    living.hurt_time = living.hurt_time.saturating_sub(1);
-    living.damage_cooldown = living.damage_cooldown.saturating_sub(1);
-    let Some(death_time) = living.death_time.as_mut() else {
-        return false;
-    };
-    *death_time = death_time.saturating_add(1);
-    *death_time >= DEATH_TICKS
+fn count_down(vitals: &mut Mut<'_, Vitals>) -> bool {
+    let mut next = **vitals;
+    next.hurt_time = next.hurt_time.saturating_sub(1);
+    next.damage_cooldown = next.damage_cooldown.saturating_sub(1);
+    next.death_time = next.death_time.map(|ticks| ticks.saturating_add(1));
+    vitals.set_if_neq(next);
+    next.death_time.is_some_and(|ticks| ticks >= DEATH_TICKS)
 }
 
 fn turned(at: &Stepping<'_>, motion: &EntityState) -> bool {

@@ -5,6 +5,7 @@ mod crowding;
 mod expired;
 mod expiry_cause;
 mod grid_slot;
+mod living_flags;
 mod mob_intent;
 mod motion_hold;
 mod motion_id;

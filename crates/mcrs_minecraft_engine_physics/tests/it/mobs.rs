@@ -1,6 +1,7 @@
 #![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
 
 use bevy_app::FixedUpdate;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -8,7 +9,11 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
@@ -26,6 +31,7 @@ use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
+use mcrs_minecraft_engine_physics::mob_vitals;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -37,7 +43,8 @@ fn pig(scene: &mut TestScene, id: u64, position: DVec3) -> Entity {
     let row = mob_row(&EntityTypeData::PIG);
     let key = EntityUuid::from_u128(u128::from(id));
     let state = mob_body(&EntityTypeData::PIG, &row, key, position);
-    scene.spawn(EntityId(id), state, row)
+    let vitals = mob_vitals(&EntityTypeData::PIG);
+    scene.spawn_with_vitals(EntityId(id), state, row, vitals)
 }
 
 fn position(scene: &TestScene, entity: Entity) -> DVec3 {
@@ -225,14 +232,24 @@ fn a_spawn_request_makes_one_mob_per_uuid_and_a_death_despawns_it() {
     );
 
     let tick = scene.tick;
-    scene
-        .app
-        .world_mut()
-        .resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
-            let mut state = world.get_mut::<MotionState>(first).expect("a mob");
-            hurt_mob(first, &mut state.0, &mut changes, Hit::new(100.0, 0), tick)
-        })
-        .expect("the mob is living");
+    let report = scene.app.world_mut().resource_scope(
+        |world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
+            let mut query = world.query::<(&mut MotionState, &mut Vitals, &mut HitRecord)>();
+            let (mut state, mut vitals, mut record) = query.get_mut(world, first).expect("a mob");
+            let hit = Hit::new(100.0, DamageSource::of(0));
+            state.set_changed();
+            hurt_mob(
+                first,
+                &state.0,
+                &mut vitals,
+                &mut record,
+                &mut changes,
+                hit,
+                tick,
+            )
+        },
+    );
+    assert_ne!(report.outcome, HitOutcome::Rejected, "the mob is living");
     for _ in 0..25 {
         scene.step();
     }

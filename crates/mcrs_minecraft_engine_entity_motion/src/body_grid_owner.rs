@@ -11,6 +11,7 @@ use bevy_ecs::world::Mut;
 use bevy_ecs::world::Ref;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::GridRow;
@@ -21,6 +22,7 @@ use crate::MotionId;
 use crate::MotionKind;
 use crate::MotionState;
 use crate::grid_slot::GridSlot;
+use crate::living_flags::living_flags;
 use crate::regrids::Regrids;
 use crate::tile_edits::Arrival;
 use crate::tile_edits::Departure;
@@ -33,6 +35,7 @@ type Slotted<'a> = (
     Option<Ref<'a, MotionState>>,
     Option<Ref<'a, MotionKind>>,
     Option<Ref<'a, MotionId>>,
+    Option<Ref<'a, Vitals>>,
     Mut<'a, GridSlot>,
 );
 
@@ -66,6 +69,7 @@ pub(crate) fn own_body_grid(
         Option<Ref<MotionState>>,
         Option<Ref<MotionKind>>,
         Option<Ref<MotionId>>,
+        Option<Ref<Vitals>>,
         &mut GridSlot,
     )>,
     mut lost_ids: RemovedComponents<MotionId>,
@@ -104,17 +108,22 @@ pub(crate) fn own_body_grid(
     apply(parts, queues.iter_mut().chain([outside_step]), &mut grid);
 }
 
-fn touched((state, kind, id, _): &Slotted<'_>, stepped: Tick) -> bool {
+fn touched((state, kind, id, vitals, _): &Slotted<'_>, stepped: Tick) -> bool {
     state
         .as_ref()
         .is_some_and(|state| state.is_changed() && state.last_changed() != stepped)
+        || vitals
+            .as_ref()
+            .is_some_and(|vitals| vitals.is_changed() && vitals.last_changed() != stepped)
         || kind.as_ref().is_some_and(DetectChanges::is_changed)
         || id.as_ref().is_some_and(DetectChanges::is_changed)
 }
 
-fn regrid(edits: &mut TileEdits, (state, kind, id, mut slot): Slotted<'_>) {
+fn regrid(edits: &mut TileEdits, (state, kind, id, vitals, mut slot): Slotted<'_>) {
     let row = match (state, kind, id) {
-        (Some(state), Some(kind), Some(id)) => grid_row(&state.0, &kind.0, id.0),
+        (Some(state), Some(kind), Some(id)) => {
+            grid_row(&state.0, &kind.0, id.0, living_flags(vitals.as_deref()))
+        }
         _ => None,
     };
     if slot.0 == row {

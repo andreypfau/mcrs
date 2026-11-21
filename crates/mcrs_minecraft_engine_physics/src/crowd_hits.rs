@@ -2,8 +2,11 @@ use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::CrowdCandidate;
 use mcrs_minecraft_engine_entity_motion::CrowdCandidates;
 use mcrs_minecraft_engine_entity_motion::Expired;
@@ -35,14 +38,14 @@ pub(crate) fn hit_crowds(
     damage_type: Res<CrowdDamageType>,
     clock: Res<BirthClock>,
     rules: Option<Res<GameRules>>,
-    mut states: Query<&mut MotionState>,
+    mut states: Query<(&mut MotionState, &mut Vitals, &mut HitRecord)>,
     mut changes: ResMut<MobChanges>,
     mut dead: Local<Vec<GridRow>>,
 ) {
     let Some(damage_type) = damage_type.0 else {
         return;
     };
-    let hit = Hit::new(CROWD_DAMAGE, damage_type);
+    let hit = Hit::new(CROWD_DAMAGE, DamageSource::of(damage_type));
     let limit = i64::from(push_rules(rules.as_deref()).max_entity_cramming) - 1;
     dead.clear();
     for candidate in crowds.entries() {
@@ -57,16 +60,27 @@ pub(crate) fn hit_crowds(
         {
             continue;
         }
-        let Ok(mut state) = states.get_mut(candidate.entity) else {
+        let Ok((mut state, mut vitals, mut record)) = states.get_mut(candidate.entity) else {
             continue;
         };
         let state = &mut state.0;
-        let outcome = hurt_mob(candidate.entity, state, &mut changes, hit, clock.0);
-        if outcome.is_none_or(|outcome| outcome == HitOutcome::Rejected) {
+        if state.living.is_none() {
+            continue;
+        }
+        let report = hurt_mob(
+            candidate.entity,
+            state,
+            &mut vitals,
+            &mut record,
+            &mut changes,
+            hit,
+            clock.0,
+        );
+        if report.outcome == HitOutcome::Rejected {
             continue;
         }
         state.rest = Rest::Awake;
-        if state.living.is_some_and(|living| !living.is_alive()) {
+        if !vitals.is_alive() {
             dead.push(own);
         }
     }

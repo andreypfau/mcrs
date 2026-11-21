@@ -8,6 +8,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::MobChanges;
@@ -129,21 +130,26 @@ const CRAMMING: u32 = 7;
 
 fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) -> Entity {
     let motion = MotionRow::living(Category::Walker, Dimensions::scalable(0.9, 0.9));
-    let mut living = Living::of(&motion);
-    living.health = health;
+    let living = Living::of(&motion);
     let body = Body {
         position,
         ..Body::default()
     };
     let state = EntityState::new(EntityUuid::from_u128(u128::from(index)), body, Some(living));
-    scene.spawn(EntityId(u64::from(index)), state, motion)
+    scene.spawn_with_vitals(
+        EntityId(u64::from(index)),
+        state,
+        motion,
+        Vitals::new(health),
+    )
 }
 
 fn alive(scene: &mut TestScene) -> usize {
-    scene
-        .states()
-        .iter()
-        .filter(|(_, state)| state.living.is_some_and(|living| living.is_alive()))
+    let world = scene.app.world_mut();
+    let mut query = world.query::<(&MotionState, &Vitals)>();
+    query
+        .iter(world)
+        .filter(|(state, vitals)| state.0.living.is_some() && vitals.is_alive())
         .count()
 }
 
