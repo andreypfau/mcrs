@@ -600,6 +600,8 @@ impl Relay {
 }
 
 impl BlockBehaviour<WorldKinds> for Relay {
+    type Memory = ();
+
     fn block_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
         &self,
         cx: &mut Cx<'_, WorldKinds, V, F, Self>,
@@ -995,6 +997,8 @@ mod exhaustive {
     }
 
     impl BlockBehaviour<WorldKinds> for Chime {
+        type Memory = ();
+
         fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
             &self,
             cx: &mut Cx<'_, WorldKinds, V, F, Self>,
@@ -1124,6 +1128,8 @@ mod exhaustive {
     }
 
     impl BlockBehaviour<WorldKinds> for Sprout {
+        type Memory = ();
+
         fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
             if state == self.note {
                 RandomTicks::BLOCK
@@ -1208,6 +1214,8 @@ mod exhaustive {
     }
 
     impl BlockBehaviour<WorldKinds> for Fragile {
+        type Memory = ();
+
         fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
             &self,
             _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
@@ -1477,6 +1485,8 @@ mod exhaustive {
     }
 
     impl BlockBehaviour<WorldKinds> for Echo {
+        type Memory = ();
+
         fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
             &self,
             cx: &mut Cx<'_, WorldKinds, V, F, Self>,

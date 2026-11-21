@@ -12,7 +12,9 @@ use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::swing::SwingPlayer;
 use mcrs_minecraft_engine::teleport::TeleportState;
-use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
+use mcrs_minecraft_engine::use_item_on_request::{
+    BlockUseSet, UseItemOnConsumed, UseItemOnRequest,
+};
 use mcrs_minecraft_engine::{BlockBreakSet, PlayerBody, eye_position, in_reach, reach};
 use mcrs_minecraft_engine_item::{Selected, Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
@@ -51,7 +53,8 @@ impl Plugin for BlockPlacePlugin {
             FixedUpdate,
             place_blocks
                 .in_set(TickSet::ClientInput)
-                .after(BlockBreakSet),
+                .after(BlockBreakSet)
+                .after(BlockUseSet),
         );
     }
 }
@@ -91,6 +94,7 @@ type PlacerItem<'a> = (
 )]
 fn place_blocks(
     mut requests: MessageReader<UseItemOnRequest>,
+    mut consumed: MessageReader<UseItemOnConsumed>,
     placers: Query<PlacerItem>,
     bodies: Query<(&Transform, &PlayerGameMode, PlayerBody), With<Player>>,
     stacks: Query<(&Kind, &Count, Option<&InteractAnimation>)>,
@@ -111,8 +115,15 @@ fn place_blocks(
     };
     placed.clear();
     spent.clear();
+    let consumed: Vec<UseItemOnConsumed> = consumed.read().copied().collect();
     for request in requests.read() {
         if request.sequence.0 < 0 {
+            continue;
+        }
+        if consumed
+            .iter()
+            .any(|used| used.entity == request.entity && used.sequence == request.sequence)
+        {
             continue;
         }
         let Ok((owner, mode, body, dimension, transform, op_level, teleport, slots, selected)) =

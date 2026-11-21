@@ -43,12 +43,16 @@ pub enum UpdateRequest<K: Kinds> {
         flags: BlockUpdateFlags,
         limit: u16,
     },
+    Comparators {
+        source: BlockPos,
+        block: K::Block,
+    },
 }
 
 impl<K: Kinds> UpdateRequest<K> {
     pub fn pos(&self) -> BlockPos {
         match self {
-            Self::Around { source, .. } => *source,
+            Self::Around { source, .. } | Self::Comparators { source, .. } => *source,
             Self::Single { target, .. }
             | Self::WithState { target, .. }
             | Self::Shape { target, .. } => *target,

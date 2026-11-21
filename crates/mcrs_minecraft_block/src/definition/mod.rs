@@ -207,7 +207,7 @@ impl BlockEntry {
         self.state_at(offset)
     }
 
-    fn digit(&self, property: &str) -> Option<(&BlockProperty, u16)> {
+    pub fn digit(&self, property: &str) -> Option<(&BlockProperty, u16)> {
         let index = self.properties.index_of(property)?;
         let (property, later) = self.properties.0.get(index..)?.split_first()?;
         let stride = later.iter().map(|p| p.values.len() as u16).product();

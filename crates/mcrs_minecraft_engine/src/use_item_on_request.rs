@@ -1,6 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageWriter};
 use bevy_ecs::observer::On;
+use bevy_ecs::schedule::SystemSet;
 use bevy_math::Vec3;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_network::event::Received;
@@ -18,6 +19,15 @@ pub struct UseItemOnRequest {
     pub cursor: Vec3,
     pub sequence: VarInt,
 }
+
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseItemOnConsumed {
+    pub entity: Entity,
+    pub sequence: VarInt,
+}
+
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockUseSet;
 
 pub(crate) fn handle_use_item_on(
     on: On<Received<ServerboundUseItemOn>>,

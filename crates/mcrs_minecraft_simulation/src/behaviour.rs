@@ -32,6 +32,8 @@ pub trait BlockFacts<K: Kinds> {
 }
 
 pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
+    type Memory: Default + Send + Sync + 'static;
+
     fn block_tick<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
         _cx: &mut Cx<'_, K, V, F, Self>,

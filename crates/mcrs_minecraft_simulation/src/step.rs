@@ -53,6 +53,7 @@ pub fn step<K, V, F, B, P>(
     at: StepAt,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
+    memory: &mut B::Memory,
     input: PhaseInput<'_, K>,
     out: &mut StepOutput<K>,
 ) -> Result<(), StepError>
@@ -65,7 +66,7 @@ where
 {
     shard.chain.reset();
     validate(&*volume, env.kind, input.inbound)?;
-    let mut cx = Cx::new(shard, volume, out, env, at.now);
+    let mut cx = Cx::new(shard, volume, out, env, Some(memory), at.now);
     ingress(&mut cx, input);
     match at.phase {
         Phase::Ingress => {}
