@@ -463,6 +463,8 @@ fn run_events<K, V, F, B, P, S>(
     let mut budget = env.config.event_drain_bound;
     loop {
         if budget == 0 {
+            let left = u32::try_from(shard.events.pending_len()).unwrap_or(u32::MAX);
+            out.report.events_left_by_bound = out.report.events_left_by_bound.saturating_add(left);
             return;
         }
         let mut batch: Vec<BlockEvent<K::Block>> = Vec::new();

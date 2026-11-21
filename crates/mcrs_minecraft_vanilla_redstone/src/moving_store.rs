@@ -33,7 +33,7 @@ use crate::block_entities::{entity_at, spawn_linked};
 #[derive(Resource, Debug, Default)]
 pub(crate) struct CarriedRecords {
     taken: FxHashMap<BlockPos, NbtCompound>,
-    released: Vec<GeneratedBlockEntity>,
+    released: Vec<(BlockPos, GeneratedBlockEntity)>,
 }
 
 fn state_compound(blocks: &Blocks, state: BlockStateId) -> Option<NbtCompound> {
@@ -146,6 +146,7 @@ pub(crate) fn capture_carried_entities<B>(
                     .and_then(|entity| to_nbt_compound(entity).ok())
             });
             if let Some(carried) = carried {
+                records.released.retain(|(from, _)| *from != source);
                 records.taken.insert(pos, carried);
             }
             continue;
@@ -166,7 +167,7 @@ pub(crate) fn capture_carried_entities<B>(
         }
         if let Ok(Some(entity)) = GeneratedBlockEntity::from_template(carried, pos, None) {
             records.taken.insert(pos, carried.clone());
-            records.released.push(entity);
+            records.released.push((pos, entity));
         }
     }
 }
@@ -191,7 +192,11 @@ pub(crate) fn record_moving_blocks<B>(
     };
     let table = rules.0.redstone().table();
     let moving = memory.0.redstone_ref();
-    let mut spawned = core::mem::take(&mut records.released);
+    let mut spawned: Vec<GeneratedBlockEntity> = records
+        .released
+        .drain(..)
+        .map(|(_, entity)| entity)
+        .collect();
     for change in placed.read() {
         let pos = change.block_pos;
         if !is_moving(table, change.new_state) {

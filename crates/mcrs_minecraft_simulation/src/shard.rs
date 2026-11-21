@@ -25,6 +25,8 @@ pub struct BlockShard<K: Kinds> {
     pub(crate) chain: Chain<K>,
     pub(crate) rain_hits: Vec<PrecipitationHit>,
     pub(crate) hot: FxHashMap<u64, i64>,
+    pub(crate) published_ticks: FxHashSet<(BlockPos, K::Block)>,
+    pub(crate) published_consumed: FxHashSet<(BlockPos, K::Block)>,
 }
 
 impl<K: Kinds> BlockShard<K> {
@@ -64,6 +66,8 @@ impl<K: Kinds> Default for BlockShard<K> {
             chain: Chain::default(),
             rain_hits: Vec::new(),
             hot: FxHashMap::default(),
+            published_ticks: FxHashSet::default(),
+            published_consumed: FxHashSet::default(),
         }
     }
 }

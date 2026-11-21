@@ -164,7 +164,7 @@ where
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    if let Some(memory) = cx.memory() {
+    if let Some(memory) = cx.memory_at(pos) {
         memory.redstone().add_sensor(pos, Sensor::Plate);
     }
 }
@@ -183,7 +183,7 @@ pub(crate) fn removed<K, V, F, B>(
     B::Memory: HasRedstoneMemory,
     B::Shared: HasRedstoneSnapshot,
 {
-    if let Some(memory) = cx.memory() {
+    if let Some(memory) = cx.memory_at(pos) {
         memory.redstone().remove_sensor(pos);
     }
     if moved_by_piston || plate_signal(table, old) == 0 {

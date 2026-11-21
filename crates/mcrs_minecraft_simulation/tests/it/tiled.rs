@@ -666,3 +666,59 @@ fn run_path(path: &Path<'_>) -> Outcome {
         writes,
     }
 }
+
+const WEST_MARK: BlockPos = BlockPos::new(63, 0, 50);
+const EAST_MARK: BlockPos = BlockPos::new(64, 0, 50);
+
+struct Queries;
+
+impl BlockBehaviour<ProbeKinds> for Queries {
+    type Memory = ();
+
+    type Shared = ();
+
+    fn block_tick<V: SimulationVolume, F: BlockFacts<ProbeKinds>>(
+        &self,
+        cx: &mut Cx<'_, ProbeKinds, V, F, Self>,
+        at: BlockPos,
+        _state: BlockStateId,
+    ) {
+        let block = ProbeFacts.block_of(A);
+        if at == WEST_MARK {
+            cx.schedule_block_tick(WEST_MARK, block, 4, TickPriority::Normal);
+            return;
+        }
+        let scheduled = cx.has_scheduled_block_tick(WEST_MARK, block);
+        let pending = cx.will_tick_this_tick(WEST_MARK, block);
+        let mark = match (scheduled, pending) {
+            (true, false) => B,
+            (false, _) => C,
+            (true, true) => AIR,
+        };
+        cx.set(EAST_MARK, mark, FLAGS, 512);
+    }
+}
+
+#[test]
+fn a_tick_in_a_later_tile_sees_what_an_earlier_tile_consumed_and_scheduled() {
+    for seed in [1, 2] {
+        let shuffled = Shuffled { threads: 4, seed };
+        for path in [Path::Scalar, Path::Tiled(&shuffled)] {
+            let mut lab = Lab::new(KernelConfig::default());
+            lab.host.put(WEST_MARK, A);
+            lab.host.put(EAST_MARK, A);
+            let block = ProbeFacts.block_of(A);
+            let seeds = [
+                block_tick_message(0, WEST_MARK, block, 1),
+                block_tick_message(1, EAST_MARK, block, 1),
+            ];
+            let out = lab.tick(&Queries, 1, &seeds, &path);
+            assert_eq!(
+                lab.host.state(EAST_MARK),
+                B,
+                "the west tick ran and scheduled its next tick before the east tick asked"
+            );
+            assert_eq!(out.report.tile_redos, 0, "the tiles ran in sequence order");
+        }
+    }
+}

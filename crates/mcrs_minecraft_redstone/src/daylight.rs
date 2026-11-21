@@ -58,7 +58,7 @@ pub(crate) fn placed<K, V, F, B>(
     B::Shared: HasRedstoneSnapshot,
 {
     if table.block_of(old) != table.block_of(state)
-        && let Some(memory) = cx.memory()
+        && let Some(memory) = cx.memory_at(pos)
     {
         memory.redstone().add_sensor(pos, Sensor::Daylight);
     }
@@ -73,7 +73,7 @@ where
     B: BlockBehaviour<K>,
     B::Memory: HasRedstoneMemory,
 {
-    if let Some(memory) = cx.memory() {
+    if let Some(memory) = cx.memory_at(pos) {
         memory.redstone().remove_sensor(pos);
     }
 }
