@@ -1,9 +1,10 @@
+use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -11,7 +12,8 @@ use mcrs_minecraft_text::{HoverEvent, IntoText, Text};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct MobView<'a> {
-    pub(crate) at: Placed,
+    pub(crate) entity: Entity,
+    pub(crate) id: EntityId,
     pub(crate) state: &'a EntityState,
     pub(crate) mob: &'a Mob,
 }
@@ -31,8 +33,8 @@ impl MobView<'_> {
 
     pub(crate) fn source(&self) -> SourceMob {
         SourceMob {
-            tile: self.at.tile,
-            id: self.at.id,
+            entity: self.entity,
+            id: self.id,
         }
     }
 

@@ -22,7 +22,7 @@ coding agent; `CLAUDE.md` is a link to it.
 | `.agents/rules/rendering.md` | `mcrs_minecraft_{render,render_controller,render_probe,entity_render,light_render,mesh,model,client,client_gui}`, `mcrs_molang_wgsl` |
 | `.agents/rules/codec.md` | registries, NBT/SNBT, data pack and pack files, text, loot, environment, dimension, predicates, worldgen, protocol, wire, save, Anvil |
 | `.agents/rules/simulation.md` | `mcrs_engine_*`, `*_engine*`, simulation, physics, brain, goals, replication, light engine, movement, server |
-| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity rows, light engine, heightmap, Anvil, engine store and world |
+| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity motion, light engine, heightmap, Anvil, engine store and world |
 
 ## Who you work for
 

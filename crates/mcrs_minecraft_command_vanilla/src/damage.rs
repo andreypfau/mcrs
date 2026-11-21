@@ -100,7 +100,7 @@ pub(crate) fn run(
         output.effect(
             &mut hits,
             HitMob {
-                at: view.at,
+                target: view.entity,
                 hit: Hit::new(amount, damage_type),
             },
         );

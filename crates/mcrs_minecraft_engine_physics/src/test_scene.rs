@@ -44,9 +44,9 @@ use mcrs_voxel::SectionPos;
 
 use crate::EntityPhysicsPlugin;
 use crate::PhysicsTables;
+use crate::crowd_damage_type::CrowdDamageType;
+use crate::floor::FLOOR;
 use crate::mob_index::MobIndex;
-use crate::row_physics_plugin::CrowdDamageType;
-use crate::row_scene::FLOOR;
 
 const MIN_Y: i32 = -2048;
 const HEIGHT: u32 = 4096;

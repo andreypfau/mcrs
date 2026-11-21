@@ -16,15 +16,15 @@ use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::CurrentRegistries;
 
+use crate::first_looks::first_looks;
+use crate::mob_body::mob_body;
 use crate::mob_changes::MobChanges;
 use crate::mob_changes::Spawned;
 use crate::mob_index::MobIndex;
+use crate::mob_row::mob_row;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mob_spawn_request::SpawnSetup;
 use crate::mobs::Mob;
-use crate::row_mob_life::first_looks;
-use crate::row_mob_life::mob_body;
-use crate::row_mob_life::mob_row;
 
 #[derive(Resource, Debug, Default)]
 pub(crate) struct WaitingSpawns(VecDeque<MobSpawnRequest>);

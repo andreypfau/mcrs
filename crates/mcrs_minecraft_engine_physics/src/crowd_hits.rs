@@ -16,10 +16,10 @@ use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::pushes;
 
+use crate::crowd_damage_type::CrowdDamageType;
 use crate::entity_motion_plugin::push_rules;
 use crate::hurt_mob::hurt_mob;
 use crate::mob_changes::MobChanges;
-use crate::row_physics_plugin::CrowdDamageType;
 
 pub(crate) fn has_crowds(crowds: Res<CrowdCandidates>) -> bool {
     !crowds.entries().is_empty()

@@ -4,6 +4,7 @@ use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
 
 #[derive(Resource, Debug, Default)]
@@ -37,6 +38,7 @@ pub struct Spawned {
 pub struct Struck {
     pub entity: Entity,
     pub uuid: EntityUuid,
+    pub tile: TileKey,
     pub damage_type: u32,
     pub outcome: HitOutcome,
     pub died: bool,
