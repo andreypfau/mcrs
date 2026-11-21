@@ -1,7 +1,6 @@
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
-
-use crate::WriterKey;
+use mcrs_minecraft_entity_key::WriterKey;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Keyed<E> {

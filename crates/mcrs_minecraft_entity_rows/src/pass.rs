@@ -8,6 +8,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CROWD_DAMAGE;
 use mcrs_minecraft_physics::CollisionWorld;
@@ -25,20 +26,18 @@ use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::block_at;
+use mcrs_minecraft_physics::grid_row;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::pushes;
 use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
 use mcrs_voxel::SectionPos;
 
-use crate::BodyGrid;
 use crate::Executor;
 use crate::MobIntent;
 use crate::Placed;
 use crate::RowStore;
 use crate::TileRows;
-use crate::front_grid::FrontGrid;
-use crate::front_grid::grid_row;
 use crate::row_store::Leaving;
 use crate::row_store::Tile;
 use crate::row_store::deal;
@@ -93,10 +92,6 @@ impl<M: Send> RowStore<M> {
         self.moved.clear();
         self.changes.spawned.clear();
         self.changes.removed.clear();
-        let bodies = FrontGrid {
-            grid,
-            reach: self.reach,
-        };
         let woken = &self.woken;
         let tiles: Vec<(TileKey, &mut Tile<M>)> = self
             .tiles
@@ -110,7 +105,7 @@ impl<M: Send> RowStore<M> {
                     .iter_mut()
                     .map(|(tile, entry)| {
                         let wake = wakes(woken, *tile);
-                        tick_tile(pass, &bodies, *tile, entry, wake, &mut scratch)
+                        tick_tile(pass, grid, *tile, entry, wake, &mut scratch)
                     })
                     .collect()
             });
@@ -335,7 +330,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
     }
     TileStep {
         tile,
-        reach: stirred.then(|| entry.write(tile, &bodies)),
+        reach: stirred.then(|| entry.back.fill(tile, &bodies)),
         expired,
         left,
         moved,

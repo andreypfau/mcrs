@@ -10,6 +10,7 @@ use bevy_ecs::world::World;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
+use mcrs_minecraft_engine_entity_motion::Expired;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
@@ -137,6 +138,29 @@ fn a_block_placed_under_a_resting_item_wakes_it() {
         !matches!(rest, Rest::Resting(_)),
         "the item wakes: {rest:?}"
     );
+}
+
+#[test]
+fn an_item_loaded_past_its_lifetime_expires_on_its_first_step() {
+    let mut app = app(|blocks| blocks.stone);
+    let row = MotionRow::item();
+    let lifetime = row.lifetime.expect("an item has a lifetime");
+    let item = spawn(app.world_mut(), row, DVec3::new(0.5, 2.0, 0.5));
+    app.world_mut()
+        .get_mut::<MotionState>(item)
+        .expect("a moving entity")
+        .0
+        .age = lifetime + 10;
+    tick(&mut app);
+
+    let expired: Vec<Entity> = app
+        .world()
+        .resource::<Expired>()
+        .entries()
+        .iter()
+        .map(|expiry| expiry.entity)
+        .collect();
+    assert_eq!(expired, [item], "the overdue item expires");
 }
 
 #[test]

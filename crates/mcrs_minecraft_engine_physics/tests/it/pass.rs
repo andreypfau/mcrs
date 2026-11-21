@@ -4,11 +4,11 @@ use glam::DVec3;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity_key::EntityUuid;
-use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_entity_rows::EffectBuffer;
 use mcrs_minecraft_entity_rows::Keyed;
 use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_entity_rows::WriterKey;
+use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::Rest;
 
 const TICKS: u64 = 60;
@@ -104,8 +104,8 @@ fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
         rebuilt.freeze(&pool(1), &mut grid);
         for (tile, _) in scene.rows.tiles() {
             assert_eq!(
-                scene.grid.front(tile).rows,
-                grid.front(tile).rows,
+                scene.grid.tile(tile).rows(),
+                grid.tile(tile).rows(),
                 "tile {tile:?}"
             );
         }

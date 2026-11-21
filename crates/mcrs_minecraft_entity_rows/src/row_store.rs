@@ -6,13 +6,15 @@ use std::mem;
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::Rest;
+use mcrs_minecraft_physics::TileBodies;
+use mcrs_minecraft_physics::grid_row;
 use rustc_hash::FxHashMap;
 
-use crate::BodyGrid;
 use crate::Changes;
 use crate::Crossing;
 use crate::CrowdHit;
@@ -22,11 +24,8 @@ use crate::MobIntent;
 use crate::MobRows;
 use crate::Placed;
 use crate::Row;
-use crate::TileBodies;
 use crate::TileQueues;
 use crate::TileRows;
-use crate::front_grid::grid_row;
-use crate::front_grid::sort_bodies;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
@@ -252,28 +251,19 @@ impl<M> RowStore<M> {
                     .rows_mut()
                     .filter_map(|row| grid_row(row.state, row.motion, row.id))
                     .collect();
-                reach = reach.max(entry.write(tile, &bodies));
+                reach = reach.max(entry.back.fill(tile, &bodies));
             }
             reach
         });
         self.reach = reaches.into_iter().fold(self.reach, f32::max);
         self.written.extend(dirty);
+        grid.widen(self.reach);
         for tile in mem::take(&mut self.written) {
             if let Some(entry) = self.tiles.get_mut(&tile) {
                 grid.swap(tile, &mut entry.back);
             }
         }
         self.woken = mem::take(&mut self.stirred);
-    }
-}
-
-impl<M> Tile<M> {
-    pub(crate) fn write(&mut self, tile: TileKey, bodies: &[GridRow]) -> f32 {
-        sort_bodies(tile, bodies, &mut self.back);
-        bodies
-            .iter()
-            .map(|body| body.half_width)
-            .fold(0.0, f32::max)
     }
 }
 
