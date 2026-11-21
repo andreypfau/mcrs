@@ -44,10 +44,13 @@ Say what you changed, how you checked it, and what you saw. Paste the commands a
 output. "Tests pass" is not evidence. A change to the client, the renderer or the GUI needs a
 screenshot before and after.
 
-### Know your code
+### Say which models you used
 
-Name the agent and the model that wrote the code, or say that you wrote it by hand. Answer review
-questions in your own words. A pasted agent answer to a review question is not an answer.
+In the section "Models" of the pull request template, list the models you used and what each one
+did, for example code, tests, a specification, a review or the pull request text. Write "none" if
+you used no model. This helps the review.
+
+Answer review questions in your own words.
 
 ### Two open pull requests per person
 
