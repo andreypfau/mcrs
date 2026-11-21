@@ -40,3 +40,18 @@ The benchmark spawns the items without `MotionId`. On the server, each replicate
 10% to 18% slower than the table above, at a load average of 20 to 30. The body grid owner
 visits each entity with a `GridSlot` on each tick, also when the entity can not have a grid
 row.
+
+## `entity_pass`
+
+Command: `cargo bench -p mcrs_minecraft_engine_physics --bench entity_pass`.
+
+- Machine: Apple M4 Max.
+- Change: mobs run as ECS entities, and the rows crate is deleted (`Closes #1067`).
+
+The case is one tick of 50k walkers and 50k items. The time is the criterion median of one tick.
+
+| Case | `main` | This change | Delta |
+| - | - | - | - |
+| 50k walkers + 50k items, one tick | 2.03 ms | 2.96 ms | 1.46x |
+
+The owner accepts this cost for the migration. Issue #1074 tracks the work to recover it.
