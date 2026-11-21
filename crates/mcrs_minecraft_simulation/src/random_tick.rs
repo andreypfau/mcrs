@@ -166,6 +166,11 @@ pub fn random_step<K, V, F, B, P, S>(
                 cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
             }
         },
+        &|cx, index| {
+            if let Some(hit) = picks.hits.get(index) {
+                cx.random_pick(hit.at, &mut hit.random.clone(), picks.table);
+            }
+        },
         &|_, _| {},
     );
     let again: Vec<usize> = match tiled {
@@ -177,6 +182,7 @@ pub fn random_step<K, V, F, B, P, S>(
             out.report.random_reruns = out.report.random_reruns.saturating_add(left);
             (0..picks.hits.len()).collect()
         }
+        Tiled::Serial => (0..picks.hits.len()).collect(),
     };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
     for hit in again.iter().filter_map(|&index| picks.hits.get(index)) {

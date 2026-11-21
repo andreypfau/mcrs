@@ -47,7 +47,7 @@ pub(crate) struct TileTask<K: Kinds, M> {
     tile: Option<ColumnPos>,
     items: Vec<usize>,
     memory: Option<M>,
-    before: Option<M>,
+    before: FxHashMap<u64, M>,
     shard: BlockShard<K>,
     out: StepOutput<K>,
     overlay: Overlay,
@@ -62,7 +62,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
             tile,
             items,
             memory: None,
-            before: None,
+            before: FxHashMap::default(),
             shard: BlockShard::new(),
             out: StepOutput::default(),
             overlay: Overlay::default(),
@@ -149,7 +149,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
         if let Some(task) = cx.task.take() {
             self.consumed = task.consumed;
         }
-        self.before = cx.task_memory.take();
+        self.before = core::mem::take(&mut cx.task_cells);
     }
 
     fn publish<V: SimulationVolume>(
@@ -190,6 +190,7 @@ impl<K: Kinds, M: MemoryPartition + Default + Clone> TileTask<K, M> {
 pub(crate) enum Tiled {
     Done { reruns: Vec<usize>, left: u32 },
     Redo { left: u32 },
+    Serial,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -199,17 +200,22 @@ pub(crate) enum Mode {
 }
 
 const HOT_SWEEP: usize = 4096;
+const HOT_STREAK_LIMIT: u32 = 6;
+
+fn hot_window(hot_ticks: i64, streak: u32) -> i64 {
+    hot_ticks.saturating_mul(1_i64 << streak.min(HOT_STREAK_LIMIT))
+}
 
 pub(crate) fn is_hot<K: Kinds>(
     shard: &BlockShard<K>,
-    hot_ticks: i64,
+    _hot_ticks: i64,
     now: GameTick,
     at: BlockPos,
 ) -> bool {
     shard
         .hot
         .get(&cell_key(at))
-        .is_some_and(|&last| now.0.saturating_sub(last) <= hot_ticks)
+        .is_some_and(|hot| now.0 <= hot.until)
 }
 
 fn mark_hot<K: Kinds>(shard: &mut BlockShard<K>, hot_ticks: i64, now: GameTick, at: &[BlockPos]) {
@@ -217,20 +223,29 @@ fn mark_hot<K: Kinds>(shard: &mut BlockShard<K>, hot_ticks: i64, now: GameTick, 
         return;
     }
     if shard.hot.len() >= HOT_SWEEP {
+        let forget = hot_window(hot_ticks, HOT_STREAK_LIMIT);
         shard
             .hot
-            .retain(|_, last| now.0.saturating_sub(*last) <= hot_ticks);
+            .retain(|_, hot| now.0.saturating_sub(hot.until) <= forget);
     }
     for at in at {
-        shard.hot.insert(cell_key(*at), now.0);
+        let hot = shard.hot.entry(cell_key(*at)).or_default();
+        if hot.until < now.0 && hot.until != 0 {
+            hot.streak = hot.streak.saturating_add(1);
+        }
+        hot.until = now.0.saturating_add(hot_window(hot_ticks, hot.streak));
     }
+}
+
+fn count(items: usize) -> u32 {
+    u32::try_from(items).unwrap_or(u32::MAX)
 }
 
 #[expect(
     clippy::too_many_arguments,
     reason = "each parameter is a distinct part of the world that the tiles read or write"
 )]
-pub(crate) fn run_tiled<K, V, F, B, P, S, R, Before>(
+pub(crate) fn run_tiled<K, V, F, B, P, S, R, L, Before>(
     shard: &mut BlockShard<K>,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
@@ -243,6 +258,7 @@ pub(crate) fn run_tiled<K, V, F, B, P, S, R, Before>(
     positions: &[BlockPos],
     mode: Mode,
     run: &R,
+    live: &L,
     before: &Before,
 ) -> Tiled
 where
@@ -253,8 +269,12 @@ where
     P: OrderingPolicy,
     S: Spread,
     R: Fn(&mut Cx<'_, K, OverlaidVolume<'_, V>, F, B>, usize) + Sync,
+    L: Fn(&mut Cx<'_, K, V, F, B>, usize),
     Before: Fn(&mut BlockShard<K>, usize),
 {
+    if mode == Mode::Sequence && positions.len() < env.config.tile_threshold {
+        return Tiled::Serial;
+    }
     let hot_ticks = env.config.hot_ticks;
     shard.published_ticks.clear();
     shard.published_consumed.clear();
@@ -264,6 +284,7 @@ where
         .filter(|(_, at)| mode == Mode::Sequence && is_hot(shard, hot_ticks, now, **at))
         .map(|(index, _)| index)
         .collect();
+    out.report.hot_items = out.report.hot_items.saturating_add(count(hot.len()));
     let mut tasks: Vec<TileTask<K, B::Memory>> = Vec::new();
     if !hot.is_empty() {
         tasks.push(TileTask::new(None, hot.clone()));
@@ -300,45 +321,96 @@ where
         reruns = core::mem::take(&mut task.reruns);
         tasks.push(task);
     }
-    let left = u32::try_from(overflowed.len()).unwrap_or(u32::MAX);
-    if mode == Mode::Colour {
-        finish(
-            &mut tasks, shard, volume, env, memory, shared, out, now, before, mode,
-        );
-        return Tiled::Done { reruns, left };
-    }
-    let mut conflicts = conflicts(&tasks, positions);
-    conflicts.extend(reruns.iter().filter_map(|&index| positions.get(index)));
-    if !conflicts.is_empty() {
-        for task in tasks.iter().rev() {
-            task.unpublish(volume);
+    let left = count(overflowed.len());
+    let mut bad: FxHashSet<usize> = FxHashSet::default();
+    if mode == Mode::Sequence {
+        if !reruns.is_empty() {
+            bad.extend(0..tasks.len());
         }
-        restore_memory(memory, &mut tasks);
-        shard.chain.reset();
-        shard.published_ticks.clear();
-        shard.published_consumed.clear();
-        mark_hot(shard, hot_ticks, now, &conflicts);
-        out.report.tile_redos = out.report.tile_redos.saturating_add(1);
-        return Tiled::Redo { left };
+        undo_conflicts(
+            &mut tasks, &mut bad, shard, volume, memory, out, now, hot_ticks, positions,
+        );
+        if !reruns.is_empty() {
+            shard.published_ticks.clear();
+            shard.published_consumed.clear();
+            return Tiled::Redo { left };
+        }
     }
     finish(
-        &mut tasks, shard, volume, env, memory, shared, out, now, before, mode,
+        &mut tasks,
+        &bad,
+        positions.len(),
+        shard,
+        volume,
+        env,
+        memory,
+        shared,
+        out,
+        now,
+        live,
+        before,
+        mode,
     );
     let overflowed: Vec<BlockPos> = overflowed
         .iter()
         .filter_map(|&index| positions.get(index))
         .copied()
         .collect();
-    mark_hot(shard, hot_ticks, now, &overflowed);
+    if mode == Mode::Sequence {
+        mark_hot(shard, hot_ticks, now, &overflowed);
+    }
     Tiled::Done { reruns, left }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each parameter is a distinct part of the world that the undo restores"
+)]
+fn undo_conflicts<K, V, M>(
+    tasks: &mut [TileTask<K, M>],
+    bad: &mut FxHashSet<usize>,
+    shard: &mut BlockShard<K>,
+    volume: &mut V,
+    memory: &mut M,
+    out: &mut StepOutput<K>,
+    now: GameTick,
+    hot_ticks: i64,
+    positions: &[BlockPos],
+) where
+    K: Kinds,
+    V: SimulationVolume,
+    M: MemoryPartition + Default + Clone,
+{
+    let (conflicting, found) = redo_set(tasks, positions);
+    bad.extend(found);
+    if bad.is_empty() {
+        return;
+    }
+    for (slot, task) in tasks.iter().enumerate().rev() {
+        if bad.contains(&slot) {
+            task.unpublish(volume);
+        }
+    }
+    restore_cells(memory, tasks, bad);
+    shard.chain.reset();
+    mark_hot(shard, hot_ticks, now, &conflicting);
+    out.report.tile_redos = out.report.tile_redos.saturating_add(1);
+    let redone: usize = bad
+        .iter()
+        .filter_map(|slot| tasks.get(*slot))
+        .map(|task| task.items.len())
+        .sum();
+    out.report.tile_redo_items = out.report.tile_redo_items.saturating_add(count(redone));
 }
 
 #[expect(
     clippy::too_many_arguments,
     reason = "each parameter is a distinct part of the world that the commit writes"
 )]
-fn finish<K, V, F, B, P, Before>(
+fn finish<K, V, F, B, P, L, Before>(
     tasks: &mut [TileTask<K, B::Memory>],
+    bad: &FxHashSet<usize>,
+    items: usize,
     shard: &mut BlockShard<K>,
     volume: &mut V,
     env: &Env<'_, F, B, P>,
@@ -346,6 +418,7 @@ fn finish<K, V, F, B, P, Before>(
     shared: &B::Shared,
     out: &mut StepOutput<K>,
     now: GameTick,
+    live: &L,
     before: &Before,
     mode: Mode,
 ) where
@@ -354,22 +427,30 @@ fn finish<K, V, F, B, P, Before>(
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
     P: OrderingPolicy,
+    L: Fn(&mut Cx<'_, K, V, F, B>, usize),
     Before: Fn(&mut BlockShard<K>, usize),
 {
-    let mut order: Vec<(usize, usize, usize)> = tasks
-        .iter()
-        .enumerate()
-        .flat_map(|(slot, task)| {
-            task.produced
-                .iter()
-                .enumerate()
-                .map(move |(entry, produced)| (produced.index, slot, entry))
-        })
-        .collect();
-    if mode == Mode::Sequence {
-        order.sort_unstable();
+    let mut held: FxHashMap<usize, (usize, usize)> = FxHashMap::default();
+    let mut order: Vec<usize> = Vec::new();
+    for (slot, task) in tasks.iter().enumerate() {
+        if bad.contains(&slot) {
+            continue;
+        }
+        for (entry, produced) in task.produced.iter().enumerate() {
+            held.insert(produced.index, (slot, entry));
+            order.push(produced.index);
+        }
     }
-    for (item, slot, entry) in order {
+    if mode == Mode::Sequence {
+        order = (0..items).collect();
+    }
+    for item in order {
+        before(shard, item);
+        let Some(&(slot, entry)) = held.get(&item) else {
+            let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
+            live(&mut cx, item);
+            continue;
+        };
         let Some(task) = tasks.get(slot) else {
             continue;
         };
@@ -388,7 +469,6 @@ fn finish<K, V, F, B, P, Before>(
         if let Some(chains) = task.out.chains.get(produced.chains.clone()) {
             out.chains.extend_from_slice(chains);
         }
-        before(shard, item);
         let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
         if let Some(messages) = task.out.outbound.get(produced.outbound.clone()) {
             for message in messages {
@@ -398,7 +478,10 @@ fn finish<K, V, F, B, P, Before>(
             }
         }
     }
-    for task in tasks.iter_mut() {
+    for (slot, task) in tasks.iter_mut().enumerate() {
+        if bad.contains(&slot) {
+            continue;
+        }
         for consumed in task.consumed.drain(..) {
             shard.ticking.remove(&consumed);
         }
@@ -413,54 +496,109 @@ struct Seen<'a> {
     produced: &'a Produced,
 }
 
+fn touches(a: &Seen<'_>, b: &Seen<'_>) -> bool {
+    a.produced.reads.intersects(&b.produced.writes)
+        || a.produced.writes.intersects(&b.produced.reads)
+}
+
 fn out_of_order(a: &Seen<'_>, b: &Seen<'_>) -> bool {
-    if a.task == b.task {
-        return false;
-    }
     let (early, late) = if a.produced.index < b.produced.index {
         (a, b)
     } else {
         (b, a)
     };
-    late.task < early.task
-        && (early.produced.reads.intersects(&late.produced.writes)
-            || early.produced.writes.intersects(&late.produced.reads))
+    late.task < early.task && touches(a, b)
 }
 
-fn conflicts<K: Kinds, M>(tasks: &[TileTask<K, M>], positions: &[BlockPos]) -> Vec<BlockPos> {
-    let mut buckets: FxHashMap<u64, Vec<Seen<'_>>> = FxHashMap::default();
+fn buckets<'a, K: Kinds, M>(tasks: &'a [TileTask<K, M>]) -> Vec<Vec<Seen<'a>>> {
+    let mut by_cell: FxHashMap<u64, Vec<Seen<'a>>> = FxHashMap::default();
     for (task, produced) in tasks
         .iter()
         .enumerate()
         .flat_map(|(task, held)| held.produced.iter().map(move |produced| (task, produced)))
     {
         for cell in produced.reads.cells() {
-            buckets
+            by_cell
                 .entry(cell)
                 .or_default()
                 .push(Seen { task, produced });
         }
     }
-    let mut found = Vec::new();
-    for seen in buckets.values() {
-        let Some(first) = seen.first() else {
-            continue;
-        };
-        if seen.iter().all(|other| other.task == first.task)
-            || seen.iter().all(|other| other.produced.writes.is_empty())
-        {
-            continue;
-        }
-        for (n, a) in seen.iter().enumerate() {
-            for b in seen.iter().skip(n.saturating_add(1)) {
-                if out_of_order(a, b) {
-                    found.extend(positions.get(a.produced.index));
-                    found.extend(positions.get(b.produced.index));
-                }
+    let mut mixed: Vec<Vec<Seen<'a>>> = by_cell
+        .into_values()
+        .filter(|seen| {
+            seen.first()
+                .is_some_and(|first| seen.iter().any(|other| other.task != first.task))
+                && seen.iter().any(|other| !other.produced.writes.is_empty())
+        })
+        .collect();
+    for seen in &mut mixed {
+        seen.sort_by_key(|seen| seen.task);
+    }
+    mixed
+}
+
+fn cross_pairs<'a, 'b>(
+    seen: &'b [Seen<'a>],
+) -> impl Iterator<Item = (&'b Seen<'a>, &'b Seen<'a>)> + 'b {
+    seen.iter().enumerate().flat_map(move |(n, a)| {
+        seen.iter()
+            .skip(n.saturating_add(1))
+            .skip_while(move |b| b.task == a.task)
+            .map(move |b| (a, b))
+    })
+}
+
+fn redo_set<K: Kinds, M>(
+    tasks: &[TileTask<K, M>],
+    positions: &[BlockPos],
+) -> (Vec<BlockPos>, FxHashSet<usize>) {
+    let buckets = buckets(tasks);
+    let mut bad: FxHashSet<usize> = FxHashSet::default();
+    let mut conflicting = Vec::new();
+    for seen in &buckets {
+        for (a, b) in cross_pairs(seen) {
+            if out_of_order(a, b) {
+                bad.insert(a.task);
+                bad.insert(b.task);
+                conflicting.extend(positions.get(a.produced.index));
+                conflicting.extend(positions.get(b.produced.index));
             }
         }
     }
-    found
+    if bad.is_empty() {
+        return (conflicting, bad);
+    }
+    let mut cells: FxHashMap<u64, Vec<usize>> = FxHashMap::default();
+    for (slot, task) in tasks.iter().enumerate() {
+        for cell in task.before.keys() {
+            cells.entry(*cell).or_default().push(slot);
+        }
+    }
+    loop {
+        let known = bad.len();
+        for seen in &buckets {
+            for (a, b) in cross_pairs(seen) {
+                let (good, broken) = match (bad.contains(&a.task), bad.contains(&b.task)) {
+                    (false, true) => (a, b),
+                    (true, false) => (b, a),
+                    _ => continue,
+                };
+                if broken.task < good.task && touches(good, broken) {
+                    bad.insert(good.task);
+                }
+            }
+        }
+        for slots in cells.values() {
+            let Some(first) = slots.iter().copied().find(|slot| bad.contains(slot)) else {
+                continue;
+            };
+            bad.extend(slots.iter().copied().filter(|slot| *slot > first));
+        }
+        if bad.len() == known {
+            return (conflicting, bad);
+        }
+    }
 }
 
 fn lend_memory<K: Kinds, M: MemoryPartition + Default>(
@@ -491,40 +629,22 @@ fn lend_memory<K: Kinds, M: MemoryPartition + Default>(
     }
 }
 
-fn restore_memory<K: Kinds, M: MemoryPartition + Default>(
+fn restore_cells<K: Kinds, M: MemoryPartition + Default>(
     memory: &mut M,
     tasks: &mut [TileTask<K, M>],
+    bad: &FxHashSet<usize>,
 ) {
     let mut restored: FxHashMap<u64, M> = FxHashMap::default();
-    let mut cleared: FxHashSet<u64> = FxHashSet::default();
-    let mut clear_all = false;
-    for task in tasks.iter_mut() {
-        let Some(mut before) = task.before.take() else {
-            continue;
-        };
-        for (cell, part) in before.split() {
-            if !clear_all && !cleared.contains(&cell) {
-                restored.entry(cell).or_insert(part);
-            }
-        }
-        match task.tile {
-            Some(tile) => {
-                for cell in Region::of(tile).cells() {
-                    if !restored.contains_key(&cell) {
-                        cleared.insert(cell);
-                    }
-                }
-            }
-            None => clear_all = true,
-        }
-    }
-    for (cell, part) in memory.split() {
-        if clear_all || cleared.contains(&cell) || restored.contains_key(&cell) {
+    for (slot, task) in tasks.iter_mut().enumerate() {
+        if !bad.contains(&slot) {
             continue;
         }
-        memory.merge(part);
+        for (cell, snapshot) in task.before.drain() {
+            restored.entry(cell).or_insert(snapshot);
+        }
     }
-    for (_, part) in restored {
-        memory.merge(part);
+    for (cell, snapshot) in restored {
+        memory.drop_cell(cell);
+        memory.merge(snapshot);
     }
 }

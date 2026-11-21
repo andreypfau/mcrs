@@ -1,11 +1,11 @@
 use crate::access::{PartitionKind, SectionProperties};
-use crate::behaviour::{BlockBehaviour, BlockFacts};
+use crate::behaviour::{BlockBehaviour, BlockFacts, MemoryPartition};
 use crate::event_queue::{BlockEvent, QueuedEvent};
 use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
 use crate::output::{BlockWrite, Destroyed, OutputMark, StepOutput};
 use crate::policy::{ChainOrder, OrderingPolicy};
-use crate::region::{Region, Touch};
+use crate::region::{Region, Touch, cell_key};
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
 use crate::shard::{BlockShard, Env, KernelConfig};
@@ -14,6 +14,7 @@ use crate::tile_task::Produced;
 use crate::{BlockUpdateFlags, SimulationVolume};
 use mcrs_minecraft_volume::{Access, SectionBlocks, Unavailable};
 use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
+use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Lane {
@@ -70,8 +71,8 @@ pub struct Cx<'a, K: Kinds, V, F, B: BlockBehaviour<K>> {
     pub(crate) now: GameTick,
     pub(crate) chain_order: ChainOrder,
     pub(crate) task: Option<TileCx<'a, K>>,
-    pub(crate) task_memory: Option<B::Memory>,
-    item_memory: Option<B::Memory>,
+    pub(crate) task_cells: FxHashMap<u64, B::Memory>,
+    item_cells: FxHashMap<u64, B::Memory>,
 }
 
 pub(crate) struct TileCx<'a, K: Kinds> {
@@ -114,8 +115,8 @@ where
             now,
             chain_order: env.policy.chain_order(),
             task: None,
-            task_memory: None,
-            item_memory: None,
+            task_cells: FxHashMap::default(),
+            item_cells: FxHashMap::default(),
         }
     }
 
@@ -161,12 +162,13 @@ where
         if self.task.is_some()
             && let Some(memory) = self.memory.as_deref()
         {
-            if self.task_memory.is_none() {
-                self.task_memory = Some(memory.clone());
-            }
-            if self.item_memory.is_none() {
-                self.item_memory = Some(memory.clone());
-            }
+            let cell = cell_key(pos);
+            self.task_cells
+                .entry(cell)
+                .or_insert_with(|| memory.copy_cell(cell));
+            self.item_cells
+                .entry(cell)
+                .or_insert_with(|| memory.copy_cell(cell));
         }
         self.memory.as_deref_mut()
     }
@@ -620,7 +622,7 @@ where
             task.reads = Touch::EMPTY;
             task.writes = Touch::EMPTY;
         }
-        self.item_memory = None;
+        self.item_cells.clear();
         run(self, index);
         if self
             .task
@@ -631,15 +633,17 @@ where
             if let Some(task) = self.task.as_mut() {
                 task.consumed.truncate(consumed);
             }
-            if let (Some(memory), Some(saved)) =
-                (self.memory.as_deref_mut(), self.item_memory.take())
-            {
-                *memory = saved;
+            let saved: Vec<(u64, B::Memory)> = self.item_cells.drain().collect();
+            if let Some(memory) = self.memory.as_deref_mut() {
+                for (cell, snapshot) in saved {
+                    memory.drop_cell(cell);
+                    memory.merge(snapshot);
+                }
             }
             reruns.push(index);
             return;
         }
-        self.item_memory = None;
+        self.item_cells.clear();
         let (reads, writes) = self
             .task
             .as_ref()

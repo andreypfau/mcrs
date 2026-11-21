@@ -340,6 +340,18 @@ impl MemoryPartition for RedstoneMemory {
             }
         }
     }
+
+    fn copy_cell(&self, cell: u64) -> Self {
+        let mut part = Self::default();
+        if let Some(found) = self.cells.get(&cell) {
+            part.cells.insert(cell, found.clone());
+        }
+        part
+    }
+
+    fn drop_cell(&mut self, cell: u64) {
+        self.cells.remove(&cell);
+    }
 }
 
 pub trait HasRedstoneMemory {

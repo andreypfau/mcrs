@@ -361,6 +361,11 @@ fn run_block_ticks<K, V, F, B, P, S>(
                 cx.run_block_tick(*tick);
             }
         },
+        &|cx, index| {
+            if let Some(tick) = collected.get(index) {
+                cx.run_block_tick(*tick);
+            }
+        },
         &|_, _| {},
     );
     let again: Vec<usize> = match tiled {
@@ -372,6 +377,7 @@ fn run_block_ticks<K, V, F, B, P, S>(
             out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
             (0..collected.len()).collect()
         }
+        Tiled::Serial => (0..collected.len()).collect(),
     };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
     for tick in again.iter().filter_map(|&index| collected.get(index)) {
@@ -420,6 +426,11 @@ fn run_fluid_ticks<K, V, F, B, P, S>(
                 cx.run_fluid_tick(*tick);
             }
         },
+        &|cx, index| {
+            if let Some(tick) = collected.get(index) {
+                cx.run_fluid_tick(*tick);
+            }
+        },
         &|_, _| {},
     );
     let again: Vec<usize> = match tiled {
@@ -431,6 +442,7 @@ fn run_fluid_ticks<K, V, F, B, P, S>(
             out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
             (0..collected.len()).collect()
         }
+        Tiled::Serial => (0..collected.len()).collect(),
     };
     let mut cx = Cx::new(shard, volume, out, env, Some(memory), shared, now);
     for tick in again.iter().filter_map(|&index| collected.get(index)) {
@@ -509,6 +521,11 @@ fn run_events<K, V, F, B, P, S>(
                     cx.deliver(*event);
                 }
             },
+            &|cx, index| {
+                if let Some(event) = batch.get(index) {
+                    cx.deliver(*event);
+                }
+            },
             &|shard, index| {
                 if let Some(event) = batch.get(index) {
                     shard.events.release(*event);
@@ -524,6 +541,7 @@ fn run_events<K, V, F, B, P, S>(
                 out.report.tile_reruns = out.report.tile_reruns.saturating_add(left);
                 (0..batch.len()).collect()
             }
+            Tiled::Serial => (0..batch.len()).collect(),
         };
         let mut cx = Cx::new(shard, volume, out, env, Some(&mut *memory), shared, now);
         for event in again.iter().filter_map(|&index| batch.get(index)) {
