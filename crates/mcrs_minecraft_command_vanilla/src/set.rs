@@ -17,6 +17,7 @@ use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_physics::MobIndex;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -77,15 +78,13 @@ impl VanillaWorld<'_, '_> {
             .map(mob_view)
             .filter(|view| view.state.living.is_some())
             .collect();
-        views.sort_unstable_by_key(|view| view.id);
+        views.sort_unstable_by_key(|view| (TileKey::at(view.position()), view.id));
         views.into_iter()
     }
 
     pub(crate) fn mob(&self, source: SourceMob) -> Option<MobView<'_>> {
-        self.mobs
-            .iter()
-            .find(|(_, id, _, _)| id.0 == source.id)
-            .map(mob_view)
+        let view = self.mobs.get(source.entity).ok().map(mob_view)?;
+        (view.id == source.id).then_some(view)
     }
 
     pub(crate) fn mob_by_uuid(&self, uuid: u128) -> Option<MobView<'_>> {

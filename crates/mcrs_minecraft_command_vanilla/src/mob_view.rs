@@ -5,7 +5,6 @@ use mcrs_minecraft_engine::command_handoff::SourceMob;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -34,7 +33,7 @@ impl MobView<'_> {
 
     pub(crate) fn source(&self) -> SourceMob {
         SourceMob {
-            tile: TileKey::at(self.position()),
+            entity: self.entity,
             id: self.id,
         }
     }
