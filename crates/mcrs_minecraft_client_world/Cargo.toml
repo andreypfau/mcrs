@@ -27,6 +27,7 @@ mcrs_minecraft_command_argument_block.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }

@@ -21,6 +21,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::attribute_packets;
+use crate::health_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
 use crate::hotbar_sync::SendSelectedSlot;
@@ -99,6 +100,7 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(attribute_packets::on_login)
             .add_observer(attribute_packets::on_respawn)
             .add_observer(attribute_packets::on_update_attributes)
+            .add_observer(health_packets::on_set_health)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)
             .add_observer(local_motion::on_set_entity_data)

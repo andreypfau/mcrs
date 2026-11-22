@@ -4646,6 +4646,7 @@ dependencies = [
  "mcrs_minecraft_command_argument_vanilla",
  "mcrs_minecraft_command_registry",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
