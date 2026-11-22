@@ -64,6 +64,7 @@ mod hot_ticket;
 mod json_list;
 mod light_codec;
 pub mod loaded_client;
+mod max_health;
 pub mod minecraft_entity;
 mod movement;
 pub mod muxer;
@@ -117,6 +118,7 @@ impl Plugin for EnginePlugin {
 }
 
 pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
+pub use max_health::max_health;
 pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
     apply_join_snapshot, load_player, write_player,

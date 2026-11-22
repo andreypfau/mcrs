@@ -7,6 +7,7 @@ use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -99,8 +100,8 @@ pub(crate) fn has_pending_player_swings(pending: Res<PendingPlayerSwings>) -> bo
     !pending.swings.is_empty()
 }
 
-fn player_is_dead(state: Option<&PlayerFileState>) -> bool {
-    state.is_some_and(|file| file.health <= 0.0 || file.death_time > 0)
+fn player_is_dead(vitals: Option<&Vitals>) -> bool {
+    vitals.is_some_and(|vitals| !vitals.is_alive())
 }
 
 fn swing_modifiers_for_player(state: Option<&PlayerFileState>) -> SwingModifiers {
@@ -122,16 +123,17 @@ fn apply_player_swings(
     mut players: Query<(
         Option<&PlayerGameMode>,
         Option<&PlayerFileState>,
+        Option<&Vitals>,
         &mut PlayerSwing,
     )>,
     mut pending: Option<ResMut<PendingPlayerSwings>>,
 ) {
     let now = clock.map_or(0, |clock| clock.0);
     for &request in requests.read() {
-        let Ok((mode, file_state, mut swing)) = players.get_mut(request.player) else {
+        let Ok((mode, file_state, vitals, mut swing)) = players.get_mut(request.player) else {
             continue;
         };
-        if mode.is_some_and(|mode| mode.0 == GameMode::Spectator) || player_is_dead(file_state) {
+        if mode.is_some_and(|mode| mode.0 == GameMode::Spectator) || player_is_dead(vitals) {
             continue;
         }
         if !swing.0.can_start(now) {
@@ -312,10 +314,10 @@ mod tests {
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
             .0 = GameMode::Survival;
-        app.world_mut()
-            .get_mut::<PlayerFileState>(player)
-            .expect("player state")
-            .health = 0.0;
+        app.world_mut().entity_mut(player).insert(Vitals {
+            death_time: Some(0),
+            ..Vitals::new(0.0)
+        });
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(

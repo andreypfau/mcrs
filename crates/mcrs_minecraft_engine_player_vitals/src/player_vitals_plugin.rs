@@ -1,0 +1,38 @@
+use bevy_app::{App, Plugin};
+use bevy_ecs::lifecycle::Add;
+use bevy_ecs::observer::On;
+use bevy_ecs::system::{Commands, Query};
+use mcrs_minecraft_damage::{Defence, HitRecord, Vitals};
+use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PlayerVitalsPlugin;
+
+impl Plugin for PlayerVitalsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(give_spawned_player_vitals);
+    }
+}
+
+fn give_spawned_player_vitals(
+    add: On<Add<Player>>,
+    attributes: Query<&AttributeInstances>,
+    mut commands: Commands,
+) {
+    let player = add.event().entity;
+    let max_health = attributes.get(player).map_or_else(
+        |_| {
+            mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+                .and_then(|bases| bases.base(Attribute::MaxHealth))
+        },
+        |instances| instances.value(Attribute::MaxHealth),
+    );
+    commands.entity(player).insert_if_new((
+        Vitals::new(max_health.unwrap_or_default() as f32),
+        HitRecord::default(),
+        Defence::default(),
+    ));
+}

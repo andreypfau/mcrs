@@ -6,6 +6,7 @@ use bevy_ecs::world::World;
 use bevy_time::{TimePlugin, TimeUpdateStrategy};
 use bytes::Bytes;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::loaded_client::{LoadedClientPlugin, UnloadedClient};
 use mcrs_minecraft_engine::player_state::PlayerFileState;
 use mcrs_minecraft_engine::swing::{PlayerSwing, PlayerSwingPlugin};
@@ -121,10 +122,10 @@ fn punch_requires_loaded_alive_non_spectator_and_reads_attack_animation() {
     );
 
     let dead = spawn_player(app.world_mut(), true, GameMode::Survival);
-    app.world_mut()
-        .get_mut::<PlayerFileState>(dead)
-        .unwrap()
-        .health = 0.0;
+    app.world_mut().entity_mut(dead).insert(Vitals {
+        death_time: Some(0),
+        ..Vitals::new(0.0)
+    });
     punch(app.world_mut(), dead);
     app.update();
     assert_eq!(

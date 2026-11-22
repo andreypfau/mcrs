@@ -5090,6 +5090,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine_registries",
@@ -5334,6 +5335,22 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_player_vitals"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_save",
 ]
 
 [[package]]
@@ -6947,6 +6964,7 @@ dependencies = [
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_mob_attributes",
  "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_player_vitals",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
@@ -7359,6 +7377,7 @@ dependencies = [
  "bevy_time",
  "bytes",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_world",

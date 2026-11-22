@@ -25,6 +25,7 @@ mcrs_minecraft_protocol_game.workspace = true
 bevy_time.workspace = true
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_item_table.workspace = true
