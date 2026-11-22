@@ -85,7 +85,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
             .add(VanillaFallingBlockPlugin)
-            .add(VanillaBlocksPlugin)
+            .add(VanillaBlocksPlugin::default())
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
             .add(VanillaBlockPlacePlugin)

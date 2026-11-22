@@ -71,7 +71,7 @@ fn start_swing_server(dimensions: &[(&str, &str)]) -> PlayServer {
     app.add_dimension_plugin(OperatorBroadcastPlugin);
     app.add_plugins((
         VanillaEntityPhysicsPlugin,
-        VanillaBlocksPlugin,
+        VanillaBlocksPlugin::default(),
         VanillaItemEntityPlugin,
         VanillaItemPlugin,
         VanillaBlockPlacePlugin,

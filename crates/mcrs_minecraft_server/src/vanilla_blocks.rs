@@ -8,7 +8,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_support::BlockSupport;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::block_simulation::{
-    BlockSimulationPlugin, DimensionBlockRules, InertBlocks,
+    BlockSimulationConfig, BlockSimulationPlugin, DimensionBlockRules, InertBlocks,
 };
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
@@ -33,13 +33,29 @@ use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
-use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
+use mcrs_minecraft_simulation::{
+    BlockBehaviour, BlockFacts, ChainLimit, Cx, KernelConfig, SimulationVolume,
+};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-pub struct VanillaBlocksPlugin;
+pub struct VanillaBlocksPlugin {
+    pub chain_limit: ChainLimit,
+}
+
+impl Default for VanillaBlocksPlugin {
+    fn default() -> Self {
+        Self {
+            chain_limit: KernelConfig::default().chain_limit,
+        }
+    }
+}
 
 impl Plugin for VanillaBlocksPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(BlockSimulationConfig(KernelConfig {
+            chain_limit: self.chain_limit,
+            ..KernelConfig::default()
+        }));
         app.insert_resource(DimensionBlockRules(add_loot_rules));
     }
 }

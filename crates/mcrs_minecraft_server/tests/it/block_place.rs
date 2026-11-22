@@ -420,7 +420,7 @@ fn plc_sup_001_a_poppy_is_placed_only_where_it_can_stay() {
     let mut app = host_app::make_host_app();
     install_item_table(app.world_mut(), test_item_table()).unwrap();
     app.add_plugins((
-        VanillaBlocksPlugin,
+        VanillaBlocksPlugin::default(),
         VanillaEntityPhysicsPlugin,
         VanillaItemEntityPlugin,
         VanillaBlockPlacePlugin,
