@@ -30,6 +30,8 @@ pub mod creative_search_index;
 pub mod creative_tab_content;
 pub mod creative_tab_view;
 pub mod cursor_grab;
+mod death_screen;
+pub mod death_screen_plugin;
 pub mod debug_displayer;
 pub mod debug_entry_fps;
 pub mod debug_entry_network;
