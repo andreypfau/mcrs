@@ -12,7 +12,7 @@ struct TagBit {
     bit: DamageTags,
 }
 
-const TAGS: [TagBit; 6] = [
+const TAGS: [TagBit; 7] = [
     TagBit {
         tag: damage_type_tag_keys::BYPASSES_ARMOR,
         bit: DamageTags::BYPASSES_ARMOR,
@@ -36,6 +36,10 @@ const TAGS: [TagBit; 6] = [
     TagBit {
         tag: damage_type_tag_keys::IS_FALL,
         bit: DamageTags::IS_FALL,
+    },
+    TagBit {
+        tag: damage_type_tag_keys::NO_KNOCKBACK,
+        bit: DamageTags::NO_KNOCKBACK,
     },
 ];
 

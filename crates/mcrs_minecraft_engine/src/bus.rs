@@ -14,11 +14,11 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundContainerClose,
     ClientboundContainerSetContent, ClientboundContainerSetSlot, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen,
-    ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
-    ClientboundRespawn, ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter,
-    ClientboundSetCursorItem, ClientboundSetHealth, ClientboundSetHeldSlot, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundHurtAnimation, ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundOpenScreen, ClientboundPlayerAbilities, ClientboundPlayerLookAt,
+    ClientboundPlayerPosition, ClientboundRespawn, ClientboundSectionBlocksUpdate,
+    ClientboundSetChunkCacheCenter, ClientboundSetCursorItem, ClientboundSetHealth,
+    ClientboundSetHeldSlot, ClientboundSetTime, ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -139,6 +139,7 @@ pub enum PacketPayload {
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
     SetHealth(ClientboundSetHealth),
+    HurtAnimation(ClientboundHurtAnimation),
     SetHeldSlot(ClientboundSetHeldSlot),
     ContainerSetContent(ClientboundContainerSetContent),
     ContainerSetSlot(ClientboundContainerSetSlot),

@@ -5343,6 +5343,7 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "libm",
  "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_damage",
@@ -5352,6 +5353,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_replication",
  "mcrs_minecraft_save",
 ]
 

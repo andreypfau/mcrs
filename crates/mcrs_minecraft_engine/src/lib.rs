@@ -77,6 +77,7 @@ mod player_dimension_change;
 mod player_dimensions;
 pub mod player_order;
 pub mod player_roster;
+pub mod player_signal;
 pub mod player_sprinting;
 pub mod player_state;
 mod player_tracker;

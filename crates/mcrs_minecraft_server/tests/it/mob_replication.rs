@@ -6,6 +6,7 @@ use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
@@ -37,10 +38,11 @@ use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
 use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
 
 use crate::commands::{chats, load_stone_column};
-use crate::host_app::{self, PlayServer};
+use crate::host_app::{self, PlayServer, sent_to};
 use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
+const WATCHER: Uuid = Uuid::from_u128(2);
 
 #[derive(Debug, PartialEq)]
 enum Seen {
@@ -837,6 +839,94 @@ fn damage_sends_the_new_health_to_its_owner_once() {
     packets.extend(server.ticks(operator, 1));
     assert_eq!(healths(&packets), vec![16.0]);
     assert_eq!(healths(&server.ticks(operator, 1)), Vec::<f32>::new());
+}
+
+#[test]
+fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (target, _) = server.join(OPERATOR, "op");
+    let (watcher, _) = server.join(WATCHER, "watcher");
+    let _ = server.ticks_all(5);
+    let target_session = server.session_of(target).unwrap();
+    let watcher_session = server.session_of(watcher).unwrap();
+    let id = player_network_id(target_session);
+    let run = |server: &mut PlayServer, command: &'static str| {
+        server.queue(
+            target,
+            &ServerboundChatCommand {
+                command: Bounded(command),
+            },
+        );
+        let raw = server.ticks_all(2);
+        let own = sent_to(target_session, raw.clone());
+        let hurt_targets: Vec<i32> = own
+            .iter()
+            .filter_map(|payload| match payload {
+                PacketPayload::HurtAnimation(packet) => Some(packet.entity_id.0),
+                _ => None,
+            })
+            .collect();
+        let mut own_viewer = Viewer::new();
+        own_viewer.receive(own);
+        let mut other_viewer = Viewer::new();
+        other_viewer.receive(sent_to(watcher_session, raw));
+        let about_target = |viewer: Viewer| -> Vec<Seen> {
+            viewer
+                .seen
+                .into_iter()
+                .filter(|seen| match seen {
+                    Seen::Hurt { id: subject } => *subject == id,
+                    Seen::Event { id: subject, .. } => *subject == id,
+                    _ => false,
+                })
+                .collect()
+        };
+        (
+            hurt_targets,
+            about_target(own_viewer),
+            about_target(other_viewer),
+        )
+    };
+
+    for (command, hurt_animations) in [
+        ("damage @s 4 minecraft:mob_attack", vec![id]),
+        ("damage @s 4 minecraft:generic", Vec::new()),
+    ] {
+        let _ = server.ticks_all(20);
+        let (hurt, own, other) = run(&mut server, command);
+        assert_eq!(
+            hurt, hurt_animations,
+            "{command}: hurt animations of the hit player"
+        );
+        assert_eq!(
+            own,
+            vec![Seen::Hurt { id }],
+            "{command}: the hit player gets the damage event"
+        );
+        assert_eq!(
+            other,
+            vec![Seen::Hurt { id }],
+            "{command}: the viewer gets the damage event"
+        );
+    }
+
+    let _ = server.ticks_all(20);
+    let (_, own, other) = run(&mut server, "kill @s");
+    let died = Seen::Event { id, event: 3 };
+    assert!(
+        !own.contains(&died),
+        "the dying player is not its own tracker"
+    );
+    assert_eq!(
+        other.iter().filter(|seen| **seen == died).count(),
+        1,
+        "the viewer gets the entity event 3 once"
+    );
 }
 
 #[test]

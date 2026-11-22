@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+libm.workspace = true
 mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_damage.workspace = true
@@ -21,6 +22,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_replication.workspace = true
 
 [dev-dependencies]
 mcrs_minecraft_nbt.workspace = true

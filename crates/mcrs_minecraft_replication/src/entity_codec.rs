@@ -4,6 +4,7 @@ use crate::encode::record;
 use crate::hold_set::HoldSet;
 use crate::list_packets::{Profile, game_mode_packet};
 use crate::mob_report::MobReport;
+use crate::mob_signal::MobSignal;
 use crate::mob_trackers::MobTrackers;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
@@ -52,6 +53,13 @@ pub struct EntityCodec {
     attributed: Vec<EntityId>,
     posed: Vec<EntityId>,
     swings: Vec<PendingSwing>,
+    signals: Vec<PendingSignal>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingSignal {
+    subject: EntityId,
+    signal: MobSignal,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -242,6 +250,12 @@ impl EntityCodec {
                         duration: *duration,
                     });
                 }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Signal(signal))) => {
+                    self.signals.push(PendingSignal {
+                        subject,
+                        signal: *signal,
+                    });
+                }
                 EntityEvent::Enter { .. } => {
                     self.generation = self.generation.wrapping_add(1);
                     entered.push(subject);
@@ -254,6 +268,42 @@ impl EntityCodec {
             self.refresh(subject);
         }
         Ok(())
+    }
+
+    fn send_signals(&mut self) {
+        let Self {
+            subjects,
+            holds,
+            delivery,
+            signals,
+            ..
+        } = self;
+        for PendingSignal { subject, signal } in signals.drain(..) {
+            let Some(owner) = subjects.get(&subject).map(|state| state.viewer) else {
+                continue;
+            };
+            let to_owner = matches!(signal, MobSignal::Hurt { .. });
+            let observers = holds.holders(subject);
+            if !to_owner && !observers.iter().any(|&viewer| viewer != owner) {
+                continue;
+            }
+            let packet = match signal.encode(subject) {
+                Ok(Some(packet)) => packet,
+                Ok(None) => continue,
+                Err(error) => {
+                    tracing::warn!("a player signal did not encode: {error:#}");
+                    continue;
+                }
+            };
+            for &viewer in observers {
+                if viewer != owner {
+                    delivery.owe(viewer, packet.clone());
+                }
+            }
+            if to_owner {
+                delivery.owe(owner, packet);
+            }
+        }
     }
 
     fn send_swings(&mut self) {
@@ -590,6 +640,7 @@ impl ReplicationCodec for EntityCodec {
                 self.delivery.owe(viewer, packet.clone());
             }
         }
+        self.send_signals();
         self.send_attributes();
         self.send_entries();
         self.send_swings();
