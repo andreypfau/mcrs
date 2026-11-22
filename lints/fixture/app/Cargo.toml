@@ -1,0 +1,13 @@
+[package]
+name = "fixture_app"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+fixture_sets = { path = "../sets" }

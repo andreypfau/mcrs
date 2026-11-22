@@ -281,7 +281,7 @@ mcrs_minecraft_probe = { path = "tools/mcrs_minecraft_probe" }
 wtransport = "0.7.2"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)', 'cfg(mcrs_lint)'] }
 
 [workspace.lints.clippy]
 allow_attributes = "warn"
