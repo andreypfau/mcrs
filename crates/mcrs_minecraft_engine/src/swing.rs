@@ -11,6 +11,7 @@ use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
+use mcrs_minecraft_physics::CORPSE_REMOVAL_TICKS;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_replication::{PlayerData, SwingRecipients};
 use mcrs_minecraft_swing::{SwingModifiers, SwingTracker};
@@ -21,7 +22,6 @@ use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
 const DEFAULT_DURATION: i32 = 6;
-const CORPSE_REMOVAL_TICKS: i16 = 20;
 
 pub struct PlayerSwingPlugin;
 
@@ -56,6 +56,7 @@ pub struct SwingSimulateSet;
 pub struct PlayerSwing(pub SwingTracker);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SwingEligibility {
     #[default]
     AliveActor,
@@ -102,7 +103,7 @@ impl SwingPlayer {
     }
 
     #[must_use]
-    pub const fn self_included(
+    pub const fn command(
         player: Entity,
         hand: Hand,
         animation: SwingAnimationKind,
@@ -116,18 +117,6 @@ impl SwingPlayer {
             recipients: SwingRecipients::SelfAndObservers,
             eligibility: SwingEligibility::CommandTarget,
         }
-    }
-
-    #[must_use]
-    pub const fn with_recipients(mut self, recipients: SwingRecipients) -> Self {
-        self.recipients = recipients;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_eligibility(mut self, eligibility: SwingEligibility) -> Self {
-        self.eligibility = eligibility;
-        self
     }
 }
 
@@ -152,7 +141,8 @@ fn player_can_swing(
             !spectator && !dead
         }
         SwingEligibility::CommandTarget => {
-            let corpse_removed = state.is_some_and(|file| file.death_time >= CORPSE_REMOVAL_TICKS);
+            let corpse_removed =
+                state.is_some_and(|file| file.death_time >= i16::from(CORPSE_REMOVAL_TICKS));
             !corpse_removed
         }
     }
@@ -454,7 +444,7 @@ mod tests {
             player_order::swing(
                 app.world_mut(),
                 non_player,
-                SwingOrder::self_included(Hand::Main, SwingAnimationKind::Whack, 6),
+                SwingOrder::new(Hand::Main, SwingAnimationKind::Whack, 6),
             ),
             Err(DimensionChangeError::NoPlayer),
             "player_order::swing rejects non-player entities"
@@ -467,11 +457,7 @@ mod tests {
         player_order::obey(
             app.world_mut(),
             player,
-            PlayerOrder::Swing(SwingOrder::self_included(
-                Hand::Off,
-                SwingAnimationKind::Stab,
-                8,
-            )),
+            PlayerOrder::Swing(SwingOrder::new(Hand::Off, SwingAnimationKind::Stab, 8)),
         )
         .expect("swing order applies");
         assert_eq!(
@@ -486,7 +472,7 @@ mod tests {
         );
 
         app.world_mut().resource_mut::<BirthClock>().0 = 14;
-        app.world_mut().write_message(SwingPlayer::self_included(
+        app.world_mut().write_message(SwingPlayer::command(
             player,
             Hand::Main,
             SwingAnimationKind::Whack,

@@ -10,13 +10,12 @@ use mcrs_minecraft_engine_world::session::{DimPlayerIndex, Owner, PlayerSession}
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
-use mcrs_minecraft_replication::SwingRecipients;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::bus::{self, PacketPayload};
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
-use crate::swing::{PlayerSwing, SwingEligibility, SwingPlayer};
+use crate::swing::{PlayerSwing, SwingPlayer};
 use crate::teleport::TeleportState;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,8 +31,6 @@ pub struct SwingOrder {
     pub hand: Hand,
     pub animation: SwingAnimationKind,
     pub duration: i32,
-    pub recipients: SwingRecipients,
-    pub eligibility: SwingEligibility,
 }
 
 impl SwingOrder {
@@ -43,32 +40,7 @@ impl SwingOrder {
             hand,
             animation,
             duration,
-            recipients: SwingRecipients::Observers,
-            eligibility: SwingEligibility::AliveActor,
         }
-    }
-
-    #[must_use]
-    pub const fn self_included(hand: Hand, animation: SwingAnimationKind, duration: i32) -> Self {
-        Self {
-            hand,
-            animation,
-            duration,
-            recipients: SwingRecipients::SelfAndObservers,
-            eligibility: SwingEligibility::CommandTarget,
-        }
-    }
-
-    #[must_use]
-    pub const fn with_recipients(mut self, recipients: SwingRecipients) -> Self {
-        self.recipients = recipients;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_eligibility(mut self, eligibility: SwingEligibility) -> Self {
-        self.eligibility = eligibility;
-        self
     }
 }
 
@@ -196,13 +168,15 @@ pub fn swing(
     if world.get::<PlayerSwing>(player).is_none() {
         return Err(DimensionChangeError::NoPlayer);
     }
-    if let Some(mut messages) = world.get_resource_mut::<Messages<SwingPlayer>>() {
-        messages.write(
-            SwingPlayer::new(player, order.hand, order.animation, order.duration)
-                .with_recipients(order.recipients)
-                .with_eligibility(order.eligibility),
-        );
-    }
+    let mut messages = world
+        .get_resource_mut::<Messages<SwingPlayer>>()
+        .ok_or(DimensionChangeError::NoSwingMessages)?;
+    messages.write(SwingPlayer::command(
+        player,
+        order.hand,
+        order.animation,
+        order.duration,
+    ));
     Ok(())
 }
 
