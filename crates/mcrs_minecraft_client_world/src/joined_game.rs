@@ -14,6 +14,7 @@ use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::hardcore_mode::HardcoreMode;
 use crate::local_motion::LocalMotion;
 use crate::local_player::LastSentInput;
 use crate::player::{Player, player_at};
@@ -83,6 +84,7 @@ fn on_login(
         return;
     };
     let respawn_screen = RespawnScreen::from_login(&login);
+    let hardcore_mode = HardcoreMode::from_login(&login);
     let session = registries.as_deref().map(|registries| &**registries);
     match in_session(session, &login.player_spawn_info) {
         Ok(()) => {
@@ -104,6 +106,7 @@ fn on_login(
                     LocalGameMode::spawned(&login.player_spawn_info),
                     PermissionLevel::default(),
                     respawn_screen,
+                    hardcore_mode,
                     InSession(event.entity),
                     PlayerLoad::Loading(LoadProgress::default()),
                 ));

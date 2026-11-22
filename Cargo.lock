@@ -4510,6 +4510,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_creative_content",
  "mcrs_minecraft_creative_report",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_inventory_click",
  "mcrs_minecraft_engine_inventory_menu",

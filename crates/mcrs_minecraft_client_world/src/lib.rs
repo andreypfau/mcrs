@@ -19,6 +19,7 @@ pub mod columns;
 pub mod food_level;
 pub mod game_mode;
 pub mod game_packets;
+pub mod hardcore_mode;
 mod health_packets;
 pub mod hotbar_sync;
 mod item_table_cache;

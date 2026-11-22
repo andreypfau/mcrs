@@ -35,6 +35,7 @@ use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
+use crate::hud_systems::HudSystems;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::item_decorations::{CountLabel, Decorated, WHITE, decorations};
 use crate::item_icons::{ItemIcons, build_icon_meshes};
@@ -160,10 +161,19 @@ const MISSING_GLYPH: &str = "font/missing";
 const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
-const GUI_TEXTURES: [&str; 17] = [
+const GUI_TEXTURES: [&str; 26] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
+    "hud/heart/container",
+    "hud/heart/container_hardcore",
+    "hud/heart/full",
+    "hud/heart/half",
+    "hud/heart/hardcore_full",
+    "hud/heart/hardcore_half",
+    "hud/food_empty",
+    "hud/food_full",
+    "hud/food_half",
     "container/slot_highlight_back",
     "container/slot_highlight_front",
     "container/slot/helmet",
@@ -955,6 +965,10 @@ impl Plugin for GuiPlugin {
             .add_systems(
                 Update,
                 build_icon_meshes.run_if(resource_exists_and_changed::<ItemModels>),
+            )
+            .configure_sets(
+                PostUpdate,
+                HudSystems.after(begin_gui_frame).before(draw_screens),
             )
             .add_systems(
                 PostUpdate,
