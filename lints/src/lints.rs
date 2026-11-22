@@ -61,7 +61,17 @@ pub static INSERT_MESSAGE_RESOURCE: &Lint = &lint(
     "`Messages<T>` is inserted as a plain resource",
 );
 
-pub static LINTS: [&Lint; 12] = [
+pub static TOO_MANY_ARGUMENTS: &Lint = &lint(
+    "mcrs::too_many_arguments",
+    "a function has more than seven parameters that are not system parameters",
+);
+pub static UNIT_IN_BUNDLE: &Lint = &lint("mcrs::unit_in_bundle", "a bundle contains `()`");
+pub static ALWAYS_CHANGED_FILTER: &Lint = &lint(
+    "mcrs::always_changed_filter",
+    "a `Changed<T>` filter on a component that a tick system writes on each run",
+);
+
+pub static LINTS: [&Lint; 15] = [
     EXCLUSIVE_SYSTEM,
     EXCLUSIVE_OBSERVER,
     UNGATED_SYSTEM,
@@ -74,4 +84,7 @@ pub static LINTS: [&Lint; 12] = [
     ZST_QUERY,
     BORROWED_REBORROWABLE,
     INSERT_MESSAGE_RESOURCE,
+    TOO_MANY_ARGUMENTS,
+    UNIT_IN_BUNDLE,
+    ALWAYS_CHANGED_FILTER,
 ];

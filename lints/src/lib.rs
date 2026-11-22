@@ -4,7 +4,9 @@ mod set_graph;
 
 pub use config_node::ConfigNode;
 pub use config_node::Placement;
+pub use facts::AlwaysChanged;
 pub use facts::Facts;
 pub use facts::Helper;
 pub use facts::SetFact;
+pub use facts::SystemWrites;
 pub use set_graph::SetGraph;

@@ -5,6 +5,7 @@ use rustc_hir::BinOpKind;
 use rustc_hir::BodyId;
 use rustc_hir::Expr;
 use rustc_hir::ExprKind;
+use rustc_hir::MatchSource;
 use rustc_hir::UnOp;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
@@ -19,6 +20,8 @@ use rustc_middle::ty::TyCtxt;
 use rustc_middle::ty::TyKind;
 use rustc_middle::ty::TypeckResults;
 use rustc_middle::ty::TypingEnv;
+use rustc_middle::ty::adjustment::Adjust;
+use rustc_middle::ty::adjustment::DerefAdjustKind;
 use rustc_span::Span;
 use rustc_trait_selection::infer::InferCtxtExt;
 
@@ -26,6 +29,7 @@ use crate::anchors::Anchors;
 use crate::anchors::adt_of;
 use crate::lints::INSERT_MESSAGE_RESOURCE;
 use crate::lints::MISSED_SET_IF_NEQ;
+use crate::lints::UNIT_IN_BUNDLE;
 
 #[derive(Default)]
 pub struct BodyFacts {
@@ -36,6 +40,7 @@ pub struct BodyFacts {
     pub marker_removes: Vec<(DefId, Span)>,
     pub closures: Vec<LocalDefId>,
     pub calls: Vec<LocalDefId>,
+    pub writes: Vec<DefId>,
 }
 
 pub type BodyMap = FxHashMap<LocalDefId, BodyFacts>;
@@ -52,6 +57,7 @@ pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors) -> BodyMap {
             root: owner,
             owners: vec![owner],
             conditional: 0,
+            guarded: 0,
             compared: 0,
             anchors,
             bodies: &mut bodies,
@@ -67,6 +73,7 @@ struct Scanner<'a, 'tcx> {
     root: LocalDefId,
     owners: Vec<LocalDefId>,
     conditional: usize,
+    guarded: usize,
     compared: usize,
     anchors: &'a Anchors,
     bodies: &'a mut BodyMap,
@@ -93,16 +100,27 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
+        self.record_write(expr);
         match expr.kind {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
                 self.conditional += 1;
+                self.guarded += 1;
                 self.compared += usize::from(compares);
                 walk_expr(self, expr);
                 self.compared -= usize::from(compares);
+                self.guarded -= 1;
                 self.conditional -= 1;
             }
-            ExprKind::Match(..) | ExprKind::Loop(..) => {
+            ExprKind::Match(.., source) => {
+                let guards = usize::from(source == MatchSource::Normal);
+                self.conditional += 1;
+                self.guarded += guards;
+                walk_expr(self, expr);
+                self.guarded -= guards;
+                self.conditional -= 1;
+            }
+            ExprKind::Loop(..) => {
                 self.conditional += 1;
                 walk_expr(self, expr);
                 self.conditional -= 1;
@@ -123,6 +141,83 @@ impl<'tcx> Scanner<'_, 'tcx> {
     fn facts(&mut self) -> &mut BodyFacts {
         let owner = self.owners.last().copied().unwrap_or(self.root);
         self.bodies.entry(owner).or_default()
+    }
+
+    fn record_write(&mut self, expr: &'tcx Expr<'tcx>) {
+        if self.guarded > 0 {
+            return;
+        }
+        let mut current = self.typeck.expr_ty(expr);
+        let mut written = None;
+        if let ExprKind::Unary(UnOp::Deref, inner) = expr.kind
+            && self
+                .typeck
+                .type_dependent_def_id(expr.hir_id)
+                .is_some_and(|method| self.tcx.item_name(method).as_str() == "deref_mut")
+        {
+            written = self.mut_component(self.typeck.expr_ty(inner));
+        }
+        for adjustment in self.typeck.expr_adjustments(expr) {
+            if let Adjust::Deref(DerefAdjustKind::Overloaded(deref)) = adjustment.kind
+                && deref.mutbl.is_mut()
+            {
+                written = written.or_else(|| self.mut_component(current));
+            }
+            current = adjustment.target;
+        }
+        if let Some(component) = written {
+            self.facts().writes.push(component);
+        }
+    }
+
+    fn mut_component(&self, ty: Ty<'tcx>) -> Option<DefId> {
+        match ty.peel_refs().kind() {
+            TyKind::Adt(adt, args) if adt.did() == self.anchors.mut_ref => {
+                args.types().next().and_then(adt_of)
+            }
+            _ => None,
+        }
+    }
+
+    fn check_unit_in_bundle(
+        &self,
+        expr: &'tcx Expr<'tcx>,
+        callee: DefId,
+        generics: GenericArgsRef<'tcx>,
+    ) {
+        if !generics.types().any(contains_unit) {
+            return;
+        }
+        let bundled = self
+            .tcx
+            .clauses_of(callee)
+            .clauses
+            .iter()
+            .filter_map(|(clause, _)| clause.as_trait_clause())
+            .filter(|clause| clause.skip_binder().def_id() == self.anchors.bundle)
+            .filter_map(|clause| match clause.skip_binder().self_ty().kind() {
+                TyKind::Param(param) => Some(param.index as usize),
+                _ => None,
+            })
+            .any(|index| {
+                generics
+                    .get(index)
+                    .and_then(|arg| arg.as_type())
+                    .is_some_and(contains_unit)
+            });
+        if bundled {
+            self.tcx.emit_node_span_lint(
+                UNIT_IN_BUNDLE,
+                expr.hir_id,
+                expr.span,
+                DiagDecorator(|diag: &mut Diag<'_, ()>| {
+                    diag.primary_message("the bundle contains `()`, which inserts nothing");
+                    diag.help(
+                        "remove the `()`; spawn an entity with no components with `spawn_empty()`",
+                    );
+                }),
+            );
+        }
     }
 
     fn inspect_call(&mut self, expr: &'tcx Expr<'tcx>) {
@@ -151,6 +246,7 @@ impl<'tcx> Scanner<'_, 'tcx> {
             };
         let tcx = self.tcx;
         let anchors = self.anchors;
+        self.check_unit_in_bundle(expr, callee, generics);
         if anchors.is_blocking(tcx, callee) {
             self.facts().blocking.push((expr.span, callee));
         }
@@ -264,6 +360,13 @@ fn compares(expr: &Expr<'_>) -> bool {
         }
         ExprKind::Unary(_, inner) | ExprKind::DropTemps(inner) => compares(inner),
         ExprKind::MethodCall(segment, ..) => matches!(segment.ident.name.as_str(), "eq" | "ne"),
+        _ => false,
+    }
+}
+
+fn contains_unit(ty: Ty<'_>) -> bool {
+    match ty.kind() {
+        TyKind::Tuple(items) => items.is_empty() || items.iter().any(contains_unit),
         _ => false,
     }
 }

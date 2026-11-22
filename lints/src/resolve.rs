@@ -92,6 +92,8 @@ pub fn resolve<'tcx>(
         facts: Facts {
             helpers: state.local_helpers,
             sets: local_sets,
+            writes: Vec::new(),
+            always_changed: Vec::new(),
         },
     }
 }

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use rustc_data_structures::fx::FxHashMap;
+use rustc_hir::def::DefKind;
 use rustc_lint::LateContext;
 use rustc_lint::LateLintPass;
 use rustc_lint::LintPass;
@@ -11,14 +13,18 @@ use rustc_span::def_id::CrateNum;
 use rustc_span::def_id::LOCAL_CRATE;
 
 use crate::anchors::Anchors;
+use crate::anchors::system_param_trait;
+use crate::arguments_rule;
 use crate::body_scan;
 use crate::collect::collect;
 use crate::collect::helper_crate;
+use crate::collect::key;
 use crate::lints;
 use crate::resolve::resolve;
 use crate::signature_rules;
 use crate::system_rules;
 use mcrs_lint::Facts;
+use mcrs_lint::SystemWrites;
 
 pub struct EcsLint;
 
@@ -35,6 +41,7 @@ impl LintPass for EcsLint {
 impl<'tcx> LateLintPass<'tcx> for EcsLint {
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let tcx = cx.tcx;
+        arguments_rule::check(tcx, system_param_trait(tcx));
         let Some(anchors) = Anchors::resolve(tcx) else {
             return;
         };
@@ -49,7 +56,12 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .flat_map(|facts| &facts.helpers)
             .filter_map(|helper| helper_crate(&helper.owner))
             .collect();
-        let resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
+        let dep_writes: FxHashMap<String, Vec<String>> = deps
+            .iter()
+            .flat_map(|facts| &facts.writes)
+            .map(|writes| (writes.system.clone(), writes.components.clone()))
+            .collect();
+        let mut resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
         let bodies = body_scan::scan(tcx, &anchors);
         let tick_schedules = system_rules::tick_schedules();
         let context = system_rules::Context {
@@ -58,9 +70,29 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             graph: &resolved.graph,
             bodies: &bodies,
             tick_schedules: &tick_schedules,
+            dep_writes: &dep_writes,
         };
-        system_rules::check(&context, &resolved.uses, &resolved.observers);
-        signature_rules::check(tcx, &anchors);
+        let local_always = system_rules::check(&context, &resolved.uses, &resolved.observers);
+        let always_changed: FxHashMap<String, String> = deps
+            .iter()
+            .flat_map(|facts| &facts.always_changed)
+            .chain(&local_always)
+            .map(|always| (always.component.clone(), always.writer.clone()))
+            .collect();
+        signature_rules::check(tcx, &anchors, &always_changed);
+
+        resolved.facts.always_changed = local_always;
+        resolved.facts.writes = bodies
+            .keys()
+            .filter(|owner| matches!(tcx.def_kind(**owner), DefKind::Fn | DefKind::AssocFn))
+            .filter_map(|owner| {
+                let components = system_rules::local_writes(tcx, &bodies, *owner);
+                (!components.is_empty()).then(|| SystemWrites {
+                    system: key(tcx, owner.to_def_id()),
+                    components,
+                })
+            })
+            .collect();
         if let Some(path) = facts_path(tcx, LOCAL_CRATE)
             && let Err(error) = resolved.facts.store(&path)
         {

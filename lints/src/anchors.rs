@@ -1,3 +1,4 @@
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
@@ -25,6 +26,9 @@ pub struct Anchors {
     pub heap_types: Vec<DefId>,
     pub moves: Vec<DefId>,
     pub partial_eq: Option<DefId>,
+    pub bundle: DefId,
+    pub changed: DefId,
+    pub mut_ref: DefId,
 }
 
 pub struct TimeAnchors {
@@ -113,6 +117,9 @@ impl Anchors {
         let res = get("bevy_ecs::change_detection::Res");
         let messages = get("bevy_ecs::message::Messages");
         let commands = get("bevy_ecs::system::Commands");
+        let bundle = get("bevy_ecs::bundle::Bundle");
+        let changed = get("bevy_ecs::query::Changed");
+        let mut_ref = get("bevy_ecs::change_detection::Mut");
         let mut registrars: Vec<DefId> =
             ECS_REGISTRARS.iter().filter_map(|path| get(path)).collect();
         let apps: Vec<DefId> = if has_app {
@@ -192,6 +199,9 @@ impl Anchors {
                 .filter_map(|path| resolve_path(tcx, path))
                 .collect(),
             partial_eq: tcx.get_diagnostic_item(rustc_span::sym::PartialEq),
+            bundle: bundle?,
+            changed: changed?,
+            mut_ref: mut_ref?,
         })
     }
 
@@ -232,6 +242,10 @@ impl Anchors {
     }
 }
 
+pub fn system_param_trait(tcx: TyCtxt<'_>) -> Option<DefId> {
+    resolve_path(tcx, "bevy_ecs::system::SystemParam")
+}
+
 pub fn adt_of(ty: Ty<'_>) -> Option<DefId> {
     match ty.peel_refs().kind() {
         TyKind::Adt(adt, _) => Some(adt.did()),
@@ -253,9 +267,9 @@ fn resolve_path(tcx: TyCtxt<'_>, path: &str) -> Option<DefId> {
         current = tcx
             .module_children(current)
             .iter()
-            .find(|child| child.ident.name.as_str() == segment)?
-            .res
-            .opt_def_id()?;
+            .filter(|child| child.ident.name.as_str() == segment)
+            .filter_map(|child| child.res.opt_def_id())
+            .find(|def| !matches!(tcx.def_kind(*def), DefKind::Macro(_)))?;
     }
     Some(current)
 }

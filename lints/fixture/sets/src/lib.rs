@@ -16,10 +16,21 @@ pub enum ChildSystems {
 #[derive(Resource)]
 pub struct Enabled;
 
+#[derive(Component)]
+pub struct Age(pub u32);
+
+#[cfg_attr(mcrs_lint, expect(mcrs::ungated_system, reason = "fixture"))]
+fn grow(mut ages: Query<&mut Age>) {
+    for mut age in &mut ages {
+        age.0 += 1;
+    }
+}
+
 pub fn configure(app: &mut App) {
     app.configure_sets(FixedUpdate, GatedSystems.run_if(resource_exists::<Enabled>))
         .configure_sets(FixedUpdate, ChildSystems::Gated.in_set(GatedSystems))
-        .configure_sets(FixedUpdate, ChildSystems::Open);
+        .configure_sets(FixedUpdate, ChildSystems::Open)
+        .add_systems(FixedUpdate, grow);
 }
 
 pub fn add_every_frame<M>(app: &mut App, systems: impl IntoScheduleConfigs<ScheduleSystem, M>) {

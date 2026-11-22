@@ -9,6 +9,20 @@ use serde::Serialize;
 pub struct Facts {
     pub helpers: Vec<Helper>,
     pub sets: Vec<SetFact>,
+    pub writes: Vec<SystemWrites>,
+    pub always_changed: Vec<AlwaysChanged>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemWrites {
+    pub system: String,
+    pub components: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlwaysChanged {
+    pub component: String,
+    pub writer: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -33,7 +47,11 @@ impl Facts {
     }
 
     pub fn store(&self, path: &Path) -> io::Result<()> {
-        if self.helpers.is_empty() && self.sets.is_empty() {
+        if self.helpers.is_empty()
+            && self.sets.is_empty()
+            && self.writes.is_empty()
+            && self.always_changed.is_empty()
+        {
             return match fs::remove_file(path) {
                 Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
                 _ => Ok(()),

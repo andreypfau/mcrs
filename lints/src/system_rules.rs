@@ -1,3 +1,4 @@
+use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diag;
@@ -18,6 +19,7 @@ use crate::body_scan::BodyFacts;
 use crate::body_scan::BodyMap;
 use crate::collect::Leaf;
 use crate::collect::LeafKind;
+use crate::collect::key;
 use crate::lints::ALLOC_IN_TICK;
 use crate::lints::BLOCKING_IN_SYSTEM;
 use crate::lints::EXCLUSIVE_OBSERVER;
@@ -27,6 +29,7 @@ use crate::lints::PER_FRAME_INSERT_RESOURCE;
 use crate::lints::TIME_CLOCK_MISMATCH;
 use crate::lints::UNGATED_SYSTEM;
 use crate::resolve::SystemUse;
+use mcrs_lint::AlwaysChanged;
 use mcrs_lint::SetGraph;
 
 const BEVY_TICK_SCHEDULES: [&str; 14] = [
@@ -52,6 +55,7 @@ pub struct Context<'a, 'tcx> {
     pub graph: &'a SetGraph,
     pub bodies: &'a BodyMap,
     pub tick_schedules: &'a [String],
+    pub dep_writes: &'a FxHashMap<String, Vec<String>>,
 }
 
 struct Target {
@@ -60,7 +64,12 @@ struct Target {
     name: String,
 }
 
-pub fn check<'tcx>(cx: &Context<'_, 'tcx>, uses: &[SystemUse<'tcx>], observers: &[Leaf<'tcx>]) {
+pub fn check<'tcx>(
+    cx: &Context<'_, 'tcx>,
+    uses: &[SystemUse<'tcx>],
+    observers: &[Leaf<'tcx>],
+) -> Vec<AlwaysChanged> {
+    let mut always_changed = Vec::new();
     let mut by_system: FxIndexMap<DefId, Vec<&SystemUse<'tcx>>> = FxIndexMap::default();
     for system_use in uses {
         by_system
@@ -70,7 +79,7 @@ pub fn check<'tcx>(cx: &Context<'_, 'tcx>, uses: &[SystemUse<'tcx>], observers: 
     }
     for (def, uses) in by_system {
         if let Some(first) = uses.first() {
-            check_system(cx, def, first, &uses);
+            always_changed.extend(check_system(cx, def, first, &uses));
         }
     }
     let mut seen = FxHashSet::default();
@@ -89,6 +98,7 @@ pub fn check<'tcx>(cx: &Context<'_, 'tcx>, uses: &[SystemUse<'tcx>], observers: 
             );
         });
     }
+    always_changed
 }
 
 fn check_system<'tcx>(
@@ -96,7 +106,7 @@ fn check_system<'tcx>(
     def: DefId,
     first: &SystemUse<'tcx>,
     uses: &[&SystemUse<'tcx>],
-) {
+) -> Vec<AlwaysChanged> {
     let tcx = cx.tcx;
     let target = target(tcx, def, first.hir_id, first.span);
     let inputs = &first.inputs;
@@ -113,15 +123,26 @@ fn check_system<'tcx>(
         .filter(|system_use| is_tick(cx, system_use.schedule.as_deref()))
         .collect();
     let Some(example) = tick.first() else {
-        return;
+        return Vec::new();
     };
     let schedule = example.schedule.as_deref().unwrap_or_default().to_owned();
 
-    if !inputs.iter().any(|ty| cx.anchors.is_gate_param(*ty))
-        && let Some(ungated) = tick
-            .iter()
-            .find(|system_use| !cx.graph.gates(&system_use.placement))
-    {
+    let ungated = tick
+        .iter()
+        .find(|system_use| !cx.graph.gates(&system_use.placement))
+        .filter(|_| !inputs.iter().any(|ty| cx.anchors.is_gate_param(*ty)));
+    let always_changed: Vec<AlwaysChanged> = if ungated.is_some() {
+        written(cx, def)
+            .into_iter()
+            .map(|component| AlwaysChanged {
+                component,
+                writer: target.name.clone(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if let Some(ungated) = ungated {
         let schedule = ungated.schedule.as_deref().unwrap_or_default();
         emit(tcx, UNGATED_SYSTEM, &target, target.span, |diag| {
             diag.primary_message(format!(
@@ -135,7 +156,7 @@ fn check_system<'tcx>(
     check_clock(cx, &target, inputs, &schedule);
 
     let Some(local) = def.as_local() else {
-        return;
+        return always_changed;
     };
     let direct = reach(cx.bodies, local, Follow::Closures);
     let deep = reach(cx.bodies, local, Follow::Calls);
@@ -202,6 +223,28 @@ fn check_system<'tcx>(
             diag.help("each toggle moves the entity to another archetype; store state that flips often as a value field");
         });
     }
+    always_changed
+}
+
+fn written(cx: &Context<'_, '_>, def: DefId) -> Vec<String> {
+    match def.as_local() {
+        Some(local) => local_writes(cx.tcx, cx.bodies, local),
+        None => cx
+            .dep_writes
+            .get(&key(cx.tcx, def))
+            .cloned()
+            .unwrap_or_default(),
+    }
+}
+
+pub fn local_writes(tcx: TyCtxt<'_>, bodies: &BodyMap, local: LocalDefId) -> Vec<String> {
+    let mut components: Vec<String> = reach(bodies, local, Follow::Closures)
+        .iter()
+        .flat_map(|facts| facts.writes.iter().map(|component| key(tcx, *component)))
+        .collect();
+    components.sort_unstable();
+    components.dedup();
+    components
 }
 
 fn check_clock(cx: &Context<'_, '_>, target: &Target, inputs: &[Ty<'_>], schedule: &str) {

@@ -14,6 +14,7 @@ extern crate rustc_span;
 extern crate rustc_trait_selection;
 
 mod anchors;
+mod arguments_rule;
 mod body_scan;
 mod callbacks;
 mod collect;

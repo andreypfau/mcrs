@@ -128,6 +128,7 @@ system, its closures, and the local functions that it calls, at any depth.
 | `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
+| `always_changed_filter` | "`Changed<T>` still visits every candidate" | a `Changed<T>` in a query, when a tick system with no run condition dereferences `Mut<T>` mutably outside an `if` or a `match`; the facts files carry the written components to the dependent crates |
 
 Rules on any function:
 
@@ -137,6 +138,8 @@ Rules on any function:
 | `borrowed_reborrowable` | Pass a reborrow, not `&mut` | a parameter `&mut` of `Commands`, `EntityCommands`, `Query`, `DeferredWorld`, `EntityMut`, `Mut`, `ResMut` or `NonSendMut`, if the return type does not use its lifetime; `self` and trait methods are not checked |
 | `zst_query` | Filter on a marker | `Query` data that fetches `&T` of a unit component |
 | `insert_message_resource` | Register messages with `add_message` | `init_resource` or `insert_resource` of `Messages<T>` |
+| `unit_in_bundle` | A bundle inserts components | a `()` in a type argument that has a `Bundle` bound |
+| `too_many_arguments` | At most seven parameters | a function or a trait method with more than seven parameters that do not implement `SystemParam`; it replaces `clippy::too_many_arguments`, which the workspace allows. It runs in every crate, also in a crate without Bevy |
 
 The tick schedules are the schedules of the Bevy main loop (`First` to `Last`, the fixed
 schedules, `ExtractSchedule`, `Render`) and the schedules in
@@ -145,10 +148,6 @@ system runs on demand, are not checked.
 
 `Time<Fixed>` in a frame schedule is not a mismatch: interpolation reads the overstep of the
 fixed clock there.
-
-Next rules: `system_too_many_arguments` (counts only parameters that are not a `SystemParam`,
-and replaces `clippy::too_many_arguments`), `always_changed_filter` (`Changed<T>` on a component
-that a tick system writes on each run), `unit_in_bundle`.
 
 ## 6. Matching of Bevy items
 
@@ -212,5 +211,9 @@ so the model does not resolve them.
   through a function pointer.
 - `missed_set_if_neq` accepts a write inside any `if` that compares, also when the comparison
   is about another value.
+- `always_changed_filter` sees a writer only in the crate that registers it or in a
+  dependency of the crate of the filter. A loop is not a guard; an `if` or a `match` is.
+- Without the driver, `cfg_attr(mcrs_lint, expect(mcrs::too_many_arguments, ..))` is not
+  compiled and nothing checks the number of parameters.
 - The set graph does not separate schedules: a run condition on a set in one schedule gates
   the set in all schedules.
