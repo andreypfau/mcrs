@@ -21,3 +21,4 @@ For people: start at https://mc.rs/docs/ (to read the source of the site, see `d
 | `item-design.md` | public API and crate map of the item and inventory rework: a stack as one entity, the read and write tools, the steps | touch items, inventories or containers |
 | `command-dimensions.md` | commands across dimensions | touch commands |
 | `bevy-asset-cycles.md` | how cyclic registries reference assets by id and join at freeze | load assets with cycles |
+| `ecs-lint.md` | `mcrs_lint`, the rustc driver that checks the ECS rules: process, model of registrations, facts files, rules | add or change an ECS lint |
