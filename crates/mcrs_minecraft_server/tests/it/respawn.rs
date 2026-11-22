@@ -161,3 +161,25 @@ fn perform_respawn_in_another_dimension_places_the_player_on_the_ground_of_the_w
         "PLD-RSP-004 puts the player on the stone of the target dimension and tells the client"
     );
 }
+
+#[test]
+fn the_login_shows_the_death_screen_unless_immediate_respawn_is_on() {
+    for immediate_respawn in [false, true] {
+        let mut server = PlayServer::start(host_app::make_host_app(), &[], 0);
+        let dim = server.dim;
+        server
+            .world_in(dim)
+            .resource_mut::<GameRules>()
+            .set(GameRule::ImmediateRespawn, i32::from(immediate_respawn));
+        let (_, packets) = server.join(PLAYER, "player");
+        let shown = packets.iter().find_map(|packet| match packet {
+            PacketPayload::PlayerLogin(login) => Some(login.show_death_screen),
+            _ => None,
+        });
+        assert_eq!(
+            shown,
+            Some(!immediate_respawn),
+            "the death screen flag of the login is the negation of immediate_respawn={immediate_respawn}"
+        );
+    }
+}
