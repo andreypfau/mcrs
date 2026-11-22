@@ -9,6 +9,7 @@ use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
 use mcrs_minecraft_engine_entity_motion::MotionId;
@@ -48,16 +49,24 @@ type MobItem = (
     Entity,
     &'static MotionId,
     &'static MotionState,
+    Option<&'static Vitals>,
     &'static Mob,
 );
 
 fn mob_view<'a>(
-    (entity, id, state, mob): (Entity, &MotionId, &'a MotionState, &'a Mob),
+    (entity, id, state, vitals, mob): (
+        Entity,
+        &MotionId,
+        &'a MotionState,
+        Option<&'a Vitals>,
+        &'a Mob,
+    ),
 ) -> MobView<'a> {
     MobView {
         entity,
         id: id.0,
         state: &state.0,
+        vitals,
         mob,
     }
 }

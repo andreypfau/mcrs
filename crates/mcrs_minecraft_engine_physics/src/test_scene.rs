@@ -9,6 +9,8 @@ use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
@@ -199,10 +201,20 @@ impl TestScene {
     }
 
     pub fn spawn(&mut self, id: EntityId, state: EntityState, motion: MotionRow) -> Entity {
+        self.spawn_with_vitals(id, state, motion, Vitals::default())
+    }
+
+    pub fn spawn_with_vitals(
+        &mut self,
+        id: EntityId,
+        state: EntityState,
+        motion: MotionRow,
+        vitals: Vitals,
+    ) -> Entity {
         let world = self.app.world_mut();
         let mut entity = world.spawn((MotionState(state), MotionKind(motion), MotionId(id)));
         if state.living.is_some() {
-            entity.insert(MobIntent::default());
+            entity.insert((MobIntent::default(), vitals, HitRecord::default()));
         }
         let entity = entity.id();
         world.resource_mut::<MobIndex>().insert(state.key, entity);

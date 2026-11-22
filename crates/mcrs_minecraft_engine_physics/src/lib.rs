@@ -7,7 +7,6 @@ mod entity_writes;
 mod first_looks;
 #[cfg(feature = "testing")]
 mod floor;
-mod hurt_mob;
 mod mob_body;
 mod mob_changes;
 mod mob_index;
@@ -15,6 +14,7 @@ mod mob_publish;
 mod mob_row;
 mod mob_spawn;
 mod mob_spawn_request;
+mod mob_vitals;
 mod mobs;
 mod physics_tables;
 #[cfg(feature = "testing")]
@@ -26,17 +26,16 @@ pub use entity_writes::EntityWrite;
 pub use entity_writes::EntityWrites;
 #[cfg(feature = "testing")]
 pub use floor::FLOOR;
-pub use hurt_mob::hurt_mob;
 pub use mob_body::mob_body;
 pub use mob_changes::MobChanges;
 pub use mob_changes::Spawned;
-pub use mob_changes::Struck;
 pub use mob_index::MobIndex;
 pub use mob_publish::MobPublish;
 pub use mob_row::mob_row;
 pub use mob_spawn_request::MobExtras;
 pub use mob_spawn_request::MobSpawnRequest;
 pub use mob_spawn_request::SpawnSetup;
+pub use mob_vitals::mob_vitals;
 pub use mobs::Mob;
 pub use physics_tables::PhysicsTables;
 #[cfg(feature = "testing")]

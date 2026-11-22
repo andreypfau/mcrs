@@ -3,27 +3,29 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::world::Mut;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::HitRecord;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
-use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
+use mcrs_minecraft_engine_physics::mob_vitals;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -33,6 +35,7 @@ use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
@@ -42,6 +45,7 @@ const TICKS: u64 = 200;
 const SHORT_TICKS: u64 = 60;
 const HALF_TILES: i32 = 3;
 const CACTUS: u32 = 7;
+const HIT_TICK: u64 = 50;
 const SHORT_GOLDEN: u64 = 8_685_061_870_273_318_056;
 const LONG_GOLDEN: u64 = 14_709_177_575_086_716_212;
 
@@ -115,6 +119,8 @@ impl Run {
                     MotionKind(row),
                     MotionId(EntityId(u64::from(index))),
                     MobIntent::default(),
+                    mob_vitals(&EntityTypeData::PIG),
+                    HitRecord::default(),
                     Mob {
                         kind: &EntityTypeData::PIG,
                         uuid: u128::from(index),
@@ -132,24 +138,17 @@ impl Run {
     }
 
     fn tick(&mut self, tick: u64) -> u64 {
-        if tick == 50 {
-            let struck = &self.struck;
-            self.scene
-                .app
-                .world_mut()
-                .resource_scope(|world, mut changes: Mut<MobChanges>| {
-                    for &entity in struck {
-                        if let Some(mut state) = world.get_mut::<MotionState>(entity) {
-                            hurt_mob(
-                                entity,
-                                &mut state.0,
-                                &mut changes,
-                                Hit::new(1.0, CACTUS),
-                                tick,
-                            );
-                        }
-                    }
-                });
+        if tick + 1 == HIT_TICK {
+            let mut pending = self.scene.app.world_mut().resource_mut::<PendingHits>();
+            for &entity in &self.struck {
+                pending.push(DamageRequest::new(
+                    entity,
+                    Hit::new(1.0, DamageSource::of(CACTUS)),
+                    WriterKey::Command { sequence: 0 },
+                    HIT_TICK,
+                    0,
+                ));
+            }
         }
         self.scene.step();
         self.hash()

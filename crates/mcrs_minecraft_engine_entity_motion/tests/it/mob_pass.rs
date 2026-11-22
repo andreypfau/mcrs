@@ -7,6 +7,13 @@ use bevy_ecs::system::ResMut;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
+use mcrs_minecraft_damage::DamageSource;
+use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine_damage::DamagePlugin;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::CrowdCandidates;
 use mcrs_minecraft_engine_entity_motion::Crowding;
 use mcrs_minecraft_engine_entity_motion::Expired;
@@ -22,9 +29,11 @@ use mcrs_minecraft_engine_entity_motion::MotionSteps;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
@@ -87,7 +96,8 @@ fn mob(app: &mut App, index: u32, position: DVec3) -> Entity {
     );
     state.no_gravity = true;
     let id = MotionId(EntityId(u64::from(index)));
-    let entity = (app.world_mut()).spawn((MotionState(state), MotionKind(motion), id));
+    let vitals = Vitals::default();
+    let entity = (app.world_mut()).spawn((MotionState(state), MotionKind(motion), id, vitals));
     entity.id()
 }
 
@@ -102,6 +112,11 @@ fn state(app: &App, entity: Entity) -> EntityState {
 fn edit(app: &mut App, entity: Entity, change: impl FnOnce(&mut EntityState)) {
     let mut state = (app.world_mut().get_mut::<MotionState>(entity)).expect("a mob");
     change(&mut state.0);
+}
+
+fn die(app: &mut App, entity: Entity) {
+    let mut vitals = (app.world_mut().get_mut::<Vitals>(entity)).expect("a mob");
+    vitals.death_time = Some(0);
 }
 
 #[test]
@@ -131,11 +146,7 @@ fn the_body_grid_equals_a_full_rebuild_after_spawn_move_death_and_despawn() {
         panic!("five mobs");
     };
     edit(&mut app, first, |state| state.body.position.x = 70.0);
-    edit(&mut app, second, |state| {
-        if let Some(living) = state.living.as_mut() {
-            living.death_time = Some(0);
-        }
-    });
+    die(&mut app, second);
     app.world_mut().despawn(third);
     app.world_mut().entity_mut(fourth).remove::<MotionId>();
     app.world_mut().entity_mut(fifth).remove::<MotionKind>();
@@ -174,10 +185,18 @@ fn assert_grid_rebuilt(app: &mut App) {
 
 fn rebuilt_tiles(app: &mut App) -> Vec<Vec<GridRow>> {
     let world = app.world_mut();
-    let rows: Vec<GridRow> = (world.query::<(&MotionState, &MotionKind, &MotionId)>())
-        .iter(world)
-        .filter_map(|(state, kind, id)| grid_row(&state.0, &kind.0, id.0))
-        .collect();
+    let rows: Vec<GridRow> = (world
+        .query::<(&MotionState, &MotionKind, &MotionId, Option<&Vitals>)>())
+    .iter(world)
+    .filter_map(|(state, kind, id, vitals)| {
+        let flags = if vitals.is_none_or(Vitals::is_alive) {
+            GridFlags::PUSHABLE
+        } else {
+            GridFlags::empty()
+        };
+        grid_row(&state.0, &kind.0, id.0, flags)
+    })
+    .collect();
     let rebuild = |tile: TileKey| {
         let inside: Vec<GridRow> = (rows.iter())
             .filter(|row| TileKey::at(row.position) == tile)
@@ -219,15 +238,34 @@ fn an_intent_turns_a_mob_once() {
     assert_eq!(yaw(&app), Some(10.0));
 }
 
+fn kill(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(HitRecord::default());
+    app.world_mut()
+        .resource_mut::<PendingHits>()
+        .push(DamageRequest::new(
+            entity,
+            Hit::new(f32::MAX, DamageSource::of(0)),
+            WriterKey::Command { sequence: 0 },
+            0,
+            0,
+        ));
+}
+
 #[test]
 fn a_dying_mob_expires_on_the_twentieth_tick() {
     let mut app = app(Crowding::default());
+    app.add_plugins(DamagePlugin);
     let zombie = mob(&mut app, 1, DVec3::new(0.5, 64.0, 0.5));
-    edit(&mut app, zombie, |state| {
-        if let Some(living) = state.living.as_mut() {
-            living.death_time = Some(0);
-        }
-    });
+    kill(&mut app, zombie);
+    tick(&mut app);
+    let vitals = app.world().get::<Vitals>(zombie).copied();
+    assert_eq!(
+        vitals.and_then(|vitals| vitals.death_time),
+        Some(0),
+        "the hit kills the mob after its step"
+    );
     for _ in 1..20 {
         tick(&mut app);
         assert_eq!(app.world().resource::<Expired>().entries(), []);

@@ -2,11 +2,13 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use mcrs_minecraft_engine::OwnAttributesSet;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_engine_damage::Damaged;
 use mcrs_minecraft_engine_entity_motion::MotionRelease;
 use mcrs_minecraft_engine_mob_attributes::AttributeChanged;
 use mcrs_minecraft_engine_physics::MobChanges;
@@ -20,7 +22,7 @@ use crate::departures::Departures;
 use crate::departures::depart;
 use crate::hold_unseen::hold_unseen;
 use crate::mob_news::MobNews;
-use crate::mob_news::has_mob_changes;
+use crate::mob_news::has_mob_spawns;
 use crate::mob_news::take_mob_news;
 use crate::publish_mob_attributes::publish_mob_attributes;
 use crate::publish_motion::publish_motion;
@@ -39,6 +41,7 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.init_resource::<MobChanges>();
         app.init_resource::<TileEvents>();
         app.add_message::<AttributeChanged>();
+        app.add_message::<Damaged>();
         app.add_observer(hold_unseen);
         app.add_observer(depart);
         app.configure_sets(
@@ -54,7 +57,9 @@ impl Plugin for EntityMotionReplicationPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            take_mob_news.run_if(has_mob_changes).in_set(MobPublish),
+            take_mob_news
+                .run_if(has_mob_spawns.or_else(on_message::<Damaged>))
+                .in_set(MobPublish),
         );
         app.add_systems(
             FixedUpdate,

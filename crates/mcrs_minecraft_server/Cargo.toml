@@ -22,6 +22,7 @@ mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_damage.workspace = true
 mcrs_minecraft_engine_entity_motion_replication.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_physics.workspace = true

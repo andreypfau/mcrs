@@ -1,12 +1,12 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_brain::BrainRules;
 use mcrs_minecraft_brain::Panic;
+use mcrs_minecraft_damage::LastHit;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_mob_control::ControlInput;
 use mcrs_minecraft_mob_control::LookDefaults;
 use mcrs_minecraft_mob_control::MobControl;
 use mcrs_minecraft_mob_control::Rotations;
-use mcrs_minecraft_physics::LastHit;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct BrainState {

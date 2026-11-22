@@ -4,6 +4,7 @@ mod attribute_edit;
 mod attribute_edits;
 mod mob_attributes;
 mod mob_attributes_plugin;
+mod mob_defence;
 mod motion_field;
 mod project_motion;
 
