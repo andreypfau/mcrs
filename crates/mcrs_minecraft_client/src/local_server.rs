@@ -184,6 +184,7 @@ fn server_plugins(settings: &LocalServerPlugin) -> MinecraftServerPlugins {
         },
         ..defaults
     }
+    .with_local_packs(settings.settings.local_packs.iter().cloned())
 }
 
 pub(crate) fn data_pack_registries(
@@ -257,6 +258,7 @@ fn build_server(
                 preset: settings.settings.world_preset,
                 default_game_mode: settings.settings.default_game_mode,
                 host: Some(host),
+                spawn: settings.settings.spawn,
                 ..Default::default()
             },
             network: ServerNetworkPlugin {

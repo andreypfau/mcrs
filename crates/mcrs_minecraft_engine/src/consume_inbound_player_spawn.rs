@@ -18,6 +18,7 @@ use crate::persisted_registry::PersistedSnapshot;
 use crate::persistence;
 use crate::player_bundle::PlayerBundle;
 use crate::publish_player_tiles::AnnounceJoin;
+use crate::spawn_override::SpawnOverride;
 use crate::teleport::TeleportState;
 use crate::world_state::SavedSpawn;
 use bevy_ecs::entity::Entity;
@@ -38,7 +39,7 @@ use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundPlayerAbilities};
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
@@ -52,6 +53,10 @@ pub struct InboundPlayerSpawnSet;
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one join writes the entity, its snapshot and its packets in the order the client reads them"
+)]
 pub(crate) fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -60,6 +65,7 @@ pub(crate) fn consume_inbound_player_spawn(
     mut commands: Commands,
     simulation_distance: Res<SimulationDistance>,
     default_game_mode: Res<DefaultGameMode>,
+    spawn_override: Option<Res<SpawnOverride>>,
     ops: Res<OpList>,
     default_op_level: Res<DefaultOpLevel>,
     mut announced_levels: MessageWriter<OpLevelAnnounced>,
@@ -153,11 +159,18 @@ pub(crate) fn consume_inbound_player_spawn(
                 }],
             },
         ));
+        let overridden = spawn_override.is_some();
         enter_level_packets(
             session,
             op_level,
             arrival.position_packet(login_teleport_id),
-            game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
+            join_flight(
+                commands.reborrow(),
+                new_entity,
+                &spawn.snapshot,
+                &default_game_mode,
+                overridden,
+            ),
             pace.as_deref(),
             |packet| {
                 packet_writer.write(packet);
@@ -183,6 +196,23 @@ fn join_transform(snapshot: &PersistedSnapshot, saved_spawn: Option<&SavedSpawn>
         translation: DVec3::new(f64::from(x) + 0.5, f64::from(y), f64::from(z) + 0.5),
         rotation: Rotation::new(yaw, pitch),
     }
+}
+
+fn join_flight(
+    mut commands: Commands,
+    player: Entity,
+    snapshot: &PersistedSnapshot,
+    default_mode: &DefaultGameMode,
+    flying: bool,
+) -> ClientboundPlayerAbilities {
+    let mode = snapshot.saved_game_mode().unwrap_or(default_mode.0);
+    let abilities = game_mode::abilities(mode, PlayerFlying(flying));
+    if flying {
+        commands
+            .entity(player)
+            .insert(PlayerFlying(abilities.flying));
+    }
+    abilities
 }
 
 fn login_packet(

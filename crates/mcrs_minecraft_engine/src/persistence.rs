@@ -740,9 +740,15 @@ impl PersistedSnapshot {
     }
 
     pub(crate) fn game_mode(&self) -> PlayerGameMode {
+        self.saved_game_mode()
+            .map(PlayerGameMode)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn saved_game_mode(&self) -> Option<GameMode> {
         self.get_logged::<GameType>(GAME_TYPE_KEYS)
             .and_then(|form| form.into_value().ok())
-            .unwrap_or_default()
+            .map(|PlayerGameMode(mode)| mode)
     }
 
     pub(crate) fn flying(&self) -> PlayerFlying {
@@ -1435,5 +1441,15 @@ pub(crate) mod tests {
             Some(30.0),
             "the arrival clamps the health to the maximum that the carried modifiers give"
         );
+    }
+
+    #[test]
+    fn the_saved_game_mode_is_absent_without_a_game_type() {
+        let mut snapshot = PersistedSnapshot::default();
+        assert_eq!(snapshot.saved_game_mode(), None);
+
+        snapshot.put(GAME_TYPE_KEYS, &2).unwrap();
+
+        assert_eq!(snapshot.saved_game_mode(), Some(GameMode::ALL[2]));
     }
 }

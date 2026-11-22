@@ -233,6 +233,9 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         if let Some(save) = host.get_resource::<WorldSave>() {
             sub_app.insert_resource(save.clone());
         }
+        if let Some(spawn) = host.get_resource::<crate::SpawnOverride>() {
+            sub_app.insert_resource(*spawn);
+        }
         if let Some(spawn) = host.get_resource::<crate::SavedSpawn>() {
             sub_app.insert_resource(spawn.clone());
         }
