@@ -82,10 +82,6 @@ type PlacerItem<'a> = (
 );
 
 #[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query, writer and resource is its own parameter"
-)]
-#[expect(
     clippy::too_many_lines,
     reason = "the checks of PLC-ORD-001 run in their order over one request"
 )]

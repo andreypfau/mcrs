@@ -75,9 +75,12 @@ pub(crate) fn ignore_blocks(
     )?)])
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one positional placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one positional placement"
+    )
 )]
 pub fn place_positional<W: WorldGenVolume>(
     template: &FrozenTemplate,

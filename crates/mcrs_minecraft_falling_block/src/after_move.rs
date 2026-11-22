@@ -17,9 +17,12 @@ pub enum AfterMove {
 
 impl Fall {
     #[must_use]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each input is one value that step 5 or 6 of FBK-TCK-001 reads"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each input is one value that step 5 or 6 of FBK-TCK-001 reads"
+        )
     )]
     pub fn after_move(
         &self,

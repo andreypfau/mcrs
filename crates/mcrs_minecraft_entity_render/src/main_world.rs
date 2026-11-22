@@ -319,10 +319,6 @@ type LayerInputs = (
     Option<&'static SkinSlot>,
 );
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn write_layers(
     assets: Option<Res<EntityAssets>>,
     items: Option<Res<Items>>,

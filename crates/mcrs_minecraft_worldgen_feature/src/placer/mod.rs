@@ -145,9 +145,12 @@ pub type Generate<'a, W> = &'a mut dyn FnMut(
     &dyn Fn(u16) -> bool,
 ) -> bool;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one decoration pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one decoration pass"
+    )
 )]
 pub fn decorate<'a, W: WorldGenVolume>(
     present: &[FixedBitSet],

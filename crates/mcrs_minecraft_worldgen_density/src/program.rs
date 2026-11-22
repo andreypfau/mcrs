@@ -971,9 +971,12 @@ impl Program {
         ws.sliced = sliced;
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one top-surface fill"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one top-surface fill"
+        )
     )]
     fn fill_top_surface(
         &self,
@@ -1013,9 +1016,12 @@ impl Program {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one surface descent"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one surface descent"
+        )
     )]
     fn find_top_surface(
         &self,
@@ -1540,9 +1546,12 @@ fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one trilinear interpolation"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one trilinear interpolation"
+    )
 )]
 fn interpolate(
     out: &mut [f32],

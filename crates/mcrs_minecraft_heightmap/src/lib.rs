@@ -145,9 +145,12 @@ impl ColumnHeightmapSet {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one block write"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block write"
+    )
 )]
 pub fn apply_write(
     surface: &mut ColumnHeights,
@@ -318,9 +321,12 @@ fn close(
     open.is_empty()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one block write"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block write"
+    )
 )]
 fn apply_edit(
     map: &mut ColumnHeights,

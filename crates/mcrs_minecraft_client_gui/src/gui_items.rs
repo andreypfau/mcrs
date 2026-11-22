@@ -165,7 +165,6 @@ fn srgb_texture(
 }
 
 #[expect(
-    clippy::too_many_arguments,
     clippy::too_many_lines,
     reason = "a render prepare step creates each target in dependency order"
 )]

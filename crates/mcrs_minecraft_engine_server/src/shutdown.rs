@@ -56,10 +56,6 @@ pub(crate) enum ShutdownPhase {
     Done,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 pub(crate) fn shutdown_system(
     requests: MessageReader<ShutdownRequest>,
     mut phase: Local<ShutdownPhase>,

@@ -479,10 +479,6 @@ pub(crate) fn resolve(
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render-graph system: each access is its own parameter"
-)]
 pub(crate) fn begin_frame(
     _view: ViewQuery<&'static ExtractedView>,
     queries: Option<Res<Queries>>,

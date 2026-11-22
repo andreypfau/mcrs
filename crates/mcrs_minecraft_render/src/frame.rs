@@ -96,10 +96,6 @@ pub(super) fn write_frame_view(
     ));
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render system: each resource is its own parameter so the scheduler sees the access"
-)]
 pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,

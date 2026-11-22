@@ -81,10 +81,6 @@ fn requested_view_distance(options: &ClientOptions) -> RequestedViewDistance {
     RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT))
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and writer is its own parameter"
-)]
 fn project_options(
     options: Res<ClientOptions>,
     gui_scale: Res<GuiScaleOverride>,

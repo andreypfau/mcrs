@@ -201,9 +201,12 @@ where
     B: FnMut(i32, i32, i32) -> u16,
     R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
 {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one column's evaluator"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one column's evaluator"
+        )
     )]
     pub fn new(
         router: &'a NoiseRouter,
@@ -1187,9 +1190,12 @@ where
         self.scratch.vein_lattice_for = Some((vein, lattice));
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the vein, its layout and density root, and the cell's origin, height and column offsets"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the vein, its layout and density root, and the cell's origin, height and column offsets"
+        )
     )]
     fn fill_vein_cell(
         &mut self,

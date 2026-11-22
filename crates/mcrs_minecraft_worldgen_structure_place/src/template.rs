@@ -100,9 +100,12 @@ impl OceanRuinBlocks {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_ocean_ruin<W: WorldGenVolume>(
     blocks: &OceanRuinBlocks,

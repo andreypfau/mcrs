@@ -112,9 +112,12 @@ impl ColumnProgram {
 }
 
 impl FillContext {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each stage input is independent and optional"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each stage input is independent and optional"
+        )
     )]
     pub fn build(
         setup: GeneratorSetup,

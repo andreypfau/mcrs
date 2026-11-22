@@ -111,10 +111,6 @@ struct Settling {
     requested: bool,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

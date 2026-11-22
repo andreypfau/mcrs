@@ -41,10 +41,6 @@ use tracing::{debug, info};
 
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -187,9 +183,12 @@ fn login_packet(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the spawn builds one entity from its dimension, position, game mode, view distance and profile"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the spawn builds one entity from its dimension, position, game mode, view distance and profile"
+    )
 )]
 fn spawn_player_entity(
     commands: &mut Commands,

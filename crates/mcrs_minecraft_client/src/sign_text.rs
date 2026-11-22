@@ -138,10 +138,6 @@ fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
             .is_some_and(|column| !column.signs().is_empty())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and reader is its own parameter"
-)]
 fn sync_signs(
     store: Res<ColumnStore>,
     blocks: Res<Blocks>,

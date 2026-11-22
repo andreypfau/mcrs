@@ -66,10 +66,6 @@ pub(crate) fn fetch_loading_columns(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn land_stored_columns(
     dim: Single<(Entity, &mut SectionIndex), With<Dimension>>,
     mut random_ticks: Option<ResMut<RandomTickIndex>>,

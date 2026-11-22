@@ -318,10 +318,6 @@ struct FrameClocks<'w> {
     fixed: Option<Res<'w, Time<Fixed>>>,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and writer is its own parameter"
-)]
 fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     frame_clocks: FrameClocks,

@@ -296,9 +296,12 @@ pub fn dispatch_pending(
     visiting.clear();
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the two flushes share every resource of the write"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the two flushes share every resource of the write"
+    )
 )]
 fn dispatch_listed(
     players: &mut Writers,

@@ -290,10 +290,6 @@ fn hovered_entry<'a>(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 pub(crate) fn request_menu_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>)>,
     menus: Query<(&MenuLayout, &MenuParts)>,

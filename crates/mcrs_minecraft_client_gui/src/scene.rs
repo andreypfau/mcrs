@@ -624,10 +624,6 @@ pub(crate) struct ScreenStacks {
     labels: MenuLabelText,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(
@@ -702,7 +698,6 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 }
 
 #[expect(
-    clippy::too_many_arguments,
     clippy::too_many_lines,
     reason = "a Bevy system: each access is its own parameter"
 )]

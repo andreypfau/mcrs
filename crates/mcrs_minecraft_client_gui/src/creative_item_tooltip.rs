@@ -31,10 +31,6 @@ enum AddedParts {
     TabsAndTags { entry: usize },
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 pub(crate) fn request_creative_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts)>,

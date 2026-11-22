@@ -74,9 +74,12 @@ pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
         && y_sections.last().is_some_and(|&last| last + 1 >= top)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one surface pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one surface pass"
+    )
 )]
 #[expect(
     clippy::too_many_lines,
@@ -481,9 +484,12 @@ pub(crate) fn set_block(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one eroded-badlands pillar"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one eroded-badlands pillar"
+    )
 )]
 fn eroded_badlands(
     column: &ColumnBlocks,
@@ -527,9 +533,12 @@ fn eroded_badlands(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one frozen-ocean iceberg"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one frozen-ocean iceberg"
+    )
 )]
 fn frozen_ocean(
     column: &ColumnBlocks,

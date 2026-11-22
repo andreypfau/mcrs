@@ -369,10 +369,6 @@ pub(crate) fn harvest(
     clippy::too_many_lines,
     reason = "the checks of one request run in the order that the specification states"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query, writer and resource is its own parameter"
-)]
 fn break_blocks(
     mut requests: MessageReader<BlockActionRequest>,
     mut players: Query<(

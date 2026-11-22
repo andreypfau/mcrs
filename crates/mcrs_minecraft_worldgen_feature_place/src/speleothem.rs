@@ -197,9 +197,9 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     true
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column"
+#[cfg_attr(
+    mcrs_lint,
+    expect(mcrs::too_many_arguments, reason = "independent inputs of one column")
 )]
 #[expect(
     clippy::too_many_lines,

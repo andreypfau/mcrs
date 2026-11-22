@@ -46,10 +46,6 @@ impl Plugin for WorldStatePlugin {
 #[derive(Resource, Debug, Clone)]
 pub struct SavedSpawn(pub RespawnData);
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource it loads is its own parameter so the scheduler sees the access"
-)]
 fn load_world_state(
     mut commands: Commands,
     save: Option<Res<WorldSave>>,

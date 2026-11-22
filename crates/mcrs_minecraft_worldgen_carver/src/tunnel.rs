@@ -58,9 +58,12 @@ pub fn can_reach(
     dx * dx + dz * dz - remaining * remaining <= reach * reach
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the reference passes these as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the reference passes these as separate values"
+    )
 )]
 pub fn walk_tunnel_into<T: CarveTarget, R: Random>(
     target: &mut T,

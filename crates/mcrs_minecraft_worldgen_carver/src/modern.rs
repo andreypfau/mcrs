@@ -51,9 +51,12 @@ pub fn carve_source_into<T: CarveTarget>(
     true
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one cave carving pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one cave carving pass"
+    )
 )]
 pub fn carve_caves<R: Random>(
     config: &CarverConfig,
@@ -157,9 +160,12 @@ fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &
     thickness
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the reference passes these as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the reference passes these as separate values"
+    )
 )]
 fn create_room_into<T: CarveTarget>(
     target: &mut T,

@@ -288,10 +288,6 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
 pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
     dims: Single<(&mut ColumnStreams, &ColumnLoading, Has<HasSkyLight>)>,
@@ -406,10 +402,6 @@ fn sections_landed(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
 fn project_ready_columns(
     dims: Option<
         Single<(
@@ -563,10 +555,6 @@ fn encode_ready(
     }));
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
 fn publish_ready_columns(
     mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,
     snapshots: ColumnSnapshots,

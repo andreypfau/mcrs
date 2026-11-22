@@ -90,10 +90,6 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render-graph system: each access is its own parameter"
-)]
 pub(crate) fn propagate_colour(
     _view: ViewQuery<&'static ExtractedView>,
     volume: Option<ResMut<Volume>>,

@@ -10,9 +10,12 @@ use mcrs_minecraft_value_provider::HeightContext;
 
 use crate::modern::RANGE;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one canyon carving pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one canyon carving pass"
+    )
 )]
 pub fn carve_canyon<R: Random>(
     config: &CarverConfig,
@@ -76,9 +79,12 @@ pub fn carve_canyon_into<T: CarveTarget, R: Random>(
     );
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one canyon step"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one canyon step"
+    )
 )]
 fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,

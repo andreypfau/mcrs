@@ -145,9 +145,12 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one probabilistic box fill"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one probabilistic box fill"
+        )
     )]
     pub fn generate_maybe_box<R: Random>(
         &mut self,
@@ -274,9 +277,12 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         true
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the reference passes these as separate values"
+        )
     )]
     pub fn create_dispenser<R: Random>(
         &mut self,

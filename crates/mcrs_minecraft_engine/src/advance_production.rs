@@ -15,10 +15,6 @@ use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,

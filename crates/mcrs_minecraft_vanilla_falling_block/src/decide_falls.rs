@@ -47,10 +47,6 @@ struct Touchdown {
     cell: TargetCell,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes each resource that it reads"
-)]
 pub(crate) fn decide_falls(
     mut commands: Commands,
     falls: Query<(Entity, &Falling, &MotionState, &StepOutcome)>,

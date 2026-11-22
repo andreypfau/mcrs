@@ -374,10 +374,6 @@ impl DropOutlet<'_> {
     clippy::too_many_lines,
     reason = "the sync point, the four phases and the hand-off of their output are one ordered step"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each parameter is a distinct part of the world that the step reads or writes"
-)]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
     mut blocks: WorldViewMut,
@@ -603,10 +599,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each message, resource and query is its own parameter"
-)]
 fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     mut harvests: MessageReader<BlockBroken>,
     world: WorldView,

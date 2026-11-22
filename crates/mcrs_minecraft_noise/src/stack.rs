@@ -158,9 +158,12 @@ impl<N: Noise> NoiseStack<N> {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one stack evaluation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
     )]
     pub fn fill_column_at(
         &self,

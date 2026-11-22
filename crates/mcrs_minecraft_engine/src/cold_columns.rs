@@ -89,10 +89,6 @@ enum Origin {
     Generated,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the write reads the marks, the content and the ticks of each column that cools"
-)]
 pub(crate) fn write_cold_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -147,10 +143,6 @@ pub(crate) fn write_cold_columns(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn save_dirty_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -219,10 +211,6 @@ fn dirty_sections(column: &ColumnSections, marks: &Query<SectionMarks>) -> Vec<E
         .collect()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn save_all_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     snapshots: ColumnSnapshots,

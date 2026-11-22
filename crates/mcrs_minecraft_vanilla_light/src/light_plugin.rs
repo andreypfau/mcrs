@@ -52,10 +52,6 @@ impl Plugin for LightPlugin {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub fn publish_light(
     mut light: ResMut<LightLink>,
     mut commands: Commands,

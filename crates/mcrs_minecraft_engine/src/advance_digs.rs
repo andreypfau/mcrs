@@ -42,10 +42,6 @@ fn advance(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query, writer and resource is its own parameter"
-)]
 pub(crate) fn advance_digs(
     mut diggers: ResMut<Diggers>,
     mut players: Query<(
