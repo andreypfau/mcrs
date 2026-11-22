@@ -1,13 +1,17 @@
+use std::path::Path;
+
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine::HiddenPlayer;
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
 use mcrs_minecraft_engine_damage::Died;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
@@ -25,6 +29,7 @@ use mcrs_minecraft_entity_attribute::{
 };
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_lang::Language;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
 use mcrs_minecraft_physics::EntityState;
@@ -39,11 +44,12 @@ use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
+use mcrs_minecraft_save::PlayerDat;
 use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
 use mcrs_minecraft_text::Text as WireText;
 
 use crate::commands::{chats, load_stone_column};
-use crate::host_app::{self, PlayServer, sent_to};
+use crate::host_app::{self, Arrival, PlayServer, sent_to};
 use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
@@ -1014,6 +1020,114 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
             }]
         ],
         "a dead player gets no second kill packet; a described death carries its text"
+    );
+
+    assert_removed_after_death_and_shown_again(&mut server, target, watcher_session);
+    assert_a_player_that_joins_dead_is_hidden(&mut server, watcher_session);
+}
+
+fn assert_a_player_that_joins_dead_is_hidden(server: &mut PlayServer, watcher: PlayerSession) {
+    let mut dat = PlayerDat::default();
+    dat.root.put("Health", NbtTag::Float(0.0));
+    dat.root.put("DeathTime", NbtTag::Short(40));
+    let registry = server.app.world().resource::<PersistedRegistry>();
+    let file = PersistedSnapshot::from_dat(&dat, registry, Path::new("player.dat")).unwrap();
+    let arrival = Arrival {
+        uuid: Uuid::from_u128(4),
+        name: "dead",
+        position: DVec3::new(8.5, 64.0, 8.5),
+        view_distance: 2,
+    };
+    let dead = host_app::admit_with_file(&mut server.app, server.dim, &arrival, &file);
+    let raw = server.ticks_all(5);
+    let id = player_network_id(server.session_of(dead).unwrap());
+    let mut viewer = Viewer::new();
+    viewer.receive(sent_to(watcher, raw));
+    let last = viewer.seen.into_iter().rev().find(|seen| match seen {
+        Seen::Add { id: subject, .. } => *subject == id,
+        Seen::Remove { ids } => ids.contains(&id),
+        _ => false,
+    });
+    assert!(
+        !matches!(last, Some(Seen::Add { .. })),
+        "a player that joins past its death animation stays hidden from a viewer: {last:?}"
+    );
+}
+
+fn assert_removed_after_death_and_shown_again(
+    server: &mut PlayServer,
+    target: Entity,
+    watcher_session: PlayerSession,
+) {
+    let target_session = server.session_of(target).unwrap();
+    let id = player_network_id(target_session);
+    let raw = server.ticks_all(25);
+    let removed = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter(|seen| match seen {
+                Seen::Event {
+                    id: subject,
+                    event: 60,
+                } => *subject == id,
+                Seen::Remove { ids } => ids.contains(&id),
+                _ => false,
+            })
+            .collect::<Vec<Seen>>()
+    };
+    assert_eq!(
+        removed(sent_to(watcher_session, raw.clone())),
+        vec![
+            Seen::Event { id, event: 60 },
+            Seen::Remove { ids: vec![id] }
+        ],
+        "the viewer gets the smoke, then the removal of the dead player"
+    );
+    assert_eq!(
+        removed(sent_to(target_session, raw)),
+        Vec::new(),
+        "the dead player is not removed from its own view"
+    );
+    let target_player = server.player(target);
+    assert!(
+        server.session_of(target).is_some() && server.world().get_entity(target_player).is_ok(),
+        "the dead player keeps its connection and its entity"
+    );
+
+    let (late, mut joined) = server.join(Uuid::from_u128(3), "late");
+    let late_session = server.session_of(late).unwrap();
+    let added = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter(|seen| matches!(seen, Seen::Add { id: subject, .. } if *subject == id))
+            .count()
+    };
+    joined.extend(sent_to(late_session, server.ticks_all(5)));
+    assert_eq!(
+        added(joined),
+        0,
+        "a viewer that comes into range gets no spawn of the removed player"
+    );
+
+    server
+        .world()
+        .entity_mut(target_player)
+        .insert(Vitals::new(20.0))
+        .remove::<HiddenPlayer>();
+    let raw = server.ticks_all(2);
+    assert_eq!(
+        [
+            added(sent_to(watcher_session, raw.clone())),
+            added(sent_to(late_session, raw))
+        ],
+        [1, 1],
+        "each viewer in range gets the spawn of the shown player again"
     );
 }
 

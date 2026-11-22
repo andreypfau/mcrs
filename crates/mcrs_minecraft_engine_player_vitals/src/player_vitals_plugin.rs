@@ -1,3 +1,4 @@
+use crate::hide_dead_players::hide_dead_players;
 use crate::send_health::send_health;
 use crate::send_kill::send_kill;
 use crate::signal_hits::signal_player_hits;
@@ -58,6 +59,12 @@ impl Plugin for PlayerVitalsPlugin {
                 .after(DamageSet::Report)
                 .after(send_health)
                 .before(signal_player_hits),
+        );
+        app.add_systems(
+            FixedUpdate,
+            hide_dead_players
+                .in_set(TickSet::Project)
+                .after(signal_player_hits),
         );
     }
 }

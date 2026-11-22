@@ -126,6 +126,7 @@ pub use persistence::{
 };
 pub use player_dimensions::{PlayerBody, PlayerBodyItem, player_dimensions, player_scale};
 pub use pose_systems::PoseSystems;
+pub use publish_player_tiles::HiddenPlayer;
 pub use send_own_attributes::OwnAttributesSet;
 pub use shift_key::ShiftKey;
 pub use world_state::{

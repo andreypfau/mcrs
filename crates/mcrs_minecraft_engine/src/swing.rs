@@ -189,6 +189,7 @@ mod tests {
     use crate::bus::InboundPlayerDespawn;
     use crate::player_state::Effect;
     use crate::player_tracker::PlayerTrackerPlugin;
+    use crate::replicated::Visibility;
 
     fn test_app() -> (App, Entity) {
         let mut app = App::new();
@@ -207,6 +208,7 @@ mod tests {
                     id: EntityId(99),
                     tile: TileKey::new(0, 0, 0),
                     game_mode: GameMode::Survival,
+                    visibility: Visibility::Shown,
                 },
             ))
             .id();

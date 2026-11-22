@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod death_message;
+mod hide_dead_players;
 mod player_death_set;
 mod player_vitals_plugin;
 mod send_health;

@@ -23,4 +23,6 @@ pub enum PlayerData {
         duration: i32,
     },
     Signal(MobSignal),
+    Hide,
+    Show,
 }
