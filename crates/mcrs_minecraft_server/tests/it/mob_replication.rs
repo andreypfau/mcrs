@@ -1,3 +1,4 @@
+use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
@@ -7,13 +8,16 @@ use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine_damage::Died;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
 use mcrs_minecraft_engine_mob_attributes::MobAttributes;
 use mcrs_minecraft_engine_physics::Mob;
+use mcrs_minecraft_engine_player_vitals::{DeathMessage, PlayerDeathSet};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
@@ -36,6 +40,7 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
 use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
+use mcrs_minecraft_text::Text as WireText;
 
 use crate::commands::{chats, load_stone_column};
 use crate::host_app::{self, PlayServer, sent_to};
@@ -841,12 +846,82 @@ fn damage_sends_the_new_health_to_its_owner_once() {
     assert_eq!(healths(&server.ticks(operator, 1)), Vec::<f32>::new());
 }
 
+#[derive(Component)]
+struct Described;
+
+const DESCRIBED: &str = "watcher was described";
+
+fn describe_deaths(
+    mut died: MessageReader<Died>,
+    described: Query<(), With<Described>>,
+    mut messages: MessageWriter<DeathMessage>,
+) {
+    for death in died.read() {
+        if described.contains(death.target) {
+            messages.write(DeathMessage {
+                player: death.target,
+                text: WireText::text(DESCRIBED),
+            });
+        }
+    }
+}
+
+fn describe_plugin(app: &mut App) {
+    app.add_systems(
+        FixedUpdate,
+        describe_deaths.in_set(PlayerDeathSet::Describe),
+    );
+}
+
+#[derive(Debug, PartialEq)]
+struct Kill {
+    id: i32,
+    message: WireText,
+}
+
+fn kills(packets: &[PacketPayload]) -> Vec<Kill> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::PlayerCombatKill(packet) => Some(Kill {
+                id: packet.player_id.0,
+                message: packet.message.to_text().unwrap(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+fn hurt_animations(packets: &[PacketPayload]) -> Vec<i32> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::HurtAnimation(packet) => Some(packet.entity_id.0),
+            _ => None,
+        })
+        .collect()
+}
+
+fn seen_about(packets: Vec<PacketPayload>, id: i32) -> Vec<Seen> {
+    let mut viewer = Viewer::new();
+    viewer.receive(packets);
+    viewer
+        .seen
+        .into_iter()
+        .filter(|seen| match seen {
+            Seen::Hurt { id: subject } | Seen::Event { id: subject, .. } => *subject == id,
+            _ => false,
+        })
+        .collect()
+}
+
 #[test]
 fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
     let mut app = host_app::make_host_app();
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
     app.add_plugins(VanillaCommandsPlugin);
     app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    app.add_dimension_plugin(describe_plugin);
     let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
     load_stone_column(&mut server);
     let (target, _) = server.join(OPERATOR, "op");
@@ -855,6 +930,9 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
     let target_session = server.session_of(target).unwrap();
     let watcher_session = server.session_of(watcher).unwrap();
     let id = player_network_id(target_session);
+    let watcher_id = player_network_id(watcher_session);
+    let watcher_player = server.player(watcher);
+    server.world().entity_mut(watcher_player).insert(Described);
     let run = |server: &mut PlayServer, command: &'static str| {
         server.queue(
             target,
@@ -864,32 +942,13 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
         );
         let raw = server.ticks_all(2);
         let own = sent_to(target_session, raw.clone());
-        let hurt_targets: Vec<i32> = own
-            .iter()
-            .filter_map(|payload| match payload {
-                PacketPayload::HurtAnimation(packet) => Some(packet.entity_id.0),
-                _ => None,
-            })
-            .collect();
-        let mut own_viewer = Viewer::new();
-        own_viewer.receive(own);
-        let mut other_viewer = Viewer::new();
-        other_viewer.receive(sent_to(watcher_session, raw));
-        let about_target = |viewer: Viewer| -> Vec<Seen> {
-            viewer
-                .seen
-                .into_iter()
-                .filter(|seen| match seen {
-                    Seen::Hurt { id: subject } => *subject == id,
-                    Seen::Event { id: subject, .. } => *subject == id,
-                    _ => false,
-                })
-                .collect()
-        };
+        let other = sent_to(watcher_session, raw);
+        let deaths = [kills(&own), kills(&other)];
         (
-            hurt_targets,
-            about_target(own_viewer),
-            about_target(other_viewer),
+            hurt_animations(&own),
+            seen_about(own, id),
+            seen_about(other, id),
+            deaths,
         )
     };
 
@@ -898,7 +957,12 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
         ("damage @s 4 minecraft:generic", Vec::new()),
     ] {
         let _ = server.ticks_all(20);
-        let (hurt, own, other) = run(&mut server, command);
+        let (hurt, own, other, deaths) = run(&mut server, command);
+        assert_eq!(
+            deaths,
+            [Vec::new(), Vec::new()],
+            "{command}: no kill packet"
+        );
         assert_eq!(
             hurt, hurt_animations,
             "{command}: hurt animations of the hit player"
@@ -916,7 +980,18 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
     }
 
     let _ = server.ticks_all(20);
-    let (_, own, other) = run(&mut server, "kill @s");
+    let (_, own, other, deaths) = run(&mut server, "kill @s");
+    assert_eq!(
+        deaths,
+        [
+            vec![Kill {
+                id,
+                message: WireText::default()
+            }],
+            Vec::new()
+        ],
+        "only the dying player gets one kill packet, empty without a death message"
+    );
     let died = Seen::Event { id, event: 3 };
     assert!(
         !own.contains(&died),
@@ -926,6 +1001,19 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
         other.iter().filter(|seen| **seen == died).count(),
         1,
         "the viewer gets the entity event 3 once"
+    );
+
+    let (_, _, _, deaths) = run(&mut server, "kill @a");
+    assert_eq!(
+        deaths,
+        [
+            Vec::new(),
+            vec![Kill {
+                id: watcher_id,
+                message: WireText::text(DESCRIBED)
+            }]
+        ],
+        "a dead player gets no second kill packet; a described death carries its text"
     );
 }
 

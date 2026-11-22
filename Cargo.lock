@@ -5355,6 +5355,7 @@ dependencies = [
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_replication",
  "mcrs_minecraft_save",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]

@@ -799,6 +799,12 @@ pub struct ClientboundDisguisedChat<'a> {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundPlayerCombatKill<'a> {
+    pub player_id: VarInt,
+    pub message: RawText<'a>,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundPlayerChat<'a> {
     pub global_index: VarInt,
     pub sender: Uuid,
