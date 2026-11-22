@@ -10,6 +10,7 @@ pub enum Screen {
     GameModeSwitcher(GameMode),
     Chat,
     Pause,
+    Death,
     Options,
     VideoSettings,
     AccessibilitySettings(AccessibilityParent),

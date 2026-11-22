@@ -568,6 +568,7 @@ pub struct ClientboundRespawn {
 
 impl ClientboundRespawn {
     pub const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
+    pub const KEEP_ENTITY_DATA: u8 = 0x02;
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

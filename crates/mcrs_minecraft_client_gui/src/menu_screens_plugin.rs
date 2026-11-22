@@ -144,6 +144,7 @@ fn parent(screen: Screen, world: WorldPresence) -> Screen {
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
         | Screen::Pause
+        | Screen::Death
         | Screen::Message(_)
         | Screen::LevelLoading
         | Screen::Disconnected
@@ -204,6 +205,7 @@ pub(crate) fn next_screen(shown: Screen, event: MenuEvent, world: WorldPresence)
             if matches!(
                 shown,
                 Screen::Title
+                    | Screen::Death
                     | Screen::Message(_)
                     | Screen::LevelLoading
                     | Screen::Disconnected
@@ -303,6 +305,7 @@ fn write_menu_options(
             | Screen::GameModeSwitcher(_)
             | Screen::Chat
             | Screen::Pause
+            | Screen::Death
             | Screen::Controls(_)
             | Screen::Message(_)
             | Screen::LevelLoading

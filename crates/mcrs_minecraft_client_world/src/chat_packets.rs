@@ -76,7 +76,7 @@ pub(crate) fn on_suggestions(
         .reply(reply.id.0, start, length, &reply.suggestions, &cx);
 }
 
-fn server_text(raw: &RawText<'_>) -> Option<Text> {
+pub(crate) fn server_text(raw: &RawText<'_>) -> Option<Text> {
     raw.to_text().ok()?.map(&ItemHoverMap).ok()
 }
 
