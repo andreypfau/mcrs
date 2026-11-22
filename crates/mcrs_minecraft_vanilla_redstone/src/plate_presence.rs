@@ -9,7 +9,6 @@ use mcrs_minecraft_engine::block_simulation::{
 };
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_engine_physics::Bodies;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
@@ -19,6 +18,7 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_redstone::{
     HasRedstone, HasRedstoneMemory, HasRedstoneSnapshot, Kind, Presence, RedstoneTable, Sensor,
     plate_signal_for,
@@ -89,7 +89,7 @@ type PlayerItem<'a> = (&'a Transform, &'a PlayerGameMode, PlayerBody);
     reason = "a Bevy system: each query, resource and local is its own parameter"
 )]
 pub(crate) fn publish_plate_presence<B>(
-    bodies: Res<Bodies>,
+    bodies: Res<BodyGrid>,
     items: Query<&MotionState, With<ItemEntity>>,
     players: Query<PlayerItem, With<Player>>,
     dims: Query<Entity, With<Dimension>>,
@@ -147,7 +147,7 @@ pub(crate) fn publish_plate_presence<B>(
         };
         let mut presence = Presence::default();
         let reach = DVec3::new(BODY_REACH, BODY_REACH, BODY_REACH);
-        for row in bodies.0.in_box(sensing.min - reach, sensing.max + reach) {
+        for row in bodies.in_box(sensing.min - reach, sensing.max + reach) {
             if row.bounds().intersects(&sensing) {
                 count(&mut presence, Occupant::Living);
             }

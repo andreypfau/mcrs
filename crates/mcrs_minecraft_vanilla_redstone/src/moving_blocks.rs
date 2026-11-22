@@ -13,13 +13,13 @@ use mcrs_minecraft_engine::dimension_change::Arrival;
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_engine_physics::{Bodies, EntityWrites};
+use mcrs_minecraft_engine_physics::{EntityWrite, EntityWrites};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_entity_rows::{EffectBuffer, Keyed, WriterKey, YzxPos};
+use mcrs_minecraft_entity_key::{WriterKey, YzxPos};
 use mcrs_minecraft_item_entity::ItemEntity;
-use mcrs_minecraft_physics::{Aabb, Axis};
+use mcrs_minecraft_physics::{Aabb, Axis, BodyGrid};
 use mcrs_minecraft_redstone::{Carried, HasRedstoneMemory, MovingPayload};
 use mcrs_minecraft_simulation::BlockBehaviour;
 use mcrs_voxel::BlockPos;
@@ -128,7 +128,7 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
     memory: Res<BlockMemory<B>>,
     blocks: Res<Blocks>,
     time: Res<GameTime>,
-    bodies: Res<Bodies>,
+    bodies: Res<BodyGrid>,
     mut writes: ResMut<EntityWrites>,
     mut items: Query<&mut MotionState, With<ItemEntity>>,
     mut players: Query<PlayerItem, With<Player>>,
@@ -160,10 +160,9 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
             }
         }
     }
-    let mut kicks = EffectBuffer::default();
     let mut sequence: u32 = 0;
-    for (tile, bodies) in bodies.0.tiles() {
-        for row in &bodies.rows {
+    for (_, bodies) in bodies.tiles() {
+        for row in bodies.rows() {
             let mut body = row.bounds();
             for mover in shapes.iter() {
                 let Some(delta) = displacement(mover, &body) else {
@@ -178,23 +177,18 @@ pub(crate) fn push_entities_with_moving_blocks<B>(
                     mover.box_.min.y.floor() as i32,
                     mover.box_.min.z.floor() as i32,
                 );
-                kicks.push(
-                    tile,
-                    Keyed {
-                        target: row.key,
-                        target_id: row.id,
-                        writer: WriterKey::Block {
-                            pos: YzxPos::from(origin),
-                        },
-                        sequence,
-                        effect,
+                writes.push(EntityWrite {
+                    target: row.key,
+                    writer: WriterKey::Block {
+                        pos: YzxPos::from(origin),
                     },
-                );
+                    sequence,
+                    effect,
+                });
                 sequence = sequence.saturating_add(1);
             }
         }
     }
-    writes.0.gather(&mut kicks);
     for (owner, mut transform, mut teleport, body) in &mut players {
         let dimensions = body.dimensions();
         let mut box_ = Aabb::of_body(transform.translation, dimensions.width, dimensions.height);

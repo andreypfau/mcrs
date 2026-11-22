@@ -68,6 +68,16 @@ impl TileBodies {
         &self.rows
     }
 
+    pub fn in_box(&self, tile: TileKey, min: DVec3, max: DVec3) -> impl Iterator<Item = &GridRow> {
+        let [x0, z0] = bucket_xz(tile, min);
+        let [x1, z1] = bucket_xz(tile, max);
+        (z0..=z1).flat_map(move |z| {
+            let row = z.saturating_mul(BUCKETS);
+            self.cells(row.saturating_add(x0), row.saturating_add(x1))
+                .iter()
+        })
+    }
+
     #[must_use]
     pub(crate) fn cells(&self, first: usize, last: usize) -> &[GridRow] {
         let start = self.starts.get(first).copied().unwrap_or_default();

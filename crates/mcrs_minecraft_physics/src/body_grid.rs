@@ -31,6 +31,21 @@ impl BodyGrid {
         mem::swap(self.tiles.entry(tile).or_default(), back);
     }
 
+    pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileBodies)> {
+        self.tiles.iter().map(|(tile, bodies)| (*tile, bodies))
+    }
+
+    pub fn in_box(&self, min: DVec3, max: DVec3) -> impl Iterator<Item = &GridRow> {
+        let first = TileKey::at(min);
+        let last = TileKey::at(max);
+        (first.x..=last.x).flat_map(move |x| {
+            (first.z..=last.z).flat_map(move |z| {
+                let tile = TileKey::new(x, 0, z);
+                self.tile(tile).in_box(tile, min, max)
+            })
+        })
+    }
+
     pub fn widen(&mut self, reach: f32) {
         self.reach = self.reach.max(reach);
     }

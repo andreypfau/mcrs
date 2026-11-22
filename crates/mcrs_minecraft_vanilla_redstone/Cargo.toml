@@ -27,7 +27,6 @@ mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity_key.workspace = true
-mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_inventory_player.workspace = true
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
@@ -36,7 +35,7 @@ mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_pose = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_redstone.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }

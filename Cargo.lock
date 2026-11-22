@@ -7357,7 +7357,6 @@ dependencies = [
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_inventory_player",
