@@ -5,6 +5,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
+use mcrs_minecraft_damage::HitRecord;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
@@ -24,6 +25,7 @@ use crate::mob_index::MobIndex;
 use crate::mob_row::mob_row;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mob_spawn_request::SpawnSetup;
+use crate::mob_vitals::mob_vitals;
 use crate::mobs::Mob;
 
 #[derive(Resource, Debug, Default)]
@@ -68,6 +70,7 @@ pub(crate) fn spawn_mob_entities(
         };
         let row = mob_row(request.kind);
         let state = mob_body(request.kind, &row, key, request.position);
+        let vitals = mob_vitals(request.kind);
         let mut looks = match request.setup {
             SpawnSetup::First => {
                 first_looks(request.kind, &KeyedStream::new(&key, clock.0), registries)
@@ -88,6 +91,8 @@ pub(crate) fn spawn_mob_entities(
                 MotionKind(row),
                 MotionId(id),
                 MobIntent::default(),
+                vitals,
+                HitRecord::default(),
                 mob,
             ))
             .id();
@@ -96,6 +101,7 @@ pub(crate) fn spawn_mob_entities(
             entity,
             id,
             start: state,
+            vitals,
         });
     }
 }

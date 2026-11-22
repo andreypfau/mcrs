@@ -15,13 +15,10 @@ pub fn mob_body(
     position: DVec3,
 ) -> EntityState {
     let mut living = Living::of(row);
-    if let Some(bases) = kind.attribute_bases() {
-        if let Some(movement_speed) = bases.base(Attribute::MovementSpeed) {
-            living.attributes.movement_speed = movement_speed;
-        }
-        if let Some(max_health) = bases.base(Attribute::MaxHealth) {
-            living.health = max_health as f32;
-        }
+    if let Some(bases) = kind.attribute_bases()
+        && let Some(movement_speed) = bases.base(Attribute::MovementSpeed)
+    {
+        living.attributes.movement_speed = movement_speed;
     }
     let body = Body {
         position,

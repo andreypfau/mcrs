@@ -584,6 +584,59 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     assert_each_death_in_order(&viewer);
 }
 
+#[test]
+fn a_hit_in_the_cooldown_sends_the_lower_health_of_a_resting_pig() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "summon minecraft:pig 4 64 4 {NoAI:1b}",
+    );
+    assert_eq!(key, "commands.summon.success");
+    viewer.receive(server.ticks(operator, 5));
+    let id = viewer
+        .seen
+        .iter()
+        .find_map(|seen| match seen {
+            Seen::Add { id, .. } => Some(*id),
+            _ => None,
+        })
+        .expect("the viewer sees the pig");
+
+    for line in [
+        "damage @e[type=minecraft:pig,limit=1] 1 minecraft:cactus",
+        "damage @e[type=minecraft:pig,limit=1] 3 minecraft:cactus",
+    ] {
+        let (key, _) = run(&mut server, operator, &mut viewer, line);
+        assert_eq!(key, "commands.damage.success", "{line}");
+    }
+    viewer.receive(server.ticks(operator, 2));
+
+    let hurts = viewer
+        .seen
+        .iter()
+        .filter(|seen| **seen == Seen::Hurt { id })
+        .count();
+    assert_eq!(hurts, 1, "only the first hit sends damage_event");
+    let healths: Vec<f32> = viewer
+        .seen
+        .iter()
+        .filter_map(|seen| match seen {
+            Seen::Data {
+                id: seen,
+                health: Some(health),
+            } if *seen == id => Some(*health),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(healths.last(), Some(&7.0), "{healths:?}");
+}
+
 fn assert_each_death_in_order(viewer: &Viewer) {
     let ids: Vec<i32> = viewer
         .seen

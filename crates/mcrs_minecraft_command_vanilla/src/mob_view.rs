@@ -1,6 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -15,6 +16,7 @@ pub(crate) struct MobView<'a> {
     pub(crate) entity: Entity,
     pub(crate) id: EntityId,
     pub(crate) state: &'a EntityState,
+    pub(crate) vitals: Option<&'a Vitals>,
     pub(crate) mob: &'a Mob,
 }
 
@@ -39,7 +41,7 @@ impl MobView<'_> {
     }
 
     pub(crate) fn alive(&self) -> bool {
-        self.state.living.is_some_and(|living| living.is_alive())
+        self.state.living.is_some() && self.vitals.is_none_or(Vitals::is_alive)
     }
 
     pub(crate) fn uuid(&self) -> Uuid {

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use glam::DVec3;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::MotionHold;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
@@ -13,6 +14,7 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::TileBodies;
@@ -131,10 +133,17 @@ fn the_grid_that_the_pass_keeps_equals_a_rebuild() {
     ] {
         let (_, mut scene) = run(start, WriteOrder::Forward);
         let world = scene.app.world_mut();
-        let mut query = world.query::<(&MotionState, &MotionKind, &MotionId)>();
+        let mut query = world.query::<(&MotionState, &MotionKind, &MotionId, Option<&Vitals>)>();
         let rows: Vec<GridRow> = query
             .iter(world)
-            .filter_map(|(state, kind, id)| grid_row(&state.0, &kind.0, id.0))
+            .filter_map(|(state, kind, id, vitals)| {
+                let flags = if vitals.is_none_or(Vitals::is_alive) {
+                    GridFlags::PUSHABLE
+                } else {
+                    GridFlags::empty()
+                };
+                grid_row(&state.0, &kind.0, id.0, flags)
+            })
             .collect();
         scene.step();
 

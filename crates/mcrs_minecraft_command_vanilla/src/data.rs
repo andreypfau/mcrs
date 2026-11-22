@@ -69,10 +69,10 @@ pub(crate) fn run(
                 ),
                 2,
             ),
-            "Health" => (
-                format!("{}f", java_float(living.health)),
-                living.health as i32,
-            ),
+            "Health" => {
+                let health = view.vitals.map_or(0.0, |vitals| vitals.health);
+                (format!("{}f", java_float(health)), health as i32)
+            }
             _ => {
                 return Err(CommandFailure::translate(
                     "arguments.nbtpath.nothing_found",

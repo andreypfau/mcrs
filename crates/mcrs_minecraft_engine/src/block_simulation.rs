@@ -6,7 +6,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::{not, resource_exists};
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
@@ -90,6 +90,9 @@ impl<B> BlockSimulationPlugin<B> {
     }
 }
 
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BlockSimulationSet;
+
 impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     for BlockSimulationPlugin<B>
 {
@@ -112,8 +115,9 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
                 run_block_simulation::<B>,
             )
                 .chain()
-                .in_set(TickSet::WorldWrite),
+                .in_set(BlockSimulationSet),
         );
+        app.configure_sets(FixedUpdate, BlockSimulationSet.in_set(TickSet::WorldWrite));
         app.add_systems(
             FixedPostUpdate,
             remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),

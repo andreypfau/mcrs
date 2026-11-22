@@ -1,12 +1,18 @@
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::LogLevel;
 use bevy_ecs::schedule::ScheduleBuildSettings;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::Damaged;
+use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
@@ -20,7 +26,6 @@ use mcrs_minecraft_engine_physics::MobSwing;
 use mcrs_minecraft_engine_physics::MobSwingSpec;
 use mcrs_minecraft_engine_physics::SpawnSetup;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::swing_mob;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
@@ -32,6 +37,7 @@ use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
@@ -154,13 +160,25 @@ fn ticks(scene: &mut TestScene, count: usize) -> Vec<Seen> {
     (0..count).flat_map(|_| tick(scene)).collect()
 }
 
-fn hurt(scene: &mut TestScene, pig: Entity, amount: f32) -> Option<HitOutcome> {
+fn hurt(scene: &mut TestScene, pig: Entity, amount: f32) {
     let tick = scene.tick;
-    let world = scene.app.world_mut();
-    world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
-        let mut state = world.get_mut::<MotionState>(pig)?;
-        hurt_mob(pig, &mut state.0, &mut changes, Hit::new(amount, 7), tick)
-    })
+    let mut pending = scene.app.world_mut().resource_mut::<PendingHits>();
+    let sequence = u32::try_from(pending.len()).expect("a short queue");
+    pending.push(DamageRequest::new(
+        pig,
+        Hit::new(amount, DamageSource::of(7)),
+        WriterKey::Command { sequence: 0 },
+        tick,
+        sequence,
+    ));
+}
+
+fn outcome(scene: &TestScene, pig: Entity) -> Option<HitOutcome> {
+    (scene.app.world().resource::<Messages<Damaged>>())
+        .iter_current_update_messages()
+        .filter(|damaged| damaged.target == pig)
+        .map(|damaged| damaged.report.outcome)
+        .last()
 }
 
 fn swing(scene: &mut TestScene, pig: Entity, spec: MobSwingSpec) -> bool {
@@ -168,8 +186,17 @@ fn swing(scene: &mut TestScene, pig: Entity, spec: MobSwingSpec) -> bool {
     let world = scene.app.world_mut();
     world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
         let state = world.get::<MotionState>(pig).expect("pig state").0;
+        let vitals = world.get::<Vitals>(pig).copied();
         let mut tracker = world.get_mut::<MobSwing>(pig).expect("pig swing");
-        swing_mob(pig, &state, &mut tracker, &mut changes, spec, tick)
+        swing_mob(
+            pig,
+            &state,
+            vitals.as_ref(),
+            &mut tracker,
+            &mut changes,
+            spec,
+            tick,
+        )
     })
 }
 
@@ -259,8 +286,9 @@ fn a_killed_mob_is_hurt_dies_and_is_removed_after_its_death_time() {
     let pig = summon(&mut scene, DVec3::new(4.5, f64::from(FLOOR), 4.5));
     ticks(&mut scene, 5);
 
-    assert_eq!(hurt(&mut scene, pig, 1.0), Some(HitOutcome::Full));
+    hurt(&mut scene, pig, 1.0);
     let hurt_tick = tick(&mut scene);
+    assert_eq!(outcome(&scene, pig), Some(HitOutcome::Full));
     assert_eq!(
         hurt_tick.get(..2),
         Some(

@@ -1,4 +1,5 @@
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_physics::CORPSE_REMOVAL_TICKS;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
@@ -41,16 +42,17 @@ impl MobSwingSpec {
 pub fn swing_mob(
     entity: Entity,
     state: &EntityState,
+    vitals: Option<&Vitals>,
     swing: &mut MobSwing,
     changes: &mut MobChanges,
     spec: MobSwingSpec,
     tick: u64,
 ) -> bool {
-    let Some(living) = state.living.as_ref() else {
+    if state.living.is_none() {
         return false;
-    };
-    if living
-        .death_time
+    }
+    if vitals
+        .and_then(|vitals| vitals.death_time)
         .is_some_and(|death_time| death_time >= CORPSE_REMOVAL_TICKS)
     {
         return false;
@@ -79,93 +81,126 @@ mod tests {
     use mcrs_minecraft_entity_key::EntityUuid;
     use mcrs_minecraft_physics::{Body, Living};
 
-    fn alive_state() -> EntityState {
+    fn living_state() -> EntityState {
         EntityState::new(
             EntityUuid::from_u128(1),
             Body {
                 position: DVec3::new(3.5, 64.0, 3.5),
                 ..Body::default()
             },
-            Some(Living {
-                health: 10.0,
-                ..Living::default()
-            }),
+            Some(Living::default()),
         )
     }
 
-    fn dying_state(death_time: u8) -> EntityState {
-        EntityState::new(
-            EntityUuid::from_u128(1),
-            Body {
-                position: DVec3::new(3.5, 64.0, 3.5),
-                ..Body::default()
-            },
-            Some(Living {
-                health: 0.0,
-                death_time: Some(death_time),
-                ..Living::default()
-            }),
-        )
+    fn dying_vitals(death_time: u8) -> Vitals {
+        Vitals {
+            health: 0.0,
+            death_time: Some(death_time),
+            ..Vitals::default()
+        }
     }
 
     #[test]
-    fn swing_mob_checks_living_state_cooldown_and_modifier_scaling() {
+    fn swing_mob_checks_living_and_corpse_removal_eligibility() {
         let entity = Entity::from_raw_u32(7).expect("entity");
         let non_living = EntityState::new(EntityUuid::from_u128(2), Body::default(), None);
-        let alive = alive_state();
+        let living = living_state();
+        let default_spec = MobSwingSpec::new(Hand::Main, SwingAnimationKind::Whack, 6);
+        let removed = dying_vitals(CORPSE_REMOVAL_TICKS);
+        let dying = dying_vitals(CORPSE_REMOVAL_TICKS - 1);
+        let cases = [
+            (&non_living, None, false, "non-living state must not swing"),
+            (
+                &living,
+                Some(&removed),
+                false,
+                "a mob at corpse removal must not swing",
+            ),
+            (
+                &living,
+                Some(&dying),
+                true,
+                "a dying mob swings until corpse removal",
+            ),
+            (&living, None, true, "a living mob without vitals can swing"),
+        ];
+        for (state, vitals, expected, reason) in cases {
+            let mut swing = MobSwing::default();
+            let mut changes = MobChanges::default();
+            assert_eq!(
+                swing_mob(
+                    entity,
+                    state,
+                    vitals,
+                    &mut swing,
+                    &mut changes,
+                    default_spec,
+                    10
+                ),
+                expected,
+                "{reason}"
+            );
+            assert_eq!(changes.swings().len(), usize::from(expected), "{reason}");
+        }
+    }
+
+    #[test]
+    fn swing_mob_enforces_cooldown_and_modifier_scaling() {
+        let entity = Entity::from_raw_u32(7).expect("entity");
+        let living = living_state();
+        let alive = Vitals::new(10.0);
         let mut swing = MobSwing::default();
         let mut changes = MobChanges::default();
         let default_spec = MobSwingSpec::new(Hand::Main, SwingAnimationKind::Whack, 6);
+        let haste = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 10)
+            .with_modifiers(SwingModifiers::from_effects([("minecraft:haste", 2)]));
 
+        assert!(
+            swing_mob(
+                entity,
+                &living,
+                Some(&alive),
+                &mut swing,
+                &mut changes,
+                haste,
+                10
+            ),
+            "alive mob starts swing"
+        );
         assert!(
             !swing_mob(
                 entity,
-                &non_living,
+                &living,
+                Some(&alive),
                 &mut swing,
                 &mut changes,
                 default_spec,
                 10
             ),
-            "non-living state must not swing"
-        );
-        let removed = dying_state(CORPSE_REMOVAL_TICKS);
-        assert!(
-            !swing_mob(entity, &removed, &mut swing, &mut changes, default_spec, 10),
-            "a mob at corpse removal must not swing"
-        );
-        assert!(changes.swings().is_empty(), "rejected swings push nothing");
-
-        let dying = dying_state(CORPSE_REMOVAL_TICKS - 1);
-        let mut dying_swing = MobSwing::default();
-        assert!(
-            swing_mob(
-                entity,
-                &dying,
-                &mut dying_swing,
-                &mut changes,
-                default_spec,
-                10
-            ),
-            "a dying mob swings until corpse removal"
-        );
-        changes = MobChanges::default();
-
-        let haste = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 10)
-            .with_modifiers(SwingModifiers::from_effects([("minecraft:haste", 2)]));
-        assert!(
-            swing_mob(entity, &alive, &mut swing, &mut changes, haste, 10),
-            "alive mob starts swing"
-        );
-        assert!(
-            !swing_mob(entity, &alive, &mut swing, &mut changes, default_spec, 10),
             "SWG-STA-004: same-tick second swing is suppressed"
         );
         assert!(
-            !swing_mob(entity, &alive, &mut swing, &mut changes, default_spec, 13),
+            !swing_mob(
+                entity,
+                &living,
+                Some(&alive),
+                &mut swing,
+                &mut changes,
+                default_spec,
+                13
+            ),
             "CMD-SWG-006: haste 2 scales B=10 to D=7 blocking T+3"
         );
         assert!(
-            swing_mob(entity, &alive, &mut swing, &mut changes, default_spec, 14),
+            swing_mob(
+                entity,
+                &living,
+                Some(&alive),
+                &mut swing,
+                &mut changes,
+                default_spec,
+                14
+            ),
             "CMD-SWG-006: D=7 unlocks at T+4"
         );
         assert_eq!(

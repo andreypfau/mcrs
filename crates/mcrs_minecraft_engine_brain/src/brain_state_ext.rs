@@ -23,6 +23,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::BlockGoalWorld;
 use crate::BrainState;
+use crate::sensed::Sensed;
 
 pub(crate) struct Observed {
     pub(crate) view: MobView,
@@ -38,7 +39,7 @@ pub(crate) trait BrainStateExt {
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
-        state: &EntityState,
+        sensed: Sensed<'_>,
     ) -> Observed;
 
     fn apply(&mut self, intents: &Intents, state: &EntityState);
@@ -47,7 +48,7 @@ pub(crate) trait BrainStateExt {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         tick: u64,
-        state: &EntityState,
+        sensed: Sensed<'_>,
     ) -> Option<(MobIntent, Option<PathEnd>)>;
 }
 
@@ -58,16 +59,18 @@ impl BrainStateExt for BrainState {
         players: &PlayerTable,
         tick: u64,
         id: EntityId,
-        state: &EntityState,
+        sensed: Sensed<'_>,
     ) -> Observed {
+        let state = sensed.state;
         let living = state.living.unwrap_or_default();
         let position = state.body.position;
         self.turned = self.travelled.take().map(|input| {
             self.control
                 .after_travel(&input, position, rotations(&living))
         });
-        let hit = state.hits.last();
-        let strikes = state.hits.strikes();
+        let hits = sensed.hits.copied().unwrap_or_default();
+        let hit = hits.last();
+        let strikes = hits.strikes();
         let hurt = hit.is_some() && hit != self.last_hit;
         self.last_hit = hit;
         let struck_now = strikes != self.strikes;
@@ -99,7 +102,7 @@ impl BrainStateExt for BrainState {
         self.stalled = stalled;
         self.age = Some(state.age);
         let marks = [
-            (living.is_alive(), MobFlags::ALIVE),
+            (sensed.is_alive(), MobFlags::ALIVE),
             (state.body.flags.on_ground, MobFlags::ON_GROUND),
             (self.panic == Panic::Panicking, MobFlags::IN_PANIC),
         ];
@@ -136,9 +139,10 @@ impl BrainStateExt for BrainState {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         tick: u64,
-        state: &EntityState,
+        sensed: Sensed<'_>,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
-        let living = state.living.filter(Living::is_alive)?;
+        let state = sensed.state;
+        let living = state.living.filter(|_| sensed.is_alive())?;
         let head_yaw_limit = self.kind.mob()?.head_yaw_limit;
         let position = state.body.position;
         let turned = self.turned.take();

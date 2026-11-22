@@ -1,7 +1,6 @@
 use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Body;
-use crate::HitRecord;
 use crate::Living;
 use crate::MovePath;
 use crate::Rest;
@@ -11,7 +10,6 @@ pub struct EntityState {
     pub key: EntityUuid,
     pub body: Body,
     pub living: Option<Living>,
-    pub hits: HitRecord,
     pub no_gravity: bool,
     pub age: u32,
     pub phase: u8,
@@ -26,7 +24,6 @@ impl EntityState {
             key,
             body,
             living,
-            hits: HitRecord::default(),
             no_gravity: false,
             age: 0,
             phase: 0,

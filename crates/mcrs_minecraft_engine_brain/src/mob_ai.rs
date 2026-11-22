@@ -17,6 +17,8 @@ use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
+use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_entity_motion::MobIntent;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
@@ -25,7 +27,6 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_goal_world::GoalWorld;
-use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_volume::BlockVolume;
 
 use crate::AiStats;
@@ -33,6 +34,7 @@ use crate::BlockGoalWorld;
 use crate::BrainState;
 use crate::brain_state_ext::BrainStateExt;
 use crate::run_tiles::run_tiles;
+use crate::sensed::Sensed;
 
 pub(crate) type Thinking<'w, 's> = Query<
     'w,
@@ -40,6 +42,8 @@ pub(crate) type Thinking<'w, 's> = Query<
     (
         &'static MotionId,
         &'static MotionState,
+        Option<&'static Vitals>,
+        Option<&'static HitRecord>,
         &'static mut BrainState,
         &'static mut MobIntent,
     ),
@@ -170,7 +174,14 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         let shared = &*threads;
         mobs.par_iter_mut().for_each_init(
             || shared.borrow_local_mut(),
-            |out, (id, state, brain, intent)| pass.think(out, id.0, &state.0, brain, intent),
+            |out, (id, state, vitals, hits, brain, intent)| {
+                let sensed = Sensed {
+                    state: &state.0,
+                    vitals,
+                    hits,
+                };
+                pass.think(out, id.0, sensed, brain, intent);
+            },
         );
         let ran = Instant::now();
         self.publish(threads, players);
@@ -293,12 +304,13 @@ impl<B, V: BlockVolume> Pass<'_, B, V> {
         &self,
         out: &mut BrainOut,
         id: EntityId,
-        state: &EntityState,
+        sensed: Sensed<'_>,
         mut brain: Mut<'_, BrainState>,
         mut intent: Mut<'_, MobIntent>,
     ) {
         let mut next = *brain;
-        let observed = next.observe(self.panic_causes, self.players, self.tick, id, state);
+        let state = sensed.state;
+        let observed = next.observe(self.panic_causes, self.players, self.tick, id, sensed);
         let kinds = [
             (observed.struck, FactKind::Hurt),
             (observed.idle_reset, FactKind::IdleReset),
@@ -320,7 +332,7 @@ impl<B, V: BlockVolume> Pass<'_, B, V> {
                 out.applied = out.applied.saturating_add(1);
             }
         }
-        if let Some((steered, ended)) = next.steer(self.world, self.tick, state) {
+        if let Some((steered, ended)) = next.steer(self.world, self.tick, sensed) {
             intent.set_if_neq(steered);
             if ended.is_some() {
                 out.ended.push(id);
