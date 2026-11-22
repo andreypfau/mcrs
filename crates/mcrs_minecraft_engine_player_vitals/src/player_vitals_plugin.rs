@@ -1,4 +1,5 @@
 use crate::hide_dead_players::hide_dead_players;
+use crate::respawn_players::{HiddenForRespawn, respawn_players, show_respawned_players};
 use crate::send_health::send_health;
 use crate::send_kill::send_kill;
 use crate::signal_hits::signal_player_hits;
@@ -6,17 +7,15 @@ use crate::{DeathMessage, PlayerDeathSet};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::observer::On;
-use bevy_ecs::schedule::common_conditions::on_message;
+use bevy_ecs::schedule::common_conditions::{any_with_component, on_message};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use bevy_ecs::system::{Commands, Query};
 use mcrs_minecraft_damage::{Defence, HitRecord, Vitals};
-use mcrs_minecraft_engine::{OwnAttributesSet, PoseSystems};
-use mcrs_minecraft_engine_damage::{DamagePlugin, DamageSet, Damaged, Died};
-use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine::{OwnAttributesSet, PoseSystems, max_health};
+use mcrs_minecraft_engine_damage::{DamagePlugin, DamageSet, Damaged, Died, RespawnRequest};
+use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
-use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerVitalsPlugin;
@@ -66,6 +65,18 @@ impl Plugin for PlayerVitalsPlugin {
                 .in_set(TickSet::Project)
                 .after(signal_player_hits),
         );
+        app.add_message::<RespawnRequest>();
+        app.add_message::<ChangeDimensionRequest>();
+        app.add_systems(
+            FixedUpdate,
+            (
+                show_respawned_players.run_if(any_with_component::<HiddenForRespawn>),
+                respawn_players.run_if(on_message::<RespawnRequest>),
+            )
+                .chain()
+                .in_set(TickSet::WorldWrite)
+                .after(DamageSet::Report),
+        );
     }
 }
 
@@ -75,15 +86,8 @@ fn give_spawned_player_vitals(
     mut commands: Commands,
 ) {
     let player = add.event().entity;
-    let max_health = attributes.get(player).map_or_else(
-        |_| {
-            mcrs_minecraft_entity::attribute_bases(EntityType::Player)
-                .and_then(|bases| bases.base(Attribute::MaxHealth))
-        },
-        |instances| instances.value(Attribute::MaxHealth),
-    );
     commands.entity(player).insert_if_new((
-        Vitals::new(max_health.unwrap_or_default() as f32),
+        Vitals::new(max_health(attributes.get(player).ok())),
         HitRecord::default(),
         Defence::default(),
     ));

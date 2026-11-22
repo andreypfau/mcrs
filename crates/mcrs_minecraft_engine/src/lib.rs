@@ -87,6 +87,7 @@ mod publish_player_tiles;
 mod publish_pose;
 mod random_tick_speed;
 mod replicated;
+mod respawn_packet;
 mod send_own_attributes;
 pub mod server_edit;
 mod shift_key;
@@ -127,6 +128,7 @@ pub use persistence::{
 pub use player_dimensions::{PlayerBody, PlayerBodyItem, player_dimensions, player_scale};
 pub use pose_systems::PoseSystems;
 pub use publish_player_tiles::HiddenPlayer;
+pub use respawn_packet::{KeptPlayerData, respawn_packet};
 pub use send_own_attributes::OwnAttributesSet;
 pub use shift_key::ShiftKey;
 pub use world_state::{

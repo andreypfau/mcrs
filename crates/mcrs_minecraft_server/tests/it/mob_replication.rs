@@ -12,16 +12,17 @@ use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
-use mcrs_minecraft_engine_damage::Died;
+use mcrs_minecraft_engine_damage::{Died, RespawnRequest};
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
 use mcrs_minecraft_engine_mob_attributes::MobAttributes;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_player_vitals::{DeathMessage, PlayerDeathSet};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_world::world::sub_app::{AddDimensionPlugins, DimensionLabel};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
@@ -1128,6 +1129,110 @@ fn assert_removed_after_death_and_shown_again(
         ],
         [1, 1],
         "each viewer in range gets the spawn of the shown player again"
+    );
+}
+
+#[derive(Debug, PartialEq)]
+enum Respawned {
+    Respawn { data_to_keep: u8 },
+    Position { at: DVec3 },
+    Health { health: f32 },
+}
+
+fn respawned(packets: &[PacketPayload]) -> Vec<Respawned> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::Respawn(packet) => Some(Respawned::Respawn {
+                data_to_keep: packet.data_to_keep,
+            }),
+            PacketPayload::PlayerPosition(packet) => Some(Respawned::Position {
+                at: packet.position,
+            }),
+            PacketPayload::SetHealth(packet) => Some(Respawned::Health {
+                health: packet.health,
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_respawn_request_restores_a_dead_player_and_shows_it_again() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (target, _) = server.join(OPERATOR, "op");
+    let (watcher, _) = server.join(WATCHER, "watcher");
+    let _ = server.ticks_all(5);
+    let target_session = server.session_of(target).unwrap();
+    let watcher_session = server.session_of(watcher).unwrap();
+    let id = player_network_id(target_session);
+    let player = server.player(target);
+    server.queue(
+        target,
+        &ServerboundChatCommand {
+            command: Bounded("kill @s"),
+        },
+    );
+    let _ = server.ticks_all(2);
+    let dimension = server.world().resource::<DimensionLabel>().0;
+    let at =
+        server.world().get::<Transform>(player).unwrap().translation + DVec3::new(3.0, 0.0, 0.0);
+    let request = RespawnRequest {
+        player,
+        dimension,
+        transform: Transform::from_translation(at),
+    };
+    let about_target = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter_map(|seen| match seen {
+                Seen::Add { id: subject, .. } if subject == id => Some("spawn"),
+                Seen::Remove { ids } if ids.contains(&id) => Some("removal"),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    server.world().write_message(request);
+    let raw = server.ticks_all(3);
+    assert_eq!(
+        respawned(&sent_to(target_session, raw.clone())),
+        vec![
+            Respawned::Respawn { data_to_keep: 0 },
+            Respawned::Position { at },
+            Respawned::Health { health: 20.0 }
+        ],
+        "PLD-NET-001: respawn, then the position, then the restored health"
+    );
+    assert_eq!(
+        *server.world().get::<Vitals>(player).unwrap(),
+        Vitals::new(20.0),
+        "PLD-RST-002: the respawned player is alive with its max health"
+    );
+    assert_eq!(
+        about_target(sent_to(watcher_session, raw)),
+        vec!["removal", "spawn"],
+        "PLD-NET-005: the viewer removes the dead player, then spawns it with the same id"
+    );
+
+    server.world().write_message(request);
+    let raw = server.ticks_all(3);
+    assert_eq!(
+        respawned(&sent_to(target_session, raw.clone())),
+        Vec::new(),
+        "PLD-RSP-001: a living player does not respawn"
+    );
+    assert_eq!(
+        about_target(sent_to(watcher_session, raw)),
+        Vec::<&str>::new()
     );
 }
 
