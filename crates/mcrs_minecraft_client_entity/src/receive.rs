@@ -7,8 +7,8 @@ use mcrs_minecraft_client_world::session::InSession;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_key::{Cause, EntityUuid};
 use mcrs_minecraft_entity_attribute::{AttributeInstances, InstanceChange};
+use mcrs_minecraft_entity_key::{Cause, EntityUuid};
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, Placement, PlayerPoseTicks, ServerTicking,
     SleepingBed, SyncedData, TickVelocity,

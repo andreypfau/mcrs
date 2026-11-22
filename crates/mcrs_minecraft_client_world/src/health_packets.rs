@@ -71,9 +71,8 @@ mod tests {
     #[test]
     fn set_health_writes_the_vitals_and_the_food_level_of_the_own_player() {
         let mut session = TestSession::new(DVec3::ZERO);
-        let vitals = |session: &TestSession| {
-            *session.app.world().get::<Vitals>(session.player).unwrap()
-        };
+        let vitals =
+            |session: &TestSession| *session.app.world().get::<Vitals>(session.player).unwrap();
 
         session.receive(set_health(0.0, 3, 0.5));
         assert_eq!(vitals(&session).health, 0.0);
