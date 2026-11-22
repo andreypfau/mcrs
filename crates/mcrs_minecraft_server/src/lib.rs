@@ -24,6 +24,7 @@ use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlugin};
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
+use mcrs_minecraft_vanilla_death::DeathDropsPlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_respawn::RespawnPlugin;
@@ -84,6 +85,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaPlayerPosePlugin)
             .add(VanillaEntityAttributesPlugin)
             .add(VanillaRespawnPlugin)
+            .add(VanillaDeathDropsPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
@@ -132,6 +134,14 @@ pub struct VanillaRespawnPlugin;
 impl Plugin for VanillaRespawnPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(RespawnPlugin);
+    }
+}
+
+pub struct VanillaDeathDropsPlugin;
+
+impl Plugin for VanillaDeathDropsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(DeathDropsPlugin);
     }
 }
 

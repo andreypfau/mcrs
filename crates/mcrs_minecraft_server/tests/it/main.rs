@@ -33,6 +33,7 @@ mod configuration_registries;
 mod configuration_start;
 mod configuration_tags;
 mod cross_player_isolation;
+mod death_drops;
 mod dimension_change;
 mod dimension_list;
 mod dimension_plugins;
