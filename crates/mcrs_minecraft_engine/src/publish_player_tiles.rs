@@ -4,6 +4,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -63,7 +64,12 @@ pub fn publish_player_tiles(
             Has<AnnounceJoin>,
             Option<&CrossedAt>,
             Option<&AttributeInstances>,
-            (&mcrs_minecraft_pose::Pose, &ShiftKey, &PlayerSprinting),
+            (
+                &mcrs_minecraft_pose::Pose,
+                &ShiftKey,
+                &PlayerSprinting,
+                Option<&Vitals>,
+            ),
             Has<HiddenPlayer>,
         ),
         With<Player>,
@@ -81,7 +87,7 @@ pub fn publish_player_tiles(
         announce,
         crossed,
         attributes,
-        (&body_pose, &shift, &sprinting),
+        (&body_pose, &shift, &sprinting, vitals),
         hidden,
     ) in &mut players
     {
@@ -112,7 +118,7 @@ pub fn publish_player_tiles(
                         pose: pose(&transform),
                         game_mode,
                         attributes: attributes.map(stored_attributes).unwrap_or_default(),
-                        entries: pose_entries(body_pose, shift, sprinting),
+                        entries: pose_entries(body_pose, shift, sprinting, vitals),
                     })
                     .into(),
                 ),

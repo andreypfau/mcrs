@@ -929,6 +929,31 @@ fn hurt_animations(packets: &[PacketPayload]) -> Vec<i32> {
         .collect()
 }
 
+fn data_about(packets: &[PacketPayload], id: i32) -> Vec<Seen> {
+    let mut viewer = Viewer::new();
+    viewer.receive(packets.iter().filter_map(as_record).collect());
+    viewer
+        .seen
+        .into_iter()
+        .filter(|seen| match seen {
+            Seen::Data { id: subject, .. } | Seen::Dying { id: subject, .. } => *subject == id,
+            _ => false,
+        })
+        .collect()
+}
+
+fn as_record(payload: &PacketPayload) -> Option<PacketPayload> {
+    match payload {
+        PacketPayload::Replication(_) => Some(payload.clone()),
+        PacketPayload::OwnEntityState(packet) => {
+            let length = u32::try_from(packet.len()).unwrap();
+            let record = [&length.to_be_bytes()[..], packet].concat();
+            Some(PacketPayload::Replication(vec![record.into()]))
+        }
+        _ => None,
+    }
+}
+
 fn seen_about(packets: Vec<PacketPayload>, id: i32) -> Vec<Seen> {
     let mut viewer = Viewer::new();
     viewer.receive(packets);
@@ -940,6 +965,39 @@ fn seen_about(packets: Vec<PacketPayload>, id: i32) -> Vec<Seen> {
             _ => false,
         })
         .collect()
+}
+
+struct Round {
+    hurt: Vec<i32>,
+    own: Vec<Seen>,
+    other: Vec<Seen>,
+    deaths: [Vec<Kill>; 2],
+    data: [Vec<Seen>; 2],
+}
+
+fn run_command(
+    server: &mut PlayServer,
+    target: Entity,
+    [target_session, watcher_session]: [PlayerSession; 2],
+    command: &'static str,
+) -> Round {
+    let id = player_network_id(target_session);
+    server.queue(
+        target,
+        &ServerboundChatCommand {
+            command: Bounded(command),
+        },
+    );
+    let raw = server.ticks_all(2);
+    let own = sent_to(target_session, raw.clone());
+    let other = sent_to(watcher_session, raw);
+    Round {
+        hurt: hurt_animations(&own),
+        deaths: [kills(&own), kills(&other)],
+        data: [data_about(&own, id), data_about(&other, id)],
+        own: seen_about(own, id),
+        other: seen_about(other, id),
+    }
 }
 
 #[test]
@@ -960,57 +1018,59 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
     let watcher_id = player_network_id(watcher_session);
     let watcher_player = server.player(watcher);
     server.world().entity_mut(watcher_player).insert(Described);
-    let run = |server: &mut PlayServer, command: &'static str| {
-        server.queue(
-            target,
-            &ServerboundChatCommand {
-                command: Bounded(command),
-            },
-        );
-        let raw = server.ticks_all(2);
-        let own = sent_to(target_session, raw.clone());
-        let other = sent_to(watcher_session, raw);
-        let deaths = [kills(&own), kills(&other)];
-        (
-            hurt_animations(&own),
-            seen_about(own, id),
-            seen_about(other, id),
-            deaths,
-        )
-    };
+    let sessions = [target_session, watcher_session];
+    let run = |server: &mut PlayServer, command| run_command(server, target, sessions, command);
     let _ = run(&mut server, "gamemode survival");
 
-    for (command, hurt_animations) in [
-        ("damage @s 4 minecraft:mob_attack", vec![id]),
-        ("damage @s 4 minecraft:generic", Vec::new()),
+    for (command, hurt_animations, health) in [
+        ("damage @s 4 minecraft:mob_attack", vec![id], 16.0),
+        ("damage @s 4 minecraft:generic", Vec::new(), 12.0),
     ] {
         let _ = server.ticks_all(20);
-        let (hurt, own, other, deaths) = run(&mut server, command);
+        let round = run(&mut server, command);
+        let health = || Seen::Data {
+            id,
+            health: Some(health),
+        };
         assert_eq!(
-            deaths,
+            round.data,
+            [vec![health()], vec![health()]],
+            "{command}: the hit player and its viewer get the health entry"
+        );
+        assert_eq!(
+            round.deaths,
             [Vec::new(), Vec::new()],
             "{command}: no kill packet"
         );
         assert_eq!(
-            hurt, hurt_animations,
+            round.hurt, hurt_animations,
             "{command}: hurt animations of the hit player"
         );
         assert_eq!(
-            own,
+            round.own,
             vec![Seen::Hurt { id }],
             "{command}: the hit player gets the damage event"
         );
         assert_eq!(
-            other,
+            round.other,
             vec![Seen::Hurt { id }],
             "{command}: the viewer gets the damage event"
         );
     }
 
     let _ = server.ticks_all(20);
-    let (_, own, other, deaths) = run(&mut server, "kill @s");
+    let round = run(&mut server, "kill @s");
+    let dying = || Seen::Dying {
+        id,
+        health: Some(0.0),
+    };
     assert_eq!(
-        deaths,
+        round.data,
+        [vec![dying()], vec![dying()]],
+        "the death sends the dying pose and the health in one entity data packet"
+    );
+    assert_eq!(
+        round.deaths,
         [
             vec![Kill {
                 id,
@@ -1022,18 +1082,17 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
     );
     let died = Seen::Event { id, event: 3 };
     assert!(
-        !own.contains(&died),
+        !round.own.contains(&died),
         "the dying player is not its own tracker"
     );
     assert_eq!(
-        other.iter().filter(|seen| **seen == died).count(),
+        round.other.iter().filter(|seen| **seen == died).count(),
         1,
         "the viewer gets the entity event 3 once"
     );
 
-    let (_, _, _, deaths) = run(&mut server, "kill @a");
     assert_eq!(
-        deaths,
+        run(&mut server, "kill @a").deaths,
         [
             Vec::new(),
             vec![Kill {
