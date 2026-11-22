@@ -141,16 +141,9 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::joined_game::JoinedGame;
-        use crate::test_session::{OWN_PLAYER, Server, receive};
-        use mcrs_minecraft_network::client::{
-            ClientNetworkPlugin, JoinRequest, finish_configuration,
-        };
+        use crate::test_session::{Joined, Server, joined, receive};
         use mcrs_minecraft_protocol::{Decode, Packet};
         use mcrs_minecraft_protocol_game::serverbound::ServerboundClientTickEnd;
-        use std::net::TcpListener;
-        use std::thread;
-        use std::time::Duration;
 
         fn carried_items(server: &mut Server, ticks: usize) -> Vec<Vec<u16>> {
             let mut sent = vec![Vec::new()];
@@ -170,40 +163,12 @@ mod tests {
         #[test]
         fn a_slot_from_the_server_goes_back_once() {
             let mut app = TestSession::new(DVec3::ZERO).app;
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            app.add_plugins((
-                HotbarSyncPlugin,
-                ClientNetworkPlugin {
-                    holds_vanilla_pack: false,
-                    play: None,
-                },
-            ));
-            app.world_mut().write_message(JoinRequest {
-                server: listener.local_addr().unwrap(),
-                username: "Steve".to_owned(),
-                profile_id: None,
-                view_distance: 8,
-            });
-            app.update();
-            let (mut server, _information) = Server::join(&listener);
-            let connection = (0..1000)
-                .find_map(|_| {
-                    app.update();
-                    thread::sleep(Duration::from_millis(10));
-                    app.world_mut()
-                        .query_filtered::<Entity, With<ClientConnection>>()
-                        .single(app.world())
-                        .ok()
-                })
-                .expect("the client joins");
-            finish_configuration(&mut app.world_mut().commands(), connection);
-            app.world_mut().flush();
-            app.update();
-            let _finished = server.next_frame();
-            app.world_mut().entity_mut(connection).insert(JoinedGame {
-                player_id: OWN_PLAYER,
-                dimensions: Vec::new(),
-            });
+            app.add_plugins(HotbarSyncPlugin);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(app);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(
                 &mut app,

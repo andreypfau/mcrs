@@ -187,12 +187,8 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::joined_game::JoinedGame;
-        use crate::test_session::Server;
+        use crate::test_session::{Joined, Server, joined};
         use mcrs_minecraft_core::Look;
-        use mcrs_minecraft_network::client::{
-            ClientConnection, ClientNetworkPlugin, JoinRequest, finish_configuration,
-        };
         use mcrs_minecraft_pose::Pose;
         use mcrs_minecraft_protocol::Packet;
         use mcrs_minecraft_protocol_game::ColumnPos;
@@ -205,44 +201,6 @@ mod tests {
             ServerboundClientTickEnd, ServerboundMovePlayerPos, ServerboundPlayerInput,
             ServerboundPlayerLoaded,
         };
-        use std::net::TcpListener;
-        use std::thread;
-        use std::time::Duration;
-
-        fn joined(mut app: App) -> (App, Server, Entity) {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            app.add_plugins(ClientNetworkPlugin {
-                holds_vanilla_pack: false,
-                play: None,
-            });
-            app.world_mut().write_message(JoinRequest {
-                server: listener.local_addr().unwrap(),
-                username: "Steve".to_owned(),
-                profile_id: None,
-                view_distance: 8,
-            });
-            app.update();
-            let (mut server, _information) = Server::join(&listener);
-            let connection = (0..1000)
-                .find_map(|_| {
-                    app.update();
-                    thread::sleep(Duration::from_millis(10));
-                    app.world_mut()
-                        .query_filtered::<Entity, With<ClientConnection>>()
-                        .single(app.world())
-                        .ok()
-                })
-                .expect("the client joins");
-            finish_configuration(&mut app.world_mut().commands(), connection);
-            app.world_mut().flush();
-            app.update();
-            let _finished = server.next_frame();
-            app.world_mut().entity_mut(connection).insert(JoinedGame {
-                player_id: OWN_PLAYER,
-                dimensions: Vec::new(),
-            });
-            (app, server, connection)
-        }
 
         const LEVEL_CHUNKS_LOAD_START: ClientboundGameEvent = ClientboundGameEvent {
             game_event: GameEventKind::LevelChunksLoadStart,
@@ -281,7 +239,11 @@ mod tests {
         fn a_held_shift_key_goes_to_the_server_once_and_crouches_the_local_player() {
             let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
             let player = session.player;
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
             app.insert_resource(MovementInput {
@@ -309,7 +271,11 @@ mod tests {
         #[test]
         fn a_shift_key_held_through_the_load_goes_out_after_player_loaded() {
             let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             let spawn_column = ColumnPos::new(0, 0);
             let column = {
                 let mut columns = app.world_mut().resource_mut::<ColumnStore>();
@@ -357,7 +323,11 @@ mod tests {
         fn a_dropped_player_lands_and_its_move_packet_carries_the_ground_flag() {
             let session = TestSession::new(DVec3::ZERO);
             let player = session.player;
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(
                 &mut app,

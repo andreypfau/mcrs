@@ -23,7 +23,6 @@ use mcrs_minecraft_protocol_game::serverbound::{
 use crate::attribute_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
-use crate::hardcore_mode;
 use crate::health_packets;
 use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_motion::{self, LocalMotion};
@@ -108,8 +107,8 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(attribute_packets::on_update_attributes)
             .add_observer(health_packets::on_set_health)
             .add_observer(player_killed::on_player_combat_kill)
-            .add_observer(respawn_screen::on_login)
-            .add_observer(hardcore_mode::on_login)
+            .add_observer(health_packets::on_set_entity_data)
+            .add_observer(health_packets::on_respawn)
             .add_observer(respawn_screen::on_game_event)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)

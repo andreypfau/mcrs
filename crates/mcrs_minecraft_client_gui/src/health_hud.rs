@@ -22,8 +22,6 @@ const HEALTH_PER_ROW: f32 = 20.0;
 const ROW_HEIGHT_BASE: i32 = 12;
 const MIN_ROW_HEIGHT: i32 = 3;
 const SHAKE_HEALTH: i32 = 4;
-const NEW_PLAYER_HEALTH: f32 = 20.0;
-const NEW_PLAYER_FOOD: i32 = 20;
 
 pub struct HealthHudPlugin;
 
@@ -77,8 +75,8 @@ fn draw_health_hud(
     player: Single<
         (
             &LocalGameMode,
-            Option<&Vitals>,
-            Option<&FoodLevel>,
+            &Vitals,
+            &FoodLevel,
             Option<&AttributeInstances>,
             Option<&HardcoreMode>,
         ),
@@ -95,17 +93,16 @@ fn draw_health_hud(
         return;
     }
     let hearts = Hearts {
-        health: vitals.map_or(NEW_PLAYER_HEALTH, |vitals| vitals.health),
+        health: vitals.health,
         max_health: attributes
             .and_then(|attributes| attributes.value(Attribute::MaxHealth))
             .unwrap_or(Attribute::MaxHealth.definition().default) as f32,
         hardcore: hardcore.copied().unwrap_or_default(),
         tick: ticks.0,
     };
-    let food = food.map_or(NEW_PLAYER_FOOD, |food| food.food);
     let scene = &mut *scene;
     push_hearts(hearts, scene.size, &mut scene.quads);
-    push_food_bar(food, scene.size, &mut scene.quads);
+    push_food_bar(food.food, scene.size, &mut scene.quads);
 }
 
 fn push_hearts(hearts: Hearts, size: GuiSize, quads: &mut Vec<GuiQuad>) {

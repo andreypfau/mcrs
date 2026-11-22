@@ -15,6 +15,7 @@ use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::hardcore_mode::HardcoreMode;
+use crate::health_packets::{NEW_PLAYER_FOOD, NEW_PLAYER_VITALS};
 use crate::local_motion::LocalMotion;
 use crate::local_player::LastSentInput;
 use crate::player::{Player, player_at};
@@ -77,7 +78,7 @@ fn in_session(registries: Option<&Registries>, spawn: &PlayerSpawnInfo) -> anyho
 fn on_login(
     event: On<Received<ClientboundLogin>>,
     registries: Option<Res<CurrentRegistries>>,
-    players: Query<(), With<Player>>,
+    players: Query<Entity, With<Player>>,
     mut commands: Commands,
 ) {
     let Some(login) = event.packet() else {
@@ -95,7 +96,11 @@ fn on_login(
                 },
                 CurrentDimension::of(&login.player_spawn_info),
             ));
-            if players.is_empty() {
+            if let Ok(player) = players.single() {
+                commands
+                    .entity(player)
+                    .insert((respawn_screen, hardcore_mode));
+            } else if players.is_empty() {
                 let mode = login.player_spawn_info.game_mode;
                 let mut player = commands.spawn((
                     player_at(DVec3::ZERO, 0.0, 0.0),
@@ -107,6 +112,8 @@ fn on_login(
                     PermissionLevel::default(),
                     respawn_screen,
                     hardcore_mode,
+                    NEW_PLAYER_VITALS,
+                    NEW_PLAYER_FOOD,
                     InSession(event.entity),
                     PlayerLoad::Loading(LoadProgress::default()),
                 ));

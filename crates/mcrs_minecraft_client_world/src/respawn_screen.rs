@@ -23,20 +23,6 @@ impl RespawnScreen {
     }
 }
 
-pub(crate) fn on_login(
-    event: On<Received<ClientboundLogin>>,
-    player: Query<Entity, With<Player>>,
-    mut commands: Commands,
-) {
-    if let Some(login) = event.packet()
-        && let Ok(player) = player.single()
-    {
-        commands
-            .entity(player)
-            .insert(RespawnScreen::from_login(&login));
-    }
-}
-
 pub(crate) fn on_game_event(
     event: On<Received<ClientboundGameEvent>>,
     mut screen: Query<&mut RespawnScreen, With<Player>>,

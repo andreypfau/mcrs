@@ -31,11 +31,11 @@ impl Plugin for DeathScreenPlugin {
             .add_systems(
                 Update,
                 (
+                    open_death_screen.run_if(on_message::<PlayerKilled>),
                     close_death_screen.run_if(
                         any_match_filter::<(With<Player>, Changed<Vitals>)>
                             .and_then(resource_equals(Screen::Death)),
                     ),
-                    open_death_screen.run_if(on_message::<PlayerKilled>),
                 )
                     .chain(),
             )
@@ -50,7 +50,6 @@ impl Plugin for DeathScreenPlugin {
 
 fn open_death_screen(
     mut kills: MessageReader<PlayerKilled>,
-    player: Query<Option<&RespawnScreen>, With<Player>>,
     mut screen: ResMut<Screen>,
     cursor: Option<Single<&mut CursorOptions, With<PrimaryWindow>>>,
     mut commands: Commands,
@@ -58,10 +57,7 @@ fn open_death_screen(
     let Some(killed) = kills.read().last() else {
         return;
     };
-    if player
-        .single()
-        .is_ok_and(|shown| shown == Some(&RespawnScreen::Immediate))
-    {
+    if killed.respawn_screen != RespawnScreen::Shown {
         return;
     }
     commands.insert_resource(DeathScreen::new(killed.message.clone()));
@@ -155,6 +151,7 @@ mod tests {
         });
         app.world_mut().write_message(PlayerKilled {
             message: Text::text("Steve fell from a high place"),
+            respawn_screen: RespawnScreen::Shown,
         });
         app.update();
         app.update();
@@ -181,6 +178,25 @@ mod tests {
             health: 20.0,
             ..Vitals::default()
         });
+        app.update();
+        assert_eq!(screen(&app), Screen::None);
+    }
+
+    #[test]
+    fn a_kill_and_a_living_player_in_one_frame_leave_no_death_screen() {
+        let mut app = game_app();
+        app.add_plugins(DeathScreenPlugin);
+        let player = app
+            .world_mut()
+            .query_filtered::<Entity, With<Player>>()
+            .single(app.world())
+            .unwrap();
+        app.world_mut().write_message(PlayerKilled {
+            message: Text::text("Steve fell from a high place"),
+            respawn_screen: RespawnScreen::Shown,
+        });
+        app.world_mut().entity_mut(player).insert(Vitals::new(20.0));
+        app.update();
         app.update();
         assert_eq!(screen(&app), Screen::None);
     }

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerCombatKill;
 use mcrs_minecraft_protocol_game::text::Text;
@@ -12,12 +13,14 @@ use crate::respawn_screen::RespawnScreen;
 #[derive(Message, Clone, Debug)]
 pub struct PlayerKilled {
     pub message: Text,
+    pub respawn_screen: RespawnScreen,
 }
 
 pub(crate) fn on_player_combat_kill(
     event: On<Received<ClientboundPlayerCombatKill<'static>>>,
     connections: Query<&JoinedGame>,
     screen: Query<&RespawnScreen, With<Player>>,
+    mut vitals: Query<&mut Vitals, With<Player>>,
     mut killed: MessageWriter<PlayerKilled>,
     mut respawn: MessageWriter<RequestRespawn>,
 ) {
@@ -30,12 +33,18 @@ pub(crate) fn on_player_combat_kill(
     {
         return;
     }
-    let message = chat_packets::server_text(&packet.message).unwrap_or_else(|| Text::text(""));
-    killed.write(PlayerKilled { message });
-    if screen
-        .single()
-        .is_ok_and(|screen| *screen == RespawnScreen::Immediate)
+    if let Ok(mut vitals) = vitals.single_mut()
+        && vitals.is_alive()
     {
+        vitals.death_time = Some(0);
+    }
+    let respawn_screen = screen.single().copied().unwrap_or_default();
+    let message = chat_packets::server_text(&packet.message).unwrap_or_else(|| Text::text(""));
+    killed.write(PlayerKilled {
+        message,
+        respawn_screen,
+    });
+    if respawn_screen == RespawnScreen::Immediate {
         respawn.write(RequestRespawn);
     }
 }
@@ -43,68 +52,33 @@ pub(crate) fn on_player_combat_kill(
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use bevy::math::DVec3;
-    use bevy::prelude::*;
+    use mcrs_minecraft_damage::Vitals;
     use mcrs_minecraft_game_mode::GameMode;
-    use mcrs_minecraft_network::client::{
-        ClientConnection, ClientNetworkPlugin, JoinRequest, finish_configuration,
-    };
     use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
     use mcrs_minecraft_protocol_game::clientbound::{
-        ClientboundLogin, ClientboundPlayerCombatKill,
+        ClientboundPlayerCombatKill, ClientboundSetHealth,
     };
     use mcrs_minecraft_protocol_game::serverbound::{
         ClientCommandAction, ServerboundClientCommand,
     };
     use mcrs_minecraft_protocol_game::text::{RawText, Text};
-    use std::net::TcpListener;
-    use std::thread;
-    use std::time::Duration;
 
-    use crate::joined_game::JoinedGame;
-    use crate::test_session::{OWN_PLAYER, Server, TestSession, login, receive};
+    use crate::respawn_screen::RespawnScreen;
+    use crate::test_session::{Joined, OWN_PLAYER, TestSession, joined, login, receive};
 
     #[test]
     fn a_kill_of_the_own_player_without_the_screen_requests_a_respawn_at_once() {
-        let mut app = TestSession::new(DVec3::ZERO).app;
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        app.add_plugins(ClientNetworkPlugin {
-            holds_vanilla_pack: false,
-            play: None,
-        });
-        app.world_mut().write_message(JoinRequest {
-            server: listener.local_addr().unwrap(),
-            username: "Steve".to_owned(),
-            profile_id: None,
-            view_distance: 8,
-        });
-        app.update();
-        let (mut server, _information) = Server::join(&listener);
-        let connection = (0..1000)
-            .find_map(|_| {
-                app.update();
-                thread::sleep(Duration::from_millis(10));
-                app.world_mut()
-                    .query_filtered::<Entity, With<ClientConnection>>()
-                    .single(app.world())
-                    .ok()
-            })
-            .expect("the client joins");
-        finish_configuration(&mut app.world_mut().commands(), connection);
-        app.world_mut().flush();
-        app.update();
-        let _finished = server.next_frame();
-        app.world_mut().entity_mut(connection).insert(JoinedGame {
-            player_id: OWN_PLAYER,
-            dimensions: Vec::new(),
-        });
-        receive(
-            &mut app,
+        let session = TestSession::new(DVec3::ZERO);
+        let player = session.player;
+        let Joined {
+            mut app,
+            mut server,
             connection,
-            ClientboundLogin {
-                show_death_screen: false,
-                ..login(GameMode::Survival)
-            },
-        );
+        } = joined(session.app);
+        receive(&mut app, connection, login(GameMode::Survival));
+        app.world_mut()
+            .entity_mut(player)
+            .insert(RespawnScreen::Immediate);
         receive(
             &mut app,
             connection,
@@ -121,5 +95,33 @@ mod tests {
             }
         };
         assert_eq!(request.action, ClientCommandAction::PerformRespawn);
+    }
+
+    #[test]
+    fn a_kill_of_the_own_player_marks_it_dead_until_a_living_health_arrives() {
+        let mut session = TestSession::new(DVec3::ZERO);
+        let alive = |session: &TestSession| {
+            session
+                .app
+                .world()
+                .get::<Vitals>(session.player)
+                .unwrap()
+                .is_alive()
+        };
+        let kill = |player_id: i32| ClientboundPlayerCombatKill {
+            player_id: VarInt(player_id),
+            message: RawText::from_text(&Text::text("fell")).unwrap(),
+        };
+
+        session.receive(kill(OWN_PLAYER + 1));
+        assert!(alive(&session), "the kill of another player");
+        session.receive(kill(OWN_PLAYER));
+        assert!(!alive(&session), "the kill of the own player");
+        session.receive(ClientboundSetHealth {
+            health: 20.0,
+            food: VarInt(20),
+            saturation: 5.0,
+        });
+        assert!(alive(&session), "a living health after the kill");
     }
 }
