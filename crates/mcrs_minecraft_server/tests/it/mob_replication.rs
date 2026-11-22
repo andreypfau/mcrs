@@ -2,6 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
@@ -10,6 +11,7 @@ use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
 use mcrs_minecraft_engine_mob_attributes::MobAttributes;
 use mcrs_minecraft_engine_physics::Mob;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -758,6 +760,42 @@ fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
         "teleport does not move or face a mob yet; only players can be victims or facing targets",
         "teleport refuses a mob victim"
     );
+}
+
+#[test]
+fn damage_and_kill_hit_the_source_player() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    let player_vitals = |server: &mut PlayServer| {
+        let world = server.world();
+        *world
+            .query_filtered::<&Vitals, With<Player>>()
+            .single(world)
+            .expect("one player with vitals")
+    };
+
+    let (key, args) = run(&mut server, operator, &mut viewer, "damage @s 4");
+    assert_eq!(
+        (key.as_str(), args),
+        (
+            "commands.damage.success",
+            vec!["Float(4.0)".to_owned(), "op".to_owned()]
+        )
+    );
+    server.ticks(operator, 1);
+    assert_eq!(player_vitals(&mut server).health, 16.0);
+
+    let (key, _) = run(&mut server, operator, &mut viewer, "kill @s");
+    assert_eq!(key, "commands.kill.success.single");
+    server.ticks(operator, 1);
+    assert!(player_vitals(&mut server).death_time.is_some());
 }
 
 #[test]

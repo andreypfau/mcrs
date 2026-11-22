@@ -6952,6 +6952,7 @@ dependencies = [
  "mcrs_minecraft_command_world",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
