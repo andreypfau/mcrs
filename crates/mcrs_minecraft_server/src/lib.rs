@@ -5,6 +5,8 @@ pub mod operator_broadcast;
 mod player_pose;
 mod vanilla_blocks;
 mod vanilla_brains;
+mod vanilla_death_drops;
+mod vanilla_death_messages;
 mod vanilla_swing;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
@@ -24,7 +26,6 @@ use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlugin};
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
-use mcrs_minecraft_vanilla_death::DeathDropsPlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_respawn::RespawnPlugin;
@@ -33,6 +34,8 @@ pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
+pub use vanilla_death_drops::VanillaDeathDropsPlugin;
+pub use vanilla_death_messages::VanillaDeathMessagesPlugin;
 pub use vanilla_swing::VanillaSwingPlugin;
 
 pub struct MinecraftServerPlugins {
@@ -86,6 +89,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaEntityAttributesPlugin)
             .add(VanillaRespawnPlugin)
             .add(VanillaDeathDropsPlugin)
+            .add(VanillaDeathMessagesPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
@@ -134,14 +138,6 @@ pub struct VanillaRespawnPlugin;
 impl Plugin for VanillaRespawnPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(RespawnPlugin);
-    }
-}
-
-pub struct VanillaDeathDropsPlugin;
-
-impl Plugin for VanillaDeathDropsPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(DeathDropsPlugin);
     }
 }
 
