@@ -27,7 +27,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimi
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundUpdateAttributes,
+    ClientboundAddEntity, ClientboundSetEntityData, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::serverbound::{PlayerCommandAction, ServerboundPlayerCommand};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
@@ -273,19 +273,20 @@ fn trk_data_004_the_spawn_bundle_of_a_creative_player_holds_its_range_modifiers(
                     == entity_id
         })
         .expect("the watcher gets the spawn of the builder");
-    let ids: Vec<i32> = packets[add + 1..add + 3]
+    let ids: Vec<i32> = packets[add + 1..add + 4]
         .iter()
         .map(|(id, _)| *id)
         .collect();
     assert_eq!(
         ids,
         [
+            ClientboundSetEntityData::ID,
             ClientboundUpdateAttributes::ID,
             ClientboundBundleDelimiter::ID
         ],
-        "the attributes close the bundle"
+        "the attributes follow the entity data and close the bundle"
     );
-    let mut update = decode_update(&packets[add + 1].1);
+    let mut update = decode_update(&packets[add + 2].1);
     update.entries.sort_by_key(|entry| entry.attribute);
     assert_eq!(update.entity_id, entity_id);
     assert_eq!(update.entries, creative_ranges());

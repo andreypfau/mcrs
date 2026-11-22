@@ -1,11 +1,3 @@
-use bevy_ecs::entity::Entity;
-use bevy_ecs::world::World;
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSession, SessionAnchors, SessionPlacement,
-};
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRespawn;
-use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
-
 use crate::bus::{self, PacketPayload};
 use crate::channel_types::ToDim;
 use crate::departure::{Departure, PlayerTransfer};
@@ -16,9 +8,13 @@ use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::dim_outputs;
 use crate::muxer::entity_replication;
 use crate::muxer::muxer_link::{self, Answers};
+use crate::respawn_packet::{KeptPlayerData, respawn_packet};
 use crate::to_muxer::{Destination, RoutedDeparture};
-
-const KEEP_ATTRIBUTES_AND_DATA: u8 = 0x03;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::world::World;
+use mcrs_minecraft_engine_world::session::{
+    Place, PlayerSession, SessionAnchors, SessionPlacement,
+};
 
 fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
     host.get_resource::<SessionAnchors>()
@@ -75,14 +71,12 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
         host,
         bus::to(
             session,
-            PacketPayload::Respawn(ClientboundRespawn {
-                player_spawn_info: PlayerSpawnInfo::new(
-                    destination.dimension_type,
-                    destination.key,
-                    carried.game_mode(),
-                ),
-                data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
-            }),
+            respawn_packet(
+                destination.dimension_type,
+                destination.key,
+                carried.game_mode(),
+                KeptPlayerData::AttributesAndEntityData,
+            ),
         ),
     );
     enter_level_packets(

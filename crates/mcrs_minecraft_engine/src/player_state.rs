@@ -353,14 +353,6 @@ pub struct PlayerFileState {
     #[serde(rename = "Team", skip_serializing)]
     pub team: Option<String>,
 
-    #[serde(rename = "Health")]
-    pub health: f32,
-    #[serde(rename = "HurtTime")]
-    pub hurt_time: i16,
-    #[serde(rename = "DeathTime")]
-    pub death_time: i16,
-    #[serde(rename = "AbsorptionAmount")]
-    pub absorption_amount: f32,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub active_effects: Vec<Effect>,
     #[serde(rename = "FallFlying")]
@@ -460,10 +452,6 @@ impl Default for PlayerFileState {
             data: NbtCompound::new(),
             passengers: Vec::new(),
             team: None,
-            health: 20.0,
-            hurt_time: 0,
-            death_time: 0,
-            absorption_amount: 0.0,
             active_effects: Vec::new(),
             fall_flying: false,
             sleeping_pos: None,

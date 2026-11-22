@@ -29,7 +29,8 @@ pub fn hurt(
     let HurtRules {} = rules;
     let damage_type = hit.source.damage_type;
     let tags = types.tags(damage_type);
-    if !vitals.is_alive() || defence.immune.intersects(tags) {
+    let invulnerable = defence.invulnerable && !tags.contains(DamageTags::BYPASSES_INVULNERABILITY);
+    if !vitals.is_alive() || invulnerable || defence.immune.intersects(tags) {
         return HitReport::REJECTED;
     }
     record.strike();
@@ -144,6 +145,7 @@ mod tests {
     const MAGIC: u32 = 2;
     const IN_FIRE: u32 = 3;
     const ALWAYS: u32 = 4;
+    const KILL: u32 = 5;
 
     fn types() -> DamageTypeRules {
         DamageTypeRules::new([
@@ -152,6 +154,7 @@ mod tests {
             DamageTags::BYPASSES_RESISTANCE,
             DamageTags::IS_FIRE,
             DamageTags::BYPASSES_COOLDOWN,
+            DamageTags::BYPASSES_INVULNERABILITY,
         ])
     }
 
@@ -249,12 +252,42 @@ mod tests {
             "a hit on a fire-immune pig strikes nothing"
         );
 
+        let invulnerable = Defence {
+            invulnerable: true,
+            ..Defence::default()
+        };
+        assert_eq!(
+            outcome(strike(
+                &mut vitals,
+                &mut record,
+                &invulnerable,
+                hit(5.0, GENERIC)
+            )),
+            HitOutcome::Rejected
+        );
+        assert_eq!(
+            record.strikes(),
+            2,
+            "a hit on an invulnerable player strikes nothing"
+        );
+        assert_eq!(
+            outcome(strike(
+                &mut vitals,
+                &mut record,
+                &invulnerable,
+                hit(5.0, KILL)
+            )),
+            HitOutcome::Partial,
+            "a type that bypasses invulnerability hits"
+        );
+        assert_eq!(vitals.health, 5.0);
+
         vitals.death_time = Some(1);
         assert_eq!(
             outcome(strike(&mut vitals, &mut record, &defence, drown)),
             HitOutcome::Rejected
         );
-        assert_eq!(record.strikes(), 2, "a hit on a dying pig strikes nothing");
+        assert_eq!(record.strikes(), 3, "a hit on a dying pig strikes nothing");
     }
 
     #[test]

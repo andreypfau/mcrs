@@ -17,6 +17,7 @@ use mcrs_minecraft_engine_attributes::PlayerAttributesPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
 use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
+use mcrs_minecraft_engine_player_vitals::PlayerVitalsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -25,6 +26,7 @@ use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlug
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
+use mcrs_minecraft_vanilla_respawn::RespawnPlugin;
 
 pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
@@ -81,6 +83,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaPlayerPosePlugin)
             .add(VanillaEntityAttributesPlugin)
+            .add(VanillaRespawnPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
@@ -119,7 +122,16 @@ pub struct VanillaEntityAttributesPlugin;
 impl Plugin for VanillaEntityAttributesPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(PlayerAttributesPlugin);
+        app.add_dimension_plugin(PlayerVitalsPlugin);
         app.add_dimension_plugin(MobAttributesPlugin);
+    }
+}
+
+pub struct VanillaRespawnPlugin;
+
+impl Plugin for VanillaRespawnPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(RespawnPlugin);
     }
 }
 
