@@ -17,6 +17,7 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_physics::CORPSE_REMOVAL_TICKS;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridRow;
@@ -58,7 +59,6 @@ use crate::section_cache::SectionCache;
 use crate::tile_edits::SlotChange;
 use crate::tile_edits::TileEdits;
 
-const DEATH_TICKS: u8 = 20;
 const STILL_INPUT: f64 = 1.0e-7;
 
 type Moving<'a> = (
@@ -459,7 +459,7 @@ fn count_down(living: &mut Living) -> bool {
         return false;
     };
     *death_time = death_time.saturating_add(1);
-    *death_time >= DEATH_TICKS
+    *death_time >= CORPSE_REMOVAL_TICKS
 }
 
 fn turned(at: &Stepping<'_>, motion: &EntityState) -> bool {

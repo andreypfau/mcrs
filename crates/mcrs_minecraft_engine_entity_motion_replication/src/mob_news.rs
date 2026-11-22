@@ -29,7 +29,6 @@ pub(crate) struct Strike {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Swing {
     pub(crate) subject: Subject,
-    pub(crate) order: usize,
     pub(crate) signal: MobSignal,
 }
 
@@ -89,13 +88,11 @@ pub(crate) fn take_mob_news(
         let Ok(id) = ids.get(swung.entity) else {
             continue;
         };
-        let order = news.swings.len();
         news.swings.push(Swing {
             subject: Subject {
                 id: id.0,
                 entity: swung.entity,
             },
-            order,
             signal: MobSignal::Swing {
                 hand: swung.hand,
                 animation: swung.animation,
@@ -103,6 +100,4 @@ pub(crate) fn take_mob_news(
             },
         });
     }
-    news.swings
-        .sort_unstable_by_key(|swing| (swing.subject, swing.order));
 }

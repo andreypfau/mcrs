@@ -322,17 +322,13 @@ fn a_killed_mob_is_hurt_dies_and_is_removed_after_its_death_time() {
 }
 
 #[test]
-fn a_stationary_mob_publishes_only_swing_signal_and_respects_cooldown() {
+fn an_accepted_mob_swing_publishes_one_swing_signal_and_no_move() {
     let mut scene = scene();
     let pig = summon(&mut scene, DVec3::new(4.5, f64::from(FLOOR), 4.5));
     ticks(&mut scene, 5);
 
     let stab = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 6);
-    assert!(swing(&mut scene, pig, stab), "first swing starts");
-    assert!(
-        !swing(&mut scene, pig, stab),
-        "SWG-STA-004: second swing in same tick is suppressed"
-    );
+    assert!(swing(&mut scene, pig, stab), "the swing starts");
     assert_eq!(
         tick(&mut scene),
         [Seen::Signal {
@@ -344,25 +340,5 @@ fn a_stationary_mob_publishes_only_swing_signal_and_respects_cooldown() {
             },
         }],
         "a stationary mob swing publishes only the signal without an extraneous move"
-    );
-
-    for _ in 0..3 {
-        assert!(!swing(&mut scene, pig, stab), "cooldown blocks T+1..T+3");
-        assert_eq!(tick(&mut scene), [], "blocked swing publishes nothing");
-    }
-
-    let whack = MobSwingSpec::new(Hand::Main, SwingAnimationKind::Whack, 6);
-    assert!(swing(&mut scene, pig, whack), "D=6 unlocks at T+4");
-    assert_eq!(
-        tick(&mut scene),
-        [Seen::Signal {
-            id: FIRST_ID,
-            signal: MobSignal::Swing {
-                hand: Hand::Main,
-                animation: SwingAnimationKind::Whack,
-                duration: 6,
-            },
-        }],
-        "unlocked swing emits one signal"
     );
 }

@@ -1,4 +1,5 @@
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_physics::CORPSE_REMOVAL_TICKS;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_swing::SwingModifiers;
@@ -48,7 +49,10 @@ pub fn swing_mob(
     let Some(living) = state.living.as_ref() else {
         return false;
     };
-    if !living.is_alive() {
+    if living
+        .death_time
+        .is_some_and(|death_time| death_time >= CORPSE_REMOVAL_TICKS)
+    {
         return false;
     }
     let base_duration = spec.duration.max(0);
@@ -89,7 +93,7 @@ mod tests {
         )
     }
 
-    fn dying_state() -> EntityState {
+    fn dying_state(death_time: u8) -> EntityState {
         EntityState::new(
             EntityUuid::from_u128(1),
             Body {
@@ -98,7 +102,7 @@ mod tests {
             },
             Some(Living {
                 health: 0.0,
-                death_time: Some(1),
+                death_time: Some(death_time),
                 ..Living::default()
             }),
         )
@@ -108,7 +112,6 @@ mod tests {
     fn swing_mob_checks_living_state_cooldown_and_modifier_scaling() {
         let entity = Entity::from_raw_u32(7).expect("entity");
         let non_living = EntityState::new(EntityUuid::from_u128(2), Body::default(), None);
-        let dying = dying_state();
         let alive = alive_state();
         let mut swing = MobSwing::default();
         let mut changes = MobChanges::default();
@@ -125,11 +128,27 @@ mod tests {
             ),
             "non-living state must not swing"
         );
+        let removed = dying_state(CORPSE_REMOVAL_TICKS);
         assert!(
-            !swing_mob(entity, &dying, &mut swing, &mut changes, default_spec, 10),
-            "dying mob must not swing"
+            !swing_mob(entity, &removed, &mut swing, &mut changes, default_spec, 10),
+            "a mob at corpse removal must not swing"
         );
         assert!(changes.swings().is_empty(), "rejected swings push nothing");
+
+        let dying = dying_state(CORPSE_REMOVAL_TICKS - 1);
+        let mut dying_swing = MobSwing::default();
+        assert!(
+            swing_mob(
+                entity,
+                &dying,
+                &mut dying_swing,
+                &mut changes,
+                default_spec,
+                10
+            ),
+            "a dying mob swings until corpse removal"
+        );
+        changes = MobChanges::default();
 
         let haste = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 10)
             .with_modifiers(SwingModifiers::from_effects([("minecraft:haste", 2)]));

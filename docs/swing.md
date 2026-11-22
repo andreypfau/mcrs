@@ -10,7 +10,7 @@ Behaviour comes from `docs/spec/arm-swing.md` (SWG), `docs/spec/block-placing.md
 |-------|------|-------|
 | `PlayerSwing(SwingTracker)` on a player | authoritative truth (`started_at`, `scaled_duration`) | `apply_player_swings` in `mcrs_minecraft_engine`; preserved across cell crossings and dimension changes |
 | `UnloadedClient(u8)` on a player | authoritative truth (transient `SparseSet` component removed once loaded) | `on_player_loaded` and `tick_loaded_clients` in `mcrs_minecraft_engine`; preserved across cell crossings, reset on dimension change |
-| `MobSwing(SwingTracker)` on a `Mob` entity | authoritative truth (`started_at`, `scaled_duration`) | `swing_mob` in `mcrs_minecraft_engine_physics`; required on `Mob`, freed automatically on despawn |
+| `MobSwing(SwingTracker)` on a `Mob` entity | authoritative truth (`started_at`, `scaled_duration`) | `swing_mob` in `mcrs_minecraft_engine_physics`; required on `Mob` |
 | `SwingPlayer` message | temporal fact (request to start a player swing, with `SwingRecipients` and `SwingEligibility`) | emitted by gameplay plugins (`vanilla_swing`, `vanilla_block_place`, `vanilla_inventory`), `player_order::swing`, or user plugins; consumed by `apply_player_swings` |
 | `PendingPlayerSwings` / `MobChanges::swings` | per-tick replication outbox | drained into `TileEvents` once per tick (`publish_player_swings` / `take_mob_news` + `publish_motion`); `EntityCodec` and `MobTrackers` encode one `ClientboundSwingAnimation` `Bytes` buffer and share it across recipients |
 
