@@ -18,11 +18,11 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
 
 #[derive(Resource, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LockingEnchantments {
-    by_enchantment: Vec<bool>,
+pub struct EnchantmentEffects {
+    by_enchantment: Vec<Vec<EnchantmentEffectComponentType>>,
 }
 
-impl LockingEnchantments {
+impl EnchantmentEffects {
     const NONE: Self = Self {
         by_enchantment: Vec::new(),
     };
@@ -32,34 +32,40 @@ impl LockingEnchantments {
             return Self::NONE;
         };
         Self {
-            by_enchantment: registry
-                .values()
-                .iter()
-                .map(prevents_armour_change)
-                .collect(),
+            by_enchantment: registry.values().iter().map(effects_of).collect(),
         }
     }
 
-    pub(crate) fn lock(&self, enchantments: &Enchantments) -> bool {
-        enchantments
-            .entries()
-            .iter()
-            .any(|entry| self.by_enchantment.get(usize::from(entry.enchantment.0)) == Some(&true))
+    #[must_use]
+    pub fn any_has(
+        &self,
+        enchantments: &Enchantments,
+        effect: EnchantmentEffectComponentType,
+    ) -> bool {
+        enchantments.entries().iter().any(|entry| {
+            self.by_enchantment
+                .get(usize::from(entry.enchantment.0))
+                .is_some_and(|effects| effects.contains(&effect))
+        })
     }
 }
 
-fn prevents_armour_change(file: &EnchantmentFile) -> bool {
+fn effects_of(file: &EnchantmentFile) -> Vec<EnchantmentEffectComponentType> {
     let Some(effects) = file.effects.as_ref().and_then(NbtTag::extract_compound) else {
-        return false;
+        return Vec::new();
     };
-    let effect = EnchantmentEffectComponentType::PreventArmorChange.location();
     effects
         .child_tags
         .iter()
-        .any(|(key, _)| ResourceLocation::read(key).is_ok_and(|key| key == effect))
+        .filter_map(|(key, _)| {
+            ResourceLocation::read(key)
+                .ok()
+                .and_then(EnchantmentEffectComponentType::get)
+        })
+        .collect()
 }
 
-impl FromWorld for LockingEnchantments {
+impl FromWorld for EnchantmentEffects {
     fn from_world(world: &mut World) -> Self {
         world
             .get_resource::<CurrentRegistries>()
@@ -68,17 +74,17 @@ impl FromWorld for LockingEnchantments {
     }
 }
 
-pub(crate) fn derive_locking_enchantments(
+pub(crate) fn derive_enchantment_effects(
     _: On<Insert<CurrentRegistries>>,
     registries: Res<CurrentRegistries>,
-    mut locking: ResMut<LockingEnchantments>,
+    mut effects: ResMut<EnchantmentEffects>,
 ) {
-    locking.set_if_neq(LockingEnchantments::of(&registries));
+    effects.set_if_neq(EnchantmentEffects::of(&registries));
 }
 
-pub(crate) fn forget_locking_enchantments(
+pub(crate) fn forget_enchantment_effects(
     _: On<Remove<CurrentRegistries>>,
-    mut locking: ResMut<LockingEnchantments>,
+    mut effects: ResMut<EnchantmentEffects>,
 ) {
-    locking.set_if_neq(LockingEnchantments::NONE);
+    effects.set_if_neq(EnchantmentEffects::NONE);
 }

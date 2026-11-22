@@ -5,6 +5,8 @@ pub mod operator_broadcast;
 mod player_pose;
 mod vanilla_blocks;
 mod vanilla_brains;
+mod vanilla_death_drops;
+mod vanilla_death_messages;
 mod vanilla_swing;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
@@ -32,6 +34,8 @@ pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
+pub use vanilla_death_drops::VanillaDeathDropsPlugin;
+pub use vanilla_death_messages::VanillaDeathMessagesPlugin;
 pub use vanilla_swing::VanillaSwingPlugin;
 
 pub struct MinecraftServerPlugins {
@@ -84,6 +88,8 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaPlayerPosePlugin)
             .add(VanillaEntityAttributesPlugin)
             .add(VanillaRespawnPlugin)
+            .add(VanillaDeathDropsPlugin)
+            .add(VanillaDeathMessagesPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
