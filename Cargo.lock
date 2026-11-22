@@ -5345,11 +5345,13 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_save",
 ]
 

@@ -799,6 +799,47 @@ fn damage_and_kill_hit_the_source_player() {
 }
 
 #[test]
+fn damage_sends_the_new_health_to_its_owner_once() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (operator, mut joined) = server.join(OPERATOR, "op");
+    joined.extend(server.ticks(operator, 2));
+    let healths = |packets: &[PacketPayload]| -> Vec<f32> {
+        packets
+            .iter()
+            .filter_map(|payload| match payload {
+                PacketPayload::SetHealth(packet) => Some(packet.health),
+                _ => None,
+            })
+            .collect()
+    };
+    let login = joined
+        .iter()
+        .position(|payload| matches!(payload, PacketPayload::PlayerLogin(_)))
+        .expect("the join sends the login");
+    let first_health = joined
+        .iter()
+        .position(|payload| matches!(payload, PacketPayload::SetHealth(_)))
+        .expect("the join sends the health");
+    assert!(login < first_health, "the health follows the login");
+    assert_eq!(healths(&joined), vec![20.0]);
+
+    let mut packets = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("damage @s 4"),
+        },
+    );
+    packets.extend(server.ticks(operator, 1));
+    assert_eq!(healths(&packets), vec![16.0]);
+    assert_eq!(healths(&server.ticks(operator, 1)), Vec::<f32>::new());
+}
+
+#[test]
 fn kill_of_players_and_mobs_counts_each_victim() {
     let mut server = start();
     load_stone_column(&mut server);

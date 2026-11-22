@@ -1,9 +1,14 @@
-use bevy_app::{App, Plugin};
+use crate::send_health::send_health;
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::observer::On;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query};
 use mcrs_minecraft_damage::{Defence, HitRecord, Vitals};
+use mcrs_minecraft_engine::OwnAttributesSet;
+use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -14,6 +19,13 @@ pub struct PlayerVitalsPlugin;
 impl Plugin for PlayerVitalsPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(give_spawned_player_vitals);
+        app.add_systems(
+            FixedUpdate,
+            send_health
+                .in_set(TickSet::Project)
+                .after(DamageSet::Report)
+                .after(OwnAttributesSet),
+        );
     }
 }
 
