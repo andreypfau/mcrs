@@ -1,4 +1,5 @@
 use crate::hide_dead_players::hide_dead_players;
+use crate::player_invulnerability::{fill_player_invulnerability, invulnerable};
 use crate::respawn_players::{HiddenForRespawn, respawn_players, show_respawned_players};
 use crate::send_health::send_health;
 use crate::send_kill::send_kill;
@@ -16,6 +17,7 @@ use mcrs_minecraft_engine_damage::{DamagePlugin, DamageSet, Damaged, Died, Respa
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerVitalsPlugin;
@@ -26,6 +28,12 @@ impl Plugin for PlayerVitalsPlugin {
             app.add_plugins(DamagePlugin);
         }
         app.add_observer(give_spawned_player_vitals);
+        app.add_systems(
+            FixedUpdate,
+            fill_player_invulnerability
+                .in_set(TickSet::Simulate)
+                .before(DamageSet::Collect),
+        );
         app.add_systems(
             FixedUpdate,
             send_health
@@ -83,12 +91,15 @@ impl Plugin for PlayerVitalsPlugin {
 fn give_spawned_player_vitals(
     add: On<Add<Player>>,
     attributes: Query<&AttributeInstances>,
+    modes: Query<&PlayerGameMode>,
     mut commands: Commands,
 ) {
     let player = add.event().entity;
+    let mut defence = Defence::default();
+    defence.invulnerable = modes.get(player).is_ok_and(|mode| invulnerable(mode.0));
     commands.entity(player).insert_if_new((
         Vitals::new(max_health(attributes.get(player).ok())),
         HitRecord::default(),
-        Defence::default(),
+        defence,
     ));
 }

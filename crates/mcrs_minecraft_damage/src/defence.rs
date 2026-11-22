@@ -8,6 +8,7 @@ pub struct Defence {
     pub toughness: f32,
     pub resistance: Option<u8>,
     pub immune: DamageTags,
+    pub invulnerable: bool,
 }
 
 impl Defence {
@@ -23,6 +24,7 @@ impl Defence {
             toughness,
             resistance,
             immune,
+            invulnerable: false,
         }
     }
 }

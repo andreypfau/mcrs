@@ -29,6 +29,7 @@ use mcrs_minecraft_entity_attribute::{
     InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
 use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
@@ -795,6 +796,10 @@ fn damage_and_kill_hit_the_source_player() {
             .expect("one player with vitals")
     };
 
+    assert_eq!(server.game_mode(operator), GameMode::Creative);
+    let (key, _) = run(&mut server, operator, &mut viewer, "gamemode survival");
+    assert_eq!(key, "commands.gamemode.success.self");
+    server.ticks(operator, 1);
     let (key, args) = run(&mut server, operator, &mut viewer, "damage @s 4");
     assert_eq!(
         (key.as_str(), args),
@@ -803,6 +808,14 @@ fn damage_and_kill_hit_the_source_player() {
             vec!["Float(4.0)".to_owned(), "op".to_owned()]
         )
     );
+    server.ticks(operator, 1);
+    assert_eq!(player_vitals(&mut server).health, 16.0);
+
+    let (key, _) = run(&mut server, operator, &mut viewer, "gamemode creative");
+    assert_eq!(key, "commands.gamemode.success.self");
+    server.ticks(operator, 1);
+    let (key, _) = run(&mut server, operator, &mut viewer, "damage @s 6");
+    assert_eq!(key, "commands.damage.invulnerable");
     server.ticks(operator, 1);
     assert_eq!(player_vitals(&mut server).health, 16.0);
 
@@ -841,6 +854,13 @@ fn damage_sends_the_new_health_to_its_owner_once() {
         .expect("the join sends the health");
     assert!(login < first_health, "the health follows the login");
     assert_eq!(healths(&joined), vec![20.0]);
+    let _ = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("gamemode survival"),
+        },
+    );
+    let _ = server.ticks(operator, 1);
 
     let mut packets = server.send(
         operator,
@@ -958,6 +978,7 @@ fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
             deaths,
         )
     };
+    let _ = run(&mut server, "gamemode survival");
 
     for (command, hurt_animations) in [
         ("damage @s 4 minecraft:mob_attack", vec![id]),
