@@ -103,7 +103,7 @@ Each rule has an ID with the prefix `CK`. The second part names the section.
 This document does not state:
 
 - the movement checks, the prediction and the setback. `movement-checks.md` states them;
-- the reach check. A later document states it and reads section 7;
+- the reach check. `reach.md` states it and reads sections 6 and 7;
 - how the client moves an entity. `client-entities.md` states it;
 - the crates and the types of an implementation. A design note states them.
 
