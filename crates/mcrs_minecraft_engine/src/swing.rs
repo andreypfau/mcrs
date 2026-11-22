@@ -377,7 +377,77 @@ mod tests {
     }
 
     #[test]
-    fn apply_player_swings_distinguishes_action_and_command_eligibility() {
+    fn player_can_swing_enforces_action_and_command_eligibility_matrix() {
+        let state = |health, death_time| PlayerFileState {
+            health,
+            death_time,
+            ..PlayerFileState::default()
+        };
+        let cases = [
+            (SwingEligibility::AliveActor, None, None, true),
+            (
+                SwingEligibility::AliveActor,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(20.0, 0)),
+                true,
+            ),
+            (
+                SwingEligibility::AliveActor,
+                Some(PlayerGameMode(GameMode::Spectator)),
+                Some(state(20.0, 0)),
+                false,
+            ),
+            (
+                SwingEligibility::AliveActor,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(0.0, 0)),
+                false,
+            ),
+            (
+                SwingEligibility::AliveActor,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(20.0, 1)),
+                false,
+            ),
+            (SwingEligibility::CommandTarget, None, None, true),
+            (
+                SwingEligibility::CommandTarget,
+                Some(PlayerGameMode(GameMode::Spectator)),
+                Some(state(20.0, 0)),
+                true,
+            ),
+            (
+                SwingEligibility::CommandTarget,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(0.0, 0)),
+                true,
+            ),
+            (
+                SwingEligibility::CommandTarget,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(0.0, 19)),
+                true,
+            ),
+            (
+                SwingEligibility::CommandTarget,
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(state(0.0, 20)),
+                false,
+            ),
+        ];
+        for (eligibility, mode, file_state, expected) in cases {
+            assert_eq!(
+                player_can_swing(eligibility, mode.as_ref(), file_state.as_ref()),
+                expected,
+                "eligibility={eligibility:?} mode={mode:?} death_time={:?} health={:?}",
+                file_state.as_ref().map(|file| file.death_time),
+                file_state.as_ref().map(|file| file.health),
+            );
+        }
+    }
+
+    #[test]
+    fn player_order_swing_wires_into_player_swing_pipeline_and_shares_cooldown() {
         let (mut app, player) = test_app();
         let non_player = app.world_mut().spawn_empty().id();
         assert_eq!(
@@ -394,13 +464,6 @@ mod tests {
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
             .0 = GameMode::Spectator;
-        app.world_mut()
-            .write_message(SwingPlayer::default_main(player));
-        assert!(
-            run_and_take_swings(&mut app).is_empty(),
-            "SWG-DEV-003: observer-only swings ignore spectators"
-        );
-
         player_order::obey(
             app.world_mut(),
             player,
@@ -419,7 +482,7 @@ mod tests {
                 duration: 8,
                 recipients: SwingRecipients::SelfAndObservers,
             }],
-            "CMD-SWG-006: self-included command swing reaches spectators"
+            "CMD-SWG-006: PlayerOrder::Swing publishes self-included swing for spectators"
         );
 
         app.world_mut().resource_mut::<BirthClock>().0 = 14;
@@ -432,54 +495,6 @@ mod tests {
         assert!(
             run_and_take_swings(&mut app).is_empty(),
             "CMD-SWG-006: D=8 blocks T+4 across swing sources"
-        );
-
-        app.world_mut().resource_mut::<BirthClock>().0 = 15;
-        app.world_mut()
-            .get_mut::<PlayerGameMode>(player)
-            .expect("player mode")
-            .0 = GameMode::Survival;
-        app.world_mut()
-            .get_mut::<PlayerFileState>(player)
-            .expect("player state")
-            .health = 0.0;
-        app.world_mut()
-            .write_message(SwingPlayer::default_main(player));
-        assert!(
-            run_and_take_swings(&mut app).is_empty(),
-            "SWG-DEV-003: action swings ignore dead players"
-        );
-        app.world_mut().write_message(SwingPlayer::self_included(
-            player,
-            Hand::Main,
-            SwingAnimationKind::Whack,
-            6,
-        ));
-        assert_eq!(
-            run_and_take_swings(&mut app),
-            vec![EmittedSwing {
-                hand: Hand::Main,
-                animation: SwingAnimationKind::Whack,
-                duration: 6,
-                recipients: SwingRecipients::SelfAndObservers,
-            }],
-            "CMD-SWG-006: command swing still emits before corpse removal"
-        );
-
-        app.world_mut().resource_mut::<BirthClock>().0 = 20;
-        app.world_mut()
-            .get_mut::<PlayerFileState>(player)
-            .expect("player state")
-            .death_time = CORPSE_REMOVAL_TICKS;
-        app.world_mut().write_message(SwingPlayer::self_included(
-            player,
-            Hand::Main,
-            SwingAnimationKind::Whack,
-            6,
-        ));
-        assert!(
-            run_and_take_swings(&mut app).is_empty(),
-            "CMD-SWG-006: past corpse removal emits zero swing packets"
         );
     }
 }
