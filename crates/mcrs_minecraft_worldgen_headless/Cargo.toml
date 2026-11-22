@@ -1,0 +1,31 @@
+[package]
+name = "mcrs_minecraft_worldgen_headless"
+description = "World generation without a server or a window: a data pack, a seed and an area in, per-column grids and vertical slices out"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries.workspace = true
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_heightmap.workspace = true
+mcrs_minecraft_noise.workspace = true
+mcrs_voxel.workspace = true
+glam.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
