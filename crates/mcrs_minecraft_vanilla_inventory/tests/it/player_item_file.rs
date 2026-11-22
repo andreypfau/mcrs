@@ -447,7 +447,7 @@ fn a_file_without_state_keys_loads_the_defaults_of_the_layout() {
     assert!(world.get::<UnreadablePlayerDat>(player).is_none());
     assert_eq!(world.get::<Transform>(player), Some(&arrival));
     let state = world.get::<PlayerFileState>(player).unwrap();
-    assert_eq!((state.air, state.food_level, state.health), (300, 20, 20.0));
+    assert_eq!((state.air, state.food_level), (300, 20));
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -4,10 +4,7 @@ use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_protocol::{Result, VarInt};
-use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundDamageEvent, ClientboundEntityEvent, ClientboundSwingAnimation,
-    ClientboundTakeItemEntity,
-};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSwingAnimation;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
@@ -115,48 +112,25 @@ impl MobTrackers {
         signal: MobSignal,
         holds: &HoldSet,
     ) -> Result<()> {
-        let entity_id = wire_id(subject);
-        let event = |entity_status| {
-            record(&ClientboundEntityEvent {
-                entity_id: entity_id.0,
-                entity_status,
-            })
-        };
-        let packet = match signal {
-            MobSignal::Swing {
+        if let MobSignal::Swing {
+            hand,
+            animation,
+            duration,
+        } = signal
+        {
+            self.swings.push(PendingMobSwing {
+                subject,
                 hand,
                 animation,
                 duration,
-            } => {
-                self.swings.push(PendingMobSwing {
-                    subject,
-                    hand,
-                    animation,
-                    duration,
-                });
-                return Ok(());
-            }
-            _ if holds.holders(subject).is_empty() => return Ok(()),
-            MobSignal::Hurt { damage_type } => {
-                let Ok(damage_type) = i32::try_from(damage_type) else {
-                    tracing::warn!("the damage type {damage_type} of a hit has no id on the wire");
-                    return Ok(());
-                };
-                record(&ClientboundDamageEvent {
-                    entity_id,
-                    damage_type: VarInt(damage_type),
-                    cause_entity_id: VarInt(0),
-                    direct_entity_id: VarInt(0),
-                    source_position: None,
-                })?
-            }
-            MobSignal::Died => event(ClientboundEntityEvent::DIED)?,
-            MobSignal::Removed => event(ClientboundEntityEvent::REMOVED)?,
-            MobSignal::Taken { collector, amount } => record(&ClientboundTakeItemEntity {
-                item_id: entity_id,
-                player_id: wire_id(collector),
-                amount: VarInt(amount),
-            })?,
+            });
+            return Ok(());
+        }
+        if holds.holders(subject).is_empty() {
+            return Ok(());
+        }
+        let Some(packet) = signal.encode(subject)? else {
+            return Ok(());
         };
         self.signals.push((subject, packet));
         Ok(())

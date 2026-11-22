@@ -214,6 +214,7 @@ mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_blo
 mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
 mcrs_minecraft_vanilla_swing = { path = "crates/mcrs_minecraft_vanilla_swing" }
+mcrs_minecraft_vanilla_respawn = { path = "crates/mcrs_minecraft_vanilla_respawn" }
 mcrs_minecraft_player_holders = { path = "crates/mcrs_minecraft_player_holders" }
 mcrs_minecraft_inventory_server = { path = "crates/mcrs_minecraft_inventory_server" }
 mcrs_minecraft_inventory_transaction = { path = "crates/mcrs_minecraft_inventory_transaction" }
@@ -231,6 +232,7 @@ mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
 mcrs_minecraft_engine_inventory_menu = { path = "crates/mcrs_minecraft_engine_inventory_menu" }
 mcrs_minecraft_engine_inventory_click = { path = "crates/mcrs_minecraft_engine_inventory_click" }
 mcrs_minecraft_engine_attributes = { path = "crates/mcrs_minecraft_engine_attributes" }
+mcrs_minecraft_engine_player_vitals = { path = "crates/mcrs_minecraft_engine_player_vitals" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }

@@ -7,6 +7,7 @@ use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -132,17 +133,18 @@ pub(crate) fn has_pending_player_swings(pending: Res<PendingPlayerSwings>) -> bo
 fn player_can_swing(
     eligibility: SwingEligibility,
     mode: Option<&PlayerGameMode>,
-    state: Option<&PlayerFileState>,
+    vitals: Option<&Vitals>,
 ) -> bool {
     match eligibility {
         SwingEligibility::AliveActor => {
             let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
-            let dead = state.is_some_and(|file| file.health <= 0.0 || file.death_time > 0);
+            let dead = vitals.is_some_and(|vitals| !vitals.is_alive());
             !spectator && !dead
         }
         SwingEligibility::CommandTarget => {
-            let corpse_removed =
-                state.is_some_and(|file| file.death_time >= i16::from(CORPSE_REMOVAL_TICKS));
+            let corpse_removed = vitals
+                .and_then(|vitals| vitals.death_time)
+                .is_some_and(|death_time| death_time >= CORPSE_REMOVAL_TICKS);
             !corpse_removed
         }
     }
@@ -167,16 +169,20 @@ fn apply_player_swings(
     mut players: Query<(
         Option<&PlayerGameMode>,
         Option<&PlayerFileState>,
+        Option<&Vitals>,
         &mut PlayerSwing,
     )>,
     mut pending: Option<ResMut<PendingPlayerSwings>>,
 ) {
     let now = clock.map_or(0, |clock| clock.0);
     for &request in requests.read() {
-        let Ok((mode, file_state, mut swing)) = players.get_mut(request.player) else {
+        let Ok((mode, file_state, vitals, mut swing)) = players.get_mut(request.player) else {
             continue;
         };
-        if !player_can_swing(request.eligibility, mode, file_state) {
+        if !player_can_swing(request.eligibility, mode, vitals) {
+            continue;
+        }
+        if !swing.0.can_start(now) {
             continue;
         }
         let modifiers = swing_modifiers_for_player(file_state);
@@ -230,6 +236,7 @@ mod tests {
     use crate::player_order::{self, PlayerOrder, SwingOrder};
     use crate::player_state::Effect;
     use crate::player_tracker::PlayerTrackerPlugin;
+    use crate::replicated::Visibility;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct EmittedSwing {
@@ -256,6 +263,7 @@ mod tests {
                     id: EntityId(99),
                     tile: TileKey::new(0, 0, 0),
                     game_mode: GameMode::Survival,
+                    visibility: Visibility::Shown,
                 },
             ))
             .id();
@@ -368,70 +376,69 @@ mod tests {
 
     #[test]
     fn player_can_swing_enforces_action_and_command_eligibility_matrix() {
-        let state = |health, death_time| PlayerFileState {
-            health,
+        let vitals = |health, death_time| Vitals {
             death_time,
-            ..PlayerFileState::default()
+            ..Vitals::new(health)
         };
         let cases = [
             (SwingEligibility::AliveActor, None, None, true),
             (
                 SwingEligibility::AliveActor,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(20.0, 0)),
+                Some(vitals(20.0, None)),
                 true,
             ),
             (
                 SwingEligibility::AliveActor,
                 Some(PlayerGameMode(GameMode::Spectator)),
-                Some(state(20.0, 0)),
+                Some(vitals(20.0, None)),
                 false,
             ),
             (
                 SwingEligibility::AliveActor,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(0.0, 0)),
+                Some(vitals(0.0, Some(0))),
                 false,
             ),
             (
                 SwingEligibility::AliveActor,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(20.0, 1)),
+                Some(vitals(0.0, Some(1))),
                 false,
             ),
             (SwingEligibility::CommandTarget, None, None, true),
             (
                 SwingEligibility::CommandTarget,
                 Some(PlayerGameMode(GameMode::Spectator)),
-                Some(state(20.0, 0)),
+                Some(vitals(20.0, None)),
                 true,
             ),
             (
                 SwingEligibility::CommandTarget,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(0.0, 0)),
+                Some(vitals(0.0, Some(0))),
                 true,
             ),
             (
                 SwingEligibility::CommandTarget,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(0.0, 19)),
+                Some(vitals(0.0, Some(19))),
                 true,
             ),
             (
                 SwingEligibility::CommandTarget,
                 Some(PlayerGameMode(GameMode::Survival)),
-                Some(state(0.0, 20)),
+                Some(vitals(0.0, Some(20))),
                 false,
             ),
         ];
-        for (eligibility, mode, file_state, expected) in cases {
+        for (eligibility, mode, vitals, expected) in cases {
             assert_eq!(
-                player_can_swing(eligibility, mode.as_ref(), file_state.as_ref()),
+                player_can_swing(eligibility, mode.as_ref(), vitals.as_ref()),
                 expected,
                 "eligibility={eligibility:?} mode={mode:?} death_time={:?} health={:?}",
-                file_state.as_ref().map(|file| file.death_time),
-                file_state.as_ref().map(|file| file.health),
+                vitals.as_ref().and_then(|v| v.death_time),
+                vitals.as_ref().map(|v| v.health),
             );
         }
     }
