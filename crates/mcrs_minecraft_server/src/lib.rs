@@ -26,6 +26,7 @@ use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlug
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
+use mcrs_minecraft_vanilla_respawn::RespawnPlugin;
 
 pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
@@ -82,6 +83,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaPlayerPosePlugin)
             .add(VanillaEntityAttributesPlugin)
+            .add(VanillaRespawnPlugin)
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
@@ -122,6 +124,14 @@ impl Plugin for VanillaEntityAttributesPlugin {
         app.add_dimension_plugin(PlayerAttributesPlugin);
         app.add_dimension_plugin(PlayerVitalsPlugin);
         app.add_dimension_plugin(MobAttributesPlugin);
+    }
+}
+
+pub struct VanillaRespawnPlugin;
+
+impl Plugin for VanillaRespawnPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(RespawnPlugin);
     }
 }
 
