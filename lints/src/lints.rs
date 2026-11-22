@@ -1,0 +1,77 @@
+use rustc_lint::Level;
+use rustc_lint::Lint;
+
+const fn lint(name: &'static str, desc: &'static str) -> Lint {
+    Lint {
+        name,
+        default_level: Level::Warn,
+        desc,
+        is_externally_loaded: true,
+        eval_always: true,
+        ..Lint::default_fields_for_macro()
+    }
+}
+
+pub static EXCLUSIVE_SYSTEM: &Lint = &lint(
+    "mcrs::exclusive_system",
+    "a system takes `&mut World` and runs alone",
+);
+pub static EXCLUSIVE_OBSERVER: &Lint = &lint(
+    "mcrs::exclusive_observer",
+    "an observer takes `&mut World`, which panics when the observer is added",
+);
+pub static UNGATED_SYSTEM: &Lint = &lint(
+    "mcrs::ungated_system",
+    "a system in a tick schedule has no run condition",
+);
+pub static BLOCKING_IN_SYSTEM: &Lint = &lint(
+    "mcrs::blocking_in_system",
+    "a tick system reads the wall clock, sleeps, blocks or does file I/O",
+);
+pub static ALLOC_IN_TICK: &Lint = &lint(
+    "mcrs::alloc_in_tick",
+    "a tick system allocates a heap collection on each run",
+);
+pub static PER_FRAME_INSERT_RESOURCE: &Lint = &lint(
+    "mcrs::per_frame_insert_resource",
+    "a tick system inserts a resource on each run",
+);
+pub static MARKER_TOGGLE: &Lint = &lint(
+    "mcrs::marker_toggle",
+    "a tick system inserts and removes the same marker component",
+);
+pub static TIME_CLOCK_MISMATCH: &Lint = &lint(
+    "mcrs::time_clock_mismatch",
+    "a system in a fixed schedule reads the real or the virtual clock",
+);
+pub static MISSED_SET_IF_NEQ: &Lint = &lint(
+    "mcrs::missed_set_if_neq",
+    "a write through `DerefMut` of a change-tracked value without a comparison",
+);
+pub static ZST_QUERY: &Lint = &lint(
+    "mcrs::zst_query",
+    "a query fetches a marker component as data",
+);
+pub static BORROWED_REBORROWABLE: &Lint = &lint(
+    "mcrs::borrowed_reborrowable",
+    "a parameter takes `&mut` of a type that has `reborrow`",
+);
+pub static INSERT_MESSAGE_RESOURCE: &Lint = &lint(
+    "mcrs::insert_message_resource",
+    "`Messages<T>` is inserted as a plain resource",
+);
+
+pub static LINTS: [&Lint; 12] = [
+    EXCLUSIVE_SYSTEM,
+    EXCLUSIVE_OBSERVER,
+    UNGATED_SYSTEM,
+    BLOCKING_IN_SYSTEM,
+    ALLOC_IN_TICK,
+    PER_FRAME_INSERT_RESOURCE,
+    MARKER_TOGGLE,
+    TIME_CLOCK_MISMATCH,
+    MISSED_SET_IF_NEQ,
+    ZST_QUERY,
+    BORROWED_REBORROWABLE,
+    INSERT_MESSAGE_RESOURCE,
+];

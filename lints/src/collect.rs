@@ -54,6 +54,7 @@ pub struct Collected<'tcx> {
     pub registrations: Vec<Registration<'tcx>>,
     pub sets: Vec<(String, Placement)>,
     pub sites: Vec<Site<'tcx>>,
+    pub observers: Vec<Leaf<'tcx>>,
 }
 
 pub fn collect<'tcx>(
@@ -156,6 +157,17 @@ impl<'tcx> Collector<'_, 'tcx> {
                 }
                 _ => {}
             }
+        }
+        if matches!(name.as_str(), "add_observer" | "observe")
+            && self
+                .anchors
+                .method_host(self.tcx, call.callee)
+                .is_some_and(|host| self.anchors.observer_hosts.contains(&host))
+            && let Some(observer) = call.args.last()
+        {
+            let leaf = self.leaf(observer);
+            self.out.observers.push(leaf);
+            return;
         }
         if self.may_forward(call.callee) {
             let owner = self.site_owner(&call);

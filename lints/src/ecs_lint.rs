@@ -11,10 +11,13 @@ use rustc_span::def_id::CrateNum;
 use rustc_span::def_id::LOCAL_CRATE;
 
 use crate::anchors::Anchors;
+use crate::body_scan;
 use crate::collect::collect;
 use crate::collect::helper_crate;
+use crate::lints;
 use crate::resolve::resolve;
-use crate::rules;
+use crate::signature_rules;
+use crate::system_rules;
 use mcrs_lint::Facts;
 
 pub struct EcsLint;
@@ -25,7 +28,7 @@ impl LintPass for EcsLint {
     }
 
     fn get_lints(&self) -> LintVec {
-        rules::LINTS.to_vec()
+        lints::LINTS.to_vec()
     }
 }
 
@@ -47,7 +50,17 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .filter_map(|helper| helper_crate(&helper.owner))
             .collect();
         let resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
-        rules::check(tcx, &anchors, &resolved.uses, &resolved.graph);
+        let bodies = body_scan::scan(tcx, &anchors);
+        let tick_schedules = system_rules::tick_schedules();
+        let context = system_rules::Context {
+            tcx,
+            anchors: &anchors,
+            graph: &resolved.graph,
+            bodies: &bodies,
+            tick_schedules: &tick_schedules,
+        };
+        system_rules::check(&context, &resolved.uses, &resolved.observers);
+        signature_rules::check(tcx, &anchors);
         if let Some(path) = facts_path(tcx, LOCAL_CRATE)
             && let Err(error) = resolved.facts.store(&path)
         {

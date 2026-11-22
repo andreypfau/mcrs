@@ -8,7 +8,7 @@ use rustc_span::Ident;
 use rustc_span::Symbol;
 
 use crate::ecs_lint::EcsLint;
-use crate::rules;
+use crate::lints;
 
 type RegisteredToolsQuery = for<'tcx> fn(TyCtxt<'tcx>, ()) -> RegisteredTools;
 
@@ -23,7 +23,7 @@ impl Callbacks for LintCallbacks {
         config.crate_cfg.push("mcrs_lint".to_owned());
         config.crate_check_cfg.push("cfg(mcrs_lint)".to_owned());
         config.register_lints = Some(Box::new(|_, store| {
-            store.register_lints(&rules::LINTS);
+            store.register_lints(&lints::LINTS);
             store.register_late_lint_pass(Box::new(|_| Box::new(EcsLint)));
         }));
         config.track_state = Some(Box::new(|sess| {

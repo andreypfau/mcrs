@@ -28,6 +28,7 @@ pub struct SystemUse<'tcx> {
 
 pub struct Resolved<'tcx> {
     pub uses: Vec<SystemUse<'tcx>>,
+    pub observers: Vec<Leaf<'tcx>>,
     pub graph: SetGraph,
     pub facts: Facts,
 }
@@ -86,6 +87,7 @@ pub fn resolve<'tcx>(
 
     Resolved {
         uses: state.uses,
+        observers: collected.observers,
         graph,
         facts: Facts {
             helpers: state.local_helpers,

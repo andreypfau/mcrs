@@ -115,21 +115,40 @@ or of the registration, so `#[expect]` on that item applies.
 fn tick_dimensions(world: &mut World) { /* ... */ }
 ```
 
-First rules:
+Rules on systems. A "tick system" is a system in a tick schedule. "Reach" is the body of the
+system, its closures, and the local functions that it calls, at any depth.
 
 | Lint | Rule | Check |
 |------|------|-------|
 | `exclusive_system` | "No system takes `&mut World`" | a registered system with a `&mut World` parameter at any position |
-| `ungated_system` | "Systems are gated by run conditions" | a system in a tick schedule with no run condition, and with no `Single`, `Populated` or `If` parameter |
+| `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
+| `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated` or `If` parameter |
+| `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` or a `block_on` |
+| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace` and `mem::swap` do not count |
+| `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop |
+| `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
+| `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
+
+Rules on any function:
+
+| Lint | Rule | Check |
+|------|------|-------|
+| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside an `if` that compares with `==` or `!=` |
+| `borrowed_reborrowable` | Pass a reborrow, not `&mut` | a parameter `&mut` of `Commands`, `EntityCommands`, `Query`, `DeferredWorld`, `EntityMut`, `Mut`, `ResMut` or `NonSendMut`, if the return type does not use its lifetime; `self` and trait methods are not checked |
+| `zst_query` | Filter on a marker | `Query` data that fetches `&T` of a unit component |
+| `insert_message_resource` | Register messages with `add_message` | `init_resource` or `insert_resource` of `Messages<T>` |
 
 The tick schedules are the schedules of the Bevy main loop (`First` to `Last`, the fixed
 schedules, `ExtractSchedule`, `Render`) and the schedules in
-`[workspace.metadata.mcrs_lint] tick_schedules`. Other schedules, for example `Startup` or a
-schedule that a system runs on demand, are not checked.
+`[env] MCRS_LINT_TICK_SCHEDULES`. Other schedules, for example `Startup` or a schedule that a
+system runs on demand, are not checked.
 
-Next rules, in this order: `blocking_in_system`, `missed_set_if_neq`,
-`system_too_many_arguments`, `marker_toggle`, `per_frame_insert_resource`, `alloc_in_tick`,
-`time_clock_mismatch`, `always_changed_filter`.
+`Time<Fixed>` in a frame schedule is not a mismatch: interpolation reads the overstep of the
+fixed clock there.
+
+Next rules: `system_too_many_arguments` (counts only parameters that are not a `SystemParam`,
+and replaces `clippy::too_many_arguments`), `always_changed_filter` (`Changed<T>` on a component
+that a tick system writes on each run), `unit_in_bundle`.
 
 ## 6. Matching of Bevy items
 
@@ -162,18 +181,19 @@ MCRS_LINT_DEBUG=1 cargo check -p <crate>                 # shows each configurat
 
 ## 9. Cost
 
-Measured on the workspace (207 crates, Apple M-series, `cargo clean --workspace` before a cold
-check):
+Measured on the workspace (207 crates, Apple M-series). The pass takes 0.9 s of CPU time for
+all crates together: 0.5 s for the model of registrations, 0.1 s for the scan of bodies,
+0.2 s for the rules on systems, 0.1 s for the rules on signatures. A cold check of the
+workspace crates takes 15 to 18 s with and without the driver.
 
 | Case | Without the driver | With the driver |
 |------|--------------------|-----------------|
-| Cold check of the workspace crates | 16 to 17 s | 17 to 18 s |
 | One edit in `mcrs_minecraft_engine` | 2.1 s | 2.3 s |
 | No change | 0.6 s | 0.6 s |
 
-The pass takes 0.5 s of CPU time for all crates together. The pass looks at a call only when
-the callee is in the local crate or in a crate with helpers. Other calls (`Iterator::map`,
-`Clone::clone` and the others) cannot forward a system, so the pass does not resolve them.
+The model looks at a call only when the callee is in the local crate or in a crate with
+helpers. Other calls (`Iterator::map`, `Clone::clone` and the others) cannot forward a system,
+so the model does not resolve them.
 
 ## 10. Known limits
 
@@ -186,5 +206,11 @@ the callee is in the local crate or in a crate with helpers. Other calls (`Itera
   not resolved.
 - A run condition that a crate outside the dependencies of the registration adds to a set is
   not visible (§4).
+- Observers are checked only for `exclusive_observer`. The rules on tick systems do not apply
+  to observers.
+- The reach of a system does not include functions of other crates, trait methods or calls
+  through a function pointer.
+- `missed_set_if_neq` accepts a write inside any `if` that compares, also when the comparison
+  is about another value.
 - The set graph does not separate schedules: a run condition on a set in one schedule gates
   the set in all schedules.
