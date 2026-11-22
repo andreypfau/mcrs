@@ -107,6 +107,19 @@ This document does not state:
 - how the client moves an entity. `client-entities.md` states it;
 - the crates and the types of an implementation. A design note states them.
 
+### 0.5 Parameters
+
+A user sets each parameter through the plugin that adds the knowledge state. Each value of the
+table is a default.
+
+| Parameter | Default | Rule |
+|-----------|---------|------|
+| `max_pending_probes` | 2400 | CK-BRK-008 |
+| `max_kept_bytes` | 1 MiB | CK-BRK-009 |
+| `entity_settle_ticks` | 20 client ticks | CK-ENT-004 |
+
+`max_ack_delay` and `replay_depth` are parameters of `movement-checks.md`, section 10.
+
 ## 1. Parts
 
 ### CK-PART-001: Four parts
@@ -280,7 +293,7 @@ These classes of clientbound packets are tracked changes:
 | Class | Packets | Applies to |
 |-------|---------|------------|
 | movement values | the packets of MVC-PKT-030 | the own player and its world view |
-| own entity data | `set_entity_data` (MVC-PKT-031): the flags of elytra flight, item use and riptide, the sleep position, the pose | the own player |
+| own entity data | `set_entity_data` (MVC-PKT-031): the flags of elytra flight, item use and riptide, the sleep position | the own player |
 | game mode | `game_event` with the event 3; `player_info_update` with a game mode for the own player | the own player |
 | teleport | `player_position` | the own player (CK-TP-001) |
 | respawn | `respawn` | the own player and its world (CK-TP-003) |
@@ -303,6 +316,20 @@ client needs, for example a block change far from the player (MVC-PRED-018). A r
 read a change that the knowledge state dropped.
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
+
+### CK-SET-003: No pose for the own player
+
+The server does not send the pose (index 6 of POSE-NET-002 of `player-pose.md`) of a player to the
+client of that player. It removes that entry from each `set_entity_data` for the own player. When
+no other entry remains, it does not send the packet. The other entries of the own player stay
+tracked changes (CK-SET-001).
+
+The client selects its own pose in its next tick (POSE-CLI-001). A pose from the server thus
+changes the eye height of the client for at most one client tick, and the target of that tick can
+use it (CBK-TGT-001). Without the entry, the eye height of the client comes only from its own
+selection. CK-DEV-006 records the difference from the reference.
+
+Provenance: `design`. Kind: deviation. Confidence: medium.
 
 ## 4. The knowledge state
 
@@ -465,17 +492,26 @@ between its position and the end positions that it received (CENTS-INTERP-002). 
 end position (CENTS-INTERP-003). Each point of such a path is in the box. Step 3 is correct
 because the path that remains after a start ends in `N` ticks (CENTS-INTERP-001).
 
+The movement reader uses this box for the possible pushers of MVC-UNC-004 of `movement-checks.md`.
+That rule and MVC-UNC-005 to MVC-UNC-007 stay in that document.
+
 Provenance: `design`, third-party. Kind: semantic. Confidence: medium. Experiment: K5.
 
 ### CK-ENT-004: The interpolation length of each type
 
-Step 3 of CK-ENT-003 uses the interpolation length `N` of the type of the entity. When
-`client-entities.md` gives no `N` for a type, step 3 uses `entity_settle_ticks`. The default is
-20. Without step 3, the box only grows. Thus a value larger than the true `N` gives a wider box,
-and it is never wrong (CK-UNC-004).
+Step 3 of CK-ENT-003 uses the interpolation length `N` of the type of the entity, from the table
+of CENTS-INTERP-005 of `client-entities.md`. For a type whose `N` that rule does not state, step 3
+uses `entity_settle_ticks` (section 0.5). Without step 3, the box only grows. Thus a value larger than
+the true `N` gives a wider box, and it is never wrong (CK-UNC-004). The default of 20 is such a
+wider bound for each type whose true `N` is 20 or less.
 
 Step 3 does not apply while the tick rate of the client is frozen. It also does not apply while
 the entity can be outside the ticking area of the client.
+
+The box of CK-ENT-003 contains the view only of a type that the client moves by the rules of
+section 4 of `client-entities.md` alone. The client also moves some types with their own step,
+for example the simulated entities of section 16 of that document and the projectiles. For such a
+type, each position in the entity view is an unknown value (CK-UNC-005).
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
@@ -502,6 +538,26 @@ packets in the window state. The server sends the same position packets to each 
 the entity. Thus the clients can share the records of these packets (MVC-UNC-007).
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
+
+### CK-ENT-008: The entity view of a passenger
+
+While a tracked entity rides a tracked vehicle on the client, the client puts it at its seat
+position (`teleport-confirmation.md`, section 0.1). The client does not move it by its own position
+packets. The entity view of the passenger is then the view of the vehicle plus the seat offset:
+
+1. The seat offset is the seat position minus the position of the vehicle. It depends on the type,
+   the scale and the state of the vehicle, the type of the passenger and the index of the
+   passenger in `set_passengers`. Examples are the passenger attachment points of ANIM-TYPE-002 of
+   `mob-animals.md`.
+2. The client turns the horizontal part of the seat offset with the yaw of the vehicle. Thus the
+   view of the passenger contains the seat offset at each yaw that the client can give the vehicle.
+3. A reader can use a wider set (CK-UNC-004). An example is `H(k)` of the vehicle, grown on `x` and
+   `z` by the horizontal length of the seat offset, and moved on `y` by its vertical part.
+
+While the `set_passengers` that adds or removes the passenger is in the window state, the entity
+view of the passenger contains its view as a passenger and its view without the vehicle.
+
+Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: K7.
 
 ## 8. Teleports, setbacks and respawns
 
@@ -633,6 +689,7 @@ consults this list.
 | CK-DEV-003 | CK-BRK-008 | no comparison of a stream with no answers |
 | CK-DEV-004 | CK-BRK-006 | no comparison of a stream with wrong answers |
 | CK-DEV-005 | CK-TP-002 | no comparison of a stream that skips a teleport |
+| CK-DEV-006 | CK-SET-003 | ignore index 6 in `set_entity_data` for the own player |
 
 ### CK-DEV-001: Probes in the play state
 
@@ -683,6 +740,21 @@ consults this list.
 - **Bug reference**: none.
 - **Test**: a differential test does not send a stream that skips an accept.
 
+### CK-DEV-006: No pose for the own player
+
+- **Rule**: CK-SET-003.
+- **Reference**: the vanilla server sends each change of the pose of a player to the client of that
+  player (POSE-NET-003 of `player-pose.md`).
+- **Reason**: the client replaces that pose in its next tick (POSE-CLI-001). Until then, the pose
+  from the server changes the eye height of the target of the client. The server then cannot know
+  the eye of an action of that tick from the movement packets alone.
+- **Visible to the client**: no, in normal play. The client selects the same pose in its next tick.
+  Its camera eye height follows the pose with a smooth filter (CCAM-EYE-001 of `client-camera.md`),
+  so a pose of one tick shows no visible step.
+- **Bug reference**: none.
+- **Test**: a differential test removes index 6 from each `set_entity_data` for the own player in
+  both streams before it compares them. It drops a packet that has no other entry.
+
 ## 13. Edition parameters
 
 This section states parameters, not rules. A Bedrock client joins through its own edge
@@ -714,16 +786,8 @@ place of each `pong` among the serverbound packets.
 | K4 | Run the scenes of K1 and a hit by a zombie with 0, 150, 300 and 1000 ms of delay in each direction. Feed the recordings to a server with the movement reader. | No mismatch. | CK-INV-001 |
 | K5 | Lead a pig and a player that walk. Delay each `pong` by 300 ms. Record the positions of the client entities with the capture of `client-entities.md`, section 0.2. | Each position of each client tick is in `H(k)` of CK-ENT-003. | CK-ENT-003 |
 | K6 | Run K1 and K3 with the client of mcrs in place of the vanilla client. | The same order of `pong`, accept and tick packets as the vanilla client. | CK-CLI-001 to CK-CLI-003 |
+| K7 | Seat a player in a boat and a second player in a minecart. Let a third player watch both while the vehicles move and turn. Record the positions of the client entities with the capture of `client-entities.md`, section 0.2. | Each position of each passenger is in the set of CK-ENT-008, step 3. A position packet of a passenger does not move it. | CK-ENT-008 |
 
 ## 15. Unresolved
 
-- **U1**: `client-entities.md` gives the interpolation length `N` only for some types. CK-ENT-004
-  uses a default for each other type. A table of `N` for each entity type is not decided.
-- **U2**: the entity view of a passenger. Its position follows its vehicle. A rule that derives
-  the view of a passenger from the view of its vehicle is not decided.
-- **U3**: the pose of the own player in `set_entity_data`. The client sets its own pose in its next
-  tick. Thus the pose that the server sends has an effect for at most one client tick. The choice
-  between a bracket (CK-SET-001) and no pose for the own player is not decided.
-- **U4**: MVC-UNC-004 states a hull of the positions of a pusher from two acknowledged positions
-  and the positions in a window. CK-ENT-003 states a box that also contains the earlier end
-  positions of a path that is not finished. Whether MVC-UNC-004 uses CK-ENT-003 is not decided.
+No item is open.
