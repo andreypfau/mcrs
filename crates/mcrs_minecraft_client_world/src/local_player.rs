@@ -9,7 +9,7 @@ use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier,
 };
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::ClientConnection;
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
@@ -21,15 +21,18 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::attribute_packets;
-use crate::health_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
+use crate::health_packets;
 use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_motion::{self, LocalMotion};
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::player_killed::{self, PlayerKilled};
 use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
+use crate::request_respawn::{self, RequestRespawn};
+use crate::respawn_screen;
 use crate::walk::walk;
 
 pub const TICKS_PER_SECOND: f64 = 20.0;
@@ -97,10 +100,15 @@ impl Plugin for LocalPlayerPlugin {
             app.add_plugins(PlayerViewPlugin);
         }
         app.init_resource::<MovementInput>()
+            .add_message::<PlayerKilled>()
+            .add_message::<RequestRespawn>()
             .add_observer(attribute_packets::on_login)
             .add_observer(attribute_packets::on_respawn)
             .add_observer(attribute_packets::on_update_attributes)
             .add_observer(health_packets::on_set_health)
+            .add_observer(player_killed::on_player_combat_kill)
+            .add_observer(respawn_screen::on_login)
+            .add_observer(respawn_screen::on_game_event)
             .add_observer(local_motion::on_login)
             .add_observer(local_motion::on_respawn)
             .add_observer(local_motion::on_set_entity_data)
@@ -127,6 +135,12 @@ impl Plugin for LocalPlayerPlugin {
                         .in_set(LocalPlayerTick),
                     send_movement.after(LocalPlayerTick),
                 ),
+            )
+            .add_systems(
+                Update,
+                request_respawn::send_respawn_requests
+                    .after(ClientNetworkSystems::Receive)
+                    .before(ClientNetworkSystems::Flush),
             );
     }
 }

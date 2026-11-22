@@ -18,6 +18,7 @@ use crate::local_motion::LocalMotion;
 use crate::local_player::LastSentInput;
 use crate::player::{Player, player_at};
 use crate::player_load::{LoadProgress, PlayerLoad};
+use crate::respawn_screen::RespawnScreen;
 use crate::session::InSession;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::SyncedData;
@@ -81,6 +82,7 @@ fn on_login(
     let Some(login) = event.packet() else {
         return;
     };
+    let respawn_screen = RespawnScreen::from_login(&login);
     let session = registries.as_deref().map(|registries| &**registries);
     match in_session(session, &login.player_spawn_info) {
         Ok(()) => {
@@ -101,6 +103,7 @@ fn on_login(
                     LastSentInput::default(),
                     LocalGameMode::spawned(&login.player_spawn_info),
                     PermissionLevel::default(),
+                    respawn_screen,
                     InSession(event.entity),
                     PlayerLoad::Loading(LoadProgress::default()),
                 ));
