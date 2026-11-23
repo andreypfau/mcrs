@@ -1,0 +1,13 @@
+[package]
+name = "mcrs_minecraft_vanilla_player_attack"
+description = "The melee attack of a player on an entity: the attack strength and the damage amount"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]

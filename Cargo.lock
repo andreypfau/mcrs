@@ -7410,6 +7410,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_vanilla_player_attack"
+version = "0.5.8"
+
+[[package]]
 name = "mcrs_minecraft_vanilla_respawn"
 version = "0.5.8"
 dependencies = [

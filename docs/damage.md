@@ -31,7 +31,7 @@ from `Vitals`.
 | Crate | Layer | Content |
 |-------|-------|---------|
 | `mcrs_minecraft_entity_key` (`no_std`) | 3, data | `EntityUuid`, `WriterKey`, `Cause { causing, direct }` |
-| `mcrs_minecraft_damage` (`no_std`, feature `bevy` for derives only) | 3, rules | `Vitals`, `HitRecord`, `Hit`, `DamageSource`, `Defence`, `DamageTypeRules`, `HurtRules`, `HitReport`, `HitOutcome`, `hurt`, `preview`, `knockback`, `KnockbackRules`, `fall_damage` |
+| `mcrs_minecraft_damage` (`no_std`, feature `bevy` for derives only) | 3, rules | `Vitals`, `HitRecord`, `Hit`, `DamageSource`, `Defence`, `DamageTypeRules`, `HurtRules`, `HitReport`, `HitOutcome`, `hurt`, `preview`, `knockback`, `Footing`, `fall_damage` |
 | `mcrs_minecraft_engine_damage` (new) | 4 | `DamagePlugin`, `DamageSet`, `PendingHits`, `DamageRequest`, `Damaged`, `Died`, `RespawnRequest`; no vanilla behaviour |
 | `mcrs_minecraft_engine_player_vitals` (new) | 4 | `PlayerVitalsPlugin`, `DeathMessage`, `PlayerDeathSet`; gives a player `Vitals`, `HitRecord` and `Defence`; sends the health packet, the hit and death packets and the kill packet; removes a dead player from its viewers at death time 20; restores the player from a `RespawnRequest` |
 | `mcrs_minecraft_vanilla_player_attack` (new) | 5 | the attack packet becomes a `DamageRequest` and a knockback; needs #93 and #95 |
@@ -64,7 +64,7 @@ pub fn hurt(
   three amounts state where the hit went.
 - `HurtRules` holds the rules `mcrs:dying_entities_targetable` and `mcrs:totem_covers_whole_hit`
   and the Java or Bedrock parity switches. An edge passes its own value; no fork of the kernel.
-- `knockback(velocity, direction, strength, resistance, &KnockbackRules) -> DVec3` and
+- `knockback(velocity, direction, strength, resistance, Footing, &KeyedStream) -> DVec3` and
   `fall_damage(distance, multiplier, safe_distance) -> f32` are pure functions.
 
 The kernel reads no registry and no world. A custom damage type from a data pack gets its row in
@@ -132,7 +132,7 @@ Rules:
 | Anticheat or proxy | It reads `DamageRequest` in `Filter`: the reach (#95), the attack rate, the `Cause`. |
 | Online map or statistics | It reads `Died`: the position of the target and the `DamageSource`. |
 | Balance calculator | It calls `hurt` in a loop with a `Defence` value. No Bevy. |
-| Bedrock edge (#655) | `KnockbackRules` and `HurtRules` hold the differences. |
+| Bedrock edge (#655) | `HurtRules` holds the differences. |
 
 ## 6. Migration path
 
