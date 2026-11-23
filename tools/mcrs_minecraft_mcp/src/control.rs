@@ -9,6 +9,7 @@ use mcrs_minecraft_client_control::Reply;
 use mcrs_minecraft_client_control::Request;
 
 use crate::handle::Handle;
+use crate::log_file;
 
 const POLL: Duration = Duration::from_millis(200);
 
@@ -32,10 +33,16 @@ impl Session {
                         stream: BufReader::new(stream),
                     });
                 }
-                Err(_) if handle.alive() && start.elapsed() < Duration::from_secs(60) => {
+                Err(error) => {
+                    let log = log_file::lines(&handle.log(), 0);
+                    if let Some(line) = log.iter().find(|line| line.starts_with("--control")) {
+                        return Err(format!("{} has no control socket: {line}", handle.id));
+                    }
+                    if !handle.alive() || start.elapsed() >= Duration::from_secs(60) {
+                        return Err(format!("{}: {error}", path.display()));
+                    }
                     std::thread::sleep(POLL);
                 }
-                Err(error) => return Err(format!("{}: {error}", path.display())),
             }
         }
     }

@@ -27,6 +27,16 @@ pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
             ],
             other => return Err(format!("unknown target {other}: use server or client")),
         };
+        let manifest =
+            std::fs::read_to_string(workdir.join("crates/mcrs_minecraft_client/Cargo.toml"));
+        if *target == "client"
+            && !manifest.is_ok_and(|text| text.lines().any(|line| line.starts_with("control =")))
+        {
+            return Err(format!(
+                "the client of {} has no feature control; build the client from a checkout that has it",
+                workdir.display()
+            ));
+        }
         let output = Command::new("cargo")
             .current_dir(workdir)
             .args(["build", "--release"])
