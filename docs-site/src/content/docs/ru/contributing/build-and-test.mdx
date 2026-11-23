@@ -3,7 +3,7 @@ title: Сборка и тесты
 description: Как запустить тесты mcrs локально, что проверяет CI и как перезаписать устаревший blessed-файл.
 sidebar:
   order: 2
-translated_from: 79dd5940a
+translated_from: 9eac02a81
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -30,7 +30,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ```bash
 cargo nextest run -p <crate>        # один крейт
-cargo nextest run --workspace       # все, перед коммитом
+cargo nextest run --workspace       # все, перед push
 cargo nextest run --profile full    # плюс исчерпывающие прогоны
 ```
 
@@ -44,12 +44,12 @@ cargo nextest run --profile full    # плюс исчерпывающие про
 |---|---|
 | `default` | Все, кроме тестов `exhaustive::`, `gpu::`, `online::` и `vanilla_server::`. |
 | `ci` | Тот же фильтр, что у `default`, и прогон не останавливается на первом падении. |
-| `ci-hosted` | Фильтр как у `ci`, для job `test` на машине GitHub с четырьмя ядрами. Один тест может идти 5 минут, весь прогон 30 минут. |
+| `ci-hosted` | Фильтр как у `ci`, для job `test` на машине GitHub. Один тест может идти 5 минут, весь прогон 30 минут. |
 | `full` | Уровень default плюс `exhaustive::` и `online::`. Им пользуются job CI по расписанию и job `worldgen-full`. |
 | `gpu` | Только тесты `gpu::`. Им нужна машина с Metal GPU. |
 | `vanilla-server` | Только тесты `vanilla_server::`. Они запускаются через [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh). |
 
-Ни один прогон тестов не должен идти дольше пяти минут, кроме `ci-hosted`. Тесту, который работает дольше, место на уровне `exhaustive::`.
+У профиля default весь прогон ограничен пятью минутами, а отдельный тест останавливается после четырех периодов по 15 секунд. Профили `full`, `gpu` и `vanilla-server` допускают пять периодов по 60 секунд на тест; `ci-hosted` также допускает 30 минут на весь прогон. Дорогие переборы помещают в `exhaustive::`, чтобы обычный прогон их пропускал.
 
 ## Запустите проверки xtask перед push
 
@@ -66,7 +66,7 @@ scripts/hooks/run-checks commit
 | `commit`, `push` | `comments`, `parity`, `fmt` |
 | `lint` | `comments`, `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
-| `test` | Тесты измененных крейтов и тех, что от них зависят. |
+| `test` | Тесты измененных крейтов и тех, что от них зависят, а также doctest, если выбраны core, resource или voxel. |
 | `portability` | `no-bevy`, `layers`, `example-dependencies`, `wasm32`, `no-std` |
 
 `fmt` и `clippy` запускают одноименные команды Cargo. Остальные проверки написаны для mcrs, а списки пакетов, по которым они идут, лежат в `xtask/src/checks.rs`.
@@ -110,7 +110,7 @@ Job `issue-link` запускается на каждом pull request. Он п�
 
 Последний job, `checks`, падает, если не прошел хотя бы один из job, которые должны были запуститься.
 
-На машине GitHub триггер `test` берет профиль `ci-hosted`, и Cargo разрешает фичи только для выбранных пакетов. В CI тесты пропускают каждый крейт, который зависит от wgpu, и все, что стоит выше него. Эти тесты идут только локально, поэтому запускайте их сами, когда трогаете клиент или рендерер.
+На машине GitHub триггер `test` берет профиль `ci-hosted`, и Cargo разрешает feature-флаги только для выбранных пакетов. В CI тесты пропускают каждый крейт, который зависит от wgpu, и все, что стоит выше него. Эти тесты идут только локально, поэтому запускайте их сами, когда трогаете клиент или рендерер.
 
 Второй workflow, `docs`, предупреждает о страницах этого сайта, у которых изменились источники. Он описан на странице [Как писать эту документацию](/docs/ru/contributing/docs/).
 

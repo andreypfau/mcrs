@@ -9,6 +9,7 @@ stability: changing
 tracking: [287, 296, 297, 302, 321]
 sources:
   - Cargo.toml
+  - README.md
   - xtask/src/checks.rs
   - AGENTS.md
   - examples/README.md
@@ -32,10 +33,215 @@ sources:
   - crates/mcrs_minecraft_client_gui/src/slot_icon.rs
   - crates/mcrs_minecraft_protocol_game/tests/it/inventory_packets.rs
   - crates/mcrs_minecraft_player_holders/tests/it/holders.rs
+  - crates/mcrs_command/Cargo.toml
+  - crates/mcrs_engine_cell/Cargo.toml
+  - crates/mcrs_engine_link/Cargo.toml
+  - crates/mcrs_engine_muxer/Cargo.toml
+  - crates/mcrs_engine_store/Cargo.toml
+  - crates/mcrs_minecraft_anvil/Cargo.toml
+  - crates/mcrs_minecraft_assets/Cargo.toml
+  - crates/mcrs_minecraft_banner_pattern/Cargo.toml
+  - crates/mcrs_minecraft_bedrock_protocol/Cargo.toml
+  - crates/mcrs_minecraft_bedrock_protocol_game/Cargo.toml
+  - crates/mcrs_minecraft_bedrock_wire/Cargo.toml
+  - crates/mcrs_minecraft_bedrock_wire_macros/Cargo.toml
+  - crates/mcrs_minecraft_biome/Cargo.toml
+  - crates/mcrs_minecraft_biome_file/Cargo.toml
+  - crates/mcrs_minecraft_block/Cargo.toml
+  - crates/mcrs_minecraft_block_break/Cargo.toml
+  - crates/mcrs_minecraft_block_entity/Cargo.toml
+  - crates/mcrs_minecraft_block_predicate/Cargo.toml
+  - crates/mcrs_minecraft_block_support/Cargo.toml
+  - crates/mcrs_minecraft_block_transformer/Cargo.toml
+  - crates/mcrs_minecraft_brain/Cargo.toml
+  - crates/mcrs_minecraft_chat/Cargo.toml
+  - crates/mcrs_minecraft_chat_client/Cargo.toml
+  - crates/mcrs_minecraft_chat_server/Cargo.toml
+  - crates/mcrs_minecraft_chunk/Cargo.toml
+  - crates/mcrs_minecraft_client/Cargo.toml
+  - crates/mcrs_minecraft_client_entity/Cargo.toml
+  - crates/mcrs_minecraft_client_gui/Cargo.toml
+  - crates/mcrs_minecraft_client_jar/Cargo.toml
+  - crates/mcrs_minecraft_client_options/Cargo.toml
+  - crates/mcrs_minecraft_client_widget/Cargo.toml
+  - crates/mcrs_minecraft_client_world/Cargo.toml
+  - crates/mcrs_minecraft_collision_table/Cargo.toml
+  - crates/mcrs_minecraft_command/Cargo.toml
+  - crates/mcrs_minecraft_command_argument/Cargo.toml
+  - crates/mcrs_minecraft_command_argument_block/Cargo.toml
+  - crates/mcrs_minecraft_command_argument_entity/Cargo.toml
+  - crates/mcrs_minecraft_command_argument_vanilla/Cargo.toml
+  - crates/mcrs_minecraft_command_engine/Cargo.toml
+  - crates/mcrs_minecraft_command_registry/Cargo.toml
+  - crates/mcrs_minecraft_command_tree/Cargo.toml
+  - crates/mcrs_minecraft_command_vanilla/Cargo.toml
+  - crates/mcrs_minecraft_command_world/Cargo.toml
+  - crates/mcrs_minecraft_console/Cargo.toml
+  - crates/mcrs_minecraft_container_click/Cargo.toml
+  - crates/mcrs_minecraft_core/Cargo.toml
+  - crates/mcrs_minecraft_creative_report/Cargo.toml
+  - crates/mcrs_minecraft_damage/Cargo.toml
+  - crates/mcrs_minecraft_datapack/Cargo.toml
+  - crates/mcrs_minecraft_decorated_pot_pattern/Cargo.toml
+  - crates/mcrs_minecraft_dimension/Cargo.toml
+  - crates/mcrs_minecraft_dimension_environment/Cargo.toml
+  - crates/mcrs_minecraft_enchantment/Cargo.toml
+  - crates/mcrs_minecraft_engine/Cargo.toml
+  - crates/mcrs_minecraft_engine_attributes/Cargo.toml
+  - crates/mcrs_minecraft_engine_brain/Cargo.toml
+  - crates/mcrs_minecraft_engine_damage/Cargo.toml
+  - crates/mcrs_minecraft_engine_entity_motion/Cargo.toml
+  - crates/mcrs_minecraft_engine_entity_motion_replication/Cargo.toml
+  - crates/mcrs_minecraft_engine_inventory_click/Cargo.toml
+  - crates/mcrs_minecraft_engine_inventory_menu/Cargo.toml
+  - crates/mcrs_minecraft_engine_item/Cargo.toml
+  - crates/mcrs_minecraft_engine_mob_attributes/Cargo.toml
+  - crates/mcrs_minecraft_engine_physics/Cargo.toml
+  - crates/mcrs_minecraft_engine_player_vitals/Cargo.toml
+  - crates/mcrs_minecraft_engine_registries/Cargo.toml
+  - crates/mcrs_minecraft_engine_server/Cargo.toml
+  - crates/mcrs_minecraft_engine_world/Cargo.toml
+  - crates/mcrs_minecraft_entity/Cargo.toml
+  - crates/mcrs_minecraft_entity_animation/Cargo.toml
+  - crates/mcrs_minecraft_entity_attribute/Cargo.toml
+  - crates/mcrs_minecraft_entity_key/Cargo.toml
+  - crates/mcrs_minecraft_entity_model/Cargo.toml
+  - crates/mcrs_minecraft_entity_render/Cargo.toml
+  - crates/mcrs_minecraft_entity_visual/Cargo.toml
+  - crates/mcrs_minecraft_environment/Cargo.toml
+  - crates/mcrs_minecraft_falling_block/Cargo.toml
+  - crates/mcrs_minecraft_fog/Cargo.toml
+  - crates/mcrs_minecraft_game_mode/Cargo.toml
+  - crates/mcrs_minecraft_game_registries/Cargo.toml
+  - crates/mcrs_minecraft_game_rule/Cargo.toml
+  - crates/mcrs_minecraft_goal_world/Cargo.toml
+  - crates/mcrs_minecraft_goals/Cargo.toml
+  - crates/mcrs_minecraft_heightmap/Cargo.toml
+  - crates/mcrs_minecraft_instrument/Cargo.toml
+  - crates/mcrs_minecraft_inventory_click/Cargo.toml
+  - crates/mcrs_minecraft_inventory_client/Cargo.toml
+  - crates/mcrs_minecraft_inventory_client_view/Cargo.toml
+  - crates/mcrs_minecraft_inventory_file/Cargo.toml
+  - crates/mcrs_minecraft_inventory_menu/Cargo.toml
+  - crates/mcrs_minecraft_inventory_player/Cargo.toml
+  - crates/mcrs_minecraft_inventory_server/Cargo.toml
+  - crates/mcrs_minecraft_inventory_transaction/Cargo.toml
+  - crates/mcrs_minecraft_item/Cargo.toml
+  - crates/mcrs_minecraft_item_entity/Cargo.toml
+  - crates/mcrs_minecraft_item_key/Cargo.toml
+  - crates/mcrs_minecraft_item_stack/Cargo.toml
+  - crates/mcrs_minecraft_item_table/Cargo.toml
+  - crates/mcrs_minecraft_jukebox_song/Cargo.toml
+  - crates/mcrs_minecraft_keys/Cargo.toml
+  - crates/mcrs_minecraft_lang/Cargo.toml
+  - crates/mcrs_minecraft_light_color/Cargo.toml
+  - crates/mcrs_minecraft_light_engine/Cargo.toml
+  - crates/mcrs_minecraft_light_render/Cargo.toml
+  - crates/mcrs_minecraft_loot/Cargo.toml
+  - crates/mcrs_minecraft_loot_condition/Cargo.toml
+  - crates/mcrs_minecraft_loot_table/Cargo.toml
+  - crates/mcrs_minecraft_map_decoration/Cargo.toml
+  - crates/mcrs_minecraft_menu_geometry/Cargo.toml
+  - crates/mcrs_minecraft_mesh/Cargo.toml
+  - crates/mcrs_minecraft_mob_control/Cargo.toml
+  - crates/mcrs_minecraft_model/Cargo.toml
+  - crates/mcrs_minecraft_model_file/Cargo.toml
+  - crates/mcrs_minecraft_move_predict/Cargo.toml
+  - crates/mcrs_minecraft_move_validate/Cargo.toml
+  - crates/mcrs_minecraft_nbt/Cargo.toml
+  - crates/mcrs_minecraft_nbt_path/Cargo.toml
+  - crates/mcrs_minecraft_network/Cargo.toml
+  - crates/mcrs_minecraft_noise/Cargo.toml
+  - crates/mcrs_minecraft_numeric/Cargo.toml
+  - crates/mcrs_minecraft_pack_file/Cargo.toml
+  - crates/mcrs_minecraft_painting_variant/Cargo.toml
+  - crates/mcrs_minecraft_particle/Cargo.toml
+  - crates/mcrs_minecraft_physics/Cargo.toml
+  - crates/mcrs_minecraft_player_holders/Cargo.toml
+  - crates/mcrs_minecraft_pose/Cargo.toml
+  - crates/mcrs_minecraft_potion/Cargo.toml
+  - crates/mcrs_minecraft_predicate/Cargo.toml
+  - crates/mcrs_minecraft_profile/Cargo.toml
+  - crates/mcrs_minecraft_protocol/Cargo.toml
+  - crates/mcrs_minecraft_protocol_game/Cargo.toml
+  - crates/mcrs_minecraft_random/Cargo.toml
+  - crates/mcrs_minecraft_recipe/Cargo.toml
+  - crates/mcrs_minecraft_region_disk/Cargo.toml
+  - crates/mcrs_minecraft_registries/Cargo.toml
+  - crates/mcrs_minecraft_registries_derive/Cargo.toml
+  - crates/mcrs_minecraft_registry_catalog/Cargo.toml
+  - crates/mcrs_minecraft_render/Cargo.toml
+  - crates/mcrs_minecraft_render_controller/Cargo.toml
+  - crates/mcrs_minecraft_render_probe/Cargo.toml
+  - crates/mcrs_minecraft_replication/Cargo.toml
+  - crates/mcrs_minecraft_resource/Cargo.toml
+  - crates/mcrs_minecraft_save/Cargo.toml
+  - crates/mcrs_minecraft_server/Cargo.toml
+  - crates/mcrs_minecraft_server_settings/Cargo.toml
+  - crates/mcrs_minecraft_simulation/Cargo.toml
+  - crates/mcrs_minecraft_snbt/Cargo.toml
+  - crates/mcrs_minecraft_sound/Cargo.toml
+  - crates/mcrs_minecraft_static_registry/Cargo.toml
+  - crates/mcrs_minecraft_swing/Cargo.toml
+  - crates/mcrs_minecraft_text/Cargo.toml
+  - crates/mcrs_minecraft_text_bedrock/Cargo.toml
+  - crates/mcrs_minecraft_text_flatten/Cargo.toml
+  - crates/mcrs_minecraft_trim/Cargo.toml
+  - crates/mcrs_minecraft_value_provider/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_attributes/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_block_place/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_death/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_falling_block/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_inventory/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_item_entity/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_light/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_respawn/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_swing/Cargo.toml
+  - crates/mcrs_minecraft_vanilla_worldgen/Cargo.toml
+  - crates/mcrs_minecraft_volume/Cargo.toml
+  - crates/mcrs_minecraft_wire/Cargo.toml
+  - crates/mcrs_minecraft_wire_macros/Cargo.toml
+  - crates/mcrs_minecraft_worldgen/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_builtin/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_carver/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_density/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_feature/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_feature_place/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_generator/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_structure/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_structure_place/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_surface/Cargo.toml
+  - crates/mcrs_minecraft_worldgen_testing/Cargo.toml
+  - crates/mcrs_molang/Cargo.toml
+  - crates/mcrs_molang_wgsl/Cargo.toml
+  - crates/mcrs_test_alloc/Cargo.toml
+  - crates/mcrs_voxel/Cargo.toml
+  - crates/mcrs_minecraft_anvil/src/lib.rs
+  - crates/mcrs_minecraft_chunk/src/lib.rs
+  - crates/mcrs_minecraft_nbt/src/lib.rs
+  - crates/mcrs_minecraft_random/src/lib.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_engine_entity_motion/src/motion_step.rs
+  - crates/mcrs_minecraft_engine_entity_motion/src/motion_pass_plugin.rs
+  - crates/mcrs_minecraft_client_gui/src/health_hud.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs
+  - crates/mcrs_minecraft_client_world/src/health_packets.rs
+  - crates/mcrs_minecraft_menu_geometry/src/lib.rs
+  - crates/mcrs_minecraft_client_gui/src/lib.rs
+  - crates/mcrs_minecraft_command_vanilla/src/plugin.rs
+  - examples/inventory_bot_click/src/headless_client_plugin.rs
+  - issue:296
+  - issue:82
+  - issue:301
+  - issue:302
+  - issue:297
+  - issue:298
+  - issue:299
+  - issue:287
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -45,7 +251,7 @@ import Status from '~/components/Status.astro';
 mcrs is {fact('crates')} crates under `crates/`, and you can take them one at a time. This page lists all of them by layer and marks the ones that CI builds without Bevy, without `std` or for wasm32. Use it to find the crate you need and to see what it brings with it.
 
 <Aside type="caution" title="WIP">
-A script made the crate tables from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), and the result was pasted here by hand. A generator that rebuilds them on every docs build is planned. Until it exists the tables can be out of date, so check the verified date at the bottom of the page.
+The crate tables are maintained by hand from the package manifests and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). A generator that rebuilds them on every docs build is planned. Until it exists the tables can be out of date, so check the verified date at the bottom of the page.
 </Aside>
 
 ## How to read the tables
@@ -58,21 +264,21 @@ Each table has the same five columns. The crate name is the package name, and th
 
 | Column | Where it comes from |
 |---|---|
-| Description | `description` in the `Cargo.toml` of the crate. Five crates had no description or only their own name, so theirs is written from the source files |
+| Description | Based on `description` in each crate's `Cargo.toml`, checked and supplemented from the source files. Five manifests have no description or only the crate name |
 | No Bevy | `NO_BEVY_PACKAGES` in [`checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). CI runs `cargo check --no-default-features` on these crates and fails if one requires Bevy |
-| no_std | `NO_STD_PACKAGES` in the same file. CI builds these crates without `std` |
-| wasm32 | `WASM32_PACKAGES` in the same file. CI builds these crates for the `wasm32` target |
+| no_std | `NO_STD_PACKAGES` in the same file. CI builds these crates for `wasm32v1-none` without `std` |
+| wasm32 | `WASM32_PACKAGES` in the same file. CI builds these crates for `wasm32-unknown-unknown` |
 
 The no-Bevy list has {fact('crates_no_bevy')} names. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means only that the crate is not on the CI list. The crate may still build that way.
 
 ## Which crates to start with
 
-The table below names the crates to start with for five kinds of project. None of them is published to crates.io, so every row needs a git dependency, which [Use the crates in your project](/docs/en/crates/use-as-library/) describes. Six small programs under [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples) use the crates. `status_ping` queries a server with the protocol and network crates and no Bevy, `inventory_save_viewer` and `player_attributes` read a player file, `loot_validate` checks the loot tables of a data pack, `inventory_minigame` runs the inventory plugins without their packet edge, and `inventory_bot_click` is a bot without a window or a renderer that joins a server and clicks in its inventory menu. CI checks that the dependency tree of each example has none of the crates it forbids.[^288] The first tutorial is [parsing SNBT](/docs/en/crates/hello-nbt/). Minimal server, lobby and arena examples are planned.[^287]
+The table below names the crates to start with for five kinds of project. Use a git dependency for the repository version, as [Use the crates in your project](/docs/en/crates/use-as-library/) describes. Six small programs under [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples) use the crates. `status_ping` queries a server with the protocol and network crates and no Bevy, `inventory_save_viewer` and `player_attributes` read a player file, `loot_validate` checks the loot tables of a data pack, `inventory_minigame` runs the inventory plugins without their packet edge, and `inventory_bot_click` is a bot without a window or a renderer that joins a server and clicks in its inventory menu. CI checks that the dependency tree of each example has none of the crates it forbids.[^288] The first tutorial is [parsing SNBT](/docs/en/crates/hello-nbt/). Minimal server, lobby and arena examples are planned.[^287]
 
 | You build | Start with | State |
 |---|---|---|
 | A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is tracked in <Status issue={296} />, and online mode in <Status issue={82} /> |
-| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list. For the inventory add `mcrs_minecraft_inventory_client`, which applies the inventory packets and predicts and sends clicks, and `mcrs_minecraft_container_click`, which turns a mouse gesture into a click | The client state is split from rendering (<Status issue={301} />). The walker bot is tracked in <Status issue={302} /> |
+| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list. For the inventory add `mcrs_minecraft_inventory_client`, which applies the inventory packets and predicts and sends clicks, and `mcrs_minecraft_container_click`, which represents the click kind, button and menu entry | The client state is split from rendering (<Status issue={301} />). The walker bot is tracked in <Status issue={302} /> |
 | A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are tracked in <Status issue={297} />, and a model viewer in <Status issue={298} /> |
 | A tool for NBT, commands or data packs | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_minecraft_nbt_path`, `mcrs_command`, `mcrs_minecraft_datapack` | The crates exist. `mcrs_command` and `mcrs_minecraft_snbt` read and write what the game reads and writes. `mcrs_minecraft_nbt_path` parses an NBT path and selects, creates and sets tags, but no test compares it with the game yet |
 | A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is tracked in <Status issue={299} />. The generator itself matches vanilla in parity tests on reference seeds |
@@ -121,7 +327,7 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 |---|---|---|---|---|
 | `mcrs_minecraft_anvil` | Anvil region files: reading and writing chunks, palettes, retrogen | yes | - | yes |
 | `mcrs_minecraft_assets` | Data pack loading: JSON loaders, the registry access and the load state | - | - | - |
-| `mcrs_minecraft_banner_pattern` | The banner pattern registry value, its keys and its tag keys | yes | - | - |
+| `mcrs_minecraft_banner_pattern` | Banner patterns: the registry value, its keys and its tag keys | yes | - | - |
 | `mcrs_minecraft_bedrock_protocol_game` | Bedrock Edition game packets: StartGame, Text, MovePlayer, PlayerAuthInput, SetTime, UpdateBlock, ChunkColumn | yes | - | - |
 | `mcrs_minecraft_biome` | Biomes, climate parameters and biome sources | yes | - | - |
 | `mcrs_minecraft_biome_file` | The biome file as data packs write it, its built-in draft, and the columns it is stored as | yes | - | yes |
@@ -145,12 +351,12 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_minecraft_container_click` | The content of a container click as a plain value: the click kind, the button and the clicked menu entry, with its wire codec | yes | yes | - |
 | `mcrs_minecraft_creative_content` | Creative tab lists and the search list built from the report and the session registries, tags, feature flags and operator condition | yes | - | - |
 | `mcrs_minecraft_creative_report` | The creative report: the stacks of each items tab of the creative screen and the feature flags of each item | yes | - | - |
-| `mcrs_minecraft_damage` | The hit procedure of a living entity without Bevy: the damage cooldown, the health change, the start of the death and the hit record | yes | - | - |
+| `mcrs_minecraft_damage` | The hit procedure without Bevy: cooldowns, reductions, absorption, health, death and hit records | yes | yes | - |
 | `mcrs_minecraft_datapack` | The data pack stack: pack selection, pack.mcmeta, overlays, filters and the files each pack contributes | - | - | - |
-| `mcrs_minecraft_decorated_pot_pattern` | The decorated pot pattern registry value and its keys | yes | - | - |
+| `mcrs_minecraft_decorated_pot_pattern` | Decorated pot patterns: the registry value and its keys | yes | - | - |
 | `mcrs_minecraft_dimension` | The dimension and dimension type registry values | yes | - | - |
 | `mcrs_minecraft_enchantment` | The enchantment file and the keys of the enchantment registries | yes | - | yes |
-| `mcrs_minecraft_entity` | Plain identity types of the entity domain registries and the type data table of the entity types | yes | - | - |
+| `mcrs_minecraft_entity` | Plain identity types for registries in the entity domain, and a table of entity type data | yes | - | - |
 | `mcrs_minecraft_entity_attribute` | The entity attributes, their modifier operations and the computation of an attribute value from its base value and its modifiers | yes | - | - |
 | `mcrs_minecraft_entity_key` | The keys of an entity without the physics kernel: its id, its UUID as its order key, the sources of a new UUID, its keyed random stream and the tile that holds it | yes | yes | - |
 | `mcrs_minecraft_environment` | Environment attributes, timelines and world clocks | yes | - | - |
@@ -175,16 +381,16 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_minecraft_item_tooltip` | Item tooltip text parts from a stack, the item table and inputs supplied by the caller | yes | - | - |
 | `mcrs_minecraft_jukebox_song` | The value of the jukebox song registry | yes | - | - |
 | `mcrs_minecraft_lang` | A language file of the game: translation patterns by key, and the filler of their placeholders | yes | - | - |
-| `mcrs_minecraft_light_color` | Light colours of block states and the light a held item emits | yes | - | - |
+| `mcrs_minecraft_light_color` | Light colours for block states and the light a held item emits | yes | - | - |
 | `mcrs_minecraft_light_engine` | Block and sky light propagation over sections, without Bevy | yes | - | - |
 | `mcrs_minecraft_loot` | The keys of the loot registries | yes | - | yes |
 | `mcrs_minecraft_loot_condition` | The loot context, the loot conditions and the context number providers, baked and evaluated | yes | - | - |
 | `mcrs_minecraft_loot_table` | Loot tables as a data pack writes them, baked by id and evaluated | - | - | - |
-| `mcrs_minecraft_map_decoration` | The keys of the map decoration type registry | yes | - | - |
+| `mcrs_minecraft_map_decoration` | Registry keys for map decoration types | yes | - | - |
 | `mcrs_minecraft_menu_geometry` | Menu and creative screen geometry as data: backgrounds, labels, tabs, entry areas, scrolling and hit tests | yes | - | - |
 | `mcrs_minecraft_menu_key` | The keys of the menu registry | yes | - | - |
 | `mcrs_minecraft_mob_control` | The per-tick controls of a mob without Bevy: the path follower of a straight route, the move control, the jump control, the look control and the body rotation | yes | - | - |
-| `mcrs_minecraft_move_predict` | The movement checks with a world: the prediction of each client tick of a player from the physics model | yes | - | - |
+| `mcrs_minecraft_move_predict` | Movement checks with a world: predicts each player client tick from the physics model | yes | - | - |
 | `mcrs_minecraft_move_validate` | The movement checks without a world: one serverbound packet, and the stream of one connection | yes | - | - |
 | `mcrs_minecraft_noise` | Perlin, simplex, normal and blended noise and the interval and grid types they sample over | yes | - | - |
 | `mcrs_minecraft_painting_variant` | The value of the painting variant registry | yes | - | - |
@@ -202,9 +408,10 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_minecraft_simulation` | Block simulation kernels: the step and update chain over a volume, their queues and ordering policies | yes | - | - |
 | `mcrs_minecraft_sound` | Sound events | yes | - | - |
 | `mcrs_minecraft_static_registry` | Static registries as enums of their entries, numbered by protocol id | yes | - | - |
+| `mcrs_minecraft_swing` | Arm-swing cooldown windows and status-effect duration scaling | yes | yes | - |
 | `mcrs_minecraft_text_bedrock` | A text component as a Bedrock formatted string or rawtext: dynamic parts resolved on the server, and the features Bedrock lacks counted | yes | - | - |
 | `mcrs_minecraft_text_flatten` | A text component as flat runs of styled text: translations filled from a language, styles inherited, and the plain and the formatting-code strings made from the runs | yes | - | - |
-| `mcrs_minecraft_trim` | The values of the trim material and trim pattern registries | yes | - | - |
+| `mcrs_minecraft_trim` | Armour trim materials and patterns: their registry values | yes | - | - |
 | `mcrs_minecraft_value_provider` | Int, float and height providers and their codecs | yes | - | - |
 | `mcrs_minecraft_volume` | One block access API over every store of world data: bounds, per-section access, section handles and cursors | yes | - | - |
 | `mcrs_minecraft_worldgen` | The world generator: the worldgen registries, their loaders and the beardifier | yes | - | - |
@@ -213,7 +420,7 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_minecraft_worldgen_density` | Density functions, their compiler and evaluator, the noise router and the aquifer | yes | - | - |
 | `mcrs_minecraft_worldgen_feature` | Configured and placed features, placement modifiers, structure templates and the feature generators | yes | - | - |
 | `mcrs_minecraft_worldgen_feature_place` | The feature generators: trees, ores, geodes, templates and the rest of what a placed feature writes | yes | - | - |
-| `mcrs_minecraft_worldgen_generator` | The column pipeline of the noise chunk generator: fill, surface, carvers, features, structures and the read out of the save | yes | - | - |
+| `mcrs_minecraft_worldgen_generator` | The noise chunk generator's column pipeline: fill, surface, carvers, features, structures and the read out of the save | yes | - | - |
 | `mcrs_minecraft_worldgen_structure` | Structures, structure sets, template pools, jigsaw assembly and structure placement | yes | - | - |
 | `mcrs_minecraft_worldgen_structure_place` | What the hardcoded structure pieces write: the piece canvas, the per-family painters and the after-place hooks | yes | - | - |
 | `mcrs_minecraft_worldgen_surface` | Surface rules: the material rule compiler and evaluator | yes | - | - |
@@ -228,18 +435,20 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_engine_muxer` | Fans the changes of a world out to its viewers: tiles and tile streams for entities, version streams for chunks, and bytes encoded once and shared | yes | - | - |
 | `mcrs_engine_store` | The data layer: versioned chunks by key in an in-memory cache over a disk store that the game supplies, reached as a stage on a link | yes | - | - |
 | `mcrs_minecraft_chat_server` | The chat handling of the server as a plugin that a user can replace | - | - | - |
-| `mcrs_minecraft_command_engine` | The command tree, the registration of commands and the run of the command lines of the players inside the tick of each dimension world | - | - | - |
+| `mcrs_minecraft_command_engine` | The command tree, command registration and execution of player command lines during each dimension world's tick | - | - | - |
 | `mcrs_minecraft_dimension_environment` | Dimension types and the environment attribute layers of a dimension | yes | - | - |
 | `mcrs_minecraft_engine` | The packet bus, the bridge between the network and the dimension worlds, sessions, the host side of the dimension channels, the player state that the host and the dimensions share, the world clocks of the host, and heightmap upkeep | - | - | - |
-| `mcrs_minecraft_engine_attributes` | The attribute instances of the players of a dimension world: each player requires them with the bases of its type | - | - | - |
-| `mcrs_minecraft_engine_brain` | The AI stage of the mobs of a dimension world: the host that publishes the snapshot of the mob entities, runs the stage per tile beside the entity pass and applies the decisions through the mob controls | - | - | - |
-| `mcrs_minecraft_engine_entity_motion` | The motion of the moving entities that are not living, such as items and falling blocks, as Bevy components: one parallel pass with the physics kernel | - | - | - |
+| `mcrs_minecraft_engine_attributes` | Attribute instances on players in a dimension world: each player requires them with the bases of its type | - | - | - |
+| `mcrs_minecraft_engine_brain` | Mob AI in a dimension world: entity snapshots, a stage per tile and decisions applied through mob controls | - | - | - |
+| `mcrs_minecraft_engine_damage` | Hit requests, their sorted application, health counters and damage type rules from the registry | - | - | - |
+| `mcrs_minecraft_engine_entity_motion` | One parallel motion pass over mob, item and falling-block components, using the physics kernel | - | - | - |
 | `mcrs_minecraft_engine_entity_motion_replication` | The replication of the moving entities, such as mobs, items and falling blocks: their network ids and their tile events for the muxer | - | - | - |
 | `mcrs_minecraft_engine_inventory_click` | The driver of the Java click kernel over menu entities: the plan of a click against the open menu of a viewer and the drag of each menu | - | - | - |
 | `mcrs_minecraft_engine_inventory_menu` | Menus as entities of a viewer: layout, parts and buttons, with the commands that open and close them | - | - | - |
 | `mcrs_minecraft_engine_item` | Item stacks as entities: their components, their placement in slots or in the world, inventory requests and the equipped marker | - | - | - |
-| `mcrs_minecraft_engine_mob_attributes` | The attribute instances of the mob entities of a dimension world: the apply system of their edits and the motion values of their bodies | - | - | - |
-| `mcrs_minecraft_engine_physics` | The entity pass of a dimension world in Bevy: mobs as entities with their spawn, damage, despawn and tile events, the writes between entities, and the pass as systems | - | - | - |
+| `mcrs_minecraft_engine_mob_attributes` | Attribute instances on mob entities in a dimension world: the system that applies their edits and the motion values of their bodies | - | - | - |
+| `mcrs_minecraft_engine_physics` | The motion plugin, mob spawning and crowd damage over entity components in a dimension world | - | - | - |
+| `mcrs_minecraft_engine_player_vitals` | Player health, hit records and defence in a dimension world | - | - | - |
 | `mcrs_minecraft_engine_registries` | Loads the registries, blocks and items of an app from its pack files, walks it to playing, and hands the snapshot to each dimension world | - | - | - |
 | `mcrs_minecraft_engine_server` | The server plugins of the engine without vanilla behaviour: the core, the dimension worlds, the listener with login, configuration, keep-alive and status, and the server loop | - | - | - |
 | `mcrs_minecraft_engine_world` | Chunk and column entities, dimensions, tickets, area of interest, sessions, the server loop, block updates and drops, game rules, and the world seed, birth clock and entity ids that new entities take | - | - | - |
@@ -250,17 +459,20 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 
 | Crate | Description | No Bevy | no_std | wasm32 |
 |---|---|---|---|---|
-| `mcrs_minecraft_command_vanilla` | The vanilla commands execute, gamemode, teleport, locate, summon and time, and the command effects they write | - | - | - |
+| `mcrs_minecraft_command_vanilla` | Vanilla commands and the command effects they write | - | - | - |
 | `mcrs_minecraft_command_world` | The commands that change the world and the server: fill, forceload, gamerule, weather clear, and tick query and sprint | - | - | - |
 | `mcrs_minecraft_inventory_client` | The client edge of the player inventory: the inventory packets of the server applied to the item holders of the local player, and the clicks of the local player predicted and sent | - | - | - |
 | `mcrs_minecraft_inventory_server` | The packet edge of the player inventory: packet decode, clicks to requests, and the sync of the inventory menu | - | - | - |
 | `mcrs_minecraft_player_holders` | The holders of a player, their vanilla slot policy and the restore of their stacks | - | - | - |
-| `mcrs_minecraft_vanilla_attributes` | Vanilla sources of attribute modifiers on the players of a dimension world: the sprint state and creative mode | - | - | - |
+| `mcrs_minecraft_vanilla_attributes` | Vanilla sources of attribute modifiers on players in a dimension world: sprint state and creative mode | - | - | - |
 | `mcrs_minecraft_vanilla_block_place` | Vanilla block placing in the dimension worlds: a block item used on a block face places its block | - | - | - |
+| `mcrs_minecraft_vanilla_death` | Inventory drops and death messages when a player dies | - | - | - |
 | `mcrs_minecraft_vanilla_falling_block` | The vanilla falling block: a requested fall moves with the motion pass and lands as a block or an item | - | - | - |
 | `mcrs_minecraft_vanilla_inventory` | The gameplay of the player inventory: the hand actions, the close, the drops and the player file | - | - | - |
 | `mcrs_minecraft_vanilla_item_entity` | The vanilla item entity: a dropped stack that moves with the motion pass, ages, merges and is picked up | - | - | - |
 | `mcrs_minecraft_vanilla_light` | Vanilla light wired into the dimension worlds: the block light table, the light engine driver of each dimension and the light updates sent to the players | - | - | - |
+| `mcrs_minecraft_vanilla_respawn` | Respawn of a dead player on request, at the position selected by vanilla rules | - | - | - |
+| `mcrs_minecraft_vanilla_swing` | Player punch and stab inputs, with attack_animation item components | - | - | - |
 | `mcrs_minecraft_vanilla_worldgen` | World generation wired into the dimension worlds: the routers, carvers, features and structures of each dimension, and the column scheduler that generates or reads its columns | - | - | - |
 
 ### Layer 6: Rendering
@@ -290,10 +502,10 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 | `mcrs_minecraft_chat_client` | The client chat screen without rendering: the input box, the history, client-side command suggestions, hint lines and the chat log | yes | - | - |
 | `mcrs_minecraft_client` | Minecraft client: window, asset corpus, environment registries and the voxel renderer | - | - | - |
 | `mcrs_minecraft_client_entity` | The packet side of the client entities that the server adds: the packets that add, move and change an entity, and the network id of each entity | - | - | - |
-| `mcrs_minecraft_client_gui` | The client GUI: hotbar, inventory, container, creative and chat screens, game mode switcher, item icons and tooltips, and the F3 debug screen | - | - | - |
+| `mcrs_minecraft_client_gui` | Client GUI: hotbar, health and food HUD, death, inventory, container, creative and chat screens, game mode switcher, item icons and tooltips, and F3 debug screen | - | - | - |
 | `mcrs_minecraft_client_options` | The options a user sets on the client, with their ranges and their JSON form | yes | - | - |
 | `mcrs_minecraft_client_widget` | The widgets of the client GUI without rendering: rectangles, layout, pointer and keyboard input, focus and widget state | yes | yes | - |
-| `mcrs_minecraft_client_world` | The world state of a Minecraft client without a window or a renderer: session registries, columns, the local player, game mode and chat | - | - | - |
+| `mcrs_minecraft_client_world` | Client world state without a window or renderer: registries, columns, the local player, health, food, death and respawn requests, game mode and chat | - | - | - |
 | `mcrs_minecraft_console` | The server console: command lines from the standard input, run as the server, and their answers in the log in English | - | - | - |
 | `mcrs_minecraft_server` | The server app: the plugin group that puts vanilla behaviour on the engine server | - | - | - |
 | `mcrs_minecraft_server_settings` | The settings of a server run that the MCRS_ environment variables set, read in one place | yes | - | - |
@@ -306,7 +518,7 @@ For a GUI of your own, `CreativeContent::build` in `mcrs_minecraft_creative_cont
 
 ## Why some crates need Bevy
 
-Below layer 4, Bevy is an optional feature, and below layer 2 so is tokio. From layer 4 up, Bevy is required, because the engine, the vanilla plugins, the client and the server are Bevy plugins. If you only want data types and codecs, stay in layers 1 to 3 and build with `--no-default-features`. [Layers](/docs/en/concepts/layers/) covers layers 4 and 5.
+The layer rules make Bevy optional below layer 4 and tokio optional below layer 2. The engine adapters, vanilla plugins, client and server use Bevy, while the generic engine crates can run without it. For data types and pure rules, start with layers 1 to 3 and check the manifest and the CI columns for the features you need. [Layers](/docs/en/concepts/layers/) covers layers 4 and 5.
 
 [^288]: <Status issue={288} /> Workspace members under `examples/` with a dependency-tree test per example.
 [^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.

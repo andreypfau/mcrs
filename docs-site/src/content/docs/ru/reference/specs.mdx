@@ -3,7 +3,7 @@ title: Индекс спецификаций
 description: Где в docs/spec описан каждый домен игрового поведения, какой префикс id правил он использует и как читать метки происхождения.
 sidebar:
   order: 4
-translated_from: 79dd5940a
+translated_from: 9eac02a81
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -13,7 +13,7 @@ import { Aside } from '@astrojs/starlight/components';
 Файлы в `docs/spec/` написаны для ИИ-агентов и для людей, которые пишут спецификации. Они следуют правилам ASD-STE100 Simplified Technical English, как сказано в `docs/spec/README.md`. Поэтому они точные и сухие. Найдите нужный файл по этой странице и дальше читайте уже его.
 </Aside>
 
-Каждый файл в [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) описывает поведение одного домена в виде данных, то есть его входы, выходы, порядок, тайминги и константы. Устройство игрового кода спецификация не описывает никогда. Кроме того, по [правилу clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) исполнитель вправе узнавать игровое поведение для правила только из спецификаций.
+Спецификации доменов в [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) описывают поведение в виде данных: входы, выходы, порядок, время и константы. README задает правила оформления. Устройство игрового кода спецификация не описывает никогда. Исполнитель работает по спецификациям, публичной документации для игроков, артефактам игры и разрешенному коду репозитория, как требует [правило clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md).
 
 В заголовке спецификации снапшот не указывают. Проект следует за <code dir="auto">{fact('snapshot')}</code>, эта версия задана в `assets/minecraft/version.json`.
 
@@ -23,31 +23,37 @@ Id правила, например `CMD-TP-013`, состоит из префи
 
 | Домен | Файлы в `docs/spec/` | Префикс id |
 |---|---|---|
+| Правила спецификаций | `README.md` | нет |
 | Вход, статус, сжатие | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
 | Лимиты соединений и прокси | `connection-limits.md`, `proxy-forwarding.md`, `proxy-protocol.md` | `LIM-*`, `FWD-*`, `PXP-*` |
 | Бюджет NBT в пакете от клиента | `nbt-quota.md` | `NBQ-*` |
 | Протокол Bedrock | `bedrock-wire.md`, `bedrock-batch.md`, `bedrock-handshake.md`, `bedrock-game-packets.md` | `BEW-*`, `BEB-*`, `BEH-*`, `BEG-*` |
 | Whitelist, баны и операторы | `whitelist.md`, `bans.md`, `loopback-operators.md` | `WL`, `BAN`, `LOOP-*` |
-| Команды: парсер, дерево, права | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
-| Команды: каждая команда | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-give.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md`, `-swing.md` | `CMD-*` |
+| Команды: парсер, дерево, права | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-block.md`, `argument-coordinates.md`, `argument-entity.md`, `argument-keywords.md`, `argument-resource.md` | `CMD`, `CMDP`, `PERM`, `ARG-*` |
+| Команды: каждая команда | `command-execute.md`, `command-gamemode.md`, `command-teleport.md`, `command-locate.md`, `command-kill.md`, `command-damage.md`, `command-give.md`, `command-time.md`, `command-fill.md`, `command-forceload.md`, `command-gamerule.md`, `command-weather.md`, `command-tick.md`, `command-swing.md` | `CMD-*` |
 | Реестры и датапаки | `registry.md`, `registry-fields.md`, `environment-attributes.md` | `REG-*`, `ENVA` |
 | Текстовые форматы и числа | `snbt.md`, `numeric.md` | `SNBT`, `NUM` |
 | Текстовый компонент | `text-component.md` | `TXT-*` |
 | Поддержка генерации мира | `heightmap.md` | `HM` |
+| Биомы секции | `section-biomes.md` | `BIO-SEC-*` |
 | Сохранения | `persistence.md` | `SAVE-*` |
-| Блоки: симуляция, ломание, установка, дроп | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md`, `block-support.md`, `block-drops.md`, `falling-block.md`, `explosions.md` | `SIM`, `BRK-*`, `PLC-*`, `SUP-*`, `BDR-*`, `FBK-*`, `EXP-*` |
+| Блоки: симуляция, ломание, установка, дроп | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md`, `block-support.md`, `block-drops.md`, `falling-block.md`, `explosions.md` | `SIM`, `BRK-*`, `CBK-*`, `PLC-*`, `SUP-*`, `BDR-*`, `FBK-*`, `EXP-*` |
 | Лут и предикаты | `loot.md`, `loot-conditions.md`, `loot-functions.md`, `block-loot.md`, `container-loot.md`, `predicates.md` | `LOOT-*`, `CTL-*`, `PRED-*` |
 | Предметы и инвентарь | `item-stack.md`, `inventory.md`, `inventory-transactions.md`, `item-entity.md` | `STK-*`, `INV-*`, `ITX-*`, `IEN-*` |
 | Движение и поза игрока | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md`, `player-pose.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM`, `POSE-*` |
-| Игроки: голод, опыт, смерть | `hunger.md`, `experience.md`, `player-death.md` | `HNG-*`, `XP-*`, `PLD-*` |
+| Что знает клиент и дальность действия | `client-knowledge.md`, `reach.md` | `CK-*`, `RCH-*` |
+| Игроки: голод, опыт, смерть, ближняя атака | `hunger.md`, `experience.md`, `player-death.md`, `player-attack.md` | `HNG-*`, `XP-*`, `PLD-*`, `ATK-*` |
 | Сущности: физика, урон, эффекты, трекинг, геометрия | `entity-physics.md`, `entity-damage.md`, `environment-damage.md`, `attributes.md`, `status-effects.md`, `projectiles.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md`, `arm-swing.md` | `PHY`, `DMG`, `ENV-*`, `ATR-*`, `EFX-*`, `PRJ-*`, `TRK`, `EGEO`, `EANIM`, `AIT`, `SWG` |
 | Мобы: мозг, цели, поиск пути, виды | `mob-brain.md`, `mob-brain-sensors.md`, `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `BRAIN-*`, `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
 | Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
 | Клиент: мир и сущности | `client-camera.md`, `client-fog.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CFOG-*`, `CENTS`, `CENT`, `CEREN`, `CPR` |
 | Клиент: виджеты GUI и текст | `client-widget.md`, `client-list.md`, `client-edit-box.md`, `client-font.md`, `client-gui-sprite.md`, `client-tooltip.md` | `WID-*`, `LIST-*`, `SCRL-*`, `TAB-*`, `EDIT-*`, `FONT`, `GSPR`, `TIP` |
 | Клиент: экраны, хотбар, чат, команды | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md`, `client-game-mode-switcher.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD`, `CGMS-*` |
+| Клиент: индикаторы здоровья и еды | `client-health-hud.md` | `CHH-*` |
 | Клиент: инвентарь, экраны контейнеров, творческий инвентарь | `client-inventory.md`, `client-container-screen.md`, `client-creative-inventory.md` | `CINV-*`, `CCS-*`, `CCI-*` |
 | Модели блоков и свет | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md`, `client-sign-text.md` | `BMR`, `BFB`, `BEM`, `BSL`, `SIGN` |
+
+Запись в индексе означает, что спецификация есть. Она не подтверждает готовность к реализации или наличие работающего поведения. В `client-knowledge.md` и `reach.md` еще есть непроведенные эксперименты и правила с меткой `source_suggested`; описанные в них компенсация задержки и проверка дальности действия пока не работают.
 
 Большинство спецификаций перечисляют свои префиксы id в таблице ближе к началу. Если та таблица расходится с этой страницей, полным списком считайте таблицу в файле.
 
@@ -70,7 +76,7 @@ Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: ..
 | `source_suggested` | Взято из эталонного поведения, артефакта пока нет. Уверенность не выше средней, приложен эксперимент. |
 | `documentation` | Публичное поведение, описанное в документации для игроков. |
 | `design` | Выбор mcrs. Правило объясняет почему. |
-| `unresolved` | Не решено. Собрано в разделе "Unresolved" файла. |
+| `unresolved` | Не решено. Собрано в разделе "Нерешенное" файла. |
 
 Kind говорит, насколько точным должно быть правило.
 
@@ -84,8 +90,8 @@ Kind говорит, насколько точным должно быть пр�
 | `quirk` | mcrs сохраняет случайность эталона, потому что от нее зависит клиент ванили, датапак или файл сохранения. Решить, что правило - quirk, может только владелец. |
 | `unspecified` | Поведение выбирает реализация, и parity-тест не должен его сравнивать. Правило задает границу, например "не реже раза в 40 тиков". |
 
-Еще в файле есть раздел "Intentional deviations", где записано, чем mcrs намеренно отличается от ванили. В каждой записи указаны id правила, эталонное поведение, причина, видит ли отличие клиент, баг-репорт игры, если он есть, и что с отличием делает тест. В разделе "Known vanilla quirks" для каждого quirk указано, кто от него зависит и в каком issue владелец решил его сохранить.
+Еще в файле есть раздел "Намеренные отклонения", где записано, чем mcrs намеренно отличается от ванили. В каждой записи указаны id правила, эталонное поведение, причина, видит ли отличие клиент, баг-репорт игры, если он есть, и что с отличием делает тест. В разделе "Известные особенности ванили" для каждого quirk указано, кто от него зависит и в каком issue владелец решил его сохранить.
 
-За правилом `source_suggested` пока нет игрового артефакта, это только утверждение. Спецификация готова, когда ее раздел "Unresolved" пуст и ни одно правило не помечено `source_suggested`. За неготовую спецификацию исполнитель не берется.
+За правилом `source_suggested` пока нет игрового артефакта, это только утверждение. Спецификация готова, когда ее раздел "Нерешенное" пуст и ни одно правило не помечено `source_suggested`. За неготовую спецификацию исполнитель не берется.
 
 Дальше: на странице [Как внести вклад](/docs/ru/contributing/) рассказано, как контрибьютор пишет и читает спецификации, а на странице [Совпадение с ванилью](/docs/ru/concepts/parity/) - как на них опираются parity-тесты.

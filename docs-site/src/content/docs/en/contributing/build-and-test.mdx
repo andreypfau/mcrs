@@ -9,6 +9,7 @@ stability: changing
 tracking: [507]
 sources:
   - README.md
+  - AGENTS.md
   - .config/nextest.toml
   - xtask/src/checks.rs
   - xtask/src/trigger.rs
@@ -18,10 +19,20 @@ sources:
   - .github/actions/rust/action.yml
   - pr:691
   - scripts/hooks/run-checks
+  - rust-toolchain.toml
+  - .claude/hooks/cargo-guard.sh
+  - crates/mcrs_minecraft_mesh/src/pack.rs
+  - crates/mcrs_minecraft_render/src/shader_layout_emit.rs
+  - crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_entity_animation/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_client_jar/examples/fetch.rs
+  - docs/README.md
+  - tools/vanilla-server/run.sh
+  - issue:507
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 79dd5940a
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -48,7 +59,7 @@ The detailed build guide is not written yet. It will appear before the alpha for
 
 ```bash
 cargo nextest run -p <crate>        # one crate
-cargo nextest run --workspace       # everything, before a commit
+cargo nextest run --workspace       # everything, before a push
 cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
@@ -62,12 +73,12 @@ A test name carries a tier prefix such as `exhaustive::` or `gpu::`, and each pr
 |---|---|
 | `default` | Everything except `exhaustive::`, `gpu::`, `online::` and `vanilla_server::` tests. |
 | `ci` | The same filter as `default`, and it does not stop at the first failure. |
-| `ci-hosted` | The filter of `ci`, for the `test` job on a GitHub-hosted machine with four cores. A test may run 5 minutes, and the whole run 30 minutes. |
+| `ci-hosted` | The filter of `ci`, for the `test` job on a GitHub-hosted machine. A test may run 5 minutes, and the whole run 30 minutes. |
 | `full` | The default tier plus `exhaustive::` and `online::`. The scheduled CI job and the `worldgen-full` job use it. |
 | `gpu` | Only `gpu::` tests. They need a machine with a Metal GPU. |
 | `vanilla-server` | Only `vanilla_server::` tests. They run through [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh). |
 
-No test run may take longer than five minutes, except in `ci-hosted`. A test that is slower belongs in the `exhaustive::` tier.
+The default profile has a five-minute limit for the whole run and stops a test after four 15-second timeout periods. The `full`, `gpu` and `vanilla-server` profiles allow five 60-second periods per test; `ci-hosted` also allows 30 minutes for the whole run. Put expensive sweeps in `exhaustive::` so ordinary runs skip them.
 
 ## Run the xtask checks before a push
 
@@ -84,7 +95,7 @@ Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no 
 | `commit`, `push` | `comments`, `parity`, `fmt` |
 | `lint` | `comments`, `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
-| `test` | The tests of the changed crates and their dependents. |
+| `test` | The tests of changed crates and their dependents, plus doctests when core, resource or voxel is selected. |
 | `portability` | `no-bevy`, `layers`, `example-dependencies`, `wasm32`, `no-std` |
 
 `fmt` and `clippy` run the Cargo commands of the same names. The other checks are specific to mcrs, and the package lists they use are in `xtask/src/checks.rs`.

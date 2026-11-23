@@ -12,10 +12,22 @@ sources:
   - docs-site/README.md
   - docs/clean-room.md
   - docs-site/src/lib/anchor.mjs
+  - docs-site/src/components/Status.astro
+  - docs-site/src/components/Example.astro
+  - docs-site/src/lib/meta.ts
+  - docs-site/src/components/DocsFreshness.astro
+  - docs-site/src/lib/facts.mjs
+  - docs-site/src/data/facts.yml
+  - docs-site/scripts/check-issues.mjs
+  - docs-site/scripts/lib/pages.mjs
+  - .github/workflows/docs.yml
+  - .github/pull_request_template.md
+  - .agents/skills/mcrs-update-docs/SKILL.md
+  - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -206,7 +218,7 @@ An explainer follows four rules of honesty. A mechanism is not a measurement. Sh
 Go through this list before every PR that adds or changes a page.
 
 1. Every number has its source beside it: a test, a specification or an issue.
-2. "Works" appears only when a test or a commit shows it. Otherwise write "partial" or "wip".
+2. "Works" appears only when a test shows it. Otherwise write "partial" or "wip".
 3. State and goal differ visibly: a badge, a label or an Aside.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.

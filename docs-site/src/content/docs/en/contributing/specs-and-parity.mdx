@@ -21,10 +21,22 @@ sources:
   - xtask/src/parity/rules.rs
   - pr:723
   - pr:864
+  - docs/spec/arm-swing.md
+  - docs/spec/command-swing.md
+  - docs/spec/section-biomes.md
+  - docs/spec/player-attack.md
+  - docs/spec/client-health-hud.md
+  - docs/spec/client-knowledge.md
+  - docs/spec/reach.md
+  - docs/lag-compensation.md
+  - issue:474
+  - issue:623
+  - issue:656
+  - issue:507
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -46,7 +58,7 @@ Take [docs/spec/whitelist.md](https://github.com/andreypfau/mcrs/blob/main/docs/
 | Intentional deviations | Where mcrs does not copy an accident of the game, with the behavior of the game and the reason. |
 | Unresolved | What is not decided yet. |
 
-Some specs also have a section "Known vanilla quirks" or "Experiments". An experiment is a short description of a run against the game, and its raw output goes to a test fixture. A spec holds no captured results or run logs, no status rows, no version header and no text about our code.
+Some specs also have a section "Known vanilla quirks" or "Experiments". An experiment records the steps and observed result of a run against the game; raw output goes to a test fixture. A spec holds no captured results or run logs, no status rows, no version header and no text about our code.
 
 A rule exists only when an observer can see a difference: the vanilla client, a player in normal play, a data pack or a save file, or a user of the library. The author first writes the behavior a player expects from public documentation, the data pack and the artifacts of the game. Then the author lists the questions these sources leave open and reads the game's code only to answer them.
 
@@ -54,7 +66,9 @@ A rule has one of seven kinds: wire, client agreement, semantic, layout, deviati
 
 A spec is ready when its section "Unresolved" is empty and no rule has the label `source_suggested`. An implementer does not start on a spec that is not ready.
 
-On 2026-11-18, `docs/spec/` holds 119 files, the README included.
+On 2026-11-23, `docs/spec/` holds 126 Markdown files, the README included. The [specification index](/docs/en/reference/specs/) lists them by domain.
+
+The new client knowledge and reach specifications illustrate the readiness check. They describe how to determine what a client had applied and test reach against its view, but their experiments have not run. Rules marked `source_suggested` and experiments in "Unresolved" still block implementation under the spec rules. Their design note describes planned work, not a working lag compensation system.
 
 ### ASD-STE100 applies only inside docs/spec
 
@@ -77,7 +91,7 @@ A spec PR is a docs PR and does not touch code. An implementation PR cites rule 
 
 ## Fixtures come from the game through the oracle
 
-A fixture is a file the game produced. The table `tools/fixtures.json` is the single place that states a fixture's name, the Gradle task that makes it and the folder it goes to. It has {fact('fixtures')} entries, and about 14 of them concern world generation.
+A fixture is a file the game produced. The table `tools/fixtures.json` is the single place that states a fixture's name, the Gradle task that makes it and the folder it goes to. It has {fact('fixtures')} entries; 13 write fixtures into world generation crates.
 
 A second file, `tools/captures.json`, records the game version at which each fixture was captured. A test fails by name for every fixture whose version is not the one in `assets/minecraft/version.json`, so after a snapshot update that test is your to-do list. [Move to a new snapshot](/docs/en/contributing/new-snapshot/) covers the rest of the update.
 

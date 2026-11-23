@@ -10,14 +10,18 @@ sources:
   - docs/clean-room.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 mcrs builds the behavior of the game from descriptions of that behavior and never from the game's code.
 
 - A specification author may read the game's code and writes the behavior into `docs/spec/`.
 - An implementer reads the specification and never reads the game's code.
-- No code, comment, test, note, commit message or issue names the game's classes, methods or fields. The one exception is a tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`, which names the client classes it calls.
+- No code, comment, test, note, commit message or issue names the game's classes, methods or fields. Community terms listed in the canon are exempt. A tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`, may name the client classes it calls.
 - A parity test compares our output with artifacts that the game produced.
+
+## Third-party implementations
+
+The owner may approve a named third-party open source implementation as a source for a specification author. The implementer must not read it, and the repository must contain none of its class, method, field or file names, paths or code quotations. The author describes its behavior in their own words and labels the rule `design`, because it is an mcrs choice. GrimAC is approved for the lag compensation and reach specifications.
 
 The rule is in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md). That file is the authority. [Specs and parity](/docs/en/contributing/specs-and-parity/) describes the spec format.
