@@ -24,23 +24,17 @@ pub enum Output {
     Image { path: PathBuf, png: Vec<u8> },
 }
 
-impl Output {
-    pub fn to_mcp(&self, is_error: bool) -> Value {
-        match self {
-            Self::Text(text) => json!({
-                "content": [{ "type": "text", "text": text }],
-                "isError": is_error,
-            }),
-            Self::Image { path, png } => json!({
-                "content": [
-                    { "type": "image", "mimeType": "image/png",
-                      "data": base64::engine::general_purpose::STANDARD.encode(png) },
-                    { "type": "text", "text": path.display().to_string() },
-                ],
-                "isError": is_error,
-            }),
-        }
-    }
+pub fn to_mcp(result: Result<Output, String>) -> Value {
+    let is_error = result.is_err();
+    let content = match result {
+        Ok(Output::Text(text)) | Err(text) => json!([{ "type": "text", "text": text }]),
+        Ok(Output::Image { path, png }) => json!([
+            { "type": "image", "mimeType": "image/png",
+              "data": base64::engine::general_purpose::STANDARD.encode(png) },
+            { "type": "text", "text": path.display().to_string() },
+        ]),
+    };
+    json!({ "content": content, "isError": is_error })
 }
 
 pub fn list() -> Value {
@@ -103,7 +97,7 @@ pub fn list() -> Value {
         tool(
             "wait",
             "block until a condition holds, the process exits, or the timeout",
-            json!({ "id": id, "until": { "type": "string", "description": "server_ready, client_joined, world_ready (joined, player placed, terrain around it loaded and meshed), on_ground (the own player stands on a block), or a log regex" },
+            json!({ "id": id, "until": { "type": "string", "description": "server_ready, client_joined, world_ready (joined, player placed, terrain around it loaded and meshed), on_ground (the own player stands on a block), or a regex for a log line written after the call" },
                     "timeout_s": { "type": "integer", "description": "default 120" } }),
             &["id", "until"]
         ),
@@ -250,19 +244,19 @@ fn listed(supervisor: &Supervisor, everyone: bool) -> Output {
 }
 
 fn wait(handle: &Handle, until: &str, timeout: Duration) -> Result<Output, String> {
-    match (handle.kind, until) {
-        (Kind::Client, "world_ready") => {
-            return control::wait_until(handle, "ready", timeout, control::world_ready)
-                .map(Output::Text);
-        }
-        (Kind::Client, "on_ground") => {
-            return control::wait_until(handle, "player", timeout, control::on_ground)
-                .map(Output::Text);
-        }
-        _ => {}
+    let probe: Option<(&str, fn(&Reply) -> bool)> = match (handle.kind, until) {
+        (Kind::Client, "world_ready") => Some(("ready", control::world_ready)),
+        (Kind::Client, "on_ground") => Some(("player", control::on_ground)),
+        _ => None,
+    };
+    if let Some((request, reached)) = probe {
+        return control::wait_until(handle, request, timeout, reached).map(Output::Text);
     }
-    let pattern = regex(condition(handle.kind, until).unwrap_or(until))?;
-    match log_file::wait(handle, &pattern, timeout) {
+    let (pattern, from) = match condition(handle.kind, until) {
+        Some(condition) => (condition, 0),
+        None => (until, log_file::len(&handle.log())),
+    };
+    match log_file::wait(handle, &regex(pattern)?, from, timeout) {
         Waited::Matched(line) => Ok(Output::Text(line)),
         Waited::TimedOut(tail) => Err(format!("timeout; last lines:\n{}", tail.join("\n"))),
         Waited::Exited(tail) => Err(format!(

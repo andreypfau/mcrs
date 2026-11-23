@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -12,9 +16,22 @@ const MAX_LINE: usize = 400;
 static ANSI: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").ok());
 
 pub fn lines(path: &Path, from: usize) -> Vec<String> {
-    let bytes = std::fs::read(path).unwrap_or_default();
-    let text = String::from_utf8_lossy(bytes.get(from..).unwrap_or_default());
-    text.lines().map(clean).collect()
+    String::from_utf8_lossy(&read_from(path, from))
+        .lines()
+        .map(clean)
+        .collect()
+}
+
+fn read_from(path: &Path, from: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    let Ok(mut file) = File::open(path) else {
+        return bytes;
+    };
+    let offset = u64::try_from(from).unwrap_or(u64::MAX);
+    if file.seek(SeekFrom::Start(offset)).is_ok() {
+        file.read_to_end(&mut bytes).ok();
+    }
+    bytes
 }
 
 pub fn len(path: &Path) -> usize {
@@ -49,19 +66,26 @@ pub enum Waited {
     Exited(Vec<String>),
 }
 
-pub fn wait(handle: &Handle, pattern: &Regex, timeout: Duration) -> Waited {
+pub fn wait(handle: &Handle, pattern: &Regex, from: usize, timeout: Duration) -> Waited {
     let start = Instant::now();
     let log = handle.log();
+    let mut from = from;
     loop {
-        let all = lines(&log, 0);
-        if let Some(line) = all.iter().find(|line| pattern.is_match(line)) {
-            return Waited::Matched(line.clone());
+        let bytes = read_from(&log, from);
+        let complete = bytes
+            .iter()
+            .rposition(|&byte| byte == b'\n')
+            .map_or(0, |end| end + 1);
+        from += complete;
+        let text = String::from_utf8_lossy(bytes.get(..complete).unwrap_or_default());
+        if let Some(line) = text.lines().map(clean).find(|line| pattern.is_match(line)) {
+            return Waited::Matched(line);
         }
         if !handle.alive() {
-            return Waited::Exited(tail(&all, None, 20));
+            return Waited::Exited(tail(&lines(&log, 0), None, 20));
         }
         if start.elapsed() >= timeout {
-            return Waited::TimedOut(tail(&all, None, 20));
+            return Waited::TimedOut(tail(&lines(&log, 0), None, 20));
         }
         std::thread::sleep(Duration::from_millis(100));
     }

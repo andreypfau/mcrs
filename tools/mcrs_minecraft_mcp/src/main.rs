@@ -42,16 +42,17 @@ fn main() -> ExitCode {
             }
         };
         rpc::serve(&tools::list(), |name, arguments| {
-            match tools::call(&mut supervisor, name, arguments) {
-                Ok(output) => output.to_mcp(false),
-                Err(error) => Output::Text(error).to_mcp(true),
-            }
+            tools::to_mcp(tools::call(&mut supervisor, name, arguments))
         });
         return ExitCode::SUCCESS;
     };
     if tool == "help" || tool == "--help" {
         for tool in tools::list().as_array().into_iter().flatten() {
-            println!("{}: {}", tool["name"], tool["description"]);
+            println!(
+                "{}: {}",
+                tool["name"].as_str().unwrap_or_default(),
+                tool["description"].as_str().unwrap_or_default()
+            );
         }
         return ExitCode::SUCCESS;
     }

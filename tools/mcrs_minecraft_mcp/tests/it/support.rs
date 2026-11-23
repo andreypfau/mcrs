@@ -21,15 +21,19 @@ impl Sandbox {
         command
     }
 
-    pub fn run(&self, tool: &str, arguments: &serde_json::Value) -> Output {
-        self.command()
+    pub fn run(&self, session: Option<&str>, tool: &str, arguments: &serde_json::Value) -> Output {
+        let mut command = self.command();
+        if let Some(session) = session {
+            command.args(["--session", session]);
+        }
+        command
             .args([tool, &arguments.to_string()])
             .output()
             .unwrap()
     }
 
     pub fn ok(&self, tool: &str, arguments: &serde_json::Value) -> String {
-        let output = self.run(tool, arguments);
+        let output = self.run(None, tool, arguments);
         assert!(
             output.status.success(),
             "{tool} {arguments}: {}",

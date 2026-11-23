@@ -1,7 +1,5 @@
 # mcrs_minecraft_mcp
 
-Your `stop all` stops only your handles. Pass `--session` if you work in more than one worktree.
-
 An MCP server (stdio) and a command line that build, start, wait on and stop the mcrs
 server, the pinned vanilla server and the mcrs client. An agent waits for a log line,
 never for a time.
@@ -25,19 +23,8 @@ The default is the directory where the binary started.
 
 ## Tools
 
-| Tool | Example arguments | Result |
-| - | - | - |
-| `build` | `{"workdir":"/abs/worktree"}` | `ok in N s`, or the first 30 error lines |
-| `server_start` | `{"workdir":"…","seed":"42","gamemode":"creative"}`; `"kind":"vanilla"` for the vanilla server, with `"ops":["Bob"]` for operators | `id`, `pid`, `port`, run `dir`, `log` |
-| `client_start` | `{"workdir":"…","server":"s1","username":"Bob"}`; `"headless":true` for no window | `id`, `pid`, `dir`, `log` |
-| `wait` | `{"id":"s1","until":"server_ready"}`; also `client_joined`, `world_ready`, `on_ground` or a regex; `timeout_s` (120) | the line that matched or the ready state, or the last 20 lines |
-| `client_state` | `{"id":"c1","query":"entities 16"}` | one JSON line |
-| `client_input` | `{"id":"c1","actions":["look_entity 12","attack"]}` | one line per action: the action and its reply |
-| `command` | `{"id":"s1","commands":["summon minecraft:pig 0 100 0","data get entity @e[type=pig,limit=1] Pos"]}` | the reply lines of each command |
-| `logs` | `{"id":"c1","level":"error"}`, or `"grep":"<regex>"`, `"limit":50` | at most `limit` (max 200) last lines |
-| `screenshot` | `{"id":"c1","max_px":1024}`; it waits for `world_ready` unless `"wait":false` | the image and its file path |
-| `stop` | `{"id":"s1"}` or `{"id":"all"}` (the handles of this session); `"force":true` for a handle of another session | one line for each handle |
-| `list` | `{}`, or `{"everyone":true}` for all sessions | one JSON line for each running handle: `id`, `kind`, `port`, `age_s`, `workdir`, `session` |
+`mcrs_minecraft_mcp help` lists the tools and what each one does. An MCP client reads their
+arguments from the tool list.
 
 Both start tools take `env`, extra `MCRS_*` variables, for example `{"MCRS_VIEW":"8"}`.
 Each handle gets a free port and its own run directory under `$TMPDIR/mcrs_minecraft_mcp/<id>`.
@@ -98,18 +85,19 @@ plugin only for `--control`.
 
 - The MCP server stops all its children when it exits, also on `SIGKILL`: a watchdog
   shell holds a pipe to it and stops each process group when the pipe closes.
-- Handles that the command line starts outlive the call. `stop all` from the command line
-  stops all handles that the command line started.
+- Handles that the command line starts outlive the call.
 - `command` writes to the console of the server through a FIFO in the run directory. It
   returns the console answers that appear within `window_ms` (2000) after each command.
-- `screenshot` uses the capture trigger file of the client. It needs a drawn window.
+- `screenshot` uses the capture trigger file of the client. It needs a drawn window; a
+  headless client has none.
 
 ## Limits
 
 - No item use, no web client.
+- A regex `wait` matches only the lines that the log gets after the call. `server_ready` and
+  `client_joined` match any line of the log. Use `logs` with `grep` for an older line.
 - `server_ready` and `client_joined` are log lines. A change of those lines breaks them.
 - `build` builds the release profile only.
-- `screenshot` needs a drawn window; a headless client has none.
 - On a locked screen the windowed client draws nothing: `world_ready` stays false and a
   capture is black. The headless client works there.
 - `world_ready` does not wait for the player to land. The player can fall from the spawn

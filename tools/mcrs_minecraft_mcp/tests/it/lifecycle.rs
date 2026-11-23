@@ -46,8 +46,9 @@ fn two_servers_start_answer_and_stop() {
     assert_eq!(replies[1]["reply"], json!(["list"]));
 
     let timeout = sandbox.run(
+        None,
         "wait",
-        &json!({ "id": id, "until": "never printed", "timeout_s": 1 }),
+        &json!({ "id": id, "until": "entering Playing state", "timeout_s": 1 }),
     );
     assert!(!timeout.status.success());
     let message = String::from_utf8_lossy(&timeout.stderr);

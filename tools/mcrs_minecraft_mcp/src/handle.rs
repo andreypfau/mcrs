@@ -49,7 +49,6 @@ pub struct Handle {
 
 pub struct RunDir {
     pub id: String,
-    pub path: PathBuf,
 }
 
 pub struct Launch<'a> {
@@ -82,12 +81,19 @@ impl RunDir {
         std::fs::create_dir_all(&state).map_err(|error| error.to_string())?;
         for number in 1..100_000 {
             let id = format!("{}{number}", kind.prefix());
-            let path = state.join(&id);
-            if DirBuilder::new().mode(0o700).create(&path).is_ok() {
-                return Ok(Self { id, path });
+            if DirBuilder::new()
+                .mode(0o700)
+                .create(state.join(&id))
+                .is_ok()
+            {
+                return Ok(Self { id });
             }
         }
         Err(format!("no free run directory in {}", state.display()))
+    }
+
+    pub fn path(&self) -> PathBuf {
+        state_dir().join(&self.id)
     }
 }
 
@@ -146,6 +152,7 @@ impl Handle {
         if let Some(control) = &self.control {
             std::fs::remove_file(control).ok();
         }
+        self.forget();
         if !self.alive() {
             return "had exited";
         }
@@ -224,7 +231,7 @@ impl Supervisor {
     }
 
     pub fn spawn(&mut self, launch: Launch<'_>) -> Result<Handle, String> {
-        let dir = &launch.run.path;
+        let dir = launch.run.path();
         let stdin = dir.join("stdin");
         let made = Command::new("mkfifo").arg(&stdin).status();
         if !made.is_ok_and(|status| status.success()) {
@@ -243,7 +250,7 @@ impl Supervisor {
         let mut child = Command::new(&launch.program)
             .args(&launch.args)
             .envs(launch.env.iter().map(|(key, value)| (key, value)))
-            .current_dir(dir)
+            .current_dir(&dir)
             .stdin(input)
             .stdout(log)
             .stderr(log_err)

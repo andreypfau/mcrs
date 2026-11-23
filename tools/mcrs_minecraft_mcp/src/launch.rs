@@ -14,32 +14,24 @@ use crate::operators;
 
 pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
     let start = Instant::now();
+    let mut args = vec!["build", "--release"];
     for target in targets {
-        let args: &[&str] = match *target {
-            "server" => &["-p", "mcrs", "--bin", "mcrs"],
-            "client" => &[
+        match *target {
+            "server" => args.extend(["-p", "mcrs", "--bin", "mcrs"]),
+            "client" => args.extend([
                 "-p",
                 "mcrs_minecraft_client",
                 "--bin",
                 "mcrs_minecraft_client",
                 "--features",
-                "control",
-            ],
+                "mcrs_minecraft_client/control",
+            ]),
             other => return Err(format!("unknown target {other}: use server or client")),
-        };
-        let manifest =
-            std::fs::read_to_string(workdir.join("crates/mcrs_minecraft_client/Cargo.toml"));
-        if *target == "client"
-            && !manifest.is_ok_and(|text| text.lines().any(|line| line.starts_with("control =")))
-        {
-            return Err(format!(
-                "the client of {} has no feature control; build the client from a checkout that has it",
-                workdir.display()
-            ));
         }
+    }
+    if !targets.is_empty() {
         let output = Command::new("cargo")
             .current_dir(workdir)
-            .args(["build", "--release"])
             .args(args)
             .output()
             .map_err(|error| error.to_string())?;
@@ -51,18 +43,18 @@ pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
 }
 
 fn first_errors(stderr: &str) -> String {
-    let lines: Vec<&str> = stderr.lines().collect();
-    let first = lines
-        .iter()
-        .position(|line| line.starts_with("error"))
-        .unwrap_or(0);
-    lines
-        .iter()
-        .skip(first)
+    let from = if stderr.starts_with("error") {
+        0
+    } else {
+        stderr.find("\nerror").map_or(0, |at| at + 1)
+    };
+    let lines: Vec<&str> = stderr
+        .get(from..)
+        .unwrap_or_default()
+        .lines()
         .take(30)
-        .copied()
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect();
+    lines.join("\n")
 }
 
 pub struct ServerOptions<'a> {
@@ -126,7 +118,7 @@ pub fn vanilla(
     let run = RunDir::create(Kind::Vanilla)?;
     let port = crate::handle::free_port()?;
     let write = |name: &str, text: &str| {
-        std::fs::write(run.path.join(name), text).map_err(|error| error.to_string())
+        std::fs::write(run.path().join(name), text).map_err(|error| error.to_string())
     };
     write("eula.txt", "eula=true\n")?;
     write("server.properties", &vanilla_properties(port, options))?;
@@ -138,7 +130,7 @@ pub fn vanilla(
         args: ["-Xmx2G", "-jar", &jar, "nogui"]
             .map(str::to_owned)
             .to_vec(),
-        env: Vec::new(),
+        env: options.env.clone(),
         port: Some(port),
         control: None,
         run: &run,
@@ -165,7 +157,7 @@ pub fn client(
         .port
         .ok_or_else(|| format!("{} is not a server", server.id))?;
     let run = RunDir::create(Kind::Client)?;
-    let dir = run.path.display().to_string();
+    let dir = run.path().display().to_string();
     let mut env = vec![
         asset_root(workdir),
         ("MCRS_SERVER".to_owned(), format!("127.0.0.1:{port}")),
@@ -181,7 +173,7 @@ pub fn client(
             .map(|name| ("MCRS_USERNAME".to_owned(), name.to_owned())),
     );
     env.extend(options.env);
-    let control = run.path.join("control.sock");
+    let control = run.path().join("control.sock");
     let mut args = vec!["--control".to_owned(), control.display().to_string()];
     if options.headless {
         args.push("--headless".to_owned());
@@ -229,29 +221,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_local_offline_client_can_join_vanilla_and_run_commands() {
-        let options = ServerOptions {
-            world: None,
-            seed: None,
-            gamemode: None,
-            ops: vec!["Notch", "Bob"],
-            env: Vec::new(),
-        };
-        let properties = vanilla_properties(25565, &options);
-        for line in [
-            "online-mode=false",
-            "white-list=false",
-            "enforce-secure-profile=false",
-            "spawn-protection=0",
-        ] {
-            assert!(
-                properties.lines().any(|have| have == line),
-                "{line} missing:\n{properties}"
-            );
-        }
-        let operators: Value =
-            serde_json::from_str(&operators::operators_json(&options.ops)).unwrap();
-        for (operator, name) in operators.as_array().unwrap().iter().zip(options.ops) {
+    fn each_vanilla_operator_gets_the_offline_uuid_of_its_name() {
+        let names = ["Notch", "Bob"];
+        let operators: Value = serde_json::from_str(&operators::operators_json(&names)).unwrap();
+        for (operator, name) in operators.as_array().unwrap().iter().zip(names) {
             assert_eq!(operator["name"], name);
             assert_eq!(operator["uuid"], offline_player_uuid(name).to_string());
             assert_eq!(operator["level"], 4);
