@@ -6317,9 +6317,12 @@ dependencies = [
  "base64 0.22.1",
  "libc",
  "mcrs_minecraft_client_control",
+ "mcrs_minecraft_network",
+ "md-5",
  "regex",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

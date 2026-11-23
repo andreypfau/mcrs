@@ -9,6 +9,7 @@ mod control;
 mod handle;
 mod launch;
 mod log_file;
+mod operators;
 mod rpc;
 mod screenshot;
 mod tools;

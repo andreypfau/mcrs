@@ -10,6 +10,7 @@ use crate::handle::Kind;
 use crate::handle::Launch;
 use crate::handle::RunDir;
 use crate::handle::Supervisor;
+use crate::operators;
 
 pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
     let start = Instant::now();
@@ -58,6 +59,7 @@ pub struct ServerOptions<'a> {
     pub world: Option<&'a str>,
     pub seed: Option<&'a str>,
     pub gamemode: Option<&'a str>,
+    pub ops: Vec<&'a str>,
     pub env: Vec<(String, String)>,
 }
 
@@ -113,18 +115,12 @@ pub fn vanilla(
     }
     let run = RunDir::create(Kind::Vanilla)?;
     let port = crate::handle::free_port()?;
-    let properties = format!(
-        "online-mode=false\nserver-ip=127.0.0.1\nserver-port={port}\nlevel-seed={}\ngamemode={}\n\
-force-gamemode=true\nview-distance=6\nsimulation-distance=6\nspawn-protection=0\n\
-enforce-secure-profile=false\nenable-rcon=false\nenable-query=false\n",
-        options.seed.unwrap_or("42"),
-        options.gamemode.unwrap_or("creative"),
-    );
     let write = |name: &str, text: &str| {
         std::fs::write(run.path.join(name), text).map_err(|error| error.to_string())
     };
     write("eula.txt", "eula=true\n")?;
-    write("server.properties", &properties)?;
+    write("server.properties", &vanilla_properties(port, options))?;
+    write("ops.json", &operators::operators_json(&options.ops))?;
     supervisor.spawn(Launch {
         kind: Kind::Vanilla,
         program: PathBuf::from("java"),
@@ -137,6 +133,16 @@ enforce-secure-profile=false\nenable-rcon=false\nenable-query=false\n",
         control: None,
         run: &run,
     })
+}
+
+fn vanilla_properties(port: u16, options: &ServerOptions<'_>) -> String {
+    format!(
+        "online-mode=false\nwhite-list=false\nenforce-whitelist=false\nserver-ip=127.0.0.1\nserver-port={port}\n\
+level-seed={}\ngamemode={}\nforce-gamemode=true\nview-distance=6\nsimulation-distance=6\nspawn-protection=0\n\
+enforce-secure-profile=false\nenable-rcon=false\nenable-query=false\n",
+        options.seed.unwrap_or("42"),
+        options.gamemode.unwrap_or("creative"),
+    )
 }
 
 pub fn client(
@@ -203,4 +209,42 @@ pub fn env_of(value: &Value) -> Vec<(String, String)> {
 
 fn asset_root(workdir: &Path) -> (String, String) {
     ("BEVY_ASSET_ROOT".to_owned(), workdir.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_network::client::offline_player_uuid;
+    use serde_json::Value;
+
+    use super::*;
+
+    #[test]
+    fn a_local_offline_client_can_join_vanilla_and_run_commands() {
+        let options = ServerOptions {
+            world: None,
+            seed: None,
+            gamemode: None,
+            ops: vec!["Notch", "Bob"],
+            env: Vec::new(),
+        };
+        let properties = vanilla_properties(25565, &options);
+        for line in [
+            "online-mode=false",
+            "white-list=false",
+            "enforce-secure-profile=false",
+            "spawn-protection=0",
+        ] {
+            assert!(
+                properties.lines().any(|have| have == line),
+                "{line} missing:\n{properties}"
+            );
+        }
+        let operators: Value =
+            serde_json::from_str(&operators::operators_json(&options.ops)).unwrap();
+        for (operator, name) in operators.as_array().unwrap().iter().zip(options.ops) {
+            assert_eq!(operator["name"], name);
+            assert_eq!(operator["uuid"], offline_player_uuid(name).to_string());
+            assert_eq!(operator["level"], 4);
+        }
+    }
 }

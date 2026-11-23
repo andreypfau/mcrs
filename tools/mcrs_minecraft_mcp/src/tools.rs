@@ -58,7 +58,8 @@ pub fn list() -> Value {
             "server_start",
             "start a server on a free port in its own run directory; then wait for server_ready. kind=vanilla starts the pinned vanilla server (EULA accepted)",
             json!({ "workdir": workdir, "kind": { "enum": ["mcrs", "vanilla"] }, "world": { "type": "string", "description": "world folder (mcrs only)" },
-                    "seed": { "type": "string" }, "gamemode": { "type": "string" }, "env": env }),
+                    "seed": { "type": "string" }, "gamemode": { "type": "string" }, "env": env,
+                    "ops": { "type": "array", "items": { "type": "string" }, "description": "player names made operators (vanilla only)" } }),
             &[]
         ),
         tool(
@@ -147,6 +148,10 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
                 world: text("world"),
                 seed: text("seed"),
                 gamemode: text("gamemode"),
+                ops: args["ops"]
+                    .as_array()
+                    .map(|list| list.iter().filter_map(Value::as_str).collect())
+                    .unwrap_or_default(),
                 env: launch::env_of(&args["env"]),
             };
             let started = match text("kind") {

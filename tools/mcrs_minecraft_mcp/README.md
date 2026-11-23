@@ -28,7 +28,7 @@ The default is the directory where the binary started.
 | Tool | Example arguments | Result |
 | - | - | - |
 | `build` | `{"workdir":"/abs/worktree"}` | `ok in N s`, or the first 30 error lines |
-| `server_start` | `{"workdir":"…","seed":"42","gamemode":"creative"}`; `"kind":"vanilla"` for the vanilla server | `id`, `pid`, `port`, run `dir`, `log` |
+| `server_start` | `{"workdir":"…","seed":"42","gamemode":"creative"}`; `"kind":"vanilla"` for the vanilla server, with `"ops":["Bob"]` for operators | `id`, `pid`, `port`, run `dir`, `log` |
 | `client_start` | `{"workdir":"…","server":"s1","username":"Bob"}`; `"headless":true` for no window | `id`, `pid`, `dir`, `log` |
 | `wait` | `{"id":"s1","until":"server_ready"}`; also `client_joined`, `world_ready`, `on_ground` or a regex; `timeout_s` (120) | the line that matched or the ready state, or the last 20 lines |
 | `client_state` | `{"id":"c1","query":"entities 16"}` | one JSON line |
@@ -47,6 +47,15 @@ The client gets its own game directory there, so two runs do not share options o
 Typical run: `build`, `server_start`, `wait server_ready`, `client_start`, `wait world_ready`,
 `wait on_ground`, set up with `command`, act with `client_input`, read with `client_state` and `command`,
 `screenshot`, `logs level=error`, `stop all`.
+
+## Vanilla server
+
+`"kind":"vanilla"` writes `server.properties` and `ops.json` into the run directory, so a local
+offline client can join and run commands: `online-mode=false`, `white-list=false`,
+`enforce-secure-profile=false` and `spawn-protection=0`. Each name in `ops` becomes an operator of
+level 4. Its UUID is the offline UUID of the name: the MD5 digest of the UTF-8 string
+`OfflinePlayer:<name>`, with the version set to 3 and the variant to RFC 4122. The mcrs server
+gives an offline player the same UUID.
 
 ## Client control
 
