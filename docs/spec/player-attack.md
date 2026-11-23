@@ -10,7 +10,8 @@ also states the packets and the sounds that a client receives for each result.
 The hit itself uses the procedure of `entity-damage.md`, section 3. This document does not repeat
 that procedure. It states only the inputs of the hit and the effects of the attack around the hit.
 
-The rules come from the reference implementation.
+The rules come from the reference implementation. The experiments of section 13 confirm a part of
+them against the vanilla server.
 
 ## 0. Conventions
 
@@ -107,7 +108,8 @@ An ignored packet does not hit, plays no sound and does not reset the attack cou
 in the dying state is not a loaded client (`player-death.md`, PLD-DTH-003). Creative mode,
 survival mode and adventure mode attack in the same way.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E8; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-PKT-003** The server tests the packet in this order. When a test fails, the packet has no
 effect:
@@ -117,13 +119,14 @@ effect:
 2. The block position of that entity is inside the world border.
 3. The entity is in the attack reach of the attacker. `reach.md` states the reach check and its
    tolerances (RCH-CMP-001, RCH-CMP-002), and its baseline (RCH-VAN-001).
-4. The item in the main hand allows the attack. Items are out of scope (section 11). An empty hand
-   allows the attack.
+4. The item in the main hand does not have the component `piercing_weapon`. An empty hand passes
+   this test.
 
 The order is visible only through ATK-PKT-004: a packet that fails a test of this list does not
-disconnect.
+disconnect. Thus an attack on an `item` out of the attack reach has no effect.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E8; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-PKT-004** When the tests of ATK-PKT-003 pass, the server disconnects the attacker with the
 translation key `multiplayer.disconnect.invalid_entity_attacked` in each of these cases:
@@ -136,20 +139,32 @@ translation key `multiplayer.disconnect.invalid_entity_attacked` in each of thes
 The vanilla client does not select these entities, so it does not send such a packet. This rule
 covers each such packet as one class.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+When the entity is none of these, the server tests the item in the main hand two more times:
+
+1. The features of the world enable the item.
+2. The value `(t + 5) / D` is not less than the component `minimum_attack_charge` of the item. Here
+   `t` is the attack counter and `D` the attack delay. An item without the component passes.
+
+When a test fails, the packet has no effect, and the attack counter keeps its value. Items are out
+of scope (section 11). An empty hand passes both tests.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E8; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 ## 2. The target
 
 **ATK-TGT-001** The entity of ATK-PKT-003 is the target, unless ATK-TGT-006 selects another one.
 The target can be a living entity or another entity.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E1; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-TGT-002** An entity that is not attackable ignores the attack. The attack then does not hit,
 plays no sound and does not reset the attack counter. The types `falling_block`,
 `firework_rocket` and `eye_of_ender` are not attackable.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E4; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-TGT-003** Some entity types handle an attack with their own procedure. Examples are
 `armor_stand`, `item_frame`, `painting`, `interaction`, `end_crystal`, a boat, a minecart and the
@@ -162,12 +177,14 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 to the hit. Two of these tests read the attacker: the game rule `pvp` and the friendly fire of a
 team. A rejected hit gives the result of ATK-DMG-005.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-TGT-005** A target player in creative mode or spectator mode rejects the hit through
 DMG-PLR-001. The attacker then hears `entity.player.attack.nodamage` (ATK-NET-001).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-TGT-006** The game rule `mcrs:dying_entities_targetable` controls an attack on an entity in
 the dying state. Its default is false. The preset `java` sets it to true.
@@ -195,7 +212,8 @@ For a player with no modifier, `D` is 5.0. Then `t = 4` gives `s = 0.9F`, which 
 `0.9F`. Thus the attack is a full-strength attack only from `t = 5`. Each value of `t` from 5 gives
 `s = 1`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E2, ATK-E6; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-STR-002** The server part of a player increases the attack counter by 1 in each server tick.
 These events set the counter to 0:
@@ -213,7 +231,8 @@ These events set the counter to 0:
 
 The reset of step 5 occurs after the increase of the same server part.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-STR-003** The vanilla client keeps its own attack counter with the same rules. It shows the
 attack indicator from that counter. The server must use the rules of ATK-STR-001 and ATK-STR-002.
@@ -234,7 +253,8 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
 An item can give another damage type. Items are out of scope (section 11).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E1, ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-DMG-002** The amount of an attack is computed in f32, in this order:
 
@@ -248,9 +268,11 @@ still reset (ATK-STR-002). Enchantments add a bonus to the amount. That bonus is
 (section 11).
 
 Thus a player with an empty hand and no modifier hits with the amount 1.0 at `s = 1`. A critical
-attack gives 1.5. The value `s = 0` gives 0.2.
+attack gives 1.5. The attack strength is never 0: `t = 0` gives `s = 0.1F` and the amount
+`0.208F`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E1, ATK-E2, ATK-E6; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-DMG-003** An attack is a critical attack when all these conditions are true:
 
@@ -283,13 +305,15 @@ the attack does these steps, full hit or partial hit:
 A partial hit thus gives the extra knockback, the sweep and the exhaustion, but no default
 knockback (DMG-HIT-005).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E2, ATK-E5; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-DMG-005** When the hit is rejected, the attack does no step of ATK-DMG-004. The server plays
 `entity.player.attack.nodamage` (ATK-NET-001). The sound of a sprint attack still plays, because
 it occurs before the hit (ATK-NET-001).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E2, ATK-E4, ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 ## 5. The knockback of an attack
 
@@ -297,7 +321,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 `player_attack` does not have the tag `no_knockback`. Its direction is away from the position of
 the attacker. A partial hit applies no default knockback.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E1, ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-KB-002** The extra knockback has the f32 strength `k = f32(w) / 2`, with `w` the value of the
 attribute `attack_knockback` of the attacker. A sprint attack adds `0.5F` to `k`. Enchantments
@@ -318,13 +343,21 @@ velocity of the target (ATK-KB-004). Steps 3 and 4 still apply to the attacker.
 The result of step 4 is the result of a reset at the moment of the attack packet. The server can
 handle more packets of the same client before the apply step. When one of them sets the sprint
 state, step 4 does not change the sprint state. Thus a sprint-start packet after a sprint attack
-leaves the sprint state on, as on the vanilla client (ATK-KB-003).
+leaves the sprint state on (ATK-KB-003).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E3; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
-**ATK-KB-003** The vanilla client applies steps 3 and 4 of ATK-KB-002 to its own player when it
-attacks. The server applies them to its own copy of the attacker. The viewers see the sprint state
-in the entity data, and the attacker gets the change of the sprint modifier.
+**ATK-KB-003** The vanilla client simulates the hit of its own attack. It applies steps 3 and 4 of
+ATK-KB-002 to its own player only when that simulation accepts the hit. The simulation accepts the
+hit when the target is another player. It also accepts the hit for some types with an own attack
+procedure that are not living entities (ATK-TGT-003). For each other target, for example a mob,
+the vanilla client keeps its velocity and its sprint state.
+
+The server applies steps 3 and 4 to its own copy of the attacker for each target. The attacker and
+the tracking players receive the new sprint state in `set_entity_data`. The attacker also receives
+the change of the sprint modifier in `update_attributes`. The server sends no velocity to the
+attacker for step 3.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -362,14 +395,16 @@ a vehicle that it does not control, the last movement is that of the vehicle.
 
 Thus a player that walks can do a sweep attack, and a player that sprints cannot.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E5; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-SWP-002** A sweep attack occurs only after an accepted hit on the target (ATK-DMG-004 step 2).
 It does these steps:
 
 1. Play `entity.player.attack.sweep` (ATK-NET-001).
-2. Let the sweep amount be `1.0F + f32(q) × A`. Here `q` is the value of the attribute
-   `sweeping_damage_ratio` of the attacker, and `A` is the amount of ATK-DMG-002 step 1.
+2. Let the sweep amount be `(1.0F + f32(q) × A) × s`, in f32. Here `q` is the value of the
+   attribute `sweeping_damage_ratio` of the attacker, `A` is the amount of ATK-DMG-002 step 1 and
+   `s` is the attack strength.
 3. Grow the box of the target by 1.0 on the `x` and `z` axes and by 0.25 on the `y` axis. Select
    the living entities whose box intersects that box. Leave out each entity that meets a condition of this
    list:
@@ -385,12 +420,15 @@ It does these steps:
    of ATK-KB-001. For a partial hit on a player target, it changes no velocity (ATK-DEV-002).
 5. Send the sweep particle (ATK-NET-006).
 
-The sweep sets no last-hit record and adds no exhaustion. ATK-ORD-003 states the place and the
-order of the hits of step 4.
+A full sweep hit also applies the default knockback of its hit, before the sweep knockback. The
+sweep sets no last-hit record and adds no exhaustion. ATK-ORD-003 states the place and the order
+of the hits of step 4.
 
-A player with no modifier has `q = 0`, so each sweep hit has the amount 1.0.
+A player with no modifier has `q = 0`, so each sweep hit has the amount `s`. The sweep amount is
+1.0 only at `s = 1`. For example, `s = 0.955` gives the sweep amount 0.955.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E5, ATK-E6; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 ## 7. The records and the kill credit
 
@@ -455,7 +493,8 @@ range of DMG-NET-007 receives them, the attacker included.
 The target plays its own hurt sound or death sound (DMG-NET-007). An attack with the amount 0 or
 less plays no sound.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E1, ATK-E2, ATK-E5, ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-NET-002** After an accepted hit of a critical attack, the server sends `animate` (play 2). It
 holds the network id of the target and the action 1. The players that track the attacker and the
@@ -513,7 +552,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 **ATK-NET-007** The attack packet itself starts no swing (`arm-swing.md`, SWG-SRC-004). The swing
 that a viewer sees comes from the `punch` packet that follows it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 ## 9. The place of an attack in the tick
 
@@ -523,7 +563,8 @@ the fall distance, the ground flag, the last movement and the main-hand item. Th
 that follows the attack does not change the strength of that attack. The increase of the attack
 counter in the next server part does not change it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **ATK-ORD-002** The hit of an attack applies in the tick in which the server handles the packet.
 It applies before the tracker sends the updates of that tick. The sounds and the packets of section 8 go in
@@ -534,7 +575,8 @@ When the target is in another cell, the hit can apply one tick later (PHY-CMP-01
 exception "write across a cell boundary" of PHY-INV-014. The bound is one tick, and the packets
 of the result of the hit go in the tick of the hit.
 
-Provenance: `source_suggested`. Kind: unspecified. Confidence: medium.
+Provenance: `source_suggested` for the first paragraph, `design` for the second paragraph. Kind:
+unspecified. Confidence: medium.
 
 **ATK-ORD-003** Each hit of an attack is a write of PHY-CMP-015 (`entity-physics.md`) with the
 writer key of the attacker. The sweep hits of ATK-SWP-002 are also such writes. The primary hit
@@ -623,7 +665,86 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
 - **Test:** a differential test does not compare a sweep target that another writer hits in the
   same tick.
 
-## 13. Unresolved
+## 13. Experiments
+
+All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/player_attack.json` and produced
+`tools/mcrs_minecraft_probe/traces/player_attack.json`. The world is flat and peaceful, with the
+game rule `natural_health_regeneration` false. The attacker `attackprobealice` stands at
+`(0.5, -60, 0.5)` with the yaw 0, on the ground, in survival mode, with no modifier. The targets
+have the flag `NoAI`. The tick is frozen in ATK-E1 to ATK-E6, so a target keeps its velocity and
+its cooldown.
+
+- **ATK-E1** (a full hit with an empty hand):
+  1. Summon a `pig` at `(0.5, -60, 2.5)` (`summon_targets`).
+  2. Attack the pig at full strength (`a1_attack_pig_full`).
+  - Result: the health goes from 10.0 to 9.0. The velocity goes from `(0, 0, 0)` to
+    `(0, 0.4, 0.4)`. The exhaustion goes from 0.0 to 0.1. The attacker receives
+    `entity.player.attack.strong` at its own position, with the source `player`, the volume 1.0
+    and the pitch 1.0.
+- **ATK-E2** (attack strength, partial hit and rejected hit):
+  1. Send `punch` and then attack a `cow` at `(-1.5, -60, 2.5)`, with no delay
+     (`a2_attack_cow_weak`).
+  2. Wait 1500 ms and attack the cow again (`a2_attack_cow_partial`).
+  3. Send `punch` and then attack the cow, with no delay (`a2_attack_cow_rejected`).
+  - Result (step 1): the health goes from 10.0 to 9.792. The cow moves away from the attacker. The
+    attacker receives `entity.player.attack.weak`.
+  - Result (step 2): the health goes to 9.0. The velocity does not change. The attacker receives
+    `entity.player.attack.strong` and no hurt sound of the cow.
+  - Result (step 3): the health stays 9.0. The attacker receives
+    `entity.player.attack.nodamage`.
+  - Result: the exhaustion increases by 0.1 in step 1 and in step 2, and not in step 3.
+- **ATK-E3** (extra knockback):
+  1. Set the base of `attack_knockback` of the attacker to 2 (`a3_set_knockback`).
+  2. Attack a `sheep` at `(2.5, -60, 0.5)` (`a3_attack_sheep`).
+  3. Attack a `goat` with `knockback_resistance` 1 (`a3_attack_goat`).
+  - Result (step 2): the velocity of the sheep is `(0.2, 0.4, 1.0)`.
+  - Result (step 3): the goat loses 1.0 health, and its velocity stays `(0, 0, 0)`.
+- **ATK-E4** (an invulnerable target and a target that is not attackable):
+  1. Attack a `villager` with the flag `Invulnerable` (`a4_attack_invulnerable_survival`).
+  2. Set the attacker to creative mode and attack the villager again
+     (`a4_attack_invulnerable_creative`).
+  3. Attack a `falling_block` (`a4_attack_falling_block`).
+  - Result (step 1): the health stays 20.0, and the attacker receives
+    `entity.player.attack.nodamage`.
+  - Result (step 2): the health goes to 19.0, and the exhaustion does not change.
+  - Result (step 3): the attacker receives no sound.
+- **ATK-E5** (a sweep attack at full strength):
+  1. Put a `diamond_sword` in the main hand of the attacker (`a5_prepare_sweep`).
+  2. Summon a `pig` at `(0.5, -60, 2.5)`, a `sheep` at `(1.5, -60, 2.5)` and a `cow` at
+     `(-0.5, -60, 3.5)`.
+  3. Attack the pig at full strength (`a5_attack_sweep`).
+  - Result: the pig loses 7.0 health and the sheep loses 1.0. The cow, at the squared distance 10,
+    keeps its health. The velocity of the sheep is `(0.0894, 0.4, 0.5789)`.
+  - Result: the attacker receives `entity.player.attack.sweep` and no
+    `entity.player.attack.strong`. The exhaustion increases by 0.1 only.
+- **ATK-E6** (a sweep attack at a strength below 1):
+  1. Set the base of `attack_speed` of the attacker to 2.6, so that `D` is 100
+     (`a6_prepare_slow_sword`).
+  2. Summon a `pig` and a `sheep` with the health 100, at the places of ATK-E5.
+  3. Send `punch`, wait 4750 ms and attack the pig (`a6_attack_sweep_partial`).
+  - Result: the pig loses 6.50734 health, which gives `s = 0.955`. The sheep loses 0.955 health.
+- **ATK-E7** (a player target):
+  1. Put `attackprobebob` at `(0.5, -60, 2.5)`, in survival mode (`a7_prepare_pvp`).
+  2. Set the game rule `pvp` to false and attack `attackprobebob` (`a7_attack_bob_pvp_off`).
+  3. Set `pvp` to true and attack again (`a7_attack_bob_pvp_on`).
+  4. Set `attackprobebob` to creative mode and attack again (`a7_attack_bob_creative`).
+  5. Send `punch` from the attacker (`a7_punch_swing_control`).
+  - Result (step 2): the health stays 20.0. Both players receive `entity.player.attack.nodamage`.
+  - Result (step 3): the health goes to 19.0. Both players receive `entity.player.attack.strong`.
+  - Result (step 4): the health stays 19.0. Both players receive
+    `entity.player.attack.nodamage`.
+  - Result: `attackprobebob` receives no `swing_animation` in steps 2 to 4 and one in step 5.
+- **ATK-E8** (ignored and invalid packets):
+  1. Set the attacker to spectator mode and attack `attackprobebob` (`a8_attack_bob_spectator`).
+  2. Summon an `item` at the distance 10 from `attackprobebob`. Attack it from `attackprobebob`
+     (`a8_attack_item_out_of_reach`).
+  3. Summon an `item` at the distance 1 and attack it from `attackprobebob` (`a8_attack_item`).
+  - Result (step 1): no player receives a sound, and the health stays 19.0.
+  - Result (step 2): nothing occurs.
+  - Result (step 3): the server disconnects `attackprobebob` with
+    `multiplayer.disconnect.invalid_entity_attacked`.
+
+## 14. Unresolved
 
 - **U2.** The Bedrock values of ATK-EDN-001 come from the public documentation of the game. No
   Bedrock artefact confirms them. The conditions of a critical attack in the Bedrock edition are
@@ -632,3 +753,16 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
   (issue #669).
 - **U4.** The vertical form of the Bedrock knockback (MCPE-159055) is not stated. The Bedrock edge
   needs it for ATK-EDN-001.
+- **U5.** No experiment confirms these rules yet. Each needs an input that the experiment tools do
+  not have:
+  - ATK-PKT-001, ATK-STR-003 and ATK-KB-003: a capture of the vanilla client during an attack on a
+    mob and on a player.
+  - ATK-DMG-003 and the sprint attack of ATK-NET-001: move packets with a chosen ground flag and a
+    fall distance, and the sprint action of `player_command`.
+  - ATK-KB-004, ATK-KB-005 and ATK-NET-002 to ATK-NET-006: an observer for `set_entity_motion`,
+    `damage_event`, `hurt_animation` and `level_particles`.
+  - The case "not a loaded client" of ATK-PKT-002: an attack within 60 ticks after the join.
+  - The first paragraph of ATK-ORD-002: the server tick of each packet that a client receives.
+- **U6.** ATK-TGT-003 and ATK-CRD-001 to ATK-CRD-004 have no experiment yet. The procedures of
+  ATK-TGT-003 belong to later documents. A run of the kill credit needs a death after an attack
+  and a count of the experience that drops.
