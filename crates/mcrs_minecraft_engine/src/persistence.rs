@@ -27,6 +27,7 @@ use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
 use crate::carried_attributes::CarriedAttributes;
 use crate::client_info::ClientInfo;
+use crate::client_on_ground::ClientOnGround;
 use crate::cold_columns::SaveRequest;
 use crate::coordinator::clock::GameTime;
 use crate::game_mode::ListedGameMode;
@@ -62,6 +63,7 @@ const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
+const ON_GROUND_KEYS: &[&str] = &["OnGround"];
 const HEALTH_KEY: &str = "Health";
 const VITALS_KEYS: &[&str] = &[HEALTH_KEY, "AbsorptionAmount", "HurtTime", "DeathTime"];
 
@@ -72,6 +74,7 @@ impl Plugin for PlayerPersistencePlugin {
         app.register_persisted_codec(POSE_KEYS, PersistScope::Persisted, capture_pose, apply_pose)
             .register_persisted_codec(UUID_KEYS, PersistScope::Persisted, capture_uuid, apply_uuid)
             .register_persisted::<PlayerFileState>(player_state_keys(), PersistScope::Persisted)
+            .register_persisted::<ClientOnGround>(ON_GROUND_KEYS, PersistScope::Persisted)
             .register_persisted_as::<PlayerGameMode, GameType>(
                 GAME_TYPE_KEYS,
                 PersistScope::Persisted,
@@ -1070,6 +1073,26 @@ pub(crate) mod tests {
             keys.iter().all(|key| !key.starts_with("mcrs:")),
             "session state in the file: {keys:?}"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_player_file_holds_the_live_ground_flag() {
+        let dir = temp_world();
+        let mut app = app(&dir);
+        let player = app
+            .world_mut()
+            .spawn((
+                profile(),
+                Transform::default(),
+                PlayerFileState::default(),
+                ClientOnGround(true),
+            ))
+            .id();
+
+        let dat = save_player(app.world_mut(), player, CaptureCause::Autosave).unwrap();
+
+        assert_eq!(dat.get("OnGround"), Some(&NbtTag::Byte(1)));
         let _ = std::fs::remove_dir_all(dir);
     }
 

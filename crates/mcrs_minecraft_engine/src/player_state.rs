@@ -318,8 +318,6 @@ pub struct PlayerFileState {
     pub fire: i16,
     #[serde(rename = "Air")]
     pub air: i16,
-    #[serde(rename = "OnGround")]
-    pub on_ground: bool,
     #[serde(rename = "Invulnerable")]
     pub invulnerable: bool,
     #[serde(rename = "PortalCooldown")]
@@ -437,7 +435,6 @@ impl Default for PlayerFileState {
             fall_distance: 0.0,
             fire: 0,
             air: 300,
-            on_ground: false,
             invulnerable: false,
             portal_cooldown: 0,
             invulnerable_time: 0,
