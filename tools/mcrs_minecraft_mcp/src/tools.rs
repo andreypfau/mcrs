@@ -2,14 +2,18 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use base64::Engine;
+use mcrs_minecraft_client_control::Reply;
 use regex::Regex;
 use serde_json::Value;
 use serde_json::json;
 
+use crate::control;
+use crate::control::Session;
 use crate::handle::Handle;
 use crate::handle::Kind;
 use crate::handle::Supervisor;
 use crate::launch;
+use crate::launch::ClientOptions;
 use crate::launch::ServerOptions;
 use crate::log_file;
 use crate::log_file::Waited;
@@ -59,9 +63,22 @@ pub fn list() -> Value {
         ),
         tool(
             "client_start",
-            "start the windowed client against a server handle; then wait for client_joined",
-            json!({ "workdir": workdir, "server": id, "username": { "type": "string" }, "env": env }),
+            "start the client against a server handle, windowed or headless; then wait for world_ready",
+            json!({ "workdir": workdir, "server": id, "username": { "type": "string" },
+                    "headless": { "type": "boolean", "description": "no window and no renderer; default false" }, "env": env }),
             &["server"]
+        ),
+        tool(
+            "client_state",
+            "read the client state as JSON: ready, player, target (the entity or block under the crosshair), entities [radius], block X Y Z",
+            json!({ "id": id, "query": { "type": "string", "description": "for example player, entities 16, block 0 64 0" } }),
+            &["id", "query"]
+        ),
+        tool(
+            "client_input",
+            "run input actions on the client in order, each returns when done: look YAW PITCH, look_at X Y Z, look_entity ID, hold KEYS TICKS (keys: forward,back,left,right,jump,sneak,sprint), attack [TICKS], slot N, chat TEXT, command TEXT",
+            json!({ "id": id, "actions": { "type": "array", "items": { "type": "string" } } }),
+            &["id", "actions"]
         ),
         tool(
             "stop",
@@ -78,8 +95,8 @@ pub fn list() -> Value {
         ),
         tool(
             "wait",
-            "block until a log line matches, the process exits, or the timeout",
-            json!({ "id": id, "until": { "type": "string", "description": "server_ready, client_joined, or a regex" },
+            "block until a condition holds, the process exits, or the timeout",
+            json!({ "id": id, "until": { "type": "string", "description": "server_ready, client_joined, world_ready (joined, player placed, terrain around it loaded and meshed), on_ground (the own player stands on a block), or a log regex" },
                     "timeout_s": { "type": "integer", "description": "default 120" } }),
             &["id", "until"]
         ),
@@ -92,8 +109,9 @@ pub fn list() -> Value {
         ),
         tool(
             "screenshot",
-            "capture the client window; returns the image and the file path",
-            json!({ "id": id, "max_px": { "type": "integer", "description": "default 1024" } }),
+            "capture the client window after world_ready; returns the image and the file path",
+            json!({ "id": id, "max_px": { "type": "integer", "description": "default 1024" },
+                    "wait": { "type": "boolean", "description": "wait for world_ready first; default true" } }),
             &["id"]
         ),
     ])
@@ -133,8 +151,12 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
         }
         "client_start" => {
             let server = Handle::load(text("server").unwrap_or_default())?;
-            let env = launch::env_of(&args["env"]);
-            let started = launch::client(supervisor, &workdir, &server, text("username"), env)?;
+            let options = ClientOptions {
+                username: text("username"),
+                headless: args["headless"] == true,
+                env: launch::env_of(&args["env"]),
+            };
+            let started = launch::client(supervisor, &workdir, &server, options)?;
             Ok(started_text(&started))
         }
         "stop" => {
@@ -166,30 +188,50 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
             ))
         }
         "wait" => {
-            let handle = handle()?;
-            let until = text("until").unwrap_or_default();
-            let pattern = regex(condition(handle.kind, until).unwrap_or(until))?;
             let timeout = Duration::from_secs(number("timeout_s", 120));
-            match log_file::wait(&handle, &pattern, timeout) {
-                Waited::Matched(line) => Ok(Output::Text(line)),
-                Waited::TimedOut(tail) => Err(format!("timeout; last lines:\n{}", tail.join("\n"))),
-                Waited::Exited(tail) => Err(format!(
-                    "{} exited; last lines:\n{}",
-                    handle.id,
-                    tail.join("\n")
-                )),
-            }
+            wait(&handle()?, text("until").unwrap_or_default(), timeout)
         }
         "command" => {
             let window = Duration::from_millis(number("window_ms", 2000));
             run_commands(&handle()?, &args["commands"], window)
         }
         "screenshot" => {
-            let handle = handle()?;
             let max_px = u32::try_from(number("max_px", 1024)).unwrap_or(1024);
-            screenshot::capture(&handle, max_px)
+            ready_shot(&handle()?, args["wait"] != false, max_px)
         }
+        "client_state" => {
+            let query = text("query").unwrap_or("player");
+            let mut session = Session::open(&handle()?)?;
+            session
+                .ask(query, Duration::from_secs(10))
+                .map(Output::Text)
+        }
+        "client_input" => run_actions(&handle()?, &args["actions"]),
         other => Err(format!("unknown tool {other}")),
+    }
+}
+
+fn wait(handle: &Handle, until: &str, timeout: Duration) -> Result<Output, String> {
+    match (handle.kind, until) {
+        (Kind::Client, "world_ready") => {
+            return control::wait_until(handle, "ready", timeout, control::world_ready)
+                .map(Output::Text);
+        }
+        (Kind::Client, "on_ground") => {
+            return control::wait_until(handle, "player", timeout, control::on_ground)
+                .map(Output::Text);
+        }
+        _ => {}
+    }
+    let pattern = regex(condition(handle.kind, until).unwrap_or(until))?;
+    match log_file::wait(handle, &pattern, timeout) {
+        Waited::Matched(line) => Ok(Output::Text(line)),
+        Waited::TimedOut(tail) => Err(format!("timeout; last lines:\n{}", tail.join("\n"))),
+        Waited::Exited(tail) => Err(format!(
+            "{} exited; last lines:\n{}",
+            handle.id,
+            tail.join("\n")
+        )),
     }
 }
 
@@ -209,6 +251,37 @@ fn run_commands(handle: &Handle, commands: &Value, window: Duration) -> Result<O
         report.push(json!({ "command": command, "reply": replies }));
     }
     Ok(Output::Text(Value::Array(report).to_string()))
+}
+
+fn ready_shot(handle: &Handle, wait: bool, max_px: u32) -> Result<Output, String> {
+    if wait {
+        control::wait_until(
+            handle,
+            "ready",
+            Duration::from_secs(120),
+            control::world_ready,
+        )?;
+    }
+    screenshot::capture(handle, max_px)
+}
+
+fn run_actions(handle: &Handle, actions: &Value) -> Result<Output, String> {
+    let mut session = Session::open(handle)?;
+    let mut report = Vec::new();
+    for action in actions
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+    {
+        let reply = session.ask(action, control::timeout_of(action))?;
+        let failed = matches!(serde_json::from_str(&reply), Ok(Reply::Error(_)));
+        report.push(format!("{action} -> {reply}"));
+        if failed {
+            break;
+        }
+    }
+    Ok(Output::Text(report.join("\n")))
 }
 
 fn started_text(handle: &Handle) -> Output {

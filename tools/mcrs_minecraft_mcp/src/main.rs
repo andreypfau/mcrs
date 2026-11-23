@@ -5,6 +5,7 @@
     reason = "MCP messages and tool arguments are open JSON objects, and indexing a JSON value yields null instead of a panic"
 )]
 
+mod control;
 mod handle;
 mod launch;
 mod log_file;

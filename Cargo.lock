@@ -6310,6 +6310,7 @@ version = "0.5.8"
 dependencies = [
  "base64 0.22.1",
  "libc",
+ "mcrs_minecraft_client_control",
  "regex",
  "serde",
  "serde_json",

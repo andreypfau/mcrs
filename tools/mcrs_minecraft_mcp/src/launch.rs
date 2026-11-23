@@ -12,34 +12,46 @@ use crate::handle::RunDir;
 use crate::handle::Supervisor;
 
 pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
-    let mut command = Command::new("cargo");
-    command.current_dir(workdir).args(["build", "--release"]);
+    let start = Instant::now();
     for target in targets {
-        let (package, bin) = match *target {
-            "server" => ("mcrs", "mcrs"),
-            "client" => ("mcrs_minecraft_client", "mcrs_minecraft_client"),
+        let args: &[&str] = match *target {
+            "server" => &["-p", "mcrs", "--bin", "mcrs"],
+            "client" => &[
+                "-p",
+                "mcrs_minecraft_client",
+                "--bin",
+                "mcrs_minecraft_client",
+                "--features",
+                "control",
+            ],
             other => return Err(format!("unknown target {other}: use server or client")),
         };
-        command.args(["-p", package, "--bin", bin]);
+        let output = Command::new("cargo")
+            .current_dir(workdir)
+            .args(["build", "--release"])
+            .args(args)
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !output.status.success() {
+            return Err(first_errors(&String::from_utf8_lossy(&output.stderr)));
+        }
     }
-    let start = Instant::now();
-    let output = command.output().map_err(|error| error.to_string())?;
-    if output.status.success() {
-        return Ok(format!("ok in {} s", start.elapsed().as_secs()));
-    }
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    Ok(format!("ok in {} s", start.elapsed().as_secs()))
+}
+
+fn first_errors(stderr: &str) -> String {
     let lines: Vec<&str> = stderr.lines().collect();
     let first = lines
         .iter()
         .position(|line| line.starts_with("error"))
         .unwrap_or(0);
-    Err(lines
+    lines
         .iter()
         .skip(first)
         .take(30)
         .copied()
         .collect::<Vec<_>>()
-        .join("\n"))
+        .join("\n")
 }
 
 pub struct ServerOptions<'a> {
@@ -77,6 +89,7 @@ pub fn server(
         args: options.world.map(str::to_owned).into_iter().collect(),
         env,
         port: Some(port),
+        control: None,
         run: &run,
     })
 }
@@ -119,6 +132,7 @@ enforce-secure-profile=false\nenable-rcon=false\nenable-query=false\n",
             .to_vec(),
         env: Vec::new(),
         port: Some(port),
+        control: None,
         run: &run,
     })
 }
@@ -127,8 +141,7 @@ pub fn client(
     supervisor: &mut Supervisor,
     workdir: &Path,
     server: &Handle,
-    username: Option<&str>,
-    extra: Vec<(String, String)>,
+    options: ClientOptions<'_>,
 ) -> Result<Handle, String> {
     let port = server
         .port
@@ -144,16 +157,32 @@ pub fn client(
             format!("{dir}/screenshots"),
         ),
     ];
-    env.extend(username.map(|name| ("MCRS_USERNAME".to_owned(), name.to_owned())));
-    env.extend(extra);
+    env.extend(
+        options
+            .username
+            .map(|name| ("MCRS_USERNAME".to_owned(), name.to_owned())),
+    );
+    env.extend(options.env);
+    let control = run.path.join("control.sock");
+    let mut args = vec!["--control".to_owned(), control.display().to_string()];
+    if options.headless {
+        args.push("--headless".to_owned());
+    }
     supervisor.spawn(Launch {
         kind: Kind::Client,
         program: workdir.join("target/release/mcrs_minecraft_client"),
-        args: Vec::new(),
+        args,
         env,
         port: None,
+        control: Some(control),
         run: &run,
     })
+}
+
+pub struct ClientOptions<'a> {
+    pub username: Option<&'a str>,
+    pub headless: bool,
+    pub env: Vec<(String, String)>,
 }
 
 pub fn env_of(value: &Value) -> Vec<(String, String)> {

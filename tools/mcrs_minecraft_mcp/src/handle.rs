@@ -1,6 +1,8 @@
+use std::fs::DirBuilder;
 use std::fs::File;
 use std::io::Write;
 use std::net::TcpListener;
+use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -38,6 +40,8 @@ pub struct Handle {
     pub pid: u32,
     pub port: Option<u16>,
     pub owner: Option<u32>,
+    #[serde(default)]
+    pub control: Option<PathBuf>,
 }
 
 pub struct RunDir {
@@ -51,6 +55,7 @@ pub struct Launch<'a> {
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
     pub port: Option<u16>,
+    pub control: Option<PathBuf>,
     pub run: &'a RunDir,
 }
 
@@ -74,7 +79,7 @@ impl RunDir {
         for number in 1..100_000 {
             let id = format!("{}{number}", kind.prefix());
             let path = state.join(&id);
-            if std::fs::create_dir(&path).is_ok() {
+            if DirBuilder::new().mode(0o700).create(&path).is_ok() {
                 return Ok(Self { id, path });
             }
         }
@@ -123,6 +128,9 @@ impl Handle {
     }
 
     pub fn stop(&self) -> &'static str {
+        if let Some(control) = &self.control {
+            std::fs::remove_file(control).ok();
+        }
         if !self.alive() {
             return "had exited";
         }
@@ -233,6 +241,7 @@ impl Supervisor {
             pid: child.id(),
             port: launch.port,
             owner: self.owner,
+            control: launch.control,
         };
         if let Some(watchdog) = &mut self.watchdog {
             writeln!(watchdog, "{}", handle.pid).map_err(|error| error.to_string())?;
