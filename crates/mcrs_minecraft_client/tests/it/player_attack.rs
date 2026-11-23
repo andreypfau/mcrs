@@ -48,17 +48,28 @@ fn an_attack_press_on_a_pig_sends_a_hit_that_the_server_applies() {
         },
     );
     test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
-        command: Bounded("summon minecraft:pig 0.5 0 2.5 {NoAI:1b}"),
+        command: Bounded("tp @s 0 0 0"),
     });
+    test_support::update_until(&mut world.app, |app| {
+        app.world()
+            .resource::<ColumnStore>()
+            .holds(ColumnPos::from(DVec3::ZERO))
+    });
+    for command in [
+        "fill -1 -1 -1 1 -1 3 minecraft:stone",
+        "fill -1 0 -1 1 1 3 minecraft:air",
+        "summon minecraft:pig 0.5 0 2.5 {NoAI:1b}",
+    ] {
+        test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
+            command: Bounded(command),
+        });
+    }
     let mut target = None;
     test_support::update_until(&mut world.app, |app| {
         target = pig(app.world_mut());
-        let column_held = app
-            .world()
-            .resource::<ColumnStore>()
-            .holds(ColumnPos::from(DVec3::ZERO));
-        target.is_some() && column_held
+        target.is_some()
     });
+    test_support::round_trip(&mut world.app);
     let (pig, _) = target.expect("the pig arrived");
     test_support::update_until(&mut world.app, |app| {
         let world = app.world_mut();

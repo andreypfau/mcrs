@@ -154,16 +154,20 @@ fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
     );
     let mut control = Controller::connect(&address);
     test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
+        command: Bounded("tp @s 0 0 0"),
+    });
+    test_support::update_until(&mut world.app, |app| {
+        app.world()
+            .resource::<ColumnStore>()
+            .holds(ColumnPos::from(DVec3::ZERO))
+    });
+    test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
         command: Bounded("summon minecraft:pig 0.5 0 2.5 {NoAI:1b}"),
     });
     let mut target = None;
     test_support::update_until(&mut world.app, |app| {
         target = pig(app.world_mut());
-        let column_held = app
-            .world()
-            .resource::<ColumnStore>()
-            .holds(ColumnPos::from(DVec3::ZERO));
-        target.is_some() && column_held
+        target.is_some()
     });
     test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
         command: Bounded("fill -1 -1 -1 1 1 3 minecraft:air"),
