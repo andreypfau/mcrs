@@ -50,3 +50,7 @@ Typical run: `build`, `server_start`, `wait server_ready`, `command`, `client_st
 - No input, no headless client, no web client, no game state other than through commands.
 - `server_ready` and `client_joined` are log lines. A change of those lines breaks them.
 - `build` builds the release profile only.
+- `screenshot` does not wait for the terrain. Right after `client_joined` it shows only the sky.
+- A capture on a locked screen is not tested.
+- Our server does not answer every read command yet: `data get entity` of a player and
+  `attribute` fail, `data get entity` of a mob and `execute if block` work.
