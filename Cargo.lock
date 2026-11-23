@@ -5706,6 +5706,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_testing",
  "mcrs_voxel",

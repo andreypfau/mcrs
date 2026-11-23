@@ -10,9 +10,10 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::template_asset::{TemplateAsset, WorldgenAssetsPlugin, named_templates};
+use crate::template_asset::{TemplateAsset, WorldgenAssetsPlugin};
 use crate::template_handle::template_path;
 use mcrs_minecraft_worldgen::registries::add_vanilla_worldgen;
+use mcrs_minecraft_worldgen_generator::template_names::named_templates;
 
 pub struct WorldgenRegistriesPlugin;
 

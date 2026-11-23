@@ -1281,6 +1281,7 @@ pub mod world_tables_error;
 use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
 pub mod task;
+pub mod template_names;
 pub use column_blocks::ColumnBlocks;
 mod generate_area;
 pub use generate_area::generate_area;

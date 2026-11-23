@@ -30,6 +30,7 @@ mcrs_minecraft_engine_mob_attributes.workspace = true
 mcrs_minecraft_engine_player_vitals.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_key.workspace = true
@@ -110,7 +111,6 @@ mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

@@ -14,6 +14,7 @@ use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
+use mcrs_minecraft_datapack::REPOSITORY_PACKS;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_attributes::PlayerAttributesPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
@@ -50,7 +51,7 @@ impl Default for MinecraftServerPlugins {
         Self {
             core: ServerCorePlugin {
                 builtin_assets: mcrs_minecraft_worldgen_builtin::asset,
-                local_packs: vec!["mcrs".to_owned(), "beta".to_owned()],
+                local_packs: REPOSITORY_PACKS.map(str::to_owned).to_vec(),
                 ..Default::default()
             },
             worlds: DimensionWorldsPlugin::default(),
