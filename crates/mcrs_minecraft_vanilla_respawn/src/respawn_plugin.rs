@@ -1,10 +1,10 @@
 use bevy_app::{App, FixedUpdate, Plugin, Update};
-use bevy_ecs::schedule::common_conditions::{any_with_component, on_message};
+use bevy_ecs::schedule::common_conditions::{any_with_component, on_message, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
-use mcrs_minecraft_engine::InboundPlayerSpawnSet;
 use mcrs_minecraft_engine::block_simulation::BlockSimulationSet;
 use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::persisted_registry::{PersistScope, PersistedAppExt};
+use mcrs_minecraft_engine::{HeldJoins, InboundPlayerSpawnSet};
 use mcrs_minecraft_engine_damage::{DamageSet, RespawnRequest};
 use mcrs_minecraft_engine_world::tick::TickSet;
 
@@ -33,7 +33,10 @@ impl Plugin for RespawnPlugin {
             .add_systems(
                 Update,
                 hold_unplaced_joins
-                    .run_if(on_message::<InboundPlayerSpawn>.or_else(holds_joins))
+                    .run_if(
+                        resource_exists::<HeldJoins>
+                            .and_then(on_message::<InboundPlayerSpawn>.or_else(holds_joins)),
+                    )
                     .before(InboundPlayerSpawnSet),
             )
             .add_systems(
