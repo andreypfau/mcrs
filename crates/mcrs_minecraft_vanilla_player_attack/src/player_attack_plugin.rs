@@ -11,8 +11,8 @@ use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_world::entity::player::Player;
 
 use crate::AttackCounter;
-use crate::AttackKnockbacks;
 use crate::attack_counter::reset_on_punch;
+use crate::attack_knockbacks::AttackKnockbacks;
 use crate::attack_knockbacks::has_attack_knockbacks;
 use crate::attack_packet::on_attack;
 use crate::knock_back::knock_back;

@@ -39,8 +39,9 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetEntityMotion;
 
-use crate::AttackKnockback;
-use crate::AttackKnockbacks;
+use crate::attack_knockback::AttackKnockback;
+use crate::attack_knockbacks::AttackKnockbacks;
+use crate::birth_tick::birth_tick;
 
 const DEFAULT_STRENGTH: f64 = 0.4;
 const ATTACKER_SLOWDOWN: DVec3 = DVec3::new(0.6, 1.0, 0.6);
@@ -107,17 +108,9 @@ fn look(yaw: f32) -> DVec2 {
     )
 }
 
-fn take(
-    knockbacks: &mut AttackKnockbacks,
-    hit: &Damaged,
-    attacker_key: EntityUuid,
-    players: &Players,
-) -> Option<AttackKnockback> {
+fn take(knockbacks: &mut AttackKnockbacks, hit: &Damaged) -> Option<AttackKnockback> {
     let index = knockbacks.0.iter().position(|knockback| {
-        knockback.target == hit.target
-            && players
-                .get(knockback.attacker)
-                .is_ok_and(|(uuid, ..)| *uuid == attacker_key)
+        knockback.target == hit.target && hit.source.cause.direct == Some(knockback.attacker_uuid)
     })?;
     Some(knockbacks.0.remove(index))
 }
@@ -136,17 +129,14 @@ pub(crate) fn knock_back(
     mut writes: Option<ResMut<EntityWrites>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let tick = clock.map_or(0, |clock| clock.0);
+    let tick = birth_tick(clock.as_deref());
     let mut composed: Option<(Entity, DVec3)> = None;
     let mut sequence: u32 = 0;
     for hit in hits.read() {
         if hit.report.outcome == HitOutcome::Rejected {
             continue;
         }
-        let Some(attacker_key) = hit.source.cause.direct else {
-            continue;
-        };
-        let Some(attack) = take(&mut knockbacks, hit, attacker_key, &players) else {
+        let Some(attack) = take(&mut knockbacks, hit) else {
             continue;
         };
         let full = hit.report.outcome == HitOutcome::Full
@@ -197,7 +187,9 @@ pub(crate) fn knock_back(
             {
                 writes.push(EntityWrite {
                     target: state.key,
-                    writer: WriterKey::Entity { key: attacker_key },
+                    writer: WriterKey::Entity {
+                        key: attack.attacker_uuid,
+                    },
                     sequence,
                     effect: after - before,
                 });
@@ -236,6 +228,7 @@ mod tests {
         for (yaw, expected) in cases {
             let attack = AttackKnockback {
                 attacker: Entity::PLACEHOLDER,
+                attacker_uuid: EntityUuid::from_u128(1),
                 target: Entity::PLACEHOLDER,
                 strength: 0.5,
                 yaw,

@@ -49,10 +49,12 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_text::Text;
 
 use crate::AttackCounter;
-use crate::AttackKnockback;
-use crate::AttackKnockbacks;
 use crate::attack_amount;
+use crate::attack_knockback::AttackKnockback;
+use crate::attack_knockbacks::AttackKnockbacks;
 use crate::attack_strength;
+use crate::birth_tick::birth_tick;
+use crate::ignores_attacks::ignores_attacks;
 use crate::in_attack_reach;
 
 const FULL_STRENGTH: f32 = 0.9;
@@ -68,6 +70,7 @@ type Attackers<'w, 's> = Query<
         &'static AttributeInstances,
         &'static mut AttackCounter,
         &'static Transform,
+        PlayerBody,
         Ref<'static, PlayerSprinting>,
         Option<&'static Vitals>,
         Has<UnloadedClient>,
@@ -175,21 +178,28 @@ pub(crate) fn on_attack(
         return;
     };
     let attacker = received.entity;
-    let Ok((uuid, owner, mode, attributes, mut counter, transform, sprinting, vitals, unloaded)) =
-        attackers.get_mut(attacker)
+    let Ok((
+        uuid,
+        owner,
+        mode,
+        attributes,
+        mut counter,
+        transform,
+        body,
+        sprinting,
+        vitals,
+        unloaded,
+    )) = attackers.get_mut(attacker)
     else {
         return;
     };
-    if unloaded || mode.0 == GameMode::Spectator || !is_alive(vitals) {
+    if ignores_attacks(unloaded, mode, vitals) {
         return;
     }
     let Some(target) = ids
         .as_deref()
         .and_then(|ids| find_target(packet.entity_id.0, ids, &players, &others))
     else {
-        return;
-    };
-    let Ok((.., body, _)) = players.get(attacker) else {
         return;
     };
     let eye = eye_position(transform.translation, body.dimensions());
@@ -211,7 +221,7 @@ pub(crate) fn on_attack(
     if class == TargetClass::Ignored || !target.alive {
         return;
     }
-    let now = clock.map_or(0, |clock| clock.0);
+    let now = birth_tick(clock.as_deref());
     let ticks = counter.ticks(now);
     counter.set_if_neq(AttackCounter { reset_at: now });
     let pvp = rules
@@ -256,6 +266,7 @@ pub(crate) fn on_attack(
     }
     knockbacks.0.push(AttackKnockback {
         attacker,
+        attacker_uuid: *uuid,
         target: target.entity,
         strength: knockback,
         yaw: transform.rotation.yaw(),

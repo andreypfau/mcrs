@@ -9,10 +9,12 @@ use bevy_ecs::world::DeferredWorld;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::loaded_client::UnloadedClient;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
-use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPunch;
+
+use crate::birth_tick::birth_tick;
+use crate::ignores_attacks::ignores_attacks;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[component(on_add = start_counting)]
@@ -28,9 +30,7 @@ impl AttackCounter {
 }
 
 fn start_counting(mut world: DeferredWorld, context: HookContext) {
-    let now = world
-        .get_resource::<BirthClock>()
-        .map_or(0, |clock| clock.0);
+    let now = birth_tick(world.get_resource::<BirthClock>());
     if let Some(mut counter) = world.get_mut::<AttackCounter>(context.entity) {
         counter.reset_at = now;
     }
@@ -52,11 +52,10 @@ pub(crate) fn reset_on_punch(
     let Ok((mut counter, mode, vitals, unloaded)) = players.get_mut(received.entity) else {
         return;
     };
-    if unloaded || mode.0 == GameMode::Spectator || vitals.is_some_and(|vitals| !vitals.is_alive())
-    {
+    if ignores_attacks(unloaded, mode, vitals) {
         return;
     }
     counter.set_if_neq(AttackCounter {
-        reset_at: clock.map_or(0, |clock| clock.0),
+        reset_at: birth_tick(clock.as_deref()),
     });
 }
