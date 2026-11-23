@@ -32,27 +32,28 @@ pub(crate) fn apply_attribute_edits(
     }
 }
 
-fn edit_mob(mob: &Mob, mut attributes: Mut<MobAttributes>, edit: &AttributeEdit) -> InstanceChange {
+fn edit_mob(mob: &Mob, attributes: Mut<MobAttributes>, edit: &AttributeEdit) -> InstanceChange {
     let Some(bases) = mcrs_minecraft_entity::attribute_bases(mob.kind.entity_type) else {
         return InstanceChange::Unchanged;
     };
-    let change = edit.edit.apply(
-        &mut attributes.bypass_change_detection().0,
-        bases,
-        edit.attribute,
-    );
-    if change == InstanceChange::Changed {
-        attributes.set_changed();
-    }
-    change
+    apply_marking_change(attributes, |attributes| {
+        edit.edit.apply(&mut attributes.0, bases, edit.attribute)
+    })
 }
 
-fn edit_instances(mut instances: Mut<AttributeInstances>, edit: &AttributeEdit) -> InstanceChange {
-    let change = instances
-        .bypass_change_detection()
-        .apply(edit.attribute, &edit.edit);
+fn edit_instances(instances: Mut<AttributeInstances>, edit: &AttributeEdit) -> InstanceChange {
+    apply_marking_change(instances, |instances| {
+        instances.apply(edit.attribute, &edit.edit)
+    })
+}
+
+fn apply_marking_change<T>(
+    mut target: Mut<T>,
+    apply: impl FnOnce(&mut T) -> InstanceChange,
+) -> InstanceChange {
+    let change = apply(target.bypass_change_detection());
     if change == InstanceChange::Changed {
-        instances.set_changed();
+        target.set_changed();
     }
     change
 }

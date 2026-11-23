@@ -1,7 +1,6 @@
 use crate::entity_view::EntityView;
 use crate::select::{SelectionBuffers, select};
 use crate::set::{VanillaCommands, VanillaContext};
-use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, DoubleArgument, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
@@ -12,7 +11,6 @@ use mcrs_minecraft_command_engine::{
     Worlds,
 };
 use mcrs_minecraft_engine_mob_attributes::{AttributeEdit, MobAttributes};
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeBases, AttributeInstances, AttributeSet, InstanceEdit,
@@ -95,17 +93,7 @@ pub(crate) fn build(
 }
 
 pub(crate) fn apply(worlds: &mut Worlds, edit: AttributeEdit) {
-    let Some(mut messages) = worlds
-        .world_mut()
-        .get_resource_mut::<Messages<AttributeEdit>>()
-    else {
-        tracing::debug!(
-            ?edit,
-            "a command attribute edit finds no reader; it does nothing"
-        );
-        return;
-    };
-    messages.write(edit);
+    worlds.world_mut().write_message(edit);
 }
 
 pub(crate) fn run(
@@ -193,19 +181,12 @@ fn holder<'a>(
     match view {
         EntityView::Player(player) => {
             let entity = player.entity?;
-            let holder = match players.get(entity) {
-                Ok(instances) => Holder {
-                    entity,
-                    bases: instances.bases(),
-                    set: instances.set(),
-                },
-                Err(_) => Holder {
-                    entity,
-                    bases: mcrs_minecraft_entity::attribute_bases(EntityType::Player)?,
-                    set: &NO_INSTANCES,
-                },
-            };
-            Some(holder)
+            let instances = players.get(entity).ok()?;
+            Some(Holder {
+                entity,
+                bases: instances.bases(),
+                set: instances.set(),
+            })
         }
         EntityView::Mob { view, .. } => Some(Holder {
             entity: view.entity,
