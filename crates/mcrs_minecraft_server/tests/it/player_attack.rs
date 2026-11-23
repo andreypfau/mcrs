@@ -179,30 +179,23 @@ fn decoded<P: Packet + for<'a> Decode<'a>>(packets: &[PacketPayload]) -> Vec<P> 
         .collect()
 }
 
-#[test]
-fn a_full_strength_fist_hit_hurts_and_knocks_back_a_pig() {
-    let mut arena = Arena::start();
-    arena.set_mode(arena.alice_player, GameMode::Survival);
-    let (pig, id) = arena.summon_pig(DVec3::new(8.5, 64.0, 10.5));
-    let before = arena.health(pig);
-
-    let seen = arena.attack(id);
-
-    assert_eq!(arena.health(pig), before - 1.0, "an empty hand deals 1");
-    let hurt: Vec<i32> = decoded::<ClientboundDamageEvent>(&seen)
-        .iter()
-        .map(|event| event.entity_id.0)
-        .collect();
-    assert_eq!(hurt, [id], "the viewer sees one damage_event of the pig");
-    let pushed = decoded::<ClientboundSetEntityMotion>(&seen)
+fn assert_pushed_away(arena: &mut Arena, name: &str, id: i32, at: DVec3, seen: &[PacketPayload]) {
+    let pushed = decoded::<ClientboundSetEntityMotion>(seen)
         .into_iter()
         .find(|motion| motion.entity_id.0 == id)
         .expect("the viewer sees the knockback of the pig")
         .velocity
         .0;
+    let alice = arena
+        .server
+        .world()
+        .get::<Transform>(arena.alice_player)
+        .unwrap()
+        .translation;
+    let away = (at - alice).with_y(0.0);
     assert!(
-        pushed.x == 0.0 && pushed.y > 0.0 && pushed.z > 0.0,
-        "a hit from the north lifts the pig and pushes it south: {pushed}"
+        pushed.y > 0.0 && pushed.with_y(0.0).dot(away) > 0.0,
+        "{name}: the hit lifts the pig and pushes it away from the attacker: {pushed}"
     );
 }
 
@@ -230,7 +223,13 @@ struct Case {
     lost: f32,
 }
 
-const CASES: [Case; 10] = [
+const CASES: [Case; 11] = [
+    Case {
+        name: "a pig hit by an empty hand at full strength",
+        attacker: GameMode::Survival,
+        target: Target::Pig,
+        lost: 1.0,
+    },
     Case {
         name: "a player with pvp off",
         attacker: GameMode::Survival,
@@ -309,7 +308,7 @@ fn the_server_accepts_or_refuses_an_attack() {
     let mut walk_push = None;
     for (index, case) in CASES.iter().enumerate() {
         arena.set_mode(arena.alice_player, case.attacker);
-        let near = DVec3::new(6.5 + index as f64, 64.0, 10.5);
+        let near = DVec3::new(5.5 + index as f64, 64.0, 10.5);
         let (target, id) = match case.target {
             Target::Bob { pvp, .. } => {
                 arena
@@ -364,6 +363,9 @@ fn the_server_accepts_or_refuses_an_attack() {
             "{}",
             case.name
         );
+        if matches!(case.target, Target::Pig) && case.lost > 0.0 {
+            assert_pushed_away(&mut arena, case.name, id, near, &to_bob);
+        }
         if let Target::Bob { pvp: true, gait } = case.target {
             let pushed = to_bob
                 .iter()
