@@ -843,12 +843,10 @@ For client tick N, a possible pusher is a living entity or a boat that meets the
 3. The team rule of PHY-PSH-003 lets the entity push the player. The rule uses each team state
    that the client can have (MVC-LAT-004). The `set_player_team` packets give the teams.
 
-The position hull is the smallest box that contains the box of the entity at each of these
-positions:
-
-- the newest position of the entity that is acknowledged for tick N or for tick N − 1;
-- the position before that one, because the client interpolates from it;
-- each position of the entity that is in a window for tick N or for tick N − 1.
+The position hull is the smallest box that contains the box of the entity (CK-ENT-005 of
+`client-knowledge.md`) at each position of the boxes `H(N − 1)` and `H(N)` of CK-ENT-003 of that
+document. These boxes contain the newest acknowledged position, the position before it, each
+position in a window and each end position of a path that the client has not finished.
 
 The player gets no push in tick N when one of these conditions is true for each candidate:
 
@@ -949,9 +947,10 @@ positions of the entities near the player. The server keeps them in this way:
   ticks, 2 seconds. It also keeps the two newest entries of each entity at any age, because an
   entity that does not move sends no position.
 
-A position hull needs entries from the position before the newest position that is acknowledged for
-tick N − 1. The server does not have this position when it is older than `max_hull_age` server ticks
-and is not one of the two newest entries. Then client tick N is coarse (MVC-MODE-003).
+A position hull needs the box `H(N − 1)` and the position packets of CK-ENT-003, step 2 (CK-ENT-007
+of `client-knowledge.md`). The server does not have such a packet when it is older than
+`max_hull_age` server ticks and is not one of the two newest entries. Then client tick N is coarse
+(MVC-MODE-003).
 
 This occurs only when the client has not acknowledged the positions of the last `max_hull_age`
 server ticks. Thus a legit client with a round trip of less than about 1.5 seconds never causes it.
