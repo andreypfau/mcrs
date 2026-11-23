@@ -159,16 +159,19 @@ fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
             .resource::<ColumnStore>()
             .holds(ColumnPos::from(DVec3::ZERO))
     });
-    test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
-        command: Bounded("summon minecraft:pig 0.5 0 2.5 {NoAI:1b}"),
-    });
+    for command in [
+        "fill -1 -2 -1 1 -2 3 minecraft:stone",
+        "fill -1 -1 -1 1 1 3 minecraft:air",
+        "summon minecraft:pig 0.5 -1 2.5 {NoAI:1b}",
+    ] {
+        test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
+            command: Bounded(command),
+        });
+    }
     let mut target = None;
     test_support::update_until(&mut world.app, |app| {
         target = pig(app.world_mut());
         target.is_some()
-    });
-    test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
-        command: Bounded("fill -1 -1 -1 1 1 3 minecraft:air"),
     });
     test_support::round_trip(&mut world.app);
     let (pig, network_id) = target.unwrap();
