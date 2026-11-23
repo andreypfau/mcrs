@@ -5,7 +5,7 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, ContainsEntity};
+use bevy_ecs::prelude::{Commands, ContainsEntity, on_message};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Res;
 use derive_more::{Deref, DerefMut};
@@ -24,6 +24,7 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_systems(
             FixedPreUpdate,
             dispatch_inbound_to_dim
+                .run_if(on_message::<InboundPlayerPacket>)
                 .in_set(InboundDispatch)
                 .after(crate::dim_tick::DimInboxDrain),
         );
@@ -70,7 +71,7 @@ fn dispatch_inbound_to_dim(
             "dispatch_inbound_to_dim: routing packet to dim entity"
         );
         if let Some(trigger) = msg.trigger {
-            trigger.raise(&mut commands, in_dim_entity, msg.data.clone());
+            trigger.raise(commands.reborrow(), in_dim_entity, msg.data.clone());
         }
     }
 }

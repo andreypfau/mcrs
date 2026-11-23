@@ -31,7 +31,7 @@ pub fn restore_holders(
     let Ok(holders) = players.get(player) else {
         return;
     };
-    let holders = holders_of(&mut commands, player, holders, armour.as_deref());
+    let holders = holders_of(commands.reborrow(), player, holders, armour.as_deref());
     commands
         .entity(player)
         .load_inventory(stacks.slots.into())
@@ -56,7 +56,7 @@ pub fn restore_carried(
     let Ok(holders) = players.get(player) else {
         return;
     };
-    let holders = holders_of(&mut commands, player, holders, armour.as_deref());
+    let holders = holders_of(commands.reborrow(), player, holders, armour.as_deref());
     commands
         .entity(holders.cursor)
         .load_inventory(vec![stacks.cursor]);
@@ -73,13 +73,13 @@ pub(crate) fn hold_new_player(
 ) {
     let player = add.entity;
     if let Ok(None) = players.get(player) {
-        holders_of(&mut commands, player, None, armour.as_deref());
+        holders_of(commands.reborrow(), player, None, armour.as_deref());
         commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
     }
 }
 
 fn holders_of(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     player: Entity,
     holders: Option<&PlayerHolders>,
     armour: Option<&ArmourGates>,

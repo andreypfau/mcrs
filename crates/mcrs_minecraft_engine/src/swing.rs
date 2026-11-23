@@ -182,6 +182,7 @@ pub(crate) fn publish_player_swings(
 mod tests {
     use super::*;
     use bevy_app::App;
+    use bevy_ecs::change_detection::DetectChangesMut;
     use bevy_time::{TimePlugin, TimeUpdateStrategy};
     use mcrs_engine_muxer::{EntityId, TileKey};
     use mcrs_minecraft_replication::ReplicationData;
@@ -263,7 +264,7 @@ mod tests {
                 show_icon: Some(true),
                 hidden_effect: None,
             });
-        app.world_mut().resource_mut::<BirthClock>().0 = 15;
+        app.world_mut().insert_resource(BirthClock(15));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -271,7 +272,7 @@ mod tests {
             "SWG-STA-005: D=10 blocks tick T+5"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 16;
+        app.world_mut().insert_resource(BirthClock(16));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
@@ -280,7 +281,7 @@ mod tests {
             "SWG-CMP-003: wire duration remains unscaled under mining fatigue"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 21;
+        app.world_mut().insert_resource(BirthClock(21));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -288,7 +289,7 @@ mod tests {
             "SWG-STA-002/005: mining fatigue 1 expands B=6 to D=10 blocking T+5"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 22;
+        app.world_mut().insert_resource(BirthClock(22));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
@@ -304,7 +305,7 @@ mod tests {
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
-            .0 = GameMode::Spectator;
+            .set_if_neq(PlayerGameMode(GameMode::Spectator));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -315,7 +316,7 @@ mod tests {
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
-            .0 = GameMode::Survival;
+            .set_if_neq(PlayerGameMode(GameMode::Survival));
         app.world_mut().entity_mut(player).insert(Vitals {
             death_time: Some(0),
             ..Vitals::new(0.0)

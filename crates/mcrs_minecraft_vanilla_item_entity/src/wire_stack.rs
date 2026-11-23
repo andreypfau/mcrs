@@ -11,15 +11,20 @@ pub(crate) fn wire_stack_of(
     stacks: &mut Stacks,
     table: &ItemTable,
     stack: Entity,
+    bytes: &mut Vec<u8>,
 ) -> Option<ProtoStack<Wire>> {
     stacks
         .to_value(stack)
-        .and_then(|value| wire_stack(&value, table))
+        .and_then(|value| wire_stack(&value, table, bytes))
 }
 
-fn wire_stack(stack: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
-    let mut bytes = Vec::new();
-    if let Err(error) = write_wire(Some(stack), table, &mut bytes) {
+fn wire_stack(
+    stack: &ItemStack,
+    table: &ItemTable,
+    bytes: &mut Vec<u8>,
+) -> Option<ProtoStack<Wire>> {
+    bytes.clear();
+    if let Err(error) = write_wire(Some(stack), table, bytes) {
         tracing::warn!("the stack of an item entity has no wire form: {error:?}");
         return None;
     }

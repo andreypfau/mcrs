@@ -28,6 +28,13 @@ use super::upload::{UploadParams, apply_uploads};
 use super::views::{DeferredViews, Display, Lighting, SelectedView};
 use super::{DrawMask, LightTint, Occlusion, PassTimestamps, WorldFog};
 
+pub(super) fn has_unused_bins(
+    opaque: Res<ViewBinnedRenderPhases<Opaque3d>>,
+    alpha_mask: Res<ViewBinnedRenderPhases<AlphaMask3d>>,
+) -> bool {
+    !opaque.is_empty() || !alpha_mask.is_empty()
+}
+
 pub(super) fn drop_unused_bins(
     mut opaque: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     mut alpha_mask: ResMut<ViewBinnedRenderPhases<AlphaMask3d>>,

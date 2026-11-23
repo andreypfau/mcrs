@@ -2,7 +2,7 @@ use crate::mock_connection;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
@@ -45,8 +45,8 @@ use tokio::sync::mpsc;
 
 fn build_inbound_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<Messages<InboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
+    MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();
@@ -241,7 +241,12 @@ fn disconnect_clears_pending() {
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
                   mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
-                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    player,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
             },
         )
         .expect("process_disconnect system ran");

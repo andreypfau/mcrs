@@ -1,5 +1,6 @@
 use crate::login::{SessionsById, disconnect, duplicate_login_reason};
 use bevy_app::{App, Plugin, Update};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, Resource, Without, resource_exists};
@@ -231,7 +232,7 @@ pub fn on_configuration_ack(
         return;
     };
     if !duplicate {
-        *state = ConnectionState::Game;
+        state.set_if_neq(ConnectionState::Game);
         return;
     }
     if let Some(mut con) = con {
@@ -250,7 +251,7 @@ fn on_game_configuration_ack(
         return;
     };
     info!("Player {:?} acknowledged reconfiguration", entity);
-    *state = ConnectionState::Configuration;
+    state.set_if_neq(ConnectionState::Configuration);
 }
 
 pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {

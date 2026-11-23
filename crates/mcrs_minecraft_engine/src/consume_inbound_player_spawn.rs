@@ -41,10 +41,6 @@ use tracing::{debug, info};
 
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -88,7 +84,7 @@ pub(crate) fn consume_inbound_player_spawn(
         let mut teleport_state = TeleportState::default();
         let login_teleport_id = teleport_state.sent(arrival.transform, *time);
         let new_entity = spawn_player_entity(
-            &mut commands,
+            commands.reborrow(),
             spawn,
             dim,
             arrival.transform,
@@ -187,12 +183,8 @@ fn login_packet(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the spawn builds one entity from its dimension, position, game mode, view distance and profile"
-)]
 fn spawn_player_entity(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     spawn: &InboundPlayerSpawn,
     dim: Entity,
     transform: Transform,

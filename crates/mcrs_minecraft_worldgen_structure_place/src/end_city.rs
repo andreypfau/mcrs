@@ -29,9 +29,12 @@ impl EndCityChains {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one piece's post-process"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one piece's post-process"
+    )
 )]
 pub fn place_end_city_piece<W: WorldGenVolume>(
     chains: &EndCityChains,

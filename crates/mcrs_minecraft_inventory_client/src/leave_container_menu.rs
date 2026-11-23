@@ -11,8 +11,8 @@ pub(crate) fn leave_container_menu(
     viewer: Entity,
     player_holders: &PlayerHolders,
     holders: &Query<&Slots>,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
 ) {
-    clear_first_slot(player_holders.cursor, holders, commands);
+    clear_first_slot(player_holders.cursor, holders, commands.reborrow());
     commands.entity(viewer).close_menu();
 }

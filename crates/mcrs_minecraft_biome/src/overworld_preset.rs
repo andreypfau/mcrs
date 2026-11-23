@@ -248,9 +248,12 @@ impl Builder {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn surface(
         &mut self,
@@ -276,9 +279,12 @@ impl Builder {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn underground(
         &mut self,
@@ -302,9 +308,12 @@ impl Builder {
         );
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn bottom(
         &mut self,
@@ -328,9 +337,12 @@ impl Builder {
         );
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the six climate parameters, the offset and the biome that are the fields of one parameter point"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the six climate parameters, the offset and the biome that are the fields of one parameter point"
+        )
     )]
     fn emit(
         &mut self,

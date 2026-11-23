@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::common_conditions::{not, resource_exists};
+use bevy_ecs::schedule::common_conditions::{not, on_message, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
@@ -111,7 +111,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
                 index_random_ticks::<B>.run_if(
                     resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
                 ),
-                drop_broken_blocks::<B>,
+                drop_broken_blocks::<B>.run_if(on_message::<BlockBroken>),
                 run_block_simulation::<B>,
             )
                 .chain()
@@ -120,7 +120,9 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.configure_sets(FixedUpdate, BlockSimulationSet.in_set(TickSet::WorldWrite));
         app.add_systems(
             FixedPostUpdate,
-            remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),
+            remove_replaced_block_entities
+                .in_set(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockPlaced>),
         );
     }
 }
@@ -374,9 +376,19 @@ impl DropOutlet<'_> {
     clippy::too_many_lines,
     reason = "the sync point, the four phases and the hand-off of their output are one ordered step"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each parameter is a distinct part of the world that the step reads or writes"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the scheduled and random block ticks of every loaded column each tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the broadcast marks allocate only for a section whose blocks change in this tick, and the update entries move into the outbound packet"
+    )
 )]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
@@ -603,10 +615,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each message, resource and query is its own parameter"
-)]
 fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     mut harvests: MessageReader<BlockBroken>,
     world: WorldView,
@@ -672,6 +680,20 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "runs once, because its run condition stops it as soon as the index exists"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "the observers of `EntityTicking` and of section despawns read the index, so it must exist before any later command applies"
+    )
+)]
 fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
     let (Some(definitions), Some(rules)) = (
         world.get_resource::<Blocks>(),

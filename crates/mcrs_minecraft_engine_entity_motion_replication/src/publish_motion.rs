@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
@@ -42,10 +43,19 @@ type Entities<'world, 'state> = Query<
     ),
 >;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes each resource that it reads"
-)]
+pub(crate) fn has_motion_work(
+    assigned: Res<Assigned>,
+    news: Res<MobNews>,
+    movers: Res<Movers>,
+    departures: Res<Departures>,
+) -> bool {
+    !assigned.0.is_empty()
+        || !news.spawned.is_empty()
+        || !news.strikes.is_empty()
+        || !movers.entities().is_empty()
+        || !departures.0.is_empty()
+}
+
 pub(crate) fn publish_motion(
     mut entities: Entities,
     ids: Query<&MotionId>,
@@ -58,8 +68,8 @@ pub(crate) fn publish_motion(
     mut departures: ResMut<Departures>,
     mut events: ResMut<TileEvents>,
 ) {
-    publish_releases(&mut assigned, &mut entities, &mut events);
-    publish_mob_spawns(&mut news, &mobs, &mut entities, &mut events);
+    publish_releases(&mut assigned, entities.reborrow(), &mut events);
+    publish_mob_spawns(&mut news, &mobs, entities.reborrow(), &mut events);
     moved.clear();
     for &entity in movers.entities() {
         if let Ok(id) = ids.get(entity) {
@@ -128,7 +138,11 @@ pub(crate) fn publish_motion(
     }
 }
 
-fn publish_releases(assigned: &mut Assigned, entities: &mut Entities, events: &mut TileEvents) {
+fn publish_releases(
+    assigned: &mut Assigned,
+    mut entities: Entities<'_, '_>,
+    events: &mut TileEvents,
+) {
     let assigned = &mut assigned.0;
     assigned.sort_unstable_by_key(|release| release.subject);
     for release in assigned.drain(..) {
@@ -142,7 +156,7 @@ fn publish_releases(assigned: &mut Assigned, entities: &mut Entities, events: &m
             continue;
         };
         let tile = TileKey::at(release.state.body.position);
-        published.0 = Some(tile);
+        published.set_if_neq(PublishedTile(Some(tile)));
         let spawn = MobSpawn {
             kind: appearance.kind,
             uuid: state.0.key.0,
@@ -160,7 +174,7 @@ fn publish_releases(assigned: &mut Assigned, entities: &mut Entities, events: &m
 fn publish_mob_spawns(
     news: &mut MobNews,
     mobs: &Query<&Mob>,
-    entities: &mut Entities,
+    mut entities: Entities<'_, '_>,
     events: &mut TileEvents,
 ) {
     for spawned in news.spawned.drain(..) {
@@ -171,7 +185,7 @@ fn publish_mob_spawns(
             continue;
         };
         let tile = TileKey::at(state.0.body.position);
-        published.0 = Some(tile);
+        published.set_if_neq(PublishedTile(Some(tile)));
         let spawn = MobSpawn {
             kind: mob.kind,
             uuid: spawned.start.key.0,

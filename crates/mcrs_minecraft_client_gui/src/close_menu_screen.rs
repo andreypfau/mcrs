@@ -18,7 +18,7 @@ pub(crate) fn close_menu_screen(
     if *screen != Screen::Menu || received.packet().is_none() {
         return;
     }
-    *screen = Screen::None;
+    screen.set_if_neq(Screen::None);
     if let Ok(mut cursor) = cursor.single_mut() {
         cursor_grab::grab(&mut cursor, true);
     }

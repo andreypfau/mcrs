@@ -217,7 +217,7 @@ pub(crate) fn show_failed_start(
     });
     if let Some(error) = failed {
         reason.0 = Some(Reason::WorldStore(error));
-        *screen = Screen::Disconnected;
+        screen.set_if_neq(Screen::Disconnected);
     }
 }
 
@@ -274,7 +274,10 @@ mod tests {
             app.update();
             let preparing = Screen::Message(ScreenMessage::PreparingWorldCreation);
             assert_eq!(screen(&app), preparing);
-            app.world_mut().resource_mut::<LocalServer>().phase = LocalServerPhase::Running;
+            app.world_mut()
+                .resource_mut::<LocalServer>()
+                .map_unchanged(|resource| &mut resource.phase)
+                .set_if_neq(LocalServerPhase::Running);
             app.update();
             assert_eq!(screen(&app), Screen::LevelLoading);
             assert_eq!(caption(&app, WidgetId(0)), "Loading terrain...");

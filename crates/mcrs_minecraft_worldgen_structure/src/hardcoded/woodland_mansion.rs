@@ -911,9 +911,12 @@ impl Placer<'_> {
             .relative(pos, (x - self.start_x) * 8)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the start cell, the end cell and the heading change at each call of the wall walk"
+        )
     )]
     fn traverse_outer_walls(
         &mut self,

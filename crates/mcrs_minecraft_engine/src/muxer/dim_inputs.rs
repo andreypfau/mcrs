@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::system::{Res, ResMut};
 use mcrs_minecraft_engine_world::world::channels::TO_DIM_CAPACITY;
 use rustc_hash::FxHashMap;
 
@@ -85,6 +85,10 @@ impl DimInputs {
     }
 }
 
+pub(crate) fn dim_inputs_pending(inputs: Res<DimInputs>) -> bool {
+    inputs.0.values().any(|pending| !pending.is_empty())
+}
+
 pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
     for (&dim, pending) in &mut inputs.0 {
         if !pending.is_empty() {
@@ -103,7 +107,9 @@ impl Plugin for DimInputsPlugin {
         app.add_message::<RoutedInput>();
         app.add_systems(
             TickDimensions,
-            route_dim_inputs.in_set(TickDimensionsSet::Route),
+            route_dim_inputs
+                .run_if(dim_inputs_pending)
+                .in_set(TickDimensionsSet::Route),
         );
     }
 }

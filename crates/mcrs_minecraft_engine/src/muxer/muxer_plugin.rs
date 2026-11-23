@@ -1,12 +1,18 @@
 use bevy_app::{App, FixedPostUpdate, Plugin, Update};
 use bevy_ecs::message::signal_message_update_system;
-use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SingleThreadedExecutor};
-use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, SessionAnchors};
+use bevy_ecs::query::{Changed, With};
+use bevy_ecs::schedule::common_conditions::{any_component_removed, any_match_filter};
+use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SingleThreadedExecutor, SystemCondition};
+use mcrs_minecraft_engine_world::session::{
+    PlayerSessionCounter, SessionAnchors, SessionPlacement,
+};
+use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
 use crate::muxer::backlog;
 use crate::muxer::bridge;
+use crate::muxer::bridge_queue::OutboundQueue;
 use crate::muxer::dim_inputs::DimInputsPlugin;
 use crate::muxer::disconnect::DisconnectProtocolPlugin;
 use crate::muxer::game_packets;
@@ -37,8 +43,9 @@ impl Plugin for MuxerPlugin {
         app.add_systems(
             bridge::OutboundFlush,
             (
-                bridge::bridge_outbound,
-                bridge::dispatch_encode,
+                bridge::bridge_outbound.run_if(bridge::messages_pending::<OutboundPlayerPacket>),
+                bridge::dispatch_encode
+                    .run_if(any_match_filter::<(With<OutboundQueue>, With<ServerSideConnection>)>),
                 backlog::forward_backlog,
             )
                 .chain(),
@@ -55,10 +62,15 @@ impl Plugin for MuxerPlugin {
         app.add_systems(
             Update,
             (
-                bridge::bridge_inbound_to_channel,
-                bridge::bridge_player_attach,
-                bridge::forward_pending_inbound,
-                online_count::send_online_count,
+                bridge::bridge_inbound_to_channel
+                    .run_if(bridge::messages_pending::<InboundPlayerPacket>),
+                bridge::bridge_player_attach
+                    .run_if(bridge::messages_pending::<OutboundPlayerAttached>),
+                bridge::forward_pending_inbound.run_if(bridge::inbound_held),
+                online_count::send_online_count.run_if(
+                    any_match_filter::<Changed<SessionPlacement>>
+                        .or_eager(any_component_removed::<SessionPlacement>),
+                ),
                 latency::forward_latency,
             )
                 .chain(),

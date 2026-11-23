@@ -13,6 +13,7 @@ use crate::pass::{PassBuffers, commands_pending, run_commands};
 use crate::running_command::RunningCommand;
 use bevy_app::{App, FixedPreUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_command::GraphBuilder;
 use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
 use mcrs_minecraft_engine::command_handoff::CommandHandoff;
@@ -113,7 +114,12 @@ impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
         app.add_message::<CommandHandoff>();
         app.add_observer(queue_command_line)
             .add_observer(queue_suggestion_request);
-        app.add_systems(Update, send_command_tree.in_set(AnswerOpLevel));
+        app.add_systems(
+            Update,
+            send_command_tree
+                .run_if(on_message::<OpLevelAnnounced>)
+                .in_set(AnswerOpLevel),
+        );
         app.add_systems(
             FixedPreUpdate,
             run_commands::<S>

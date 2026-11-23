@@ -4,6 +4,7 @@ pub enum Check {
     Parity,
     Fmt,
     Clippy,
+    EcsLint,
     Test,
     NoBevy,
     Layers,
@@ -20,6 +21,7 @@ impl Check {
             Check::Parity => "parity",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
+            Check::EcsLint => "ecs-lint",
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Layers => "layers",
@@ -86,7 +88,7 @@ impl Trigger {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
             Trigger::Lint => {
-                "in CI on every pull request and every push to main: the commit checks over the whole branch, then the key sources regenerated when an input of the generator changed"
+                "in CI on every pull request and every push to main: the commit checks over the whole branch, the key sources regenerated when an input of the generator changed, then the ECS lints of the workspace"
             }
             Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
             Trigger::Test => {
@@ -130,7 +132,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     match trigger {
         Trigger::Edit => &[Fmt],
         Trigger::Commit | Trigger::Push => &[Comments, Parity, Fmt],
-        Trigger::Lint => &[Comments, Parity, Fmt, Keys],
+        Trigger::Lint => &[Comments, Parity, Fmt, Keys, EcsLint],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Layers, ExampleDependencies, Wasm32, NoStd],

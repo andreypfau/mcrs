@@ -189,10 +189,6 @@ fn commit(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query and resource is its own parameter"
-)]
 fn plan_creative(
     (In(viewer), In(creative), InMut(scratch)): (
         In<Entity>,

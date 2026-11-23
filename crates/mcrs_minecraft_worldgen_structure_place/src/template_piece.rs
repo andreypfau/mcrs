@@ -59,9 +59,12 @@ fn shipwreck_loot(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's paint"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_shipwreck<W: WorldGenVolume>(
     chain: &CompiledChain,
@@ -126,9 +129,12 @@ impl IglooBlocks {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's paint"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_igloo<W: WorldGenVolume>(
     b: &IglooBlocks,

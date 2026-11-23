@@ -90,11 +90,11 @@ fn send_selected_slot(
     connection.write_packet(&ServerboundSetCarriedItem {
         slot: u16::from(selected.0),
     });
-    *last_sent = LastSentHotbarSlot(selected.0);
+    last_sent.set_if_neq(LastSentHotbarSlot(selected.0));
 }
 
 fn project_selected(
-    mut players: Query<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
+    mut players: Populated<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
     mut commands: Commands,
 ) {
     for (player, slot) in &mut players {

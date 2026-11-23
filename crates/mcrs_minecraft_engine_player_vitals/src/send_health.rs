@@ -1,8 +1,9 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::{Changed, Or, With};
-use bevy_ecs::system::{Commands, Query};
+use bevy_ecs::system::{Commands, Populated};
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::bus::{self, OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_engine::player_state::PlayerFileState;
@@ -25,7 +26,7 @@ enum Saturation {
 }
 
 pub(crate) fn send_health(
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Vitals,
@@ -52,8 +53,11 @@ pub(crate) fn send_health(
             },
         };
         match sent {
-            Some(sent) if *sent == current => continue,
-            Some(mut sent) => *sent = current,
+            Some(mut sent) => {
+                if !sent.set_if_neq(current) {
+                    continue;
+                }
+            }
             None => {
                 commands.entity(player).insert(current);
             }

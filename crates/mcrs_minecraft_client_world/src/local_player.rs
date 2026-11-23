@@ -140,6 +140,7 @@ impl Plugin for LocalPlayerPlugin {
             .add_systems(
                 Update,
                 request_respawn::send_respawn_requests
+                    .run_if(on_message::<request_respawn::RequestRespawn>)
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             );
@@ -166,6 +167,13 @@ fn apply_server_teleport(
     velocity.0 = state.body.velocity;
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "`apply_server_teleport` has already marked the motion and the transform changed, so a comparison saves nothing"
+    )
+)]
 fn accept_teleports(
     mut commands: Commands,
     player: Single<
@@ -208,7 +216,9 @@ fn accept_teleports(
             look: transform.rotation.into(),
         });
         last_sent.place(transform.translation, transform.rotation);
-        old_transform.0 = *transform;
+        if old_transform.0 != *transform {
+            old_transform.0 = *transform;
+        }
     }
 }
 
@@ -277,11 +287,13 @@ fn input_flags(input: MovementInput) -> PlayerInputFlags {
 
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
     let (transform, mut old_transform) = player.into_inner();
-    old_transform.0 = *transform;
+    if old_transform.0 != *transform {
+        old_transform.0 = *transform;
+    }
 }
 
 fn give_sprint_modifier(
-    mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
+    mut players: Populated<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {
     for (sprint, mut instances) in &mut players {
         let edit = if sprint.active {
@@ -352,7 +364,8 @@ mod tests {
             app.world_mut()
                 .get_mut::<Sprint>(player)
                 .expect("the player sprints")
-                .active = active;
+                .map_unchanged(|sprint| &mut sprint.active)
+                .set_if_neq(active);
             app.update();
         };
 

@@ -121,7 +121,7 @@ fn on_game_event(
 }
 
 fn project_player_game_mode(
-    mut players: Query<(Entity, &LocalGameMode), Changed<LocalGameMode>>,
+    mut players: Populated<(Entity, &LocalGameMode), Changed<LocalGameMode>>,
     mut commands: Commands,
 ) {
     for (player, mode) in &mut players {
@@ -183,7 +183,7 @@ mod tests {
             .dispatch(P::STATE, P::ID, &data)
             .unwrap()
             .unwrap();
-        trigger.raise(&mut app.world_mut().commands(), connection, data.into());
+        trigger.raise(app.world_mut().commands(), connection, data.into());
         app.world_mut().flush();
     }
 

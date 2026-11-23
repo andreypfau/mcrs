@@ -22,6 +22,24 @@ impl Census {
     }
 }
 
+pub fn due(census: Res<Census>, time: Res<Time>) -> bool {
+    time.elapsed() >= census.next
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the log line is built once per census interval, and only when the census knob is set"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the next deadline is always later than the current one, so the write is a real change"
+    )
+)]
 pub fn census(
     mut census: ResMut<Census>,
     time: Res<Time>,
@@ -29,11 +47,7 @@ pub fn census(
     mut sent: Local<Vec<Duration>>,
     traces: JoinedTraces,
 ) {
-    let now = time.elapsed();
-    if now < census.next {
-        return;
-    }
-    census.next = now + census.interval;
+    census.next = time.elapsed() + census.interval;
 
     traces.snapshot(&mut samples);
     let mut counts = [0usize; ColumnStage::ALL.len()];

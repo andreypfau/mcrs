@@ -5,6 +5,8 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::Added;
 use bevy_ecs::query::Changed;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Local;
+use bevy_ecs::system::Populated;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -52,10 +54,13 @@ impl Takes {
     }
 }
 
+pub(crate) fn takes_pending(takes: Res<Takes>, released: Res<Released>) -> bool {
+    !takes.0.is_empty() || !released.0.is_empty()
+}
+
 pub(crate) fn publish_takes(
     mut picked: MessageReader<PickedUp>,
     collectors: Query<&ItemCollector>,
-    mut spawning: Query<(&Count, &mut Appearance), Added<MotionId>>,
     mut takes: ResMut<Takes>,
     mut released: ResMut<Released>,
     mut events: ResMut<TileEvents>,
@@ -81,6 +86,11 @@ pub(crate) fn publish_takes(
             );
         }
     }
+}
+
+pub(crate) fn correct_spawn_counts(
+    mut spawning: Populated<(&Count, &mut Appearance), Added<MotionId>>,
+) {
     for (count, mut appearance) in &mut spawning {
         let count = i32::from(count.get());
         if let SpawnLook::Item(stack) = &mut appearance.bypass_change_detection().look
@@ -93,8 +103,9 @@ pub(crate) fn publish_takes(
 }
 
 pub(crate) fn publish_stacks(
-    items: Query<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
+    items: Populated<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
     mut stacks: Stacks,
+    mut bytes: Local<Vec<u8>>,
     table: Res<ItemTable>,
     takes: Res<Takes>,
     mut events: ResMut<TileEvents>,
@@ -106,7 +117,7 @@ pub(crate) fn publish_stacks(
         let Some(tile) = published.tile() else {
             continue;
         };
-        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack, &mut bytes) else {
             continue;
         };
         if let Some(take) = takes.of(id.0) {

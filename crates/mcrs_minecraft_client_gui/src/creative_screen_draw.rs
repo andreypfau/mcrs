@@ -49,10 +49,6 @@ pub(crate) fn creative_sprites() -> impl Iterator<Item = &'static str> {
         .map(|location| location.path())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 pub(crate) fn draw_creative_screen(
     player: Query<(&PlayerHolders, &Menus), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts)>,

@@ -173,14 +173,10 @@ fn bind_group(
     )
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
+    views: Populated<&ViewDepthStencilTexture, With<Camera3d>>,
     improved: Option<Res<ImprovedTransparency>>,
     pipelines: Res<DeferredPipelines>,
     terrain: Option<Res<Terrain>>,

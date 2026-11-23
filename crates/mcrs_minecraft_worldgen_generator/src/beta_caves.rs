@@ -81,9 +81,12 @@ fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCav
     });
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one chunk's carving"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub fn apply_beta_carvers(
     column: &ColumnBlocks,

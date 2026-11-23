@@ -24,7 +24,7 @@ pub(crate) fn creative_drops_pending(counters: Query<&CreativeDropCounter>) -> b
 
 pub(crate) fn count_down_creative_drops(mut counters: Query<&mut CreativeDropCounter>) {
     for mut counter in &mut counters {
-        if counter.0 > 0 {
+        if counter.0 != 0 {
             counter.0 = counter.0.saturating_sub(1);
         }
     }

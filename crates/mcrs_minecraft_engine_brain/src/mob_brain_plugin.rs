@@ -179,6 +179,20 @@ fn set_panic_causes<B: Send + Sync + 'static>(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the wall clock measures the AI phases for the periodic mob AI profile log"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the tile tasks borrow the rows of this tick and move to the compute pool, so their lists cannot live in a reused buffer"
+    )
+)]
 fn prepare<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
@@ -194,9 +208,21 @@ fn prepare<B>(
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
-    ai.prepare(&goal_world, player_table(&players), &mut mobs, &mut threads);
+    ai.prepare(
+        &goal_world,
+        player_table(&players),
+        mobs.reborrow(),
+        &mut threads,
+    );
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the wall clock measures the AI stage for the periodic mob AI profile log"
+    )
+)]
 fn run_stage<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,

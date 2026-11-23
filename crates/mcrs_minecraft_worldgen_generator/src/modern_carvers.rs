@@ -471,9 +471,12 @@ fn column_mask_bytes(height: HeightContext) -> usize {
     (16 * 16 * (top - bottom + 1).max(0) as usize).div_ceil(8)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one chunk's carving"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub(crate) fn carve_sources(
     water: impl Fn() -> WaterMask,
@@ -649,9 +652,12 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one chunk's carving"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,

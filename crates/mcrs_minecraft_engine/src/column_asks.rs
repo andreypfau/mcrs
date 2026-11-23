@@ -85,6 +85,20 @@ impl OtherColumns {
     }
 }
 
+pub(crate) fn column_asks_pending(
+    store: Res<ColumnStoreLink>,
+    spawned: Query<(), Added<ColumnPosComponent>>,
+) -> bool {
+    store.has_asks() || !spawned.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "a snapshot is boxed only for a column that another cell asks for, and it moves into the answer mail"
+    )
+)]
 pub(crate) fn answer_column_asks(
     mut store: ResMut<ColumnStoreLink>,
     owned: Res<OwnedColumns>,

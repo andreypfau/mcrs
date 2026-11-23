@@ -31,7 +31,7 @@ impl Plugin for PlayerSkinsPlugin {
                     clear_profile_skins
                         .in_set(SessionSet::Clear)
                         .run_if(session_boundary),
-                    dress_players.after(SessionSet::Clear),
+                    dress_players.after(SessionSet::Clear).run_if(dress_due),
                 ),
             );
         #[cfg(not(target_family = "wasm"))]
@@ -95,6 +95,10 @@ fn on_player_info_remove(
 }
 
 type Dressed = Or<(Without<HostEntity>, With<InventoryFigure>)>;
+
+fn dress_due(skins: Res<ProfileSkins>, added: Query<(), (Added<ClientEntity>, Dressed)>) -> bool {
+    !skins.updated.is_empty() || !added.is_empty()
+}
 
 fn dress_players(
     mut commands: Commands,

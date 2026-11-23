@@ -301,7 +301,7 @@ impl PlayServer {
                 .get::<SessionConnection>(anchor)
                 .map(SessionConnection::entity),
         ) {
-            trigger.raise(&mut world.commands(), connection, data.clone());
+            trigger.raise(world.commands(), connection, data.clone());
             world.flush();
         }
         let dim = world

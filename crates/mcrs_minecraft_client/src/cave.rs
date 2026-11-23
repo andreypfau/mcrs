@@ -453,13 +453,10 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
 
 pub fn extract_cave_visibility(
     cave: Extract<Res<CaveCull>>,
-    terrain: Option<Res<Terrain>>,
+    terrain: Res<Terrain>,
     queue: Res<RenderQueue>,
     mut uploaded: Local<Option<u32>>,
 ) {
-    let Some(terrain) = terrain else {
-        return;
-    };
     if *uploaded == Some(cave.generation) {
         return;
     }

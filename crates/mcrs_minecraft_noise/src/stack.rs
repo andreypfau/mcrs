@@ -158,9 +158,12 @@ impl<N: Noise> NoiseStack<N> {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one stack evaluation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
     )]
     pub fn fill_column_at(
         &self,
@@ -176,9 +179,12 @@ impl<N: Noise> NoiseStack<N> {
         self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one stack evaluation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
     )]
     pub(crate) fn fill_heights_at(
         &self,
@@ -194,9 +200,12 @@ impl<N: Noise> NoiseStack<N> {
         self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one stack evaluation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
     )]
     #[inline]
     fn fill_at(

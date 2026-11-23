@@ -108,10 +108,6 @@ fn predict(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query and resource is its own parameter"
-)]
 fn plan_click(
     (In(viewer), In(click), InMut(scratch)): (In<Entity>, In<Click>, InMut<ClickScratch>),
     players: Query<

@@ -92,14 +92,11 @@ pub(crate) fn init_depth_display(
 
 pub(crate) fn prepare_depth_display(
     mut display: ResMut<DepthDisplay>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    _views: Populated<&ExtractedView, With<Camera3d>>,
     fullscreen: Res<FullscreenShader>,
     cache: Res<PipelineCache>,
 ) {
     if display.depth.is_some() {
-        return;
-    }
-    if views.is_empty() {
         return;
     }
     let queue = |label: &str, defs: Vec<ShaderDefVal>| {

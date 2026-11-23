@@ -8,6 +8,13 @@ use bevy_state::prelude::{NextState, StateTransition};
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct PendingStateTransition;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "runs the state transition schedule, which needs the whole world"
+    )
+)]
 fn run_pending_transition(world: &mut World) {
     if matches!(
         *world.resource::<NextState<AppState>>(),

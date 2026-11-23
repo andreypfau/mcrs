@@ -88,7 +88,10 @@ pub(crate) fn tap_escape(app: &mut App) {
 }
 
 pub(crate) fn click(app: &mut App, x: i32, y: i32) {
-    app.world_mut().resource_mut::<GuiConfig>().cursor = Some(IVec2::new(x, y));
+    app.world_mut()
+        .resource_mut::<GuiConfig>()
+        .map_unchanged(|resource| &mut resource.cursor)
+        .set_if_neq(Some(IVec2::new(x, y)));
     for state in [ButtonState::Pressed, ButtonState::Released] {
         app.world_mut().write_message(MouseButtonInput {
             button: MouseButton::Left,
@@ -131,7 +134,9 @@ pub(crate) fn title_app() -> App {
         .single(app.world())
         .unwrap();
     app.world_mut().despawn(player);
-    *app.world_mut().resource_mut::<Screen>() = Screen::Title;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Title);
     app.update();
     app
 }

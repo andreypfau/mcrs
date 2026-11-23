@@ -72,15 +72,15 @@ pub(crate) fn capture_holders(
         let player_holders = player_holders.copied();
         let transform = transform.copied().unwrap_or(Transform::IDENTITY);
         let source = profile.map_or(0, |profile| profile.id.as_u128());
-        apply_close(&mut commands, player, player_holders, &values);
+        apply_close(commands.reborrow(), player, player_holders, &values);
         let eye_height = eye_height_of(pose, attributes);
-        drop_rests(&mut commands, rests, transform, eye_height, source);
+        drop_rests(commands.reborrow(), rests, transform, eye_height, source);
     }
     Some(values)
 }
 
 fn apply_close(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     player: Entity,
     holders: Option<PlayerHolders>,
     values: &PlayerItems,
@@ -101,7 +101,7 @@ fn apply_close(
 }
 
 fn drop_rests(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     rests: Vec<ItemStack>,
     transform: Transform,
     eye_height: f32,

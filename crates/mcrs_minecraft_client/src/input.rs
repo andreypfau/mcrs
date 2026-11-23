@@ -42,7 +42,12 @@ impl Plugin for ClientInputPlugin {
             )
             .add_systems(Update, (apply_mouse_look, grab_cursor_on_click).chain());
         #[cfg(not(target_family = "wasm"))]
-        app.add_systems(Update, toggle_fullscreen);
+        app.add_systems(
+            Update,
+            toggle_fullscreen.run_if(bevy::input::common_conditions::input_just_pressed(
+                KeyCode::F11,
+            )),
+        );
     }
 
     fn finish(&self, app: &mut App) {
@@ -82,11 +87,16 @@ fn read_attack_input(
     mut input: ResMut<AttackInput>,
 ) {
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
-    input.screen_open = screen_open;
-    input.down = !screen_open && buttons.pressed(MouseButton::Left);
-    if !screen_open && buttons.just_pressed(MouseButton::Left) {
-        input.presses = input.presses.saturating_add(1);
-    }
+    let presses = if !screen_open && buttons.just_pressed(MouseButton::Left) {
+        input.presses.saturating_add(1)
+    } else {
+        input.presses
+    };
+    input.set_if_neq(AttackInput {
+        presses,
+        down: !screen_open && buttons.pressed(MouseButton::Left),
+        screen_open,
+    });
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -268,10 +278,16 @@ pub(crate) fn apply_mouse_look(
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    let (mut transform, mut previous) = player.into_inner();
+    let (transform, previous) = player.into_inner();
     let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
-    transform.rotation = transform.rotation.turn(turn.x, turn.y);
-    previous.0.rotation = previous.rotation.turn(turn.x, turn.y);
+    let rotation = transform.rotation.turn(turn.x, turn.y);
+    transform
+        .map_unchanged(|transform| &mut transform.rotation)
+        .set_if_neq(rotation);
+    let rotation = previous.rotation.turn(turn.x, turn.y);
+    previous
+        .map_unchanged(|previous| &mut previous.0.rotation)
+        .set_if_neq(rotation);
 }
 
 #[cfg(test)]

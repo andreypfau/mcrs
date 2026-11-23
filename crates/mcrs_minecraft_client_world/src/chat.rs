@@ -254,9 +254,11 @@ impl Plugin for ClientChatPlugin {
             .add_systems(
                 Update,
                 (
-                    log_messages.before(SessionSet::Clear),
-                    send_chat,
-                    request_suggestions,
+                    log_messages
+                        .before(SessionSet::Clear)
+                        .run_if(on_message::<ChatMessage>),
+                    send_chat.run_if(on_message::<SendChat>),
+                    request_suggestions.run_if(resource_changed::<ChatInput>),
                 )
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
@@ -282,12 +284,22 @@ fn clear_session_chat(
     chat.log.clear();
     chat.history.reset();
     chat.completions.clear();
-    chat.player_chats = 0;
+    if chat.player_chats != 0 {
+        chat.player_chats = 0;
+    }
     players.0.clear();
     *tree = CommandTree::default();
     *input = ChatInput::default();
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::missed_set_if_neq,
+        reason = "the chat clock advances on every fixed tick, so each run changes the value"
+    )
+)]
 fn advance_tick(mut chat: ResMut<Chat>) {
     chat.tick = chat.tick.saturating_add(1);
     chat.overlay.tick();
@@ -345,6 +357,13 @@ const NOTHING_SEEN: MessageSignature = MessageSignature {
     checksum: 1,
 };
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the chat packet carries the wall-clock timestamp in milliseconds that the protocol requires"
+    )
+)]
 fn send_chat(mut sent: MessageReader<SendChat>, connection: Option<Single<&mut ClientConnection>>) {
     let Some(mut connection) = connection else {
         sent.clear();

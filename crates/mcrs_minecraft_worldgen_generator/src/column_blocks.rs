@@ -78,9 +78,12 @@ impl ColumnBlocks {
         self.section_cells(index)[(y as usize) * 256 + (z as usize) * 16 + x as usize].set(value);
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "six box bounds beside the section index and value in a public signature"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "six box bounds beside the section index and value in a public signature"
+        )
     )]
     pub fn fill_box_in_section(
         &self,

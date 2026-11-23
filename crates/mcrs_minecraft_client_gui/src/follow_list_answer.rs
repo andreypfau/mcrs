@@ -12,10 +12,12 @@ pub(crate) fn follow_list_answer(
 ) {
     match &*worlds {
         WorldList::Ready(worlds) if worlds.is_empty() => {
-            *screen = Screen::CreateWorld(CreateWorldParent::Title);
-            *form = NewWorldForm::opened(time.elapsed());
+            screen.set_if_neq(Screen::CreateWorld(CreateWorldParent::Title));
+            form.set_if_neq(NewWorldForm::opened(time.elapsed()));
         }
-        WorldList::Unavailable(_) => *screen = Screen::WorldListError,
+        WorldList::Unavailable(_) => {
+            screen.set_if_neq(Screen::WorldListError);
+        }
         WorldList::Ready(_) | WorldList::Reading => {}
     }
 }
@@ -24,7 +26,7 @@ pub(crate) fn follow_list_answer(
 mod tests {
     mod jar {
         use mcrs_minecraft_client_widget::WidgetKind;
-        use mcrs_minecraft_client_world::world_list::WorldStoreError;
+        use mcrs_minecraft_client_world::world_list::{ReadWorldList, WorldStoreError};
 
         use super::super::*;
         use crate::menu::{Menu, MenuBackground};
@@ -47,7 +49,10 @@ mod tests {
                     _ => (screen(app), 0),
                 }
             };
-            app.add_systems(Update, read_like_the_store);
+            app.add_systems(
+                Update,
+                read_like_the_store.run_if(on_message::<ReadWorldList>),
+            );
             app.insert_resource(WorldList::Ready(Vec::new()));
             click(&mut app, 213, 118);
             assert_eq!(

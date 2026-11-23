@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
@@ -47,7 +48,7 @@ pub(crate) fn finish_spawn_searches(
     }
     for (player, mut transform) in &mut players {
         if let ArrivedSpawn::At(spawn) = arrived {
-            *transform = spawn;
+            transform.set_if_neq(spawn);
         }
         commands.entity(player).remove::<PendingSpawnSearch>();
     }

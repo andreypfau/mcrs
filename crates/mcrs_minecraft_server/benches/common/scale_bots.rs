@@ -6,6 +6,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use std::time::Instant;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
@@ -70,7 +71,7 @@ pub fn run_profile_ticks(
     layout: Layout,
 ) -> ScaleReport {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();

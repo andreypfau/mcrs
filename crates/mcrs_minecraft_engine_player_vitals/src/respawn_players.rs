@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
@@ -40,9 +41,12 @@ type RespawnedPlayer<'a> = (
     Has<HiddenPlayer>,
 );
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::marker_toggle,
+        reason = "the marker flips only once per death and once per respawn, and the player tile publisher filters on it"
+    )
 )]
 pub(crate) fn respawn_players(
     mut requests: MessageReader<RespawnRequest>,
@@ -84,8 +88,8 @@ pub(crate) fn respawn_players(
             );
             continue;
         };
-        *vitals = Vitals::new(max_health(attributes));
-        *hits = HitRecord::default();
+        vitals.set_if_neq(Vitals::new(max_health(attributes)));
+        hits.set_if_neq(HitRecord::default());
         reset_file_state(&mut file_state);
         if own.as_deref().map(|own| own.0) != Some(request.dimension) {
             changes.write(ChangeDimensionRequest {

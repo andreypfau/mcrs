@@ -51,7 +51,7 @@ pub(crate) fn drop_held_at_removal(
             &body,
             uuid,
             &holder_slots,
-            &mut commands,
+            commands.reborrow(),
         );
     }
 }
@@ -63,7 +63,7 @@ pub(crate) fn drop_held_at_respawn(
     mut commands: Commands,
 ) {
     for request in requests.read() {
-        drop_held_of_shown_dead(request.player, &players, &holder_slots, &mut commands);
+        drop_held_of_shown_dead(request.player, &players, &holder_slots, commands.reborrow());
     }
 }
 
@@ -80,7 +80,7 @@ pub(crate) fn drop_held_at_departure(
     };
     for departure in departures.read() {
         if let Some(&player) = index.0.get(&departure.session) {
-            drop_held_of_shown_dead(player, &players, &holder_slots, &mut commands);
+            drop_held_of_shown_dead(player, &players, &holder_slots, commands.reborrow());
         }
     }
 }
@@ -89,7 +89,7 @@ fn drop_held_of_shown_dead(
     player: Entity,
     players: &Query<DeadPlayer, With<Player>>,
     holder_slots: &Query<&Slots>,
-    commands: &mut Commands,
+    commands: Commands<'_, '_>,
 ) {
     if let Ok((vitals, holders, transform, body, uuid, hidden)) = players.get(player)
         && !vitals.is_alive()
@@ -105,7 +105,7 @@ fn drop_held(
     body: &PlayerBodyItem,
     uuid: Option<&EntityUuid>,
     holder_slots: &Query<&Slots>,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
 ) {
     let launch = Launch {
         source: BirthSource::Entity(uuid.copied().unwrap_or_default()),

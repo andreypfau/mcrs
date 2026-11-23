@@ -47,10 +47,6 @@ struct Touchdown {
     cell: TargetCell,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes each resource that it reads"
-)]
 pub(crate) fn decide_falls(
     mut commands: Commands,
     falls: Query<(Entity, &Falling, &MotionState, &StepOutcome)>,
@@ -83,9 +79,10 @@ pub(crate) fn decide_falls(
     };
     for (entity, Falling(fall), MotionState(motion), outcome) in &falls {
         if outcome.is_of(clock.0)
-            && let Some(touchdown) = tick.after_move(&mut commands, entity, fall, motion, outcome)
+            && let Some(touchdown) =
+                tick.after_move(commands.reborrow(), entity, fall, motion, outcome)
         {
-            tick.land(&mut commands, touchdown);
+            tick.land(commands.reborrow(), touchdown);
         }
     }
 }
@@ -109,7 +106,7 @@ struct Tick<'a, S> {
 impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
     fn after_move(
         &self,
-        commands: &mut Commands,
+        mut commands: Commands<'_, '_>,
         entity: Entity,
         fall: &Fall,
         motion: &EntityState,
@@ -144,7 +141,7 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
             AfterMove::Expire(remains) => {
                 if remains == Remains::Item {
                     drop_item(
-                        commands,
+                        commands.reborrow(),
                         self.rules,
                         self.definitions,
                         fall.carried,
@@ -163,7 +160,7 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
         }
     }
 
-    fn land(&self, commands: &mut Commands, touchdown: Touchdown) {
+    fn land(&self, mut commands: Commands<'_, '_>, touchdown: Touchdown) {
         let table = &self.rules.table;
         let target = touchdown.cell.pos;
         let replaceable_at = |state| {

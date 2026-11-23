@@ -20,6 +20,7 @@ impl Plugin for PlayerTrackerPlugin {
         app.add_systems(
             FixedPreUpdate,
             crate::drain_player_despawn::drain_inbound_player_despawn
+                .run_if(on_message::<crate::bus::InboundPlayerDespawn>)
                 .after(crate::dim_tick::DimInboxDrain),
         );
         app.add_systems(

@@ -13,6 +13,7 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, On,
     Query, Ref, With,
 };
+use bevy_ecs::system::Populated;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_voxel::SectionPos;
@@ -133,7 +134,7 @@ impl DimensionTypeConfig {
 }
 
 fn update_index(
-    entities: Query<(Entity, &OldInDimension, Ref<InDimension>), With<Player>>,
+    entities: Populated<(Entity, &OldInDimension, Ref<InDimension>), With<Player>>,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {
     for (player, old_in_dimension, in_dimension) in &entities {
@@ -178,7 +179,7 @@ fn forget_removed_player(
 
 fn add_old_in_dimension(
     mut commands: Commands,
-    new_players: Query<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,
+    new_players: Populated<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {
     new_players.iter().for_each(|(entity, in_dimension)| {
@@ -193,18 +194,21 @@ fn add_old_in_dimension(
 }
 
 pub(crate) fn update_old_in_dimensions(
-    mut clients: Query<(&mut OldInDimension, &InDimension), Changed<InDimension>>,
+    mut clients: Populated<(&mut OldInDimension, &InDimension), Changed<InDimension>>,
 ) {
     clients
         .iter_mut()
         .for_each(|(mut old_in_dimension, in_dimension)| {
-            old_in_dimension.0 = **in_dimension;
+            if old_in_dimension.0 != **in_dimension {
+                old_in_dimension.0 = **in_dimension;
+            }
         });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::change_detection::DetectChangesMut;
 
     #[test]
     fn a_player_despawned_is_gone_from_the_players_of_every_dimension() {
@@ -215,7 +219,10 @@ mod tests {
             [(); 2].map(|()| app.world_mut().spawn((Player, InDimension(a))).id());
         app.world_mut().run_schedule(FixedPostUpdate);
 
-        app.world_mut().get_mut::<InDimension>(moving).unwrap().0 = b;
+        app.world_mut()
+            .get_mut::<InDimension>(moving)
+            .unwrap()
+            .set_if_neq(InDimension(b));
         app.world_mut().despawn(moving);
         app.world_mut().despawn(staying);
 

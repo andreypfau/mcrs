@@ -36,9 +36,12 @@ impl NetherFossilBlocks {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's paint"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_nether_fossil<W: WorldGenVolume>(
     b: &NetherFossilBlocks,

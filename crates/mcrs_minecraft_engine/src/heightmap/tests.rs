@@ -246,7 +246,10 @@ fn spawn_column(
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
     app.insert_resource(BlockHeightmapPredicates(predicates().clone()));
-    app.add_systems(bevy_app::Update, update_column_heightmaps);
+    app.add_systems(
+        bevy_app::Update,
+        update_column_heightmaps.run_if(resource_exists::<BlockHeightmapPredicates>),
+    );
 
     let first = *y_sections.first().unwrap();
     let height = ((*y_sections.last().unwrap() - first + 1) * 16) as u32;
@@ -387,7 +390,11 @@ fn priming_merges_partial_ranges_with_max() {
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();
-    app.add_systems(bevy_app::Update, prime_column_heightmaps);
+    app.add_systems(
+        bevy_app::Update,
+        prime_column_heightmaps
+            .run_if(|pending: Res<PendingColumnHeightmaps>| !pending.0.is_empty()),
+    );
 
     let slot = |entity| ColumnSlot {
         entity,

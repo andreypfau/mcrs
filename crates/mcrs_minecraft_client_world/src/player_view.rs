@@ -102,7 +102,9 @@ fn send_view_distance(
     connection.write_packet(&ServerboundClientInformation(join::client_information(
         requested.0,
     )));
-    sent.0 = requested.0;
+    if sent.0 != requested.0 {
+        sent.0 = requested.0;
+    }
 }
 
 fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut commands: Commands) {
@@ -249,7 +251,7 @@ mod tests {
 
         frame(&mut app, 0, 12);
         let world = app.world_mut();
-        finish_configuration(&mut world.commands(), connection);
+        finish_configuration(world.commands(), connection);
         world.flush();
         app.update();
         assert_eq!(

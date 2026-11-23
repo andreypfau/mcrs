@@ -34,7 +34,7 @@ impl FallingBlockRules {
 pub(crate) fn build_rules(
     settings: Settings,
     concrete_pairs: &[PackConcretePairs],
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     blocks: &Blocks,
     items: &Items,
     registries: &CurrentRegistries,

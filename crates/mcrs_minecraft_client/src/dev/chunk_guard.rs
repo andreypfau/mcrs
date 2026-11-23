@@ -31,19 +31,25 @@ pub struct ChunkGuard {
 fn check(
     mut guard: ResMut<ChunkGuard>,
     store: Option<Res<ColumnStore>>,
-    camera: Option<Single<&PhysicsTransform, With<Player>>>,
+    camera: Single<&PhysicsTransform, With<Player>>,
 ) {
-    let (Some(store), Some(camera)) = (store, camera) else {
+    let Some(store) = store else {
         return;
     };
     if store.is_empty() {
-        guard.armed = false;
+        guard
+            .reborrow()
+            .map_unchanged(|guard| &mut guard.armed)
+            .set_if_neq(false);
         return;
     }
     let feet = BlockPos::from(camera.translation);
     let column = ColumnPos::new(feet.x >> 4, feet.z >> 4);
     if store.holds(column) {
-        guard.armed = true;
+        guard
+            .reborrow()
+            .map_unchanged(|guard| &mut guard.armed)
+            .set_if_neq(true);
         return;
     }
     if !guard.armed {

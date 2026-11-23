@@ -25,9 +25,12 @@ pub enum CarveShape<'a> {
     },
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one ellipsoid carve"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one ellipsoid carve"
+    )
 )]
 pub fn carve_ellipsoid(
     chunk_x: i32,

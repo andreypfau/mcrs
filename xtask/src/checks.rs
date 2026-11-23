@@ -348,16 +348,27 @@ impl Context {
     }
 
     fn exec(&self, program: &str, args: &[&str]) -> Result<bool, String> {
+        self.exec_in(&self.root, program, args, |_| {})
+    }
+
+    fn exec_in(
+        &self,
+        dir: &Path,
+        program: &str,
+        args: &[&str],
+        configure: impl FnOnce(&mut Command),
+    ) -> Result<bool, String> {
         let shown = format!("{program} {}", args.join(" "));
         println!("$ {}", shown.trim_end());
-        let resolved = if program.contains('/') {
-            self.root.join(program)
+        let mut command = if program.contains('/') {
+            Command::new(self.root.join(program))
         } else {
-            PathBuf::from(program)
+            Command::new(program)
         };
-        Command::new(&resolved)
+        configure(&mut command);
+        command
             .args(args)
-            .current_dir(&self.root)
+            .current_dir(dir)
             .status()
             .map(|status| status.success())
             .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
@@ -384,6 +395,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             || ctx.exec("cargo", &keys::GENERATE),
         ),
         Check::Clippy => clippy(ctx),
+        Check::EcsLint => ecs_lint(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
@@ -703,6 +715,78 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )
+}
+
+fn ecs_lint(ctx: &Context) -> Outcome {
+    let lints = ctx.root.join("lints");
+    let channel = |dir: &Path| {
+        std::fs::read_to_string(dir.join("rust-toolchain.toml"))
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find_map(|line| line.trim().strip_prefix("channel = ").map(str::to_owned))
+            })
+    };
+    verdict(
+        channel(&ctx.root).is_some() && channel(&ctx.root) == channel(&lints),
+        "rust-toolchain.toml and lints/rust-toolchain.toml name different channels, so the driver would fall back to plain rustc",
+        "set the same channel in both files",
+    )?;
+    let target = lints.join("target");
+    let target = target.to_string_lossy();
+    let own_toolchain = |command: &mut Command| {
+        command.env_remove("RUSTUP_TOOLCHAIN");
+    };
+    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], own_toolchain)?
+        && ctx.exec_in(
+            &lints,
+            "cargo",
+            &["build", "--release", "--locked", "--target-dir", &target],
+            own_toolchain,
+        )?;
+    verdict(
+        built,
+        "the ECS lint driver does not build",
+        "fix the errors above in lints/",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &lints.join("fixture"),
+            "cargo",
+            &[
+                "check",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            own_toolchain,
+        )?,
+        "lints/fixture has a missing or an extra ECS lint",
+        "make the lints of the driver match the expectations of the fixture",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &ctx.root,
+            "cargo",
+            &[
+                "check",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            |command| {
+                command.env(
+                    "RUSTC_WORKSPACE_WRAPPER",
+                    lints.join("target/release/mcrs-lint-driver"),
+                );
+            },
+        )?,
+        "the ECS lints or rustc reported diagnostics",
+        "fix the code, or add an expectation with a reason as docs/ecs-lint.md describes",
     )
 }
 

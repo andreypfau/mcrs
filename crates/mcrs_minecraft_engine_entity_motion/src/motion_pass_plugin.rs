@@ -11,7 +11,9 @@ use crate::Movers;
 use crate::StirredTiles;
 use crate::body_grid_owner::own_body_grid;
 use crate::collect_step_effects::collect_step_effects;
+use crate::collect_step_effects::step_effects_pending;
 use crate::movers::collect_movers;
+use crate::movers::movers_pending;
 use crate::regrids::Regrids;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -50,7 +52,11 @@ impl Plugin for MotionPassPlugin {
                     .in_set(MotionPass)
                     .after(MotionRelease)
                     .before(MotionSteps),
-                (collect_movers, collect_step_effects).in_set(MotionEffects),
+                (
+                    collect_movers.run_if(movers_pending),
+                    collect_step_effects.run_if(step_effects_pending),
+                )
+                    .in_set(MotionEffects),
             ),
         );
     }

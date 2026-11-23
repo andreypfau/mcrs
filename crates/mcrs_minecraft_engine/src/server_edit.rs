@@ -32,10 +32,10 @@ pub fn apply_edit(world: &mut World, edit: ServerEdit) {
         }
         ServerEdit::ClearWeather { ticks } => {
             if let Some(mut weather) = world.get_resource_mut::<Weather>() {
-                *weather = Weather {
+                weather.set_if_neq(Weather {
                     clear_ticks: ticks,
                     ..Weather::default()
-                };
+                });
             }
         }
         ServerEdit::StartSprint { ticks } => {
@@ -58,7 +58,7 @@ impl Plugin for ServerStateHostPlugin {
         app.init_resource::<GameRules>();
         app.init_resource::<Weather>();
         app.add_observer(apply_host_edit);
-        app.add_systems(FixedUpdate, advance_weather);
+        app.add_systems(FixedUpdate, advance_weather.run_if(clear_weather_counting));
     }
 }
 
@@ -75,6 +75,10 @@ fn apply_host_edit(edit: On<ServerEdit>, mut commands: Commands) {
             advance.set_if_neq(AdvanceTime(value != 0));
         }
     });
+}
+
+fn clear_weather_counting(weather: Res<Weather>) -> bool {
+    weather.clear_ticks > 0
 }
 
 fn advance_weather(rules: Res<GameRules>, mut weather: ResMut<Weather>) {

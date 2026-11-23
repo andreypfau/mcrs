@@ -192,8 +192,10 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     if let Some(dimensions) = input.dimensions {
         world.insert_resource(dimensions);
     }
-    if let Some(mut foreign) = world.get_resource_mut::<ForeignPlayers>() {
-        foreign.0 = input.players.unwrap_or_default();
+    if let Some(foreign) = world.get_resource_mut::<ForeignPlayers>() {
+        foreign
+            .map_unchanged(|foreign| &mut foreign.0)
+            .set_if_neq(input.players.unwrap_or_default());
     }
     if let Some(range) = input.entity_id_grant
         && let Some(mut ids) = world.get_resource_mut::<CellEntityIds>()

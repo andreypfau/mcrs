@@ -163,9 +163,12 @@ fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
     local
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one packed quad"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one packed quad"
+    )
 )]
 #[inline]
 fn pack_quad(

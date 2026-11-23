@@ -9,7 +9,7 @@ use crate::{CameraOrigin, clip_from_relative};
 pub(crate) fn write_lighting_uniform(
     frame: Option<Res<DeferredFrame>>,
     origin: Option<Res<CameraOrigin>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    views: Populated<&ExtractedView, With<Camera3d>>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(frame), Some(origin), Some(view)) = (frame, origin, views.iter().next()) else {

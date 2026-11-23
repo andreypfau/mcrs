@@ -31,9 +31,16 @@ use crate::mobs::Mob;
 #[derive(Resource, Debug, Default)]
 pub(crate) struct WaitingSpawns(VecDeque<MobSpawnRequest>);
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+pub(crate) fn has_waiting_spawns(waiting: Res<WaitingSpawns>) -> bool {
+    !waiting.0.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the metadata entries move into the `Mob` component of each spawned mob"
+    )
 )]
 pub(crate) fn spawn_mob_entities(
     mut commands: Commands,
