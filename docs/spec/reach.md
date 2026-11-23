@@ -216,9 +216,16 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### RCH-ACT-003: An abort is not checked
 
-The check does not check `player_action` action 2 (abort). The vanilla client sends an abort for
-the old block when it changes to another block, and when it stops while it has no target. Thus an
-abort can come at any distance. An abort out of reach still ends the dig (BRK-SRV-016 of
+The check does not check `player_action` action 2 (abort). The vanilla client sends an abort in
+each of these cases:
+
+- It starts on another block, or the item in the main hand changed on the same block. The abort
+  has the old block position and the new face, and a start follows it.
+- The attack key is up, or the target of the client tick is not a block. The face is down.
+- A screen opens.
+- It applies a teleport.
+
+Thus an abort can come at any distance. An abort out of reach still ends the dig (BRK-SRV-016 of
 `block-breaking.md`).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R5.
@@ -237,22 +244,32 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 The vanilla client does these steps in each client tick, in this order:
 
-1. It applies the clientbound packets that arrived.
+1. When a scroll of the mouse wheel changed the selected slot, it sends `set_carried_item`.
 2. It does the pick. The pick uses the position of the player at the end of the previous client
-   tick, with each teleport of step 1. It uses the current rotation and the eye height of the
-   current pose.
-3. It handles the inputs. It sends the actions of this tick, each with the target of step 2.
-4. It ticks the player. This step selects the pose and moves the player.
-5. It sends the move packet, when MVC-PKT-002 of `movement-checks.md` selects one, and then
-   `client_tick_end`.
+   tick, with each teleport that the client applied after it. It uses the current rotation and the
+   eye height of the current pose.
+3. It handles the inputs. A hotbar key changes the selected slot first. Then the client sends the
+   actions of this tick, each with the target of step 2.
+4. It ticks the entities: the player, its vehicle and the other entities. This step selects the
+   pose and moves the player.
+5. It sends `player_input`, the sprint command and the move packet, when MVC-PKT-002 of
+   `movement-checks.md` selects them. A passenger sends the rotation in each client tick.
+6. It sends `client_tick_end`.
+
+The client applies the clientbound packets that arrived at the start of a frame, before each client
+tick of that frame. A frame has 0 to 10 client ticks. The client applies no packet between two
+client ticks of one frame.
 
 Thus each action of a client tick comes before the move packet of that tick (MVC-PKT-010). The
 server finds the action tick of an action by the `client_tick_end` that follows it. The client
-turns the player only in a frame, and no frame comes between step 2 and step 5. Thus the rotation
-of step 2 is the rotation that the client reports in step 5. The target of a frame does not drive
-an action (CBK-TGT-001 of `client-block-breaking.md`).
+turns the player in a frame, after the client ticks of that frame. Thus, while the player does not
+ride and the camera is the player, the rotation of step 2 is the rotation that the client reports
+in step 5. RCH-LOOK-001 states the other cases. The target of a frame does not drive an action
+(CBK-TGT-001 of `client-block-breaking.md`).
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1. The
+recording `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance/lan/e23_sprint_while_using.txt`
+agrees with the order of an action, the move packet and `client_tick_end`.
 
 ### RCH-TCK-002: The check waits for the end of the action tick
 
@@ -374,7 +391,14 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 The rotation of the pick is the rotation of the move packet of the action tick, when that packet
 has a rotation. Otherwise, it is the last rotation that the client reported before the action.
-The client reports each change of the rotation (MVC-PKT-002 of `movement-checks.md`).
+The client reports each change of the rotation (MVC-PKT-002 of `movement-checks.md`). The accept of
+a teleport reports a rotation too (MVC-PKT-020), and so does the rotation that the client sends when
+it applies `player_rotation`.
+
+When the active item of the pick is an attack range item (RCH-RNG-002), the pick uses the pitch of
+this rule and the head yaw. The head yaw is the yaw at the end of the player step of client tick
+`k − 1`. Thus the look set holds the yaw of this rule and the last yaw that the client reported up
+to the end of client tick `k − 1`. While the player rides, RCH-LOOK-002 applies.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1.
 
@@ -417,8 +441,13 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: R3.
 ### RCH-TGT-002: The pick radius
 
 The client grows the box of each entity by its pick radius before the test. The pick radius is
-1.0 for an entity of the tag `#minecraft:redirectable_projectile`. It is 0 for each other entity.
-The check grows the entity region by the same radius.
+1.0 for these entities:
+
+- an entity of the tag `#minecraft:redirectable_projectile`, except an arrow in the ground;
+- a shulker bullet.
+
+It is 0 for each other entity. The check grows the entity region by the same radius. The pick with
+an attack range item does not use the pick radius (RCH-CMP-002).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -492,15 +521,24 @@ The edition policy (issue #655) gives the base values. The base values of the Ja
 and 4.5 (`attributes.md`). In creative mode, the server adds the two modifiers of ATR-SRC-003 of
 `attributes.md`. The check adds no range for creative mode itself.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. The recordings in
+`tools/mcrs_minecraft_client_recorder/recordings/pose/` show the base values 4.5 and 3 in
+`update_attributes`. Kind: semantic. Confidence: medium.
 
 ### RCH-RNG-002: The item of the pick and the item of the attack
 
-The pick uses the active item: the item in use, or else the item in the main hand. When that item
-is an attack range item, the pick uses its values. The pick comes before a change of the selected
-slot in the same client tick (ATK-PKT-001 of `player-attack.md`). Before the client sends `attack`, it tests the distance with
-the attack range item of the main hand after that change. The check uses each item that the
-client can have at each of these two times.
+The pick uses the active item: the item in use, or else the item in the main hand. A spectator has
+no active item. When that item is an attack range item, the pick uses its values. That pick ends at
+the first block outline on its segment. When it hits no entity and no block within `R_b`, the
+client uses the pick without the item, with `R_b` and `R_e`.
+
+A scroll of the mouse wheel changes the selected slot before the pick. A hotbar key changes it after
+the pick and before the actions (RCH-TCK-001). Before the client sends `attack`, it tests the item
+of the main hand after that change. When that item is an attack range item, the client sends
+`attack` only when the distance from the eye to the hit point is from `min − m` to `max + m`, both
+included. This test also applies to a hit of the pick without the item. When that item is not an
+attack range item, the client does no test. The check uses each item that the client can have at
+each of these two times.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R6.
 
@@ -544,7 +582,7 @@ This rule applies to `attack` when an item of RCH-RNG-002 is an attack range ite
 entity region, and `m` the margin. The attack passes when an eye `e` in `E` and a look `v` in `L`
 obey each of these conditions:
 
-1. Grow `B` by the pick radius, `m` and `box_tolerance`. The ray from `e` along `v` meets it at a
+1. Grow `B` by `m` and `box_tolerance`. The ray from `e` along `v` meets it at a
    ray distance from `min − distance_tolerance` to `max + w(v) + distance_tolerance`.
 2. `n(e, B) ≤ max + m + distance_tolerance`.
 3. `f(e, B) ≥ min − m − distance_tolerance`.
@@ -816,7 +854,9 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 ### RCH-RCT-002: The client after a refusal
 
 The acknowledgement alone makes the vanilla client restore each block that it predicted for the
-sequence. The `block_update` packets give it the state of the server. The `container_set_slot`
+sequence. When a restored block collides with the player, the client puts the player back at its
+position at the time of the prediction. It does not do this when a teleport came after the
+prediction. The `block_update` packets give it the state of the server. The `container_set_slot`
 packet gives it the stack of the server, when the client changed that stack in its prediction.
 
 The vanilla client applies steps 3 and 4 of ATK-KB-002 of `player-attack.md` to itself when it
@@ -842,11 +882,14 @@ targets.
 
 Let `d` be the nearest distance from the eye to the box of the target. The vanilla server accepts
 the reach of an attack when `min − m − 3.0 ≤ d ≤ max + m + 3.0`. The values come from the attack
-range item of the main hand. Without such an item, `min` is 0, `max` is `R_e` and `m` is 0. The
-server computes `d` with a square root. Both bounds are inclusive. The tests of ATK-PKT-002 and of
-ATK-PKT-003 steps 1 and 2 come first.
+range item of the main hand. Without such an item, `min` is 0, `max` is `R_e` rounded to binary32
+and `m` is 0. The server computes `d` with a square root. Both bounds are inclusive. The tests of
+ATK-PKT-002 and of ATK-PKT-003 steps 1 and 2 come first.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with this rule. In survival mode and without an item, an attack on a pig
+whose box is 5.95 blocks from the eye hits the pig. At 6.05 blocks, the attack has no effect.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
 
 ### RCH-VAN-002: An interaction with an entity
 
@@ -854,7 +897,10 @@ Let `d` be the nearest distance from the eye to the box of the target. The vanil
 the reach of `interact` when `d²` is less than `(R_e + 3.0)²`. It does not test the location of the
 packet. The entity must exist, and its block position must be inside the world border.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with this rule. In survival mode, `interact` on a minecart with a chest
+whose box is 5.95 blocks from the eye opens its menu. At 6.05 blocks, the server opens no menu.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
 
 ### RCH-VAN-003: A dig action
 
@@ -894,12 +940,17 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### RCH-VAN-006: An open menu
 
-The vanilla server keeps the menu of a block open while the block cube is within `R_b + 4.0` of the
-eye. For a menu of an entity, it keeps it open while the box of the entity is
-within `R_e + 4.0` of the eye. Otherwise, it closes the menu. The server of mcrs keeps this rule,
-with its own positions.
+The vanilla server keeps the menu of a block open while the nearest distance from the eye to the
+block cube is less than `R_b + 4.0`, and the same block or block entity is at the position. For a
+menu of an entity, it keeps it open while the nearest distance from the eye to the box of the
+entity is less than `R_e + 4.0`, and the entity is alive. Otherwise, it closes the menu. The server
+of mcrs keeps this rule, with its own positions.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with the rule for a block. In survival mode, the menu of a chest stays open at
+8.4 blocks, and the server closes it at 8.6 blocks.
+
+Provenance: `source_suggested_black_box_confirmed` for a block menu, `source_suggested` for an
+entity menu. Kind: semantic. Confidence: medium.
 
 ## 13. Invariants
 
@@ -1045,7 +1096,7 @@ the direction.
 
 These experiments have not run. Each rule that names one of them is not confirmed until the
 experiment runs. Each experiment uses a vanilla client and the proxy of
-`tools/mcrs_minecraft_client_recorder`, except R8, which uses `tools/vanilla-server`. Each
+`tools/mcrs_minecraft_client_recorder`. Each
 experiment records the target of the pick in each client tick with the capture of
 `client-entities.md`, section 0.2.
 
@@ -1058,5 +1109,4 @@ experiment records the target of the pick in each client tick with the capture o
 | R5 | Break a block, change the face, change to another block, and look away during a dig. Do the same in creative mode. | Actions 0, 1 and 3 come only for the block of the pick of the same client tick. Action 2 comes for the old block at any distance. | RCH-ACT-003, RCH-CMP-004 |
 | R6 | Give an item the component `attack_range` with `min_reach` 2.0 and `max_reach` 4.5. Attack at 1.0, 3.5 and 5.0 blocks while the player walks. Change the selected slot in the tick of an attack. | The client sends `attack` only when the conditions of RCH-CMP-002 are true for its eye and look. The pick uses the item before the slot change. | RCH-RNG-002, RCH-RNG-003, RCH-RNG-004, RCH-CMP-002 |
 | R7 | Ride a boat that turns, and attack a zombie and use a chest. | The eye of the pick is in the set of RCH-EYE-003. The yaw of the pick differs from the reported yaw by the turn of the boat in that client tick. | RCH-EYE-003, RCH-LOOK-002 |
-| R8 | On the vanilla server, attack, interact, dig and place at distances around the bounds of section 12. Open a chest and walk away. | The vanilla server accepts and refuses at the bounds of RCH-VAN-001 to RCH-VAN-004. It closes the menu at the bound of RCH-VAN-006. | RCH-VAN-001, RCH-VAN-002, RCH-VAN-006 |
 | R9 | Send a sprint attack and a placement that a server refuses with the reaction of RCH-RCT-001. | The client restores the block and the stack. Its velocity after the attack has steps 3 and 4 of ATK-KB-002. | RCH-RCT-002 |
