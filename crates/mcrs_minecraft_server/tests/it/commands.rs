@@ -2478,3 +2478,80 @@ fn data_get_entity_reads_a_player_through_the_player_file_codec() {
         assert_eq!(chats(&command(&mut server, op, line)), [message], "{line}");
     }
 }
+
+#[test]
+fn data_get_block_reads_the_saved_data_of_a_block_entity() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+    load_stone_column(&mut server);
+    place_block_entity(
+        &mut server,
+        GeneratedBlockEntity::chest(
+            mcrs_voxel::BlockPos::new(8, 63, 8),
+            "minecraft:chests/simple_dungeon".to_owned(),
+            5,
+        ),
+    );
+
+    let [whole] = chats(&command(&mut server, op, "data get block 8 63 8"))
+        .try_into()
+        .unwrap();
+    let TextContent::Translate {
+        translate, with, ..
+    } = &whole.content
+    else {
+        panic!("{whole:?}");
+    };
+    assert_eq!(translate, "commands.data.block.query");
+    let [_, _, _, TranslateArg::Text(data)] = with.as_slice() else {
+        panic!("{with:?}");
+    };
+    let data = plain(std::slice::from_ref(data)).concat();
+    for entry in [
+        "id: \"minecraft:chest\"",
+        "x: 8",
+        "y: 63",
+        "components: {}",
+        "LootTableSeed: 5L",
+    ] {
+        assert!(data.contains(entry), "{entry} in {data}");
+    }
+
+    let invalid = red(said("commands.data.block.invalid", vec![]));
+    let cases = [
+        (
+            "data get block 8 63 8 id",
+            said(
+                "commands.data.block.query",
+                vec![8.into(), 63.into(), 8.into(), name("\"minecraft:chest\"")],
+            ),
+        ),
+        (
+            "data get block 8 63 8 x 2",
+            said(
+                "commands.data.block.get",
+                vec![
+                    name("x"),
+                    8.into(),
+                    63.into(),
+                    8.into(),
+                    name("2.00"),
+                    16.into(),
+                ],
+            ),
+        ),
+        ("data get block 8 62 8", invalid.clone()),
+        ("data get block 8 62 8 x", invalid),
+        (
+            "data get block 8 1000 8",
+            red(said("argument.pos.outofworld", vec![])),
+        ),
+        (
+            "data get block 100000 63 100000",
+            red(said("argument.pos.unloaded", vec![])),
+        ),
+    ];
+    for (line, message) in cases {
+        assert_eq!(chats(&command(&mut server, op, line)), [message], "{line}");
+    }
+}
