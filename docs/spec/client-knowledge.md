@@ -458,8 +458,12 @@ threshold: the client reports each change of the rotation (MVC-PKT-002).
 At most 19 silent ticks follow a position packet. The distance does not add up over these ticks,
 because the client measures each tick from the same reference position.
 
-Provenance: `source_suggested`, from MVC-PKT-002, MVC-PKT-003 and MVC-PKT-011. Kind: client
-agreement. Confidence: medium. Experiment: E3 of `movement-checks.md`.
+The recording `tools/mcrs_minecraft_client_recorder/recordings/pose/pose_e2_8_boat_then_shift.txt`
+agrees with this rule. A player that stands still sends a position packet, then 19 silent ticks,
+then the next position packet.
+
+Provenance: `source_suggested_black_box_confirmed`, from MVC-PKT-002, MVC-PKT-003 and MVC-PKT-011.
+Kind: client agreement. Confidence: medium.
 
 ### CK-SIL-002: A reader without the physics model
 
@@ -735,7 +739,8 @@ Confidence: medium. Experiment: K1.
 ### CK-CLI-003: Accept a teleport when it applies it
 
 The client sends the accept of a teleport when it applies the teleport, before it answers a later
-ping (MVC-PKT-020).
+ping (MVC-PKT-020). The accept has the position and the rotation after the teleport. While the
+player rides, the client does not apply the teleport, but it still sends the accept.
 
 Provenance: `source_suggested`, from MVC-PKT-020. Kind: client agreement. Confidence: medium.
 Experiment: K3.
