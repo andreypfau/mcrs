@@ -18,7 +18,6 @@ use tracing::{error, warn};
 
 use crate::template_asset::TemplateAsset;
 use crate::template_handle::template_handle;
-use crate::worldgen_tables::WorldgenTables;
 
 #[derive(Resource, Default)]
 pub struct DimensionPlans(pub BTreeMap<ResourceLocationBuf, DimensionPlan>);
@@ -91,7 +90,6 @@ pub(crate) fn build_dimension_plans(
         }
     }
     commands.insert_resource(plans);
-    commands.insert_resource(WorldgenTables(tables));
 }
 
 fn log_missing(missing: &MissingTable) {

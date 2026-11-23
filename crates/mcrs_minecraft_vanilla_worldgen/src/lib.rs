@@ -14,7 +14,6 @@ mod template_handle;
 mod world_gen_plugin;
 mod world_generation;
 mod worldgen_registries_plugin;
-mod worldgen_tables;
 
 pub use dimension_plans::DimensionPlans;
 pub use template_asset::{TemplateAsset, WorldgenAssetsPlugin};
@@ -22,4 +21,3 @@ pub use template_handle::template_handle;
 pub use world_gen_plugin::WorldGenPlugin;
 pub use world_generation::WorldGeneration;
 pub use worldgen_registries_plugin::WorldgenRegistriesPlugin;
-pub use worldgen_tables::WorldgenTables;
