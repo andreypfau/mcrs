@@ -220,6 +220,7 @@ enum Target {
     InvulnerablePig,
     FarPig,
     CancelledPig,
+    UnknownId,
 }
 
 struct Case {
@@ -229,7 +230,7 @@ struct Case {
     lost: f32,
 }
 
-const CASES: [Case; 9] = [
+const CASES: [Case; 10] = [
     Case {
         name: "a player with pvp off",
         attacker: GameMode::Survival,
@@ -293,6 +294,12 @@ const CASES: [Case; 9] = [
         target: Target::Herself,
         lost: 0.0,
     },
+    Case {
+        name: "an id that names no entity",
+        attacker: GameMode::Survival,
+        target: Target::UnknownId,
+        lost: 0.0,
+    },
 ];
 
 #[test]
@@ -334,6 +341,7 @@ fn the_server_accepts_or_refuses_an_attack() {
                 arena.server.world().entity_mut(pig.0).insert(Cancelled);
                 pig
             }
+            Target::UnknownId => (arena.summon_pig(near).0, i32::MAX),
         };
         let _ = arena.server.ticks_all(10);
         let before = arena.health(target);
