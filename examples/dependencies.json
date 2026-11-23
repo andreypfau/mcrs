@@ -84,5 +84,16 @@
     "mcrs_engine*",
     "mcrs_minecraft_server*",
     "mcrs_minecraft_client"
+  ],
+  "mcrs_minecraft_worldgen_preview": [
+    "bevy",
+    "bevy_*",
+    "tokio",
+    "mcrs",
+    "mcrs_engine*",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_engine*",
+    "mcrs_minecraft_client*",
+    "mcrs_minecraft_render*"
   ]
 }

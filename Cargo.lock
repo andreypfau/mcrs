@@ -7765,6 +7765,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_worldgen_preview"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "mcrs_minecraft_biome_file",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_builtin",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_generator",
+ "mcrs_voxel",
+ "png",
+]
+
+[[package]]
 name = "mcrs_minecraft_worldgen_structure"
 version = "0.5.8"
 dependencies = [

@@ -2,8 +2,8 @@ use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetApp, AssetLoader, LoadContext};
 use bevy_reflect::TypePath;
-use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_worldgen_feature::template::Template;
+use mcrs_minecraft_worldgen_feature::template_file::{TemplateFileError, decode_template};
 use thiserror::Error;
 
 pub struct WorldgenAssetsPlugin;
@@ -24,13 +24,10 @@ pub struct TemplateAsset {
 pub enum TemplateLoaderError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Nbt(#[from] mcrs_minecraft_nbt::Error),
-    #[error("{path}: DataVersion {found}, expected {expected}")]
-    DataVersion {
+    #[error("{path}: {source}")]
+    Template {
         path: String,
-        found: i32,
-        expected: i32,
+        source: TemplateFileError,
     },
 }
 
@@ -50,15 +47,10 @@ impl AssetLoader for TemplateLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let template =
-            mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes::<Template, _>(bytes.as_slice())?;
-        if template.data_version != VERSION.world_version {
-            return Err(TemplateLoaderError::DataVersion {
-                path: load_context.path().to_string(),
-                found: template.data_version,
-                expected: VERSION.world_version,
-            });
-        }
+        let template = decode_template(&bytes).map_err(|source| TemplateLoaderError::Template {
+            path: load_context.path().to_string(),
+            source,
+        })?;
         Ok(TemplateAsset { template })
     }
 
