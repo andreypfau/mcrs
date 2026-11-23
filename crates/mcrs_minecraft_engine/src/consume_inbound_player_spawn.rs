@@ -175,8 +175,7 @@ fn join_transform(snapshot: &PersistedSnapshot, saved_spawn: Option<&SavedSpawn>
         return transform;
     }
     let [x, y, z] = saved_spawn.map_or([0; 3], |spawn| spawn.0.pos);
-    let saved_rotation = saved_spawn.map_or([0.0; 2], |spawn| [spawn.0.yaw, spawn.0.pitch]);
-    let [yaw, pitch] = snapshot.rotation().ok().flatten().unwrap_or(saved_rotation);
+    let [yaw, pitch] = snapshot.rotation().ok().flatten().unwrap_or_default();
     Transform {
         translation: DVec3::new(f64::from(x) + 0.5, f64::from(y), f64::from(z) + 0.5),
         rotation: Rotation::new(yaw, pitch),

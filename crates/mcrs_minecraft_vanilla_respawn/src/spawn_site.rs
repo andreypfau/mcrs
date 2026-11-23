@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Query, Res, SystemParam};
 use glam::DVec3;
-use mcrs_minecraft_collision_table::{BlockWorld, ColumnHeights, SpawnBlocks, lower_face_centre};
+use mcrs_minecraft_collision_table::BlockWorld;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_engine::SavedSpawn;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
@@ -18,6 +18,8 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SolidHeightmap, SurfaceHeightmap};
 use mcrs_voxel::BlockPos;
+
+use crate::spawn_blocks::{SpawnBlocks, SpawnColumnHeights, lower_face_centre};
 
 const MAX_SEARCH_RADIUS: u32 = 15;
 
@@ -43,13 +45,14 @@ pub(crate) enum ArrivedSpawn {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SpawnColumns {
-    pub(crate) centre: ColumnPos,
-    pub(crate) radius: i32,
+    pub(crate) low: ColumnPos,
+    pub(crate) high: ColumnPos,
 }
 
 impl SpawnColumns {
     pub(crate) fn columns(self) -> impl Iterator<Item = ColumnPos> {
-        self.centre.square(self.radius)
+        let Self { low, high } = self;
+        (low.z..=high.z).flat_map(move |z| (low.x..=high.x).map(move |x| ColumnPos::new(x, z)))
     }
 }
 
@@ -107,10 +110,10 @@ impl SpawnSite<'_, '_> {
         if !self.is_own(target) {
             return ArrivedSpawn::Elsewhere;
         }
-        let spawn = spawn_block(saved);
-        if !self.is_loaded(spawn) {
+        if !self.is_loaded() {
             return ArrivedSpawn::Waiting;
         }
+        let spawn = spawn_block(saved);
         ArrivedSpawn::At(Transform {
             translation: self.adjusted(spawn),
             rotation: spawn_rotation(saved),
@@ -119,50 +122,39 @@ impl SpawnSite<'_, '_> {
 
     pub(crate) fn join_columns(&self) -> SpawnColumns {
         let spawn = spawn_block(self.saved.as_deref());
-        let centre = ColumnPos::from(spawn);
         let radius = i32::try_from(self.search_radius()).unwrap_or(0);
-        let low = ColumnPos::from(BlockPos::new(
-            spawn.x.saturating_sub(radius),
-            0,
-            spawn.z.saturating_sub(radius),
-        ));
-        let high = ColumnPos::from(BlockPos::new(
-            spawn.x.saturating_add(radius),
-            0,
-            spawn.z.saturating_add(radius),
-        ));
         SpawnColumns {
-            centre,
-            radius: centre
-                .chebyshev_distance(low)
-                .max(centre.chebyshev_distance(high)),
+            low: ColumnPos::from(BlockPos::new(
+                spawn.x.saturating_sub(radius),
+                0,
+                spawn.z.saturating_sub(radius),
+            )),
+            high: ColumnPos::from(BlockPos::new(
+                spawn.x.saturating_add(radius),
+                0,
+                spawn.z.saturating_add(radius),
+            )),
         }
     }
 
     pub(crate) fn join_position(&self) -> Option<DVec3> {
-        let spawn = spawn_block(self.saved.as_deref());
-        self.is_loaded(spawn).then(|| self.adjusted(spawn))
+        self.is_loaded()
+            .then(|| self.adjusted(spawn_block(self.saved.as_deref())))
     }
 
     fn is_own(&self, dimension: &RunningDimension) -> bool {
         self.own.as_deref().map(|own| own.0) == Some(dimension.label)
     }
 
-    fn is_loaded(&self, spawn: BlockPos) -> bool {
+    fn is_loaded(&self) -> bool {
         let Ok((_, _, index)) = self.dimension.single() else {
             return false;
         };
-        let radius = i32::try_from(self.search_radius()).unwrap_or(0);
-        let xs = [
-            spawn.x.saturating_sub(radius),
-            spawn.x.saturating_add(radius),
-        ];
-        let zs = [
-            spawn.z.saturating_sub(radius),
-            spawn.z.saturating_add(radius),
-        ];
-        xs.into_iter()
-            .all(|x| zs.into_iter().all(|z| self.heights(index, x, z).is_some()))
+        self.join_columns().columns().all(|column| {
+            index
+                .get(&column)
+                .is_some_and(|slot| self.columns.contains(slot.entity))
+        })
     }
 
     fn respawn_dimension(&self, saved: Option<&SavedSpawn>) -> Option<&RunningDimension> {
@@ -226,12 +218,12 @@ impl SpawnSite<'_, '_> {
         u32::try_from(radius).unwrap_or(0).min(MAX_SEARCH_RADIUS)
     }
 
-    fn heights(&self, index: &ColumnIndex, x: i32, z: i32) -> Option<ColumnHeights> {
+    fn heights(&self, index: &ColumnIndex, x: i32, z: i32) -> Option<SpawnColumnHeights> {
         let column = index.get(&ColumnPos::from(BlockPos::new(x, 0, z)))?;
         let (motion, surface, floor) = self.columns.get(column.entity).ok()?;
         let local_x = usize::try_from(x & 15).ok()?;
         let local_z = usize::try_from(z & 15).ok()?;
-        Some(ColumnHeights {
+        Some(SpawnColumnHeights {
             motion: motion.0.get(local_x, local_z),
             surface: surface.0.get(local_x, local_z),
             ocean_floor: floor.0.get(local_x, local_z),

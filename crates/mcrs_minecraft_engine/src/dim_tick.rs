@@ -292,8 +292,13 @@ fn drain_into<M: Message>(world: &mut World, out: &mut Vec<M>) {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn drain_dim_inbox(
     mut inbox: ResMut<DimInbox>,
+    mut held: Option<ResMut<HeldJoins>>,
     mut spawns: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawns: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound: ResMut<Messages<InboundPlayerPacket>>,
@@ -304,9 +309,12 @@ pub(crate) fn drain_dim_inbox(
     let inbox = &mut *inbox;
     for message in inbox.control.drain(..) {
         match message {
-            ToDim::Spawn(spawn) => {
-                spawns.write(spawn);
-            }
+            ToDim::Spawn(spawn) => match held.as_deref_mut() {
+                Some(held) if matches!(spawn.snapshot.pos(), Ok(None)) => held.0.push(spawn),
+                _ => {
+                    spawns.write(spawn);
+                }
+            },
             ToDim::Despawn(despawn) => {
                 despawns.write(despawn);
             }

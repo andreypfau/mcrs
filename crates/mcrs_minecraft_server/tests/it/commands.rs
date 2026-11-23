@@ -152,6 +152,10 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
 }
 
 pub(crate) fn load_stone_column(server: &mut PlayServer) {
+    load_stone_column_at(server, 0, 0);
+}
+
+pub(crate) fn load_stone_column_at(server: &mut PlayServer, column_x: i32, column_z: i32) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
     use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
@@ -182,7 +186,7 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
             mcrs_voxel::BlockStateId::AIR
         };
         let section = world.spawn(SectionStage::Loaded).id();
-        let pos = SectionPos::new(0, chunk_y, 0);
+        let pos = SectionPos::new(column_x, chunk_y, column_z);
         let mut index = world.get_mut::<SectionIndex>(dimension).unwrap();
         index.insert(pos, section);
         index.land(
@@ -210,7 +214,7 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
         ))
         .id();
     world.get_mut::<ColumnIndex>(dimension).unwrap().insert(
-        ColumnPos::new(0, 0),
+        ColumnPos::new(column_x, column_z),
         ColumnSlot {
             entity: column,
             section_count: config.section_count,

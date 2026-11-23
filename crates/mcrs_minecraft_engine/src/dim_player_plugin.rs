@@ -13,7 +13,6 @@ use crate::despawn_inbound_player::despawn_inbound_player;
 use crate::dim_tick::DimInboxDrain;
 use crate::dim_tick::drain_dim_inbox;
 use crate::game_mode::{self, GameModePlugin};
-use crate::held_joins::HeldJoins;
 use crate::loaded_client::LoadedClientPlugin;
 use crate::movement::MovementPlugin;
 use crate::op_level::{refresh_op_levels, send_op_level};
@@ -46,7 +45,6 @@ impl Plugin for DimPlayerPlugin {
             app.add_plugins(persistence::PlayerPersistencePlugin);
         }
         app.init_resource::<persistence::PlayerSaveQueue>();
-        app.init_resource::<HeldJoins>();
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_message::<ChangeDimensionRequest>();
         app.add_message::<PlayerTransfer>();

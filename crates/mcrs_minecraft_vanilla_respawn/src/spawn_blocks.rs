@@ -1,4 +1,6 @@
+use alloc::vec::Vec;
 use glam::DVec3;
+use mcrs_minecraft_collision_table::BlockWorld;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Axis;
@@ -16,25 +18,23 @@ use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
 
-use crate::BlockWorld;
-
 #[derive(Clone, Copy, Debug)]
-pub struct ColumnHeights {
-    pub motion: i32,
-    pub surface: i32,
-    pub ocean_floor: i32,
+pub(crate) struct SpawnColumnHeights {
+    pub(crate) motion: i32,
+    pub(crate) surface: i32,
+    pub(crate) ocean_floor: i32,
 }
 
-pub struct SpawnBlocks<'a, V> {
-    pub world: BlockWorld<'a, V>,
-    pub tables: &'a Tables,
-    pub min_y: i32,
-    pub max_y: i32,
+pub(crate) struct SpawnBlocks<'a, V> {
+    pub(crate) world: BlockWorld<'a, V>,
+    pub(crate) tables: &'a Tables,
+    pub(crate) min_y: i32,
+    pub(crate) max_y: i32,
 }
 
 impl<V: BlockVolume> SpawnBlocks<'_, V> {
     #[must_use]
-    pub fn height_fix(&self, spawn: BlockPos) -> DVec3 {
+    pub(crate) fn height_fix(&self, spawn: BlockPos) -> DVec3 {
         let mut y = spawn.y;
         while y < self.max_y && !self.is_clear(at(spawn.x, y, spawn.z)) {
             y += 1;
@@ -47,7 +47,7 @@ impl<V: BlockVolume> SpawnBlocks<'_, V> {
     }
 
     #[must_use]
-    pub fn column(&self, x: i32, z: i32, heights: ColumnHeights) -> Option<DVec3> {
+    pub(crate) fn column(&self, x: i32, z: i32, heights: SpawnColumnHeights) -> Option<DVec3> {
         let top = heights.motion;
         if top < self.min_y {
             return None;
@@ -107,7 +107,7 @@ impl<V: BlockVolume> SpawnBlocks<'_, V> {
 }
 
 #[must_use]
-pub fn lower_face_centre(pos: BlockPos) -> DVec3 {
+pub(crate) fn lower_face_centre(pos: BlockPos) -> DVec3 {
     at(pos.x, pos.y, pos.z)
 }
 

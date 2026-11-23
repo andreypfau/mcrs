@@ -1,14 +1,13 @@
-#![expect(
-    clippy::unwrap_used,
-    reason = "a block outside the test volume fails the test"
-)]
+extern crate std;
 
 use std::sync::LazyLock;
 
 use glam::DVec3;
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_collision_table::BlockWorld;
-use mcrs_minecraft_collision_table::ColumnHeights;
-use mcrs_minecraft_collision_table::SpawnBlocks;
+use mcrs_minecraft_collision_table::collision_table;
+use mcrs_minecraft_engine_registries::test_corpus;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_volume::SparseVolume;
@@ -16,13 +15,28 @@ use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
 
-use crate::common;
-use crate::fixture::state_of;
+use crate::spawn_blocks::{SpawnBlocks, SpawnColumnHeights};
 
 const MIN_Y: i32 = 0;
 const MAX_Y: i32 = 31;
 
-static TABLES: LazyLock<Tables> = LazyLock::new(|| Tables::new(common::table().clone()));
+static TABLES: LazyLock<Tables> = LazyLock::new(|| {
+    let tags = test_registries().tags::<Block>().unwrap();
+    Tables::new(collision_table(&test_corpus().0, &tags))
+});
+
+fn state_of(text: &str) -> BlockStateId {
+    let (name, properties) = text.split_once('[').unwrap_or((text, ""));
+    let block = test_corpus().0.block(name).unwrap();
+    properties
+        .trim_end_matches(']')
+        .split(',')
+        .filter(|pair| !pair.is_empty())
+        .fold(block.default_state_id, |state, pair| {
+            let (key, value) = pair.split_once('=').unwrap();
+            block.with_text(state, key, value).unwrap()
+        })
+}
 
 enum Query {
     Column {
@@ -150,7 +164,7 @@ fn spawn_placement_follows_the_column_test_and_the_height_fix() {
             } => blocks.column(
                 x,
                 0,
-                ColumnHeights {
+                SpawnColumnHeights {
                     motion: top,
                     surface,
                     ocean_floor,
