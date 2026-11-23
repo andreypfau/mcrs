@@ -7,6 +7,7 @@ pub struct DamageSource {
     pub damage_type: u32,
     pub cause: Cause,
     pub position: Option<DVec3>,
+    pub by_creative_player: bool,
 }
 
 impl DamageSource {
@@ -19,6 +20,7 @@ impl DamageSource {
                 direct: None,
             },
             position: None,
+            by_creative_player: false,
         }
     }
 }

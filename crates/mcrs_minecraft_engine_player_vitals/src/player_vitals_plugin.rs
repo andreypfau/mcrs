@@ -103,7 +103,7 @@ fn give_spawned_player_vitals(
 ) {
     let player = add.event().entity;
     let mut defence = Defence::default();
-    defence.invulnerable = modes.get(player).is_ok_and(|mode| invulnerable(mode.0));
+    defence.ability_invulnerable = modes.get(player).is_ok_and(|mode| invulnerable(mode.0));
     commands.entity(player).insert_if_new((
         Vitals::new(max_health(attributes.get(player).ok())),
         HitRecord::default(),
