@@ -1,3 +1,4 @@
+use bevy::ecs::entity::Entity;
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
@@ -32,15 +33,54 @@ pub struct BlockHit {
     pub point: DVec3,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityBox {
+    pub entity: Entity,
+    pub min: DVec3,
+    pub max: DVec3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityHit {
+    pub entity: Entity,
+    pub point: DVec3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Target {
+    Block(BlockHit),
+    Entity(EntityHit),
+}
+
 #[must_use]
-pub fn block_target<'s>(
+pub fn target<'s>(
     eye: DVec3,
     direction: DVec3,
     reach: Reach,
     outline_at: impl Fn(BlockPos) -> &'s [Aabb],
-) -> Option<BlockHit> {
-    let hit = cast(eye, direction, reach.ray_length(), outline_at)?;
-    (hit.point.distance(eye) < reach.block).then_some(hit)
+    entities: impl IntoIterator<Item = EntityBox>,
+) -> Option<Target> {
+    let block = cast(eye, direction, reach.ray_length(), outline_at);
+    let limit = block.map_or(reach.ray_length(), |hit| hit.point.distance(eye));
+    let mut nearest: Option<(f64, Entity)> = None;
+    for candidate in entities {
+        let Some((t, _)) = enter(eye, direction, candidate.min, candidate.max) else {
+            continue;
+        };
+        if t < limit && nearest.is_none_or(|(best, _)| t < best) {
+            nearest = Some((t, candidate.entity));
+        }
+    }
+    match (nearest, block) {
+        (Some((t, entity)), _) => (t < reach.entity).then(|| {
+            Target::Entity(EntityHit {
+                entity,
+                point: eye + direction * t,
+            })
+        }),
+        (None, Some(hit)) => (hit.point.distance(eye) < reach.block).then_some(Target::Block(hit)),
+        (None, None) => None,
+    }
 }
 
 fn cast<'s>(
@@ -223,8 +263,111 @@ mod tests {
         instances
     }
 
+    fn block_target<'s>(
+        eye: DVec3,
+        direction: DVec3,
+        reach: Reach,
+        outline_at: impl Fn(BlockPos) -> &'s [Aabb],
+    ) -> Option<BlockHit> {
+        match target(eye, direction, reach, outline_at, []) {
+            Some(Target::Block(hit)) => Some(hit),
+            Some(Target::Entity(_)) | None => None,
+        }
+    }
+
     fn one_block(at: BlockPos, shape: &'static [Aabb]) -> impl Fn(BlockPos) -> &'static [Aabb] {
         move |pos| if pos == at { shape } else { &[] }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Picked {
+        Entity,
+        Block,
+        Miss,
+    }
+
+    struct PickRow {
+        name: &'static str,
+        entity_front: f64,
+        block_z: i32,
+        look: DVec3,
+        picked: Picked,
+    }
+
+    const PICK_ROWS: &[PickRow] = &[
+        PickRow {
+            name: "an entity nearer than the block",
+            entity_front: 2.0,
+            block_z: 3,
+            look: DVec3::Z,
+            picked: Picked::Entity,
+        },
+        PickRow {
+            name: "a block nearer than the entity",
+            entity_front: 2.5,
+            block_z: 2,
+            look: DVec3::Z,
+            picked: Picked::Block,
+        },
+        PickRow {
+            name: "an entity just inside the entity range",
+            entity_front: 2.999,
+            block_z: 10,
+            look: DVec3::Z,
+            picked: Picked::Entity,
+        },
+        PickRow {
+            name: "an entity at the entity range",
+            entity_front: 3.0,
+            block_z: 10,
+            look: DVec3::Z,
+            picked: Picked::Miss,
+        },
+        PickRow {
+            name: "an entity out of range before a block in range",
+            entity_front: 3.2,
+            block_z: 4,
+            look: DVec3::Z,
+            picked: Picked::Miss,
+        },
+        PickRow {
+            name: "a look that misses both",
+            entity_front: 2.0,
+            block_z: 3,
+            look: DVec3::Y,
+            picked: Picked::Miss,
+        },
+    ];
+
+    #[test]
+    fn cbk_tgt_009_the_nearer_hit_is_the_target_within_its_range() {
+        let eye = DVec3::new(0.5, 0.5, 0.0);
+        for row in PICK_ROWS {
+            let pig = EntityBox {
+                entity: Entity::PLACEHOLDER,
+                min: DVec3::new(0.05, 0.0, row.entity_front),
+                max: DVec3::new(0.95, 0.9, row.entity_front + 0.9),
+            };
+            let picked = match target(
+                eye,
+                row.look,
+                reach(&player()),
+                one_block(BlockPos::new(0, 0, row.block_z), FULL),
+                [pig],
+            ) {
+                Some(Target::Entity(hit)) => {
+                    assert!(
+                        (hit.point.z - row.entity_front).abs() < 1e-9,
+                        "{}: the hit point is on the front of the box",
+                        row.name
+                    );
+                    Picked::Entity
+                }
+                Some(Target::Block(_)) => Picked::Block,
+                None => Picked::Miss,
+            };
+            assert_eq!(picked, row.picked, "{}", row.name);
+        }
     }
 
     #[test]
