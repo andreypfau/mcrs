@@ -8,6 +8,7 @@ use mcrs_minecraft_chunk::{
     PalettedContainer, RemapError, SectionKind, VoxelId, any_entry_past, first_entry_past,
     pack_from, packed_len, remap_into, unpack_into,
 };
+use mcrs_minecraft_nbt::END_ID;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::wire::{Context, bail, ensure};
 use mcrs_minecraft_protocol::{
@@ -182,12 +183,46 @@ impl<'a> Default for LightData<'a> {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ChunkDataBlockEntity<'a> {
     pub packed_xz: i8,
     pub y: i16,
     pub kind: BlockEntityType,
     pub data: Cow<'a, NbtCompound>,
+}
+
+impl EncodeTrait for ChunkDataBlockEntity<'_> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.packed_xz.encode(&mut w)?;
+        self.y.encode(&mut w)?;
+        self.kind.encode(&mut w)?;
+        if self.data.is_empty() {
+            END_ID.encode(w)
+        } else {
+            self.data.encode(w)
+        }
+    }
+}
+
+impl<'a> DecodeTrait<'a> for ChunkDataBlockEntity<'a> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
+        let packed_xz = i8::decode(r)?;
+        let y = i16::decode(r)?;
+        let kind = BlockEntityType::decode(r)?;
+        let data = match r.split_first() {
+            Some((&END_ID, rest)) => {
+                *r = rest;
+                NbtCompound::new()
+            }
+            _ => NbtCompound::decode(r)?,
+        };
+        Ok(Self {
+            packed_xz,
+            y,
+            kind,
+            data: Cow::Owned(data),
+        })
+    }
 }
 
 #[bitfield(u64)]
