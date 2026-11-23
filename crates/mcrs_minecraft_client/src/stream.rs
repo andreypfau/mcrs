@@ -1416,6 +1416,13 @@ pub(crate) fn can_stream(
     store.is_some() && blocks.is_some() && cameras.single().is_ok()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the queue buckets are allocated once, and the eviction heap is rebuilt only when the camera enters another section"
+    )
+)]
 fn follow_camera(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
@@ -1434,6 +1441,13 @@ fn collect_column_changes(mut changes: MessageReader<ColumnChange>, mut loader: 
     loader.changes.extend(changes.read().cloned());
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only on a frame with column changes, and the early return skips the other frames"
+    )
+)]
 fn adopt_columns(
     mut loader: ResMut<Loader>,
     mut catalog: ResMut<BlockCatalog>,
@@ -1449,6 +1463,13 @@ fn adopt_columns(
     loader.adopt(&store, &definitions, &mut catalog, &mut tints, &mut cave);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only on the frame that starts a bake for new block states or publishes its result"
+    )
+)]
 fn bake_catalog(
     mut catalog: ResMut<BlockCatalog>,
     uploads: Res<Uploads>,
@@ -1474,6 +1495,13 @@ fn bake_catalog(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the tints are derived only after the registries change"
+    )
+)]
 fn derive_biome_tints(
     registries: Res<CurrentRegistries>,
     catalog: Res<BlockCatalog>,
@@ -1546,6 +1574,13 @@ fn tint_columns(
 
 type Landed = ([i32; 3], u32, (SectionMesh, Scratch));
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when meshes land or sections go stale, and the geometry moves into the upload queue"
+    )
+)]
 fn place_meshes(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
@@ -1586,6 +1621,13 @@ fn project_camera_section_ready(
     ));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when the geometry is dirty, and the runs move into the upload queue of the render world"
+    )
+)]
 pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     let _flushing = info_span!("stream flush").entered();
     loader.flush_to(&uploads);
@@ -1618,10 +1660,16 @@ fn remesh_on_light_options(
     let loader = &mut *loader;
     let drawn = loader.sections.residents().map(|(at, _)| at);
     let meshing = loader.meshing.iter().map(|(at, _, _)| *at);
-    let stale: Vec<[i32; 3]> = drawn.chain(meshing).collect();
-    loader.stale.extend(stale);
+    loader.stale.extend(drawn.chain(meshing));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only while sections wait to mesh, within the per-frame mesh budget"
+    )
+)]
 fn admit_meshing(
     mut loader: ResMut<Loader>,
     catalog: Res<BlockCatalog>,
@@ -2444,7 +2492,10 @@ mod tests {
         app.init_resource::<ColumnStore>()
             .insert_resource(loader())
             .add_message::<ColumnChange>()
-            .add_systems(Update, collect_column_changes);
+            .add_systems(
+                Update,
+                collect_column_changes.run_if(resource_exists::<ColumnStore>),
+            );
         let pos = ColumnPos::new(2, 3);
         app.world_mut().write_message(ColumnChange::Arrived(
             pos,

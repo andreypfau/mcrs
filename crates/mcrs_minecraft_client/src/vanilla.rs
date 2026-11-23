@@ -182,6 +182,13 @@ impl Plugin for VanillaAssetsPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the join runs only after the worker has finished, so it returns at once with its panic"
+    )
+)]
 fn finish_fetch(mut fetch: ResMut<Fetch>, mut next: ResMut<NextState<VanillaAssets>>) {
     if fetch.unpacked.load(Ordering::Acquire) {
         next.set(VanillaAssets::Ready);
@@ -200,6 +207,13 @@ struct LoadingFont {
     pages: Vec<(usize, Handle<Image>)>,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the font pages load once, on the frame that the fetch worker hands over the font files"
+    )
+)]
 fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
     let Some(files) = fetch.fonts.lock().unwrap().take() else {
         return;

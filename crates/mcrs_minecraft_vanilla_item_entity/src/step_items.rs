@@ -2,6 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Commands;
+use bevy_ecs::system::Populated;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -33,6 +34,13 @@ pub(crate) struct SteppedItem {
     pub(crate) merges: bool,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "clears the stepped list each tick, so the merge and projection systems never see despawned items"
+    )
+)]
 pub(crate) fn step_items(
     mut commands: Commands,
     mut items: Query<(Entity, &mut ItemEntity, &MotionState, &StepOutcome), With<MotionId>>,
@@ -69,13 +77,17 @@ pub(crate) fn step_items(
 
 pub(crate) fn age_items(
     mut commands: Commands,
-    mut items: Query<(Entity, &mut ItemEntity), With<MotionId>>,
+    mut items: Populated<(Entity, &mut ItemEntity), With<MotionId>>,
 ) {
     for (stack, mut item) in &mut items {
         if item.grow() == Lifetime::Ends {
             commands.entity(stack).despawn();
         }
     }
+}
+
+pub(crate) fn any_stepped(stepped: Res<Stepped>) -> bool {
+    !stepped.0.is_empty()
 }
 
 pub(crate) fn project_positions(stepped: Res<Stepped>, mut items: Query<&mut Dropped>) {

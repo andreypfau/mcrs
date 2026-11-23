@@ -57,6 +57,13 @@ pub fn on_player_disconnect(
     );
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::borrowed_reborrowable,
+        reason = "the signature is public, and callers in other crates pass `&mut` borrows of their own system parameters"
+    )
+)]
 pub fn process_disconnect(
     host_anchor: Entity,
     sessions: &mut LeavingSessions,

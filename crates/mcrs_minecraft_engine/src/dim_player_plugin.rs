@@ -1,6 +1,6 @@
 use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
 use crate::block_break::BlockBreakPlugin;
-use crate::bus::OutboundPlayerReleased;
+use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerReleased};
 use crate::client_info::ClientInfoPlugin;
 use crate::client_view_distance::on_client_view_distance;
 use crate::cold_columns::SaveRequest;
@@ -108,7 +108,7 @@ impl Plugin for DimPlayerPlugin {
             (
                 (
                     (
-                        consume_inbound_player_spawn,
+                        consume_inbound_player_spawn.run_if(on_message::<InboundPlayerSpawn>),
                         refresh_op_levels.run_if(resource_exists_and_changed::<OpList>),
                         send_op_level,
                     )
@@ -118,6 +118,7 @@ impl Plugin for DimPlayerPlugin {
                 )
                     .chain(),
                 despawn_inbound_player
+                    .run_if(on_message::<InboundPlayerDespawn>)
                     .after(consume_inbound_player_spawn)
                     .after(game_mode::send_game_mode),
             ),
@@ -150,6 +151,13 @@ mod tests {
     fn a_despawn_is_handled_after_a_spawn_drained_in_the_same_tick() {
         let mut app = App::new();
         app.add_plugins(DimPlayerPlugin);
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::ungated_system,
+                reason = "an ordering probe in a schedule that the test builds but never runs"
+            )
+        )]
         app.add_systems(
             Update,
             (|| {})

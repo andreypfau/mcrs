@@ -51,6 +51,13 @@ impl Plugin for EntityMotionPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "replaces the stirred tiles each tick, so the set empties on a tick with no placed block"
+    )
+)]
 fn stir_tiles(mut placed: MessageReader<BlockPlaced>, mut stirred: ResMut<StirredTiles>) {
     let tiles = placed
         .read()

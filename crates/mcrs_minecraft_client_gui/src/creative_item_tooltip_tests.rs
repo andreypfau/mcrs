@@ -65,7 +65,9 @@ fn tooltip_app() -> App {
                 .after(draw_creative_screen)
                 .run_if(creative_screen_shown),
         );
-    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Menu);
     frame(&mut app);
     app
 }
@@ -197,7 +199,10 @@ fn the_creative_screen_shows_the_item_tooltip_of_the_hovered_slot_with_the_creat
             });
         });
         let at = hover_point(&mut app, row.target);
-        app.world_mut().resource_mut::<GuiScene>().cursor = at;
+        app.world_mut()
+            .resource_mut::<GuiScene>()
+            .map_unchanged(|resource| &mut resource.cursor)
+            .set_if_neq(at);
         frame(&mut app);
         frame(&mut app);
         let expected: Vec<(String, u32)> = row

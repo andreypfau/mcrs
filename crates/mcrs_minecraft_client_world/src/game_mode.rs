@@ -121,7 +121,7 @@ fn on_game_event(
 }
 
 fn project_player_game_mode(
-    mut players: Query<(Entity, &LocalGameMode), Changed<LocalGameMode>>,
+    mut players: Populated<(Entity, &LocalGameMode), Changed<LocalGameMode>>,
     mut commands: Commands,
 ) {
     for (player, mode) in &mut players {

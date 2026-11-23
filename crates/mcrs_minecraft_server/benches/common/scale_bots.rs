@@ -61,6 +61,13 @@ impl ScaleReport {
     clippy::too_many_lines,
     reason = "the harness builds its world, injects the bots' packets and tears the sessions down in one tick loop, so the run reads as the sequence it measures"
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the benchmark drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 pub fn run_profile_ticks(
     name: &str,
     dims: usize,

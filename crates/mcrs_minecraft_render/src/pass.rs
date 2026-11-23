@@ -28,6 +28,13 @@ use super::upload::{UploadParams, apply_uploads};
 use super::views::{DeferredViews, Display, Lighting, SelectedView};
 use super::{DrawMask, LightTint, Occlusion, PassTimestamps, WorldFog};
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "Bevy queues items into the binned phases of every view each frame, and the world pass never draws them"
+    )
+)]
 pub(super) fn drop_unused_bins(
     mut opaque: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     mut alpha_mask: ResMut<ViewBinnedRenderPhases<AlphaMask3d>>,

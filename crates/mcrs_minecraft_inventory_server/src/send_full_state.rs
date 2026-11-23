@@ -25,6 +25,13 @@ use crate::sent_selected::SentSelected;
 use crate::wire_names::WireNames;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the slot list of a full content send moves into the outbound packet"
+    )
+)]
 pub(crate) fn send_full_state(
     mut sends: ResMut<FullSends>,
     players: Query<(&Owner, &Selected, &Menus, Option<&PlayerHolders>)>,

@@ -365,6 +365,20 @@ fn input_box(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "begin_gui_frame clears the scene on each frame, and the chat lines and the overlay fade with time, so the chat draws on each frame"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the immediate-mode GUI builds the text spans of the visible chat lines and of the overlay on each frame"
+    )
+)]
 pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,

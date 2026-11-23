@@ -290,6 +290,13 @@ fn hovered_entry<'a>(
     })
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
+    )
+)]
 pub(crate) fn request_menu_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>)>,
     menus: Query<(&MenuLayout, &MenuParts)>,
@@ -410,7 +417,8 @@ mod tests {
                     |mut scene: ResMut<GuiScene>| scene.tooltip.clear(),
                     request_menu_item_tooltip,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(resource_exists::<ItemTable>),
             );
         let world = app.world_mut();
         let player = world.spawn_empty().id();
@@ -455,8 +463,10 @@ mod tests {
         let geometry = MenuGeometry::of_layout(&layout).unwrap();
         let corner = geometry.window(GUI.width, GUI.height);
         let at = geometry.entry(entry).unwrap();
-        app.world_mut().resource_mut::<GuiScene>().cursor =
-            IVec2::new(corner.x + at.x + 8, corner.y + at.y + 8);
+        app.world_mut()
+            .resource_mut::<GuiScene>()
+            .map_unchanged(|scene| &mut scene.cursor)
+            .set_if_neq(IVec2::new(corner.x + at.x + 8, corner.y + at.y + 8));
         frame(app);
         frame(app);
         shown_lines(app).into_iter().next()
@@ -480,9 +490,13 @@ mod tests {
     fn the_hover_delay_starts_again_after_a_frame_without_the_menu_screen() {
         let (mut app, _) = chest_app();
         assert_eq!(hover(&mut app, 1).as_deref(), Some("Stone"));
-        *app.world_mut().resource_mut::<Screen>() = Screen::None;
+        app.world_mut()
+            .resource_mut::<Screen>()
+            .set_if_neq(Screen::None);
         frame(&mut app);
-        *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+        app.world_mut()
+            .resource_mut::<Screen>()
+            .set_if_neq(Screen::Menu);
         frame(&mut app);
         assert_eq!(shown_lines(&app), Vec::<String>::new());
         frame(&mut app);

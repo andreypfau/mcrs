@@ -125,20 +125,20 @@ fn switch_game_mode(
                 {
                     connection.write_packet(&ServerboundChangeGameMode { mode: send });
                 }
-                *screen = Screen::None;
+                screen.set_if_neq(Screen::None);
                 grab(&mut cursor, true);
             } else if keys.just_pressed(KeyCode::Escape) {
-                *screen = Screen::None;
+                screen.set_if_neq(Screen::None);
                 grab(&mut cursor, true);
             } else if keys.just_pressed(SWITCH) {
-                *screen = Screen::GameModeSwitcher(next(selected));
+                screen.set_if_neq(Screen::GameModeSwitcher(next(selected)));
             }
         }
         Screen::None if keys.pressed(MODIFIER) && keys.just_pressed(SWITCH) && mode.is_some() => {
-            modifier.used = true;
+            modifier.set_if_neq(DebugModifier { used: true });
             match open_on(mode, permission) {
                 Some(selected) => {
-                    *screen = Screen::GameModeSwitcher(selected);
+                    screen.set_if_neq(Screen::GameModeSwitcher(selected));
                     grab(&mut cursor, false);
                 }
                 None => {
@@ -157,6 +157,10 @@ fn icon_stacks(table: &ItemTable) -> IconStacks {
         let id = table.id(NameTable::Item, item.location())?;
         Some(ItemStack::new(Kind(id), Count::new(1)?))
     })
+}
+
+pub(crate) fn switcher_shown(screen: Res<Screen>) -> bool {
+    matches!(*screen, Screen::GameModeSwitcher(_))
 }
 
 pub fn draw(
@@ -234,6 +238,7 @@ mod tests {
     use super::*;
     use crate::debug_screen::DebugOverlay;
     use crate::debug_screen_overlay::DebugModifier;
+    use bevy::input::common_conditions::input_just_released;
     use bevy::window::CursorGrabMode;
 
     fn key_app(permission: u8) -> App {
@@ -243,7 +248,14 @@ mod tests {
             .init_resource::<DebugModifier>()
             .init_resource::<DebugOverlay>()
             .add_message::<ChatMessage>()
-            .add_systems(Update, (switch_game_mode, toggle_overlay).chain());
+            .add_systems(
+                Update,
+                (
+                    switch_game_mode,
+                    toggle_overlay.run_if(input_just_released(KeyCode::F3)),
+                )
+                    .chain(),
+            );
         app.world_mut().spawn((
             Player,
             LocalGameMode {
@@ -382,7 +394,7 @@ mod tests {
                 .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
                 .insert_resource(*TABLE)
                 .insert_resource(MODELS.clone())
-                .add_systems(Update, draw);
+                .add_systems(Update, draw.run_if(switcher_shown));
             app.update();
 
             let scene = app.world().resource::<GuiScene>();

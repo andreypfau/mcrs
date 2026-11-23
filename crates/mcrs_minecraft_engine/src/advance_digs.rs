@@ -42,6 +42,13 @@ fn advance(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the dig is taken out of the component before it advances, so the take already marks the component changed"
+    )
+)]
 pub(crate) fn advance_digs(
     mut diggers: ResMut<Diggers>,
     mut players: Query<(

@@ -44,7 +44,7 @@ pub(crate) fn apply_creative_drop(
     if !is_creative(game_mode) || !fits(Some(&stack), &table) {
         return;
     }
-    let mut entity = commands.spawn_stack(stack);
+    let entity = commands.spawn_stack(stack);
     let eye_height = eye_height_of(pose, attributes);
-    launch_from_player(&mut entity, transform, eye_height, profile, Cause::Throw);
+    launch_from_player(entity, transform, eye_height, profile, Cause::Throw);
 }

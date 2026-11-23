@@ -44,6 +44,20 @@ impl Plugin for ColdLightPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "hands the light edits and awaits of the column production to the light thread each tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "copies the player columns only when a player enters another column, and the copy moves to the light thread"
+    )
+)]
 fn send_cold_light(
     mut production: ResMut<ColumnProduction>,
     mut light: ResMut<ColdLightLink>,
@@ -67,6 +81,20 @@ fn send_cold_light(
     light.send_edits();
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "polls the light thread, whose answers arrive asynchronously"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the lit sections of each answered column move into the column production"
+    )
+)]
 fn land_cold_light(mut production: ResMut<ColumnProduction>, mut light: ResMut<ColdLightLink>) {
     for output in light.0.outputs() {
         let LightOutput::Lit(columns) = output else {

@@ -23,7 +23,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::{Handle, Runtime};
-use tokio::sync::mpsc::{Sender, channel};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::watch;
 use tracing::{info, warn};
 
@@ -153,7 +153,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         tokio::net::TcpListener::from_std(std_listener)?
     };
 
-    let (new_sessions_send, mut new_sessions_recv) = channel(128);
+    let (new_sessions_send, new_sessions_recv) = channel(128);
     let (status_send, status_recv) = tokio::sync::watch::channel(Bytes::new());
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
@@ -226,6 +226,16 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         }
         tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
+    app.add_systems(PostStartup, start_accept_loop);
+    add_connection_spawner(app, new_sessions_recv);
+    app.add_plugins(event::EventLoopPlugin);
+    let mut dispatcher = app.world_mut().resource_mut::<PacketDispatcher>();
+    dispatcher.set_nbt_budget(plugin.nbt_budget);
+
+    Ok(())
+}
+
+fn add_connection_spawner(app: &mut App, mut new_sessions_recv: Receiver<Box<RawConnection>>) {
     let spawn_new_raw_connections = move |world: &mut World| {
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
@@ -238,17 +248,25 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         }
     };
 
-    app.add_systems(PostStartup, start_accept_loop);
     app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::exclusive_system,
+            reason = "spawns the accepted connections at once, so the systems later in `FixedPreUpdate` see them in the same tick"
+        )
+    )]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::ungated_system,
+            reason = "drains the channel of accepted connections, which no ECS state can gate"
+        )
+    )]
     app.add_systems(
         FixedPreUpdate,
         spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
     );
-    app.add_plugins(event::EventLoopPlugin);
-    let mut dispatcher = app.world_mut().resource_mut::<PacketDispatcher>();
-    dispatcher.set_nbt_budget(plugin.nbt_budget);
-
-    Ok(())
 }
 
 fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
@@ -271,6 +289,21 @@ fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool 
     publisher.is_changed() || clock.built_at.elapsed() >= STATUS_PERIOD
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the run condition admits the system only when the status changes or its period elapses"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        mcrs::missed_set_if_neq,
+        reason = "the status period counts wall-clock time for the server list, and each refresh stores a new instant"
+    )
+)]
 fn refresh_status(
     publisher: Res<StatusPublisher>,
     mut clock: ResMut<StatusClock>,

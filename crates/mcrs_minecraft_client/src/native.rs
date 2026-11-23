@@ -472,6 +472,13 @@ fn log_spawned_transforms(
     );
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the log line is built only on the frame that the registries change"
+    )
+)]
 fn log_seeded_resources(
     clocks: Res<WorldClocks>,
     registries: Res<CurrentRegistries>,

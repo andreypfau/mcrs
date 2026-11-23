@@ -14,9 +14,16 @@ use crate::client_tables::ClientTables;
 use crate::motion_tick::MotionTick;
 use crate::ticked::ticked;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::marker_toggle,
+        reason = "the motion engine defines `MotionHold` as the marker that keeps an entity out of its step query"
+    )
+)]
 pub(crate) fn hold_entities_that_do_not_step(
     mut commands: Commands,
-    entities: Query<(Entity, &ClientEntity, Ref<Age>, Has<MotionHold>), With<MotionState>>,
+    entities: Populated<(Entity, &ClientEntity, Ref<Age>, Has<MotionHold>), With<MotionState>>,
 ) {
     for (entity, client, age, held) in &entities {
         let first_orb_tick = client.kind == EntityType::ExperienceOrb && age.0 == 1;
@@ -33,6 +40,13 @@ pub(crate) fn hold_entities_that_do_not_step(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the system clears the stirred tiles of the previous tick, also when no block changed"
+    )
+)]
 pub(crate) fn stir_changed_blocks(
     mut changes: MessageReader<ColumnChange>,
     mut stirred: ResMut<StirredTiles>,

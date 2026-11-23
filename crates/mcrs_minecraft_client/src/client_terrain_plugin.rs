@@ -1,4 +1,5 @@
 use bevy::camera::visibility::VisibilitySystems;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::render::{ExtractSchedule, RenderApp};
 use mcrs_minecraft_client_gui::debug_entry_system_specs;
@@ -37,9 +38,11 @@ impl Plugin for ClientTerrainPlugin {
         .add_systems(
             Update,
             (
-                cave::toggle,
-                toggle_culls,
-                step_debug_view,
+                cave::toggle.run_if(input_just_pressed(KeyCode::KeyC)),
+                toggle_culls.run_if(
+                    input_just_pressed(KeyCode::KeyO).or_else(input_just_pressed(KeyCode::F8)),
+                ),
+                step_debug_view.run_if(input_just_pressed(KeyCode::F10)),
                 terrain_debug_entry::display
                     .after(debug_entry_system_specs::display)
                     .in_set(DebugScreenSet::Collect)
@@ -57,7 +60,11 @@ impl Plugin for ClientTerrainPlugin {
             app.insert_resource(mcrs_minecraft_render::PinnedTick(tick));
         }
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.add_systems(ExtractSchedule, cave::extract_cave_visibility);
+            render_app.add_systems(
+                ExtractSchedule,
+                cave::extract_cave_visibility
+                    .run_if(resource_exists::<mcrs_minecraft_render::Terrain>),
+            );
         }
     }
 }
@@ -69,10 +76,19 @@ fn step_debug_view(
 ) {
     if keys.just_pressed(KeyCode::F10) {
         let back = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-        selected.0 = views.step(selected.0, back);
+        selected.set_if_neq(mcrs_minecraft_render::SelectedView(
+            views.step(selected.0, back),
+        ));
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "a negation always yields a different value, so each write is a real change"
+    )
+)]
 fn toggle_culls(
     keys: Res<ButtonInput<KeyCode>>,
     mut occlusion: ResMut<mcrs_minecraft_render::Occlusion>,
@@ -122,7 +138,10 @@ mod tests {
         app.init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<SelectedView>()
             .insert_resource(views)
-            .add_systems(Update, step_debug_view);
+            .add_systems(
+                Update,
+                step_debug_view.run_if(input_just_pressed(KeyCode::F10)),
+            );
         let selected = |app: &App| app.world().resource::<SelectedView>().0;
 
         press(&mut app, KeyCode::F10);

@@ -168,6 +168,20 @@ fn srgb_texture(
     clippy::too_many_lines,
     reason = "a render prepare step creates each target in dependency order"
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "checks on each frame that the textures, the pipelines and the bind group match the window view and the terrain atlases"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when it creates the GUI textures, the pipelines for a new target format or a bind group for new atlases"
+    )
+)]
 pub(super) fn prepare_gui_pass(
     mut commands: Commands,
     pass: Option<ResMut<GuiPass>>,
@@ -335,6 +349,13 @@ pub(super) fn prepare_gui_pass(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its glyphs on each frame"
+    )
+)]
 pub(super) fn upload_glyphs(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
@@ -396,6 +417,13 @@ fn window_view<'a>(
         .find_map(|(view, camera)| on_window(camera).then_some(view))
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its vertices on each frame"
+    )
+)]
 pub(super) fn write_gui_buffers(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,

@@ -13,6 +13,13 @@ const BEHIND_BYTES: usize = 512 * 1024;
 
 const CLEAR_BYTES: usize = 64 * 1024;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "polls the unsent bytes of every connection, which change on the network threads without an ECS signal"
+    )
+)]
 pub fn forward_backlog(
     connections: Query<(Entity, &ServerSideConnection, &HostAnchorRef)>,
     sessions: Query<&Session>,

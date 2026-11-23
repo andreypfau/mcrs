@@ -7,9 +7,16 @@ use mcrs_minecraft_inventory_client::CreativeScreen;
 
 use crate::creative_screen_shown::shows_creative_screen;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::marker_toggle,
+        reason = "the creative inventory systems filter on the CreativeScreen marker, which changes only when the creative screen opens or closes"
+    )
+)]
 pub(crate) fn mark_creative_screen(
     screen: Option<Res<Screen>>,
-    players: Query<(Entity, &Menus, Option<&Abilities>, Has<CreativeScreen>), With<Player>>,
+    players: Populated<(Entity, &Menus, Option<&Abilities>, Has<CreativeScreen>), With<Player>>,
     mut commands: Commands,
 ) {
     let screen = screen.as_deref().copied().unwrap_or_default();

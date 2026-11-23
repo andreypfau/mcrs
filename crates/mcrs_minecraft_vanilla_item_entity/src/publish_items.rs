@@ -5,6 +5,8 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::Added;
 use bevy_ecs::query::Changed;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Local;
+use bevy_ecs::system::Populated;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -52,6 +54,13 @@ impl Takes {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "clears the takes of the last tick and corrects the count of the item entities spawned in this tick"
+    )
+)]
 pub(crate) fn publish_takes(
     mut picked: MessageReader<PickedUp>,
     collectors: Query<&ItemCollector>,
@@ -93,8 +102,9 @@ pub(crate) fn publish_takes(
 }
 
 pub(crate) fn publish_stacks(
-    items: Query<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
+    items: Populated<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
     mut stacks: Stacks,
+    mut bytes: Local<Vec<u8>>,
     table: Res<ItemTable>,
     takes: Res<Takes>,
     mut events: ResMut<TileEvents>,
@@ -106,7 +116,7 @@ pub(crate) fn publish_stacks(
         let Some(tile) = published.tile() else {
             continue;
         };
-        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack, &mut bytes) else {
             continue;
         };
         if let Some(take) = takes.of(id.0) {

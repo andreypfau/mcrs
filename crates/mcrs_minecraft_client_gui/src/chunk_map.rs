@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bevy::ecs::system::SystemParam;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
@@ -88,10 +89,26 @@ impl Plugin for ChunkMapPlugin {
                 visible: self.visible,
             })
             .add_systems(Startup, spawn)
-            .add_systems(Update, (toggle, render).chain());
+            .add_systems(
+                Update,
+                (
+                    toggle.run_if(input_just_pressed(KeyCode::F6)),
+                    render.run_if(
+                        resource_changed::<ChunkMap>.or_else(|map: Res<ChunkMap>| map.visible),
+                    ),
+                )
+                    .chain(),
+            );
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "a toggle always writes a different value, so every write is a change"
+    )
+)]
 fn toggle(keys: Res<ButtonInput<KeyCode>>, mut map: ResMut<ChunkMap>) {
     if keys.just_pressed(KeyCode::F6) {
         map.visible = !map.visible;
@@ -183,6 +200,13 @@ fn spawn(mut commands: Commands) {
         });
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "formats the header text only while the F6 chunk map debug view is visible"
+    )
+)]
 fn render(
     map: Res<ChunkMap>,
     mut root: Query<&mut Visibility, With<ChunkMapRoot>>,

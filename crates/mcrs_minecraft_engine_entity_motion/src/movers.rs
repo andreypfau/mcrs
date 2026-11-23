@@ -18,6 +18,13 @@ impl Movers {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "clears the movers of the previous tick, which must not survive a tick without movers"
+    )
+)]
 pub(crate) fn collect_movers(mut movers: ResMut<Movers>) {
     let Movers { queues, sorted } = &mut *movers;
     sorted.clear();

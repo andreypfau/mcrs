@@ -834,14 +834,20 @@ pub(crate) fn fit_volume(
     render_queue: Res<RenderQueue>,
     cache: Res<PipelineCache>,
 ) {
-    if volume.is_some_and(|volume| volume.settings == *settings) {
-        return;
+    if !volume.is_some_and(|volume| volume.settings == *settings) {
+        let volume = Volume::new(*settings, &device, &render_queue, &cache);
+        queue.restart(volume.radius);
+        commands.insert_resource(volume);
     }
-    let volume = Volume::new(*settings, &device, &render_queue, &cache);
-    queue.restart(volume.radius);
-    commands.insert_resource(volume);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only on a frame that touches the volume pages or resets the volume; a steady frame collects an empty list"
+    )
+)]
 pub(crate) fn apply_volume_commands(
     volume: Option<ResMut<Volume>>,
     queue: Res<VolumeQueue>,
@@ -900,11 +906,10 @@ pub(crate) fn write_volume_terms(
         min_section_y: volume.book.pages.map_or(0, |pages| pages.min_section_y),
         _pad: 0,
     };
-    if volume.terms_written == Some(terms) {
-        return;
+    if volume.terms_written != Some(terms) {
+        queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
+        volume.terms_written = Some(terms);
     }
-    queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
-    volume.terms_written = Some(terms);
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ pub(crate) fn handle_player_input(
     let Some(packet) = event.packet() else {
         return;
     };
-    set_shift(&mut players, event.entity, packet.input.shift());
+    set_shift(players.reborrow(), event.entity, packet.input.shift());
 }
 
 pub(crate) fn handle_interact(
@@ -24,10 +24,14 @@ pub(crate) fn handle_interact(
     let Some(packet) = event.packet() else {
         return;
     };
-    set_shift(&mut players, event.entity, packet.using_secondary_action);
+    set_shift(
+        players.reborrow(),
+        event.entity,
+        packet.using_secondary_action,
+    );
 }
 
-fn set_shift(players: &mut Query<&mut ShiftKey, With<Owner>>, entity: Entity, shift: bool) {
+fn set_shift(mut players: Query<'_, '_, &mut ShiftKey, With<Owner>>, entity: Entity, shift: bool) {
     if let Ok(mut state) = players.get_mut(entity) {
         state.set_if_neq(ShiftKey(shift));
     }

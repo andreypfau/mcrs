@@ -120,7 +120,7 @@ impl LocalMotion {
 }
 
 pub(crate) fn write_motion_inputs(
-    mut players: Query<
+    mut players: Populated<
         (&mut LocalMotion, &AttributeInstances, &Sprint, &Abilities),
         (
             With<Player>,

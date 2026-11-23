@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
-use bevy::ecs::change_detection::DetectChangesMut;
+use bevy::ecs::change_detection::{DetectChangesMut, Mut};
 use bevy::ecs::message::{Message, MessageWriter};
 use bevy::ecs::prelude::{
     Commands, Entity, IntoScheduleConfigs, Local, On, Res, ResMut, Resource, Single,
@@ -1140,7 +1140,7 @@ enum Settling {
 }
 
 impl LightStep<'_> {
-    fn settle(&mut self, store: &mut ResMut<ColumnStore>, when: Settling) {
+    fn settle(&mut self, mut store: Mut<'_, ColumnStore>, when: Settling) {
         if store.has_light_checks() {
             let store = store.as_mut();
             let checks = store.take_light_checks();
@@ -1169,6 +1169,20 @@ impl LightStep<'_> {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the system settles queued light checks and drains the block changes of the store, also when no arrival is queued"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the chunk batch rate that the client reports to the server is measured in wall-clock time"
+    )
+)]
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
@@ -1190,14 +1204,14 @@ fn settle_columns(
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
             Arrival::Enter(dimension) => {
-                light.settle(&mut store, Settling::NamedByServer);
+                light.settle(store.reborrow(), Settling::NamedByServer);
                 if store.dimension.as_ref() != Some(&dimension) {
                     predictions.clear();
                 }
                 store.enter(dimension);
             }
             Arrival::Forget(pos) => {
-                light.settle(&mut store, Settling::NamedByServer);
+                light.settle(store.reborrow(), Settling::NamedByServer);
                 store.remove(pos);
             }
             Arrival::Light(pos, update) => light.server.push(ServerLight { pos, update }),
@@ -1238,7 +1252,7 @@ fn settle_columns(
                     break;
                 }
                 Some(Ok(Some((pos, column)))) => {
-                    light.settle(&mut store, Settling::NamedByServer);
+                    light.settle(store.reborrow(), Settling::NamedByServer);
                     store.insert(pos, column);
                 }
                 Some(Ok(None)) => {}
@@ -1256,7 +1270,7 @@ fn settle_columns(
             },
         }
     }
-    light.settle(&mut store, Settling::FrameEnd);
+    light.settle(store.reborrow(), Settling::FrameEnd);
     store.bypass_change_detection().drain_changes(&mut drained);
     changes.write_batch(drained.drain(..));
 }
@@ -1696,6 +1710,13 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::ungated_system,
+            reason = "the test system records the column changes of every frame"
+        )
+    )]
     fn read_into<const READER: usize>(
         mut changes: bevy::ecs::message::MessageReader<ColumnChange>,
         mut seen: ResMut<Seen<READER>>,

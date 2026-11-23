@@ -18,6 +18,13 @@ impl BedFacings {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "the system runs only when the registries change, and the new facings replace the old ones"
+    )
+)]
 pub(crate) fn build_bed_facings(
     mut commands: Commands,
     blocks: Res<Blocks>,

@@ -101,6 +101,20 @@ fn depart(
     })
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "places an arriving player with all its carried components, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the drained messages are collected to release the borrow of the world, and the run condition skips the ticks without a message"
+    )
+)]
 pub(crate) fn receive_transfers(world: &mut World) {
     let Some(mut messages) = world.get_resource_mut::<Messages<PlayerTransfer>>() else {
         return;

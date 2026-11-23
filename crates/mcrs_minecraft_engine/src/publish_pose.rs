@@ -1,7 +1,8 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::{Changed, Or};
-use bevy_ecs::system::{Query, ResMut};
+use bevy_ecs::system::{Populated, ResMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -29,8 +30,15 @@ type PoseInputsChanged = Or<(
     Changed<Vitals>,
 )>;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the changed entries allocate only for a player whose pose entries change, and they move into the outbound packet"
+    )
+)]
 pub(crate) fn publish_pose(
-    mut players: Query<
+    mut players: Populated<
         (
             &Owner,
             &Pose,
@@ -58,7 +66,7 @@ pub(crate) fn publish_pose(
                 EntityEvent::Data(PlayerData::Entries(entries).into()),
             );
         }
-        own.0 = entries;
+        own.set_if_neq(OwnPoseEntries(entries));
         let packet = ClientboundSetEntityData {
             entity_id: VarInt(player_network_id(session)),
             metadata: Metadata(changed),

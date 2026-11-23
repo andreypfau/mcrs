@@ -132,14 +132,11 @@ impl Sprites {
 const FIRST_STAGING_BYTES: u64 = 1 << 20;
 
 pub(super) fn write_animation_frames(
-    terrain: Option<ResMut<Terrain>>,
+    If(mut terrain): If<ResMut<Terrain>>,
     time: Res<Time>,
     pinned: Option<Res<PinnedTick>>,
     queue: Res<RenderQueue>,
 ) {
-    let Some(mut terrain) = terrain else {
-        return;
-    };
     let sprites = &mut terrain.sprites;
     let ticks = match pinned {
         Some(pinned) => pinned.0 as f64,

@@ -44,6 +44,13 @@ pub enum FallingBlockSet {
 }
 
 impl Plugin for FallingBlockPlugin {
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::alloc_in_tick,
+            reason = "the rules rebuild only when the registries change"
+        )
+    )]
     fn build(&self, app: &mut App) {
         let settings = self.settings;
         let concrete_pairs = self.concrete_pairs.clone();
@@ -54,7 +61,7 @@ impl Plugin for FallingBlockPlugin {
             build_rules(
                 settings,
                 &concrete_pairs,
-                &mut commands,
+                commands.reborrow(),
                 &blocks,
                 &items,
                 &registries,

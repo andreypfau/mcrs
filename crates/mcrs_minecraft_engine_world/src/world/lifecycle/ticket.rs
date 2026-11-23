@@ -65,7 +65,7 @@ impl Plugin for TicketPlugin {
 }
 
 fn release_sections(
-    mut dims: Query<(&mut ColumnLoading, &SectionIndex)>,
+    mut dims: Populated<(&mut ColumnLoading, &SectionIndex)>,
     mut stages: SectionStages,
 ) {
     for (mut loading, section_index) in &mut dims {
@@ -93,6 +93,13 @@ fn release_sections(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "drains the queue of condemned sections, which carries over between ticks past the despawn cap"
+    )
+)]
 fn despawn_chunks(
     mut commands: Commands,
     mut changes: MessageReader<SectionStageChanged>,
@@ -148,8 +155,15 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the column trace log stamps wall-clock times only when the trace log exists, which a debug run enables"
+    )
+)]
 pub fn spawn_chunks(
-    mut dims: Query<(
+    mut dims: Populated<(
         Entity,
         &mut ColumnLoading,
         &mut SectionIndex,
@@ -197,7 +211,7 @@ pub fn spawn_chunks(
                 trace::mark(traces.as_deref(), pos.into(), ColumnStage::Spawned);
                 let mut section = commands.spawn(SectionBundle::new(InDimension(dim), pos));
                 if let Some(simulation) = simulation {
-                    simulation.mark_spawned(&mut section, pos);
+                    simulation.mark_spawned(section.reborrow(), pos);
                 }
                 let section = section.id();
                 section_index.insert(pos, section);

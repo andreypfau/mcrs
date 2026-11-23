@@ -15,6 +15,13 @@ use mock_connection::{
 };
 
 #[test]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn cross_player_isolation() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -62,6 +69,13 @@ fn cross_player_isolation() {
 }
 
 #[test]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn stale_despawn_does_not_kill_fresh_player() {
     let mut world = World::new();
     world.init_resource::<Messages<InboundPlayerDespawn>>();

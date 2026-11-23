@@ -7,6 +7,7 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
     Bundle, Commands, Component, Entity, IntoScheduleConfigs, MessageReader, Query, SystemSet,
 };
+use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_voxel::SectionPos;
 use rustc_hash::FxHashMap;
 
@@ -130,6 +131,13 @@ impl ColumnBundle {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnLifecycleSet;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "an empty `FxHashMap` does not allocate, and the sections are built only when a column spawns"
+    )
+)]
 pub fn reconcile_columns(
     mut changes: MessageReader<SectionStageChanged>,
     stages: Query<&SectionStage>,
@@ -238,7 +246,7 @@ impl Plugin for ColumnPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                reconcile_columns,
+                reconcile_columns.run_if(on_message::<SectionStageChanged>),
                 crate::world::storage::block_entity::reconcile_block_entities,
             )
                 .chain()
@@ -260,7 +268,10 @@ mod tests {
     fn app_with_dimension() -> (App, Entity) {
         let mut app = App::new();
         app.add_message::<SectionStageChanged>();
-        app.add_systems(FixedUpdate, reconcile_columns);
+        app.add_systems(
+            FixedUpdate,
+            reconcile_columns.run_if(on_message::<SectionStageChanged>),
+        );
         let dim = app
             .world_mut()
             .spawn((ColumnIndex::default(), DimensionTypeConfig::new(0, 256)))

@@ -14,6 +14,7 @@ use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
@@ -85,7 +86,9 @@ impl Plugin for BlockBreakPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                break_blocks.after(process_movement),
+                break_blocks
+                    .after(process_movement)
+                    .run_if(on_message::<BlockActionRequest>),
                 advance_digs.run_if(any_digger),
             )
                 .chain()
@@ -94,9 +97,20 @@ impl Plugin for BlockBreakPlugin {
         );
         app.add_systems(
             FixedPostUpdate,
-            send_acks.after(VoxelUpdateSet::NetworkSync),
+            send_acks
+                .after(VoxelUpdateSet::NetworkSync)
+                .run_if(any_sequenced_request),
         );
     }
+}
+
+fn any_sequenced_request(
+    mut requests: MessageReader<BlockActionRequest>,
+    mut uses: MessageReader<UseItemOnRequest>,
+) -> bool {
+    let requested = requests.read().count() > 0;
+    let used = uses.read().count() > 0;
+    requested || used
 }
 
 fn send_acks(

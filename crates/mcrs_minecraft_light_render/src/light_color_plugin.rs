@@ -38,6 +38,13 @@ fn read_corpus(asset_server: &AssetServer, directory: &str) -> Option<Vec<(Strin
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "runs only when the registries change, and replaces the table that it builds from them"
+    )
+)]
 fn rebuild_light_colors(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -70,6 +77,13 @@ fn rebuild_light_colors(
     commands.insert_resource(colors);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "runs only when the registries change, and replaces the table that it builds from them"
+    )
+)]
 fn rebuild_item_lights(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

@@ -374,7 +374,8 @@ mod tests {
                 Change::Requested(columns) => {
                     app.world_mut()
                         .resource_mut::<ClientOptions>()
-                        .view_distance = Some(columns);
+                        .map_unchanged(|options| &mut options.view_distance)
+                        .set_if_neq(Some(columns));
                 }
                 Change::ServerRadius(radius) => {
                     app.world_mut()

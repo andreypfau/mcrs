@@ -63,6 +63,20 @@ fn prepare_dir(dir: Res<ScreenshotDir>) {
 
 const TRIGGER_POLL_SECONDS: f32 = 0.25;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "polls the trigger file on an interval and reads the F2 key, so it checks every frame"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the file name of a screenshot carries the wall-clock time"
+    )
+)]
 fn capture(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
@@ -111,6 +125,28 @@ struct Settling {
     requested: bool,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "watches the scene settle on each frame until the capture, and only when the capture knob is set"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::blocking_in_system,
+        reason = "allocates and writes the timing table only on the timeout and on the one frame that captures the scene"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "the insert runs once, in the observer of the captured screenshot, not in the system body"
+    )
+)]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

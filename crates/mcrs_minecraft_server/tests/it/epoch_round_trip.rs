@@ -12,6 +12,13 @@ use mock_connection::{
 };
 
 #[test]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn epoch_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();

@@ -14,6 +14,13 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_engine_world::world::channels::{MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY};
 use mcrs_minecraft_network::ServerSideConnection;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn build_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<InboundPlayerPacket>>();

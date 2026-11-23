@@ -595,6 +595,13 @@ pub(crate) fn gui_point(at: DVec2) -> GuiPoint {
     GuiPoint::new(at.x.floor() as i32, at.y.floor() as i32)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the frame clears the quads, icons and tooltip of the scene, so the scene changes on every frame anyway"
+    )
+)]
 fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
@@ -624,6 +631,20 @@ pub(crate) struct ScreenStacks {
     labels: MenuLabelText,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "begin_gui_frame clears the scene on each frame, so the hotbar and the open menu draw on each frame"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "caches the menu stacks and labels, so it allocates only when the open menu, its title or the language changes"
+    )
+)]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(
@@ -688,6 +709,13 @@ pub(crate) fn draw_screens(
     );
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::borrowed_reborrowable,
+        reason = "mcrs_minecraft_client passes the Commands of its own system by reference, so an owned parameter needs a change in that crate"
+    )
+)]
 pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
     let language =
@@ -701,6 +729,13 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
     clippy::too_many_lines,
     reason = "a Bevy system: each access is its own parameter"
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "begin_gui_frame clears the scene on each frame, so the batch rebuilds from it on each frame"
+    )
+)]
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
@@ -710,6 +745,7 @@ fn build_gui_batch(
     mut cache: ResMut<GlyphCache>,
     mut batch: ResMut<GuiBatch>,
     mut clips: Local<Vec<IRect>>,
+    mut expanded: Local<Vec<GuiQuad>>,
 ) {
     let batch = &mut *batch;
     cache.begin_frame();
@@ -726,7 +762,7 @@ fn build_gui_batch(
     };
     let atlas = &*atlas.0;
     let blank = atlas.uv(atlas.region(BLANK));
-    let mut expanded = Vec::with_capacity(scene.quads.len() * 2);
+    expanded.clear();
     for quad in &scene.quads {
         match *quad {
             GuiQuad::Icon { origin, index } => {
@@ -749,7 +785,7 @@ fn build_gui_batch(
         }
     }
     let mut flat_start = None;
-    for quad in expanded {
+    for quad in expanded.drain(..) {
         let vertices = &mut batch.vertices;
         match quad {
             GuiQuad::Icon { origin, index } => {
@@ -978,13 +1014,14 @@ impl Plugin for GuiPlugin {
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(creative_screen_shown),
                     crate::chat::draw,
-                    crate::game_mode_switcher::draw,
+                    crate::game_mode_switcher::draw
+                        .run_if(crate::game_mode_switcher::switcher_shown),
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
                     crate::message_screen::draw.run_if(|screen: Res<Screen>| {
                         matches!(*screen, Screen::Message(_) | Screen::CreateWorld(_))
                     }),
                     crate::title_draw::draw.run_if(resource_equals(Screen::Title)),
-                    draw_tooltip,
+                    draw_tooltip.run_if(|scene: Res<GuiScene>| scene.tooltip.lines().is_some()),
                     crate::title_draw::fade_title.run_if(resource_equals(Screen::Title)),
                     build_gui_batch,
                 )

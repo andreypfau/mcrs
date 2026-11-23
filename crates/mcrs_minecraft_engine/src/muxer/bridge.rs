@@ -18,6 +18,20 @@ pub struct PendingConnections {
     visiting: Vec<Entity>,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "runs the outbound flush schedule, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the flush schedule must run at the end of every fixed tick, because its own systems decide what to write"
+    )
+)]
 pub fn run_outbound_flush(world: &mut World) {
     world.run_schedule(OutboundFlush);
 }
@@ -75,6 +89,29 @@ pub struct OutboundScratch {
     buffer: PacketBuffer,
 }
 
+pub(crate) fn outbound_packets_pending(messages: Res<Messages<OutboundPlayerPacket>>) -> bool {
+    !messages.is_empty()
+}
+
+pub(crate) fn inbound_packets_pending(messages: Res<Messages<InboundPlayerPacket>>) -> bool {
+    !messages.is_empty()
+}
+
+pub(crate) fn attachments_pending(messages: Res<Messages<OutboundPlayerAttached>>) -> bool {
+    !messages.is_empty()
+}
+
+pub(crate) fn inbound_held(sessions: Query<&PendingInbound>) -> bool {
+    sessions.iter().any(|pending| !pending.0.is_empty())
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
+    )
+)]
 pub fn bridge_outbound(
     mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
@@ -105,14 +142,20 @@ pub fn bridge_outbound(
         };
         for &connection in rest {
             push_to_connection(
-                &mut queues,
+                queues.reborrow(),
                 &mut telemetry,
                 &mut pending,
                 connection,
                 packet.clone(),
             );
         }
-        push_to_connection(&mut queues, &mut telemetry, &mut pending, last, packet);
+        push_to_connection(
+            queues.reborrow(),
+            &mut telemetry,
+            &mut pending,
+            last,
+            packet,
+        );
     }
 }
 
@@ -200,7 +243,7 @@ impl WritePacket for PacketBuffer {
 }
 
 fn push_to_connection(
-    queues: &mut Query<&mut OutboundQueue>,
+    mut queues: Query<'_, '_, &mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
     pending: &mut PendingConnections,
     connection: Entity,
@@ -244,6 +287,27 @@ const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "flushes the unsent bytes and checks the stalled writers and the client timeouts of every connection on each flush"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the move guard measures the client timeout in real time, which the game clock does not follow"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
+    )
+)]
 pub fn dispatch_encode(
     mut players: Writers,
     mut commands: Commands,
@@ -256,10 +320,10 @@ pub fn dispatch_encode(
     every.extend(players.iter().map(|(entity, ..)| entity));
     pending.connections.clear();
     dispatch_listed(
-        &mut players,
+        players.reborrow(),
         &mut every,
         &mut pending.connections,
-        &mut commands,
+        commands.reborrow(),
         &mut telemetry,
         &mut frames,
         &mut wakes,
@@ -284,10 +348,10 @@ pub fn dispatch_pending(
     visiting.sort_unstable();
     visiting.dedup();
     dispatch_listed(
-        &mut players,
+        players.reborrow(),
         visiting,
         connections,
-        &mut commands,
+        commands.reborrow(),
         &mut telemetry,
         &mut frames,
         &mut wakes,
@@ -296,18 +360,11 @@ pub fn dispatch_pending(
     visiting.clear();
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::too_many_arguments,
-        reason = "the two flushes share every resource of the write"
-    )
-)]
 fn dispatch_listed(
-    players: &mut Writers,
+    mut players: Writers<'_, '_>,
     listed: &mut Vec<Entity>,
     left_behind: &mut Vec<Entity>,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
     wakes: &mut WriterWakes,
@@ -317,7 +374,7 @@ fn dispatch_listed(
         let Ok((entity, queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
         };
-        let writable = ready_to_write(entity, &mut conn, commands, telemetry, wakes);
+        let writable = ready_to_write(entity, &mut conn, commands.reborrow(), telemetry, wakes);
         if writable {
             count_recipients(&queue, frames);
         }
@@ -373,7 +430,7 @@ fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
 fn ready_to_write(
     entity: Entity,
     conn: &mut ServerSideConnection,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     telemetry: &mut BridgeTelemetry,
     wakes: &mut WriterWakes,
 ) -> bool {
@@ -700,6 +757,20 @@ pub fn forward_pending_inbound(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "receives the packets of every connection, which arrive from the network without an ECS signal"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the refusal cause only when a client is disconnected for an invalid move"
+    )
+)]
 pub fn bridge_inbound(
     mut conns: Query<(
         Entity,
@@ -715,8 +786,8 @@ pub fn bridge_inbound(
     mut dim_inputs: ResMut<DimInputs>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
+    mut reports: Local<Vec<Report>>,
 ) {
-    let mut reports: Vec<Report> = Vec::new();
     let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
     for (entity, mut conn, mut rate, anchor_ref, state, mut probes) in conns.iter_mut() {
         if *state != ConnectionState::Game {
@@ -844,7 +915,21 @@ mod tests {
 
     fn world() -> World {
         let mut world = World::new();
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::insert_message_resource,
+                reason = "the test drives a bare World, which has no App to register the message"
+            )
+        )]
         world.init_resource::<Messages<OutboundPlayerAttached>>();
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::insert_message_resource,
+                reason = "the test drives a bare World, which has no App to register the message"
+            )
+        )]
         world.init_resource::<Messages<InboundPlayerPacket>>();
         world.init_resource::<DimInputs>();
         world.init_resource::<SessionAnchors>();

@@ -143,6 +143,13 @@ struct ServerTicks(u64);
 #[derive(Component, Debug, Clone, Copy)]
 struct LoginStarted(u64);
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "counts every server tick, and the login timeout measures its age against this count"
+    )
+)]
 fn advance_server_ticks(mut ticks: ResMut<ServerTicks>) {
     ticks.0 += 1;
 }
@@ -545,7 +552,10 @@ pub fn handle_custom_query_answer(
         }
     };
     let port = con.remote_addr().port();
-    con.raw.remote_addr = SocketAddr::new(player.address, port);
+    let forwarded = SocketAddr::new(player.address, port);
+    if con.raw.remote_addr != forwarded {
+        con.raw.remote_addr = forwarded;
+    }
     admission
         .commands
         .entity(connection)

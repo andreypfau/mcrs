@@ -466,6 +466,13 @@ impl AutosaveCadence {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "counts every fixed tick toward the next autosave"
+    )
+)]
 pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
     cadence.advance();
 }
@@ -882,6 +889,20 @@ pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
     flush_player_saves(world);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "captures every persisted component of each player through the persisted registry, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a save request, and each player file moves into the save queue"
+    )
+)]
 pub fn autosave_players(world: &mut World) {
     let players: Vec<Entity> = world
         .query_filtered::<Entity, With<Player>>()
@@ -900,6 +921,13 @@ pub(crate) fn player_saves_pending(queue: Res<PlayerSaveQueue>) -> bool {
     !queue.is_idle()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "waits for the player files only on a save-all request, which must finish every write before the server stops"
+    )
+)]
 pub fn finish_player_saves(
     mut queue: ResMut<PlayerSaveQueue>,
     request: Option<Res<SaveRequest>>,
@@ -926,6 +954,7 @@ pub fn flush_player_saves(world: &mut World) {
 pub(crate) mod tests {
     use super::*;
     use bevy_ecs::component::Component;
+    use bevy_ecs::schedule::IntoScheduleConfigs;
     use mcrs_minecraft_protocol::setting::ChatMode;
     use serde::{Deserialize, Serialize};
 
@@ -1249,7 +1278,10 @@ pub(crate) mod tests {
             writer: BackgroundWriter::running(task),
             ..Default::default()
         });
-        app.add_systems(bevy_app::Update, finish_player_saves);
+        app.add_systems(
+            bevy_app::Update,
+            finish_player_saves.run_if(player_saves_pending),
+        );
         app
     }
 

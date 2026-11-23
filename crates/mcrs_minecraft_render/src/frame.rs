@@ -83,21 +83,28 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
 pub(super) fn write_frame_view(
     mut commands: Commands,
     origin: Option<Res<CameraOrigin>>,
-    views: Query<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
+    frame_view: Option<ResMut<FrameView>>,
+    views: Populated<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
 ) {
     let (Some(origin), Some((view, _))) = (origin, views.iter().next()) else {
         return;
     };
-    commands.insert_resource(FrameView::new(
+    let next = FrameView::new(
         view.clip_from_view,
         Mat4::from_rotation_translation(view.world_from_view.rotation(), origin.offset).inverse(),
         *origin,
         view.viewport.zw().as_vec2(),
-    ));
+    );
+    match frame_view {
+        Some(mut frame_view) => {
+            frame_view.set_if_neq(next);
+        }
+        None => commands.insert_resource(next),
+    }
 }
 
 pub(super) fn write_camera(
-    terrain: Option<Res<Terrain>>,
+    If(terrain): If<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,
     views: Query<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
     occlusion: Res<Occlusion>,
@@ -107,7 +114,7 @@ pub(super) fn write_camera(
     fog: Res<WorldFog>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(terrain), Some(frame_view)) = (terrain, frame_view) else {
+    let Some(frame_view) = frame_view else {
         return;
     };
     let section = frame_view.camera_section;

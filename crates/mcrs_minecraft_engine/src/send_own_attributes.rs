@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::SystemSet;
-use bevy_ecs::system::{Local, Query, ResMut};
+use bevy_ecs::system::{Local, Populated, Query, ResMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -21,9 +21,16 @@ use crate::tile_events::TileEvents;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OwnAttributesSet;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a player whose attributes change, and the snapshots move into the outbound packet"
+    )
+)]
 pub(crate) fn send_own_attributes(
     mut announced: MessageReader<OpLevelAnnounced>,
-    mut players: Query<
+    mut players: Populated<
         (Entity, &mut AttributeInstances, &Owner, Option<&Replicated>),
         Changed<AttributeInstances>,
     >,

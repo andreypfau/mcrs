@@ -3,14 +3,17 @@ use std::vec;
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Resource;
-use bevy_ecs::prelude::resource_exists;
+use bevy_ecs::prelude::{on_message, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_engine_store::{ChunkVersion, StoreInput, StoreOutput, VersionedChunk};
+use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
     ChunkSpawnSet, ColumnCoolSet, SectionEntitySet,
 };
+use mcrs_minecraft_engine_world::world::light_gate::ColumnLightSettled;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
@@ -18,12 +21,12 @@ use rustc_hash::FxHashMap;
 use crate::advance_production::advance_production;
 use crate::cell_mail::CellMail;
 use crate::cold_columns::{
-    SaveRequest, mark_changed_block_entities, mark_changed_sections, mark_final_light,
-    save_all_loaded_columns, save_dirty_loaded_columns, write_cold_columns,
+    SaveRequest, columns_cooling, mark_changed_block_entities, mark_changed_sections,
+    mark_final_light, save_all_loaded_columns, save_dirty_loaded_columns, write_cold_columns,
 };
 use crate::column_asks::{
     ColumnAnswer, ColumnAsk, ColumnHold, ColumnOrigin, Hold, OtherColumns, OwnerReply,
-    answer_column_asks,
+    answer_column_asks, column_asks_pending,
 };
 use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
@@ -31,7 +34,8 @@ use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_
 use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_columns_landing::{
-    PendingColumnFacts, attach_column_facts, fetch_loading_columns, land_stored_columns,
+    PendingColumnFacts, attach_column_facts, column_facts_pending, fetch_loading_columns,
+    land_stored_columns,
 };
 use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
@@ -178,6 +182,10 @@ impl ColumnStoreLink {
 
     pub(crate) fn receive_ask(&mut self, ask: ColumnAsk) {
         self.asked.push(ask);
+    }
+
+    pub(crate) fn has_asks(&self) -> bool {
+        !self.asked.is_empty()
     }
 
     pub(crate) fn answer_asks(&mut self, mut reply: impl FnMut(ColumnPos) -> Option<OwnerReply>) {
@@ -328,21 +336,24 @@ impl Plugin for ColumnStorePlugin {
                     .in_set(TickSet::DomainInput)
                     .in_set(StoredColumnLandSet),
                 (
-                    mark_changed_sections,
+                    mark_changed_sections.run_if(on_message::<BlockPlaced>),
                     mark_changed_block_entities,
-                    write_cold_columns,
+                    write_cold_columns.run_if(columns_cooling),
                 )
                     .chain()
                     .in_set(ColumnCoolSet),
                 fetch_loading_columns
+                    .run_if(on_message::<SectionStageChanged>)
                     .in_set(ChunkSpawnSet)
                     .after(SectionEntitySet),
                 attach_column_facts
+                    .run_if(column_facts_pending)
                     .in_set(TickSet::Project)
                     .after(ColumnLifecycleSet)
                     .before(ColumnCoolSet)
                     .before(ColumnStreamSet),
                 mark_final_light
+                    .run_if(on_message::<ColumnLightSettled>)
                     .in_set(TickSet::Project)
                     .after(ColumnLifecycleSet)
                     .before(ColumnCoolSet),
@@ -357,7 +368,12 @@ impl Plugin for ColumnStorePlugin {
             ),
         );
         if self.owned.is_some() {
-            app.add_systems(Last, answer_column_asks.after(update_column_heightmaps));
+            app.add_systems(
+                Last,
+                answer_column_asks
+                    .run_if(column_asks_pending)
+                    .after(update_column_heightmaps),
+            );
         }
         app.add_systems(
             Last,

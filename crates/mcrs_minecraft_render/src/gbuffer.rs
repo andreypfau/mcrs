@@ -176,7 +176,7 @@ fn bind_group(
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
+    views: Populated<&ViewDepthStencilTexture, With<Camera3d>>,
     improved: Option<Res<ImprovedTransparency>>,
     pipelines: Res<DeferredPipelines>,
     terrain: Option<Res<Terrain>>,

@@ -60,6 +60,13 @@ impl ItemIcons<'_> {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "runs only when the item models change, and each change rebuilds all icon meshes"
+    )
+)]
 pub(crate) fn build_icon_meshes(models: Res<ItemModels>, mut commands: Commands) {
     commands.insert_resource(IconMeshes::build(&models));
 }

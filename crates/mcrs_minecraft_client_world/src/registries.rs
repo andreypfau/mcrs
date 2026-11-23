@@ -179,7 +179,7 @@ fn install(
     (registries, _): (Registries, Diagnostics),
     (assets, blocks): (&AssetServer, &Blocks),
     (cache, current): (&ItemTableCache, Option<&ItemTable>),
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
 ) {
     let inputs = ItemTableInputs::of(&registries);
     let reused = cache
@@ -245,7 +245,7 @@ fn load_server_registries(
                 loaded,
                 (&assets, &blocks),
                 (&cache, current.as_deref()),
-                &mut commands,
+                commands.reborrow(),
             );
             commands.entity(event.entity).insert(configuration);
             finish_configuration(&mut commands, event.entity);
@@ -284,7 +284,7 @@ fn replace_server_tags(
             loaded,
             (&assets, &blocks),
             (&cache, current.as_deref()),
-            &mut commands,
+            commands.reborrow(),
         ),
         Err(error) => close_connection_later(
             &mut commands,
@@ -326,14 +326,19 @@ fn clear_derived_tables(
     commands.remove_resource::<ItemTable>();
     commands.remove_resource::<ClockTimeMarkers>();
     commands.remove_resource::<ClientPhysicsTables>();
-    if !clocks.is_empty() {
-        *clocks = WorldClocks::default();
-    }
+    clocks.set_if_neq(WorldClocks::default());
     for connection in &dimensions {
         commands.entity(connection).remove::<CurrentDimension>();
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "the system runs only when the registries change, and the new markers replace the old ones"
+    )
+)]
 fn derive_clock_markers(registries: Res<CurrentRegistries>, mut commands: Commands) {
     let Some(timelines) = registries.registry::<Timeline>() else {
         error!("the session registries hold no timelines to read time markers from");
@@ -404,7 +409,7 @@ mod tests {
                         (registries.clone(), Diagnostics::default()),
                         (&assets, &blocks),
                         (&cache, current.as_deref()),
-                        &mut commands,
+                        commands.reborrow(),
                     );
                 },
             )

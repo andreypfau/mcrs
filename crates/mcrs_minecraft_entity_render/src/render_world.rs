@@ -50,13 +50,25 @@ impl EntityRenderState {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the queued uploads move to the render state on each frame, and the full resend and the library clone happen only after an asset reload"
+    )
+)]
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
-    if let Some(clock) = main.get_resource::<EntityClock>() {
+    if let Some(clock) = main.get_resource::<EntityClock>()
+        && state.clock != *clock
+    {
         state.clock = *clock;
     }
-    state.figure = main
+    let figure = main
         .get_resource::<FigureView>()
         .and_then(|figure| figure.0);
+    if state.figure != figure {
+        state.figure = figure;
+    }
     if let Some(assets) = main.get_resource::<EntityAssets>()
         && state.generation != Some(assets.generation)
     {
@@ -116,6 +128,13 @@ fn merge(pending: &mut SlotUpload, next: SlotUpload) {
     pending.inputs.extend(next.inputs);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the GPU objects are built only when the entity library loads, the depth pyramid changes or the figure targets change"
+    )
+)]
 pub(crate) fn prepare_entities(
     mut state: ResMut<EntityRenderState>,
     terrain: Option<Res<Terrain>>,
@@ -130,8 +149,11 @@ pub(crate) fn prepare_entities(
         return;
     };
     if let Some(library) = state.library.take() {
-        state.unfit = !tables_fit(&library, &device.limits());
-        if state.unfit {
+        let unfit = !tables_fit(&library, &device.limits());
+        if state.unfit != unfit {
+            state.unfit = unfit;
+        }
+        if unfit {
             warn!(
                 models = library.models.len(),
                 bones = library.bones.len(),
@@ -139,7 +161,7 @@ pub(crate) fn prepare_entities(
                 "the entity tables exceed the uniform buffers of this device: entities are not drawn"
             );
             state.gpu = None;
-            state.pending = SlotUpload::default();
+            std::mem::take(&mut state.pending);
             state.pending_skins.clear();
             return;
         }
@@ -158,7 +180,9 @@ pub(crate) fn prepare_entities(
             },
             &queue,
         ));
-        state.hiz = Some(pyramid.id());
+        if state.hiz != Some(pyramid.id()) {
+            state.hiz = Some(pyramid.id());
+        }
         info!(
             definitions = library.definitions.len(),
             models = library.models.len(),
@@ -223,7 +247,7 @@ pub(crate) fn draw_entities(
     let clock = state.clock;
     let mut threshold = state.threshold;
     let Some(gpu) = state.gpu.as_mut() else {
-        if !state.unfit {
+        if !state.unfit && state.pending != pending {
             state.pending = pending;
         }
         return;
@@ -282,7 +306,9 @@ pub(crate) fn draw_entities(
     });
     gpu.encode_draw(&mut pass);
     drop(pass);
-    state.threshold = threshold;
+    if state.threshold != threshold {
+        state.threshold = threshold;
+    }
 }
 
 pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {

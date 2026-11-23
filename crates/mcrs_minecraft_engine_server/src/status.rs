@@ -3,9 +3,10 @@ use bevy_ecs::change_detection::{Res, ResMut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Query, Resource, resource_changed};
+use bevy_ecs::prelude::{Resource, resource_changed};
 use bevy_ecs::query::{Changed, With};
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::Populated;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_network::{ServerSideConnection, StatusPlayers, StatusPublisher};
 use mcrs_minecraft_protocol::ConnectionState;
@@ -30,6 +31,13 @@ impl Plugin for StatusPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only when the online players change, and the new list moves into the status publisher"
+    )
+)]
 fn publish_status_players(players: Res<OnlinePlayers>, mut publisher: ResMut<StatusPublisher>) {
     let mut vec = Vec::new();
     for (_, uuid, name) in &players.players {
@@ -52,14 +60,21 @@ fn on_disconnect_handle(
     players.players.retain(|x| x.0 != e);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "clones the player name only when a player enters the game"
+    )
+)]
 fn on_connection_state_change_handle(
-    query: Query<
+    query: Populated<
         (Entity, &ConnectionState, &GameProfile),
         (Changed<ConnectionState>, With<ServerSideConnection>),
     >,
     mut players: ResMut<OnlinePlayers>,
 ) {
-    for (entity, state, profile) in &query {
+    for (entity, state, profile) in query.iter() {
         if *state == ConnectionState::Game && !players.players.iter().any(|x| x.0 == entity) {
             players
                 .players

@@ -36,6 +36,20 @@ impl Plugin for WorldClockHostPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the game time by one on every fixed tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the counter changes on every write, so a comparison never skips one"
+    )
+)]
 fn advance_game_time(mut time: ResMut<GameTime>) {
     time.0 = time.0.saturating_add(1);
 }
@@ -53,6 +67,13 @@ fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) ->
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only when the time advance flag changes, and the clock updates move into the outbound packet"
+    )
+)]
 fn send_every_clock(
     clocks: Res<WorldClocks>,
     advance_time: Res<AdvanceTime>,

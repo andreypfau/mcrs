@@ -38,6 +38,13 @@ struct Built {
     generation: u32,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "the early return skips the insert unless the registries changed since the last build"
+    )
+)]
 fn build_entity_assets(
     mut commands: Commands,
     catalog: Option<Res<BlockCatalog>>,

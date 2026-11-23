@@ -318,6 +318,13 @@ impl CpuTimings {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the probe records the start of every frame to measure the frame time"
+    )
+)]
 pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     cpu.mark(FRAME_START, time.last_update());
     if let Some(at) = time.last_update()
@@ -327,30 +334,86 @@ pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
     cpu.lap(FRAME_START, MAIN_END, MAIN);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn extracted(cpu: Res<CpuTimings>) {
     cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn prepared(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
     cpu.mark(ACQUIRE_START, Some(Instant::now()));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn acquired(cpu: Res<CpuTimings>) {
     cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn rendered(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
 pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
     if let Ok(mut samples) = cpu.0.samples.lock() {
@@ -363,8 +426,7 @@ pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
     }
 }
 
-pub(crate) fn log_system_counts(world: &mut World) {
-    let schedules = world.resource::<Schedules>();
+pub(crate) fn log_system_counts(schedules: Res<Schedules>) {
     let mut counts: Vec<(String, usize)> = schedules
         .iter()
         .map(|(label, schedule)| (format!("{label:?}"), schedule.systems_len()))
@@ -493,7 +555,10 @@ pub(crate) fn begin_frame(
 ) {
     let queries = timings.timed(queries.as_deref());
     resolve(queries, &timings, ctx.command_encoder());
-    timestamps.queries = queries.map(|queries| (queries.set.clone(), timings.writing()));
+    let next = queries.map(|queries| (queries.set.clone(), timings.writing()));
+    if timestamps.queries != next {
+        timestamps.queries = next;
+    }
     if let Some(heat) = heat.as_deref() {
         let writes = queries.map(|queries| queries.compute(HEAT, &timings));
         heat.dispatch(&pipeline_cache, writes, ctx.command_encoder());
@@ -503,10 +568,7 @@ pub(crate) fn begin_frame(
     }
 }
 
-pub(crate) fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
-    let Some(queries) = queries else {
-        return;
-    };
+pub(crate) fn read(queries: Res<Queries>, timings: Res<GpuTimings>) {
     if !timings.0.gate.claim_map() {
         return;
     }

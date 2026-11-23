@@ -109,6 +109,13 @@ fn pending(store: Res<WorldStore>) -> bool {
     !store.pending.is_empty()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a world list request, and the jobs move into the pending queue"
+    )
+)]
 fn queue_jobs(
     mut store: ResMut<WorldStore>,
     mut list: ResMut<WorldList>,
@@ -332,6 +339,13 @@ fn listed_worlds(read: Result<Vec<WorldSummary>, WorldStoreError>) -> WorldList 
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a play request, and the folder id moves into the job queue"
+    )
+)]
 fn play_world(
     mut store: ResMut<WorldStore>,
     list: Res<WorldList>,

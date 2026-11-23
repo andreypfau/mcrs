@@ -32,7 +32,14 @@ impl Plugin for LightGuardPlugin {
             passed: default(),
             running: default(),
         })
-        .add_systems(Update, (enqueue, collect).chain());
+        .add_systems(
+            Update,
+            (
+                enqueue.run_if(resource_exists::<ColumnStore>),
+                collect.run_if(checks_running),
+            )
+                .chain(),
+        );
     }
 }
 
@@ -73,14 +80,7 @@ fn surrounded(store: &ColumnStore, pos: ColumnPos) -> bool {
     (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
 }
 
-fn enqueue(
-    mut guard: ResMut<LightGuard>,
-    store: Option<Res<ColumnStore>>,
-    blocks: Option<Res<Blocks>>,
-) {
-    let Some(store) = store else {
-        return;
-    };
+fn enqueue(mut guard: ResMut<LightGuard>, store: Res<ColumnStore>, blocks: Option<Res<Blocks>>) {
     if guard.air.is_none() {
         let Some(blocks) = blocks else {
             return;
@@ -126,8 +126,11 @@ fn enqueue(
     }
 }
 
-fn collect(mut guard: ResMut<LightGuard>) {
-    let mut finished = Vec::new();
+fn checks_running(guard: Res<LightGuard>) -> bool {
+    !guard.running.is_empty()
+}
+
+fn collect(mut guard: ResMut<LightGuard>, mut finished: Local<Vec<Report>>) {
     let mut running = std::mem::take(&mut guard.running);
     running.retain_mut(|task| match check_ready(task) {
         Some(report) => {
@@ -138,7 +141,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
     });
     guard.running = running;
 
-    for report in finished {
+    for report in finished.drain(..) {
         guard.queued.remove(&report.pos);
         if report.faults.is_empty() {
             guard.passed.insert(report.pos, report.handle);

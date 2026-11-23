@@ -11,6 +11,21 @@ const FRAMES: u32 = 10;
 #[derive(Resource)]
 pub struct AutoTrace(pub Option<String>);
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "counts down the frames of an active capture and the settle frames of the automatic trace each tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::blocking_in_system,
+        reason = "the path and the removal of an old trace happen only when a capture starts"
+    )
+)]
 pub fn gputrace(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,

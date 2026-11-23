@@ -49,6 +49,20 @@ type RosterQuery<'w, 's> = Query<
     With<Player>,
 >;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "rebuilds the roster of the players of this cell each tick, because the positions in it change with every move"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the roster moves into the cell output on each tick, so each row owns a copy of the player name"
+    )
+)]
 pub(crate) fn report_own_players(
     label: Res<DimensionLabel>,
     players: RosterQuery,

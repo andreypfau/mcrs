@@ -56,6 +56,13 @@ pub(crate) fn server_ticks(ticking: Option<Res<ServerTicking>>) -> bool {
     ticking.is_none_or(|ticking| ticking.runs())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the tick counter changes on every run, so a comparison never skips the write"
+    )
+)]
 pub(crate) fn advance_clock(mut clock: ResMut<EntityClock>) {
     clock.tick = clock.tick.wrapping_add(1);
 }
@@ -67,7 +74,10 @@ pub(crate) fn frame_clock(
 ) {
     let overstep = time.overstep_fraction();
     let partial = ticking.map_or(overstep, |ticking| ticking.partial_tick(overstep));
-    clock.partial_tick = partial.clamp(0.0, 1.0);
+    let partial = partial.clamp(0.0, 1.0);
+    if clock.partial_tick != partial {
+        clock.partial_tick = partial;
+    }
 }
 
 pub(crate) fn assign_slots(
@@ -319,6 +329,13 @@ type LayerInputs = (
     Option<&'static SkinSlot>,
 );
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the controllers allocate only for an entity whose data, equipment, model or skin changed, or after an asset reload"
+    )
+)]
 pub(crate) fn write_layers(
     assets: Option<Res<EntityAssets>>,
     items: Option<Res<Items>>,

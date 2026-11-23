@@ -1,7 +1,7 @@
 use crate::muxer::muxer_link::MuxerLink;
 use crate::muxer::session::HostAnchorRef;
 use bevy_ecs::component::Component;
-use bevy_ecs::prelude::{Changed, Query, ResMut};
+use bevy_ecs::prelude::{Changed, Populated, Query, ResMut};
 use mcrs_minecraft_engine_world::session::Session;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -15,7 +15,7 @@ impl Latency {
 }
 
 pub fn forward_latency(
-    connections: Query<(&Latency, &HostAnchorRef), Changed<Latency>>,
+    connections: Populated<(&Latency, &HostAnchorRef), Changed<Latency>>,
     sessions: Query<&Session>,
     muxer: Option<ResMut<MuxerLink>>,
 ) {

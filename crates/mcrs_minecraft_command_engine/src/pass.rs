@@ -60,6 +60,27 @@ pub(crate) fn commands_pending(
     !queue.is_empty() || handoffs.is_some_and(|handoffs| !handoffs.is_empty())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "command handlers run as systems against the whole dimension world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "puts back the pass buffers that the system removes to use them beside the world borrow"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on ticks with pending command lines, and each command line allocates its own parse and output"
+    )
+)]
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
     let Some(mut buffers) = world.remove_resource::<PassBuffers>() else {
         return;
@@ -223,7 +244,9 @@ impl Run<'_> {
         let Some(mut running) = self.world.get_resource_mut::<RunningCommand>() else {
             return line;
         };
-        running.line = line;
+        if running.line != line {
+            running.line = line;
+        }
         self.stages.clear();
         self.stages.extend_from_slice(running.chain.stages());
         self.deferred.clear();

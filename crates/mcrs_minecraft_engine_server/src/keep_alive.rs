@@ -1,5 +1,6 @@
 use crate::configuration::AwaitingConfigurationAck;
 use bevy_app::{App, Plugin};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
@@ -7,6 +8,7 @@ use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
 use bevy_ecs::query::Has;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::Populated;
 use bevy_time::{Real, Time};
 use mcrs_minecraft_engine::muxer::latency::Latency;
 use mcrs_minecraft_network::event::Received;
@@ -41,12 +43,19 @@ pub enum KeepAlive {
     Awaiting { challenge: i64, sent: Duration },
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::time_clock_mismatch,
+        reason = "keepalive deadlines measure wall-clock network delay, and the response observers stamp arrivals on the same real clock"
+    )
+)]
 pub fn new_connection(
-    query: Query<(Entity, &ConnectionState), Changed<ConnectionState>>,
+    query: Populated<(Entity, &ConnectionState), Changed<ConnectionState>>,
     time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
-    for (entity, state) in query {
+    for (entity, state) in query.iter() {
         if *state == ConnectionState::Login {
             commands.entity(entity).remove::<KeepAlive>();
             continue;
@@ -57,8 +66,15 @@ pub fn new_connection(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::time_clock_mismatch,
+        reason = "keepalive deadlines measure wall-clock network delay, and the response observers stamp arrivals on the same real clock"
+    )
+)]
 pub fn handle_keepalive(
-    mut query: Query<(
+    mut query: Populated<(
         Entity,
         &mut ServerSideConnection,
         &ConnectionState,
@@ -105,10 +121,10 @@ pub fn handle_keepalive(
                         continue;
                     }
                 }
-                *state = KeepAlive::Awaiting {
+                state.set_if_neq(KeepAlive::Awaiting {
                     challenge,
                     sent: now,
-                };
+                });
             }
             _ => {}
         }
@@ -158,7 +174,7 @@ fn handle_keepalive_response(
     debug!("Keepalive response: {:?}", keep_alive);
     match *state {
         KeepAlive::Awaiting { challenge, sent } if keep_alive.payload == challenge => {
-            *state = KeepAlive::Idle { since: sent };
+            state.set_if_neq(KeepAlive::Idle { since: sent });
             let round_trip =
                 i32::try_from(now.saturating_sub(sent).as_millis()).unwrap_or(i32::MAX);
             let sampled = latency.map_or(Latency(round_trip), |latency| latency.sample(round_trip));

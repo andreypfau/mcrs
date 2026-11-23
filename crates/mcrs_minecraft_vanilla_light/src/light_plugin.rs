@@ -47,7 +47,12 @@ impl Plugin for LightPlugin {
             .add_systems(self.publish, publish_light.in_set(LightSet::Publish))
             .add_systems(
                 Last,
-                (send_budgets, send_edits).chain().in_set(LightSet::Intake),
+                (
+                    send_budgets.run_if(resource_changed::<LightBudget>),
+                    send_edits.run_if(has_unsent_edits),
+                )
+                    .chain()
+                    .in_set(LightSet::Intake),
             );
     }
 }
@@ -76,7 +81,7 @@ pub fn publish_light(
     sections.extend(latest.drain().map(|(_, light)| light));
     sections.sort_unstable_by_key(|light| light.entity);
     for published in sections.drain(..) {
-        write_light(published, &mut commands, &mut lit, &mut relit);
+        write_light(published, commands.reborrow(), lit.reborrow(), &mut relit);
     }
     columns.sort_unstable();
     columns.dedup();
@@ -103,8 +108,8 @@ fn fold_light(latest: &mut FxHashMap<u64, PublishedLight>, light: PublishedLight
 
 fn write_light(
     published: PublishedLight,
-    commands: &mut Commands,
-    lit: &mut Query<(&mut BlockLight, &mut SkyLight)>,
+    mut commands: Commands<'_, '_>,
+    mut lit: Query<'_, '_, (&mut BlockLight, &mut SkyLight)>,
     relit: &mut MessageWriter<SectionRelit>,
 ) {
     let section = Entity::from_bits(published.entity);
@@ -115,10 +120,14 @@ fn write_light(
                 block: published.block_light.is_some(),
                 sky: published.sky_light.is_some(),
             });
-            if let Some(light) = published.block_light {
+            if let Some(light) = published.block_light
+                && block.0 != light
+            {
                 block.0 = light;
             }
-            if let Some(light) = published.sky_light {
+            if let Some(light) = published.sky_light
+                && sky.0 != light
+            {
                 sky.0 = light;
             }
         }
@@ -139,9 +148,11 @@ fn write_light(
 }
 
 fn send_budgets(budget: Res<LightBudget>, mut light: ResMut<LightLink>) {
-    if budget.is_changed() {
-        light.send(LightInput::LightBudget(*budget));
-    }
+    light.send(LightInput::LightBudget(*budget));
+}
+
+fn has_unsent_edits(light: Res<LightLink>) -> bool {
+    light.has_unsent()
 }
 
 fn send_edits(mut light: ResMut<LightLink>) {

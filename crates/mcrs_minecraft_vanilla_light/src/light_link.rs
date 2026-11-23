@@ -61,6 +61,10 @@ impl LightLink {
         self.awaits.extend(columns);
     }
 
+    pub(crate) fn has_unsent(&self) -> bool {
+        !self.edits.is_empty() || !self.awaits.is_empty()
+    }
+
     pub(crate) fn send_edits(&mut self) {
         if !self.edits.is_empty() {
             let edits = std::mem::take(&mut self.edits);

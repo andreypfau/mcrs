@@ -4,6 +4,7 @@ use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::any_with_component;
+use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::MotionPass;
 use mcrs_minecraft_engine_entity_motion_replication::MotionPublish;
@@ -29,6 +30,7 @@ use crate::release_motion::release_motion;
 use crate::spawn_motions::spawn_motions;
 use crate::step_items::Stepped;
 use crate::step_items::age_items;
+use crate::step_items::any_stepped;
 use crate::step_items::project_positions;
 use crate::step_items::step_items;
 
@@ -56,7 +58,7 @@ impl Plugin for ItemEntityPlugin {
                 FixedUpdate,
                 (
                     step_items,
-                    merge_items,
+                    merge_items.run_if(any_stepped),
                     age_items,
                     collect_items.run_if(any_with_component::<ItemCollector>),
                 )
@@ -66,7 +68,11 @@ impl Plugin for ItemEntityPlugin {
             .add_message::<ItemDropped>()
             .add_systems(
                 FixedUpdate,
-                (launch_block_drops, spawn_requested, spawn_motions)
+                (
+                    launch_block_drops.run_if(on_message::<ItemDropped>),
+                    spawn_requested.run_if(on_message::<ItemSpawnRequest>),
+                    spawn_motions,
+                )
                     .chain()
                     .in_set(TickSet::Simulate)
                     .before(MotionPass),
@@ -77,7 +83,7 @@ impl Plugin for ItemEntityPlugin {
             )
             .add_systems(
                 FixedUpdate,
-                (publish_stacks, project_positions)
+                (publish_stacks, project_positions.run_if(any_stepped))
                     .chain()
                     .in_set(TickSet::Project)
                     .after(MotionPublish),

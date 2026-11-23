@@ -4,6 +4,7 @@ use crate::metrics::{PacketDispatcher, PlayTable};
 use crate::packet_io::PacketIo;
 use crate::{ConnectionState, RawConnection};
 use bevy_app::{App, Plugin, Update};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
@@ -12,6 +13,7 @@ use bevy_ecs::prelude::{Commands, On, Query, Res, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::system::Populated;
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
@@ -118,6 +120,13 @@ pub struct RegistriesReceived {
     pub configuration: Configuration,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::borrowed_reborrowable,
+        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
+    )
+)]
 pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
     commands.queue(move |world: &mut World| {
         let Ok(mut entity) = world.get_entity_mut(connection) else {
@@ -127,7 +136,7 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
             client.write_packet(&ServerboundFinishConfiguration);
         }
         if let Some(mut state) = entity.get_mut::<ConnectionState>() {
-            *state = ConnectionState::Game;
+            state.set_if_neq(ConnectionState::Game);
         }
     });
 }
@@ -190,6 +199,13 @@ struct PendingJoin {
     view_distance: u8,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::borrowed_reborrowable,
+        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
+    )
+)]
 pub fn close_connection_later(commands: &mut Commands, connection: Entity, reason: ConnectionEnd) {
     commands.queue(move |world: &mut World| {
         if world.despawn(connection) {
@@ -260,6 +276,13 @@ fn cancel_joins(pending: Query<Entity, With<PendingJoin>>, mut commands: Command
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the system runs only on a join request, which the player sends by hand"
+    )
+)]
 fn start_joins(
     mut requests: MessageReader<JoinRequest>,
     holds_vanilla: Option<Res<HoldsVanillaPack>>,
@@ -326,8 +349,15 @@ fn start_joins(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only when a join completes or fails"
+    )
+)]
 fn collect_joins(
-    mut pending: Query<(Entity, &mut PendingJoin)>,
+    mut pending: Populated<(Entity, &mut PendingJoin)>,
     play: Option<Res<ClientPlayTable>>,
     deferred: Option<Res<DeferredRows>>,
     mut commands: Commands,
@@ -401,8 +431,15 @@ async fn connect_and_join(server: ServerAddress, join: Join) -> anyhow::Result<J
 
 const MAX_BUNDLE_PACKETS: usize = 4096;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only on a bundle start, on a malformed packet or when the connection ends"
+    )
+)]
 fn receive_packets(
-    mut connections: Query<(Entity, &mut ClientConnection, &ConnectionState)>,
+    mut connections: Populated<(Entity, &mut ClientConnection, &ConnectionState)>,
     mut commands: Commands,
 ) {
     for (entity, mut connection, &state) in connections.iter_mut() {
@@ -454,7 +491,7 @@ fn receive_packets(
             if state == ConnectionState::Game && packet.id == ClientboundBundleDelimiter::ID {
                 match connection.bundle.take() {
                     None => connection.bundle = Some(Vec::new()),
-                    Some(bundle) => raise_bundle(&mut commands, entity, bundle),
+                    Some(bundle) => raise_bundle(commands.reborrow(), entity, bundle),
                 }
                 continue;
             }
@@ -491,15 +528,33 @@ fn receive_packets(
     }
 }
 
-fn raise_bundle(commands: &mut Commands, entity: Entity, bundle: Vec<(Option<Trigger>, Bytes)>) {
+fn raise_bundle(
+    mut commands: Commands<'_, '_>,
+    entity: Entity,
+    bundle: Vec<(Option<Trigger>, Bytes)>,
+) {
     for (trigger, data) in bundle {
         if let Some(trigger) = trigger {
-            trigger.raise(commands, entity, data);
+            trigger.raise(&mut commands, entity, data);
         }
     }
 }
 
-fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: Commands) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the reason string exists only when the connection to the server fails"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the hand-off stamp measures wall-clock time for the stalled-writer check, which must not depend on the game clock"
+    )
+)]
+fn flush(mut connections: Populated<(Entity, &mut ClientConnection)>, mut commands: Commands) {
     for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.raw.flush() {
             warn!("failed to send to the server: {e}");
@@ -580,8 +635,8 @@ fn on_start_configuration(
         return;
     };
     connection.write_packet(&ServerboundConfigurationAcknowledged);
-    *state = ConnectionState::Configuration;
-    *collected = Configuration::default();
+    state.set_if_neq(ConnectionState::Configuration);
+    collected.set_if_neq(Configuration::default());
 }
 
 fn on_keep_alive(

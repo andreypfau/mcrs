@@ -250,7 +250,10 @@ fn ctrl_wheel_gui_scale(
     }
     let y = std::mem::take(&mut scroll.delta.y);
     if let Some(scale) = wheel_gui_scale(options.gui_scale, max_gui_scale(&window), y) {
-        options.gui_scale = scale;
+        options
+            .reborrow()
+            .map_unchanged(|options| &mut options.gui_scale)
+            .set_if_neq(scale);
         if let Some(mut menu) = menu {
             menu.widgets.set_scroll_offset(option_sub_screen::LIST, 0.0);
         }
@@ -752,11 +755,14 @@ mod tests {
             );
 
             resize_window(&mut app, 1920, 1080);
-            app.world_mut().resource_mut::<GuiScene>().size = GuiSize {
-                width: GUI.width,
-                height: 150,
-                scale: 1,
-            };
+            app.world_mut()
+                .resource_mut::<GuiScene>()
+                .map_unchanged(|scene| &mut scene.size)
+                .set_if_neq(GuiSize {
+                    width: GUI.width,
+                    height: 150,
+                    scale: 1,
+                });
             let list_offset = |app: &App| {
                 let menu = app.world().resource::<Menu>();
                 menu.widgets
@@ -779,11 +785,14 @@ mod tests {
             let mut app = game_app();
             open_sub_screen(&mut app, &[VIDEO_BUTTON]);
             click(&mut app, 100, 85);
-            app.world_mut().resource_mut::<GuiScene>().size = GuiSize {
-                width: 854,
-                height: 480,
-                scale: 1,
-            };
+            app.world_mut()
+                .resource_mut::<GuiScene>()
+                .map_unchanged(|scene| &mut scene.size)
+                .set_if_neq(GuiSize {
+                    width: 854,
+                    height: 480,
+                    scale: 1,
+                });
             app.update();
             let menu = app.world().resource::<Menu>();
             let gui_scale = menu.widgets.get(video_settings_screen::GUI_SCALE).unwrap();
@@ -860,7 +869,10 @@ mod tests {
         fn the_fullscreen_button_shows_a_change_from_the_key_and_inverts_the_stored_value() {
             let mut app = game_app();
             open_sub_screen(&mut app, &[VIDEO_BUTTON]);
-            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            app.world_mut()
+                .resource_mut::<ClientOptions>()
+                .map_unchanged(|resource| &mut resource.fullscreen)
+                .set_if_neq(true);
             app.update();
             let shown = caption(&app, video_settings_screen::FULLSCREEN);
             click(&mut app, 260, 85);

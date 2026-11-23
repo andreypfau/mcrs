@@ -30,6 +30,13 @@ impl Plugin for HeightmapPredicatesPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "runs only when the registries change, and it replaces the predicates with the ones of the new registries"
+    )
+)]
 fn rebuild_heightmap_predicates(
     mut commands: Commands,
     blocks: Res<Blocks>,

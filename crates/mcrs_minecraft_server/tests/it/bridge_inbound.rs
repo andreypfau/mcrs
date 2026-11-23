@@ -43,6 +43,13 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn build_inbound_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();

@@ -9,6 +9,7 @@ use bevy_ecs::prelude::{
     Commands, Component, ContainsEntity, DetectChanges, Entity, IntoScheduleConfigs, On, Query,
     Ref, Without,
 };
+use bevy_ecs::system::Populated;
 use mcrs_voxel::SectionPos;
 
 pub mod physics;
@@ -58,7 +59,7 @@ impl SectionEntities {
 pub fn add_entity_to_chunk(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
-    entities: Query<
+    entities: Populated<
         (Entity, &InDimension, &Transform),
         (Without<Dimension>, Without<Section>, Without<OldTransform>),
     >,
@@ -81,7 +82,7 @@ pub fn add_entity_to_chunk(
 }
 
 fn add_old_transform(
-    entities: Query<
+    entities: Populated<
         (Entity, &Transform),
         (Without<Dimension>, Without<Section>, Without<OldTransform>),
     >,
@@ -95,7 +96,7 @@ fn add_old_transform(
 fn update_chunk_entities(
     dim_chunks: Query<&SectionIndex>,
     mut chunks: Query<&mut SectionEntities>,
-    entities: Query<
+    entities: Populated<
         (
             Entity,
             &InDimension,
@@ -164,10 +165,12 @@ fn forget_removed_entity(
     }
 }
 
-fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform)>) {
+fn update_old_transforms(mut entities: Populated<(&mut OldTransform, &Transform)>) {
     entities
         .iter_mut()
         .for_each(|(mut old_transform, transform)| {
-            old_transform.0 = *transform;
+            if old_transform.0 != *transform {
+                old_transform.0 = *transform;
+            }
         });
 }

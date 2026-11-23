@@ -1,10 +1,18 @@
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Local, Query};
+use bevy_ecs::prelude::{Changed, Local, Query, RemovedComponents};
 use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundTabList;
 use mcrs_minecraft_text::{RawText, Text};
 use smallvec::SmallVec;
+
+pub(crate) fn placements_changed(
+    placed: Query<(), Changed<SessionPlacement>>,
+    mut removed: RemovedComponents<SessionPlacement>,
+) -> bool {
+    let removed = removed.read().count() > 0;
+    removed || !placed.is_empty()
+}
 
 pub fn send_online_count(
     placements: Query<&SessionPlacement>,

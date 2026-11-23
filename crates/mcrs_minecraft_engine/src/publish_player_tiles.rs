@@ -1,7 +1,9 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
+use bevy_ecs::prelude::{
+    Commands, DetectChanges, Entity, Has, Populated, Query, Ref, ResMut, With, Without,
+};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
 use mcrs_minecraft_damage::Vitals;
@@ -49,10 +51,17 @@ fn pose(transform: &Transform) -> Pose {
     feature = "telemetry-tracy",
     tracing::instrument(name = "aoi::publish_player_tiles", skip_all)
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when a player first enters replication or joins, and the spawn data moves into the tile events"
+    )
+)]
 pub fn publish_player_tiles(
     mut events: ResMut<TileEvents>,
     dimensions: Query<(), With<DimensionTypeConfig>>,
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Owner,

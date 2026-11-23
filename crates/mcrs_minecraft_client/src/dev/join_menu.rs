@@ -172,7 +172,7 @@ fn open_join_menu(
     };
     for sample in CONTAINER_STACKS {
         if sample.slot < size {
-            put_sample(&mut commands, &items, sample, container);
+            put_sample(commands.reborrow(), &items, sample, container);
         }
     }
     commands
@@ -186,7 +186,7 @@ fn open_join_menu(
         );
 }
 
-fn put_sample(commands: &mut Commands, items: &ItemTable, sample: &Sample, holder: Entity) {
+fn put_sample(mut commands: Commands<'_, '_>, items: &ItemTable, sample: &Sample, holder: Entity) {
     let Ok(location) = ResourceLocation::read(sample.item) else {
         return;
     };

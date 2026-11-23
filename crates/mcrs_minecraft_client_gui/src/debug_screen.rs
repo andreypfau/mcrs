@@ -1,4 +1,5 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::input::common_conditions::input_just_released;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::{ExtractSchedule, RenderApp};
@@ -26,6 +27,13 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
     needed.is_some_and(|needed| needed.wanted())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "keeps the UI on for one more frame after the last debug view hides, so it must see each frame"
+    )
+)]
 fn update_ui_needed(
     overlay: Res<DebugOverlay>,
     map: Option<Res<ChunkMap>>,
@@ -129,7 +137,11 @@ impl Plugin for DebugScreenPlugin {
             .add_systems(
                 Update,
                 (
-                    (debug_screen_overlay::toggle_overlay, schedule_refresh)
+                    (
+                        debug_screen_overlay::toggle_overlay
+                            .run_if(input_just_released(KeyCode::F3)),
+                        schedule_refresh,
+                    )
                         .chain()
                         .before(DebugScreenSet::Clear),
                     clear_displayer.in_set(DebugScreenSet::Clear),
@@ -182,6 +194,13 @@ pub fn collecting(overlay: Option<Res<DebugOverlay>>, refresh: Option<Res<Refres
     overlay.is_some_and(|overlay| **overlay) || refresh.is_some_and(|refresh| refresh.logging)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the refresh and the stats log timers on each frame"
+    )
+)]
 fn schedule_refresh(
     mut refresh: ResMut<Refresh>,
     overlay: Res<DebugOverlay>,
@@ -205,6 +224,13 @@ fn schedule_refresh(
     refresh.active = shown || refresh.logging || overlay.is_changed();
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only when the stats log interval is due"
+    )
+)]
 fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
     let (left, right) = displayer.columns();
     let line = left

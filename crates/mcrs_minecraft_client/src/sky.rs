@@ -242,6 +242,14 @@ fn clear_world_fog(mut fog: ResMut<WorldFog>) {
     fog.set_if_neq(WorldFog::default());
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::per_frame_insert_resource,
+        reason = "the Changed filter of the Single runs the system only on the frame that the dimension changes"
+    )
+)]
 fn build_sky_environment(
     current: Single<&CurrentDimension, Changed<CurrentDimension>>,
     registries: Res<CurrentRegistries>,
@@ -325,7 +333,7 @@ fn evaluate_sky(
     render_distance: Res<RenderDistance>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
-    mut clear: ResMut<ClearColor>,
+    clear: ResMut<ClearColor>,
     mut world_fog: ResMut<WorldFog>,
     mut ticks: Local<Vec<i64>>,
 ) {
@@ -355,9 +363,14 @@ fn evaluate_sky(
         &mut frame,
     );
     let fog = environment.fog(&frame, render_distance.0, camera.forward().x);
-    frame.fog = fog;
+    frame
+        .reborrow()
+        .map_unchanged(|frame| &mut frame.fog)
+        .set_if_neq(fog);
     let [red, green, blue] = fog.color;
-    clear.0 = Color::srgb(red, green, blue);
+    clear
+        .map_unchanged(|clear| &mut clear.0)
+        .set_if_neq(Color::srgb(red, green, blue));
     world_fog.set_if_neq(WorldFog {
         color: fog.color,
         environmental: fog.environmental,
@@ -365,6 +378,20 @@ fn evaluate_sky(
     });
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the render world must drop the extracted sky on the frame that the main world loses its environment"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::per_frame_insert_resource,
+        reason = "the sky uniform follows the world clocks, so it changes on each frame"
+    )
+)]
 fn extract_sky(
     mut commands: Commands,
     sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,

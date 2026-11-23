@@ -71,7 +71,7 @@ impl Plugin for DevPlugin {
         }
         if let Some(seconds) = knobs.census_interval() {
             app.insert_resource(census::Census::every(seconds))
-                .add_systems(Update, census::census);
+                .add_systems(Update, census::census.run_if(census::due));
         }
         #[cfg(feature = "telemetry-tracy")]
         if knobs.tracy_preview() {

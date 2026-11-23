@@ -78,15 +78,13 @@ impl Staging {
     }
 }
 
-pub(super) fn recall_staging(staging: Option<Res<Staging>>) {
-    if let Some(staging) = staging {
-        staging
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .belt
-            .recall();
-    }
+pub(super) fn recall_staging(If(staging): If<Res<Staging>>) {
+    staging
+        .0
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .belt
+        .recall();
 }
 
 pub(super) struct Pending {

@@ -122,7 +122,7 @@ pub(crate) fn apply_landings(
             LandingOutcome::Item(Remains::Item) => {
                 let carried = falling_block.carried;
                 drop_item(
-                    &mut commands,
+                    commands.reborrow(),
                     &rules,
                     &definitions,
                     carried,

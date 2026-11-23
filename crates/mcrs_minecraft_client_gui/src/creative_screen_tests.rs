@@ -622,7 +622,8 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
 
     app.world_mut()
         .resource_mut::<ClientOptions>()
-        .operator_items_tab = true;
+        .map_unchanged(|options| &mut options.operator_items_tab)
+        .set_if_neq(true);
     app.update();
     let content = app.world().resource::<CreativeTabContent>();
     assert!(
@@ -660,13 +661,17 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
         .insert(PermissionLevel::GAMEMASTERS);
     app.update();
     select(&mut app, OP_BLOCKS);
-    *app.world_mut().resource_mut::<Screen>() = Screen::None;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::None);
     app.update();
     for level in [PermissionLevel(0), PermissionLevel::GAMEMASTERS] {
         app.world_mut().entity_mut(player).insert(level);
         app.update();
     }
-    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Menu);
     app.update();
     assert_eq!(
         app.world().resource::<CreativeScreenState>().selected(),

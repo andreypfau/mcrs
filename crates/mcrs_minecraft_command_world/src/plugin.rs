@@ -43,6 +43,13 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "a finished sprint leaves its report inside TickPace, which changes every tick, so no run condition can see a pending report"
+    )
+)]
 fn report_sprint(pace: Option<ResMut<TickPace>>, mut packets: MessageWriter<OutboundPlayerPacket>) {
     let Some(mut pace) = pace else {
         return;

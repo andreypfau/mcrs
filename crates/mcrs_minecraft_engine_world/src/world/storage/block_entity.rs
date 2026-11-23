@@ -1,5 +1,6 @@
 use bevy_derive::Deref;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
+use bevy_ecs::system::Populated;
 use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
@@ -20,6 +21,13 @@ pub struct BlockEntityPos(pub BlockPos);
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct BlockEntity(pub GeneratedBlockEntity);
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::borrowed_reborrowable,
+        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
+    )
+)]
 pub fn spawn_block_entities(
     commands: &mut Commands,
     dim: InDimension,
@@ -36,7 +44,7 @@ pub fn spawn_block_entities(
 }
 
 pub fn reconcile_block_entities(
-    unlinked: Query<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
+    unlinked: Populated<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
     dimensions: Query<&SectionIndex>,
     mut commands: Commands,
 ) {

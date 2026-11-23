@@ -23,6 +23,13 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_voxel::ColumnPos;
 use std::borrow::Cow;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::insert_message_resource,
+        reason = "the test drives a bare `World`, which has no `App::add_message`"
+    )
+)]
 fn build_dispatch_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();

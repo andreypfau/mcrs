@@ -37,6 +37,13 @@ pub(crate) struct SyncScratch {
     bytes: Vec<u8>,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the slot list of a full content send moves into the outbound packet"
+    )
+)]
 pub(crate) fn sync_menus(
     mut queue: ResMut<MenuQueue>,
     mut menus: Query<(Entity, &MenuOf, &MenuLayout, &MenuParts, &mut MenuSync)>,

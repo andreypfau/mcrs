@@ -119,6 +119,11 @@ fn serve() -> AppExit {
             language: english(),
         },
     ));
+    forward_shutdown_signal(&mut app);
+    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
+}
+
+fn forward_shutdown_signal(app: &mut App) {
     let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -126,6 +131,13 @@ fn serve() -> AppExit {
         shutdown_signal().await;
         std::process::exit(1);
     });
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::ungated_system,
+            reason = "polls the channel of the OS shutdown signal on each tick, because no ECS state announces the signal"
+        )
+    )]
     app.add_systems(
         Update,
         move |mut requests: MessageWriter<ShutdownRequest>| {
@@ -134,7 +146,6 @@ fn serve() -> AppExit {
             }
         },
     );
-    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
 }
 
 fn log_instead_of_panic(error: BevyError, context: ErrorContext) {

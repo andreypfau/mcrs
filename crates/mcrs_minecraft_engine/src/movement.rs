@@ -1,8 +1,8 @@
 use crate::bus::to;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
-    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, Res,
-    With,
+    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Populated,
+    Query, Res, With, on_message,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
@@ -40,7 +40,12 @@ impl Plugin for MovementPlugin {
         if let Err(error) = app.try_register_required_components::<Player, ClientOnGround>() {
             tracing::error!("a player does not require its on-ground flag: {error}");
         }
-        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
+        app.add_systems(
+            FixedUpdate,
+            process_movement
+                .run_if(on_message::<PlayerMovement>)
+                .in_set(TickSet::ClientInput),
+        );
         app.add_systems(
             FixedPostUpdate,
             teleport.before(VoxelUpdateSet::NetworkSync),
@@ -195,7 +200,10 @@ fn position(owner: &Owner, teleport_id: i32, teleport: &Teleport) -> OutboundPla
 }
 
 fn teleport(
-    mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
+    mut clients: Populated<
+        (&Owner, &mut TeleportState, &Transform),
+        (Changed<Transform>, With<Owner>),
+    >,
     time: Res<GameTime>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -256,6 +264,13 @@ mod tests {
     #[test]
     fn server_move_sends_one_position_with_the_next_teleport_id() {
         let mut world = World::new();
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::insert_message_resource,
+                reason = "the test drives a bare World, which has no App to register the message"
+            )
+        )]
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<GameTime>();
         let moved_session = PlayerSession(1);
@@ -311,7 +326,21 @@ mod tests {
 
     fn movement_world() -> World {
         let mut world = World::new();
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::insert_message_resource,
+                reason = "the test drives a bare World, which has no App to register the message"
+            )
+        )]
         world.init_resource::<Messages<PlayerMovement>>();
+        #[cfg_attr(
+            mcrs_lint,
+            expect(
+                mcrs::insert_message_resource,
+                reason = "the test drives a bare World, which has no App to register the message"
+            )
+        )]
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<GameTime>();
         world
