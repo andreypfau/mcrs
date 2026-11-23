@@ -1581,7 +1581,7 @@ authority, a living entity that is not a player does these steps in one tick:
 3. Decrease the jump delay. Set small velocity components to zero (PHY-GRV-008).
 4. Multiply the input by `0.98F` (PHY-INP-003). Run the AI, which can set the input, the jump input
    and the speed. When the travel gate of the entity type is closed (PHY-ORD-009), the entity
-   does not do the travel step.
+   does not do the travel step. PHY-ORD-016 states the tick of a mob with `NoAI` true.
 5. Jump (PHY-INP-004).
 6. If the effect `slow_falling` or `levitation` is active, set the fall distance to 0.
 7. Do the travel step of its category (PHY-ORD-004 or the table of PHY-ORD-005).
@@ -1609,6 +1609,59 @@ living entity on land and in air:
 
 Thus a free fall from rest gives `v.y = (v.y - g) × 0.98F` in each tick, and the gravity of a tick
 moves the entity in the next tick.
+
+**PHY-ORD-016** A mob with the save field `NoAI` true has a closed travel gate (PHY-ORD-009). On
+the server, it does these steps of PHY-ORD-002 in each tick:
+
+- steps 1 and 2: it keeps the old position, and it does the base entity tick;
+- step 3: the jump delay decreases, and the small velocity components change to zero
+  (PHY-GRV-008);
+- step 6: an effect `slow_falling` or `levitation` sets the fall distance to 0;
+- step 8: it applies the block effects, as in step 14 of PHY-ORD-001. The path of the blocks
+  inside the box goes from the old position to the position;
+- step 9: it pushes other entities (PHY-PSH-001).
+
+It does not do these steps:
+
+- step 4: the AI does not run. No rule sets the input or the jump input, so step 5 gives no jump;
+- step 7: the travel step. Thus there is no input acceleration, no move procedure, no gravity and
+  no drag.
+
+The mob does not fall, and it does not move by its velocity. The move procedure does not run, so
+the five result flags keep their values (PHY-ORD-017). An external impulse still changes the
+velocity, for example a knockback (`entity-damage.md`, DMG-KB-001) or the push of another entity
+(PHY-PSH-004). The mob keeps that velocity from tick to tick. Only step 3 changes it. The save
+field `Motion` and the `set_entity_motion` packets show that velocity.
+
+When the field `NoAI` changes to false, the next travel step of the mob starts from the kept
+velocity. The ride of a mob that a player controls is out of scope (section 12).
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E9 of `player-attack.md`. The push and the last paragraph come from the reference alone.
+
+**PHY-ORD-017** The on-ground flag of a new entity is the value of the save field `OnGround`. When
+the data has no such field, the flag is false. This applies to each way of birth, for example a
+summon, a spawn egg, a natural spawn and a load. After the birth, only the move procedure changes
+the flag (PHY-FLG-002). The rule of an entity type can also set it. Such rules are out of scope.
+
+On the server, the move of a server-simulated entity changes the flag also when `d.y` is 0,
+because the server has local authority. Thus a mob with AI that a summon puts at rest on a full
+block, with the velocity zero and no input, has these values:
+
+| Moment | On-ground flag | `v.y` |
+|--------|----------------|-------|
+| after the summon | the field `OnGround`, else false | 0 |
+| after its first tick | false, because the move has `d.y = 0` and thus `r.y = d.y` | `-0.0784000015258789` |
+| after its second tick | true, because the move of `d.y < 0` collides below | `-0.0784000015258789` |
+
+The value `-0.0784000015258789` is `-0.08 × 0.98F` in f64 (PHY-ORD-004). A mob with AI in the
+air gets the flag true in the tick of the move that collides below. A mob with `NoAI` true keeps
+the flag of its birth, because it does no move procedure (PHY-ORD-016). A move of another mover
+kind, for example the push of a piston, can change it. That move is out of scope.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
+ATK-E9 of `player-attack.md`. The rule of an entity type and the move of a piston come from the
+reference alone.
 
 ### 9.3 Entity categories
 
@@ -1705,7 +1758,7 @@ rule.
 | `powder_snow_needs_inside` | the stuck multiplier of `powder_snow` applies only when the block at the floor of the position is powder snow (PHY-GRV-014) | true | false |
 | `powder_snow_solid` | `powder_snow` gives the full cube when the fall distance is not more than 2.5 (PHY-SHP-003) | false | false |
 | `block_bounce_factor` | the factor `k` on the bounce restitution of a block (PHY-RST-003) | `1.0F` | `0.8F` |
-| `travel_gate` | a condition that stops the travel step (PHY-ORD-002) | for a mob, the `NoAI` flag; else none | not used |
+| `travel_gate` | a condition that stops the travel step (PHY-ORD-002) | for a mob, the `NoAI` flag (PHY-ORD-016); else none | not used |
 | `pushable` | other entities can push the entity (PHY-ORD-012) | the condition of PHY-ORD-012 | false |
 | `push_targets` | the entities that the entity pushes in its own tick (PHY-PSH-001) | each candidate | none |
 

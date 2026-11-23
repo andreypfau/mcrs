@@ -263,9 +263,9 @@ part instead (DMG-PLR-002). Thus a full hit in tick `T` lets the next full hit o
 `T + 10` at the earliest. The save keeps the hurt time. It does not keep the damage cooldown or the
 last amount, so a loaded entity has a damage cooldown of 0.
 
-**DMG-KB-001** (`source_suggested`, semantic, confidence: medium). The default knockback applies
-in DMG-HIT-005 step 2. Let `x` and `z` be the horizontal components of the direction, and let
-`power` be 0.4.
+**DMG-KB-001** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The default
+knockback applies in DMG-HIT-005 step 2. Let `x` and `z` be the horizontal components of the
+direction, and let `power` be `0.4F`, widened to f64. This value is `0.4000000059604645`.
 
 1. If the direct entity is a projectile, the direction is the horizontal velocity of the projectile
    with both components negated. The entity moves along the velocity of the projectile.
@@ -282,12 +282,25 @@ The procedure continues in this way:
    `u1` and `u2` in [0, 1) for each of them.
 3. Let `n` be the vector `(x, z)` with length 1, and `v` the velocity of the entity. Set the new
    velocity to `(v.x / 2 - n.x * power, vy, v.z / 2 - n.z * power)`. The new `vy` is
-   `min(0.4, v.y / 2 + power)` when the entity is on the ground. Else it is `v.y`.
+   `min(0.4, v.y / 2 + power)` when the on-ground flag of the entity is true. Else it is `v.y`,
+   with no change. The limit 0.4 is the f64 value 0.4, not `0.4F`.
 4. Mark the velocity of the entity for the next update (DMG-NET-004).
+
+Step 3 reads the on-ground flag that the entity has at the hit. `entity-physics.md`, PHY-ORD-017,
+states its value after a summon. These examples have `power = 0.4000000059604645` and the
+direction `(0, -1)`:
+
+| Velocity before the hit | On-ground flag | Velocity after the hit |
+|-------------------------|----------------|------------------------|
+| `(0, 0, 0)` | true | `(0, 0.4, 0.4000000059604645)` |
+| `(0, -0.0784000015258789, 0)` | true | `(0, 0.36080000519752503, 0.4000000059604645)` |
+| `(0, 0, 0)` | false | `(0, 0, 0.4000000059604645)` |
 
 The extra knockback of a melee attack and of enchantments has its own rules. The knockback of an
 explosion is in `explosions.md`, EXP-KNB-001. The damage types of explosions have the tag
-`no_knockback`. No experiment has run for this rule.
+`no_knockback`. The experiments ATK-E1, ATK-E3 and ATK-E9 of `player-attack.md` confirm step 3 for
+both values of the on-ground flag. No experiment confirms the direction of a projectile or the
+random direction of step 2.
 
 ## 4. Reductions
 

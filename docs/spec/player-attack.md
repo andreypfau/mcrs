@@ -321,8 +321,13 @@ ATK-E2, ATK-E4, ATK-E7; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 `player_attack` does not have the tag `no_knockback`. Its direction is away from the position of
 the attacker. A partial hit applies no default knockback.
 
+The vertical part follows DMG-KB-001 step 3. A target with the on-ground flag true gets
+`min(0.4, v.y / 2 + power)`. A target with the flag false keeps its `v.y`. `entity-physics.md`,
+PHY-ORD-017, states the flag of a new mob.
+
 Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
-ATK-E1, ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
+ATK-E1, ATK-E2, ATK-E9; `tools/mcrs_minecraft_probe/traces/player_attack.json`,
+`tools/mcrs_minecraft_probe/traces/no_ai_ground.json`.
 
 **ATK-KB-002** The extra knockback has the f32 strength `k = f32(w) / 2`, with `w` the value of the
 attribute `attack_knockback` of the attacker. A sprint attack adds `0.5F` to `k`. Enchantments
@@ -373,10 +378,28 @@ A partial hit gives the target player no velocity change (ATK-DEV-002).
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 **ATK-KB-005** When the target is not a player, the knockback changes the velocity that the server
-simulates. The tracking players receive the new velocity in `set_entity_motion` (DMG-NET-004). The
-number of `set_entity_motion` packets for one hit in one tick is unspecified; it is at least one.
+simulates. The update of the tick of the hit (ATK-ORD-002) sends the new velocity in
+`set_entity_motion` (play 103) to the tracking players (DMG-NET-004). The packet carries the
+velocity directly after the default knockback and the extra knockback. No motion step of the
+target occurs between the hit and that update. This applies to a mob with AI and to a mob with
+`NoAI` true in the same way.
 
-Provenance: `source_suggested`. Kind: unspecified. Confidence: medium.
+These examples are for an empty hand at full strength, with no modifier. The target is straight
+ahead of the attacker, at the yaw 0:
+
+| Target before the hit | Velocity in the packet |
+|-----------------------|------------------------|
+| a mob with AI at rest on the ground: on-ground flag true, `v = (0, -0.0784000015258789, 0)` | `(0, 0.36080000519752503, 0.4000000059604645)` |
+| a mob with `NoAI` true and the field `OnGround` true at the summon, `v = 0` | `(0, 0.4, 0.4000000059604645)` |
+| a mob with `NoAI` true and no field `OnGround` at the summon, `v = 0` | `(0, 0, 0.4000000059604645)` |
+
+The values are those before the wire encoding of the packet. The number of `set_entity_motion`
+packets for one hit in one tick is unspecified. It is at least one.
+
+Provenance: `source_suggested_black_box_confirmed` for the values, `design` for the tick of the
+packet (ATK-ORD-002). Kind: semantic; the number of packets is unspecified. Confidence: high.
+Experiment: ATK-E1, ATK-E9. The experiments read the velocity of the server with `data get`, not
+from the packet.
 
 ## 6. The sweep attack
 
@@ -566,17 +589,26 @@ counter in the next server part does not change it.
 Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high. Experiment:
 ATK-E2; `tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
-**ATK-ORD-002** The hit of an attack applies in the tick in which the server handles the packet.
-It applies before the tracker sends the updates of that tick. The sounds and the packets of section 8 go in
-the same tick. The target uses the knockback velocity in its motion step of that tick or of the
-next tick. The exact tick is unspecified.
+**ATK-ORD-002** The server handles the attack packet between two server ticks (PHY-ORD-010, step
+1). The hit applies in the apply step of the next server tick (PHY-CMP-015, DMG-ORD-001). That
+apply step comes after the tick of each entity of the pass, and before the server sends the
+changes of the tick. These results follow:
+
+1. The tick of the target in that server tick runs with the velocity and the health from before
+   the hit.
+2. The update of that server tick sends the result of the hit: the entity data, the sounds and
+   the packets of section 8, and the velocity of ATK-KB-005.
+3. The target uses the knockback velocity first in its tick of the next server tick.
+4. A target that does no travel step never moves by that velocity. A mob with `NoAI` true is such
+   a target (PHY-ORD-016).
+
+These results are the same for a mob with AI and for a mob with `NoAI` true.
 
 When the target is in another cell, the hit can apply one tick later (PHY-CMP-015). This is the
 exception "write across a cell boundary" of PHY-INV-014. The bound is one tick, and the packets
 of the result of the hit go in the tick of the hit.
 
-Provenance: `source_suggested` for the first paragraph, `design` for the second paragraph. Kind:
-unspecified. Confidence: medium.
+Provenance: `design`. Kind: deviation (ATK-DEV-004). Confidence: high.
 
 **ATK-ORD-003** Each hit of an attack is a write of PHY-CMP-015 (`entity-physics.md`) with the
 writer key of the attacker. The sweep hits of ATK-SWP-002 are also such writes. The primary hit
@@ -665,22 +697,49 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
 - **Test:** a differential test does not compare a sweep target that another writer hits in the
   same tick.
 
+### ATK-DEV-004: The knockback velocity goes to the viewers before the step of the target
+
+- **Rule:** ATK-ORD-002, ATK-KB-005.
+- **Reference:** the hit changes the target when the server handles the packet, before the entity
+  pass. A target that ticks in that server tick does its travel step with the knockback. The update
+  after the pass then sends the velocity after that step. Example: a mob with AI at rest on a block
+  with the friction 0.6 gets `(0, 0.2751840104494096, 0.2184000286221508)` in the packet, not the
+  value of ATK-KB-005. A target that does not tick in that server tick gets the value of ATK-KB-005
+  also in the reference. A mob with `NoAI` true and a target in a frozen tick are such targets.
+- **Reason:** each hit on another entity applies in the one apply step after the pass
+  (PHY-CMP-015, DMG-ORD-001). The hits of attack packets and the hits of entity ticks thus share
+  one order (ATK-ORD-003). PHY-DEV-005 records the delay of one tick for each such write.
+- **Visible to the client:** yes. The target starts to move one tick later. The velocity packet
+  carries the value before the step of the target, not the value after it.
+- **Bug reference:** none.
+- **Test:** a differential test compares the velocity packet with the value of ATK-KB-005. For the
+  motion of a target with AI, it accepts a delay of one tick.
+
 ## 13. Experiments
 
-All experiments below ran in `tools/mcrs_minecraft_probe/scenarios/player_attack.json` and produced
-`tools/mcrs_minecraft_probe/traces/player_attack.json`. The world is flat and peaceful, with the
-game rule `natural_health_regeneration` false. The attacker `attackprobealice` stands at
-`(0.5, -60, 0.5)` with the yaw 0, on the ground, in survival mode, with no modifier. The targets
-have the flag `NoAI`. The tick is frozen in ATK-E1 to ATK-E6, so a target keeps its velocity and
-its cooldown.
+The experiments ATK-E1 to ATK-E8 ran in `tools/mcrs_minecraft_probe/scenarios/player_attack.json`
+and produced `tools/mcrs_minecraft_probe/traces/player_attack.json`. ATK-E9 ran in
+`tools/mcrs_minecraft_probe/scenarios/no_ai_ground.json` and produced
+`tools/mcrs_minecraft_probe/traces/no_ai_ground.json`. The world is flat and peaceful, with the
+game rule `natural_health_regeneration` false. The ground is a full block, with its top at
+`y = -60`. The attacker stands at `(0.5, -60, 0.5)` with the yaw 0, on the ground, in survival
+mode, with no modifier. In ATK-E1 to ATK-E8, the attacker is `attackprobealice`, unless a step
+names `attackprobebob`. Each mob target
+of ATK-E1 to ATK-E8 has these save fields at the summon: `NoAI` true, `OnGround` true and `Motion`
+`(0, 0, 0)`. Thus the knockback lifts it (DMG-KB-001 step 3), and it does not move
+(PHY-ORD-016). The tick is frozen in ATK-E1 to ATK-E6 and in ATK-E9, so a target keeps its
+velocity and its cooldown.
 
 - **ATK-E1** (a full hit with an empty hand):
-  1. Summon a `pig` at `(0.5, -60, 2.5)` (`summon_targets`).
+  1. Summon a `pig` at `(0.5, -60, 2.5)`, with `NoAI` true, `OnGround` true and `Motion` zero
+     (`summon_targets`).
   2. Attack the pig at full strength (`a1_attack_pig_full`).
   - Result: the health goes from 10.0 to 9.0. The velocity goes from `(0, 0, 0)` to
     `(0, 0.4, 0.4)`. The exhaustion goes from 0.0 to 0.1. The attacker receives
     `entity.player.attack.strong` at its own position, with the source `player`, the volume 1.0
     and the pitch 1.0.
+  - The vertical 0.4 comes from the field `OnGround` of the summon. The pig does no move
+    procedure, so no tick changes that flag (PHY-ORD-017). ATK-E9 shows a pig without that field.
 - **ATK-E2** (attack strength, partial hit and rejected hit):
   1. Send `punch` and then attack a `cow` at `(-1.5, -60, 2.5)`, with no delay
      (`a2_attack_cow_weak`).
@@ -743,6 +802,34 @@ its cooldown.
   - Result (step 2): nothing occurs.
   - Result (step 3): the server disconnects `attackprobebob` with
     `multiplayer.disconnect.invalid_entity_attacked`.
+- **ATK-E9** (the on-ground flag and the velocity of a mob with AI and with `NoAI` true): the
+  attacker is `noaiprobealice`. A step that advances the frozen tick uses `tick step`. No mob has
+  the field `OnGround` at the summon, except the second cow.
+  1. Summon these mobs (`summon_targets`):
+     - a `pig` with `NoAI` true at `(0.5, -60, 2.5)`, on the ground;
+     - a `sheep` with `NoAI` true at `(2.5, -58, 0.5)`, 2 blocks above the ground;
+     - a `cow` with AI at `(-1.5, -60, 0.5)`, on the ground;
+     - a `cow` with AI and `OnGround` true at `(-2.5, -60, -2.5)`, on the ground.
+  2. Read `OnGround` of each mob (`t0`).
+  3. Advance one tick. Read `OnGround` and `Motion` of each cow (`t1`). Do this step again (`t2`).
+  4. Advance 20 ticks. Read `OnGround` and `Pos` of the pig and the sheep (`t22`).
+  5. Attack the pig at full strength, and then the sheep (`hit_pig`, `hit_sheep`). Read `Motion` of
+     each.
+  6. Advance 20 ticks. Read `Pos` and `Motion` of the pig and the sheep (`after_20`).
+  7. Attack the first cow at full strength (`hit_cow`). Read its `Motion`. Advance one tick and
+     read `Motion` and `OnGround` again (`cow_step`).
+  - Result (step 2): `OnGround` is false for each mob, except the second cow.
+  - Result (step 3): after the first tick, `OnGround` is false for both cows. After the second
+    tick, it is true for both cows. After each of the two ticks, `v.y` of each cow is
+    `-0.0784000015258789`.
+  - Result (step 4): `OnGround` of the pig and the sheep stays false. They keep their positions.
+    The sheep does not fall.
+  - Result (step 5): `Motion` of the pig is `(0, 0, 0.4000000059604645)`. `Motion` of the sheep is
+    `(0.4000000059604645, 0, 0)`. The hit lifts neither of them.
+  - Result (step 6): the pig and the sheep keep their positions and the velocities of step 5.
+  - Result (step 7): `Motion` of the cow is `(-0.4000000059604645, 0.36080000519752503, 0)` after
+    the hit. After one tick, it is `(-0.2184000286221508, 0.2751840104494096, 0)`, and
+    `OnGround` is false.
 
 ## 14. Unresolved
 
@@ -762,7 +849,6 @@ its cooldown.
   - ATK-KB-004, ATK-KB-005 and ATK-NET-002 to ATK-NET-006: an observer for `set_entity_motion`,
     `damage_event`, `hurt_animation` and `level_particles`.
   - The case "not a loaded client" of ATK-PKT-002: an attack within 60 ticks after the join.
-  - The first paragraph of ATK-ORD-002: the server tick of each packet that a client receives.
 - **U6.** ATK-TGT-003 and ATK-CRD-001 to ATK-CRD-004 have no experiment yet. The procedures of
   ATK-TGT-003 belong to later documents. A run of the kill credit needs a death after an attack
   and a count of the experience that drops.
