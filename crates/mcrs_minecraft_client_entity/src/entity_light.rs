@@ -1,11 +1,11 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
-use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_client_world::columns::{ColumnChange, ColumnStore};
 use mcrs_minecraft_entity_visual::{
     ClientEntity, EntityLight, HostLight, Motion, SyncedData, eye_height,
 };
 use mcrs_minecraft_volume::LightVolume;
-use mcrs_voxel::BlockPos;
+use mcrs_voxel::{BlockPos, ColumnPos};
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LightSampledAt(BlockPos);
@@ -57,6 +57,34 @@ pub(crate) fn write_entity_light(
                     .entity(entity)
                     .insert((sample(&columns, at), LightSampledAt(at)));
             }
+        }
+    }
+}
+
+pub(crate) fn resample_relit_entities(
+    columns: Res<ColumnStore>,
+    mut changes: MessageReader<ColumnChange>,
+    mut touched: Local<Vec<ColumnPos>>,
+    mut entities: Query<(&LightSampledAt, &mut EntityLight), Without<HostLight>>,
+) {
+    touched.clear();
+    touched.extend(changes.read().filter_map(|change| match change {
+        ColumnChange::Arrived(pos, _)
+        | ColumnChange::Departed(pos, _)
+        | ColumnChange::Relit(pos, _) => Some(*pos),
+        _ => None,
+    }));
+    if touched.is_empty() {
+        return;
+    }
+    touched.sort_unstable();
+    touched.dedup();
+    for (sampled_at, mut light) in &mut entities {
+        if touched
+            .binary_search(&ColumnPos::from(sampled_at.0))
+            .is_ok()
+        {
+            light.set_if_neq(sample(&columns, sampled_at.0));
         }
     }
 }
