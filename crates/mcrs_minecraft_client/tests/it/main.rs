@@ -20,8 +20,6 @@ mod local_world;
 #[cfg(feature = "singleplayer")]
 mod menu_clicks;
 #[cfg(feature = "singleplayer")]
-mod player_attack;
-#[cfg(feature = "singleplayer")]
 mod screen_clicks;
 mod session;
 mod sky;
