@@ -35,6 +35,7 @@ use crate::mob_replication::mob_entities;
 
 const ALICE: Uuid = Uuid::from_u128(111);
 const BOB: Uuid = Uuid::from_u128(222);
+const DEFAULT_KNOCKBACK: f64 = 0.4;
 
 #[derive(Component)]
 struct Cancelled;
@@ -192,10 +193,18 @@ fn assert_pushed_away(arena: &mut Arena, name: &str, id: i32, at: DVec3, seen: &
         .get::<Transform>(arena.alice_player)
         .unwrap()
         .translation;
-    let away = (at - alice).with_y(0.0);
+    let away = (at - alice).with_y(0.0).normalize();
+    let horizontal = pushed.with_y(0.0);
+    let stone_drag = f64::from(0.6_f32 * 0.91_f32);
+    let strengths = [DEFAULT_KNOCKBACK, DEFAULT_KNOCKBACK * stone_drag];
+    let strength = horizontal.length();
     assert!(
-        pushed.y > 0.0 && pushed.with_y(0.0).dot(away) > 0.0,
-        "{name}: the hit lifts the pig and pushes it away from the attacker: {pushed}"
+        pushed.y > 0.0
+            && (horizontal.normalize_or_zero() - away).length() < 1e-3
+            && strengths
+                .iter()
+                .any(|expected| (strength - expected).abs() < 1e-3),
+        "{name}: ATK-KB-001 and DMG-KB-001 lift the pig and push it along {away} with the strength {strengths:?}, before or after one motion step on stone: {pushed}"
     );
 }
 
