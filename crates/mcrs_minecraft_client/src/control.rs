@@ -17,7 +17,5 @@ impl Plugin for MeshedPlugin {
 }
 
 fn meshed(streaming: stream::Streaming, mut meshed: ResMut<Meshed>) {
-    if !meshed.0 && streaming.done() && streaming.status().columns > 0 {
-        meshed.0 = true;
-    }
+    meshed.set_if_neq(Meshed(streaming.done() && streaming.status().columns > 0));
 }

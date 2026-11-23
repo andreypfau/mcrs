@@ -6,6 +6,7 @@ use std::time::Duration;
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_client::test_support;
+use mcrs_minecraft_client_control::Control;
 use mcrs_minecraft_client_control::ControlPlugin;
 use mcrs_minecraft_client_control::Reply;
 use mcrs_minecraft_client_control::Target;
@@ -136,13 +137,10 @@ fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
         "control-attack",
         |_| {},
         move |app| {
-            app.add_plugins((
-                LocalPlayerPlugin,
-                BlockBreakingPlugin,
-                ControlPlugin::bind(&plugin_address).unwrap(),
-            ))
-            .init_resource::<Damaged>()
-            .add_systems(Update, record_damage);
+            app.add_plugins((LocalPlayerPlugin, BlockBreakingPlugin, ControlPlugin))
+                .insert_resource(Control::bind(&plugin_address).unwrap())
+                .init_resource::<Damaged>()
+                .add_systems(Update, record_damage);
         },
     );
     let mut closing = Controller::connect(&address);

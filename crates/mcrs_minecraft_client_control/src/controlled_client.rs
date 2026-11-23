@@ -194,7 +194,12 @@ impl ControlledClient<'_, '_> {
     }
 
     pub(crate) fn entities(&self, radius: f64) -> Result<Vec<reply::EntityState>, Missing> {
-        let position = self.position()?;
+        let position = self
+            .player
+            .single()
+            .map_err(|_| Missing::Player)?
+            .transform
+            .translation;
         let mut entities: Vec<reply::EntityState> = self
             .entities
             .iter()
@@ -224,7 +229,7 @@ impl ControlledClient<'_, '_> {
 
     pub(crate) fn look(&mut self, yaw: f32, pitch: f32) -> Result<(), Missing> {
         let mut player = self.player.single_mut().map_err(|_| Missing::Player)?;
-        let rotation = Rotation::new(yaw, pitch.clamp(-90.0, 90.0));
+        let rotation = Rotation::new(yaw, pitch);
         player.transform.rotation = rotation;
         player.old.0.rotation = rotation;
         Ok(())
@@ -298,12 +303,10 @@ impl ControlledClient<'_, '_> {
         if line.is_empty() {
             return Err(Missing::EmptyMessage);
         }
+        if kind == Chat::Chat && line.encode_utf16().count() > MAX_INPUT {
+            return Err(Missing::LongMessage);
+        }
         chat.write(SendChat(match kind {
-            Chat::Chat
-                if text.chars().count() > MAX_INPUT || line.encode_utf16().count() > MAX_INPUT =>
-            {
-                return Err(Missing::LongMessage);
-            }
             Chat::Chat => Outgoing::Chat(line),
             Chat::Command => Outgoing::Command {
                 line,
@@ -311,13 +314,6 @@ impl ControlledClient<'_, '_> {
             },
         }));
         Ok(())
-    }
-
-    fn position(&self) -> Result<DVec3, Missing> {
-        self.player
-            .single()
-            .map(|player| player.transform.translation)
-            .map_err(|_| Missing::Player)
     }
 }
 

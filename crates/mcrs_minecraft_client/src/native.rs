@@ -27,13 +27,12 @@ use mcrs_minecraft_resource::Id;
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
-use mcrs_minecraft_client::headless;
 use mcrs_minecraft_client::headless::HeadlessClientPlugin;
 #[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, config,
+    ClientCorePlugins, ClientPlugins, ClientTerrainPlugin, config,
     game_directory::{GameDirectory, Platform},
     sky, vanilla, window_options,
 };
@@ -41,6 +40,7 @@ use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, death_screen_plugin, game_mode_switcher, health_hud};
 use mcrs_minecraft_client_world::asset_source::asset_source;
+use mcrs_minecraft_client_world::chat::ClientChatPlugin;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_client_world::world_list::{WorldList, WorldStoreError};
@@ -49,7 +49,7 @@ use mcrs_minecraft_client_world::{local_player, player};
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
+use mcrs_minecraft_network::client::JoinRequest;
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -202,13 +202,6 @@ pub fn run() -> AppExit {
     .add_plugins(
         ClientPlugins(knobs.clone())
             .build()
-            .set(ClientRegistriesPlugin {
-                defer_definitions: true,
-                local_corpus: Some(DirectoryPacks::new(
-                    FileAssetReader::get_base_path().join(&assets),
-                    data_pack.clone(),
-                )),
-            })
             .add_before::<sky::SkyPlugin>(mcrs_minecraft_client_gui::slot_icon::SlotIconPlugin)
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
@@ -219,7 +212,6 @@ pub fn run() -> AppExit {
             mcrs_minecraft_client_gui::scene::GuiAtlas,
         >)),
     )
-    .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_systems(
         Update,
         (log_registry_counts, log_seeded_resources)
@@ -244,10 +236,27 @@ pub fn run() -> AppExit {
 
     let username = knobs.username();
     let local_world = cfg!(feature = "singleplayer") && knobs.server().is_none();
-    app.add_plugins(ClientNetworkPlugin {
-        holds_vanilla_pack: true,
-        play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+    let join = server_address(&knobs).map(|server| JoinRequest {
+        server,
+        username: username.clone(),
+        profile_id: None,
+        view_distance,
     });
+    app.add_plugins(
+        ClientCorePlugins { join }
+            .set(ClientRegistriesPlugin {
+                defer_definitions: true,
+                local_corpus: Some(DirectoryPacks::new(
+                    FileAssetReader::get_base_path().join(&assets),
+                    data_pack.clone(),
+                )),
+            })
+            .set(ClientChatPlugin {
+                command_history: knobs
+                    .command_history()
+                    .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
+            }),
+    );
     #[cfg(feature = "singleplayer")]
     {
         #[cfg(feature = "dev")]
@@ -266,7 +275,7 @@ pub fn run() -> AppExit {
             asset_path: assets.clone(),
             data_pack: data_pack.clone(),
             ops_file: game_directory.as_ref().map(GameDirectory::ops_file),
-            username: username.clone(),
+            username,
             open_to_lan: knobs.open_to_lan(),
             settings: knobs.server_settings(),
             column_traces,
@@ -284,27 +293,11 @@ pub fn run() -> AppExit {
         }
         app.add_plugins(server);
     }
-    if let Some(server) = server_address(&knobs) {
-        let join = JoinRequest {
-            server,
-            username,
-            profile_id: None,
-            view_distance,
-        };
-        headless::join_when_loaded(&mut app, join);
-    }
-    app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
-    app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(health_hud::HealthHudPlugin);
     app.add_plugins(death_screen_plugin::DeathScreenPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin);
-    app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
-        command_history: knobs
-            .command_history()
-            .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
-    });
     app.add_plugins(chat_input::ChatScreenPlugin);
     let preselected = world
         .as_deref()
@@ -347,11 +340,14 @@ pub fn run() -> AppExit {
     }
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app);
-    if !add_control(&mut app, arguments.control.as_deref()) {
+    let control = arguments.control.as_deref();
+    if !add_control(&mut app, control) {
         return AppExit::error();
     }
-    #[cfg(feature = "control")]
-    app.add_plugins(mcrs_minecraft_client::control::MeshedPlugin);
+    #[cfg(all(feature = "control", unix))]
+    if control.is_some() {
+        app.add_plugins(mcrs_minecraft_client::control::MeshedPlugin);
+    }
 
     app.run()
 }
@@ -389,10 +385,11 @@ fn add_control(app: &mut App, address: Option<&str>) -> bool {
     let Some(address) = address else {
         return true;
     };
-    #[cfg(feature = "control")]
-    match mcrs_minecraft_client_control::ControlPlugin::bind(address) {
-        Ok(plugin) => {
-            app.add_plugins(plugin);
+    #[cfg(all(feature = "control", unix))]
+    match mcrs_minecraft_client_control::Control::bind(address) {
+        Ok(control) => {
+            app.insert_resource(control)
+                .add_plugins(mcrs_minecraft_client_control::ControlPlugin);
             true
         }
         Err(error) => {
@@ -400,7 +397,7 @@ fn add_control(app: &mut App, address: Option<&str>) -> bool {
             false
         }
     }
-    #[cfg(not(feature = "control"))]
+    #[cfg(not(all(feature = "control", unix)))]
     {
         let _ = app;
         eprintln!("--control {address}: this client is built without the feature control");

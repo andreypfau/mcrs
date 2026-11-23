@@ -17,15 +17,15 @@
 
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
-use mcrs_minecraft_client_world::{block_breaking, local_player, registries};
 
 #[cfg(target_os = "macos")]
 pub mod app_nap;
 pub mod camera;
 pub mod cave;
+mod client_core_plugins;
 mod client_terrain_plugin;
 pub mod config;
-#[cfg(all(feature = "control", not(target_family = "wasm")))]
+#[cfg(all(feature = "control", unix))]
 pub mod control;
 #[cfg(feature = "dev")]
 pub mod dev;
@@ -74,6 +74,7 @@ pub mod window_options;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 pub mod world_list;
 
+pub use client_core_plugins::ClientCorePlugins;
 pub use client_terrain_plugin::ClientTerrainPlugin;
 
 #[derive(Message)]
@@ -87,10 +88,6 @@ impl PluginGroup for ClientPlugins {
             .add(vanilla::VanillaAssetsPlugin)
             .add(input::ClientInputPlugin)
             .add(hand_keys_plugin::HandKeysPlugin)
-            .add(local_player::LocalPlayerPlugin)
-            .add(mcrs_minecraft_client_world::game_mode::GameModePlugin)
-            .add(block_breaking::BlockBreakingPlugin)
-            .add(mcrs_minecraft_client_world::hotbar_sync::HotbarSyncPlugin)
             .add(options::ClientOptionsPlugin {
                 options: self.0.options(),
                 file: self.0.options_file(),
@@ -107,7 +104,6 @@ impl PluginGroup for ClientPlugins {
             .add(mcrs_minecraft_client_gui::light_levels::LightLevelsPlugin::<
                 camera::PlayerCamera,
             >::new(self.0.light_levels()))
-            .add(registries::ClientRegistriesPlugin::default())
             .add(sky::SkyPlugin)
             .add(frozen_clocks::FrozenClocksPlugin)
     }

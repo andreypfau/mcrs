@@ -1,13 +1,19 @@
+#[cfg(unix)]
 mod control;
+#[cfg(unix)]
 mod control_plugin;
+#[cfg(unix)]
 mod controlled_client;
+#[cfg(unix)]
 mod listener;
 mod meshed;
 mod reply;
 mod request;
 
+#[cfg(unix)]
+pub use control::Control;
+#[cfg(unix)]
 pub use control_plugin::ControlPlugin;
-pub use control_plugin::ControlSet;
 pub use meshed::Meshed;
 pub use reply::BlockState;
 pub use reply::EntityState;

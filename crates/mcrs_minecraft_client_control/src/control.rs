@@ -1,9 +1,12 @@
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::os::unix::net::UnixListener;
+use std::os::unix::net::UnixStream;
 
 use bevy_ecs::prelude::*;
 use bevy_log::error;
+use bevy_log::info;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 
 use crate::controlled_client::Button;
@@ -11,8 +14,6 @@ use crate::controlled_client::Chat;
 use crate::controlled_client::ControlledClient;
 use crate::controlled_client::Missing;
 use crate::listener;
-use crate::listener::Listener;
-use crate::listener::Stream;
 use crate::reply::Reply;
 use crate::reply::Target;
 use crate::request::Request;
@@ -22,20 +23,19 @@ const MAX_LINE: usize = 4096;
 const READ_CHUNK: usize = 1024;
 
 #[derive(Resource)]
-pub(crate) struct Control {
-    listener: Listener,
+pub struct Control {
+    listener: UnixListener,
     address: String,
     connection: Option<Connection>,
     reply: Vec<u8>,
 }
 
 struct Connection {
-    stream: Stream,
+    stream: UnixStream,
     received: Vec<u8>,
     pending: Option<Pending>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 enum Pending {
     Hold {
         keys: MovementInput,
@@ -62,13 +62,15 @@ enum Line {
 }
 
 impl Control {
-    pub(crate) fn new(listener: Listener, address: String) -> Self {
-        Self {
+    pub fn bind(address: &str) -> io::Result<Self> {
+        let listener = listener::bind(address)?;
+        info!(address, "control socket");
+        Ok(Self {
             listener,
-            address,
+            address: address.to_owned(),
             connection: None,
             reply: Vec::new(),
-        }
+        })
     }
 }
 
@@ -108,7 +110,7 @@ pub(crate) fn serve(mut control: ResMut<Control>, mut client: ControlledClient) 
 }
 
 struct Output<'a> {
-    stream: &'a mut Stream,
+    stream: &'a mut UnixStream,
     reply: &'a mut Vec<u8>,
 }
 
@@ -222,7 +224,7 @@ fn advance(
     Ok(next)
 }
 
-fn read_available(stream: &mut Stream, into: &mut Vec<u8>) -> io::Result<Peer> {
+fn read_available(stream: &mut UnixStream, into: &mut Vec<u8>) -> io::Result<Peer> {
     let mut chunk = [0; READ_CHUNK];
     while into.len() <= MAX_LINE * 4 {
         match stream.read(&mut chunk) {
