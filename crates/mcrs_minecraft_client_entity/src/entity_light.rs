@@ -72,7 +72,7 @@ pub(crate) fn resample_relit_entities(
         ColumnChange::Arrived(pos, _)
         | ColumnChange::Departed(pos, _)
         | ColumnChange::Relit(pos, _) => Some(*pos),
-        _ => None,
+        ColumnChange::Filled(_) | ColumnChange::Reblocked(..) | ColumnChange::Signed(_) => None,
     }));
     if touched.is_empty() {
         return;
