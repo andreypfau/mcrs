@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_vanilla_player_attack"
-description = "The melee attack of a player on an entity: the attack strength and the damage amount"
+description = "The melee attack of a player on an entity: the attack strength, the damage amount and the hit request from the attack packet"
 version.workspace = true
 edition.workspace = true
 
@@ -11,3 +11,21 @@ doctest = false
 workspace = true
 
 [dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_entity_motion_replication.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity_key = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_rule.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_replication.workspace = true
+mcrs_minecraft_text.workspace = true
+tracing.workspace = true
