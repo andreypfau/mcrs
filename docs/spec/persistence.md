@@ -334,7 +334,7 @@ first start.
 1. At the first start, before the first player joins, the server sets `spawn` and sets
    `initialized` to 1. The spawn is the default of SAVE-LEVEL-001: the overworld, `0 0 0`, yaw 0
    and pitch 0 (SAVE-DEV-002). A join then places a new player as SAVE-PLAYER-001, "Default
-   position", states.
+   position", states for `S` at `0 0 0`.
 2. Each write of `level.dat` after the first start writes `initialized` 1.
 3. In a local world, the client plugin gives the UUID of the host to the server. The server then
    writes that UUID as `singleplayer_uuid` at each write of `level.dat`. The player file of the
@@ -1060,12 +1060,24 @@ finite is an error. For a player the game replaces `UUID` with the UUID of the p
 Default position: a join reads `Dimension`, `Pos` and `Rotation` of the player file one by one.
 Each missing key takes its own default. A missing `Dimension` gives the dimension of `spawn`. When
 the server does not have that dimension, the join uses the overworld. A missing `Rotation` gives
-the yaw and pitch of `spawn`. A missing `Pos` gives the position that PLD-RSP-004 states for the
-world spawn, in the dimension that the join uses. The block `S` of that rule is `spawn.pos`. The
-key `spawn.pos` has an x, a y and a z. The y of `spawn.pos` is the start of the height fix. In a
-world with a spectator default game mode, the y of `spawn.pos` is also the y of the position. In
-other cases the search sets the y from the terrain. A new player thus has the dimension of `spawn`,
-a position near `spawn.pos`, and the yaw and pitch of `spawn`.
+the yaw and pitch of `spawn`. A missing `Pos` gives the result of the spawn placement
+(`player-death.md`, PLD-RSP-005) in the dimension that the join uses. The start block `S` is the
+`S` of PLD-RSP-004, with the world border of that dimension (SAVE-DEV-006). Thus a player with no
+player file gets the position of a respawn with no respawn point. The x and z of the position are
+those of a block plus 0.5, and the y is a whole number.
+
+With the default `spawn` of SAVE-LEVEL-001, `S` is `0 0 0` in the overworld. The default game
+mode of the world then gives these positions:
+
+- survival or creative: a surface position at most `respawn_radius` columns from x 0 and z 0. When
+  no candidate is valid, it is the height fix of `0 0 0`;
+- adventure: the height fix of `0 0 0`;
+- spectator: `0.5 0 0.5`.
+
+The join finds the position before the player enters the play phase. The server keeps the
+connection in the configuration phase until the spawn placement ends. The server loads or
+generates the columns that the spawn placement reads (PLD-RSP-007). The first position that the client receives is
+the result. The server sends no other position before it.
 
 ### Living entity keys
 
@@ -1213,7 +1225,9 @@ the exit. A player file that is missing gives the default player. An unreadable 
 player, and a later save does not overwrite that file. The game writes over an unreadable file.
 
 Provenance: `source_suggested` for the layout, `design` for the snapshot and the unreadable file.
-Kind: file format and semantic. Confidence: high.
+`source_suggested_black_box_confirmed` for the position of a player with no player file:
+experiments PLD-E1 to PLD-E5 and PLD-E7 of `player-death.md`, section 13. `source_suggested` for
+the wait in the configuration phase. Kind: file format and semantic. Confidence: high.
 
 ## SAVE-OWNERSHIP-001: Ownership and eviction
 
@@ -1267,8 +1281,10 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
   neither reads nor writes `poi`.
 
 - **U4.** The game chooses the spawn of a new world at its first start (SAVE-NEW-001, step 3).
-  mcrs keeps the default spawn (SAVE-NEW-002, step 1, and SAVE-DEV-002). No rule states the
-  spawn search of the game. The search reads the biomes and the surface.
+  No rule states this choice. The game selects a start column from the field `spawn_target` of
+  the noise settings and the climate noises of the world. Then it tests the columns of the chunks
+  around that column with items 1 to 3 of `player-death.md`, PLD-RSP-005. mcrs keeps the default
+  spawn until a rule states the choice (SAVE-NEW-002, step 1, and SAVE-DEV-002).
 
 ## Intentional deviations
 
@@ -1287,13 +1303,14 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
 ### SAVE-DEV-002: The first start keeps the default spawn
 
 - **Rule:** SAVE-NEW-002, step 1.
-- **Reference:** at the first start, the game searches for a spawn on the surface near the
-  origin, and it places the bonus chest when `bonus_chest` is 1.
-- **Reason:** mcrs has no spawn search yet. Item U4 of the section "Unresolved" holds the open
-  point.
-- **Visible to the client:** yes. A new player of a new world enters at the default position of
-  SAVE-PLAYER-001, not on the surface that the game chooses. mcrs places no bonus chest. U4
-  holds the open point.
+- **Reference:** at the first start, the game chooses a spawn on the surface of a column that
+  the climate selects, and it places the bonus chest when `bonus_chest` is 1.
+- **Reason:** no rule states the choice of the game yet. Item U4 of the section "Unresolved" holds
+  the open point.
+- **Visible to the client:** yes. A new player of a new world enters near x 0 and z 0 of the
+  overworld, at the position that SAVE-PLAYER-001, paragraph "Default position", gives for
+  `S` at `0 0 0`. In the game, the player enters near the spawn that the game chose. mcrs places
+  no bonus chest.
 - **Bug reference:** `none`.
 - **Test:** a differential test does not compare the spawn of a new world.
 
@@ -1337,3 +1354,17 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
   `DataVersion` that is not `5127`. The save directory keeps `level.dat_old`.
 - **Bug reference:** `none`.
 - **Test:** a differential test uses only saves of `DataVersion` `5127`.
+
+### SAVE-DEV-006: A join outside the world border uses the border centre
+
+- **Rule:** SAVE-PLAYER-001, paragraph "Default position".
+- **Reference:** a join with no `Pos` uses `spawn.pos` as `S` also when `spawn.pos` is outside the
+  world border. In survival, the search radius is then 1, and the player enters outside the
+  border. A respawn uses the centre of the border in that case (`player-death.md`, PLD-RSP-004). Experiment PLD-E7
+  of `player-death.md` shows the join outside the border.
+- **Reason:** a player expects to enter the world inside the border, at the same place as a
+  respawn. One spawn placement with one `S` serves the join and the respawn.
+- **Visible to the client:** only when `spawn.pos` is outside the world border. A new player
+  enters near the centre of the border, not near `spawn.pos`.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not compare a join with `spawn.pos` outside the world border.
