@@ -2401,3 +2401,69 @@ fn locate_reports_what_it_cannot_find_and_values_that_do_not_exist() {
         );
     }
 }
+
+#[test]
+fn data_get_entity_reads_a_player_through_the_player_file_codec() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+
+    let [whole] = chats(&command(&mut server, op, "data get entity @p"))
+        .try_into()
+        .unwrap();
+    let TextContent::Translate {
+        translate, with, ..
+    } = &whole.content
+    else {
+        panic!("{whole:?}");
+    };
+    assert_eq!(translate, "commands.data.entity.query");
+    let [TranslateArg::Text(_), TranslateArg::Text(data)] = with.as_slice() else {
+        panic!("{with:?}");
+    };
+    let data = plain(std::slice::from_ref(data)).concat();
+    for entry in [
+        "Pos: [8.5d, 64.0d, 8.5d]",
+        "playerGameType: 1",
+        "foodLevel: 20",
+        "Dimension: \"minecraft:overworld\"",
+    ] {
+        assert!(data.contains(entry), "{entry} in {data}");
+    }
+    assert!(!data.contains("DataVersion"), "{data}");
+
+    let cases = [
+        (
+            "data get entity @p Pos",
+            said(
+                "commands.data.entity.query",
+                vec![name("Op"), name("[8.5d, 64.0d, 8.5d]")],
+            ),
+        ),
+        (
+            "data get entity @p foodSaturationLevel -0.004",
+            said(
+                "commands.data.entity.get",
+                vec![
+                    name("foodSaturationLevel"),
+                    name("Op"),
+                    name("-0.00"),
+                    (-1).into(),
+                ],
+            ),
+        ),
+        (
+            "data get entity @p Pos 2",
+            red(said("commands.data.get.invalid", vec![name("Pos")])),
+        ),
+        (
+            "data get entity @p NoSuchKey",
+            red(said(
+                "arguments.nbtpath.nothing_found",
+                vec![name("NoSuchKey")],
+            )),
+        ),
+    ];
+    for (line, message) in cases {
+        assert_eq!(chats(&command(&mut server, op, line)), [message], "{line}");
+    }
+}

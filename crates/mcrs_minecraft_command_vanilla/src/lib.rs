@@ -14,6 +14,7 @@ mod mob_view;
 mod op;
 mod plugin;
 mod relative_move;
+mod scale_text;
 mod select;
 mod set;
 mod summon;

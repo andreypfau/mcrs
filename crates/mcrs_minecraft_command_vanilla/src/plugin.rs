@@ -4,6 +4,7 @@ use crate::{
     ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time, whitelist,
 };
 use bevy_app::{App, Plugin};
+use bevy_ecs::system::IntoSystem;
 use core::fmt::Display;
 use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
 
@@ -31,7 +32,10 @@ impl Plugin for VanillaCommandsPlugin {
         report("summon", app.add_command(summon::build, summon::run));
         report("kill", app.add_command(kill::build, kill::run));
         report("damage", app.add_command(damage::build, damage::run));
-        report("data", app.add_command(data::build, data::run));
+        report(
+            "data",
+            app.add_command(data::build, data::find.pipe(data::read).pipe(data::reply)),
+        );
         report("time", app.add_command(time::build, time::run));
         report("ban", app.add_command(ban::build, ban::run));
         report("op", app.add_command(op::build, op::run));
