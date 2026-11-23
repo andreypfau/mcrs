@@ -4,6 +4,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
@@ -30,6 +31,7 @@ use crate::cold_columns::SaveRequest;
 use crate::coordinator::clock::GameTime;
 use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
+use crate::max_health::max_health;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persisted_registry::{
     CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedForm, PersistedRegistry,
@@ -60,6 +62,8 @@ const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
+const HEALTH_KEY: &str = "Health";
+const VITALS_KEYS: &[&str] = &[HEALTH_KEY, "AbsorptionAmount", "HurtTime", "DeathTime"];
 
 pub struct PlayerPersistencePlugin;
 
@@ -104,6 +108,12 @@ impl Plugin for PlayerPersistencePlugin {
             .register_persisted_as::<AttributeInstances, CarriedAttributes>(
                 CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
+            )
+            .register_persisted_codec(
+                VITALS_KEYS,
+                PersistScope::Persisted,
+                capture_vitals,
+                apply_vitals,
             )
             .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly)
             .register_persisted::<ShiftKey>(SHIFT_KEY_KEYS, PersistScope::TravelOnly);
@@ -198,6 +208,74 @@ fn apply_uuid(_: &mut World, _: Entity, tag: &NbtTag) -> Result<(), PersistedErr
             key: "UUID",
             source,
         })
+}
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct SavedVitals {
+    #[serde(rename = "Health")]
+    health: Option<f32>,
+    #[serde(rename = "AbsorptionAmount")]
+    absorption: f32,
+    #[serde(rename = "HurtTime")]
+    hurt_time: i16,
+    #[serde(rename = "DeathTime")]
+    death_time: i16,
+}
+
+fn ticks(saved: i16) -> u8 {
+    u8::try_from(saved.max(0)).unwrap_or(u8::MAX)
+}
+
+fn capture_vitals(
+    world: &mut World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
+    let Some(vitals) = world.get::<Vitals>(player) else {
+        return Ok(None);
+    };
+    mcrs_minecraft_nbt::tag_serializer::to_nbt_tag(&SavedVitals {
+        health: Some(vitals.health),
+        absorption: vitals.absorption,
+        hurt_time: i16::from(vitals.hurt_time),
+        death_time: vitals.death_time.map_or(0, i16::from),
+    })
+    .map(Some)
+    .map_err(|source| PersistedError::Encode {
+        key: HEALTH_KEY,
+        source,
+    })
+}
+
+fn apply_vitals(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), PersistedError> {
+    let saved: SavedVitals =
+        mcrs_minecraft_nbt::tag_deserializer::from_tag(tag.clone()).map_err(|source| {
+            PersistedError::Decode {
+                key: HEALTH_KEY,
+                source,
+            }
+        })?;
+    let max_health = max_health(world.get::<AttributeInstances>(player));
+    let mut vitals = world
+        .get::<Vitals>(player)
+        .copied()
+        .unwrap_or(Vitals::new(max_health));
+    if let Some(health) = saved.health {
+        vitals.health = if health.is_finite() {
+            health.max(0.0).min(max_health)
+        } else {
+            max_health
+        };
+    }
+    vitals.absorption = saved.absorption;
+    vitals.hurt_time = ticks(saved.hurt_time);
+    vitals.death_time = (vitals.health <= 0.0).then(|| ticks(saved.death_time));
+    world
+        .get_entity_mut(player)
+        .map_err(|_| PersistedError::NoEntity(player))?
+        .insert(vitals);
+    Ok(())
 }
 
 pub(crate) mod transform_serde {
@@ -1251,5 +1329,47 @@ pub(crate) mod tests {
         let player = app.world_mut().spawn(profile()).id();
         apply_join_snapshot(app.world_mut(), player, &PersistedSnapshot::unreadable());
         assert!(app.world().get::<UnreadablePlayerDat>(player).is_some());
+    }
+
+    #[test]
+    fn a_dimension_change_keeps_a_health_above_the_base_maximum_from_a_transient_modifier() {
+        use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+        use mcrs_minecraft_entity_attribute::{
+            InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+        };
+        use mcrs_minecraft_resource::ResourceLocationBuf;
+
+        let mut app = app(&temp_world());
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player).unwrap();
+        let mut attributes = AttributeInstances::new(bases);
+        let _ = attributes.apply(
+            Attribute::MaxHealth,
+            &InstanceEdit::Put(InstanceModifier::new(
+                ResourceLocationBuf::new("mcrs", "test_boost").unwrap(),
+                20.0,
+                ModifierOperation::AddValue,
+                ModifierKind::Transient,
+            )),
+        );
+        let mut vitals = Vitals::new(40.0);
+        vitals.health = 30.0;
+        let traveller = app.world_mut().spawn((profile(), attributes, vitals)).id();
+        let registry = app
+            .world_mut()
+            .remove_resource::<PersistedRegistry>()
+            .unwrap();
+        let snapshot = registry
+            .capture(app.world_mut(), traveller, CaptureCause::DimensionChange)
+            .unwrap();
+        let arrival = app.world_mut().spawn(profile()).id();
+        registry.apply(app.world_mut(), arrival, &snapshot).unwrap();
+
+        assert_eq!(
+            app.world()
+                .get::<Vitals>(arrival)
+                .map(|vitals| vitals.health),
+            Some(30.0),
+            "the arrival clamps the health to the maximum that the carried modifiers give"
+        );
     }
 }

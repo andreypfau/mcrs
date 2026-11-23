@@ -7,6 +7,10 @@ use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ConnectionState;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_network::client::{
+    ClientConnection, ClientNetworkPlugin, JoinRequest, finish_configuration,
+};
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_physics::{PlayerState, Tables, TestBlocks};
 #[cfg(not(target_family = "wasm"))]
@@ -38,12 +42,15 @@ use std::io::{Read, Write};
 #[cfg(not(target_family = "wasm"))]
 use std::net::{TcpListener, TcpStream};
 #[cfg(not(target_family = "wasm"))]
+use std::thread;
+#[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::{AIR, Column, ColumnStore, Extent, Section};
 use crate::game_mode::GameModePlugin;
 use crate::game_packets::GAME_CLIENTBOUND;
+use crate::health_packets::{NEW_PLAYER_FOOD, NEW_PLAYER_VITALS};
 use crate::joined_game::JoinedGame;
 use crate::local_motion::LocalMotion;
 use crate::local_player::LocalPlayerPlugin;
@@ -118,7 +125,14 @@ impl TestSession {
         let blocks = TestBlocks::new();
         app.insert_resource(stone_floor(&blocks))
             .insert_resource(ClientPhysicsTables(Tables::new(blocks.table)));
-        let player = app.world_mut().spawn(player_at(position, 0.0, 0.0)).id();
+        let player = app
+            .world_mut()
+            .spawn((
+                player_at(position, 0.0, 0.0),
+                NEW_PLAYER_VITALS,
+                NEW_PLAYER_FOOD,
+            ))
+            .id();
         let connection = app
             .world_mut()
             .spawn((
@@ -221,5 +235,52 @@ impl Server {
         let mut encoder = PacketEncoder::new();
         encoder.write_packet(packet);
         self.stream.write_all(&encoder.take()).unwrap();
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) struct Joined {
+    pub(crate) app: App,
+    pub(crate) server: Server,
+    pub(crate) connection: Entity,
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn joined(mut app: App) -> Joined {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    app.add_plugins(ClientNetworkPlugin {
+        holds_vanilla_pack: false,
+        play: None,
+    });
+    app.world_mut().write_message(JoinRequest {
+        server: listener.local_addr().unwrap(),
+        username: "Steve".to_owned(),
+        profile_id: None,
+        view_distance: 8,
+    });
+    app.update();
+    let (mut server, _information) = Server::join(&listener);
+    let connection = (0..1000)
+        .find_map(|_| {
+            app.update();
+            thread::sleep(Duration::from_millis(10));
+            app.world_mut()
+                .query_filtered::<Entity, With<ClientConnection>>()
+                .single(app.world())
+                .ok()
+        })
+        .expect("the client joins");
+    finish_configuration(&mut app.world_mut().commands(), connection);
+    app.world_mut().flush();
+    app.update();
+    let _finished = server.next_frame();
+    app.world_mut().entity_mut(connection).insert(JoinedGame {
+        player_id: OWN_PLAYER,
+        dimensions: Vec::new(),
+    });
+    Joined {
+        app,
+        server,
+        connection,
     }
 }

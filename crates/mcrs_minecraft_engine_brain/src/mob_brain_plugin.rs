@@ -1,38 +1,32 @@
-use std::mem;
-use std::time::Duration;
-
 use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Add;
+use bevy_ecs::lifecycle::Remove;
+use bevy_ecs::observer::On;
 use bevy_ecs::prelude::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
+use bevy_ecs::system::Commands;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_tasks::ComputeTaskPool;
+use bevy_utils::Parallel;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::MobBrain;
-use mcrs_minecraft_brain::PanicCauses;
-use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
-use mcrs_minecraft_engine::PlayerBody;
-use mcrs_minecraft_engine::network_id::player_network_id;
-use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_entity_motion::MotionId;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_physics::PhysicsTables;
-use mcrs_minecraft_engine_world::entity::EntityUuid;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::DimensionView;
@@ -40,19 +34,20 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::damage_type::DamageType;
-use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::TagKey;
 
-use crate::AiStats;
 use crate::BlockGoalWorld;
-use crate::EntityRows;
-use crate::HotTick;
+use crate::BrainState;
 use crate::MobAi;
-
-const LOG_PERIOD: u64 = 200;
+use crate::ai_window::AiWindow;
+use crate::mob_ai::Arrival;
+use crate::mob_ai::BrainOut;
+use crate::mob_ai::Thinking;
+use crate::panic_causes_in::panic_causes_in;
+use crate::player_table::Players;
+use crate::player_table::player_table;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MobBrainPlugin<B> {
@@ -99,6 +94,8 @@ where
                 MobBrainSet::Stage.in_set(TickSet::Simulate).run_if(ready),
             ),
         );
+        app.add_observer(admit_brain::<B>);
+        app.add_observer(release_brain::<B>);
         app.add_systems(
             FixedUpdate,
             (
@@ -132,21 +129,53 @@ where
     }
 }
 
+fn admit_brain<B>(
+    add: On<Add<Mob>>,
+    mobs: Query<(&Mob, &MotionId, &MotionState)>,
+    ai: Option<ResMut<MobAi<B>>>,
+    mut commands: Commands,
+) where
+    B: for<'a, 'w> MobBrain<BlockGoalWorld<'a, DimensionView<'w>>> + Send + Sync + 'static,
+{
+    let entity = add.event().entity;
+    let (Some(mut ai), Ok((mob, id, state))) = (ai, mobs.get(entity)) else {
+        return;
+    };
+    if mob.looks.no_ai {
+        return;
+    }
+    let Some(brain) = ai.brain_for(mob.kind) else {
+        return;
+    };
+    let rules = MobBrain::<BlockGoalWorld<'_, DimensionView<'_>>>::rules(&brain);
+    let Some(brain_state) = BrainState::new(mob.kind, rules) else {
+        return;
+    };
+    ai.admit(Arrival {
+        id: id.0,
+        key: state.0.key,
+        tile: TileKey::at(state.0.body.position),
+        phase: state.0.phase,
+        brain,
+    });
+    commands.entity(entity).insert(brain_state);
+}
+
+fn release_brain<B: Send + Sync + 'static>(
+    remove: On<Remove<BrainState>>,
+    ids: Query<&MotionId>,
+    ai: Option<ResMut<MobAi<B>>>,
+) {
+    if let (Some(mut ai), Ok(id)) = (ai, ids.get(remove.event().entity)) {
+        ai.release(id.0);
+    }
+}
+
 fn set_panic_causes<B: Send + Sync + 'static>(
     panic_causes: TagKey<'static, DamageType>,
 ) -> impl FnMut(Res<CurrentRegistries>, ResMut<MobAi<B>>) {
     move |registries, mut ai| {
-        let members = registries
-            .tags::<DamageType>()
-            .and_then(|tags| {
-                let tag = tags.id(panic_causes)?;
-                Some(PanicCauses::new(
-                    tags.members(tag)
-                        .filter_map(|id| u32::try_from(id.index()).ok()),
-                ))
-            })
-            .unwrap_or_default();
-        ai.set_panic_causes(members);
+        ai.set_panic_causes(panic_causes_in(&registries, panic_causes));
     }
 }
 
@@ -154,47 +183,18 @@ fn prepare<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
     tables: Res<PhysicsTables>,
-    mobs: Res<Mobs>,
-    players: Query<
-        (
-            &Owner,
-            &EntityUuid,
-            &Transform,
-            Option<&PlayerGameMode>,
-            PlayerBody,
-        ),
-        With<Player>,
-    >,
-    mut rows: ResMut<EntityRows>,
+    players: Players,
+    mut mobs: Thinking,
     mut ai: ResMut<MobAi<B>>,
+    mut threads: Local<Parallel<BrainOut>>,
 ) where
     B: for<'a, 'w> MobBrain<BlockGoalWorld<'a, DimensionView<'w>>> + Send + Sync + 'static,
 {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    let table = PlayerTable::new(players.iter().map(|(owner, uuid, transform, mode, body)| {
-        let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
-        PlayerRow {
-            player: EntityId(u64::from(player_network_id(owner.0).cast_unsigned())),
-            key: EntityKey(uuid.0.as_u128()),
-            position: transform.translation,
-            eye_height: body.dimensions().eye_height,
-            flags: if spectator {
-                PlayerFlags::ALIVE.union(PlayerFlags::SPECTATOR)
-            } else {
-                PlayerFlags::ALIVE
-            },
-            visibility: 1.0,
-            vehicle: None,
-        }
-    }));
-    let hot = HotTick {
-        blocks: &blocks,
-        collision: tables.collision(),
-        mobs: &mobs,
-    };
-    ai.prepare(&hot, table, &mut rows, ComputeTaskPool::get());
+    let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
+    ai.prepare(&goal_world, player_table(&players), &mut mobs, &mut threads);
 }
 
 fn run_stage<B>(
@@ -211,57 +211,5 @@ fn run_stage<B>(
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
     ai.run_stage(ComputeTaskPool::get(), &goal_world);
-    window.add(ai.stats());
-    if ai.tick().is_multiple_of(LOG_PERIOD) {
-        let window = mem::take(&mut *window);
-        if ai.stats().mobs > 0 && window.ticks > 0 {
-            tracing::debug!(
-                target: "mcrs_ai",
-                tick = ai.tick(),
-                mobs = ai.stats().mobs,
-                prepare_mean_us = window.prepare.as_micros() / u128::from(window.ticks),
-                prepare_max_us = window.prepare_max.as_micros(),
-                life_cycle_mean_us = window.life_cycle.as_micros() / u128::from(window.ticks),
-                tile_tasks_mean_us = window.tile_tasks.as_micros() / u128::from(window.ticks),
-                publish_mean_us = window.publish.as_micros() / u128::from(window.ticks),
-                stage_mean_us = window.stage.as_micros() / u128::from(window.ticks),
-                stage_max_us = window.stage_max.as_micros(),
-                evaluations_per_tick = window.evaluations / window.ticks,
-                decisions_per_tick = window.decisions / window.ticks,
-                waits = ai.stats().waits,
-                "mob AI"
-            );
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct AiWindow {
-    ticks: u64,
-    prepare: Duration,
-    prepare_max: Duration,
-    life_cycle: Duration,
-    tile_tasks: Duration,
-    publish: Duration,
-    stage: Duration,
-    stage_max: Duration,
-    evaluations: u64,
-    decisions: u64,
-}
-
-impl AiWindow {
-    fn add(&mut self, stats: &AiStats) {
-        self.ticks = self.ticks.saturating_add(1);
-        self.prepare = self.prepare.saturating_add(stats.prepare);
-        self.prepare_max = self.prepare_max.max(stats.prepare);
-        self.life_cycle = self.life_cycle.saturating_add(stats.life_cycle);
-        self.tile_tasks = self.tile_tasks.saturating_add(stats.tile_tasks);
-        self.publish = self.publish.saturating_add(stats.publish);
-        self.stage = self.stage.saturating_add(stats.stage);
-        self.stage_max = self.stage_max.max(stats.stage);
-        self.evaluations = self.evaluations.saturating_add(stats.evaluations);
-        self.decisions = self
-            .decisions
-            .saturating_add(u64::try_from(stats.decisions).unwrap_or(u64::MAX));
-    }
+    window.add(ai.tick(), ai.stats());
 }

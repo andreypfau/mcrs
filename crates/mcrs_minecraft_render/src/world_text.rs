@@ -66,7 +66,7 @@ impl Plugin for WorldTextPlugin {
 }
 
 #[derive(Resource)]
-struct TextPass {
+pub(crate) struct TextPass {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
@@ -173,7 +173,7 @@ fn prepare_text(
             },
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
-                cull_mode: None,
+                cull_mode: Some(Face::Back),
                 ..default()
             },
             depth_stencil: Some(DepthStencilState {
@@ -243,6 +243,7 @@ fn prepare_text_bind_groups(
         return;
     }
     let Some(gpu) = images.get(texture.id()) else {
+        pass.texture = None;
         return;
     };
     let bind_group = device.create_bind_group(
@@ -258,7 +259,7 @@ fn prepare_text_bind_groups(
     pass.texture = Some((texture.id(), lightmap.id(), bind_group));
 }
 
-fn draw_world_text(
+pub(crate) fn draw_world_text(
     view: ViewQuery<&ViewDepthStencilTexture>,
     frame: Option<Res<DeferredFrame>>,
     pass: Res<TextPass>,

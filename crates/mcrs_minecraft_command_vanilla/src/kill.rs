@@ -8,7 +8,7 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::{DamageSource, Hit};
 use mcrs_minecraft_resource::rl;
 use mcrs_minecraft_text::Text;
 
@@ -51,12 +51,15 @@ pub(crate) fn run(
             SelfSource::Entity,
             targets,
         )?;
-        for mob in targets.mobs() {
+        for victim in targets.iter() {
+            let Some(target) = victim.entity() else {
+                continue;
+            };
             output.effect(
                 &mut hits,
                 HitMob {
-                    at: mob.at,
-                    hit: Hit::new(f32::MAX, damage_type),
+                    target,
+                    hit: Hit::new(f32::MAX, DamageSource::of(damage_type)),
                 },
             );
         }

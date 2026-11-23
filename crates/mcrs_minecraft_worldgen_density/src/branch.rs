@@ -1,4 +1,5 @@
 use crate::program::{BinaryOp, Node, NodeId};
+use core::ops::Range;
 use mcrs_minecraft_noise::interval::Interval;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -53,9 +54,16 @@ pub(crate) enum Step {
     Guard {
         test: GuardTest,
         fallback: Option<Fallback>,
+        scope: Scope,
         skip_to: u32,
         next_step: u32,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Scope {
+    Volume,
+    Elements,
 }
 
 struct Arm {
@@ -168,6 +176,7 @@ pub(crate) fn build(
     }
 
     let mut emit = Emit {
+        nodes,
         cones: &cones,
         parents: &parents,
         owner: &owner,
@@ -178,18 +187,12 @@ pub(crate) fn build(
     };
     emit.region(column_order, None);
     emit.flush();
-    let Emit {
-        order,
-        steps,
-        reads,
-        ..
-    } = emit;
-
-    verify(nodes, column_order, &order, &reads);
-    (order, steps)
+    verify(nodes, column_order, &emit.order, &emit.reads);
+    (emit.order, emit.steps)
 }
 
 struct Emit<'a> {
+    nodes: &'a [Node],
     cones: &'a [Cone],
     parents: &'a [Option<usize>],
     owner: &'a [Option<usize>],
@@ -225,10 +228,12 @@ impl Emit<'_> {
                 self.steps.push(Step::Guard {
                     test,
                     fallback,
+                    scope: Scope::Volume,
                     skip_to: 0,
                     next_step: 0,
                 });
-                self.reads.push((test.selector(), self.order.len()));
+                let start = self.order.len();
+                self.reads.push((test.selector(), start));
                 self.region(&cone.nodes, Some(c));
                 if fallback.is_some() {
                     self.order.push(site);
@@ -236,11 +241,27 @@ impl Emit<'_> {
                 }
                 self.flush();
                 let (end, next) = (self.order.len() as u32, self.steps.len() as u32);
+                let narrows = self
+                    .order
+                    .get(start..)
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|&n| {
+                        self.nodes
+                            .get(n as usize)
+                            .is_some_and(Node::samples_per_element)
+                    });
                 if let Some(Step::Guard {
-                    skip_to, next_step, ..
+                    scope,
+                    skip_to,
+                    next_step,
+                    ..
                 }) = self.steps.get_mut(guard)
                 {
                     (*skip_to, *next_step) = (end, next);
+                    if narrows {
+                        *scope = Scope::Elements;
+                    }
                 }
             }
             if !covered {
@@ -324,6 +345,14 @@ fn site_of(node: &Node, ranges: &[Interval], site: NodeId) -> Option<Site> {
                     plain(target, test)
                 })
                 .collect(),
+        }),
+        Node::Lerp {
+            alpha,
+            first,
+            second,
+        } => Some(Site {
+            always: vec![*alpha, *first],
+            arms: vec![plain(*second, GuardTest::LeftNonZero { left: *alpha })],
         }),
         Node::Binary { op, a, b } => {
             let (left, right) = (*a, ranges.get(*b as usize).copied()?);
@@ -419,4 +448,149 @@ fn reachable_past_arms(
         }
     }
     seen
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Keep<'a> {
+    Always,
+    InRange {
+        lo: f32,
+        hi: f32,
+        want: bool,
+    },
+    Arm {
+        thresholds: &'a [f32],
+        last: usize,
+        arm: usize,
+    },
+    Above(f32),
+    Below(f32),
+    NonZero,
+}
+
+impl<'a> Keep<'a> {
+    pub(crate) fn new(test: GuardTest, node_of: impl Fn(NodeId) -> &'a Node) -> Self {
+        match test {
+            GuardTest::InRange { lo, hi, want, .. } => Keep::InRange { lo, hi, want },
+            GuardTest::Arm { site, arm, .. } => match node_of(site) {
+                Node::IntervalSelect {
+                    thresholds, arms, ..
+                } => Keep::Arm {
+                    thresholds,
+                    last: arms.len().saturating_sub(1),
+                    arm: arm as usize,
+                },
+                _ => Keep::Always,
+            },
+            GuardTest::LeftAbove { limit, .. } => Keep::Above(limit),
+            GuardTest::LeftBelow { limit, .. } => Keep::Below(limit),
+            GuardTest::LeftNonZero { .. } => Keep::NonZero,
+        }
+    }
+
+    pub(crate) fn coverage(self, values: &[f32], scope: Scope) -> Coverage {
+        match self {
+            Keep::Always => Coverage::Everything,
+            Keep::InRange { lo, hi, want } => {
+                coverage_where(values, scope, |v| (v >= lo && v < hi) == want)
+            }
+            Keep::Arm {
+                thresholds,
+                last,
+                arm,
+            } => coverage_where(values, scope, |v| {
+                thresholds.iter().position(|&t| v < t).unwrap_or(last) == arm
+            }),
+            Keep::Above(limit) => coverage_where(values, scope, |v| v > limit),
+            Keep::Below(limit) => coverage_where(values, scope, |v| v < limit),
+            Keep::NonZero => coverage_where(values, scope, |v| v != 0.0),
+        }
+    }
+
+    pub(crate) fn kept_runs(
+        self,
+        column: &[f32],
+        rows: Range<usize>,
+        emit: impl FnMut(Range<usize>),
+    ) {
+        match self {
+            Keep::Always => runs_where(column, rows, emit, |_| true),
+            Keep::InRange { lo, hi, want } => {
+                runs_where(column, rows, emit, |v| (v >= lo && v < hi) == want)
+            }
+            Keep::Arm {
+                thresholds,
+                last,
+                arm,
+            } => runs_where(column, rows, emit, |v| {
+                thresholds.iter().position(|&t| v < t).unwrap_or(last) == arm
+            }),
+            Keep::Above(limit) => runs_where(column, rows, emit, |v| v > limit),
+            Keep::Below(limit) => runs_where(column, rows, emit, |v| v < limit),
+            Keep::NonZero => runs_where(column, rows, emit, |v| v != 0.0),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Coverage {
+    Nothing,
+    Part,
+    Everything,
+}
+
+impl Coverage {
+    #[must_use]
+    pub(crate) fn and(self, other: Coverage) -> Coverage {
+        if self == other { self } else { Coverage::Part }
+    }
+}
+
+#[inline(always)]
+fn coverage_where(values: &[f32], scope: Scope, keeps: impl Fn(f32) -> bool) -> Coverage {
+    let Some((&first, rest)) = values.split_first() else {
+        return Coverage::Nothing;
+    };
+    let first = keeps(first);
+    let mixed = match scope {
+        Scope::Volume => !first && rest.iter().any(|&value| keeps(value)),
+        Scope::Elements => rest.iter().any(|&value| keeps(value) != first),
+    };
+    match (first, mixed, scope) {
+        (_, true, Scope::Volume) | (true, false, _) => Coverage::Everything,
+        (_, true, Scope::Elements) => Coverage::Part,
+        (false, false, _) => Coverage::Nothing,
+    }
+}
+
+#[inline(always)]
+fn runs_where(
+    column: &[f32],
+    rows: Range<usize>,
+    mut emit: impl FnMut(Range<usize>),
+    keeps: impl Fn(f32) -> bool,
+) {
+    if let [value] = column {
+        if keeps(*value) {
+            emit(rows);
+        }
+        return;
+    }
+    let Some(values) = column.get(rows.clone()) else {
+        return;
+    };
+    let mut start = None;
+    for (y, &value) in (rows.start..).zip(values) {
+        match (keeps(value), start) {
+            (true, None) => start = Some(y),
+            (false, Some(from)) => {
+                emit(from..y);
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(from) = start {
+        emit(from..rows.end);
+    }
 }

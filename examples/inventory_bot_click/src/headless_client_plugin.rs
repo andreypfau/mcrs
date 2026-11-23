@@ -41,6 +41,7 @@ impl Plugin for HeadlessClientPlugin {
                         PathBuf::from(&self.packs.assets),
                         self.packs.vanilla.clone(),
                     )),
+                    defer_definitions: false,
                 },
                 GameModePlugin,
             ));

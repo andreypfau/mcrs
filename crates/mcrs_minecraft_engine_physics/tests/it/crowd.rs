@@ -1,38 +1,99 @@
 #![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
 
-use bevy_tasks::TaskPoolBuilder;
+use bevy_app::FixedUpdate;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::Query;
+use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_engine_physics::EntityWrites;
+use mcrs_minecraft_damage::DamageSource;
+use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::DamageSet;
+use mcrs_minecraft_engine_damage::Damaged;
+use mcrs_minecraft_engine_damage::PendingHits;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_entity_key::TileKey;
-use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::WriterKey;
+use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
-use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestRng;
 use mcrs_minecraft_pose::Dimensions;
-use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_voxel::BlockPos;
 
 const PEN: i32 = 14;
 const DENSITY: f64 = 0.8;
 const TICKS: u32 = 400;
 
-fn pen() -> TestScene {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
-    scene.push = PushRules {
-        max_entity_cramming: 0,
-        ..PushRules::default()
-    };
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SpawnOrder {
+    Forward,
+    Reverse,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Strike {
+    uuid: EntityUuid,
+    died: bool,
+}
+
+#[derive(Resource, Default)]
+struct Strikes(Vec<Strike>);
+
+fn record_strikes(
+    mut damaged: MessageReader<Damaged>,
+    states: Query<&MotionState>,
+    mut strikes: ResMut<Strikes>,
+) {
+    strikes.0.clear();
+    for hit in damaged.read() {
+        if let Ok(state) = states.get(hit.target) {
+            strikes.0.push(Strike {
+                uuid: state.0.key,
+                died: hit.report.died,
+            });
+        }
+    }
+}
+
+fn scene() -> TestScene {
+    let mut scene = TestScene::new(1, 0, 0, 3);
+    scene.app.init_resource::<Strikes>();
+    scene
+        .app
+        .add_systems(FixedUpdate, record_strikes.in_set(DamageSet::Report));
+    scene
+}
+
+fn strikes(scene: &TestScene) -> &[Strike] {
+    &scene.app.world().resource::<Strikes>().0
+}
+
+fn wall(scene: &mut TestScene, at: BlockPos) {
     let stone = TestBlocks::new().stone;
+    scene
+        .set_block(at, stone)
+        .expect("the wall is inside the floor");
+}
+
+fn pen() -> TestScene {
+    let mut scene = scene();
+    let mut rules = GameRules::default();
+    rules.set(GameRule::MaxEntityCramming, 0);
+    scene.app.insert_resource(rules);
     for along in -PEN - 1..=PEN {
         for y in FLOOR..FLOOR + 2 {
             for at in [
@@ -41,10 +102,7 @@ fn pen() -> TestScene {
                 BlockPos::new(-PEN - 1, y, along),
                 BlockPos::new(PEN, y, along),
             ] {
-                scene
-                    .blocks
-                    .set_block(at, stone)
-                    .expect("the wall is inside the floor");
+                wall(&mut scene, at);
             }
         }
     }
@@ -63,26 +121,27 @@ fn pen() -> TestScene {
             position,
             ..Body::default()
         };
-        let key = EntityKey(u128::from(index));
+        let key = EntityUuid::from_u128(u128::from(index));
         let state = EntityState::new(key, body, Some(Living::of(&motion)));
-        scene.rows.spawn(EntityId(u64::from(index)), state, motion);
+        scene.spawn(EntityId(u64::from(index)), state, motion);
     }
     scene
 }
 
 #[test]
 fn a_dense_crowd_with_room_to_spread_comes_to_rest() {
-    let pool = TaskPoolBuilder::new().num_threads(2).build();
     let mut scene = pen();
+    let spawned = scene.states().len();
     for _ in 0..TICKS {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step();
     }
-    let mut rows = 0;
-    let mut resting = 0;
-    for (_, state) in scene.rows.living_rows() {
-        rows += 1;
-        resting += usize::from(matches!(state.rest, Rest::Resting(_)));
-    }
+    let states = scene.states();
+    let living = states.iter().filter(|(_, state)| state.living.is_some());
+    let rows = living.clone().count();
+    let resting = living
+        .filter(|(_, state)| matches!(state.rest, Rest::Resting(_)))
+        .count();
+    assert_eq!(rows, spawned, "every walker stays in the pen");
     assert!(
         resting * 100 >= rows * 95,
         "{resting} of {rows} bodies rest after {TICKS} ticks"
@@ -91,50 +150,54 @@ fn a_dense_crowd_with_room_to_spread_comes_to_rest() {
 
 const CRAMMING: u32 = 7;
 
-fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
+fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) -> Entity {
     let motion = MotionRow::living(Category::Walker, Dimensions::scalable(0.9, 0.9));
-    let mut living = Living::of(&motion);
-    living.health = health;
+    let living = Living::of(&motion);
     let body = Body {
         position,
         ..Body::default()
     };
-    let state = EntityState::new(EntityKey(u128::from(index)), body, Some(living));
-    scene.rows.spawn(EntityId(u64::from(index)), state, motion);
+    let state = EntityState::new(EntityUuid::from_u128(u128::from(index)), body, Some(living));
+    scene.spawn_with_vitals(
+        EntityId(u64::from(index)),
+        state,
+        motion,
+        Vitals::new(health),
+    )
 }
 
-fn alive(scene: &TestScene) -> usize {
-    scene
-        .rows
-        .living_rows()
-        .filter(|(_, state)| state.living.is_some_and(|living| living.is_alive()))
+fn alive(scene: &mut TestScene) -> usize {
+    let world = scene.app.world_mut();
+    let mut query = world.query::<(&MotionState, &Vitals)>();
+    query
+        .iter(world)
+        .filter(|(state, vitals)| state.0.living.is_some() && vitals.is_alive())
         .count()
 }
 
 #[test]
 fn a_stack_at_one_point_spreads_once_one_body_moves() {
-    let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
+    let mut scene = scene();
     let at = DVec3::new(0.5, f64::from(FLOOR), 0.5);
-    for index in 0..65 {
-        add_pig(&mut scene, index, at, 10.0);
-    }
-    let walker = Placed {
-        tile: TileKey::at(at),
-        id: EntityId(25),
-    };
+    let pigs: Vec<_> = (0..65)
+        .map(|index| add_pig(&mut scene, index, at, 10.0))
+        .collect();
+    let walker = *pigs.get(25).expect("the stack has 65 pigs");
     scene
-        .rows
-        .state_mut(walker)
-        .expect("the pig is in the tile of the stack")
+        .app
+        .world_mut()
+        .get_mut::<MotionState>(walker)
+        .expect("the pig moves")
+        .0
         .body
         .velocity = DVec3::new(-0.05, 0.0, 0.05);
     for _ in 0..TICKS {
-        scene.step(&pool, 1, &mut EntityWrites::default());
+        scene.step();
     }
     let positions: Vec<DVec3> = scene
-        .rows
-        .living_rows()
+        .states()
+        .iter()
+        .filter(|(_, state)| state.living.is_some())
         .map(|(_, state)| state.body.position)
         .collect();
     let width = 2.0 * f64::from(0.45_f32);
@@ -150,32 +213,36 @@ fn a_stack_at_one_point_spreads_once_one_body_moves() {
     );
 }
 
-fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> TestScene {
-    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
-    scene.crowd_damage_type = Some(CRAMMING);
-    let stone = TestBlocks::new().stone;
+fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32, order: SpawnOrder) -> TestScene {
+    let mut scene = scene();
+    scene.set_crowd_damage_type(Some(CRAMMING));
     for x in first - 1..=last + 1 {
         for z in -1..=1 {
             if z == 0 && (first..=last).contains(&x) {
                 continue;
             }
             for y in FLOOR..FLOOR + 2 {
-                scene
-                    .blocks
-                    .set_block(BlockPos::new(x, y, z), stone)
-                    .expect("the wall is inside the floor");
+                wall(&mut scene, BlockPos::new(x, y, z));
             }
         }
     }
     let mut rng = TestRng(11);
     let middle = f64::from(first + last + 1) / 2.0;
     let reach = f64::from(last - first) * 0.4 + 0.04;
-    for index in 0..count {
-        let position = DVec3::new(
-            middle + rng.range(-reach, reach),
-            f64::from(FLOOR),
-            0.5 + rng.range(-0.04, 0.04),
-        );
+    let mut pigs: Vec<(u32, DVec3)> = (0..count)
+        .map(|index| {
+            let position = DVec3::new(
+                middle + rng.range(-reach, reach),
+                f64::from(FLOOR),
+                0.5 + rng.range(-0.04, 0.04),
+            );
+            (index, position)
+        })
+        .collect();
+    if order == SpawnOrder::Reverse {
+        pigs.reverse();
+    }
+    for (index, position) in pigs {
         add_pig(&mut scene, index, position, health);
     }
     scene
@@ -183,76 +250,120 @@ fn crowd_in_hole(first: i32, last: i32, count: u32, health: f32) -> TestScene {
 
 #[test]
 fn crw_002_a_crowd_of_30_loses_exactly_6() {
-    let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = crowd_in_hole(0, 0, 30, 5.0);
+    let mut scene = crowd_in_hole(0, 0, 30, 5.0, SpawnOrder::Forward);
     scene.tick = 1;
-    scene.step(&pool, 1, &mut EntityWrites::default());
-    let hits = scene.rows.crowd_hits();
+    scene.step();
+    let hits = strikes(&scene);
     assert_eq!(hits.len(), 6);
     assert!(hits.iter().all(|hit| hit.died));
     for _ in 1..1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
-        assert!(scene.rows.crowd_hits().is_empty());
+        scene.step();
+        assert!(strikes(&scene).is_empty());
     }
-    assert_eq!(alive(&scene), 24);
-    assert_eq!(scene.rows.living_rows().count(), 24, "the dead rows left");
+    assert_eq!(alive(&mut scene), 24);
+    let living = scene.states().len();
+    assert_eq!(living, 24, "the dead mobs left");
+}
+
+fn strike_the_first_pig_outside_the_crowd(
+    states: Query<&MotionState>,
+    mut pending: ResMut<PendingHits>,
+) {
+    let first = (pending.requests().iter())
+        .filter_map(|request| Some((states.get(request.target).ok()?.0.key, request)))
+        .min_by_key(|(key, _)| *key)
+        .map(|(_, request)| (request.target, request.tick));
+    let Some((victim, tick)) = first else {
+        return;
+    };
+    pending.retain(|request| request.target != victim);
+    let hit = Hit::new(100.0, DamageSource::of(CRAMMING));
+    pending.push(DamageRequest::new(
+        victim,
+        hit,
+        WriterKey::Command { sequence: 0 },
+        tick,
+        0,
+    ));
+}
+
+const VICTIM: EntityUuid = EntityUuid::from_u128(2);
+
+#[test]
+fn crw_002_a_death_by_another_hit_relieves_the_crowd() {
+    for launch in [0.0, 2.0] {
+        let mut scene = crowd_in_hole(0, 0, 25, 5.0, SpawnOrder::Forward);
+        scene.app.add_systems(
+            FixedUpdate,
+            strike_the_first_pig_outside_the_crowd.in_set(DamageSet::Filter),
+        );
+        let world = scene.app.world_mut();
+        let mut states = world.query::<&mut MotionState>();
+        for mut state in states.iter_mut(world) {
+            if state.0.key == VICTIM {
+                state.0.body.velocity.y = launch;
+            }
+        }
+        scene.tick = 1;
+        scene.step();
+        let hits: Vec<(EntityUuid, bool)> = strikes(&scene)
+            .iter()
+            .map(|hit| (hit.uuid, hit.died))
+            .collect();
+        assert_eq!(
+            hits,
+            [(VICTIM, true)],
+            "24 pigs are left after the first death, so no crowd hit lands; the victim leaves the crowd at {launch} blocks per tick"
+        );
+    }
 }
 
 #[test]
 fn psh_007_a_crowd_of_25_loses_one_and_a_crowd_of_24_takes_no_damage() {
-    let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = crowd_in_hole(0, 0, 25, 10.0);
+    let mut scene = crowd_in_hole(0, 0, 25, 10.0, SpawnOrder::Forward);
     let mut first_death = None;
     for tick in 1..=1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
-        if first_death.is_none() && alive(&scene) < 25 {
+        scene.step();
+        if first_death.is_none() && alive(&mut scene) < 25 {
             first_death = Some(tick);
         }
     }
-    assert_eq!(alive(&scene), 24);
+    assert_eq!(alive(&mut scene), 24);
     assert!(
         first_death.is_some_and(|tick| tick >= 11),
         "two hits are at least 10 ticks apart: {first_death:?}"
     );
 
-    let mut scene = crowd_in_hole(0, 0, 24, 10.0);
+    let mut scene = crowd_in_hole(0, 0, 24, 10.0, SpawnOrder::Forward);
     for _ in 0..1200 {
-        scene.step(&pool, 1, &mut EntityWrites::default());
-        assert!(scene.rows.crowd_hits().is_empty());
+        scene.step();
+        assert!(strikes(&scene).is_empty());
     }
-    assert_eq!(alive(&scene), 24);
+    assert_eq!(alive(&mut scene), 24);
 }
 
 #[test]
-fn crw_002_the_crowd_hits_do_not_depend_on_the_task_split() {
-    let run = |threads: usize, tiles_per_task: usize| {
-        let pool = TaskPoolBuilder::new().num_threads(threads).build();
-        let mut scene = crowd_in_hole(-1, 0, 40, 5.0);
+fn crw_002_the_crowd_hits_do_not_depend_on_the_spawn_order() {
+    let run = |order: SpawnOrder| {
+        let mut scene = crowd_in_hole(-1, 0, 40, 5.0, order);
         for _ in 0..30 {
-            scene.step(&pool, tiles_per_task, &mut EntityWrites::default());
+            scene.step();
         }
-        (alive(&scene), format!("{:?}", scene.rows))
+        let states: Vec<EntityState> = scene.states().into_iter().map(|(_, state)| state).collect();
+        (alive(&mut scene), format!("{states:?}"))
     };
-    let (left, expected) = run(1, 1);
+    let (left, expected) = run(SpawnOrder::Forward);
     assert!(left < 40, "the crowd takes damage");
-    let pool = TaskPoolBuilder::new().num_threads(2).build();
-    let mut scene = crowd_in_hole(-1, 0, 40, 5.0);
+    let mut scene = crowd_in_hole(-1, 0, 40, 5.0, SpawnOrder::Reverse);
     scene.tick = 1;
-    scene.step(&pool, 1, &mut EntityWrites::default());
-    let hit: Vec<u64> = scene
-        .rows
-        .crowd_hits()
-        .iter()
-        .map(|hit| hit.at.id.0)
-        .collect();
+    scene.step();
+    let hit: Vec<EntityUuid> = strikes(&scene).iter().map(|hit| hit.uuid).collect();
     assert!(
         hit.len() > 2 && hit.is_sorted(),
         "the hits are in key order: {hit:?}"
     );
-    for (threads, tiles_per_task) in [(4, 1), (2, 100)] {
-        assert!(
-            run(threads, tiles_per_task).1 == expected,
-            "{threads} threads, {tiles_per_task} tiles per task"
-        );
-    }
+    assert!(
+        run(SpawnOrder::Reverse).1 == expected,
+        "the reverse spawn order gives the same state"
+    );
 }

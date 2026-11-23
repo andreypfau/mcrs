@@ -32,7 +32,7 @@ use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_voxel::BlockPos;
 
@@ -73,7 +73,7 @@ pub struct PigPen {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct HostPig {
-    key: EntityKey,
+    key: EntityUuid,
     position: DVec3,
     tile: TileKey,
     cadence: Cadence,
@@ -119,7 +119,7 @@ impl PigPen {
         let mut driver = AiDriver::new(stage_config);
         let pigs: Vec<HostPig> = (0..config.pigs)
             .map(|index| {
-                let key = EntityKey(u128::from(index) << 64);
+                let key = EntityUuid::from_u128(u128::from(index) << 64);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 let position = DVec3::new(random.unit() * side, 0.0, random.unit() * side);
                 let offset = u8::try_from(random.below(4)).unwrap_or(0);
@@ -152,7 +152,7 @@ impl PigPen {
         }
         let players = (0..config.players)
             .map(|index| {
-                let key = EntityKey(u128::from(index) << 64 | 1);
+                let key = EntityUuid::from_u128(u128::from(index) << 64 | 1);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 PlayerRow {
                     player: EntityId(u64::from(index)),

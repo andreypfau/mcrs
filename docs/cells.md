@@ -12,9 +12,9 @@
 >   Hysteresis stays, for a layout of many cells.
 > - Section 4, row "Entity motion": the rule stays for a layout of many cells. The bodies near a
 >   boundary also carry the push fields of PHY-RCH-006, and the halo holds a copy of the position
->   table of every entity. Writes to an entity of another cell, and block-domain writes to it,
->   apply at the sync point before the next pass (PHY-CMP-015, PHY-BLK-001); a claim joins the
->   arbitration of the next tick.
+>   table of every entity. A write to an entity of another cell applies in the apply step, of the
+>   next tick at most (PHY-CMP-015). A block-domain write applies in block-domain order
+>   (PHY-BLK-001). A claim joins the arbitration of the next tick.
 > - Section 3, "A player belongs to the cell ...": the order key of entities is the UUID of
 >   PHY-CMP-013, not the id from the coordinator's ranges.
 >

@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Body;
 use crate::MotionAttributes;
@@ -10,7 +10,7 @@ use mcrs_minecraft_pose::Pose;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerState {
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub body: Body,
     pub pose: Pose,
     pub jump_delay: u8,

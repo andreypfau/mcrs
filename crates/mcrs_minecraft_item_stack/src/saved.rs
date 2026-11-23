@@ -17,6 +17,7 @@ use mcrs_minecraft_snbt::parse_compound;
 use mcrs_voxel::BlockPos;
 
 use crate::ArgbColor;
+use crate::AttackAnimation;
 use crate::AttributeId;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
@@ -67,6 +68,7 @@ use crate::InlineTrimMaterial;
 use crate::InlineTrimPattern;
 use crate::Instrument;
 use crate::InstrumentId;
+use crate::InteractAnimation;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::ItemStack;
@@ -86,6 +88,7 @@ use crate::OminousBottleAmplifier;
 use crate::PaintingVariant;
 use crate::PaintingVariantId;
 use crate::PatchEntry;
+use crate::PiercingWeapon;
 use crate::PotionContents;
 use crate::PotionId;
 use crate::Profile;
@@ -100,6 +103,8 @@ use crate::SoundEventRef;
 use crate::StewEffect;
 use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
+use crate::SwingAnimation;
+use crate::SwingKind;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -435,6 +440,13 @@ fn read_flat_value<L: NameLookup>(
         BuiltinKey::Food => Builtin::Food(reader.food(tag)?),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(tag)?),
         BuiltinKey::Equippable => Builtin::Equippable(reader.equippable(tag)?),
+        BuiltinKey::PiercingWeapon => Builtin::PiercingWeapon(reader.piercing_weapon(tag)?),
+        BuiltinKey::AttackAnimation => {
+            Builtin::AttackAnimation(AttackAnimation(reader.swing_animation(tag)?))
+        }
+        BuiltinKey::InteractAnimation => {
+            Builtin::InteractAnimation(InteractAnimation(reader.swing_animation(tag)?))
+        }
         BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(tag, component)?)),
         BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(tag, component)?)),
         BuiltinKey::Lore => Builtin::Lore(read_lore(tag)?),
@@ -1129,6 +1141,29 @@ impl<L: NameLookup> Reader<'_, L> {
             .unwrap_or_default(),
             description: read_text(self.necessary(map, "description")?, self.component)?,
         }))
+    }
+
+    fn piercing_weapon(&self, tag: &NbtTag) -> Result<PiercingWeapon, SavedError> {
+        let map = self.map(tag)?;
+        let mut weapon = PiercingWeapon::new();
+        weapon.deals_knockback = self.flag(map, "deals_knockback", weapon.deals_knockback)?;
+        weapon.dismounts = self.flag(map, "dismounts", weapon.dismounts)?;
+        weapon.sound = self.optional(map, "sound", Self::sound_event)?;
+        weapon.hit_sound = self.optional(map, "hit_sound", Self::sound_event)?;
+        Ok(weapon)
+    }
+
+    fn swing_animation(&self, tag: &NbtTag) -> Result<SwingAnimation, SavedError> {
+        let map = self.map(tag)?;
+        let kind = match map.get("type") {
+            Some(tag) => SwingKind::from_name(self.string(tag)?).ok_or(self.bad())?,
+            None => SwingAnimation::DEFAULT_KIND,
+        };
+        let duration = match map.get("duration") {
+            Some(tag) => self.int(tag, NOT_NEGATIVE)?,
+            None => SwingAnimation::DEFAULT_DURATION,
+        };
+        Ok(SwingAnimation { kind, duration })
     }
 }
 

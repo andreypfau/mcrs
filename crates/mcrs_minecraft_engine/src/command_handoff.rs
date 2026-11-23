@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::DVec3;
-use mcrs_engine_muxer::{EntityId, TileKey};
+use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_core::{Look, LookAnchor};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -64,7 +64,7 @@ impl SourceState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SourceMob {
-    pub tile: TileKey,
+    pub entity: Entity,
     pub id: EntityId,
 }
 

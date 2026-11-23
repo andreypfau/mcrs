@@ -12,5 +12,10 @@ doctest = false
 workspace = true
 
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 glam = { workspace = true, features = ["nostd-libm"] }
 mcrs_voxel.workspace = true
+uuid = { version = "1.18.1", default-features = false }
+
+[features]
+bevy = ["dep:bevy_ecs"]

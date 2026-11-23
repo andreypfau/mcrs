@@ -71,3 +71,9 @@ crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json linguist-gen
 crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json linguist-generated
 tools/mcrs_minecraft_client_recorder/recordings/inventory/inventory_e17_*.txt linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/potion_colors.json linguist-generated
+
+# byte-exact LF: embedded and compared byte-wise (version.json) or against generated text (shader layout test)
+assets/minecraft/version.json text eol=lf
+crates/mcrs_minecraft_render/src/shared_types.rs text eol=lf
+crates/mcrs_minecraft_render/src/shared_bindings.rs text eol=lf
+crates/mcrs_minecraft_render/src/shaders/include/*.wesl text eol=lf

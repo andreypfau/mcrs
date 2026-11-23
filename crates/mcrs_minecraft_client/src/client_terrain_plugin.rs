@@ -23,6 +23,7 @@ impl Plugin for ClientTerrainPlugin {
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
         .add_plugins(entities::ClientEntityRenderPlugin)
         .add_plugins(sign_text::SignTextPlugin)
+        .add_plugins(crate::name_tag::NameTagPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
         .add_plugins(stream::StreamPlugin::new(
             budget,

@@ -253,12 +253,12 @@ What a shard did for entities, other units now do:
 | Need | Unit |
 |------|------|
 | Memory locality and the work unit | the tile: 2 × 2 columns, full height |
-| Load balance | tasks: batches of tiles, or a range of rows of one heavy tile |
+| Load balance | tasks: batches of tiles, or batches of `par_iter_mut` |
 | Placement in another process | the cell (`cells.md`) |
 | Targeting, sensing, pathfinding | the AI stage beside the tick |
 
 Interactions that write another entity (a hit, a knockback, a pickup) are deferred effects. They
-apply at the start of the next tick in a stable order (PHY-CMP-015). Exclusive actions (a pickup,
+apply in one apply step after the pass of the same tick, in a stable order (PHY-CMP-015). Exclusive actions (a pickup,
 a merge, a removal) are claims, arbitrated once per tick after the block domain (PHY-CMP-017). The
 block domain writes entities in the same tick, after the entity pass (PHY-BLK-001).
 
@@ -355,7 +355,7 @@ Preferred hybrid model:
 |---|---|
 | Static blocks | palette-compressed chunk/section storage |
 | Active blocks | sparse indices / activity structures |
-| Entities: hot motion state (position, velocity, motion flags, rest, steering) | a tile-segmented SoA body store that the physics kernel crate owns; Bevy drives it |
+| Entities: hot motion state (position, velocity, motion flags, rest, steering) | components of the entity (`MotionState`, `MotionKind`); the physics kernel crate reads them through a body grid |
 | Entities: cold state (health, equipment, attributes, team, custom data) | Bevy ECS |
 | Entities: brain state (memories, goals, plans) | the AI stage beside the tick |
 | Players | rows of the body store (position, rotation, pose); cold state in Bevy ECS |
@@ -368,10 +368,12 @@ Preferred hybrid model:
 
 Bevy is the execution/runtime framework for suitable domains, not necessarily the universal storage format for every Minecraft object.
 
-The entity rows were "Bevy ECS". At 100k to 1M entities, the hot loop needs rows in
-spatial order, a skip of quiet tiles with no work, and contiguous lanes for a batch path. Bevy
-tables give spawn order and one table per archetype. Each hot field lives only in the store, so
-ECS holds no second copy of it.
+Entities, mobs included, are Bevy ECS entities with components (issue #1067). A measurement at 1M
+entities (#97) compared a tile-segmented store of rows in spatial order with components and a section
+cache. Rows take 30.6 ms for each tick. Components take 35.3 ms. The difference does not pay for a second
+storage model, for a tile address on each access, or for a second replication path. The hot
+loop skips quiet tiles through `StirredTiles`, and the body grid gives the spatial lookup.
+Planned: the code still holds rows until the migration of mobs to entities.
 
 ---
 
@@ -431,7 +433,7 @@ AI runs beside the tick in the same way. The AI stage keeps its own replica of t
 
 ## A step as a parallel map
 
-A step can also read only a frozen view and write only its own item. Then the driver runs it as a parallel map over the items, with no shard and no cross-shard message. The entity pass is such a step. Its frozen view is the blocks at the copy point and the body grid of the previous tick; its outputs are the new rows of the items and deferred effects, merged in a stable order after the map.
+A step can also read only a frozen view and write only its own item. Then the driver runs it as a parallel map over the items, with no shard and no cross-shard message. The entity pass is such a step. Its frozen view is the blocks at the copy point and the body grid of the previous tick; its outputs are the new components of the entities and deferred effects. One serial system applies the effects after the map, in the order of the `EntityUuid` of the target, the writer key, the write tick and the sequence.
 
 ## Bevy schedules; no custom scheduler
 
@@ -559,14 +561,15 @@ Freeze: blocks by order (no block write before the block step),
         bodies = the grid that the previous tick rebuilt
         |
         v
-Parallel map: each entity reads the frozen state, writes its own row,
+Parallel map: each entity reads the frozen state, writes its own components,
               appends deferred effects
         |
         v
 Collider groups, main pass, explosion groups;
-claims arbitrated after the block step;
-writes to other entities merged at the start of T+1
-by (target key, writer key, sequence)
+writes to other entities applied in one apply step after the pass of T
+by (target key, writer key, write tick, sequence);
+a write from another cell joins the apply step of T+1;
+claims arbitrated after the block step
         |
         v
 Block step applies block actions; rebuild the grid of dirty tiles
@@ -673,8 +676,8 @@ Preserve the required lighting semantics.
 Chosen architecture (`physics-architecture.md`):
 
 - a Jacobi tick: a parallel map over a frozen start-of-tick state;
-- a tile-segmented SoA body store for the hot fields, cold fields in ECS;
-- a body grid per tile, rebuilt only for dirty tiles;
+- components for the hot and the cold fields, with a section cache for the hot loop;
+- one body grid with one owner system, updated for the movers, the spawns and the despawns;
 - rest per tile: a quiet tile costs no work;
 - a batched path for entities in air;
 - AI, sensing and pathfinding beside the tick.

@@ -11,5 +11,6 @@
 )]
 
 mod aquifer;
+mod column_bound;
 mod density_pins;
 mod vanilla_parity;

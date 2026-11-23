@@ -123,13 +123,15 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 22] = [
+const PLAIN_KINDS: [&str; 24] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "rarity",
     "repair_cost",
+    "attack_animation",
+    "interact_animation",
     "map_id",
     "map_decorations",
     "profile",
@@ -292,6 +294,9 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "repair_cost",
         "food",
         "tool",
+        "piercing_weapon",
+        "attack_animation",
+        "interact_animation",
         "map_id",
         "map_decorations",
         "profile",

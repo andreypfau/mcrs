@@ -4510,6 +4510,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_creative_content",
  "mcrs_minecraft_creative_report",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_inventory_click",
  "mcrs_minecraft_engine_inventory_menu",
@@ -4646,6 +4647,7 @@ dependencies = [
  "mcrs_minecraft_command_argument_vanilla",
  "mcrs_minecraft_command_registry",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
@@ -4859,12 +4861,12 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
- "mcrs_minecraft_engine_brain",
+ "mcrs_minecraft_engine_damage",
+ "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
@@ -4990,7 +4992,10 @@ dependencies = [
 name = "mcrs_minecraft_damage"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_physics",
+ "bevy_ecs",
+ "glam",
+ "libm",
+ "mcrs_minecraft_entity_key",
 ]
 
 [[package]]
@@ -5070,6 +5075,7 @@ dependencies = [
  "bevy_platform",
  "bevy_state",
  "bevy_tasks",
+ "bevy_time",
  "bytes",
  "derive_more",
  "flume",
@@ -5086,6 +5092,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine_registries",
@@ -5112,6 +5119,7 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_save",
  "mcrs_minecraft_simulation",
+ "mcrs_minecraft_swing",
  "mcrs_minecraft_text",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_generator",
@@ -5143,20 +5151,23 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_tasks",
+ "bevy_utils",
  "glam",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
+ "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_goal_world",
  "mcrs_minecraft_goals",
  "mcrs_minecraft_mob_control",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5166,13 +5177,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_damage"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "glam",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_entity_motion"
 version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_tasks",
  "bevy_utils",
  "glam",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_damage",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_physics",
  "mcrs_voxel",
@@ -5187,11 +5220,15 @@ dependencies = [
  "bevy_tasks",
  "glam",
  "mcrs_engine_muxer",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
  "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_mob_attributes",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
@@ -5251,40 +5288,18 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "glam",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
+ "mcrs_minecraft_game_registries",
  "mcrs_minecraft_physics",
- "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
- "rustc-hash 2.1.1",
-]
-
-[[package]]
-name = "mcrs_minecraft_engine_mob_replication"
-version = "0.5.8"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "bevy_tasks",
- "glam",
- "mcrs_engine_muxer",
- "mcrs_minecraft_damage",
- "mcrs_minecraft_engine",
- "mcrs_minecraft_engine_mob_attributes",
- "mcrs_minecraft_engine_physics",
- "mcrs_minecraft_entity",
- "mcrs_minecraft_entity_attribute",
- "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
- "mcrs_minecraft_physics",
- "mcrs_minecraft_protocol_game",
- "mcrs_minecraft_replication",
- "rustc-hash 2.1.1",
- "uuid",
+ "tracing",
 ]
 
 [[package]]
@@ -5300,13 +5315,13 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_collision_table",
  "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_damage",
  "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
@@ -5321,6 +5336,28 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_player_vitals"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "libm",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_replication",
+ "mcrs_minecraft_save",
+ "mcrs_minecraft_text",
  "tracing",
 ]
 
@@ -5421,7 +5458,6 @@ dependencies = [
  "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -5476,8 +5512,10 @@ dependencies = [
 name = "mcrs_minecraft_entity_key"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "glam",
  "mcrs_voxel",
+ "uuid",
 ]
 
 [[package]]
@@ -5529,20 +5567,6 @@ dependencies = [
  "serde_json",
  "wgpu",
  "wgsl-parse",
-]
-
-[[package]]
-name = "mcrs_minecraft_entity_rows"
-version = "0.5.8"
-dependencies = [
- "bevy_ecs",
- "bevy_tasks",
- "glam",
- "mcrs_minecraft_damage",
- "mcrs_minecraft_entity_key",
- "mcrs_minecraft_physics",
- "mcrs_voxel",
- "rustc-hash 2.1.1",
 ]
 
 [[package]]
@@ -6484,6 +6508,7 @@ dependencies = [
 name = "mcrs_minecraft_physics"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
  "bitflags 2.10.0",
  "criterion",
  "glam",
@@ -6911,6 +6936,7 @@ dependencies = [
  "criterion",
  "flume",
  "glam",
+ "libc",
  "mcrs_command",
  "mcrs_engine_link",
  "mcrs_engine_muxer",
@@ -6934,18 +6960,20 @@ dependencies = [
  "mcrs_minecraft_command_world",
  "mcrs_minecraft_container_click",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_attributes",
  "mcrs_minecraft_engine_brain",
+ "mcrs_minecraft_engine_damage",
  "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_entity_motion_replication",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_mob_attributes",
- "mcrs_minecraft_engine_mob_replication",
  "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_player_vitals",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
@@ -6992,10 +7020,13 @@ dependencies = [
  "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_vanilla_attributes",
  "mcrs_minecraft_vanilla_block_place",
+ "mcrs_minecraft_vanilla_death",
  "mcrs_minecraft_vanilla_falling_block",
  "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
+ "mcrs_minecraft_vanilla_respawn",
+ "mcrs_minecraft_vanilla_swing",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_minecraft_worldgen_builtin",
@@ -7008,6 +7039,7 @@ dependencies = [
  "smallvec",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7091,6 +7123,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mcrs_minecraft_swing"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
 ]
 
 [[package]]
@@ -7211,6 +7250,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_vanilla_death"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_enchantment",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_player_vitals",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_game_rule",
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_item_entity",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_player_holders",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_text",
+ "mcrs_minecraft_vanilla_item_entity",
+]
+
+[[package]]
 name = "mcrs_minecraft_vanilla_falling_block"
 version = "0.5.8"
 dependencies = [
@@ -7253,6 +7320,7 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_time",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
@@ -7337,6 +7405,59 @@ dependencies = [
  "rayon",
  "rustc-hash 2.1.1",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_respawn"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "glam",
+ "libm",
+ "mcrs_minecraft_collision_table",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_damage",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_game_rule",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_pose",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_swing"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_time",
+ "bytes",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -7609,6 +7730,7 @@ dependencies = [
  "criterion",
  "fixedbitset",
  "glam",
+ "libc",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",

@@ -33,7 +33,7 @@ static ROUTER: LazyLock<NoiseRouter> = LazyLock::new(|| super::build_settings_ro
 fn an_end_column_near_the_origin_stores_the_end_alone() {
     let biomes = ColumnBiomes::new(Some(&BiomeSource::TheEnd), None, Some(IDS)).unwrap();
     let y_sections = dimension_y_sections(&ROUTER, 0, 16);
-    let (palettes, _) = column_biome_palettes(&ROUTER, &biomes, 0, 0, &y_sections);
+    let (palettes, _) = column_biome_palettes(&ROUTER, &biomes, None, 0, 0, &y_sections);
     let mut stored = BTreeSet::new();
     for palette in &palettes {
         palette.for_each_distinct(|biome| {

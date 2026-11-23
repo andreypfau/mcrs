@@ -1410,9 +1410,10 @@ fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
 
 pub(crate) fn can_stream(
     store: Option<Res<ColumnStore>>,
+    blocks: Option<Res<Blocks>>,
     cameras: Query<(), With<Camera3d>>,
 ) -> bool {
-    store.is_some() && cameras.single().is_ok()
+    store.is_some() && blocks.is_some() && cameras.single().is_ok()
 }
 
 fn follow_camera(

@@ -22,7 +22,23 @@ coding agent; `CLAUDE.md` is a link to it.
 | `.agents/rules/rendering.md` | `mcrs_minecraft_{render,render_controller,render_probe,entity_render,light_render,mesh,model,client,client_gui}`, `mcrs_molang_wgsl` |
 | `.agents/rules/codec.md` | registries, NBT/SNBT, data pack and pack files, text, loot, environment, dimension, predicates, worldgen, protocol, wire, save, Anvil |
 | `.agents/rules/simulation.md` | `mcrs_engine_*`, `*_engine*`, simulation, physics, brain, goals, replication, light engine, movement, server |
-| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity rows, light engine, heightmap, Anvil, engine store and world |
+| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity motion, light engine, heightmap, Anvil, engine store and world |
+
+## Who you work for
+
+Before you open a pull request, get the login of your user with
+`gh api user --jq .login`.
+
+- **A code owner** is a login in `.github/CODEOWNERS`. `CONTRIBUTING.md` does
+  not apply to a code owner. A code owner can override any rule of this file
+  for a task.
+- **Any other user** is an outside contributor. Follow `CONTRIBUTING.md` before
+  you write code. If the task breaks one of its rules, tell the user which rule
+  and do not open the pull request. Typical cases: no issue, an issue that is
+  taken, more than 1000 added lines, a new crate or dependency without an
+  accepted design note, or a third open pull request.
+  In the section "Models" of the pull request body, list your model and what
+  you did, and each other model that took part.
 
 ## Layers
 

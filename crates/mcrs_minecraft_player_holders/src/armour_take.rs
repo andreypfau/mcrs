@@ -1,4 +1,5 @@
 use bevy_ecs::world::World;
+use mcrs_minecraft_enchantment::enchantment_effect_component_type_keys::EnchantmentEffectComponentType;
 use mcrs_minecraft_engine_item::GateQuery;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
@@ -8,15 +9,22 @@ use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_item_stack::Enchantments;
 
-use crate::locking_enchantments::LockingEnchantments;
+use crate::enchantment_effects::EnchantmentEffects;
 
 pub(crate) fn armour_take(world: &World, query: &GateQuery) -> Filter {
     let Some(rule) = Holder::Inventory.slot(query.slot.index) else {
         return Filter::Refuses;
     };
-    let locking = world.get_resource::<LockingEnchantments>();
-    let lock = match (locking, world.get::<Enchantments>(query.stack)) {
-        (Some(locking), Some(enchantments)) if locking.lock(enchantments) => ArmourLock::Locked,
+    let effects = world.get_resource::<EnchantmentEffects>();
+    let lock = match (effects, world.get::<Enchantments>(query.stack)) {
+        (Some(effects), Some(enchantments))
+            if effects.any_has(
+                enchantments,
+                EnchantmentEffectComponentType::PreventArmorChange,
+            ) =>
+        {
+            ArmourLock::Locked
+        }
         _ => ArmourLock::Free,
     };
     let mode = match world.get::<PlayerGameMode>(query.actor) {

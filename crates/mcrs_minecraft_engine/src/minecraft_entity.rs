@@ -9,10 +9,11 @@ use bevy_ecs::prelude::{Commands, ContainsEntity};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Res;
 use derive_more::{Deref, DerefMut};
+use mcrs_minecraft_engine_world::entity::EntityPlugin;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_engine_world::entity::{EntityPlugin, EntityUuid};
 use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 pub struct MinecraftEntityPlugin;
 

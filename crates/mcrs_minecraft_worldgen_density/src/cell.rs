@@ -1,5 +1,5 @@
 use crate::bounds::{Bounds, node_bounds};
-use crate::program::{Node, NodeId, Program};
+use crate::program::{BinaryOp, Node, NodeId, Program, UnaryOp};
 use glam::IVec3;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::{lerp, mul_add};
@@ -49,19 +49,32 @@ pub fn corner_bounds(values: &[f32], lattice: &SampleGrid, at: IVec3, out: &mut 
     let stride = lattice.len();
     for (k, bound) in out.iter_mut().enumerate() {
         let row = values.get(k * stride..(k + 1) * stride).unwrap_or_default();
-        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
-        for dz in 0..2 {
-            for dx in 0..2 {
-                for dy in 0..2 {
-                    let index = lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz);
-                    let v = row.get(index).copied().unwrap_or_default();
-                    lo = lo.min(v);
-                    hi = hi.max(v);
-                }
+        *bound = corner_hull(row, lattice, at);
+    }
+}
+
+fn corner_hull(row: &[f32], lattice: &SampleGrid, at: IVec3) -> Interval {
+    let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
+    for dz in 0..2 {
+        for dx in 0..2 {
+            for dy in 0..2 {
+                let index = lattice.index_unchecked(at.x + dx, at.y + dy, at.z + dz);
+                let v = row.get(index).copied().unwrap_or_default();
+                lo = lo.min(v);
+                hi = hi.max(v);
             }
         }
-        *bound = Interval::of(lo, hi);
     }
+    interpolation_hull(Interval::of(lo, hi), lattice.step_block().y)
+}
+
+pub(crate) fn interpolation_hull(corners: Interval, cell_y: i32) -> Interval {
+    if corners.is_nai() {
+        return corners;
+    }
+    let magnitude = corners.min().abs().max(corners.max().abs());
+    let slop = (cell_y as f32 + 20.0) * f32::EPSILON * magnitude;
+    Interval::of(corners.min() - slop, corners.max() + slop)
 }
 
 pub fn sampled_bounds(
@@ -81,7 +94,19 @@ pub fn sampled_bounds(
     }
 }
 
+struct ChainLink {
+    node: NodeId,
+    operand: NodeId,
+    sibling: Interval,
+}
+
+struct UpperChain {
+    wrapper: usize,
+    links: Box<[ChainLink]>,
+}
+
 pub struct CellBounds {
+    chain: Option<UpperChain>,
     inputs: Box<[NodeId]>,
     wrappers: Box<[NodeId]>,
     terms: Box<[NodeId]>,
@@ -147,6 +172,7 @@ impl CellBounds {
         }
 
         let mut bounds = Self {
+            chain: upper_chain(program, root, &wrappers),
             inputs: inputs.into_boxed_slice(),
             wrappers: wrappers.into_boxed_slice(),
             terms: terms.into_boxed_slice(),
@@ -174,6 +200,47 @@ impl CellBounds {
     #[inline]
     pub fn cell_size(&self) -> Option<IVec3> {
         self.cell_size
+    }
+
+    pub fn chain_bound(
+        &self,
+        program: &Program,
+        values: &[f32],
+        lattice: &SampleGrid,
+        at: IVec3,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        let chain = self.chain.as_ref()?;
+        let stride = lattice.len();
+        let row = values.get(chain.wrapper * stride..(chain.wrapper + 1) * stride)?;
+        self.chain_over(program, corner_hull(row, lattice, at), min, max)
+    }
+
+    pub(crate) fn chain_input(&self) -> Option<NodeId> {
+        let chain = self.chain.as_ref()?;
+        self.inputs.get(chain.wrapper).copied()
+    }
+
+    pub(crate) fn chain_over(
+        &self,
+        program: &Program,
+        wrapper: Interval,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        let chain = self.chain.as_ref()?;
+        let mut bound = wrapper;
+        for link in &chain.links {
+            bound = node_bounds(program.node(link.node), Bounds::Cell { min, max }, |dep| {
+                if dep == link.operand {
+                    bound
+                } else {
+                    link.sibling
+                }
+            })?;
+        }
+        Some(bound)
     }
 
     pub fn eval(
@@ -218,6 +285,60 @@ impl CellBounds {
         }
         values.get(slot(self.root)).copied()
     }
+}
+
+fn upper_chain(program: &Program, root: NodeId, wrappers: &[NodeId]) -> Option<UpperChain> {
+    let mut links = Vec::new();
+    let mut id = root;
+    for _ in 0..program.len() {
+        if let Some(wrapper) = wrappers.iter().position(|&w| w == id) {
+            links.reverse();
+            return Some(UpperChain {
+                wrapper,
+                links: links.into_boxed_slice(),
+            });
+        }
+        let link = chain_link(program, id)?;
+        id = link.operand;
+        links.push(link);
+    }
+    None
+}
+
+fn chain_link(program: &Program, node: NodeId) -> Option<ChainLink> {
+    let constant = |id: NodeId| match program.node(id) {
+        Node::Constant(value) if !value.is_nan() => Some(Interval::exact(*value)),
+        _ => None,
+    };
+    let (operand, sibling) = match *program.node(node) {
+        Node::Binary {
+            op: BinaryOp::Min,
+            a,
+            ..
+        } => (a, Interval::INFINITE),
+        Node::Binary {
+            op: BinaryOp::Add,
+            a,
+            b,
+        } => match (constant(a), constant(b)) {
+            (_, Some(sibling)) => (a, sibling),
+            (Some(sibling), None) => (b, sibling),
+            (None, None) => return None,
+        },
+        Node::Unary {
+            op: UnaryOp::Squeeze,
+            input,
+        } => (input, Interval::NAI),
+        Node::Affine { input, scale, .. } if scale > 0.0 && scale.is_finite() => {
+            (input, Interval::NAI)
+        }
+        _ => return None,
+    };
+    Some(ChainLink {
+        node,
+        operand,
+        sibling,
+    })
 }
 
 #[cfg(test)]
@@ -310,5 +431,50 @@ mod tests {
             tighter > 40,
             "only {tighter} of 125 cells came out tighter than the corner hull"
         );
+    }
+
+    #[test]
+    fn a_corner_hull_contains_every_value_the_fill_writes_at_a_large_magnitude() {
+        const CELL: IVec3 = IVec3::new(4, 8, 4);
+        let nodes = vec![
+            Node::Gradient(GradientParams {
+                axis: Axis::Y,
+                tiling: Tiling::ClampToEdge,
+                from: 0.0,
+                to: 8.0,
+                from_value: 16_777_238.0,
+                to_value: 16_777_248.0,
+            }),
+            Node::Interpolated {
+                input: 0,
+                cell_xz: CELL.x,
+                cell_y: CELL.y,
+                cell: 0,
+            },
+        ];
+        let program = Program::new(
+            nodes,
+            vec![AXIS_Y, ALL_AXES],
+            vec![Interval::INFINITE; 2],
+            vec![1],
+        );
+        let mut ws = Workspace::new();
+
+        let lattice = SampleGrid::new(IVec3::splat(2), IVec3::ZERO, CELL);
+        let mut corners = vec![0.0f32; lattice.len()];
+        program.fill(&mut ws, &lattice, 0, &mut corners);
+        let mut hull = [Interval::NAI];
+        corner_bounds(&corners, &lattice, IVec3::ZERO, &mut hull);
+
+        let blocks = SampleGrid::dense(CELL, IVec3::ZERO);
+        let mut values = vec![0.0f32; blocks.len()];
+        program.fill(&mut ws, &blocks, 0, &mut values);
+        for (at, &value) in values.iter().enumerate() {
+            assert!(
+                hull[0].contains(value),
+                "block {at} is {value}, outside the corner hull {:?} of {corners:?}",
+                hull[0]
+            );
+        }
     }
 }

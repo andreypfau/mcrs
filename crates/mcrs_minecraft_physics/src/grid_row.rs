@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Aabb;
 use crate::GridFlags;
@@ -13,7 +13,7 @@ pub struct GridRow {
     pub previous: DVec3,
     pub half_width: f32,
     pub height: f32,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub id: EntityId,
     pub root_vehicle: EntityId,
     pub team: TeamSlot,

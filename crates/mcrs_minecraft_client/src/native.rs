@@ -37,7 +37,7 @@ use mcrs_minecraft_client::{
 };
 use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
-use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
+use mcrs_minecraft_client_gui::{chat_input, death_screen_plugin, game_mode_switcher, health_hud};
 use mcrs_minecraft_client_world::asset_source::asset_source;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 #[cfg(feature = "singleplayer")]
@@ -197,6 +197,7 @@ pub fn run() -> AppExit {
         ClientPlugins(knobs.clone())
             .build()
             .set(ClientRegistriesPlugin {
+                defer_definitions: true,
                 local_corpus: Some(DirectoryPacks::new(
                     FileAssetReader::get_base_path().join(&assets),
                     data_pack.clone(),
@@ -284,14 +285,20 @@ pub fn run() -> AppExit {
             profile_id: None,
             view_distance,
         };
-        app.add_systems(Startup, move |mut requests: MessageWriter<JoinRequest>| {
-            requests.write(join.clone());
-        });
+        app.add_systems(
+            Update,
+            (move |mut requests: MessageWriter<JoinRequest>| {
+                requests.write(join.clone());
+            })
+            .run_if(resource_added::<mcrs_minecraft_block::definition::Blocks>),
+        );
     }
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
+    app.add_plugins(health_hud::HealthHudPlugin);
+    app.add_plugins(death_screen_plugin::DeathScreenPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs

@@ -1,3 +1,4 @@
+use mcrs_minecraft_item_stack::AttackAnimation;
 use mcrs_minecraft_item_stack::AttributeModifiers;
 use mcrs_minecraft_item_stack::BannerPatterns;
 use mcrs_minecraft_item_stack::Bees;
@@ -18,6 +19,7 @@ use mcrs_minecraft_item_stack::FireworkExplosion;
 use mcrs_minecraft_item_stack::Fireworks;
 use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::Instrument;
+use mcrs_minecraft_item_stack::InteractAnimation;
 use mcrs_minecraft_item_stack::ItemComponent;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemName;
@@ -30,6 +32,7 @@ use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::OminousBottleAmplifier;
 use mcrs_minecraft_item_stack::PaintingVariant;
+use mcrs_minecraft_item_stack::PiercingWeapon;
 use mcrs_minecraft_item_stack::PotionContents;
 use mcrs_minecraft_item_stack::Profile;
 use mcrs_minecraft_item_stack::Rarity;
@@ -114,6 +117,9 @@ impl<'a> ComponentHolder<'a> {
                 self.effective::<StoredEnchantments>().is_some()
             }
             DataComponentType::PaintingVariant => self.effective::<PaintingVariant>().is_some(),
+            DataComponentType::PiercingWeapon => self.effective::<PiercingWeapon>().is_some(),
+            DataComponentType::AttackAnimation => self.effective::<AttackAnimation>().is_some(),
+            DataComponentType::InteractAnimation => self.effective::<InteractAnimation>().is_some(),
             _ => false,
         }
     }
@@ -159,6 +165,9 @@ impl<'a> ComponentHolder<'a> {
             Builtin::Fireworks(value) => self.effective() == Some(value),
             Builtin::StoredEnchantments(value) => self.effective() == Some(value),
             Builtin::PaintingVariant(value) => self.effective() == Some(value),
+            Builtin::PiercingWeapon(value) => self.effective() == Some(value),
+            Builtin::AttackAnimation(value) => self.effective() == Some(value),
+            Builtin::InteractAnimation(value) => self.effective() == Some(value),
             _ => false,
         }
     }

@@ -1,3 +1,4 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Res};
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_block::definition::Blocks;
@@ -8,12 +9,16 @@ use mcrs_minecraft_command_argument_block::BlockLookup;
 use mcrs_minecraft_command_argument_vanilla::{ArgumentError, VanillaArgument};
 use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
-use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_physics::{MobUuids, Mobs};
+use mcrs_minecraft_engine_entity_motion::MotionId;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_physics::Mob;
+use mcrs_minecraft_engine_physics::MobIndex;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
-use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -36,9 +41,34 @@ pub struct VanillaWorld<'w, 's> {
     registries: Option<Res<'w, CurrentRegistries>>,
     blocks: Option<Res<'w, Blocks>>,
     dimension_type: Query<'w, 's, &'static DimensionTypeId>,
-    rows: Option<Res<'w, EntityRows>>,
-    mobs: Option<Res<'w, Mobs>>,
-    uuids: Option<Res<'w, MobUuids>>,
+    mobs: Query<'w, 's, MobItem>,
+    index: Option<Res<'w, MobIndex>>,
+}
+
+type MobItem = (
+    Entity,
+    &'static MotionId,
+    &'static MotionState,
+    Option<&'static Vitals>,
+    &'static Mob,
+);
+
+fn mob_view<'a>(
+    (entity, id, state, vitals, mob): (
+        Entity,
+        &MotionId,
+        &'a MotionState,
+        Option<&'a Vitals>,
+        &'a Mob,
+    ),
+) -> MobView<'a> {
+    MobView {
+        entity,
+        id: id.0,
+        state: &state.0,
+        vitals,
+        mob,
+    }
 }
 
 impl VanillaWorld<'_, '_> {
@@ -51,44 +81,24 @@ impl VanillaWorld<'_, '_> {
     }
 
     pub(crate) fn mobs(&self) -> impl Iterator<Item = MobView<'_>> {
-        let rows = self.rows.as_deref();
-        let mobs = self.mobs.as_deref();
-        rows.zip(mobs).into_iter().flat_map(|(rows, mobs)| {
-            rows.living_rows().filter_map(|(at, state)| {
-                Some(MobView {
-                    at,
-                    state,
-                    mob: mobs.0.get(&at.id)?,
-                })
-            })
-        })
+        let mut views: Vec<MobView<'_>> = self
+            .mobs
+            .iter()
+            .map(mob_view)
+            .filter(|view| view.state.living.is_some())
+            .collect();
+        views.sort_unstable_by_key(|view| (TileKey::at(view.position()), view.id));
+        views.into_iter()
     }
 
     pub(crate) fn mob(&self, source: SourceMob) -> Option<MobView<'_>> {
-        let at = Placed {
-            tile: source.tile,
-            id: source.id,
-        };
-        Some(MobView {
-            at,
-            state: self.rows.as_deref()?.state_of(at)?,
-            mob: self.mobs.as_deref()?.0.get(&source.id)?,
-        })
+        let view = self.mobs.get(source.entity).ok().map(mob_view)?;
+        (view.id == source.id).then_some(view)
     }
 
     pub(crate) fn mob_by_uuid(&self, uuid: u128) -> Option<MobView<'_>> {
-        let id = *self.uuids.as_deref()?.0.get(&uuid)?;
-        let mob = self.mobs.as_deref()?.0.get(&id)?;
-        let rows = self.rows.as_deref()?;
-        let at = Placed {
-            tile: rows.tile_of(id)?,
-            id,
-        };
-        Some(MobView {
-            at,
-            state: rows.state_of(at)?,
-            mob,
-        })
+        let entity = self.index.as_deref()?.get(EntityUuid::from_u128(uuid))?;
+        self.mobs.get(entity).ok().map(mob_view)
     }
 
     pub fn blocks(&self) -> Option<&Blocks> {

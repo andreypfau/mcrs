@@ -1,5 +1,7 @@
 use mcrs_minecraft_numeric as numeric;
 
+use crate::jmath;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Interval {
     min: f32,
@@ -340,8 +342,19 @@ impl Interval {
             return Self::NAI;
         }
         if first.is_finite() && second.is_finite() {
-            let bound = |a: f32| first + Self::mul_bound(a, second - first);
-            return Self::encapsulating(bound(alpha.min), bound(alpha.max));
+            let bound = |a: f32| {
+                if a == 0.0 {
+                    first
+                } else {
+                    jmath::lerp(a, first, second)
+                }
+            };
+            let hull = Self::encapsulating(bound(alpha.min), bound(alpha.max));
+            return if alpha.contains(1.0) {
+                hull.union_value(second)
+            } else {
+                hull
+            };
         }
         if first == second {
             return Self::exact(first);
@@ -413,6 +426,7 @@ impl std::ops::Div for Interval {
 #[cfg(test)]
 mod test {
     use super::Interval;
+    use super::jmath;
 
     fn bounds(interval: Interval) -> (f32, f32) {
         (interval.min(), interval.max())
@@ -481,6 +495,33 @@ mod test {
             Interval::exact(f32::INFINITY),
         );
         assert_eq!(bounds(interpolated), (0.0, f32::INFINITY));
+    }
+
+    #[test]
+    fn a_lerp_bound_holds_every_value_the_sampler_returns() {
+        let cases = [
+            (Interval::exact(1.0), 16_777_216.0, 0.25),
+            (Interval::of(0.5, 1.0), 16_777_216.0, 0.25),
+            (Interval::of(0.0, 0.5), 0.25, 16_777_216.0),
+            (Interval::of(0.3, 0.7), -0.524_070_74, 0.088_458_45),
+            (Interval::of(0.1, 0.9), 1.0e-7, 3.0e38),
+        ];
+        for (alpha, first, second) in cases {
+            let bound = Interval::lerp(alpha, Interval::exact(first), Interval::exact(second));
+            let steps = 64_u16;
+            for step in 0..=steps {
+                let fraction = f32::from(step) / f32::from(steps);
+                let point = alpha.min() + fraction * (alpha.max() - alpha.min());
+                for at in [point, alpha.min(), alpha.max()] {
+                    let value = jmath::sampler_lerp(at, first, second);
+                    assert!(
+                        bound.contains(value),
+                        "lerp({at}, {first}, {second}) = {value} lies outside {:?}",
+                        bounds(bound)
+                    );
+                }
+            }
+        }
     }
 
     #[test]

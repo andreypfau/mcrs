@@ -106,12 +106,22 @@ motion. The distance at which the client stops to draw block entities is also ou
   3. The text of a side lies in front of the board of that side (SIGN-PLACE-001). The board hides
      it from a viewer behind the board.
   4. A side text with four empty messages draws nothing.
-- **Postconditions:** a viewer in front of a side sees the text of that side. A viewer behind
-  it sees the text of the other side.
+  5. The text of a side is not drawn for a viewer behind its plane. A viewer inside the sign
+     sees no mirrored text of the side that faces away.
+- **Postconditions:** a viewer in front of a side sees the text of that side and no text of the
+  other side. A viewer between the two text planes sees neither side.
 
 Provenance: `source_suggested_black_box_confirmed` (the rows `transform` of the sign artefact:
 the matrix of the back side is the matrix of the front side turned by 180° about the vertical
-axis through the centre of the board). Kind: semantic. Confidence: high.
+axis through the centre of the board). Item 5: `black_box_confirmed`. Experiment: in the client
+capture, with a scene in the format of `pig_idle.json`, run `setblock 0 -60 0
+minecraft:oak_sign[rotation=0]{front_text:{messages:["FRONT","","",""]},back_text:{messages:["BACK","","",""]}}`.
+Capture at x 0.5, y -59.0, pitch 0. From z 0.624 with yaw 180 and from z 0.376 with yaw 0,
+0.077 blocks in front of a text plane, the first line of that side fills the frame. From z 0.53
+with yaw 180 and from z 0.47 with yaw 0, between the planes and 0.077 blocks behind the plane
+ahead, the frame shows no text. The frames and their camera records are in
+`crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla/sign_sides/`. Kind: semantic.
+Confidence: high.
 
 ---
 

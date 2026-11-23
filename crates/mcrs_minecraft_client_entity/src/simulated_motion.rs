@@ -1,7 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::{MotionKind, MotionState};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_visual::ClientEntity;
 use mcrs_minecraft_physics::{Body, EntityState, MotionRow};
 
@@ -11,7 +11,7 @@ pub(crate) fn simulated_motion(
     velocity: DVec3,
 ) -> Option<(MotionState, MotionKind)> {
     let row = motion_row(client.kind)?;
-    let key = EntityKey(client.uuid.as_u128());
+    let key = EntityUuid(client.uuid);
     let body = Body {
         position,
         velocity,

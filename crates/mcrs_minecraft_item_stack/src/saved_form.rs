@@ -3,6 +3,7 @@ use core::ops::RangeInclusive;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 
+use crate::AttackAnimation;
 use crate::AttributeModifier;
 use crate::AttributeModifiers;
 use crate::BannerLayer;
@@ -34,6 +35,7 @@ use crate::HashError;
 use crate::InlineInstrument;
 use crate::Instrument;
 use crate::InstrumentId;
+use crate::InteractAnimation;
 use crate::ItemName;
 use crate::ItemStack;
 use crate::LodestoneTracker;
@@ -49,6 +51,7 @@ use crate::OminousBottleAmplifier;
 use crate::PaintingVariant;
 use crate::PaintingVariantId;
 use crate::PatchEntry;
+use crate::PiercingWeapon;
 use crate::PotionContents;
 use crate::RegistryValue;
 use crate::RepairCost;
@@ -58,6 +61,7 @@ use crate::SoundEventRef;
 use crate::StewEffect;
 use crate::StoredEnchantments;
 use crate::SuspiciousStewEffects;
+use crate::SwingAnimation;
 use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
@@ -206,6 +210,9 @@ fn flat_saved_form<S: SavedSink, L: NameLookup>(
         Builtin::Food(food) => walk.food(sink, food),
         Builtin::Tool(tool) => walk.tool(sink, tool),
         Builtin::Equippable(equippable) => walk.equippable(sink, equippable),
+        Builtin::PiercingWeapon(weapon) => walk.piercing_weapon(sink, weapon),
+        Builtin::AttackAnimation(AttackAnimation(swing))
+        | Builtin::InteractAnimation(InteractAnimation(swing)) => walk.swing_animation(sink, swing),
         Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
             walk.text(sink, text)
         }
@@ -818,6 +825,49 @@ impl<L: NameLookup> Walk<'_, L> {
         Ok(sink.fields([
             Field::new("pattern", pattern),
             Field::new("color", sink.leaf(Leaf::String(layer.color.name()))),
+        ]))
+    }
+
+    fn piercing_weapon<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        weapon: &PiercingWeapon,
+    ) -> Result<S::Node, Fault> {
+        let sound = weapon
+            .sound
+            .as_ref()
+            .map(|sound| self.sound_event(sink, sound))
+            .transpose()?;
+        let hit_sound = weapon
+            .hit_sound
+            .as_ref()
+            .map(|sound| self.sound_event(sink, sound))
+            .transpose()?;
+        let flag =
+            |value: bool, absent: bool| (value != absent).then(|| sink.leaf(Leaf::Boolean(value)));
+        Ok(sink.fields([
+            Field::optional("deals_knockback", flag(weapon.deals_knockback, true)),
+            Field::optional("dismounts", flag(weapon.dismounts, false)),
+            Field::optional("sound", sound),
+            Field::optional("hit_sound", hit_sound),
+        ]))
+    }
+
+    fn swing_animation<S: SavedSink>(
+        &self,
+        sink: &mut S,
+        swing: &SwingAnimation,
+    ) -> Result<S::Node, Fault> {
+        if !NOT_NEGATIVE.contains(&swing.duration) {
+            return Err(Fault::OutOfRange(self.component));
+        }
+        let kind = (swing.kind != SwingAnimation::DEFAULT_KIND)
+            .then(|| sink.leaf(Leaf::String(swing.kind.name())));
+        let duration = (swing.duration != SwingAnimation::DEFAULT_DURATION)
+            .then(|| sink.leaf(Leaf::Int(swing.duration)));
+        Ok(sink.fields([
+            Field::optional("type", kind),
+            Field::optional("duration", duration),
         ]))
     }
 }

@@ -3,6 +3,7 @@ use std::num::NonZeroU8;
 
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_item_stack::AttackAnimation;
 use mcrs_minecraft_item_stack::AttributeId;
 use mcrs_minecraft_item_stack::AttributeModifier;
 use mcrs_minecraft_item_stack::AttributeModifiers;
@@ -37,6 +38,8 @@ use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::SavedError;
 use mcrs_minecraft_item_stack::SlotGroup;
+use mcrs_minecraft_item_stack::SwingAnimation;
+use mcrs_minecraft_item_stack::SwingKind;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
@@ -876,13 +879,15 @@ struct PlainValue {
     wire: Option<String>,
 }
 
-const DECODED_PLAIN: [&str; 30] = [
+const DECODED_PLAIN: [&str; 32] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "repair_cost",
     "rarity",
+    "attack_animation",
+    "interact_animation",
     "map_id",
     "map_decorations",
     "profile",
@@ -996,7 +1001,7 @@ fn the_wire_components_that_the_game_wrote_read_to_the_saved_value_and_write_bac
         assert_same_component(&value.kind, &wire(read.as_ref()), &bare, header.len());
         decoded += 1;
     }
-    assert_eq!((decoded, kept), (93, 93));
+    assert_eq!((decoded, kept), (113, 73));
 }
 
 #[derive(Deserialize)]
@@ -1420,4 +1425,28 @@ fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
             assert_eq!(read, Err(NbtQuotaExceeded), "{index}");
         }
     }
+}
+
+#[test]
+fn swing_animation_rejects_invalid_kind_and_negative_duration_on_wire() {
+    let invalid_kind = with_one_component("attack_animation", "0306");
+    assert_eq!(
+        read_all(&invalid_kind, read_wire),
+        Err(WireError::BadValue(BuiltinKey::AttackAnimation))
+    );
+    let negative_wire = with_one_component("attack_animation", "01ffffffff0f");
+    assert_eq!(
+        read_all(&negative_wire, read_wire),
+        Err(WireError::OutOfRange(BuiltinKey::AttackAnimation))
+    );
+    let air_negative = unhex("01 00 01 00 28 01 ffffffff0f");
+    assert_eq!(read_all(&air_negative, read_wire), Ok(None));
+    let negative_stack = stack(STONE, 1).set(AttackAnimation(SwingAnimation {
+        kind: SwingKind::Whack,
+        duration: -1,
+    }));
+    assert_eq!(
+        write_wire(Some(&negative_stack), &Names, &mut Vec::new()),
+        Err(WireError::OutOfRange(BuiltinKey::AttackAnimation))
+    );
 }

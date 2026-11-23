@@ -1,69 +1,48 @@
-use std::marker::PhantomData;
-
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::App;
+use bevy_app::FixedUpdate;
+use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
-use mcrs_minecraft_engine_physics::{MobPublish, Mobs, RowMoves};
+use mcrs_minecraft_damage::Defence;
+use mcrs_minecraft_engine_physics::Mob;
+use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_entity_rows::RowStore;
 
-use crate::apply_row_attribute_edits::apply_row_attribute_edits;
+use crate::apply_attribute_edits::apply_attribute_edits;
 use crate::attribute_changed::AttributeChanged;
 use crate::attribute_edit::AttributeEdit;
 use crate::attribute_edits::AttributeEdits;
-use crate::forget_removed_rows::{any_row_attributes, forget_removed_rows};
-use crate::project_row_motion::project_row_motion;
-use crate::row_attributes::RowAttributes;
+use crate::mob_attributes::MobAttributes;
+use crate::mob_defence::fill_defence;
+use crate::mob_defence::project_defence;
+use crate::project_motion::project_motion;
 
-#[derive(Debug)]
-pub struct MobAttributesPlugin<M> {
-    column: PhantomData<fn() -> M>,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MobAttributesPlugin;
 
-impl<M> Clone for MobAttributesPlugin<M> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<M> Copy for MobAttributesPlugin<M> {}
-
-impl<M> Default for MobAttributesPlugin<M> {
-    fn default() -> Self {
-        Self {
-            column: PhantomData,
-        }
-    }
-}
-
-impl<M: Send + Sync + 'static> Plugin for MobAttributesPlugin<M> {
+impl Plugin for MobAttributesPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<RowAttributes>();
-        app.init_resource::<RowStore<M>>();
-        app.init_resource::<Mobs>();
+        if let Err(error) = app.try_register_required_components::<Mob, MobAttributes>() {
+            tracing::warn!(%error, "a mob spawned before its attributes were required");
+        }
+        if let Err(error) = app.try_register_required_components::<Mob, Defence>() {
+            tracing::warn!(%error, "a mob spawned before its defence was required");
+        }
+        app.add_observer(fill_defence);
         app.add_message::<AttributeEdit>();
         app.add_message::<AttributeChanged>();
         app.configure_sets(
             FixedUpdate,
-            AttributeEdits
-                .in_set(TickSet::Project)
-                .after(RowMoves)
-                .before(MobPublish),
+            AttributeEdits.in_set(TickSet::Project).before(MobPublish),
         );
         app.add_systems(
             FixedUpdate,
             (
-                apply_row_attribute_edits.run_if(on_message::<AttributeEdit>),
-                project_row_motion::<M>.run_if(on_message::<AttributeChanged>),
+                apply_attribute_edits.run_if(on_message::<AttributeEdit>),
+                (project_motion, project_defence).run_if(on_message::<AttributeChanged>),
             )
                 .chain()
                 .in_set(AttributeEdits),
-        );
-        app.add_systems(
-            FixedUpdate,
-            forget_removed_rows::<M>
-                .run_if(any_row_attributes)
-                .in_set(MobPublish),
         );
     }
 }

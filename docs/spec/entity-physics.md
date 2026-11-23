@@ -122,6 +122,11 @@ the reference implementation.
   authority for its own player. The server has local authority for every other entity, except an
   entity that a player controls.
 - **Server-simulated entity**: an entity for which the server has local authority.
+- **Sorted queue**: the list of the writes of the order-independent pass that wait for the apply
+  step (PHY-CMP-015). Each write goes from the tick of one entity to another entity, or is an own
+  hit of an entity. A write stays in the sorted queue until an apply step applies it.
+- **Apply step**: the one serial step of a tick that applies the sorted queue, in the order of
+  PHY-CMP-015. It comes after the tick of each entity of the pass.
 - **External impulse**: a change of the velocity that does not come from this model, for example
   knockback or an explosion (section 11.3).
 - **f32**, **f64**: an IEEE 754 binary32 value and an IEEE 754 binary64 value.
@@ -142,7 +147,8 @@ the reference implementation.
 
 Each rule states its kind and its confidence, for example
 `(source_suggested, client agreement, confidence: medium)`. The kinds are those of
-`docs/spec/README.md`. An invariant (section 10) has the kind "semantic".
+`docs/spec/README.md`. A new or revised rule states them on its provenance line, as
+`docs/spec/README.md` requires. An invariant (section 10) has the kind "semantic".
 
 ### 0.3 ID prefix
 
@@ -2410,10 +2416,9 @@ increases `|d.x|` or `|d.z|`, and never changes their signs.
 **PHY-INV-013** (`source_suggested`, semantic, confidence: medium). After a horizontal collision of
 an entity with the restitution 0, the velocity component of each clipped axis is zero.
 
-**PHY-INV-014** (`source_suggested`, semantic, confidence: medium). Let an implementation use
-PHY-CMP-008 and PHY-CMP-009. Let the world be split into cells. Each cell reads a copy of the
-blocks and the collider boxes of its neighbours. The copy holds the state at the end of the
-previous server tick. Thus it is the same copy in each layout.
+**PHY-INV-014** Let an implementation use PHY-CMP-008 and PHY-CMP-009. Let the world be split into
+cells. Each cell reads a copy of the blocks and the collider boxes of its neighbours. The copy holds
+the state at the end of the previous server tick. Thus it is the same copy in each layout.
 
 The copy of each cell must cover the
 read zone (PHY-RCH-001) of each entity in the cell. Then the physics result of each entity is the
@@ -2421,6 +2426,15 @@ same for one cell and for each split into many cells, bit for bit.
 
 Exception "claim across a cell boundary": a claim from another cell can join the arbitration of
 the next tick (PHY-CMP-017). The bound is one tick, only for the target of the claim.
+
+Exception "write across a cell boundary": a write from another cell, for example a hit, can join
+the apply step of the next tick (PHY-CMP-015). The write reaches its target at most one tick late.
+The tick of the target in the next tick runs without the write. The results of that tick, also
+the writes of the target to other entities, can thus differ from a layout of one cell. Example: a
+late hit kills the target. In the next tick, the target is still alive, and it can hit another
+entity. The bound of one tick applies to the arrival of the write, not to its results. A result that
+differs can change each later tick of the target. It can also change each later tick of an entity
+that the difference reaches through a write or a read, also through a chain of them.
 
 Exception "action across a cell boundary": an entity can start a block action in a column that
 another cell owns. This can be a step action, an inside action or a fall action. The owner applies that action one
@@ -2433,15 +2447,18 @@ other results stay the same in each layout.
 A copy that a cell makes after it handles the client packets breaks this invariant. The cell that
 owns a block would see a change by a packet in the same tick, and a neighbour cell one tick later.
 
-**PHY-INV-015** (`source_suggested`, semantic, confidence: medium). Let an implementation use
-PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012. Then the tick of each server-simulated entity reads only
-its own state and state from the end of the previous server tick. It writes only its own state,
-except for the deferred block actions of PHY-RCH-002. Thus the physics result, with the push, is
-independent of the order of the entities. It is also independent of the number of threads and of
-the split into cells.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
-The copy of each cell must cover the zones of PHY-RCH-001 and PHY-RCH-006. The exception of
-PHY-INV-014 stays.
+**PHY-INV-015** Let an implementation use PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012. Then the tick
+of each server-simulated entity reads only its own state and state from the end of the previous
+server tick. As an exception, it also reads each player in its state of PHY-CMP-021 from this tick.
+The copy of each cell must contain these player states before the entity pass. The tick writes
+only its own state, except for the deferred block actions of PHY-RCH-002.
+Thus the physics result, with the push, is independent of the order of the entities. It is also
+independent of the number of threads and of the split into cells.
+
+The copy of each cell must cover the zones of PHY-RCH-001 and PHY-RCH-006. The exceptions of
+PHY-INV-014 stay.
 
 Three ordered parts keep this property, because their order does not depend on the layout:
 
@@ -2450,6 +2467,8 @@ Three ordered parts keep this property, because their order does not depend on t
 - the explosion groups (PHY-CMP-020);
 - the block domain after the entity pass (PHY-BLK-001) and the arbitration of claims
   (PHY-CMP-017).
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ## 11. The role of the server
 
@@ -2844,17 +2863,40 @@ It takes one value for each entity and each tick, and it uses the value only whe
 depend on the order of the entities or on the other uses of a random value. The chance of 1 in 4
 stays the same. PHY-DEV-006 records this relaxation.
 
-**PHY-CMP-015** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: a write from
-the tick of one entity to another entity. Examples are damage, knockback, a pickup of an item and
-the removal of an entity. In the order-independent pass, such a write does not change the target
-in the same tick. The writer records it, and the target applies it at the start of the next tick,
-before step 1 of its tick.
+**PHY-CMP-015** Policy `semantic`: a write from the tick of one entity to another entity. Examples
+are damage, knockback, a pickup of an item and the removal of an entity. In the order-independent
+pass, such a write does not change the target during the pass. The writer adds the write to the
+sorted queue. The own hits of an entity also go into the sorted queue (`entity-damage.md`,
+DMG-ORD-002).
 
-When several writes have the same target, the target applies them in the order of the UUID of
-the writer (PHY-CMP-013). A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
+After the tick of each entity of the pass, the apply step applies the sorted queue. It applies the
+writes in this order:
+
+1. the order key of the target (PHY-CMP-013), from the lowest;
+2. the writer key of the writer (PHY-CMP-017), from the lowest;
+3. the write tick: the tick in which the writer added the write, from the earliest;
+4. the sequence: the order in which one writer added its writes to one target in one tick.
+
+Thus, for one layout, the order does not depend on the thread count or the task split. The writes
+from the cell of the target have the same order in each layout. A write of
+tick `T` changes the target before the server sends the changes of tick `T`. The tick of the target
+in tick `T` does not see the write. The next tick of the target sees it. `entity-damage.md`,
+DMG-ORD-001, states the place of a hit.
+
+The apply step of a tick must contain each write of that tick from the cell of the target. An own
+hit (DMG-ORD-002) always comes from that cell. A write from another cell can arrive one tick late,
+as a claim can (PHY-CMP-017). The late write then joins the apply step of the next tick. Its write
+tick is earlier, so it comes before each write of the same writer to the same target. The write reaches
+its target at most one tick late. This is the exception "write across a cell boundary" of
+PHY-INV-014. The health and the death of the target can then change one tick later than in a layout
+of one cell. The order of the writes on that target can then also differ from a layout of one cell.
+
+A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
 not such a write, because each entity computes its own push (PHY-CMP-012). The block domain does
 not use this rule. Its writes apply in the same tick (PHY-BLK-001). PHY-DEV-005 records this
 relaxation.
+
+Provenance: `design`. Kind: deviation (PHY-DEV-005). Confidence: medium.
 
 **PHY-CMP-016** (`source_suggested`, semantic, confidence: medium). A rule that reads the network
 id for the choice of a tick reads the phase offset in its place. The item rest cycle of
@@ -3189,9 +3231,15 @@ the deviations of this section for server-simulated entities. An implementation 
   - Two players or a player and a hopper touch one item in the same tick. In the reference, the
     writer that acts first gets the item. Under PHY-CMP-017, the writer with the lowest writer key
     gets it, in the same tick.
-  - The health of a target, and its death, can change one tick later.
+  - The health of a target, and its death, change in the same tick as in the reference. But the
+    tick of the target in that tick runs with the health before the hit.
+  - In a layout of many cells, a write from another cell can apply one tick later (PHY-CMP-015).
+    Then the health and the death of the target change one tick later than in the reference. A
+    target that a late hit kills still does its tick of the next tick alive. Its writes of that
+    tick, for example a hit on another entity, then also differ from the reference.
 - **Test:** a differential test accepts a delay of one tick for each write to another entity. For a
-  conflict, it accepts each winner.
+  write from another cell, it accepts one more tick and each result that PHY-INV-014 permits.
+  For a conflict, it accepts each winner.
 
 ### PHY-DEV-006: Keyed random value for crowd damage
 

@@ -1,6 +1,7 @@
 mod add_entity_data;
 mod client_tables;
 pub mod delta;
+mod entity_damaged;
 mod entity_light;
 mod fuse;
 mod item_entity_stack;
@@ -20,6 +21,7 @@ mod ticked;
 mod tracked_velocity;
 
 pub use add_entity_data::*;
+pub use entity_damaged::EntityDamaged;
 pub use fuse::Fuse;
 pub use item_entity_stack::ItemEntityStack;
 pub use network_entities::*;

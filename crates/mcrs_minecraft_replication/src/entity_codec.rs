@@ -4,6 +4,7 @@ use crate::encode::record;
 use crate::hold_set::HoldSet;
 use crate::list_packets::{Profile, game_mode_packet};
 use crate::mob_report::MobReport;
+use crate::mob_signal::MobSignal;
 use crate::mob_trackers::MobTrackers;
 use crate::motion::Motion;
 use crate::player_data::PlayerData;
@@ -25,11 +26,12 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_profile::Property;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::{Result, VarInt};
-use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundRemoveEntities, ClientboundSetEntityData,
+    ClientboundSwingAnimation,
 };
 use mcrs_minecraft_protocol_game::entity::Metadata;
+use mcrs_minecraft_protocol_game::{Hand, LpVec3, SwingAnimationKind};
 use std::collections::BTreeMap;
 use std::mem;
 use uuid::Uuid;
@@ -50,6 +52,24 @@ pub struct EntityCodec {
     mobs: MobTrackers,
     attributed: Vec<EntityId>,
     posed: Vec<EntityId>,
+    swings: Vec<PendingSwing>,
+    signals: Vec<PendingSignal>,
+    hidden: BTreeMap<EntityId, Vec<ViewerId>>,
+    hiding: Vec<EntityId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingSignal {
+    subject: EntityId,
+    signal: MobSignal,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingSwing {
+    subject: EntityId,
+    hand: Hand,
+    animation: SwingAnimationKind,
+    duration: i32,
 }
 
 #[derive(Debug)]
@@ -152,6 +172,9 @@ impl EntityCodec {
                 .release_where(viewer, |held| !mobs.contains(held));
         }
         self.holds.remove_subject(subject);
+        if self.hidden.get(&subject).is_some_and(Vec::is_empty) {
+            self.hidden.remove(&subject);
+        }
         if let Some(packet) = self.list.leave(subject)? {
             self.delivery.owe(viewer, packet);
         }
@@ -220,6 +243,30 @@ impl EntityCodec {
                         self.delivery.owe(viewer, packet.clone());
                     }
                 }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Swing {
+                    hand,
+                    animation,
+                    duration,
+                })) => {
+                    self.swings.push(PendingSwing {
+                        subject,
+                        hand: *hand,
+                        animation: *animation,
+                        duration: *duration,
+                    });
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Signal(signal))) => {
+                    self.signals.push(PendingSignal {
+                        subject,
+                        signal: *signal,
+                    });
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Hide)) => {
+                    self.hide(subject);
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Show)) => {
+                    self.show(subject)?;
+                }
                 EntityEvent::Enter { .. } => {
                     self.generation = self.generation.wrapping_add(1);
                     entered.push(subject);
@@ -234,6 +281,140 @@ impl EntityCodec {
         Ok(())
     }
 
+    fn send_signals(&mut self) {
+        let Self {
+            subjects,
+            holds,
+            delivery,
+            signals,
+            ..
+        } = self;
+        for PendingSignal { subject, signal } in signals.drain(..) {
+            let Some(owner) = subjects.get(&subject).map(|state| state.viewer) else {
+                continue;
+            };
+            let to_owner = matches!(signal, MobSignal::Hurt { .. });
+            let observers = holds.holders(subject);
+            if !to_owner && !observers.iter().any(|&viewer| viewer != owner) {
+                continue;
+            }
+            let packet = match signal.encode(subject) {
+                Ok(Some(packet)) => packet,
+                Ok(None) => continue,
+                Err(error) => {
+                    tracing::warn!("a player signal did not encode: {error:#}");
+                    continue;
+                }
+            };
+            for &viewer in observers {
+                if viewer != owner {
+                    delivery.owe(viewer, packet.clone());
+                }
+            }
+            if to_owner {
+                delivery.owe(owner, packet);
+            }
+        }
+    }
+
+    fn hide(&mut self, subject: EntityId) {
+        if self.subjects.contains_key(&subject) && !self.hidden.contains_key(&subject) {
+            self.hidden.insert(subject, Vec::new());
+            self.hiding.push(subject);
+        }
+    }
+
+    fn show(&mut self, subject: EntityId) -> Result<()> {
+        let Some(watchers) = self.hidden.remove(&subject) else {
+            return Ok(());
+        };
+        if let Some(state) = self.subjects.get_mut(&subject) {
+            state.motion.refresh();
+        }
+        let mut chunks = Vec::new();
+        for viewer in watchers {
+            self.spawn_chunks(viewer, subject, Tier::NEAREST, &mut chunks)?;
+            for chunk in chunks.drain(..) {
+                self.delivery.owe(viewer, chunk);
+            }
+        }
+        Ok(())
+    }
+
+    fn send_hides(&mut self) {
+        let Self {
+            hidden,
+            hiding,
+            holds,
+            owners,
+            list,
+            delivery,
+            tick,
+            ..
+        } = self;
+        for subject in hiding.drain(..) {
+            let Some(watchers) = hidden.get_mut(&subject) else {
+                continue;
+            };
+            let removed = holds.remove_subject(subject);
+            if removed.is_empty() {
+                continue;
+            }
+            watchers.extend_from_slice(&removed);
+            let removal = match record(&ClientboundRemoveEntities {
+                entity_ids: vec![wire_id(subject)],
+            }) {
+                Ok(removal) => removal,
+                Err(error) => {
+                    tracing::warn!("the removal of a hidden player did not encode: {error:#}");
+                    continue;
+                }
+            };
+            for &viewer in &removed {
+                if let Some(&own) = owners.get(&viewer) {
+                    list.release(own, subject, *tick);
+                }
+                delivery.owe(viewer, removal.clone());
+            }
+        }
+    }
+
+    fn send_swings(&mut self) {
+        let Self {
+            subjects,
+            holds,
+            delivery,
+            swings,
+            ..
+        } = self;
+        for swing in swings.drain(..) {
+            let Some(owner) = subjects.get(&swing.subject).map(|state| state.viewer) else {
+                continue;
+            };
+            let observers = holds.holders(swing.subject);
+            if !observers.iter().any(|&viewer| viewer != owner) {
+                continue;
+            }
+            let packet = match record(&ClientboundSwingAnimation {
+                entity_id: wire_id(swing.subject),
+                hand: swing.hand,
+                animation: swing.animation,
+                duration: VarInt(swing.duration),
+            }) {
+                Ok(packet) => packet,
+                Err(error) => {
+                    tracing::warn!("a player swing did not encode: {error:#}");
+                    continue;
+                }
+            };
+            for &viewer in observers {
+                if viewer != owner {
+                    delivery.owe(viewer, packet.clone());
+                }
+            }
+        }
+    }
+
     fn write_blob(
         &mut self,
         subjects: &[EntityId],
@@ -242,6 +423,9 @@ impl EntityCodec {
         let mut bytes = BytesMut::new();
         let mut ranges = Vec::new();
         for &subject in subjects {
+            if self.hidden.contains_key(&subject) {
+                continue;
+            }
             let Some(state) = self.subjects.get_mut(&subject) else {
                 continue;
             };
@@ -260,10 +444,29 @@ impl EntityCodec {
         })
     }
 
+    fn is_hidden_from(&self, viewer: ViewerId, subject: EntityId) -> bool {
+        self.hidden.contains_key(&subject) && !self.holds.contains(viewer, subject)
+    }
+
     fn release_all(&mut self, viewer: ViewerId, subjects: &[EntityId]) -> Option<Bytes> {
         let own = self.owners.get(&viewer).copied();
+        let entity_ids: Vec<VarInt> = subjects
+            .iter()
+            .filter(|&&subject| !self.is_hidden_from(viewer, subject))
+            .map(|&subject| wire_id(subject))
+            .collect();
         for &subject in subjects {
+            let hidden = self.is_hidden_from(viewer, subject);
             self.holds.remove(viewer, subject);
+            if hidden {
+                if let Some(watchers) = self.hidden.get_mut(&subject) {
+                    watchers.retain(|&watcher| watcher != viewer);
+                    if watchers.is_empty() && !self.subjects.contains_key(&subject) {
+                        self.hidden.remove(&subject);
+                    }
+                }
+                continue;
+            }
             if self.mobs.lose(viewer, subject) {
                 continue;
             }
@@ -271,7 +474,9 @@ impl EntityCodec {
                 self.list.release(own, subject, self.tick);
             }
         }
-        let entity_ids: Vec<VarInt> = subjects.iter().map(|&subject| wire_id(subject)).collect();
+        if entity_ids.is_empty() {
+            return None;
+        }
         match record(&ClientboundRemoveEntities { entity_ids }) {
             Ok(removal) => Some(removal),
             Err(error) => {
@@ -493,6 +698,11 @@ impl ReplicationCodec for EntityCodec {
                     tracing::warn!("the spawn bundle of a mob did not encode: {error:#}");
                 }
             }
+            Hold::Gain { subject, .. } if self.hidden.contains_key(&subject) => {
+                if let Some(watchers) = self.hidden.get_mut(&subject) {
+                    watchers.push(viewer);
+                }
+            }
             Hold::Gain { subject, tier } => {
                 if let Err(error) = self.spawn_chunks(viewer, subject, tier, chunks) {
                     tracing::warn!("a spawn bundle did not encode: {error:#}");
@@ -505,6 +715,11 @@ impl ReplicationCodec for EntityCodec {
             Hold::Forget => {
                 self.delivery.drop_owed(viewer);
                 self.mobs.forget(viewer, &mut self.holds);
+                let subjects = &self.subjects;
+                self.hidden.retain(|subject, watchers| {
+                    watchers.retain(|&watcher| watcher != viewer);
+                    !watchers.is_empty() || subjects.contains_key(subject)
+                });
                 if self.owners.contains_key(&viewer) {
                     self.delivery.forget(viewer);
                 }
@@ -532,8 +747,11 @@ impl ReplicationCodec for EntityCodec {
                 self.delivery.owe(viewer, packet.clone());
             }
         }
+        self.send_signals();
         self.send_attributes();
         self.send_entries();
+        self.send_swings();
+        self.send_hides();
         self.mobs.finish_tick(tick, &self.holds, &mut self.delivery);
         if let Err(error) = self.update_list() {
             tracing::warn!("the player list did not encode: {error:#}");
@@ -691,5 +909,273 @@ mod tests {
         })
         .unwrap();
         assert_eq!(removal, [take, remove], "take_item_entity goes first");
+    }
+
+    const OBSERVER_A: ViewerId = ViewerId(10);
+    const OBSERVER_B: ViewerId = ViewerId(11);
+    const LATE_VIEWER: ViewerId = ViewerId(12);
+    const SUBJECT_VIEWER: ViewerId = ViewerId(13);
+
+    fn setup_swing_codec() -> EntityCodec {
+        use crate::delta_base::Pose;
+
+        let mut codec = EntityCodec::default();
+        let spawn = PlayerSpawn {
+            viewer: SUBJECT_VIEWER,
+            uuid: Uuid::from_u128(99),
+            username: "Alice".to_owned(),
+            properties: Vec::new(),
+            pose: Pose {
+                position: DVec3::new(0.5, 64.0, 0.5),
+                look: Default::default(),
+            },
+            game_mode: GameMode::Survival,
+            attributes: Vec::new(),
+            entries: PlayerEntries::default(),
+        };
+        codec.apply(
+            0,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![SubjectEvent {
+                    subject: PLAYER,
+                    event: EntityEvent::Spawn(PlayerData::Spawn(spawn).into()),
+                }],
+            },
+        );
+        let mut out = Vec::new();
+        for viewer in [OBSERVER_A, OBSERVER_B, SUBJECT_VIEWER] {
+            codec.hold(
+                viewer,
+                Hold::Gain {
+                    subject: PLAYER,
+                    tier: Tier::NEAREST,
+                },
+                &mut out,
+            );
+        }
+        let mut drained = Vec::new();
+        codec.finish_tick(0, &mut drained);
+        codec
+    }
+
+    fn finish_by_viewer(codec: &mut EntityCodec, tick: u64) -> BTreeMap<ViewerId, Vec<Bytes>> {
+        let mut finished = Vec::new();
+        codec.finish_tick(tick, &mut finished);
+        let mut by_viewer: BTreeMap<ViewerId, Vec<Bytes>> = BTreeMap::new();
+        for ViewerBytes { viewer, chunks } in finished {
+            by_viewer.entry(viewer).or_default().extend(chunks);
+        }
+        by_viewer
+    }
+
+    fn swing_event(
+        hand: Hand,
+        animation: SwingAnimationKind,
+        duration: i32,
+    ) -> SubjectEvent<ReplicationData> {
+        SubjectEvent {
+            subject: PLAYER,
+            event: EntityEvent::Data(
+                PlayerData::Swing {
+                    hand,
+                    animation,
+                    duration,
+                }
+                .into(),
+            ),
+        }
+    }
+
+    #[test]
+    fn player_swings_share_one_encoded_buffer_across_observers_only_and_never_replay() {
+        let mut codec = setup_swing_codec();
+        codec.apply(
+            1,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![swing_event(Hand::Off, SwingAnimationKind::Stab, 9)],
+            },
+        );
+        let packets_by_viewer = finish_by_viewer(&mut codec, 1);
+        let expected = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(PLAYER),
+            hand: Hand::Off,
+            animation: SwingAnimationKind::Stab,
+            duration: VarInt(9),
+        })
+        .unwrap();
+
+        let observer_a = packets_by_viewer.get(&OBSERVER_A).expect("observer A");
+        let observer_b = packets_by_viewer.get(&OBSERVER_B).expect("observer B");
+        assert_eq!(observer_a.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(observer_b.as_slice(), std::slice::from_ref(&expected));
+        assert_eq!(
+            observer_a[0].as_ptr(),
+            observer_b[0].as_ptr(),
+            "SWG-PKT-001: observers share one encoded Bytes buffer"
+        );
+        assert!(
+            !packets_by_viewer.contains_key(&SUBJECT_VIEWER),
+            "SWG-DST-001: observer-only swing excludes actor"
+        );
+
+        let mut late_spawn = Vec::new();
+        codec.hold(
+            LATE_VIEWER,
+            Hold::Gain {
+                subject: PLAYER,
+                tier: Tier::NEAREST,
+            },
+            &mut late_spawn,
+        );
+        assert!(
+            !late_spawn.contains(&expected),
+            "SWG-DST-002: transient swing never enters spawn backlog"
+        );
+    }
+
+    #[test]
+    fn player_swings_skip_lost_observers_and_same_tick_despawn() {
+        let mut codec = setup_swing_codec();
+        let expected = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(PLAYER),
+            hand: Hand::Off,
+            animation: SwingAnimationKind::Stab,
+            duration: VarInt(9),
+        })
+        .unwrap();
+
+        codec.apply(
+            1,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![swing_event(Hand::Off, SwingAnimationKind::Stab, 9)],
+            },
+        );
+        let mut lost = Vec::new();
+        codec.hold(
+            OBSERVER_A,
+            Hold::Lose {
+                subjects: &[PLAYER],
+            },
+            &mut lost,
+        );
+        let by_viewer = finish_by_viewer(&mut codec, 1);
+        assert!(
+            !by_viewer.contains_key(&OBSERVER_A),
+            "same-tick Hold::Lose must not receive SwingAnimation after RemoveEntities"
+        );
+        assert_eq!(
+            by_viewer.get(&OBSERVER_B).map(Vec::as_slice),
+            Some(std::slice::from_ref(&expected)),
+            "remaining observer still receives the swing"
+        );
+
+        codec.apply(
+            2,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![
+                    swing_event(Hand::Main, SwingAnimationKind::Whack, 6),
+                    SubjectEvent {
+                        subject: PLAYER,
+                        event: EntityEvent::Despawn,
+                    },
+                ],
+            },
+        );
+        let whack = record(&ClientboundSwingAnimation {
+            entity_id: wire_id(PLAYER),
+            hand: Hand::Main,
+            animation: SwingAnimationKind::Whack,
+            duration: VarInt(6),
+        })
+        .unwrap();
+        let after_despawn = finish_by_viewer(&mut codec, 2);
+        assert!(
+            after_despawn
+                .values()
+                .all(|chunks| chunks.iter().all(|chunk| chunk != &whack)),
+            "same-tick Despawn must not emit a queued SwingAnimation"
+        );
+    }
+
+    #[test]
+    fn a_viewer_lost_in_the_tick_of_a_hide_gets_the_removal_once() {
+        let mut codec = setup_swing_codec();
+        codec.apply(
+            1,
+            &TileDelta {
+                tile: TileKey::new(0, 0, 0),
+                events: vec![SubjectEvent {
+                    subject: PLAYER,
+                    event: EntityEvent::Data(PlayerData::Hide.into()),
+                }],
+            },
+        );
+        let mut lost = Vec::new();
+        codec.hold(
+            OBSERVER_A,
+            Hold::Lose {
+                subjects: &[PLAYER],
+            },
+            &mut lost,
+        );
+        let removal = record(&ClientboundRemoveEntities {
+            entity_ids: vec![wire_id(PLAYER)],
+        })
+        .unwrap();
+        let finished = finish_by_viewer(&mut codec, 1);
+        assert_eq!(
+            (lost, finished.get(&OBSERVER_A)),
+            (vec![removal.clone()], None),
+            "a viewer that held the player when it lost it gets one removal"
+        );
+        assert_eq!(
+            finished.get(&OBSERVER_B).map(Vec::as_slice),
+            Some(std::slice::from_ref(&removal)),
+            "a viewer that still holds the player gets the removal of the hide"
+        );
+    }
+
+    #[test]
+    fn a_viewer_gained_in_the_tick_of_a_hide_sees_the_player_when_it_shows() {
+        let mut codec = setup_swing_codec();
+        let player_event = |data: PlayerData| TileDelta {
+            tile: TileKey::new(0, 0, 0),
+            events: vec![SubjectEvent {
+                subject: PLAYER,
+                event: EntityEvent::Data(data.into()),
+            }],
+        };
+        codec.apply(1, &player_event(PlayerData::Hide));
+        let mut gained = Vec::new();
+        codec.hold(
+            LATE_VIEWER,
+            Hold::Gain {
+                subject: PLAYER,
+                tier: Tier::NEAREST,
+            },
+            &mut gained,
+        );
+        let hidden = finish_by_viewer(&mut codec, 1);
+        assert!(
+            gained.is_empty() && !hidden.contains_key(&LATE_VIEWER),
+            "a viewer gained while the player is hidden gets neither a spawn nor a removal"
+        );
+
+        codec.apply(2, &player_event(PlayerData::Show));
+        let shown = finish_by_viewer(&mut codec, 2);
+        let spawn_of = |viewer| shown.get(&viewer).filter(|chunks| !chunks.is_empty());
+        assert!(
+            spawn_of(OBSERVER_A).is_some(),
+            "a viewer that held the player before the hide gets the spawn"
+        );
+        assert_eq!(
+            spawn_of(LATE_VIEWER),
+            spawn_of(OBSERVER_A),
+            "a viewer gained in the tick of the hide gets the same spawn"
+        );
     }
 }

@@ -6,8 +6,8 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, DetectChangesMut, Query, Res, With};
-use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 
 #[derive(

@@ -308,3 +308,51 @@ fn a_player_info_update_reads_the_list_order_and_hat_actions_from_the_top_two_bi
     };
     assert_eq!((entry.list_order, entry.show_hat), (5, true));
 }
+
+#[test]
+fn animate_and_swing_animation_packets_match_wire_layout_and_table_ids() {
+    use mcrs_minecraft_protocol::Packet;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundAnimate, ClientboundSwingAnimation,
+    };
+    use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
+
+    assert_eq!(ClientboundAnimate::ID, 2);
+    assert_eq!(ClientboundSwingAnimation::ID, 123);
+
+    for action in [0, 1, 2] {
+        let packet = ClientboundAnimate {
+            entity_id: VarInt(42),
+            action,
+        };
+        let mut buf = Vec::new();
+        let bytes = round_trip(&packet, &mut buf);
+        assert_eq!(bytes, [42, action]);
+    }
+
+    for (hand, hand_byte) in [(Hand::Main, 0), (Hand::Off, 1)] {
+        for (animation, anim_byte) in [
+            (SwingAnimationKind::None, 0),
+            (SwingAnimationKind::Whack, 1),
+            (SwingAnimationKind::Stab, 2),
+        ] {
+            for (duration, dur_bytes) in [
+                (0, &[0u8][..]),
+                (6, &[6][..]),
+                (17, &[17][..]),
+                (150, &[0x96, 0x01][..]),
+            ] {
+                let packet = ClientboundSwingAnimation {
+                    entity_id: VarInt(99),
+                    hand,
+                    animation,
+                    duration: VarInt(duration),
+                };
+                let mut buf = Vec::new();
+                let bytes = round_trip(&packet, &mut buf);
+                assert_eq!(&bytes[..3], [99, hand_byte, anim_byte]);
+                assert_eq!(&bytes[3..], dur_bytes);
+            }
+        }
+    }
+}

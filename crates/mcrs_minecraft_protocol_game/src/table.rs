@@ -1,6 +1,7 @@
 mcrs_minecraft_protocol::extend_packet_table! {
     game_clientbound: ClientboundGamePacket<'a> extends mcrs_minecraft_protocol::packets::table::game_clientbound in (crate::clientbound) {
         "add_entity" => ClientboundAddEntity,
+        "animate" => ClientboundAnimate,
         "block_changed_ack" => ClientboundBlockChangedAck,
         "block_destruction" => ClientboundBlockDestruction,
         "block_entity_data" => ClientboundBlockEntityData,
@@ -36,6 +37,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "ping" => ClientboundPing,
         "player_abilities" => ClientboundPlayerAbilities,
         "player_chat" => ClientboundPlayerChat<'a>,
+        "player_combat_kill" => ClientboundPlayerCombatKill<'a>,
         "player_info_remove" => ClientboundPlayerInfoRemove,
         "player_info_update" => ClientboundPlayerInfoUpdate<'a>,
         "player_look_at" => ClientboundPlayerLookAt,
@@ -54,10 +56,12 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "set_entity_data" => ClientboundSetEntityData<'a>,
         "set_entity_motion" => ClientboundSetEntityMotion,
         "set_equipment" => ClientboundSetEquipment,
+        "set_health" => ClientboundSetHealth,
         "set_held_slot" => ClientboundSetHeldSlot,
         "set_passengers" => ClientboundSetPassengers,
         "set_player_inventory" => ClientboundSetPlayerInventory,
         "set_time" => ClientboundSetTime,
+        "swing_animation" => ClientboundSwingAnimation,
         "system_chat" => ClientboundSystemChatPacket<'a>,
         "tab_list" => ClientboundTabList<'a>,
         "take_item_entity" => ClientboundTakeItemEntity,

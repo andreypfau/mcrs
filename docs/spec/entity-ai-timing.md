@@ -97,8 +97,11 @@ this server. Section 10 gives the experiments.
   division of the world into cells, and the save keeps it.
 - **Phase offset**: the value from 0 to 3 that PHY-CMP-016 derives from the UUID.
 - **Merge point**: the one global step at the start of a tick in which the proposals apply
-  (AIT-CPL-002). The writes between entities that are not claims also apply there (PHY-CMP-015). A
-  claim does not apply at the merge point. It enters the arbitration of PHY-CMP-017.
+  (AIT-CPL-002). The grants of the proposals apply there. A write between entities that is neither
+  a grant nor a claim does not apply there. It applies in the apply step of PHY-CMP-015, after the
+  entity pass of the same tick. A write from another cell can apply in the apply step of the next
+  tick (PHY-CMP-015). A claim does not apply at the merge point. It enters the
+  arbitration of PHY-CMP-017.
 - **Player table**: the positions of all players of one dimension at the end of the previous tick.
   Each cell has the same copy (AIT-CDN-002).
 - **Cadence class**: a group of mobs that use one reduced cadence (AIT-CDN-003).
@@ -116,6 +119,7 @@ this server. Section 10 gives the experiments.
 
 Each rule states its kind and its confidence, for example
 `(source_suggested, semantic, confidence: medium)`. The kinds are those of `docs/spec/README.md`. A
+new or revised rule states them on its provenance line, as `docs/spec/README.md` requires. A
 rule with the label `design` that states a number gives a default value. Section 7 lists each
 configurable value.
 
@@ -647,18 +651,22 @@ with their start conditions. It also contains the brain flotation of BRAIN-VAN-0
 The reason: they set the jump input in each tick, and a late jump makes
 the mob sink. The search of a panic position is a decision (AIT-DEC-001).
 
-**AIT-RFX-006** (`design`, semantic, confidence: medium). The effects of damage on the mob that
-takes it are a reflex. They are the health, the hurt time, the knockback and the death. They also
-are the reset of the idle time, and the time and the source of the last damage. These writes are not
-claims, so they apply at the merge point (PHY-CMP-015). The removal of a mob after its death is not
-a claim: the pass removes the row when its death time reaches 20 (DMG-DTH-003). The hits of the own
-step and fall actions apply in the tick of the mob, and the crowd hit in the crowd fix-up after the
-main pass (DMG-ORD-002, DMG-CRW-002).
+**AIT-RFX-006** The effects of damage on the mob that takes it are a reflex. They are the health,
+the hurt time, the knockback and the death. They also are the reset of the idle time, and the time
+and the source of the last damage. These writes are not claims. They apply in the apply step of
+PHY-CMP-015, in the tick of the hit (DMG-ORD-001). A write from another cell can apply one tick
+later (PHY-CMP-015). The removal of a mob after its death is not a claim. The mob leaves the world
+in the tick in which its death time reaches 20 (DMG-DTH-003). The own hits of DMG-ORD-002, for
+example the hits of the step action, the fall action and the crowd, also apply in the apply step.
+The hits of the base entity tick are an exception. They apply at their step, before the AI step
+(DMG-ORD-002), not in the apply step.
 
 Then the hot tick sends a fact to the brain. The reaction is a decision: the revenge target, the
 panic and the alert. The reason: the health and the knockback are visible in the next update. The
 vanilla reaction already has a delay of 0 or 1 tick for goals, and up to 19 brain updates for brains
 (AIT-VAN-010).
+
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 **AIT-RFX-007** (`design`, semantic, confidence: medium). The attraction of an experience orb is a
 reflex (AIT-VAN-019). It reads the player table (AIT-CDN-002) for the nearest player within 8

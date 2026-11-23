@@ -1,22 +1,40 @@
+use std::path::Path;
+
+use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
+use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine::HiddenPlayer;
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
-use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_mob_attributes::{AttributeEdit, AttributeTarget, RowAttributes};
-use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
+use mcrs_minecraft_engine_damage::{Died, RespawnRequest};
+use mcrs_minecraft_engine_entity_motion::MotionId;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
+use mcrs_minecraft_engine_mob_attributes::MobAttributes;
+use mcrs_minecraft_engine_physics::Mob;
+use mcrs_minecraft_engine_player_vitals::{DeathMessage, PlayerDeathSet};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::sub_app::{AddDimensionPlugins, DimensionLabel};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_lang::Language;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
+use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::packets::table::Decoded;
 use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePacket as BasePacket;
@@ -28,13 +46,16 @@ use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
+use mcrs_minecraft_save::PlayerDat;
 use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
+use mcrs_minecraft_text::Text as WireText;
 
 use crate::commands::{chats, load_stone_column};
-use crate::host_app::{self, PlayServer};
+use crate::host_app::{self, Arrival, PlayServer, sent_to};
 use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
+const WATCHER: Uuid = Uuid::from_u128(2);
 
 #[derive(Debug, PartialEq)]
 enum Seen {
@@ -259,16 +280,33 @@ fn start() -> PlayServer {
     PlayServer::start(app, &[(OPERATOR, 2)], 0)
 }
 
-fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
-    server
-        .world()
-        .resource::<EntityRows>()
-        .tiles()
-        .flat_map(|(_, rows)| {
-            rows.rows()
-                .map(|row| row.state.body.position)
-                .collect::<Vec<_>>()
+pub(crate) struct MobEntity {
+    pub(crate) entity: Entity,
+    pub(crate) id: EntityId,
+    pub(crate) state: EntityState,
+    pub(crate) mob: Mob,
+}
+
+pub(crate) fn mob_entities(server: &mut PlayServer) -> Vec<MobEntity> {
+    let world = server.world();
+    let mut mobs: Vec<MobEntity> = world
+        .query::<(Entity, &MotionId, &MotionState, &Mob)>()
+        .iter(world)
+        .map(|(entity, id, state, mob)| MobEntity {
+            entity,
+            id: id.0,
+            state: state.0,
+            mob: mob.clone(),
         })
+        .collect();
+    mobs.sort_by_key(|mob| mob.id);
+    mobs
+}
+
+fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
+    mob_entities(server)
+        .iter()
+        .map(|mob| mob.state.body.position)
         .collect()
 }
 
@@ -294,11 +332,10 @@ fn trk_spn_001_summoned_pig_reaches_viewer_as_one_bundle_and_falls() {
     viewer.receive(replies);
     viewer.receive(server.ticks(operator, 60));
 
-    let mobs = server.world().resource::<Mobs>().0.clone();
+    let mobs = mob_entities(&mut server);
     assert_eq!(mobs.len(), 1, "one summon makes one mob");
-    let (&row_id, mob) = mobs.iter().next().unwrap();
-    let id = row_id.0 as i32;
-    let uuid = Uuid::from_u128(mob.uuid);
+    let id = mobs[0].id.0 as i32;
+    let uuid = Uuid::from_u128(mobs[0].mob.uuid);
     assert_eq!(
         viewer.seen.get(..4),
         Some(
@@ -358,8 +395,8 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
         "summon minecraft:pig 4 64 4",
     );
     viewer.receive(server.ticks(operator, 5));
-    let row = *server.world().resource::<Mobs>().0.keys().next().unwrap();
-    let id = row.0 as i32;
+    let pig = &mob_entities(&mut server)[0];
+    let (entity, id) = (pig.entity, pig.id.0 as i32);
     let attribute_updates = |viewer: &mut Viewer| -> Vec<Seen> {
         viewer
             .seen
@@ -368,7 +405,7 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
             .collect()
     };
     let slow = |attribute| AttributeEdit {
-        target: AttributeTarget::Row(row),
+        target: entity,
         attribute,
         edit: InstanceEdit::Put(InstanceModifier::new(
             "test:slow".parse().unwrap(),
@@ -405,9 +442,8 @@ fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
     assert_eq!(
         server
             .world()
-            .resource::<RowAttributes>()
-            .get(row)
-            .map(|set| set.instances().count()),
+            .get::<MobAttributes>(entity)
+            .map(|attributes| attributes.set().instances().count()),
         Some(2),
         "the edit of follow_range applies"
     );
@@ -559,10 +595,63 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     );
     viewer.receive(server.ticks(operator, 25));
 
-    let mobs = server.world().resource::<Mobs>().0.len();
+    let mobs = mob_entities(&mut server).len();
     assert_eq!(mobs, 0, "the pigs left the world");
     assert!(pig_rows(&mut server).is_empty(), "and their rows");
     assert_each_death_in_order(&viewer);
+}
+
+#[test]
+fn a_hit_in_the_cooldown_sends_the_lower_health_of_a_resting_pig() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    let (key, _) = run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "summon minecraft:pig 4 64 4 {NoAI:1b}",
+    );
+    assert_eq!(key, "commands.summon.success");
+    viewer.receive(server.ticks(operator, 5));
+    let id = viewer
+        .seen
+        .iter()
+        .find_map(|seen| match seen {
+            Seen::Add { id, .. } => Some(*id),
+            _ => None,
+        })
+        .expect("the viewer sees the pig");
+
+    for line in [
+        "damage @e[type=minecraft:pig,limit=1] 1 minecraft:cactus",
+        "damage @e[type=minecraft:pig,limit=1] 3 minecraft:cactus",
+    ] {
+        let (key, _) = run(&mut server, operator, &mut viewer, line);
+        assert_eq!(key, "commands.damage.success", "{line}");
+    }
+    viewer.receive(server.ticks(operator, 2));
+
+    let hurts = viewer
+        .seen
+        .iter()
+        .filter(|seen| **seen == Seen::Hurt { id })
+        .count();
+    assert_eq!(hurts, 1, "only the first hit sends damage_event");
+    let healths: Vec<f32> = viewer
+        .seen
+        .iter()
+        .filter_map(|seen| match seen {
+            Seen::Data {
+                id: seen,
+                health: Some(health),
+            } if *seen == id => Some(*health),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(healths.last(), Some(&7.0), "{healths:?}");
 }
 
 fn assert_each_death_in_order(viewer: &Viewer) {
@@ -689,6 +778,545 @@ fn teleport_goes_to_a_mob_and_refuses_to_move_one() {
 }
 
 #[test]
+fn damage_and_kill_hit_the_source_player() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    let player_vitals = |server: &mut PlayServer| {
+        let world = server.world();
+        *world
+            .query_filtered::<&Vitals, With<Player>>()
+            .single(world)
+            .expect("one player with vitals")
+    };
+
+    assert_eq!(server.game_mode(operator), GameMode::Creative);
+    let (key, _) = run(&mut server, operator, &mut viewer, "gamemode survival");
+    assert_eq!(key, "commands.gamemode.success.self");
+    server.ticks(operator, 1);
+    let (key, args) = run(&mut server, operator, &mut viewer, "damage @s 4");
+    assert_eq!(
+        (key.as_str(), args),
+        (
+            "commands.damage.success",
+            vec!["Float(4.0)".to_owned(), "op".to_owned()]
+        )
+    );
+    server.ticks(operator, 1);
+    assert_eq!(player_vitals(&mut server).health, 16.0);
+
+    let (key, _) = run(&mut server, operator, &mut viewer, "gamemode creative");
+    assert_eq!(key, "commands.gamemode.success.self");
+    server.ticks(operator, 1);
+    let (key, _) = run(&mut server, operator, &mut viewer, "damage @s 6");
+    assert_eq!(key, "commands.damage.invulnerable");
+    server.ticks(operator, 1);
+    assert_eq!(player_vitals(&mut server).health, 16.0);
+
+    let (key, _) = run(&mut server, operator, &mut viewer, "kill @s");
+    assert_eq!(key, "commands.kill.success.single");
+    server.ticks(operator, 1);
+    assert!(player_vitals(&mut server).death_time.is_some());
+}
+
+#[test]
+fn damage_sends_the_new_health_to_its_owner_once() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (operator, mut joined) = server.join(OPERATOR, "op");
+    joined.extend(server.ticks(operator, 2));
+    let healths = |packets: &[PacketPayload]| -> Vec<f32> {
+        packets
+            .iter()
+            .filter_map(|payload| match payload {
+                PacketPayload::SetHealth(packet) => Some(packet.health),
+                _ => None,
+            })
+            .collect()
+    };
+    let login = joined
+        .iter()
+        .position(|payload| matches!(payload, PacketPayload::PlayerLogin(_)))
+        .expect("the join sends the login");
+    let first_health = joined
+        .iter()
+        .position(|payload| matches!(payload, PacketPayload::SetHealth(_)))
+        .expect("the join sends the health");
+    assert!(login < first_health, "the health follows the login");
+    assert_eq!(healths(&joined), vec![20.0]);
+    let _ = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("gamemode survival"),
+        },
+    );
+    let _ = server.ticks(operator, 1);
+
+    let mut packets = server.send(
+        operator,
+        &ServerboundChatCommand {
+            command: Bounded("damage @s 4"),
+        },
+    );
+    packets.extend(server.ticks(operator, 1));
+    assert_eq!(healths(&packets), vec![16.0]);
+    assert_eq!(healths(&server.ticks(operator, 1)), Vec::<f32>::new());
+}
+
+#[derive(Component)]
+struct Described;
+
+const DESCRIBED: &str = "watcher was described";
+
+fn describe_deaths(
+    mut died: MessageReader<Died>,
+    described: Query<(), With<Described>>,
+    mut messages: MessageWriter<DeathMessage>,
+) {
+    for death in died.read() {
+        if described.contains(death.target) {
+            messages.write(DeathMessage {
+                player: death.target,
+                text: WireText::text(DESCRIBED),
+            });
+        }
+    }
+}
+
+fn describe_plugin(app: &mut App) {
+    app.add_systems(
+        FixedUpdate,
+        describe_deaths.in_set(PlayerDeathSet::Describe),
+    );
+}
+
+#[derive(Debug, PartialEq)]
+struct Kill {
+    id: i32,
+    message: WireText,
+}
+
+fn kills(packets: &[PacketPayload]) -> Vec<Kill> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::PlayerCombatKill(packet) => Some(Kill {
+                id: packet.player_id.0,
+                message: packet.message.to_text().unwrap(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+fn hurt_animations(packets: &[PacketPayload]) -> Vec<i32> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::HurtAnimation(packet) => Some(packet.entity_id.0),
+            _ => None,
+        })
+        .collect()
+}
+
+fn data_about(packets: &[PacketPayload], id: i32) -> Vec<Seen> {
+    let mut viewer = Viewer::new();
+    viewer.receive(packets.iter().filter_map(as_record).collect());
+    viewer
+        .seen
+        .into_iter()
+        .filter(|seen| match seen {
+            Seen::Data { id: subject, .. } | Seen::Dying { id: subject, .. } => *subject == id,
+            _ => false,
+        })
+        .collect()
+}
+
+fn as_record(payload: &PacketPayload) -> Option<PacketPayload> {
+    match payload {
+        PacketPayload::Replication(_) => Some(payload.clone()),
+        PacketPayload::OwnEntityState(packet) => {
+            let length = u32::try_from(packet.len()).unwrap();
+            let record = [&length.to_be_bytes()[..], packet].concat();
+            Some(PacketPayload::Replication(vec![record.into()]))
+        }
+        _ => None,
+    }
+}
+
+fn seen_about(packets: Vec<PacketPayload>, id: i32) -> Vec<Seen> {
+    let mut viewer = Viewer::new();
+    viewer.receive(packets);
+    viewer
+        .seen
+        .into_iter()
+        .filter(|seen| match seen {
+            Seen::Hurt { id: subject } | Seen::Event { id: subject, .. } => *subject == id,
+            _ => false,
+        })
+        .collect()
+}
+
+struct Round {
+    hurt: Vec<i32>,
+    own: Vec<Seen>,
+    other: Vec<Seen>,
+    deaths: [Vec<Kill>; 2],
+    data: [Vec<Seen>; 2],
+}
+
+fn run_command(
+    server: &mut PlayServer,
+    target: Entity,
+    [target_session, watcher_session]: [PlayerSession; 2],
+    command: &'static str,
+) -> Round {
+    let id = player_network_id(target_session);
+    server.queue(
+        target,
+        &ServerboundChatCommand {
+            command: Bounded(command),
+        },
+    );
+    let raw = server.ticks_all(2);
+    let own = sent_to(target_session, raw.clone());
+    let other = sent_to(watcher_session, raw);
+    Round {
+        hurt: hurt_animations(&own),
+        deaths: [kills(&own), kills(&other)],
+        data: [data_about(&own, id), data_about(&other, id)],
+        own: seen_about(own, id),
+        other: seen_about(other, id),
+    }
+}
+
+#[test]
+fn a_hit_and_the_death_of_a_player_reach_the_player_and_its_viewer() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    app.add_dimension_plugin(describe_plugin);
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (target, _) = server.join(OPERATOR, "op");
+    let (watcher, _) = server.join(WATCHER, "watcher");
+    let _ = server.ticks_all(5);
+    let target_session = server.session_of(target).unwrap();
+    let watcher_session = server.session_of(watcher).unwrap();
+    let id = player_network_id(target_session);
+    let watcher_id = player_network_id(watcher_session);
+    let watcher_player = server.player(watcher);
+    server.world().entity_mut(watcher_player).insert(Described);
+    let sessions = [target_session, watcher_session];
+    let run = |server: &mut PlayServer, command| run_command(server, target, sessions, command);
+    let _ = run(&mut server, "gamemode survival");
+
+    for (command, hurt_animations, health) in [
+        ("damage @s 4 minecraft:mob_attack", vec![id], 16.0),
+        ("damage @s 4 minecraft:generic", Vec::new(), 12.0),
+    ] {
+        let _ = server.ticks_all(20);
+        let round = run(&mut server, command);
+        let health = || Seen::Data {
+            id,
+            health: Some(health),
+        };
+        assert_eq!(
+            round.data,
+            [vec![health()], vec![health()]],
+            "{command}: the hit player and its viewer get the health entry"
+        );
+        assert_eq!(
+            round.deaths,
+            [Vec::new(), Vec::new()],
+            "{command}: no kill packet"
+        );
+        assert_eq!(
+            round.hurt, hurt_animations,
+            "{command}: hurt animations of the hit player"
+        );
+        assert_eq!(
+            round.own,
+            vec![Seen::Hurt { id }],
+            "{command}: the hit player gets the damage event"
+        );
+        assert_eq!(
+            round.other,
+            vec![Seen::Hurt { id }],
+            "{command}: the viewer gets the damage event"
+        );
+    }
+
+    let _ = server.ticks_all(20);
+    let round = run(&mut server, "kill @s");
+    let dying = || Seen::Dying {
+        id,
+        health: Some(0.0),
+    };
+    assert_eq!(
+        round.data,
+        [vec![dying()], vec![dying()]],
+        "the death sends the dying pose and the health in one entity data packet"
+    );
+    assert_eq!(
+        round.deaths,
+        [
+            vec![Kill {
+                id,
+                message: WireText::default()
+            }],
+            Vec::new()
+        ],
+        "only the dying player gets one kill packet, empty without a death message"
+    );
+    let died = Seen::Event { id, event: 3 };
+    assert!(
+        !round.own.contains(&died),
+        "the dying player is not its own tracker"
+    );
+    assert_eq!(
+        round.other.iter().filter(|seen| **seen == died).count(),
+        1,
+        "the viewer gets the entity event 3 once"
+    );
+
+    assert_eq!(
+        run(&mut server, "kill @a").deaths,
+        [
+            Vec::new(),
+            vec![Kill {
+                id: watcher_id,
+                message: WireText::text(DESCRIBED)
+            }]
+        ],
+        "a dead player gets no second kill packet; a described death carries its text"
+    );
+
+    assert_removed_after_death_and_shown_again(&mut server, target, watcher_session);
+    assert_a_player_that_joins_dead_is_hidden(&mut server, watcher_session);
+}
+
+fn assert_a_player_that_joins_dead_is_hidden(server: &mut PlayServer, watcher: PlayerSession) {
+    let mut dat = PlayerDat::default();
+    dat.root.put("Health", NbtTag::Float(0.0));
+    dat.root.put("DeathTime", NbtTag::Short(40));
+    let registry = server.app.world().resource::<PersistedRegistry>();
+    let file = PersistedSnapshot::from_dat(&dat, registry, Path::new("player.dat")).unwrap();
+    let arrival = Arrival {
+        uuid: Uuid::from_u128(4),
+        name: "dead",
+        position: DVec3::new(8.5, 64.0, 8.5),
+        view_distance: 2,
+    };
+    let dead = host_app::admit_with_file(&mut server.app, server.dim, &arrival, &file);
+    let raw = server.ticks_all(5);
+    let id = player_network_id(server.session_of(dead).unwrap());
+    let mut viewer = Viewer::new();
+    viewer.receive(sent_to(watcher, raw));
+    let last = viewer.seen.into_iter().rev().find(|seen| match seen {
+        Seen::Add { id: subject, .. } => *subject == id,
+        Seen::Remove { ids } => ids.contains(&id),
+        _ => false,
+    });
+    assert!(
+        !matches!(last, Some(Seen::Add { .. })),
+        "a player that joins past its death animation stays hidden from a viewer: {last:?}"
+    );
+}
+
+fn assert_removed_after_death_and_shown_again(
+    server: &mut PlayServer,
+    target: Entity,
+    watcher_session: PlayerSession,
+) {
+    let target_session = server.session_of(target).unwrap();
+    let id = player_network_id(target_session);
+    let raw = server.ticks_all(25);
+    let removed = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter(|seen| match seen {
+                Seen::Event {
+                    id: subject,
+                    event: 60,
+                } => *subject == id,
+                Seen::Remove { ids } => ids.contains(&id),
+                _ => false,
+            })
+            .collect::<Vec<Seen>>()
+    };
+    assert_eq!(
+        removed(sent_to(watcher_session, raw.clone())),
+        vec![
+            Seen::Event { id, event: 60 },
+            Seen::Remove { ids: vec![id] }
+        ],
+        "the viewer gets the smoke, then the removal of the dead player"
+    );
+    assert_eq!(
+        removed(sent_to(target_session, raw)),
+        Vec::new(),
+        "the dead player is not removed from its own view"
+    );
+    let target_player = server.player(target);
+    assert!(
+        server.session_of(target).is_some() && server.world().get_entity(target_player).is_ok(),
+        "the dead player keeps its connection and its entity"
+    );
+
+    let (late, mut joined) = server.join(Uuid::from_u128(3), "late");
+    let late_session = server.session_of(late).unwrap();
+    let added = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter(|seen| matches!(seen, Seen::Add { id: subject, .. } if *subject == id))
+            .count()
+    };
+    joined.extend(sent_to(late_session, server.ticks_all(5)));
+    assert_eq!(
+        added(joined),
+        0,
+        "a viewer that comes into range gets no spawn of the removed player"
+    );
+
+    server
+        .world()
+        .entity_mut(target_player)
+        .insert(Vitals::new(20.0))
+        .remove::<HiddenPlayer>();
+    let raw = server.ticks_all(2);
+    assert_eq!(
+        [
+            added(sent_to(watcher_session, raw.clone())),
+            added(sent_to(late_session, raw))
+        ],
+        [1, 1],
+        "each viewer in range gets the spawn of the shown player again"
+    );
+}
+
+#[derive(Debug, PartialEq)]
+enum Respawned {
+    Respawn { data_to_keep: u8 },
+    Position { at: DVec3 },
+    Health { health: f32 },
+}
+
+fn respawned(packets: &[PacketPayload]) -> Vec<Respawned> {
+    packets
+        .iter()
+        .filter_map(|payload| match payload {
+            PacketPayload::Respawn(packet) => Some(Respawned::Respawn {
+                data_to_keep: packet.data_to_keep,
+            }),
+            PacketPayload::PlayerPosition(packet) => Some(Respawned::Position {
+                at: packet.position,
+            }),
+            PacketPayload::SetHealth(packet) => Some(Respawned::Health {
+                health: packet.health,
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_respawn_request_restores_a_dead_player_and_shows_it_again() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (target, _) = server.join(OPERATOR, "op");
+    let (watcher, _) = server.join(WATCHER, "watcher");
+    let _ = server.ticks_all(5);
+    let target_session = server.session_of(target).unwrap();
+    let watcher_session = server.session_of(watcher).unwrap();
+    let id = player_network_id(target_session);
+    let player = server.player(target);
+    server.queue(
+        target,
+        &ServerboundChatCommand {
+            command: Bounded("kill @s"),
+        },
+    );
+    let _ = server.ticks_all(2);
+    let dimension = server.world().resource::<DimensionLabel>().0;
+    let at =
+        server.world().get::<Transform>(player).unwrap().translation + DVec3::new(3.0, 0.0, 0.0);
+    let request = RespawnRequest {
+        player,
+        dimension,
+        transform: Transform::from_translation(at),
+    };
+    let about_target = |packets: Vec<PacketPayload>| {
+        let mut viewer = Viewer::new();
+        viewer.receive(packets);
+        viewer
+            .seen
+            .into_iter()
+            .filter_map(|seen| match seen {
+                Seen::Add { id: subject, .. } if subject == id => Some("spawn"),
+                Seen::Remove { ids } if ids.contains(&id) => Some("removal"),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    server.world().write_message(request);
+    let raw = server.ticks_all(3);
+    assert_eq!(
+        respawned(&sent_to(target_session, raw.clone())),
+        vec![
+            Respawned::Respawn { data_to_keep: 0 },
+            Respawned::Position { at },
+            Respawned::Health { health: 20.0 }
+        ],
+        "PLD-NET-001: respawn, then the position, then the restored health"
+    );
+    assert_eq!(
+        *server.world().get::<Vitals>(player).unwrap(),
+        Vitals::new(20.0),
+        "PLD-RST-002: the respawned player is alive with its max health"
+    );
+    assert_eq!(
+        about_target(sent_to(watcher_session, raw)),
+        vec!["removal", "spawn"],
+        "PLD-NET-005: the viewer removes the dead player, then spawns it with the same id"
+    );
+
+    server.world().write_message(request);
+    let raw = server.ticks_all(3);
+    assert_eq!(
+        respawned(&sent_to(target_session, raw.clone())),
+        Vec::new(),
+        "PLD-RSP-001: a living player does not respawn"
+    );
+    assert_eq!(
+        about_target(sent_to(watcher_session, raw)),
+        Vec::<&str>::new()
+    );
+}
+
+#[test]
 fn kill_of_players_and_mobs_counts_each_victim() {
     let mut server = start();
     load_stone_column(&mut server);
@@ -740,7 +1368,7 @@ fn two_summons_with_one_uuid_in_one_tick_make_one_mob() {
         "the second summon answers the refusal"
     );
     assert_eq!(
-        server.world().resource::<Mobs>().0.len(),
+        mob_entities(&mut server).len(),
         1,
         "the second pig with the UUID does not spawn"
     );

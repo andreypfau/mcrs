@@ -318,22 +318,28 @@ fn the_hiz_and_world_text_shaders_compile_and_gbuffer_views_drops_unread_groups(
         &[(0, hiz::DEPTH), (0, hiz::LEVEL_OUT), (0, hiz::LEVEL_IN)],
     );
 
-    let text_source = wgsl_at(&["shaders", "world_text"], Vec::new());
-    let text_module = naga::front::wgsl::parse_str(&text_source).expect("world_text parses");
-    let text_info = Validator::new(ValidationFlags::all(), Capabilities::default())
-        .validate(&text_module)
-        .expect("world_text validates");
-    assert_writes_for_webgl2("world_text", &text_module, &text_info);
-    assert_bindings(
-        &text_module,
-        &[
-            (0, world_text_view::FRAME),
-            (1, world_text_textures::FONT_PAGE),
-            (1, world_text_textures::FONT_SAMPLER),
-            (1, world_text_textures::LIGHTMAP_LEVELS),
-            (1, world_text_textures::LIGHTMAP_SAMPLER),
-        ],
-    );
+    for (shader, path) in ["world_text", "name_tag"]
+        .into_iter()
+        .flat_map(|shader| BOTH.iter().map(move |path| (shader, path)))
+    {
+        let text_source = wgsl_at(&["shaders", shader], path.shader_defs());
+        let text_module = naga::front::wgsl::parse_str(&text_source)
+            .unwrap_or_else(|error| panic!("{shader} parses: {error}"));
+        let text_info = Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&text_module)
+            .unwrap_or_else(|error| panic!("{shader} validates: {error}"));
+        assert_writes_for_webgl2(shader, &text_module, &text_info);
+        assert_bindings(
+            &text_module,
+            &[
+                (0, world_text_view::FRAME),
+                (1, world_text_textures::FONT_PAGE),
+                (1, world_text_textures::FONT_SAMPLER),
+                (1, world_text_textures::LIGHTMAP_LEVELS),
+                (1, world_text_textures::LIGHTMAP_SAMPLER),
+            ],
+        );
+    }
 
     for def in [
         "SHOW_UNLIT",

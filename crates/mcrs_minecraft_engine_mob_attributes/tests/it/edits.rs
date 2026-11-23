@@ -1,15 +1,17 @@
-use mcrs_minecraft_engine_mob_attributes::{AttributeTarget, RowAttributes};
+use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::entity::Entity;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_mob_attributes::MobAttributes;
+use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
-use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_rows::{Placed, RowStore};
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-use crate::fixture::{app, despawn_row, edit, spawn_pig, tick};
+use crate::fixture::{edit, scene, spawn_pig, tick};
 
 fn id() -> ResourceLocationBuf {
     "test:a".parse().expect("a valid identifier")
@@ -24,69 +26,69 @@ fn add_four() -> InstanceEdit {
     ))
 }
 
+fn attributes(scene: &TestScene, pig: Entity) -> Option<&MobAttributes> {
+    scene.app.world().get::<MobAttributes>(pig)
+}
+
+fn edited(scene: &TestScene, pig: Entity) -> bool {
+    attributes(scene, pig)
+        .expect("a mob has attributes")
+        .set()
+        .instances()
+        .next()
+        .is_some()
+}
+
 #[test]
-fn a_row_has_an_entry_only_from_its_first_change_until_it_leaves_the_world() {
-    let mut app = app();
-    let pig = EntityId(7);
-    spawn_pig(&mut app, pig);
-    let speed = |app: &bevy_app::App| {
-        app.world().resource::<RowAttributes>().value(
-            pig,
-            EntityType::Pig,
-            Attribute::MovementSpeed,
-        )
+fn a_mob_holds_its_attributes_from_spawn_until_it_leaves_the_world() {
+    let mut scene = scene();
+    let pig = spawn_pig(&mut scene, 7);
+    let speed = |scene: &TestScene| {
+        attributes(scene, pig)
+            .and_then(|attributes| attributes.value(EntityType::Pig, Attribute::MovementSpeed))
     };
-    tick(&mut app);
-    assert!(app.world().resource::<RowAttributes>().get(pig).is_none());
-    assert_eq!(speed(&app), Some(0.25), "the base of the type pig");
+    tick(&mut scene);
+    assert!(!edited(&scene, pig));
+    assert_eq!(speed(&scene), Some(0.25), "the base of the type pig");
 
     let changed = edit(
-        &mut app,
-        AttributeTarget::Row(pig),
+        &mut scene,
+        pig,
         Attribute::MovementSpeed,
         InstanceEdit::SetBase(0.375),
     );
     assert_eq!(changed.len(), 1);
-    assert!(app.world().resource::<RowAttributes>().get(pig).is_some());
-    assert_eq!(speed(&app), Some(0.375));
+    assert!(edited(&scene, pig));
+    assert_eq!(speed(&scene), Some(0.375));
 
-    despawn_row(&mut app, pig);
-    tick(&mut app);
+    scene.app.world_mut().despawn(pig);
+    tick(&mut scene);
     assert!(
-        app.world().resource::<RowAttributes>().get(pig).is_none(),
-        "the entry leaves with its row"
+        attributes(&scene, pig).is_none(),
+        "the attributes leave with their mob"
     );
 }
 
 #[test]
 fn an_edit_of_an_attribute_outside_the_set_changes_nothing() {
-    let mut app = app();
-    let pig = EntityId(7);
-    spawn_pig(&mut app, pig);
+    let mut scene = scene();
+    let pig = spawn_pig(&mut scene, 7);
     assert_eq!(
-        edit(
-            &mut app,
-            AttributeTarget::Row(pig),
-            Attribute::AttackDamage,
-            add_four()
-        ),
+        edit(&mut scene, pig, Attribute::AttackDamage, add_four()),
         []
     );
-    assert!(app.world().resource::<RowAttributes>().get(pig).is_none());
+    assert!(!edited(&scene, pig));
 }
 
 #[test]
 fn speed_modifier_reaches_motion_and_removal_restores_base() {
-    let mut app = app();
-    let pig = EntityId(7);
-    spawn_pig(&mut app, pig);
-    let target = AttributeTarget::Row(pig);
-    let motion_speed = |app: &bevy_app::App| {
-        let rows = app.world().resource::<RowStore<()>>();
-        let tile = rows.tile_of(pig).expect("the row is living");
-        rows.state_of(Placed { tile, id: pig })
+    let mut scene = scene();
+    let pig = spawn_pig(&mut scene, 7);
+    let motion_speed = |scene: &TestScene| {
+        scene
+            .state(pig)
             .and_then(|state| state.living)
-            .expect("a pig row is living")
+            .expect("a pig is living")
             .attributes
             .movement_speed
     };
@@ -97,44 +99,41 @@ fn speed_modifier_reaches_motion_and_removal_restores_base() {
         ModifierKind::Transient,
     ));
 
-    edit(&mut app, target, Attribute::MovementSpeed, half_more);
+    edit(&mut scene, pig, Attribute::MovementSpeed, half_more);
     assert_eq!(
-        motion_speed(&app),
+        motion_speed(&scene),
         0.375,
         "the base 0.25 of a pig times 1.5"
     );
 
     edit(
-        &mut app,
-        target,
+        &mut scene,
+        pig,
         Attribute::MovementSpeed,
         InstanceEdit::Remove(id()),
     );
-    assert_eq!(motion_speed(&app), 0.25, "the base of the type pig");
+    assert_eq!(motion_speed(&scene), 0.25, "the base of the type pig");
 }
 
 #[test]
-fn a_new_gravity_wakes_a_resting_row() {
-    let mut app = app();
-    let pig = EntityId(7);
-    spawn_pig(&mut app, pig);
-    let mut rows = app.world_mut().resource_mut::<RowStore<()>>();
-    let tile = rows.tile_of(pig).expect("the row is living");
-    let state = rows
-        .state_mut(Placed { tile, id: pig })
-        .expect("the tile holds the row");
-    state.rest = Rest::Resting(state.body);
+fn a_new_gravity_wakes_a_resting_mob() {
+    let mut scene = scene();
+    let pig = spawn_pig(&mut scene, 7);
+    let mut state = scene
+        .app
+        .world_mut()
+        .get_mut::<MotionState>(pig)
+        .expect("a mob moves");
+    let motion = &mut state.bypass_change_detection().0;
+    motion.rest = Rest::Resting(motion.body);
 
     edit(
-        &mut app,
-        AttributeTarget::Row(pig),
+        &mut scene,
+        pig,
         Attribute::Gravity,
         InstanceEdit::SetBase(0.01),
     );
 
-    let rows = app.world().resource::<RowStore<()>>();
-    let rest = rows
-        .state_of(Placed { tile, id: pig })
-        .map(|state| state.rest);
+    let rest = scene.state(pig).map(|state| state.rest);
     assert_eq!(rest, Some(Rest::Awake));
 }

@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::native::{
     FIRST_BACKOFF, WORKERS, candidates, download, download_dir, home, locate, read_counting,
@@ -12,6 +12,7 @@ const DATA: &str = "data/minecraft/";
 const VERSION: &str = "version.json";
 const COMPLETE: &str = ".complete";
 const LOCK: &str = ".lock";
+const WRITERS: usize = 16;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClientJar {
@@ -183,6 +184,7 @@ fn sweep(parent: &Path, dir: &Path) -> Result<(), VanillaDataError> {
 fn write_data(jar: &[u8], staging: &Path) -> Result<(), VanillaDataError> {
     let directory = Directory::of(jar).map_err(VanillaDataError::MalformedJar)?;
     let mut version = false;
+    let mut files = Vec::new();
     for file in directory.inflated(jar, |name| name == VERSION || name.starts_with(DATA)) {
         let (name, bytes) = file.map_err(VanillaDataError::MalformedJar)?;
         version |= name == VERSION;
@@ -192,12 +194,40 @@ fn write_data(jar: &[u8], staging: &Path) -> Result<(), VanillaDataError> {
                 name: name.to_owned(),
             });
         }
-        write(&staging.join(relative), &bytes)?;
+        files.push((staging.join(relative), bytes));
     }
     if !version {
         return Err(VanillaDataError::NoVersionFile);
     }
+    write_all(&files)?;
     write(&staging.join(COMPLETE), &[])
+}
+
+fn write_all(files: &[(PathBuf, Vec<u8>)]) -> Result<(), VanillaDataError> {
+    let next = AtomicUsize::new(0);
+    let worker = || -> Result<(), VanillaDataError> {
+        while let Some((path, bytes)) = files.get(next.fetch_add(1, Ordering::Relaxed)) {
+            if let Err(error) = write(path, bytes) {
+                next.store(files.len(), Ordering::Relaxed);
+                return Err(error);
+            }
+        }
+        Ok(())
+    };
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (1..WRITERS)
+            .filter_map(|_| std::thread::Builder::new().spawn_scoped(scope, worker).ok())
+            .collect();
+        let here = worker();
+        workers
+            .into_iter()
+            .try_for_each(|worker| {
+                worker
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .and(here)
+    })
 }
 
 fn is_plain(relative: &str) -> bool {

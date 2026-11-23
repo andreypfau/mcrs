@@ -7,6 +7,7 @@
 )]
 
 mod common;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
@@ -80,13 +81,16 @@ fn generate_chunk(
     let started = Instant::now();
 
     let t = Instant::now();
+    let mut cells = AquiferCells::default();
     let biome_palette = fill_column_dense_any(
         column,
         chunk_x,
         chunk_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::new(Some(biome_source), None, None).unwrap(),
+        None,
         None,
         cancel,
     )
@@ -171,13 +175,16 @@ fn report_content(y_sections: &[i32], seed: u64) {
     let biome_source = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let _ = fill_column_dense_any(
         &mut column,
         0,
         0,
         y_sections,
         &router,
+        &mut cells,
         &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
+        None,
         None,
         &cancel,
     )

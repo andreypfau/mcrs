@@ -132,7 +132,7 @@ fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
     );
     let mut out = vec![f32::NAN; volume.len()];
     let mut ws = Workspace::new();
-    router.program.fill(&mut ws, &volume, root, &mut out);
+    router.program().fill(&mut ws, &volume, root, &mut out);
     out
 }
 

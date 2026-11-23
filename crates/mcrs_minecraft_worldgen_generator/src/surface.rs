@@ -102,7 +102,7 @@ pub fn apply_material_surface(
     let sea_level = router.sea_level;
     let stone = router.default_block_state;
     let fluid = router.default_fluid_state;
-    let lava = router.lava_state;
+    let lava = router.lava_state();
 
     let present = present_biomes(biomes);
 
@@ -158,7 +158,11 @@ pub fn apply_material_surface(
                 - height_of(&fill_tops, x, (z - 1).max(0), min_y);
             eval.begin_strip(bx, bz, gradient_x, gradient_z);
             let mut run = 0;
+            let mut run_bottom = min_y;
             let mut carved_top = false;
+            let mut next_carved = carving
+                .as_deref()
+                .and_then(|carving| carving.highest_carved(x, z, min_y, height));
             descend_strip(
                 column,
                 x,
@@ -183,11 +187,16 @@ pub fn apply_material_surface(
                             &mut settled,
                         );
                         run = 0;
+                        run_bottom = bottom;
+                        Descent::Step
                     }
-                    Visit::Open { y } => {
-                        carved_top &= carving
-                            .as_deref()
-                            .is_some_and(|carving| carving.is_carved(x, y, z));
+                    Visit::OpenRun { top, bottom } => {
+                        if carved_top {
+                            carved_top = carving.as_deref().is_some_and(|carving| {
+                                (bottom..=top).all(|y| carving.is_carved(x, y, z))
+                            });
+                        }
+                        Descent::Step
                     }
                     Visit::Block {
                         y,
@@ -198,35 +207,78 @@ pub fn apply_material_surface(
                         while run < settled.len() && y < settled[run].0 {
                             run += 1;
                         }
+                        let mut span = None;
                         let mut state = if run < settled.len() && y <= settled[run].1 {
                             match settled[run].2 {
-                                SettledState::Block(state) => state,
+                                SettledState::Block(state) => {
+                                    span = Some(
+                                        settled[run]
+                                            .0
+                                            .max(run_bottom)
+                                            .max(column.present_bottom(y)),
+                                    );
+                                    state
+                                }
                                 SettledState::Bandlands => eval.bandlands_at(y),
+                                SettledState::Resume(guard) => {
+                                    eval.update_y(depth_above, depth_below, water_level, y);
+                                    eval.apply_from(guard)
+                                }
                             }
                         } else {
                             eval.update_y(depth_above, depth_below, water_level, y);
                             eval.apply()
                         };
-                        if let Some(substance) = carving
-                            .as_deref_mut()
-                            .and_then(|carving| carving.substance(x, y, z, state))
+                        if next_carved.is_some_and(|carved| y < carved) {
+                            next_carved = carving
+                                .as_deref()
+                                .and_then(|carving| carving.highest_carved(x, z, min_y, y));
+                        }
+                        if next_carved == Some(y)
+                            && let Some(substance) = carving
+                                .as_deref_mut()
+                                .and_then(|carving| carving.substance(x, y, z, state))
                         {
                             carved_top |= depth_above == 1;
                             set_block(column, tops, min_y, x, y, z, substance);
-                            return;
+                            return Descent::Step;
                         }
                         if carved_top {
                             if state == Some(states.dirt) {
                                 eval.update_y(1, depth_below, water_level, y);
                                 state = eval.apply();
+                                span = None;
                             }
                             carved_top = false;
                         }
                         match state {
                             Some(state) if state == stone => {}
                             state => {
-                                set_block(column, tops, min_y, x, y, z, state.unwrap_or_default())
+                                set_block(column, tops, min_y, x, y, z, state.unwrap_or_default());
                             }
+                        }
+                        match (span, state) {
+                            (Some(bottom), Some(state))
+                                if bottom < y && state != VoxelId::default() =>
+                            {
+                                let span = Span {
+                                    x,
+                                    z,
+                                    bottom,
+                                    top: y - 1,
+                                };
+                                write_span(
+                                    column,
+                                    tops,
+                                    min_y,
+                                    carving.as_deref_mut(),
+                                    span,
+                                    state,
+                                    stone,
+                                );
+                                Descent::Through(bottom)
+                            }
+                            _ => Descent::Step,
                         }
                     }
                 },
@@ -270,9 +322,15 @@ pub(crate) enum Visit {
         depth_below: i32,
         water_level: i32,
     },
-    Open {
-        y: i32,
+    OpenRun {
+        top: i32,
+        bottom: i32,
     },
+}
+
+pub(crate) enum Descent {
+    Step,
+    Through(i32),
 }
 
 pub(crate) fn descend_strip(
@@ -282,7 +340,7 @@ pub(crate) fn descend_strip(
     height: i32,
     min_y: i32,
     fluids: [VoxelId; 2],
-    mut visit: impl FnMut(Visit),
+    mut visit: impl FnMut(Visit) -> Descent,
 ) {
     let air = VoxelId::default();
     let is_fluid = |state: VoxelId| fluids.contains(&state);
@@ -290,28 +348,32 @@ pub(crate) fn descend_strip(
     let mut water_level = NO_WATER;
     let mut next_ceiling = i32::MAX;
 
-    for y in (min_y..=height).rev() {
+    let mut y = height;
+    while y >= min_y {
         let Some(old) = column.get(x, y, z) else {
+            let Some(below) = y.checked_sub(1) else {
+                return;
+            };
+            y = below;
             continue;
         };
         if old == air {
             depth_above = 0;
             water_level = NO_WATER;
-            visit(Visit::Open { y });
+            let bottom = column.run_bottom(x, z, y, min_y, old);
+            visit(Visit::OpenRun { top: y, bottom });
+            y = bottom;
         } else if is_fluid(old) {
             if water_level == NO_WATER {
                 water_level = y + 1;
             }
-            visit(Visit::Open { y });
+            let bottom = column.run_bottom(x, z, y, min_y, old);
+            visit(Visit::OpenRun { top: y, bottom });
+            y = bottom;
         } else {
             if next_ceiling >= y {
-                next_ceiling = (min_y..y)
-                    .rev()
-                    .find(|&look| {
-                        column
-                            .get(x, look, z)
-                            .is_some_and(|old| old == air || is_fluid(old))
-                    })
+                next_ceiling = column
+                    .highest_below(x, z, y, min_y, |state| state == air || is_fluid(state))
                     .map_or(WAY_BELOW_MIN_Y, |floor| floor + 1);
                 visit(Visit::Run {
                     top: y,
@@ -322,13 +384,68 @@ pub(crate) fn descend_strip(
                 });
             }
             depth_above += 1;
-            visit(Visit::Block {
+            let descent = visit(Visit::Block {
                 y,
                 depth_above,
                 depth_below: y - next_ceiling + 1,
                 water_level,
             });
+            if let Descent::Through(bottom) = descent {
+                let bottom = bottom
+                    .max(next_ceiling.max(min_y).max(column.present_bottom(y)))
+                    .min(y);
+                depth_above += y - bottom;
+                y = bottom;
+            }
         }
+        let Some(below) = y.checked_sub(1) else {
+            return;
+        };
+        y = below;
+    }
+}
+
+struct Span {
+    x: i32,
+    z: i32,
+    bottom: i32,
+    top: i32,
+}
+
+fn write_span(
+    column: &ColumnBlocks,
+    tops: &mut [i32; 256],
+    min_y: i32,
+    mut carving: Option<&mut TerrainCarving<'_, '_>>,
+    span: Span,
+    state: VoxelId,
+    stone: VoxelId,
+) {
+    let Span { x, z, bottom, top } = span;
+    let mut upper = top;
+    while upper >= bottom {
+        let carved = carving
+            .as_deref()
+            .and_then(|carving| carving.highest_carved(x, z, bottom, upper));
+        let lower = carved.map_or(bottom, |carved| carved + 1);
+        if state != stone && lower <= upper {
+            column.fill_strip(x, z, lower, upper, state);
+            if let Some(height) = tops.get_mut((z * 16 + x) as usize) {
+                *height = (*height).max(upper);
+            }
+        }
+        let Some(carved) = carved else {
+            return;
+        };
+        match carving
+            .as_deref_mut()
+            .and_then(|carving| carving.substance(x, carved, z, Some(state)))
+        {
+            Some(substance) => set_block(column, tops, min_y, x, carved, z, substance),
+            None if state != stone => set_block(column, tops, min_y, x, carved, z, state),
+            None => {}
+        }
+        upper = carved - 1;
     }
 }
 

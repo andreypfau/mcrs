@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
 use glam::DVec3;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::ItemEntity;
@@ -46,7 +46,8 @@ impl Form {
 
     #[must_use]
     pub fn position(self) -> DVec3 {
-        self.start(&KeyedStream::new(&EntityKey(0), 0)).position
+        self.start(&KeyedStream::new(&EntityUuid::from_u128(0), 0))
+            .position
     }
 }
 

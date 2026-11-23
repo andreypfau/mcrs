@@ -16,33 +16,39 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::measurement::WallTime;
+use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_engine_physics::EntityMotionPlugin;
-use mcrs_minecraft_engine_physics::EntityWrites;
+use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::PhysicsTables;
-use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::palette::SectionStates;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_entity_rows::Placed;
-use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_entity_rows::tiles_per_task;
+use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::Rest;
+use mcrs_minecraft_physics::Tables;
+use mcrs_minecraft_physics::TestBlocks;
+use mcrs_minecraft_physics::TestRng;
+use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_volume::Missing;
 use mcrs_minecraft_volume::PalettedSection;
+use mcrs_minecraft_volume::SectionBlocksMut;
 use mcrs_minecraft_volume::SectionBox;
 use mcrs_minecraft_volume::SectionVolume;
+use mcrs_minecraft_volume::SparseVolume;
 use mcrs_minecraft_volume::VisitOptions;
 use mcrs_minecraft_volume::VisitOrder;
 use mcrs_voxel::BlockStateId;
+use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
 const SEED: u64 = 11;
@@ -68,10 +74,10 @@ enum Launch {
 }
 
 impl Launch {
-    fn includes(self, key: EntityKey) -> bool {
+    fn includes(self, key: EntityUuid) -> bool {
         match self {
             Launch::All => true,
-            Launch::Quarter => (key.0 >> 2).is_multiple_of(4),
+            Launch::Quarter => (key.as_u128() >> 2).is_multiple_of(4),
         }
     }
 }
@@ -82,25 +88,8 @@ trait PassSide {
     fn launch(&mut self, launch: Launch);
 }
 
-fn start_bodies(rows: &RowStore<()>) -> Vec<Body> {
-    let mut bodies: Vec<Body> =
-        vec![Body::default(); rows.tiles().map(|(_, tile)| tile.ids().len()).sum()];
-    for (_, tile) in rows.tiles() {
-        for state in tile.states() {
-            if let Some(body) = start_of(&mut bodies, state.key) {
-                *body = state.body;
-            }
-        }
-    }
-    bodies
-}
-
-fn start_of(bodies: &mut [Body], key: EntityKey) -> Option<&mut Body> {
-    bodies.get_mut(usize::try_from(key.0).ok()?)
-}
-
 fn relaunch(state: &mut EntityState, starts: &[Body]) {
-    let Some(start) = usize::try_from(state.key.0)
+    let Some(start) = usize::try_from(state.key.as_u128())
         .ok()
         .and_then(|at| starts.get(at))
     else {
@@ -110,62 +99,58 @@ fn relaunch(state: &mut EntityState, starts: &[Body]) {
     state.rest = Rest::Awake;
 }
 
-struct RowsSide {
-    scene: TestScene<()>,
-    writes: EntityWrites,
-    tiles_per_task: usize,
-    starts: Vec<Body>,
-    placed: Vec<Placed>,
+struct BenchScene {
+    blocks: SparseVolume,
+    tables: Tables,
+    items: Vec<(EntityState, MotionRow)>,
 }
 
-impl RowsSide {
+impl BenchScene {
     fn new(half: i32, items: u32) -> Self {
-        let mut scene = TestScene::new(half, 0, items, SEED);
-        let mut rows = RowStore::default();
-        for (_, tile) in scene.rows.tiles() {
-            for row in tile.rows() {
-                let mut motion = *row.motion;
-                motion.lifetime = None;
-                rows.spawn(row.id, *row.state, motion);
+        let test_blocks = TestBlocks::new();
+        let edge = half * 32;
+        let mut blocks = SparseVolume::unbounded();
+        for z in (-edge / 16)..(edge / 16) {
+            for x in (-edge / 16)..(edge / 16) {
+                blocks.insert(SectionPos::new(x, -1, z), test_blocks.stone);
+                blocks.insert(SectionPos::new(x, 0, z), BlockStateId::AIR);
+                blocks.insert(SectionPos::new(x, 1, z), BlockStateId::AIR);
+                if let Ok(mut section) = blocks.section_mut(SectionPos::new(x, 0, z)) {
+                    let top = u8::try_from(FLOOR - 1).unwrap_or_default();
+                    section.fill_box(
+                        LocalPos::new(0, 0, 0),
+                        LocalPos::new(15, top, 15),
+                        test_blocks.stone,
+                    );
+                }
             }
         }
-        scene.rows = rows;
+        let mut rng = TestRng(SEED);
+        let range = f64::from(edge) - 1.0;
+        let mut items: Vec<(EntityState, MotionRow)> = (0..items)
+            .map(|index| {
+                let key = EntityUuid::from_u128(u128::from(index));
+                let x = rng.range(-range, range);
+                let z = rng.range(-range, range);
+                let body = Body {
+                    position: DVec3::new(x, f64::from(FLOOR) + rng.range(0.0, 8.0), z),
+                    velocity: DVec3::new(rng.range(-0.1, 0.1), 0.2, rng.range(-0.1, 0.1)),
+                    ..Body::default()
+                };
+                let mut state = EntityState::new(key, body, None);
+                state.phase = (index % 4) as u8;
+                let motion = MotionRow {
+                    lifetime: None,
+                    ..MotionRow::item()
+                };
+                (state, motion)
+            })
+            .collect();
+        items.sort_by_key(|(state, _)| (TileKey::at(state.body.position), state.key));
         Self {
-            tiles_per_task: tiles_per_task(pool(), scene.rows.tile_count()),
-            starts: start_bodies(&scene.rows),
-            scene,
-            writes: EntityWrites::default(),
-            placed: Vec::new(),
-        }
-    }
-}
-
-impl PassSide for RowsSide {
-    fn step(&mut self) {
-        self.scene
-            .step(pool(), self.tiles_per_task, &mut self.writes);
-    }
-
-    fn resting(&mut self) -> usize {
-        let rows = &self.scene.rows;
-        let states = rows.tiles().flat_map(|(_, tile)| tile.states());
-        states
-            .filter(|state| matches!(state.rest, Rest::Resting(_)))
-            .count()
-    }
-
-    fn launch(&mut self, launch: Launch) {
-        self.placed.clear();
-        for (tile, rows) in self.scene.rows.tiles() {
-            let ids = rows.ids().iter();
-            self.placed.extend(ids.map(|&id| Placed { tile, id }));
-        }
-        for &at in &self.placed {
-            let included =
-                (self.scene.rows.state_of(at)).is_some_and(|state| launch.includes(state.key));
-            if included && let Some(state) = self.scene.rows.state_mut(at) {
-                relaunch(state, &self.starts);
-            }
+            blocks,
+            tables: Tables::new(test_blocks.table),
+            items,
         }
     }
 }
@@ -177,8 +162,10 @@ struct ComponentsSide {
 
 impl ComponentsSide {
     fn new(half: i32, items: u32) -> Self {
-        let scene = TestScene::<()>::new(half, 0, items, SEED);
-        let starts = start_bodies(&scene.rows);
+        let scene = BenchScene::new(half, items);
+        let mut by_key: Vec<&EntityState> = scene.items.iter().map(|(state, _)| state).collect();
+        by_key.sort_by_key(|state| state.key);
+        let starts = by_key.iter().map(|state| state.body).collect();
         let mut app = App::new();
         app.configure_sets(
             FixedUpdate,
@@ -216,9 +203,12 @@ impl ComponentsSide {
             ControlFlow::Continue(())
         });
         world.spawn((Dimension, DimensionTypeConfig::new(-64, 384), index));
-        let tiles = scene.rows.tiles();
-        let rows = tiles.flat_map(|(_, tile)| tile.rows());
-        world.spawn_batch(rows.map(|row| (MotionState(*row.state), MotionKind(*row.motion))));
+        world.spawn_batch(
+            scene
+                .items
+                .iter()
+                .map(|&(state, motion)| (MotionState(state), MotionKind(motion))),
+        );
         Self { app, starts }
     }
 }
@@ -257,7 +247,6 @@ fn warm_up(side: &mut impl PassSide) {
 fn at_rest(criterion: &mut Criterion) {
     let threads = pool().thread_num();
     let mut group = criterion.benchmark_group(format!("100k items at rest, {threads} threads"));
-    rest_case(&mut group, "rows", RowsSide::new(HALF, ITEMS));
     rest_case(&mut group, "components", ComponentsSide::new(HALF, ITEMS));
     group.finish();
 }
@@ -271,7 +260,6 @@ fn rest_case(group: &mut BenchmarkGroup<'_, WallTime>, name: &str, mut side: imp
 fn in_flight(criterion: &mut Criterion) {
     let threads = pool().thread_num();
     let mut group = criterion.benchmark_group(format!("100k items in flight, {threads} threads"));
-    flight_case(&mut group, "rows", RowsSide::new(HALF, ITEMS));
     flight_case(&mut group, "components", ComponentsSide::new(HALF, ITEMS));
     group.finish();
 }
@@ -296,7 +284,6 @@ fn million(criterion: &mut Criterion) {
     let threads = pool().thread_num();
     let mut group = criterion.benchmark_group(format!("1M items, 25% awake, {threads} threads"));
     group.sample_size(10);
-    million_case(&mut group, "rows", || RowsSide::new(MILLION_HALF, MILLION));
     million_case(&mut group, "components", || {
         ComponentsSide::new(MILLION_HALF, MILLION)
     });
@@ -332,23 +319,7 @@ fn million_case<S: PassSide>(
 
 fn spawns(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("spawn 10k items");
-    let source = TestScene::<()>::new(HALF, 0, SPAWNS, SEED);
-    let mut items = Vec::new();
-    for (_, tile) in source.rows.tiles() {
-        items.extend(tile.rows().map(|row| (row.id, *row.state, *row.motion)));
-    }
-    group.bench_function("rows RowStore::spawn", |bencher| {
-        bencher.iter_batched(
-            RowStore::<()>::default,
-            |mut store| {
-                for &(id, state, motion) in &items {
-                    store.spawn(id, state, motion);
-                }
-                store
-            },
-            BatchSize::LargeInput,
-        )
-    });
+    let items = BenchScene::new(HALF, SPAWNS).items;
     let fresh = || {
         let mut world = World::new();
         world.register_component::<MotionState>();
@@ -362,7 +333,7 @@ fn spawns(criterion: &mut Criterion) {
             |mut world| {
                 let bundles = items
                     .iter()
-                    .map(|&(_, state, motion)| (MotionState(state), MotionKind(motion)));
+                    .map(|&(state, motion)| (MotionState(state), MotionKind(motion)));
                 world.spawn_batch(bundles);
                 world
             },

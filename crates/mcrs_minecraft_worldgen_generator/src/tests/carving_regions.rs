@@ -1,4 +1,5 @@
 use mcrs_minecraft_resource::rl;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -371,10 +372,13 @@ fn overworld_context(seed: u64) -> FillContext {
 
 fn fill(context: &FillContext, (x, z): (i32, i32)) -> (ColumnBlocks, Vec<u16>) {
     let mut buffer = ColumnBlocks::new(&context.y_sections);
+    let mut cells = AquiferCells::default();
     let snapshot = fill_column(
         context,
         ColumnPos::new(x, z),
         &mut buffer,
+        None,
+        &mut cells,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");

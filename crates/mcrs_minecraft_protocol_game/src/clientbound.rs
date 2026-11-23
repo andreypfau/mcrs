@@ -1,5 +1,6 @@
 use crate::ByteAngle;
 use crate::CommandSuggestion;
+use crate::Hand;
 use crate::advancement::{AdvancementProgress, PositionedAdvancement};
 use crate::block::BlockStateNumber;
 use crate::chat::{ChatTypeId, CompletionAction, FilterMask, PackedSignature};
@@ -264,6 +265,20 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
 pub struct ClientboundHurtAnimation {
     pub entity_id: VarInt,
     pub yaw: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundAnimate {
+    pub entity_id: VarInt,
+    pub action: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ClientboundSwingAnimation {
+    pub entity_id: VarInt,
+    pub hand: Hand,
+    pub animation: mcrs_minecraft_item::component::SwingAnimationKind,
+    pub duration: VarInt,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -553,6 +568,7 @@ pub struct ClientboundRespawn {
 
 impl ClientboundRespawn {
     pub const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
+    pub const KEEP_ENTITY_DATA: u8 = 0x02;
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -627,6 +643,13 @@ impl mcrs_minecraft_protocol::Decode<'_> for ClientboundSetEquipment {
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundSetHealth {
+    pub health: f32,
+    pub food: VarInt,
+    pub saturation: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -774,6 +797,12 @@ pub struct ClientboundDisguisedChat<'a> {
     pub chat_type: ChatTypeId,
     pub sender_name: RawText<'a>,
     pub target_name: Option<RawText<'a>>,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundPlayerCombatKill<'a> {
+    pub player_id: VarInt,
+    pub message: RawText<'a>,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

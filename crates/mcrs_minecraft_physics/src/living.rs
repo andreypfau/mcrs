@@ -16,15 +16,10 @@ pub struct Living {
     pub in_powder_snow: bool,
     pub walks_on_powder_snow: bool,
     pub steering: Option<Steering>,
-    pub health: f32,
-    pub last_damage: f32,
-    pub damage_cooldown: u8,
-    pub hurt_time: u8,
-    pub death_time: Option<u8>,
 }
 
 const _: () = assert!(
-    size_of::<Living>() == 160,
+    size_of::<Living>() == 144,
     "a mob row pays nothing for its attribute instances: they live in a side table"
 );
 
@@ -55,11 +50,6 @@ impl Living {
         let mut living = Self::default();
         living.attributes.step_height = row.step_height;
         living
-    }
-
-    #[must_use]
-    pub fn is_alive(&self) -> bool {
-        self.death_time.is_none()
     }
 }
 

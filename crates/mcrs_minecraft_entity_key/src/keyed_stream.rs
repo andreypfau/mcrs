@@ -1,5 +1,5 @@
-use crate::EntityKey;
-use crate::entity_key::mix;
+use crate::EntityUuid;
+use crate::entity_uuid::mix;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyedStream {
@@ -9,7 +9,7 @@ pub struct KeyedStream {
 impl KeyedStream {
     #[inline]
     #[must_use]
-    pub fn new(uuid: &EntityKey, tick: u64) -> Self {
+    pub fn new(uuid: &EntityUuid, tick: u64) -> Self {
         let mut seed = mix(tick ^ 0x6A09_E667_F3BC_C908);
         for word in uuid.words() {
             seed = mix(seed ^ word);

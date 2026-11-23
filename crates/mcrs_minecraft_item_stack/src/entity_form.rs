@@ -1,5 +1,6 @@
 use alloc::borrow::Cow;
 
+use crate::AttackAnimation;
 use crate::AttributeModifiers;
 use crate::BannerPatterns;
 use crate::Bees;
@@ -17,6 +18,7 @@ use crate::FireworkExplosion;
 use crate::Fireworks;
 use crate::Food;
 use crate::Instrument;
+use crate::InteractAnimation;
 use crate::ItemModel;
 use crate::ItemName;
 use crate::LodestoneTracker;
@@ -142,3 +144,7 @@ impl EntityForm for AttributeModifiers {
         }
     }
 }
+
+impl EntityForm for AttackAnimation {}
+
+impl EntityForm for InteractAnimation {}

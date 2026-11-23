@@ -2,9 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
-use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_brain::MobAi;
-use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::VanillaBrain;
 use mcrs_minecraft_protocol::Bounded;
@@ -14,6 +12,7 @@ use mcrs_minecraft_server::{VanillaEntityPhysicsPlugin, VanillaMobBrainPlugin};
 
 use crate::commands::load_stone_column;
 use crate::host_app::{self, PlayServer};
+use crate::mob_replication::mob_entities;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
 const PANIC: usize = 0;
@@ -40,11 +39,9 @@ fn run(server: &mut PlayServer, operator: Entity, line: &str) {
 }
 
 fn pig_positions(server: &mut PlayServer) -> Vec<DVec3> {
-    server
-        .world()
-        .resource::<EntityRows>()
-        .living_rows()
-        .map(|(_, state)| state.body.position)
+    mob_entities(server)
+        .iter()
+        .map(|mob| mob.state.body.position)
         .collect()
 }
 
@@ -147,11 +144,9 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
         "the spectator resets no idle time"
     );
     let velocity = |server: &mut PlayServer| {
-        server
-            .world()
-            .resource::<EntityRows>()
-            .living_rows()
-            .map(|(_, state)| state.body.velocity)
+        mob_entities(server)
+            .iter()
+            .map(|mob| mob.state.body.velocity)
             .collect::<Vec<DVec3>>()
     };
     let resting = velocity(&mut server);
@@ -199,21 +194,10 @@ fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
     }
     server.ticks(operator, 40);
     let positions = |server: &mut PlayServer| {
-        let mobs = server.world().resource::<Mobs>().0.clone();
-        let mut rows = server
-            .world()
-            .resource::<EntityRows>()
-            .living_rows()
-            .map(|(placed, state)| {
-                (
-                    placed.id,
-                    mobs[&placed.id].kind.entity_type,
-                    state.body.position,
-                )
-            })
-            .collect::<Vec<_>>();
-        rows.sort_by_key(|(id, _, _)| *id);
-        rows
+        mob_entities(server)
+            .iter()
+            .map(|mob| (mob.id, mob.mob.kind.entity_type, mob.state.body.position))
+            .collect::<Vec<_>>()
     };
     let rested = positions(&mut server);
     for (_, kind) in animals {
@@ -227,11 +211,15 @@ fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
             kind.entity_type
         );
     }
-    let mobs = server.world().resource::<Mobs>().0.clone();
+    let mobs = mob_entities(&mut server);
     let ai = server.world().resource::<MobAi<VanillaBrain>>();
     let mut brains = 0;
     for entry in ai.stage().tiles().flat_map(|(_, brains)| brains.iter()) {
-        let kind = mobs[&entry.mob].kind;
+        let kind = mobs
+            .iter()
+            .find(|mob| mob.id == entry.mob)
+            .map(|mob| mob.mob.kind)
+            .unwrap();
         let expected = match entry.brain {
             VanillaBrain::Pig(_) => &EntityTypeData::PIG,
             VanillaBrain::Cow(_) => &EntityTypeData::COW,

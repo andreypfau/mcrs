@@ -3,6 +3,7 @@ use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
+use mcrs_minecraft_engine::swing::{SwingPlayer, SwingSimulateSet};
 use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -11,6 +12,7 @@ use mcrs_minecraft_player_holders::PlayerHoldersPlugin;
 use crate::InventorySet;
 use crate::VanillaInventoryRequests;
 use crate::close_menu_moves::close_menu_moves;
+use crate::drop_swing::swing_on_hand_drop;
 use crate::launch_drops::launch_drops;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -29,6 +31,7 @@ impl Plugin for VanillaInventoryPlugin {
             }
         };
         app.insert_resource(VanillaInventoryRequests { source });
+        app.add_message::<SwingPlayer>();
         app.configure_sets(
             FixedUpdate,
             (
@@ -41,9 +44,15 @@ impl Plugin for VanillaInventoryPlugin {
         )
         .add_systems(
             FixedUpdate,
-            launch_drops
-                .run_if(on_message::<RequestDrop>)
-                .in_set(InventorySet::Drops),
+            (
+                swing_on_hand_drop
+                    .run_if(on_message::<RequestDrop>)
+                    .in_set(TickSet::Simulate)
+                    .after(SwingSimulateSet),
+                launch_drops
+                    .run_if(on_message::<RequestDrop>)
+                    .in_set(InventorySet::Drops),
+            ),
         )
         .add_observer(close_menu_moves);
     }

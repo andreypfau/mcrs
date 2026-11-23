@@ -6,7 +6,7 @@ use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{PlayerModel, PlayerSkin};
-use mcrs_minecraft_entity_visual::{ClientEntity, HostEntity};
+use mcrs_minecraft_entity_visual::{ClientEntity, HostEntity, NameText};
 use mcrs_minecraft_network::client::ConnectionEnded;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_profile::{PlayerModelType, SkinTextures};
@@ -40,13 +40,22 @@ impl Plugin for PlayerSkinsPlugin {
 }
 
 #[derive(Resource, Default)]
-struct ProfileSkins {
+pub struct ProfileSkins {
     by_player: HashMap<u128, SkinTextures>,
+    names: HashMap<u128, NameText>,
     updated: Vec<u128>,
+}
+
+impl ProfileSkins {
+    #[must_use]
+    pub fn name(&self, uuid: u128) -> Option<&NameText> {
+        self.names.get(&uuid)
+    }
 }
 
 fn clear_profile_skins(mut skins: ResMut<ProfileSkins>) {
     skins.by_player.clear();
+    skins.names.clear();
     skins.updated.clear();
 }
 
@@ -62,6 +71,9 @@ fn on_player_info_update(
     }
     for entry in packet.entries.iter() {
         let uuid = entry.player_uuid.as_u128();
+        skins
+            .names
+            .insert(uuid, NameText::text(entry.username.to_owned()));
         match SkinTextures::of(&entry.properties) {
             Some(textures) => skins.by_player.insert(uuid, textures),
             None => skins.by_player.remove(&uuid),
@@ -77,6 +89,7 @@ fn on_player_info_remove(
     if let Some(packet) = event.packet() {
         for uuid in &packet.players {
             skins.by_player.remove(&uuid.as_u128());
+            skins.names.remove(&uuid.as_u128());
         }
     }
 }

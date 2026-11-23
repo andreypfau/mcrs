@@ -38,12 +38,12 @@ mcrs_minecraft_command_argument_entity.workspace = true
 mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_damage.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
-mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
-mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_item_stack.workspace = true

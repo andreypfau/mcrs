@@ -1,3 +1,4 @@
+use crate::NameText;
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
@@ -39,6 +40,7 @@ impl VariantId {
 pub struct SyncedData {
     pub shared_flags: u8,
     pub upside_down: bool,
+    pub custom_name: Option<NameText>,
     pub name_visible: bool,
     pub pose: Pose,
     pub ticks_frozen: i32,
@@ -57,6 +59,7 @@ impl Default for SyncedData {
         Self {
             shared_flags: 0,
             upside_down: false,
+            custom_name: None,
             name_visible: false,
             pose: Pose::Standing,
             ticks_frozen: 0,

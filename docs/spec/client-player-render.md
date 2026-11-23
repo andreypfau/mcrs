@@ -52,13 +52,14 @@ the label `source_suggested`.
 ### 0.4 Scope
 
 In scope: a player that the server adds with the entity type `minecraft:player`, and a player
-that a host adds. Out of scope: the name tag, the cape, the elytra, items in hands, armour, the
+that a host adds. The name tag of a player is in scope (`client-entity-render.md`,
+CEREN-NAME-003 and CEREN-NAME-005). Out of scope: the cape, the elytra, items in hands, armour, the
 swing of an arm, the bend and the skin parts that a player hides. `player-pose.md` states sleep,
 swimming, crawl, flight with elytra and the spin attack of a player. The bones of the cape, of the elytra and of the items are in scope (CPR-MODEL-002). The
 client draws nothing on them.
 
 The figure of the local player in the inventory screen is in scope (section 5). The list above
-applies also to the figure: it has no name tag, cape, elytra, items in hands or armour. The slots
+applies also to the figure, except that the figure is not in the world, so it has no name tag. It has no cape, elytra, items in hands or armour. The slots
 and the other parts of the inventory screen are out of scope.
 
 ---

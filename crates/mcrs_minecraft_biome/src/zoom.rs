@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::QuartPos;
 use mcrs_voxel::BlockPos;
 use sha2::{Digest, Sha256};
+use std::array;
 
 pub fn obfuscate_seed(seed: i64) -> i64 {
     let digest: [u8; 32] = Sha256::digest(seed.to_le_bytes()).into();
@@ -14,21 +15,18 @@ pub fn quart_cell(zoom_seed: i64, pos: BlockPos) -> QuartPos {
     })
 }
 
-pub fn uniform_corners<B: PartialEq>(
-    pos: BlockPos,
-    mut biome: impl FnMut(QuartPos) -> B,
-) -> Option<B> {
+fn cell_corners<B>(pos: BlockPos, mut corner: impl FnMut(QuartPos) -> B) -> [B; 8] {
     let (x, y, z) = ((pos.x - 2) >> 2, (pos.y - 2) >> 2, (pos.z - 2) >> 2);
-    let first = biome(QuartPos::new(x, y, z));
-    (1..8)
-        .all(|i| {
-            biome(QuartPos::new(
-                x + (i >> 2 & 1),
-                y + (i >> 1 & 1),
-                z + (i & 1),
-            )) == first
-        })
-        .then_some(first)
+    [
+        corner(QuartPos::new(x, y, z)),
+        corner(QuartPos::new(x, y, z + 1)),
+        corner(QuartPos::new(x, y + 1, z)),
+        corner(QuartPos::new(x, y + 1, z + 1)),
+        corner(QuartPos::new(x + 1, y, z)),
+        corner(QuartPos::new(x + 1, y, z + 1)),
+        corner(QuartPos::new(x + 1, y + 1, z)),
+        corner(QuartPos::new(x + 1, y + 1, z + 1)),
+    ]
 }
 
 fn pick_corner(
@@ -146,9 +144,88 @@ impl FiddleCache {
         *value
     }
 
-    pub fn quart_cell(&mut self, pos: BlockPos) -> QuartPos {
-        pick_corner(pos.x, pos.y, pos.z, |cx, cy, cz| self.fiddles(cx, cy, cz))
+    pub fn cell_terms(&mut self, pos: BlockPos) -> CellTerms {
+        let fiddles = cell_corners(pos, |corner| self.fiddles(corner.x, corner.y, corner.z));
+        CellTerms {
+            x: axis_terms(fiddles.map(|[x, _, _]| x), 4),
+            y: axis_terms(fiddles.map(|[_, y, _]| y), 2),
+            z: axis_terms(fiddles.map(|[_, _, z]| z), 1),
+        }
     }
+}
+
+pub struct CellTerms {
+    x: [[f64; 8]; 4],
+    y: [[f64; 8]; 4],
+    z: [[f64; 8]; 4],
+}
+
+impl CellTerms {
+    #[must_use]
+    #[inline]
+    pub fn nearest<B: Copy>(&self, corners: &[B; 8], pos: BlockPos) -> B {
+        let [x0, x1, x2, x3, x4, x5, x6, x7] = *fract_row(&self.x, pos.x);
+        let [y0, y1, y2, y3, y4, y5, y6, y7] = *fract_row(&self.y, pos.y);
+        let [z0, z1, z2, z3, z4, z5, z6, z7] = *fract_row(&self.z, pos.z);
+        let [c0, c1, c2, c3, c4, c5, c6, c7] = *corners;
+        Nearest {
+            corner: c0,
+            distance: f64::INFINITY,
+        }
+        .offer(c0, x0 + y0 + z0)
+        .offer(c1, x1 + y1 + z1)
+        .offer(c2, x2 + y2 + z2)
+        .offer(c3, x3 + y3 + z3)
+        .offer(c4, x4 + y4 + z4)
+        .offer(c5, x5 + y5 + z5)
+        .offer(c6, x6 + y6 + z6)
+        .offer(c7, x7 + y7 + z7)
+        .corner
+    }
+}
+
+struct Nearest<B> {
+    corner: B,
+    distance: f64,
+}
+
+impl<B> Nearest<B> {
+    #[inline]
+    fn offer(self, corner: B, distance: f64) -> Self {
+        if self.distance > distance {
+            Self { corner, distance }
+        } else {
+            self
+        }
+    }
+}
+
+#[inline]
+fn fract_row(rows: &[[f64; 8]; 4], coordinate: i32) -> &[f64; 8] {
+    let [first, second, third, fourth] = rows;
+    match (coordinate - 2) & 3 {
+        0 => first,
+        1 => second,
+        2 => third,
+        _ => fourth,
+    }
+}
+
+fn axis_terms(fiddles: [f64; 8], high_bit: usize) -> [[f64; 8]; 4] {
+    array::from_fn(|fract| {
+        let fract = fract as f64 / 4.0;
+        let mut terms = fiddles;
+        for (corner, term) in terms.iter_mut().enumerate() {
+            let distance = if corner & high_bit == 0 {
+                fract
+            } else {
+                fract - 1.0
+            };
+            let offset = distance + *term;
+            *term = offset * offset;
+        }
+        terms
+    })
 }
 
 fn corner_fiddles(seed: i64, x_random: i32, y_random: i32, z_random: i32) -> [f64; 3] {
@@ -279,7 +356,7 @@ mod tests {
             clippy::excessive_nesting,
             reason = "sweeps both axes of two begun boxes and compares each cell with the plain zoom"
         )]
-        fn the_fiddle_cache_answers_as_the_plain_zoom_does() {
+        fn the_cell_terms_pick_the_corner_the_plain_zoom_picks() {
             let seed = obfuscate_seed(777);
             let mut cache = FiddleCache::default();
             for (origin, size) in [
@@ -291,9 +368,12 @@ mod tests {
                 for x in -20..20 {
                     for y in -12..12 {
                         for z in -20..20 {
+                            let pos = BlockPos::new(x, y, z);
                             assert_eq!(
-                                cache.quart_cell(BlockPos::new(x, y, z)),
-                                quart_cell(seed, BlockPos::new(x, y, z)),
+                                cache
+                                    .cell_terms(pos)
+                                    .nearest(&cell_corners(pos, |corner| corner), pos),
+                                quart_cell(seed, pos),
                                 "{origin:?} {size:?} at {x},{y},{z}"
                             );
                         }

@@ -16,6 +16,13 @@ pub(crate) enum EntityView<'c> {
 }
 
 impl EntityView<'_> {
+    pub(crate) fn entity(&self) -> Option<Entity> {
+        match self {
+            Self::Player(player) => player.entity,
+            Self::Mob { view, .. } => Some(view.entity),
+        }
+    }
+
     pub(crate) fn position(&self) -> DVec3 {
         match self {
             Self::Player(player) => player.transform.translation,

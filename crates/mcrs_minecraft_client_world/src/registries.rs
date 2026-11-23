@@ -7,7 +7,11 @@ use bevy::asset::io::AssetSourceId;
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::{error, info};
 use bevy::prelude::*;
-use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
+use bevy::tasks::futures::check_ready;
+use bevy::tasks::{AsyncComputeTaskPool, Task};
+use mcrs_minecraft_block::definition::{
+    BlockDefinitions, Blocks, LoadError, LoadReport, load_block_definitions,
+};
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_registries::{
@@ -58,7 +62,11 @@ pub enum SessionSet {
 #[derive(Default)]
 pub struct ClientRegistriesPlugin {
     pub local_corpus: Option<DirectoryPacks>,
+    pub defer_definitions: bool,
 }
+
+#[derive(Resource)]
+struct PendingBlocks(Task<Result<(BlockDefinitions, LoadReport), LoadError>>);
 
 impl Plugin for ClientRegistriesPlugin {
     fn build(&self, app: &mut App) {
@@ -97,7 +105,15 @@ impl Plugin for ClientRegistriesPlugin {
                 ),
             )
             .add_observer(load_server_registries)
-            .add_observer(replace_server_tags);
+            .add_observer(replace_server_tags)
+            .add_systems(
+                First,
+                insert_pending_blocks.run_if(resource_exists::<PendingBlocks>),
+            )
+            .configure_sets(
+                Update,
+                ClientNetworkSystems::Deliver.run_if(resource_exists::<Blocks>),
+            );
         joined_game::add_observers(app);
         crate::session::add_observers(app);
         crate::clock_sync::add_systems(app);
@@ -107,21 +123,38 @@ impl Plugin for ClientRegistriesPlugin {
     fn finish(&self, app: &mut App) {
         let assets = app.world().resource::<AssetServer>().clone();
         check_corpus_version(&assets).unwrap_or_else(|error| refuse(&error));
-        let (definitions, report) =
-            load_block_definitions(&assets).unwrap_or_else(|error| refuse(&error));
-        info!(
-            blocks = definitions.blocks().len(),
-            states = report.states,
-            permutations = report.permutations,
-            shapes = report.shapes,
-            bytes = report.table_bytes,
-            elapsed = ?report.elapsed,
-            "loaded block definitions"
-        );
-        app.insert_resource(Blocks(Arc::new(definitions)));
+        if self.defer_definitions {
+            app.insert_resource(PendingBlocks(
+                AsyncComputeTaskPool::get().spawn(async move { load_block_definitions(&assets) }),
+            ));
+        } else {
+            let loaded = load_block_definitions(&assets);
+            app.insert_resource(adopt(loaded));
+        }
         if let Some(corpus) = &self.local_corpus {
             app.insert_resource(LocalCorpus(corpus.clone()));
         }
+    }
+}
+
+fn adopt(loaded: Result<(BlockDefinitions, LoadReport), LoadError>) -> Blocks {
+    let (definitions, report) = loaded.unwrap_or_else(|error| refuse(&error));
+    info!(
+        blocks = definitions.blocks().len(),
+        states = report.states,
+        permutations = report.permutations,
+        shapes = report.shapes,
+        bytes = report.table_bytes,
+        elapsed = ?report.elapsed,
+        "loaded block definitions"
+    );
+    Blocks(Arc::new(definitions))
+}
+
+fn insert_pending_blocks(mut pending: ResMut<PendingBlocks>, mut commands: Commands) {
+    if let Some(loaded) = check_ready(&mut pending.0) {
+        commands.remove_resource::<PendingBlocks>();
+        commands.insert_resource(adopt(loaded));
     }
 }
 
@@ -429,5 +462,35 @@ mod tests {
             };
             assert_eq!(table, case.expected, "{}", case.name);
         }
+    }
+
+    #[test]
+    fn deferred_block_definitions_arrive_after_finish_and_not_before() {
+        let mut app = App::new();
+        app.add_plugins((
+            TaskPoolPlugin::default(),
+            AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            },
+            ClientRegistriesPlugin {
+                defer_definitions: true,
+                ..default()
+            },
+        ));
+        app.finish();
+        app.cleanup();
+        assert!(app.world().get_resource::<Blocks>().is_none());
+
+        let started = std::time::Instant::now();
+        while app.world().get_resource::<Blocks>().is_none() {
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(60),
+                "the block definitions never arrived"
+            );
+            app.update();
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(app.world().resource::<Blocks>().state_count() > 0);
     }
 }
