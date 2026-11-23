@@ -74,6 +74,7 @@ mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_generator.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 bytes.workspace = true
 tracing-subscriber = "0.3"

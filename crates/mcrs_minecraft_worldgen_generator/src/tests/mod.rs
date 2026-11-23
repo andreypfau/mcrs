@@ -92,16 +92,11 @@ use mcrs_voxel::ColumnPos;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 
-use crate::ColumnBlocks;
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;
-use crate::stages::{FillContext, fill_column, merge_column, run_region};
-use crate::staging::{
-    FilledSnapshot, RegionSnapshots, Stage, StagingStore, TerrainHeightmaps, region_column,
-};
-use crate::task::{CancellationToken, ColumnSource};
+use crate::staging::{FilledSnapshot, RegionSnapshots, TerrainHeightmaps, region_column};
+use crate::task::ColumnSource;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
@@ -331,61 +326,6 @@ pub fn region_of(
     snapshot: impl Fn(ColumnPos) -> FilledSnapshot,
 ) -> RegionSnapshots {
     std::array::from_fn(|slot| Arc::new(snapshot(region_column(center, slot))))
-}
-
-pub fn generate_region(
-    ctx: &FillContext,
-    min: ColumnPos,
-    max: ColumnPos,
-) -> BTreeMap<ColumnPos, FilledSnapshot> {
-    let y_sections = &ctx.y_sections;
-    let cancel = CancellationToken::new();
-    let mut store = StagingStore::default();
-    let region = |halo: i32| {
-        (min.x - halo..=max.x + halo)
-            .flat_map(move |x| (min.z - halo..=max.z + halo).map(move |z| ColumnPos::new(x, z)))
-    };
-
-    let rungs = ctx.rungs();
-    let mut buffer = ColumnBlocks::new(y_sections);
-    let mut cells = AquiferCells::default();
-    for col in region(2 * rungs as i32) {
-        let Some(snapshot) = fill_column(ctx, col, &mut buffer, None, &mut cells, &cancel) else {
-            continue;
-        };
-        store.insert_filled(snapshot);
-        store.set_stage(col, Stage::Filled);
-    }
-    for rung in 0..rungs {
-        let reach = 2 * (rungs - 1 - rung) as i32;
-        for col in region(reach + 1) {
-            let Some(region) = store.region(col, rung) else {
-                continue;
-            };
-            for (target, delta) in run_region(ctx, &region, rung) {
-                store.push_delta(col, rung, target, delta);
-            }
-            store.set_stage(col, Stage::Ran(rung as u8));
-        }
-        for col in region(reach) {
-            let deltas = store.deltas(col, rung);
-            let Some(base) = store.base(col, rung).cloned() else {
-                continue;
-            };
-            let merged = merge_column(
-                &base,
-                &deltas,
-                &ctx.predicates,
-                ctx.features()
-                    .map(|program| &program.world.has_block_entity),
-            );
-            store.insert_staged(col, rung, Arc::new(merged));
-            store.set_stage(col, Stage::Merged(rung as u8));
-        }
-    }
-    region(0)
-        .filter_map(|col| Some((col, FilledSnapshot::clone(store.merged(col)?))))
-        .collect()
 }
 
 pub fn beta_carver_table(

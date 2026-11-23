@@ -13,7 +13,7 @@ test = false
 workspace = true
 
 [workspace]
-members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -58,6 +58,7 @@ bitfield-struct = "0.12.1"
 crc32c = "0.6.8"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
+png = "0.18.1"
 snap = "1.1.1"
 thiserror = "2.0.17"
 unicode_names2 = { version = "3.1.0", default-features = false }
