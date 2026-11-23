@@ -143,9 +143,14 @@ The reach check has five parts. Each part has these inputs and outputs:
 |------|--------|---------|
 | knowledge state | as `client-knowledge.md`, CK-PART-001 | the values that the client can have at each knowledge point |
 | intake | the serverbound packets of one client | each action at the end of its action tick (RCH-TCK-002), or a verdict with the reason `over_limit` (RCH-TCK-003) |
-| check | one action, the eye set, the look set, the target region, the range, the tolerances | one verdict |
+| check | one action; the eye set, the look set, the target and the range; the tolerances; the baseline inputs | one verdict |
 | verdict | the output of the check or of the intake | data for the reaction and for other readers |
 | reaction | one verdict | clientbound packets, the effect of the action, or nothing |
+
+The target is a region, or one of the values `unknown_target` and `not_in_view` (RCH-TGT-004,
+RCH-TGT-007). The eye set, the look set, the target and the range can each be an unknown value.
+The baseline inputs are the eye of the player and the box of the target on the server, which
+RCH-VRD-004 uses. Sections 4 to 7 give each input before the check runs.
 
 The check reads only its inputs. It reads no state of the server, of the connection, of the
 intake or of the reaction. Only the intake counts the actions of a client tick. The verdict has
@@ -251,10 +256,11 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Expe
 
 ### RCH-TCK-002: The check waits for the end of the action tick
 
-The intake keeps each action until the first move packet or `client_tick_end` after the action.
-The check of the action runs then, and the reaction applies the verdict. Thus an accepted action
-takes effect after the move packet of its client tick. The verdicts of one client tick keep the
-order of their actions.
+The intake keeps each action until the `client_tick_end` of its client tick. A move packet does not
+end the wait. The check of the action runs then, and the reaction applies the verdict. Thus an
+accepted action takes effect after the move packet of its client tick. The intake knows the count of
+the actions of the client tick before the check runs for one of them (RCH-TCK-003). The verdicts of
+one client tick keep the order of their actions.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -539,7 +545,7 @@ entity region, and `m` the margin. The attack passes when an eye `e` in `E` and 
 obey each of these conditions:
 
 1. Grow `B` by the pick radius, `m` and `box_tolerance`. The ray from `e` along `v` meets it at a
-   ray distance from `min` to `max + w(v)`.
+   ray distance from `min − distance_tolerance` to `max + w(v) + distance_tolerance`.
 2. `n(e, B) ≤ max + m + distance_tolerance`.
 3. `f(e, B) ≥ min − m − distance_tolerance`.
 
@@ -610,10 +616,14 @@ goes from the corner `lo` to the corner `hi`. `x_a` is the coordinate of a point
 2. Surface test. One box of `U` obeys both of these conditions:
    - on each axis `a`, `lo_a − p ≤ P_a ≤ hi_a + p`;
    - on one axis `a` or more, `|P_a − lo_a| ≤ p` or `|P_a − hi_a| ≤ p`.
-3. Face test. Take the boxes of `U` and the boxes of the second shape of RCH-TGT-006, not grown.
-   Let `a` be the axis of face `f`. Let `σ` be +1 for the faces up, south and east, and −1 for the
-   faces down, north and west. Let `c` be `hi_a` of a box when `σ` is +1, and `lo_a` otherwise. One
-   of these boxes obeys `σ × (e_a − c) ≥ −box_tolerance`.
+3. Face test. Let `a` be the axis of face `f`. Let `σ` be +1 for the faces up, south and east,
+   and −1 for the faces down, north and west. For a box, let `c` be `hi_a` when `σ` is +1, and
+   `lo_a` otherwise. One of these conditions is true:
+   - One box of `U` obeys the surface test, `|P_a − c| ≤ p` and `σ × (e_a − c) ≥ −box_tolerance`.
+     Thus `P` is on face `f` of that box.
+   - One box of the second shape of RCH-TGT-006, not grown, obeys `σ × (e_a − c) ≥ −box_tolerance`.
+     The ray meets that box grown by `box_tolerance` at an entry distance less than
+     `t + distance_tolerance`.
 
 The surface test and the face test use the boxes of `U`, not the boxes of `O`. The boxes of an
 outline shape are exact data, and the client puts its hit point on the surface of one of them. A box
@@ -644,8 +654,11 @@ other case is this:
 - The look of RCH-LOOK-003 has a length that differs from 1 by less than 1.0E-6. Thus `t` is less
   than `R_b × (1 + 1.0E-6) + 1.1E-7`. For each `R_b` up to 64, that is less than
   `R_b + distance_tolerance`.
-- The ray goes into the box through face `f` (CBK-TGT-007, CBK-TGT-008). Thus `e` is on the outer
-  side of the plane of that face, and `σ × (e_a − c) ≥ 0`.
+- The face `f` comes from the outline shape or from the second shape (CBK-TGT-007, CBK-TGT-008).
+  From the outline shape, the ray goes into the box of `H` through face `f`. Thus `H` is on face `f`
+  of that box, and `e` is on the outer side of its plane, so `σ × (e_a − c) ≥ 0`. From the second
+  shape, the ray goes into a box of that shape through face `f`, at a ray distance less than
+  `|H − e|`. The second condition of the face test then holds.
 
 Example: the block at `Q = (0, 64, 0)` is a full block. Thus `U` holds the box from `(0, 64, 0)` to
 `(1, 65, 1)`. The eye is `e = (0.5, 64.5, −2.0)`, with the yaw 0 and the pitch 0, so
@@ -656,7 +669,10 @@ packet has the face north and the cursor `(0.5, 0.5, 0.0)`. Thus `P` is `(0.5, 6
 |------|--------|--------|
 | ray | `t = 2.0`, `2.0 < 4.5 + 0.0005`; distance from the ray 0 | passes |
 | surface | `0 − p ≤ 0.5 ≤ 1 + p`, `64 − p ≤ 64.5 ≤ 65 + p`, `0 − p ≤ 0.0 ≤ 1 + p`; `|P_z − lo_z| = 0` | passes |
-| face | axis `z`, `σ = −1`, `c = 0`; `−1 × (−2.0 − 0) = 2.0 ≥ −0.0005` | passes |
+| face | axis `z`, `σ = −1`, `c = 0`; `\|P_z − c\| = 0 ≤ p`; `−1 × (−2.0 − 0) = 2.0 ≥ −0.0005` | passes |
+
+The same packet with the face up fails the face test: on the axis `y`, `c` is 65, and
+`|P_y − c| = 0.5` is more than `p`. A full block has no second shape.
 
 The same test against the boxes of `O` puts `P` 0.0005 from the nearest surface, at `z = −0.0005`.
 That is more than `p`, so a surface test with `O` refuses this placement. With the eye at
@@ -686,8 +702,8 @@ The hit distance of a candidate is the smallest value of this list, over each pa
 passes that comparison:
 
 - for RCH-CMP-001, the entry distance `d(e, v, B)`, with `B` of RCH-CMP-001;
-- for RCH-CMP-002, the smallest ray distance `t` from `min` to `max + w(v)` at which the ray from
-  `e` along `v` is in the region of its condition 1. The rule uses each set of values of
+- for RCH-CMP-002, the smallest ray distance `t` in the interval of its condition 1 at which the
+  ray from `e` along `v` is in the region of that condition. The rule uses each set of values of
   RCH-RNG-003 that passes.
 
 The first entity is the candidate with the smallest hit distance. When two candidates have the same
@@ -701,8 +717,10 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### RCH-TOL-001: The box and distance tolerances
 
-`box_tolerance` grows each target region, except in the surface test of RCH-CMP-005.
-`distance_tolerance` adds to each bound of a distance.
+`box_tolerance` grows each target region, except in the surface test and the face test of
+RCH-CMP-005. `distance_tolerance` widens each bound of a distance: it adds to each upper bound, and
+it subtracts from each lower bound. The interval of the ray distance in condition 1 of RCH-CMP-002
+is an example.
 These tolerances cover the rounding difference between the client and the check. They do not cover
 latency. The eye set and the target region cover latency.
 

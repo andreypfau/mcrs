@@ -277,14 +277,25 @@ these steps. It does a step only when the bound is still passed after the step b
 After step 2, each value of these sections and entities is an unknown value until the probe after
 that group is acknowledged. After step 3, each value that a tracked change sets is an unknown
 value at each knowledge point before the acknowledgement of that probe. This also
-applies to an earlier knowledge point that a reader compares again. After the acknowledgement, the
-client has each value that the server sent before that probe, and the knowledge state gives the
-values again.
+applies to an earlier knowledge point that a reader compares again.
 
 Step 3 always gives records within the bound, also for one group that is larger than the bound. A
 later group that passes the bound again replaces that record with a new one. Thus the bound holds
 at each time. The knowledge state never disconnects a client because of the bound. Each reader
 uses its rule for an unknown value (CK-UNC-005).
+
+Step 3 keeps only the probe. The server keeps the value that it sent last for each value, because
+this value is the state of the server for that client, not a record of the knowledge state. Each
+group after step 3 gets records as usual. Each record holds the value before its change and the
+value after it (MVC-PRED-018). At the acknowledgement of the kept probe, the client has each value
+that the server sent before that probe. The knowledge state then gives the values again, at that
+knowledge point and at each later one:
+
+- It starts with the value that the server sent last.
+- It undoes the changes of the records after the kept probe, from the newest to the oldest, until
+  each change has its state at the knowledge point (MVC-PRED-017 of `movement-checks.md`).
+- A value of a section or an entity of a later group that step 2 replaced stays an unknown value
+  until the probe after that group is acknowledged.
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
@@ -519,11 +530,14 @@ The entity is **settled** for tick `k` when these conditions are true:
 The knowledge state computes `H(k)` and `F(k)` in these steps. For a box `X`, `X.lo` and `X.hi` are
 its two corners, and the size of `X` is `X.hi − X.lo` on each axis.
 
-1. At the first client tick in which `add_entity` can be applied, `H` and `F` are the position of
-   `add_entity`.
-2. For each later client tick `k`, start with `H = H(k − 1)` and `F = F(k − 1)`. Take each entity
-   move whose probe before is acknowledged for tick `k` and not for tick `k − 1`. Do these steps
-   for each of them, in the order of the server. `H₀` and `F₀` are `H` and `F` before the step.
+1. Let `k₀` be the first client tick in which `add_entity` can be applied. Before step 2 for tick
+   `k₀`, `H` and `F` are the position of `add_entity`.
+2. For each client tick `k` from `k₀`, start with `H = H(k − 1)` and `F = F(k − 1)`. For tick `k₀`,
+   start with the boxes of step 1. Take each entity move after the `add_entity` whose probe before
+   is acknowledged for tick `k` and not for tick `k − 1`. For tick `k₀`, take each such entity move
+   whose probe before is acknowledged for tick `k₀`. An entity move in the group of the
+   `add_entity` is one of them. Do these steps for each of them, in the order of the server. `H₀`
+   and `F₀` are `H` and `F` before the step.
    1. Grow `H` to contain each end point and `S`.
    2. Do this step when the entity move can snap the entity and the interpolation can be active
       at it. Grow `H` to contain the box from `S.lo − w` to `S.hi + w`, with `w` the size of `H₀`.
@@ -659,9 +673,12 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 ### CK-TP-003: A respawn and a change of dimension
 
 A `respawn` is a tracked change. It starts a load (MVC-PKT-012). While it is in the window
-state, a reader that reads the world uses the old world and the new world. When it has the
-applied state, the knowledge state drops the records of the old world: blocks, chunks and
-entities. The first teleport after the respawn obeys CK-TP-001.
+state, a reader that reads the world uses the old world and the new world. At a knowledge point at
+which it has the applied state, a reader reads only the new world. The knowledge state keeps the
+records of the old world, blocks, chunks and entities, while a reader needs them (CK-KNW-003). For
+the movement reader, this is `replay_depth` client ticks after the first client tick in which the
+respawn is applied (MVC-PRED-018). Then the knowledge state drops them. The first teleport after the
+respawn obeys CK-TP-001.
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
