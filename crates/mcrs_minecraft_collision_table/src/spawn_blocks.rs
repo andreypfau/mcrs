@@ -1,43 +1,53 @@
-use alloc::vec::Vec;
 use glam::DVec3;
-use mcrs_minecraft_collision_table::BlockWorld;
-use mcrs_minecraft_engine_world::world::storage::view::DimensionView;
 use mcrs_minecraft_entity_key::EntityUuid;
-use mcrs_minecraft_physics::{
-    Aabb, Axis, BlockFlags, CollisionTable, NoBodies, QueryEntity, Shape, ShapeClass,
-    StateCollision, Tables, View, intersects,
-};
+use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_physics::Axis;
+use mcrs_minecraft_physics::BlockFlags;
+use mcrs_minecraft_physics::CollisionTable;
+use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::QueryEntity;
+use mcrs_minecraft_physics::Shape;
+use mcrs_minecraft_physics::ShapeClass;
+use mcrs_minecraft_physics::StateCollision;
+use mcrs_minecraft_physics::Tables;
+use mcrs_minecraft_physics::View;
+use mcrs_minecraft_physics::intersects;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
 
+use crate::BlockWorld;
+
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ColumnHeights {
-    pub(crate) motion: i32,
-    pub(crate) surface: i32,
-    pub(crate) ocean_floor: i32,
+pub struct ColumnHeights {
+    pub motion: i32,
+    pub surface: i32,
+    pub ocean_floor: i32,
 }
 
-pub(crate) struct SpawnBlocks<'a> {
-    pub(crate) world: BlockWorld<'a, DimensionView<'a>>,
-    pub(crate) tables: &'a Tables,
-    pub(crate) min_y: i32,
-    pub(crate) max_y: i32,
+pub struct SpawnBlocks<'a, V> {
+    pub world: BlockWorld<'a, V>,
+    pub tables: &'a Tables,
+    pub min_y: i32,
+    pub max_y: i32,
 }
 
-impl SpawnBlocks<'_> {
-    pub(crate) fn height_fix(&self, spawn: BlockPos) -> DVec3 {
+impl<V: BlockVolume> SpawnBlocks<'_, V> {
+    #[must_use]
+    pub fn height_fix(&self, spawn: BlockPos) -> DVec3 {
         let mut y = spawn.y;
         while y < self.max_y && !self.is_clear(at(spawn.x, y, spawn.z)) {
             y += 1;
         }
+        y = y.saturating_sub(1);
         while y > self.min_y && self.is_clear(at(spawn.x, y, spawn.z)) {
             y -= 1;
         }
         at(spawn.x, y.saturating_add(1), spawn.z)
     }
 
-    pub(crate) fn column(&self, x: i32, z: i32, heights: ColumnHeights) -> Option<DVec3> {
+    #[must_use]
+    pub fn column(&self, x: i32, z: i32, heights: ColumnHeights) -> Option<DVec3> {
         let top = heights.motion;
         if top < self.min_y {
             return None;
@@ -89,7 +99,7 @@ impl SpawnBlocks<'_> {
             (low.x..high.x).any(|x| {
                 (low.z..high.z).any(|z| {
                     self.state(BlockPos::new(x, y, z))
-                        .is_some_and(|state| state.flags.contains(BlockFlags::FLUID))
+                        .is_some_and(|state| state.flags.contains(BlockFlags::LIQUID_BLOCK))
                 })
             })
         })
@@ -97,7 +107,7 @@ impl SpawnBlocks<'_> {
 }
 
 #[must_use]
-pub(crate) fn lower_face_centre(pos: BlockPos) -> DVec3 {
+pub fn lower_face_centre(pos: BlockPos) -> DVec3 {
     at(pos.x, pos.y, pos.z)
 }
 
