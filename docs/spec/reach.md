@@ -833,7 +833,8 @@ medium.
 The vanilla server tests `use_item_on` in this order:
 
 1. The nearest distance from the eye to the block cube of `Q` is less than `R_b + 1.0`
-   (PLC-RCH-001 of `block-placing.md`).
+   (PLC-RCH-001 of `block-placing.md`). With the base values, the limit is 5.5 in survival mode and
+   6.0 in creative mode.
 2. The cursor point is less than 1.0000001 from the center of the block cube on each axis
    (PLC-CUR-001).
 
@@ -841,8 +842,9 @@ When a test fails, the placer gets only the acknowledgement. When both tests pas
 on with the rules of `block-placing.md`. It then sends `block_update` for `Q` and for the position
 next to the face.
 
-Provenance: `source_suggested`, from PLC-RCH-001 and PLC-CUR-001. Kind: semantic. Confidence:
-medium.
+Provenance: `source_suggested_black_box_confirmed`, from PLC-RCH-001 and PLC-CUR-001. The trace
+`tools/mcrs_minecraft_probe/traces/reach_placement.json` shows the limit of test 1 in both game modes.
+Kind: semantic. Confidence: high.
 
 ### RCH-VAN-005: What the vanilla server does not test
 
