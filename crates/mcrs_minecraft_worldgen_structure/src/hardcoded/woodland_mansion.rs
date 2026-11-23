@@ -915,7 +915,7 @@ impl Placer<'_> {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "the reference passes these as separate values"
+            reason = "the start cell, the end cell and the heading change at each call of the wall walk"
         )
     )]
     fn traverse_outer_walls(

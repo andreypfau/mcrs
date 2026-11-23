@@ -21,7 +21,7 @@ impl Fall {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "each input is one value that step 5 or 6 of FBK-TCK-001 reads"
+            reason = "the landing check reads the ground and the water contact, the time limits read the age and the heights, and each value comes from another component"
         )
     )]
     pub fn after_move(

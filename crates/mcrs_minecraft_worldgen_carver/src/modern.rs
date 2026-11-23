@@ -164,7 +164,7 @@ fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &
     mcrs_lint,
     expect(
         mcrs::too_many_arguments,
-        reason = "the reference passes these as separate values"
+        reason = "the room centre, the thickness and the vertical scale differ at each call and are not stored together"
     )
 )]
 fn create_room_into<T: CarveTarget>(

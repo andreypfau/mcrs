@@ -14,11 +14,11 @@ use crate::collect::Leaf;
 use crate::collect::LeafKind;
 use crate::collect::Site;
 use crate::collect::key;
-use mcrs_lint::Facts;
-use mcrs_lint::Helper;
-use mcrs_lint::Placement;
-use mcrs_lint::SetFact;
-use mcrs_lint::SetGraph;
+use crate::config_node::Placement;
+use crate::facts::Facts;
+use crate::facts::Helper;
+use crate::facts::SetFact;
+use crate::set_graph::SetGraph;
 
 pub struct SystemUse<'tcx> {
     pub def: DefId,

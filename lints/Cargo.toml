@@ -10,9 +10,6 @@ license = "MIT OR Apache-2.0"
 [package.metadata.rust-analyzer]
 rustc_private = true
 
-[lib]
-doctest = false
-
 [[bin]]
 name = "mcrs-lint-driver"
 path = "src/mcrs_lint_driver.rs"

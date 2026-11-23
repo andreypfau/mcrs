@@ -18,9 +18,12 @@ mod arguments_rule;
 mod body_scan;
 mod callbacks;
 mod collect;
+mod config_node;
 mod ecs_lint;
+mod facts;
 mod lints;
 mod resolve;
+mod set_graph;
 mod signature_rules;
 mod system_rules;
 

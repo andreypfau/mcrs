@@ -10,6 +10,3 @@ publish = false
 bevy_app = { version = "0.20.1", default-features = false }
 bevy_ecs = { version = "0.20.1", default-features = false, features = ["std"] }
 bevy_time = { version = "0.20.1", default-features = false, features = ["std"] }
-
-[workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mcrs_lint)'] }

@@ -22,8 +22,8 @@ use rustc_span::Span;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
-use mcrs_lint::ConfigNode;
-use mcrs_lint::Placement;
+use crate::config_node::ConfigNode;
+use crate::config_node::Placement;
 
 const CONDITION_CRATES: [&str; 3] = ["bevy_ecs", "bevy_input", "bevy_state"];
 const EVENT_CONDITIONS: [&str; 11] = [

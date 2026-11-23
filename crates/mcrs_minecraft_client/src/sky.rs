@@ -377,13 +377,6 @@ fn evaluate_sky(
         reason = "the render world must drop the extracted sky on the frame that the main world loses its environment"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the sky uniform follows the world clocks, so it changes on each frame"
-    )
-)]
 fn extract_sky(
     mut commands: Commands,
     sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,
@@ -391,7 +384,7 @@ fn extract_sky(
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
     clouds: Extract<Res<Clouds>>,
-    extracted: Option<Res<ExtractedSky>>,
+    extracted: Option<ResMut<ExtractedSky>>,
 ) {
     let (Some(environment), Some(textures)) = (sources.0.as_ref(), sources.1.as_ref()) else {
         if extracted.is_some() {
@@ -406,12 +399,16 @@ fn extract_sky(
     if **clouds == Clouds::Off {
         effects.remove(SkyEffects::CLOUDS);
     }
-    commands.insert_resource(ExtractedSky {
+    let sky = ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
         effects,
         celestials: textures.celestials.id(),
         clouds: textures.clouds.id(),
-    });
+    };
+    match extracted {
+        Some(mut extracted) => *extracted = sky,
+        None => commands.insert_resource(sky),
+    }
 }
 
 fn cloud_drift(ticks: f64) -> f32 {

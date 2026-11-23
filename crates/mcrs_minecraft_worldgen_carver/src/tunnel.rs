@@ -62,7 +62,7 @@ pub fn can_reach(
     mcrs_lint,
     expect(
         mcrs::too_many_arguments,
-        reason = "the reference passes these as separate values"
+        reason = "the position, the angles and the step change as the walk recurses into branches, and each branch passes its own values"
     )
 )]
 pub fn walk_tunnel_into<T: CarveTarget, R: Random>(

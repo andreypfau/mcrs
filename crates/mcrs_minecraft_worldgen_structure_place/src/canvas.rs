@@ -281,7 +281,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "the reference passes these as separate values"
+            reason = "the block coordinates are local to the piece, like the coordinates of the other canvas methods"
         )
     )]
     pub fn create_dispenser<R: Random>(

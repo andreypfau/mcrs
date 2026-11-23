@@ -21,6 +21,7 @@ use crate::callbacks::TICK_SCHEDULES_ENV;
 use crate::collect::Leaf;
 use crate::collect::LeafKind;
 use crate::collect::key;
+use crate::facts::AlwaysChanged;
 use crate::lints::ALLOC_IN_TICK;
 use crate::lints::BLOCKING_IN_SYSTEM;
 use crate::lints::EXCLUSIVE_OBSERVER;
@@ -30,8 +31,7 @@ use crate::lints::PER_FRAME_INSERT_RESOURCE;
 use crate::lints::TIME_CLOCK_MISMATCH;
 use crate::lints::UNGATED_SYSTEM;
 use crate::resolve::SystemUse;
-use mcrs_lint::AlwaysChanged;
-use mcrs_lint::SetGraph;
+use crate::set_graph::SetGraph;
 
 const BEVY_TICK_SCHEDULES: [&str; 14] = [
     "First",

@@ -60,7 +60,7 @@ type RosterQuery<'w, 's> = Query<
     mcrs_lint,
     expect(
         mcrs::alloc_in_tick,
-        reason = "the roster moves into the cell output on each tick, so each row owns a copy of the player name"
+        reason = "the roster moves to the coordinator by value on each tick, and the profile keeps the name as a `String`, so each row clones it"
     )
 )]
 pub(crate) fn report_own_players(

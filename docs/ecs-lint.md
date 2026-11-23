@@ -82,20 +82,22 @@ From these facts, each leaf gets a resolved state:
 - the parameter types of the system, from `fn_sig` of its `DefId`. A foreign `DefId` has its
   signature in the crate metadata, so a facts file is not necessary for signatures.
 
-A leaf that is a generic parameter and that no helper resolves is counted as unresolved. The
-report shows the count, so that the coverage of the model is visible.
+A leaf that the model does not resolve gets no rule. With `MCRS_LINT_DEBUG` set, the pass
+writes a note at each such leaf, so that the coverage of the model is visible.
 
 ## 4. Facts files
 
 A facts file holds only the facts that a dependent crate cannot read from metadata:
 
 - the helpers of the crate;
-- the set configurations of the crate.
+- the set configurations of the crate;
+- the components that each function of the crate writes through `Mut`;
+- the components that an ungated tick system of the crate writes on each run.
 
 The facts file is next to the metadata file of the crate, with the extension
 `.mcrs-lint.json`. The pass finds the files of its dependencies through the paths of their
 metadata files. Thus each profile, target and target directory has its own facts. A crate
-with no helpers and no set configurations has no facts file. Items are keyed by their
+with no such facts has no facts file. Items are keyed by their
 `DefPathHash`, which is the same in every crate.
 
 Cargo compiles a dependency before its dependents, so the facts of a dependency exist when a
@@ -127,7 +129,7 @@ outside the system.
 |------|------|-------|
 | `exclusive_system` | "No system takes `&mut World`" | a registered system with a `&mut World` parameter at any position |
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
-| `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated` or `If` parameter |
+| `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated`, `If` or `PopulatedMessageReader` parameter |
 | `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` without an `is_finished` check, or a `block_on` |
 | `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked |
 | `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match`, a loop or a comparing early exit, and no run condition of the system fires on an event (§10) |
@@ -162,10 +164,11 @@ to them.
 
 ## 6. Matching of Bevy items
 
-The pass compares the definition path of a `DefId` (for example
-`bevy_ecs::system::query::Query`) with a table of anchors. At the start of a crate that
-depends on `bevy_ecs`, the pass resolves every anchor. An anchor that does not resolve is an
-error, so a Bevy upgrade cannot make a rule stop without a message.
+The pass keeps a table of anchors: public paths of Bevy items, for example
+`bevy_ecs::system::Query`. At the start of a crate that depends on `bevy_ecs`, the pass
+resolves each anchor to a `DefId` through the public module tree. Then it compares `DefId`s.
+An anchor that does not resolve is an error, so a Bevy upgrade cannot make a rule stop
+without a message.
 
 ## 7. CI
 

@@ -252,7 +252,7 @@ impl Builder {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "the reference passes these as separate values"
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
         )
     )]
     fn surface(
@@ -283,7 +283,7 @@ impl Builder {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "the reference passes these as separate values"
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
         )
     )]
     fn underground(
@@ -312,7 +312,7 @@ impl Builder {
         mcrs_lint,
         expect(
             mcrs::too_many_arguments,
-            reason = "the reference passes these as separate values"
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
         )
     )]
     fn bottom(

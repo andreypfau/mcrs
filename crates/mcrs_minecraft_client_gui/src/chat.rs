@@ -376,7 +376,7 @@ fn input_box(
     mcrs_lint,
     expect(
         mcrs::alloc_in_tick,
-        reason = "the immediate-mode GUI builds the text spans of the visible chat lines and of the overlay on each frame"
+        reason = "the immediate-mode GUI takes owned text spans, and the fade of each line changes its colour on each frame, so a span cache would be rebuilt on each frame too"
     )
 )]
 pub fn draw(

@@ -19,12 +19,12 @@ use crate::body_scan;
 use crate::collect::collect;
 use crate::collect::helper_crate;
 use crate::collect::key;
+use crate::facts::Facts;
+use crate::facts::SystemWrites;
 use crate::lints;
 use crate::resolve::resolve;
 use crate::signature_rules;
 use crate::system_rules;
-use mcrs_lint::Facts;
-use mcrs_lint::SystemWrites;
 
 pub struct EcsLint;
 
