@@ -293,7 +293,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             trigger.raise(
-                self.app.world_mut().commands().reborrow(),
+                self.app.world_mut().commands(),
                 self.connection,
                 data.into(),
             );

@@ -2,7 +2,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::resource::Resource;
@@ -89,15 +89,7 @@ pub struct OutboundScratch {
     buffer: PacketBuffer,
 }
 
-pub(crate) fn outbound_packets_pending(messages: Res<Messages<OutboundPlayerPacket>>) -> bool {
-    !messages.is_empty()
-}
-
-pub(crate) fn inbound_packets_pending(messages: Res<Messages<InboundPlayerPacket>>) -> bool {
-    !messages.is_empty()
-}
-
-pub(crate) fn attachments_pending(messages: Res<Messages<OutboundPlayerAttached>>) -> bool {
+pub(crate) fn messages_pending<M: Message>(messages: Res<Messages<M>>) -> bool {
     !messages.is_empty()
 }
 

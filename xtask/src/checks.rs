@@ -348,31 +348,24 @@ impl Context {
     }
 
     fn exec(&self, program: &str, args: &[&str]) -> Result<bool, String> {
-        self.exec_in(
-            &self.root,
-            Command::new(self.resolve(program)),
-            program,
-            args,
-        )
-    }
-
-    fn resolve(&self, program: &str) -> PathBuf {
-        if program.contains('/') {
-            self.root.join(program)
-        } else {
-            PathBuf::from(program)
-        }
+        self.exec_in(&self.root, program, args, |_| {})
     }
 
     fn exec_in(
         &self,
         dir: &Path,
-        mut command: Command,
         program: &str,
         args: &[&str],
+        configure: impl FnOnce(&mut Command),
     ) -> Result<bool, String> {
         let shown = format!("{program} {}", args.join(" "));
         println!("$ {}", shown.trim_end());
+        let mut command = if program.contains('/') {
+            Command::new(self.root.join(program))
+        } else {
+            Command::new(program)
+        };
+        configure(&mut command);
         command
             .args(args)
             .current_dir(dir)
@@ -725,45 +718,45 @@ fn clippy(ctx: &Context) -> Outcome {
     )
 }
 
-const DENY_WARNINGS: [&str; 2] = ["--config", "build.warnings=\"deny\""];
-
 fn ecs_lint(ctx: &Context) -> Outcome {
     let lints = ctx.root.join("lints");
-    let mut install = Command::new("rustup");
-    install.env_remove("RUSTUP_TOOLCHAIN");
-    let built = ctx.exec_in(&lints, install, "rustup", &["toolchain", "install"])?
-        && ctx.exec_in(
-            &lints,
-            Command::new("cargo"),
-            "cargo",
-            &["build", "--release", "--locked"],
-        )?;
+    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], |command| {
+        command.env_remove("RUSTUP_TOOLCHAIN");
+    })? && ctx.exec_in(&lints, "cargo", &["build", "--release", "--locked"], |_| {})?;
     verdict(
         built,
         "the ECS lint driver does not build",
         "fix the errors above in lints/",
     )?;
-    let mut fixture = vec!["check", "--locked"];
-    fixture.extend(DENY_WARNINGS);
     verdict(
         ctx.exec_in(
             &lints.join("fixture"),
-            Command::new("cargo"),
             "cargo",
-            &fixture,
+            &["check", "--locked", "--config", "build.warnings=\"deny\""],
+            |_| {},
         )?,
         "lints/fixture has a missing or an extra ECS lint",
         "make the lints of the driver match the expectations of the fixture",
     )?;
-    let mut check = Command::new("cargo");
-    check.env(
-        "RUSTC_WORKSPACE_WRAPPER",
-        lints.join("target/release/mcrs-lint-driver"),
-    );
-    let mut args = vec!["check", "--workspace", "--all-targets", "--locked"];
-    args.extend(DENY_WARNINGS);
     verdict(
-        ctx.exec_in(&ctx.root, check, "cargo", &args)?,
+        ctx.exec_in(
+            &ctx.root,
+            "cargo",
+            &[
+                "check",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            |command| {
+                command.env(
+                    "RUSTC_WORKSPACE_WRAPPER",
+                    lints.join("target/release/mcrs-lint-driver"),
+                );
+            },
+        )?,
         "the ECS lints or rustc reported diagnostics",
         "fix the code, or add an expectation with a reason as docs/ecs-lint.md describes",
     )

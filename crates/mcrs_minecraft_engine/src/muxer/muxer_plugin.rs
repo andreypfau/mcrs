@@ -37,7 +37,7 @@ impl Plugin for MuxerPlugin {
         app.add_systems(
             bridge::OutboundFlush,
             (
-                bridge::bridge_outbound.run_if(bridge::outbound_packets_pending),
+                bridge::bridge_outbound.run_if(bridge::messages_pending::<OutboundPlayerPacket>),
                 bridge::dispatch_encode,
                 backlog::forward_backlog,
             )
@@ -55,8 +55,10 @@ impl Plugin for MuxerPlugin {
         app.add_systems(
             Update,
             (
-                bridge::bridge_inbound_to_channel.run_if(bridge::inbound_packets_pending),
-                bridge::bridge_player_attach.run_if(bridge::attachments_pending),
+                bridge::bridge_inbound_to_channel
+                    .run_if(bridge::messages_pending::<InboundPlayerPacket>),
+                bridge::bridge_player_attach
+                    .run_if(bridge::messages_pending::<OutboundPlayerAttached>),
                 bridge::forward_pending_inbound.run_if(bridge::inbound_held),
                 online_count::send_online_count.run_if(online_count::placements_changed),
                 latency::forward_latency,

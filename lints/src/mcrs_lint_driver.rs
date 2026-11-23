@@ -76,12 +76,11 @@ fn run_rustc() -> ExitCode {
     } else {
         PathBuf::from("rustc")
     };
-    match Command::new(rustc).args(args).status() {
-        Ok(status) if status.success() => ExitCode::SUCCESS,
-        Ok(status) => status
-            .code()
-            .and_then(|code| u8::try_from(code).ok())
-            .map_or(ExitCode::FAILURE, ExitCode::from),
-        Err(_) => ExitCode::FAILURE,
-    }
+    Command::new(rustc)
+        .args(args)
+        .status()
+        .ok()
+        .and_then(|status| status.code())
+        .and_then(|code| u8::try_from(code).ok())
+        .map_or(ExitCode::FAILURE, ExitCode::from)
 }

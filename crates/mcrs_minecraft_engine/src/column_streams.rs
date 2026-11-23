@@ -210,9 +210,10 @@ fn column_readiness_may_change(
     mut changes: MessageReader<SectionStageChanged>,
     mut relit: MessageReader<SectionRelit>,
 ) -> bool {
-    let changed = changes.read().count() > 0;
-    let relit = relit.read().count() > 0;
-    changed || relit || dims.iter().any(|streams| !streams.awaited.is_empty())
+    let changed = !changes.is_empty() || !relit.is_empty();
+    changes.clear();
+    relit.clear();
+    changed || dims.iter().any(|streams| !streams.awaited.is_empty())
 }
 
 fn take_column_requests(

@@ -31,6 +31,8 @@ use rustc_trait_selection::infer::InferCtxtExt;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
+use crate::collect::Call;
+use crate::collect::call;
 use crate::lints::INSERT_MESSAGE_RESOURCE;
 use crate::lints::MISSED_SET_IF_NEQ;
 use crate::lints::UNIT_IN_BUNDLE;
@@ -124,7 +126,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 self.conditional += 1;
                 self.compared += 1;
             }
-            if calls(condition, "is_finished") {
+            if calls_is_finished(condition) {
                 finished += 1;
                 self.finished += 1;
             }
@@ -142,7 +144,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         match expr.kind {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
-                let finished = calls(condition, "is_finished");
+                let finished = calls_is_finished(condition);
                 self.conditional += 1;
                 self.guarded += 1;
                 self.compared += usize::from(compares);
@@ -272,29 +274,14 @@ impl<'tcx> Scanner<'_, 'tcx> {
     }
 
     fn inspect_call(&mut self, expr: &'tcx Expr<'tcx>) {
-        let (callee, generics, args): (DefId, GenericArgsRef<'tcx>, Vec<&'tcx Expr<'tcx>>) =
-            match expr.kind {
-                ExprKind::MethodCall(_, receiver, args, _) => {
-                    let Some(callee) = self.typeck.type_dependent_def_id(expr.hir_id) else {
-                        return;
-                    };
-                    (
-                        callee,
-                        self.typeck.node_args(expr.hir_id),
-                        std::iter::once(receiver).chain(args.iter()).collect(),
-                    )
-                }
-                ExprKind::Call(func, args) => match self.typeck.node_type_opt(func.hir_id) {
-                    Some(ty) => match *ty.kind() {
-                        TyKind::FnDef(callee, generics) => {
-                            (callee, generics.skip_binder(), args.iter().collect())
-                        }
-                        _ => return,
-                    },
-                    None => return,
-                },
-                _ => return,
-            };
+        let Some(Call {
+            callee,
+            generics,
+            args,
+        }) = call(self.typeck, expr)
+        else {
+            return;
+        };
         let tcx = self.tcx;
         let anchors = self.anchors;
         self.check_unit_in_bundle(expr, callee, generics);
@@ -468,21 +455,22 @@ fn early_exit<'tcx>(stmt: &Stmt<'tcx>) -> Option<&'tcx Expr<'tcx>> {
     }
 }
 
-fn calls(expr: &Expr<'_>, method: &str) -> bool {
+fn calls_is_finished(expr: &Expr<'_>) -> bool {
+    const METHOD: &str = "is_finished";
     match expr.kind {
         ExprKind::MethodCall(segment, receiver, args, _) => {
-            segment.ident.name.as_str() == method
-                || calls(receiver, method)
-                || args.iter().any(|arg| calls(arg, method))
+            segment.ident.name.as_str() == METHOD
+                || calls_is_finished(receiver)
+                || args.iter().any(calls_is_finished)
         }
         ExprKind::Path(QPath::Resolved(_, path)) => path
             .segments
             .last()
-            .is_some_and(|segment| segment.ident.name.as_str() == method),
-        ExprKind::Path(QPath::TypeRelative(_, segment)) => segment.ident.name.as_str() == method,
-        ExprKind::Let(binding) => calls(binding.init, method),
-        ExprKind::Unary(_, inner) | ExprKind::DropTemps(inner) => calls(inner, method),
-        ExprKind::Binary(_, left, right) => calls(left, method) || calls(right, method),
+            .is_some_and(|segment| segment.ident.name.as_str() == METHOD),
+        ExprKind::Path(QPath::TypeRelative(_, segment)) => segment.ident.name.as_str() == METHOD,
+        ExprKind::Let(binding) => calls_is_finished(binding.init),
+        ExprKind::Unary(_, inner) | ExprKind::DropTemps(inner) => calls_is_finished(inner),
+        ExprKind::Binary(_, left, right) => calls_is_finished(left) || calls_is_finished(right),
         _ => false,
     }
 }

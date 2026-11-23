@@ -21,7 +21,7 @@ pub struct Anchors {
     pub reborrowable: Vec<DefId>,
     pub time: Option<TimeAnchors>,
     pub blocking_fns: Vec<DefId>,
-    pub blocking_modules: Vec<DefId>,
+    pub blocking_module: Option<DefId>,
     pub blocking_types: Vec<DefId>,
     pub heap_types: Vec<DefId>,
     pub moves: Vec<DefId>,
@@ -122,18 +122,19 @@ impl Anchors {
         let changed = get("bevy_ecs::query::Changed");
         let added = get("bevy_ecs::query::Added");
         let mut_ref = get("bevy_ecs::change_detection::Mut");
-        let mut registrars: Vec<DefId> =
-            ECS_REGISTRARS.iter().filter_map(|path| get(path)).collect();
-        let apps: Vec<DefId> = if has_app {
-            APP_HOSTS.iter().filter_map(|path| get(path)).collect()
+        let mut get_all =
+            |paths: &[&str]| -> Vec<DefId> { paths.iter().filter_map(|path| get(path)).collect() };
+        let mut registrars = get_all(&ECS_REGISTRARS);
+        let apps = if has_app {
+            get_all(&APP_HOSTS)
         } else {
             Vec::new()
         };
         registrars.extend(&apps);
-        let gate_params = GATE_PARAMS.iter().filter_map(|path| get(path)).collect();
-        let entity_hosts: Vec<DefId> = ENTITY_HOSTS.iter().filter_map(|path| get(path)).collect();
-        let change_tracked = CHANGE_TRACKED.iter().filter_map(|path| get(path)).collect();
-        let reborrowable = REBORROWABLE.iter().filter_map(|path| get(path)).collect();
+        let gate_params = get_all(&GATE_PARAMS);
+        let entity_hosts = get_all(&ENTITY_HOSTS);
+        let change_tracked = get_all(&CHANGE_TRACKED);
+        let reborrowable = get_all(&REBORROWABLE);
         let time = if find_crate(tcx, "bevy_time").is_some() {
             match (
                 get("bevy_time::Time"),
@@ -163,10 +164,7 @@ impl Anchors {
         let mut resource_hosts = apps;
         resource_hosts.extend([world, commands]);
 
-        let mut blocking_fns: Vec<DefId> = BLOCKING_FNS
-            .iter()
-            .filter_map(|path| resolve_path(tcx, path))
-            .collect();
+        let mut blocking_fns = resolve_all(tcx, &BLOCKING_FNS);
         blocking_fns.extend(
             BLOCKING_METHODS
                 .iter()
@@ -187,19 +185,10 @@ impl Anchors {
             reborrowable,
             time,
             blocking_fns,
-            blocking_modules: resolve_path(tcx, "std::fs").into_iter().collect(),
-            blocking_types: BLOCKING_TYPES
-                .iter()
-                .filter_map(|path| resolve_path(tcx, path))
-                .collect(),
-            heap_types: HEAP_TYPES
-                .iter()
-                .filter_map(|path| resolve_path(tcx, path))
-                .collect(),
-            moves: MOVES
-                .iter()
-                .filter_map(|path| resolve_path(tcx, path))
-                .collect(),
+            blocking_module: resolve_path(tcx, "std::fs"),
+            blocking_types: resolve_all(tcx, &BLOCKING_TYPES),
+            heap_types: resolve_all(tcx, &HEAP_TYPES),
+            moves: resolve_all(tcx, &MOVES),
             partial_eq: tcx.get_diagnostic_item(rustc_span::sym::PartialEq),
             bundle: bundle?,
             changed: changed?,
@@ -237,14 +226,10 @@ impl Anchors {
         if self.blocking_fns.contains(&callee) {
             return true;
         }
-        if tcx
-            .opt_parent(callee)
-            .is_some_and(|parent| self.blocking_modules.contains(&parent))
-        {
+        if self.blocking_module.is_some() && tcx.opt_parent(callee) == self.blocking_module {
             return true;
         }
-        tcx.inherent_impl_of_assoc(callee)
-            .and_then(|imp| adt_of(tcx.type_of(imp).instantiate_identity().skip_normalization()))
+        self.method_host(tcx, callee)
             .is_some_and(|did| self.blocking_types.contains(&did))
     }
 
@@ -284,6 +269,13 @@ fn resolve_path(tcx: TyCtxt<'_>, path: &str) -> Option<DefId> {
             .find(|def| !matches!(tcx.def_kind(*def), DefKind::Macro(_)))?;
     }
     Some(current)
+}
+
+fn resolve_all(tcx: TyCtxt<'_>, paths: &[&str]) -> Vec<DefId> {
+    paths
+        .iter()
+        .filter_map(|path| resolve_path(tcx, path))
+        .collect()
 }
 
 fn resolve_method(tcx: TyCtxt<'_>, ty: DefId, name: &str) -> Option<DefId> {

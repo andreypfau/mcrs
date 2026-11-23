@@ -17,6 +17,7 @@ use crate::anchors::Anchors;
 use crate::anchors::adt_of;
 use crate::body_scan::BodyFacts;
 use crate::body_scan::BodyMap;
+use crate::callbacks::TICK_SCHEDULES_ENV;
 use crate::collect::Leaf;
 use crate::collect::LeafKind;
 use crate::collect::key;
@@ -78,9 +79,7 @@ pub fn check<'tcx>(
             .push(system_use);
     }
     for (def, uses) in by_system {
-        if let Some(first) = uses.first() {
-            always_changed.extend(check_system(cx, def, first, &uses));
-        }
+        always_changed.extend(check_system(cx, def, &uses));
     }
     let mut seen = FxHashSet::default();
     for observer in observers {
@@ -104,9 +103,11 @@ pub fn check<'tcx>(
 fn check_system<'tcx>(
     cx: &Context<'_, 'tcx>,
     def: DefId,
-    first: &SystemUse<'tcx>,
     uses: &[&SystemUse<'tcx>],
 ) -> Vec<AlwaysChanged> {
+    let Some(first) = uses.first() else {
+        return Vec::new();
+    };
     let tcx = cx.tcx;
     let target = target(tcx, def, first.hir_id, first.span);
     let inputs = &first.inputs;
@@ -131,7 +132,15 @@ fn check_system<'tcx>(
         .iter()
         .find(|system_use| !cx.graph.gates(&system_use.placement))
         .filter(|_| !inputs.iter().any(|ty| cx.anchors.is_gate_param(*ty)));
-    let always_changed: Vec<AlwaysChanged> = if ungated.is_some() {
+    let always_changed: Vec<AlwaysChanged> = if let Some(ungated) = ungated {
+        let schedule = ungated.schedule.as_deref().unwrap_or_default();
+        emit(tcx, UNGATED_SYSTEM, &target, target.span, |diag| {
+            diag.primary_message(format!(
+                "system `{}` runs every `{schedule}` without a run condition",
+                target.name
+            ));
+            diag.help("gate it with `run_if`, a gated set, or a `Single`/`Populated` parameter");
+        });
         written(cx, def)
             .into_iter()
             .map(|component| AlwaysChanged {
@@ -142,16 +151,6 @@ fn check_system<'tcx>(
     } else {
         Vec::new()
     };
-    if let Some(ungated) = ungated {
-        let schedule = ungated.schedule.as_deref().unwrap_or_default();
-        emit(tcx, UNGATED_SYSTEM, &target, target.span, |diag| {
-            diag.primary_message(format!(
-                "system `{}` runs every `{schedule}` without a run condition",
-                target.name
-            ));
-            diag.help("gate it with `run_if`, a gated set, or a `Single`/`Populated` parameter");
-        });
-    }
 
     check_clock(cx, &target, inputs, &schedule);
     let on_event = inputs.iter().any(|ty| cx.anchors.filters_change(*ty))
@@ -176,12 +175,9 @@ fn check_system<'tcx>(
         });
     }
 
-    let allocs: Vec<Span> = deep
-        .iter()
-        .flat_map(|facts| facts.allocs.iter().copied())
-        .collect();
-    if let Some(span) = allocs.first().filter(|_| !on_event) {
-        let count = allocs.len();
+    let mut allocs = deep.iter().flat_map(|facts| &facts.allocs);
+    if !on_event && let Some(span) = allocs.next() {
+        let count = 1 + allocs.count();
         emit(tcx, ALLOC_IN_TICK, &target, *span, |diag| {
             diag.primary_message(format!(
                 "system `{}` allocates a heap collection on each `{schedule}` run ({count} {})",
@@ -364,7 +360,7 @@ fn emit(
     reason = "cargo passes the lint configuration from `[env]` to the driver"
 )]
 pub fn tick_schedules() -> Vec<String> {
-    std::env::var("MCRS_LINT_TICK_SCHEDULES")
+    std::env::var(TICK_SCHEDULES_ENV)
         .map(|list| list.split(',').map(str::to_owned).collect())
         .unwrap_or_default()
 }

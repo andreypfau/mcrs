@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
@@ -7,9 +8,11 @@ use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
+use crate::callbacks::DEBUG_ENV;
 use crate::collect::Collected;
 use crate::collect::Leaf;
 use crate::collect::LeafKind;
+use crate::collect::Site;
 use crate::collect::key;
 use mcrs_lint::Facts;
 use mcrs_lint::Helper;
@@ -30,7 +33,8 @@ pub struct Resolved<'tcx> {
     pub uses: Vec<SystemUse<'tcx>>,
     pub observers: Vec<Leaf<'tcx>>,
     pub graph: SetGraph,
-    pub facts: Facts,
+    pub helpers: Vec<Helper>,
+    pub sets: Vec<SetFact>,
 }
 
 pub fn resolve<'tcx>(
@@ -41,29 +45,22 @@ pub fn resolve<'tcx>(
     let local_sets: Vec<SetFact> = collected
         .sets
         .into_iter()
-        .map(|(set, placement)| SetFact {
-            set,
-            run_if: placement.run_if,
-            on_event: placement.on_event,
-            parents: placement.sets,
-        })
+        .map(|(set, placement)| SetFact { set, placement })
         .collect();
     let mut graph = SetGraph::default();
     for fact in deps.iter().flat_map(|facts| &facts.sets).chain(&local_sets) {
         graph.add(fact);
     }
 
+    let queue: VecDeque<Helper> = deps
+        .iter()
+        .flat_map(|facts| facts.helpers.iter().cloned())
+        .collect();
     let mut state = State {
         tcx,
         uses: Vec::new(),
-        seen: deps
-            .iter()
-            .flat_map(|facts| facts.helpers.iter().cloned())
-            .collect(),
-        queue: deps
-            .iter()
-            .flat_map(|facts| facts.helpers.iter().cloned())
-            .collect(),
+        seen: queue.iter().cloned().collect(),
+        queue,
         local_helpers: Vec::new(),
     };
     for registration in &collected.registrations {
@@ -71,18 +68,14 @@ pub fn resolve<'tcx>(
             state.place(leaf, registration.schedule.as_ref(), &placement);
         }
     }
+    let mut sites: HashMap<String, Vec<&Site<'tcx>>> = HashMap::new();
+    for site in &collected.sites {
+        sites.entry(key(tcx, site.owner)).or_default().push(site);
+    }
     while let Some(helper) = state.queue.pop_front() {
-        let placement = Placement {
-            run_if: helper.run_if,
-            on_event: helper.on_event,
-            sets: helper.sets.clone(),
-        };
-        for site in &collected.sites {
-            if key(tcx, site.owner) != helper.owner {
-                continue;
-            }
+        for site in sites.get(&helper.owner).into_iter().flatten() {
             for (_, leaf) in site.args.iter().filter(|(index, _)| *index == helper.index) {
-                state.place(leaf.clone(), helper.schedule.as_ref(), &placement);
+                state.place(leaf.clone(), helper.schedule.as_ref(), &helper.placement);
             }
         }
     }
@@ -91,12 +84,8 @@ pub fn resolve<'tcx>(
         uses: state.uses,
         observers: collected.observers,
         graph,
-        facts: Facts {
-            helpers: state.local_helpers,
-            sets: local_sets,
-            writes: Vec::new(),
-            always_changed: Vec::new(),
-        },
+        helpers: state.local_helpers,
+        sets: local_sets,
     }
 }
 
@@ -124,9 +113,7 @@ impl<'tcx> State<'tcx> {
                     owner: key(self.tcx, owner),
                     index,
                     schedule: schedule.cloned(),
-                    run_if: placement.run_if,
-                    on_event: placement.on_event,
-                    sets: placement.sets.clone(),
+                    placement: placement.clone(),
                 };
                 if self.seen.insert(helper.clone()) {
                     self.local_helpers.push(helper.clone());
@@ -138,7 +125,7 @@ impl<'tcx> State<'tcx> {
                     clippy::disallowed_methods,
                     reason = "cargo passes the lint configuration from `[env]` to the driver"
                 )]
-                let debug = std::env::var_os("MCRS_LINT_DEBUG").is_some();
+                let debug = std::env::var_os(DEBUG_ENV).is_some();
                 if debug {
                     self.tcx.dcx().span_note(
                         leaf.span,

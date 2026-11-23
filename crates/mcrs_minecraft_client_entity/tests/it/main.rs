@@ -49,7 +49,7 @@ impl Client {
             .expect("the row decodes")
             .expect("the row has a type");
         trigger.raise(
-            self.app.world_mut().commands().reborrow(),
+            self.app.world_mut().commands(),
             self.connection,
             data.into(),
         );
@@ -69,11 +69,7 @@ impl Client {
 
     pub fn end_session(&mut self) {
         let world = self.app.world_mut();
-        close_connection_later(
-            world.commands().reborrow(),
-            self.connection,
-            ConnectionEnd::Left,
-        );
+        close_connection_later(world.commands(), self.connection, ConnectionEnd::Left);
         world.flush();
         world.run_schedule(Update);
         world.flush();

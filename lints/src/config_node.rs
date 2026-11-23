@@ -1,3 +1,6 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 #[derive(Debug, Clone)]
 pub enum ConfigNode<L> {
     Leaf(L),
@@ -10,7 +13,7 @@ pub enum ConfigNode<L> {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Placement {
     pub run_if: bool,
     pub on_event: bool,

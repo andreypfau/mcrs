@@ -5,6 +5,8 @@ use std::path::Path;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::config_node::Placement;
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Facts {
     pub helpers: Vec<Helper>,
@@ -30,19 +32,15 @@ pub struct Helper {
     pub owner: String,
     pub index: usize,
     pub schedule: Option<String>,
-    pub run_if: bool,
-    #[serde(default)]
-    pub on_event: bool,
-    pub sets: Vec<String>,
+    #[serde(flatten)]
+    pub placement: Placement,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFact {
     pub set: String,
-    pub run_if: bool,
-    #[serde(default)]
-    pub on_event: bool,
-    pub parents: Vec<String>,
+    #[serde(flatten)]
+    pub placement: Placement,
 }
 
 impl Facts {

@@ -13,34 +13,30 @@ pub struct SetGraph {
 
 impl SetGraph {
     pub fn add(&mut self, fact: &SetFact) {
-        if fact.run_if {
+        if fact.placement.run_if {
             self.gated.insert(fact.set.clone());
         }
-        if fact.on_event {
+        if fact.placement.on_event {
             self.on_event.insert(fact.set.clone());
         }
         self.parents
             .entry(fact.set.clone())
             .or_default()
-            .extend(fact.parents.iter().cloned());
+            .extend(fact.placement.sets.iter().cloned());
     }
 
     #[must_use]
     pub fn gates(&self, placement: &Placement) -> bool {
-        placement.run_if
-            || placement
-                .sets
-                .iter()
-                .any(|set| self.reaches(set, &self.gated))
+        placement.run_if || self.any_reaches(&placement.sets, &self.gated)
     }
 
     #[must_use]
     pub fn runs_on_event(&self, placement: &Placement) -> bool {
-        placement.on_event
-            || placement
-                .sets
-                .iter()
-                .any(|set| self.reaches(set, &self.on_event))
+        placement.on_event || self.any_reaches(&placement.sets, &self.on_event)
+    }
+
+    fn any_reaches(&self, sets: &[String], marked: &HashSet<String>) -> bool {
+        sets.iter().any(|set| self.reaches(set, marked))
     }
 
     fn reaches(&self, set: &str, marked: &HashSet<String>) -> bool {

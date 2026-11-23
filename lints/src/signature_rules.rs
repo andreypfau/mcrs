@@ -2,6 +2,7 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_errors::Diag;
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::DefKind;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::ty::TyKind;
@@ -83,13 +84,14 @@ pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<Stri
             }
             if let TyKind::Ref(region, inner, mutability) = input.kind()
                 && mutability.is_mut()
-                && adt_of(*inner).is_some_and(|did| anchors.reborrowable.contains(&did))
+                && let Some(reborrowable) = adt_of(*inner)
+                && anchors.reborrowable.contains(&reborrowable)
                 && !sig
                     .output()
                     .walk()
                     .any(|arg| arg.as_region() == Some(*region))
             {
-                let name = tcx.def_path_str(adt_of(*inner).unwrap_or(def));
+                let name = tcx.def_path_str(reborrowable);
                 tcx.emit_node_span_lint(
                     BORROWED_REBORROWABLE,
                     hir_id,
@@ -104,7 +106,7 @@ pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<Stri
     }
 }
 
-fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<rustc_hir::def_id::DefId> {
+fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
     if adt_of(ty) != Some(anchors.query) {
         return Vec::new();
     }
@@ -119,7 +121,7 @@ fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<rustc_hir::def_id::DefI
         .collect()
 }
 
-fn zst_fetches<'tcx>(anchors: &Anchors, ty: Ty<'tcx>) -> Vec<rustc_hir::def_id::DefId> {
+fn zst_fetches(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
     let TyKind::Adt(adt, args) = ty.kind() else {
         return Vec::new();
     };
@@ -132,7 +134,7 @@ fn zst_fetches<'tcx>(anchors: &Anchors, ty: Ty<'tcx>) -> Vec<rustc_hir::def_id::
     fetched(data)
 }
 
-fn fetched(ty: Ty<'_>) -> Vec<rustc_hir::def_id::DefId> {
+fn fetched(ty: Ty<'_>) -> Vec<DefId> {
     match ty.kind() {
         TyKind::Tuple(items) => items.iter().flat_map(fetched).collect(),
         TyKind::Ref(_, inner, _) => markers(*inner),

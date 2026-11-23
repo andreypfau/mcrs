@@ -10,8 +10,9 @@ pub(crate) fn placements_changed(
     placed: Query<(), Changed<SessionPlacement>>,
     mut removed: RemovedComponents<SessionPlacement>,
 ) -> bool {
-    let removed = removed.read().count() > 0;
-    removed || !placed.is_empty()
+    let any_removed = !removed.is_empty();
+    removed.clear();
+    any_removed || !placed.is_empty()
 }
 
 pub fn send_online_count(

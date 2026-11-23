@@ -61,7 +61,7 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .flat_map(|facts| &facts.writes)
             .map(|writes| (writes.system.clone(), writes.components.clone()))
             .collect();
-        let mut resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
+        let resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
         let test = is_test_target();
         let bodies = body_scan::scan(tcx, &anchors, test);
         let tick_schedules = system_rules::tick_schedules();
@@ -86,8 +86,7 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .collect();
         signature_rules::check(tcx, &anchors, &always_changed);
 
-        resolved.facts.always_changed = local_always;
-        resolved.facts.writes = bodies
+        let writes = bodies
             .keys()
             .filter(|owner| matches!(tcx.def_kind(**owner), DefKind::Fn | DefKind::AssocFn))
             .filter_map(|owner| {
@@ -98,8 +97,14 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
                 })
             })
             .collect();
+        let facts = Facts {
+            helpers: resolved.helpers,
+            sets: resolved.sets,
+            writes,
+            always_changed: local_always,
+        };
         if let Some(path) = facts_path(tcx, LOCAL_CRATE)
-            && let Err(error) = resolved.facts.store(&path)
+            && let Err(error) = facts.store(&path)
         {
             tcx.dcx().warn(format!(
                 "mcrs_lint: cannot write {}: {error}",

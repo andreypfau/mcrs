@@ -135,10 +135,29 @@ impl<'tcx> Visitor<'tcx> for Collector<'_, 'tcx> {
     }
 }
 
-struct Call<'tcx> {
-    callee: DefId,
-    generics: GenericArgsRef<'tcx>,
-    args: Vec<&'tcx Expr<'tcx>>,
+pub struct Call<'tcx> {
+    pub callee: DefId,
+    pub generics: GenericArgsRef<'tcx>,
+    pub args: Vec<&'tcx Expr<'tcx>>,
+}
+
+pub fn call<'tcx>(typeck: &TypeckResults<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<Call<'tcx>> {
+    match expr.kind {
+        ExprKind::MethodCall(_, receiver, args, _) => Some(Call {
+            callee: typeck.type_dependent_def_id(expr.hir_id)?,
+            generics: typeck.node_args(expr.hir_id),
+            args: std::iter::once(receiver).chain(args.iter()).collect(),
+        }),
+        ExprKind::Call(func, args) => match *typeck.node_type_opt(func.hir_id)?.kind() {
+            TyKind::FnDef(callee, generics) => Some(Call {
+                callee,
+                generics: generics.skip_binder(),
+                args: args.iter().collect(),
+            }),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
@@ -151,11 +170,15 @@ impl<'tcx> Collector<'_, 'tcx> {
             }
             return;
         }
-        let Some(call) = self.call(expr) else {
+        let Some(call) = call(self.typeck, expr) else {
             return;
         };
         let name = self.tcx.item_name(call.callee);
-        if self.is_registrar_method(call.callee) {
+        if self
+            .anchors
+            .method_host(self.tcx, call.callee)
+            .is_some_and(|host| self.anchors.registrars.contains(&host))
+        {
             match (name.as_str(), call.args.as_slice()) {
                 ("add_systems", [_, schedule, config]) => {
                     let node = self.config_node(config, &|this: &Self, leaf| this.leaf(leaf));
@@ -195,42 +218,6 @@ impl<'tcx> Collector<'_, 'tcx> {
             || self
                 .helper_crates
                 .contains(&self.tcx.stable_crate_id(def.krate).as_u64())
-    }
-
-    fn call(&self, expr: &'tcx Expr<'tcx>) -> Option<Call<'tcx>> {
-        match expr.kind {
-            ExprKind::MethodCall(_, receiver, args, _) => {
-                let callee = self.typeck.type_dependent_def_id(expr.hir_id)?;
-                Some(Call {
-                    callee,
-                    generics: self.typeck.node_args(expr.hir_id),
-                    args: std::iter::once(receiver).chain(args.iter()).collect(),
-                })
-            }
-            ExprKind::Call(func, args) => match self.typeck.node_type_opt(func.hir_id)?.kind() {
-                TyKind::FnDef(callee, generics) => Some(Call {
-                    callee: *callee,
-                    generics: generics.skip_binder(),
-                    args: args.iter().collect(),
-                }),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    fn is_registrar_method(&self, callee: DefId) -> bool {
-        self.tcx
-            .inherent_impl_of_assoc(callee)
-            .and_then(|imp| {
-                adt_of(
-                    self.tcx
-                        .type_of(imp)
-                        .instantiate_identity()
-                        .skip_normalization(),
-                )
-            })
-            .is_some_and(|did| self.anchors.registrars.contains(&did))
     }
 
     fn is_config_method(&self, callee: DefId) -> bool {

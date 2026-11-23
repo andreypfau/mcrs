@@ -108,9 +108,10 @@ fn any_sequenced_request(
     mut requests: MessageReader<BlockActionRequest>,
     mut uses: MessageReader<UseItemOnRequest>,
 ) -> bool {
-    let requested = requests.read().count() > 0;
-    let used = uses.read().count() > 0;
-    requested || used
+    let pending = !requests.is_empty() || !uses.is_empty();
+    requests.clear();
+    uses.clear();
+    pending
 }
 
 fn send_acks(

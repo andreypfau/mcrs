@@ -14,7 +14,9 @@ type RegisteredToolsQuery = for<'tcx> fn(TyCtxt<'tcx>, ()) -> RegisteredTools;
 
 static REGISTERED_TOOLS: OnceLock<RegisteredToolsQuery> = OnceLock::new();
 
-const TRACKED_ENV: [&str; 2] = ["MCRS_LINT_TICK_SCHEDULES", "MCRS_LINT_DEBUG"];
+pub const TICK_SCHEDULES_ENV: &str = "MCRS_LINT_TICK_SCHEDULES";
+pub const DEBUG_ENV: &str = "MCRS_LINT_DEBUG";
+const TRACKED_ENV: [&str; 2] = [TICK_SCHEDULES_ENV, DEBUG_ENV];
 
 pub struct LintCallbacks;
 
