@@ -28,6 +28,7 @@ mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_numeric.workspace = true
+mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }

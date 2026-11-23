@@ -11,14 +11,18 @@ use bevy_ecs::system::ResMut;
 use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine::PlayerBody;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
+use mcrs_minecraft_engine::eye_position;
 use mcrs_minecraft_engine::loaded_client::UnloadedClient;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_damage::DamageRequest;
 use mcrs_minecraft_engine_damage::PendingHits;
+use mcrs_minecraft_engine_entity_motion::MotionKind;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
@@ -37,6 +41,7 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundAttack;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_replication::wire_id;
@@ -47,6 +52,7 @@ use crate::AttackKnockback;
 use crate::AttackKnockbacks;
 use crate::attack_amount;
 use crate::attack_strength;
+use crate::in_attack_reach;
 
 const FULL_STRENGTH: f32 = 0.9;
 const SPRINT_KNOCKBACK: f32 = 0.5;
@@ -67,7 +73,17 @@ type Attackers<'w, 's> = Query<
     ),
 >;
 
-type PlayerTargets<'w, 's> = Query<'w, 's, (Entity, &'static Owner, Option<&'static Vitals>)>;
+type PlayerTargets<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static Owner,
+        &'static Transform,
+        PlayerBody,
+        Option<&'static Vitals>,
+    ),
+>;
 
 type OtherTargets<'w, 's> = Query<
     'w,
@@ -76,6 +92,8 @@ type OtherTargets<'w, 's> = Query<
         Entity,
         &'static MotionId,
         &'static Appearance,
+        &'static MotionState,
+        &'static MotionKind,
         Option<&'static Vitals>,
     ),
 >;
@@ -92,6 +110,7 @@ struct Target {
     entity: Entity,
     kind: EntityType,
     alive: bool,
+    bounds: Aabb,
 }
 
 fn target_class(kind: EntityType) -> TargetClass {
@@ -115,21 +134,32 @@ fn is_alive(vitals: Option<&Vitals>) -> bool {
 fn find_target(id: i32, players: &PlayerTargets, others: &OtherTargets) -> Option<Target> {
     let player = players
         .iter()
-        .find(|(_, owner, _)| player_network_id(owner.0) == id)
-        .map(|(entity, _, vitals)| Target {
-            entity,
-            kind: EntityType::Player,
-            alive: is_alive(vitals),
+        .find(|(_, owner, ..)| player_network_id(owner.0) == id)
+        .map(|(entity, _, transform, body, vitals)| {
+            let dimensions = body.dimensions();
+            Target {
+                entity,
+                kind: EntityType::Player,
+                alive: is_alive(vitals),
+                bounds: Aabb::of_body(transform.translation, dimensions.width, dimensions.height),
+            }
         });
     player.or_else(|| {
         others
             .iter()
             .find(|(_, motion, ..)| wire_id(motion.0).0 == id)
-            .map(|(entity, _, appearance, vitals)| Target {
-                entity,
-                kind: appearance.kind.entity_type,
-                alive: is_alive(vitals),
-            })
+            .map(
+                |(entity, _, appearance, MotionState(state), MotionKind(row), vitals)| Target {
+                    entity,
+                    kind: appearance.kind.entity_type,
+                    alive: is_alive(vitals),
+                    bounds: Aabb::of_body(
+                        state.body.position,
+                        row.dimensions.width,
+                        row.dimensions.height,
+                    ),
+                },
+            )
     })
 }
 
@@ -164,6 +194,14 @@ pub(crate) fn on_attack(
     let Some(target) = find_target(packet.entity_id.0, &players, &others) else {
         return;
     };
+    let Ok((.., body, _)) = players.get(attacker) else {
+        return;
+    };
+    let eye = eye_position(transform.translation, body.dimensions());
+    let range = attributes.value(Attribute::EntityInteractionRange);
+    if !range.is_some_and(|range| in_attack_reach(eye, target.bounds, range)) {
+        return;
+    }
     let class = target_class(target.kind);
     if target.entity == attacker || class == TargetClass::Invalid {
         packets.write(to(
