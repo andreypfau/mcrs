@@ -2447,7 +2447,7 @@ other results stay the same in each layout.
 A copy that a cell makes after it handles the client packets breaks this invariant. The cell that
 owns a block would see a change by a packet in the same tick, and a neighbour cell one tick later.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 **PHY-INV-015** Let an implementation use PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012. Then the tick
 of each server-simulated entity reads only its own state and state from the end of the previous
@@ -2468,7 +2468,7 @@ Three ordered parts keep this property, because their order does not depend on t
 - the block domain after the entity pass (PHY-BLK-001) and the arbitration of claims
   (PHY-CMP-017).
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ## 11. The role of the server
 
@@ -3237,6 +3237,9 @@ the deviations of this section for server-simulated entities. An implementation 
     Then the health and the death of the target change one tick later than in the reference. A
     target that a late hit kills still does its tick of the next tick alive. Its writes of that
     tick, for example a hit on another entity, then also differ from the reference.
+- **Reason:** the result of a tick must not depend on the order of the entities, on the number of
+  threads or on the split into cells (PHY-INV-015). A write that applies at once breaks this.
+- **Bug reference:** none.
 - **Test:** a differential test accepts a delay of one tick for each write to another entity. For a
   write from another cell, it accepts one more tick and each result that PHY-INV-014 permits.
   For a conflict, it accepts each winner.

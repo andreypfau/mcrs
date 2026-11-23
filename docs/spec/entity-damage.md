@@ -185,9 +185,13 @@ change. Section 3 marks the steps that read the causing entity.
 true, the hit is rejected and the procedure stops.
 
 1. The entity is removed.
-2. The entity is invulnerable and the damage type does not have the tag
-   `bypasses_invulnerability`. Hook: the saved flag `Invulnerable` and the saved counter
-   `invulnerable_time` make an entity invulnerable.
+2. All these conditions are true:
+   - the entity is invulnerable;
+   - the damage type does not have the tag `bypasses_invulnerability`;
+   - the causing entity is not a player in creative mode.
+
+   Hook: the saved flag `Invulnerable` and the saved counter `invulnerable_time` make an entity
+   invulnerable. Thus a player in creative mode can hit an entity with the flag `Invulnerable`.
 3. The damage type has the tag `is_fire` and the entity type is fire-immune.
 4. The damage type has the tag `is_fall` and the entity type is in `fall_damage_immune`.
 5. For a player, a test of DMG-PLR-001 is true. Two of these tests read the causing entity: the
@@ -196,7 +200,8 @@ true, the hit is rejected and the procedure stops.
 7. The damage type has the tag `is_fire` and the entity has the effect `fire_resistance`.
 
 Provenance: `source_suggested_black_box_confirmed`; step 5 as DMG-PLR-001. Kind: semantic.
-Confidence: high; step 5 as DMG-PLR-001.
+Confidence: high; step 5 as DMG-PLR-001. Experiment for step 2: ATK-E4 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **DMG-HIT-002** (`source_suggested_black_box_confirmed`, semantic, confidence: high). After the
 tests of DMG-HIT-001, the hit does these steps before the cooldown:
@@ -645,8 +650,10 @@ A mob does not read these game rules. The tests of the causing entity apply to e
 not only to an attack. The causing entity can be the target itself, for example the player that
 primed a TNT. ATK-TGT-004 of `player-attack.md` applies these tests to an attack.
 
-Provenance: `source_suggested_black_box_confirmed`; `source_suggested` for the two tests of the
-causing entity. Kind: semantic. Confidence: high; medium for the two tests of the causing entity.
+Provenance: `source_suggested_black_box_confirmed`; `source_suggested` for the test of the team.
+Kind: semantic. Confidence: high; medium for the test of the team. Experiment for the test of
+`pvp` and the test of creative mode: ATK-E7 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **DMG-PLR-003** (`source_suggested`, semantic, confidence: high). A hit on a player scales with the
 difficulty when the damage type has the scaling `always`. The damage type has the scaling `always`
