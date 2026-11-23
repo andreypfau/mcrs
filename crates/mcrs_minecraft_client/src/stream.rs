@@ -973,7 +973,8 @@ fn kill(bucket: &mut DrawBucket, first: u32, count: u32) {
 
 pub fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
     if let Some(pack) = catalog.pack()
-        && let Err(reason) = mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, &mut commands)
+        && let Err(reason) =
+            mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, commands.reborrow())
     {
         panic!("cannot load the GUI: {reason}");
     }

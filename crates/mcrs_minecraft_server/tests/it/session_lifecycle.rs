@@ -125,9 +125,19 @@ fn connection_removal_despawns_the_session_and_routes_despawn_via_lifecycle() {
             move |mut commands: Commands,
                   mut sessions: LeavingSessions,
                   mut dim_channels: ResMut<DimInputs>| {
-                process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    host_anchor,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
 
-                process_disconnect(host_anchor, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    host_anchor,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
             },
         )
         .expect("system runs without panicking");
@@ -184,9 +194,9 @@ fn a_late_cleanup_leaves_the_name_to_the_player_who_logged_in_again() {
                   mut dim_channels: ResMut<DimInputs>| {
                 process_disconnect(
                     first_anchor,
-                    &mut sessions,
+                    sessions.reborrow(),
                     &mut dim_channels,
-                    &mut commands,
+                    commands.reborrow(),
                 );
             },
         )

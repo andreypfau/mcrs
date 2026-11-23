@@ -87,7 +87,11 @@ pub(crate) fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, pac
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
-    trigger.raise(&mut app.world_mut().commands(), connection, data.into());
+    trigger.raise(
+        app.world_mut().commands().reborrow(),
+        connection,
+        data.into(),
+    );
     app.world_mut().flush();
 }
 

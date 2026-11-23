@@ -248,7 +248,12 @@ fn disconnect_clears_pending() {
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
                   mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
-                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    player,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
             },
         )
         .expect("process_disconnect system ran");

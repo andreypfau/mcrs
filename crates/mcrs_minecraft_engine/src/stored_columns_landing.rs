@@ -248,7 +248,8 @@ fn land_column(
         .into_iter()
         .filter(|entry| landed_rows.contains(&(entry.position().y >> SectionPos::BITS)))
         .collect();
-    spawn_block_entities(&mut commands, InDimension(landing.dim), block_entities);
+    let dim = InDimension(landing.dim);
+    spawn_block_entities(commands.reborrow(), dim, block_entities);
     let mut raw_by_row: std::collections::BTreeMap<i32, Vec<_>> = std::collections::BTreeMap::new();
     for entry in unknown_block_entities {
         if let Some(y) = entry.get_int("y") {

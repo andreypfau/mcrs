@@ -191,7 +191,7 @@ fn every_generated_kind_survives_a_save_load_round_trip_and_reaches_a_client() {
 
     let (mut app, dim, section) = app_with_section(section_pos());
     let mut commands = app.world_mut().commands();
-    spawn_block_entities(&mut commands, InDimension(dim), loaded);
+    spawn_block_entities(commands.reborrow(), InDimension(dim), loaded);
     app.world_mut().flush();
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -260,7 +260,7 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
         every_kind().into_iter().map(|(entry, _)| entry).collect();
     let count = entries.len();
     let mut commands = app.world_mut().commands();
-    spawn_block_entities(&mut commands, InDimension(dim), entries);
+    spawn_block_entities(commands.reborrow(), InDimension(dim), entries);
     app.world_mut().flush();
     app.world_mut().run_schedule(FixedUpdate);
 

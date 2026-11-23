@@ -709,14 +709,7 @@ pub(crate) fn draw_screens(
     );
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::borrowed_reborrowable,
-        reason = "mcrs_minecraft_client passes the Commands of its own system by reference, so an owned parameter needs a change in that crate"
-    )
-)]
-pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
+pub fn load_gui_atlas(pack: &ResourceSet, mut commands: Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
     let language =
         ClientLanguage::load(pack).map_err(|reason| format!("the translations: {reason}"))?;

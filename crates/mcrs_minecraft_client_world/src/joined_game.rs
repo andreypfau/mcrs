@@ -62,7 +62,7 @@ fn refuse_packet(
     error: anyhow::Error,
 ) {
     close_connection_later(
-        &mut commands,
+        commands.reborrow(),
         connection,
         ConnectionEnd::Lost(format!(
             "the server sent a {name} the client cannot read: {error:#}"
@@ -293,7 +293,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             trigger.raise(
-                &mut self.app.world_mut().commands(),
+                self.app.world_mut().commands().reborrow(),
                 self.connection,
                 data.into(),
             );

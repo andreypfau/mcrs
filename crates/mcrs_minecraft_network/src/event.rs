@@ -87,32 +87,18 @@ impl Trigger {
         }
     }
 
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::borrowed_reborrowable,
-            reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
-        )
-    )]
-    pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes) {
-        (self.raise)(commands, entity, data, None);
+    pub fn raise(self, mut commands: Commands, entity: Entity, data: Bytes) {
+        (self.raise)(&mut commands, entity, data, None);
     }
 
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::borrowed_reborrowable,
-            reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
-        )
-    )]
     pub fn raise_arrived(
         self,
-        commands: &mut Commands,
+        mut commands: Commands,
         entity: Entity,
         data: Bytes,
         arrival: Instant,
     ) {
-        (self.raise)(commands, entity, data, Some(arrival));
+        (self.raise)(&mut commands, entity, data, Some(arrival));
     }
 }
 
@@ -195,7 +181,7 @@ mod loop_plugin {
                         }
                         match dispatcher.dispatch(state, pkt.id, &pkt.payload) {
                             Ok(Some(trigger)) => trigger.raise_arrived(
-                                &mut commands,
+                                commands.reborrow(),
                                 entity,
                                 pkt.payload,
                                 pkt.timestamp,

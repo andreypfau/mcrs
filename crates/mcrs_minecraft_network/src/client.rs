@@ -120,14 +120,7 @@ pub struct RegistriesReceived {
     pub configuration: Configuration,
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::borrowed_reborrowable,
-        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
-    )
-)]
-pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
+pub fn finish_configuration(mut commands: Commands, connection: Entity) {
     commands.queue(move |world: &mut World| {
         let Ok(mut entity) = world.get_entity_mut(connection) else {
             return;
@@ -199,14 +192,7 @@ struct PendingJoin {
     view_distance: u8,
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::borrowed_reborrowable,
-        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
-    )
-)]
-pub fn close_connection_later(commands: &mut Commands, connection: Entity, reason: ConnectionEnd) {
+pub fn close_connection_later(mut commands: Commands, connection: Entity, reason: ConnectionEnd) {
     commands.queue(move |world: &mut World| {
         if world.despawn(connection) {
             match reason {
@@ -266,7 +252,7 @@ impl Plugin for ClientNetworkPlugin {
 
 fn leave_sessions(sessions: Query<Entity, With<ClientSession>>, mut commands: Commands) {
     for session in &sessions {
-        close_connection_later(&mut commands, session, ConnectionEnd::Left);
+        close_connection_later(commands.reborrow(), session, ConnectionEnd::Left);
     }
 }
 
@@ -370,7 +356,7 @@ fn collect_joins(
         } = match outcome {
             Ok(joined) => joined,
             Err(e) => {
-                close_connection_later(&mut commands, session, ConnectionEnd::JoinFailed(e));
+                close_connection_later(commands.reborrow(), session, ConnectionEnd::JoinFailed(e));
                 continue;
             }
         };
@@ -441,7 +427,7 @@ fn receive_packets(
             Some(ended) if ended == state => {
                 if connection.raw.reader_closed() {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("the server closed the connection".into()),
                     );
@@ -457,7 +443,7 @@ fn receive_packets(
                 Ok(None) => break,
                 Err(_) => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("the server closed the connection".into()),
                     );
@@ -474,7 +460,7 @@ fn receive_packets(
                         warn!("{line}");
                     }
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost(format!("Internal Exception: {}", malformed.cause)),
                     );
@@ -492,7 +478,7 @@ fn receive_packets(
             match &mut connection.bundle {
                 Some(_) if ends_state => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("Terminal message received in bundle".into()),
                     );
@@ -500,7 +486,7 @@ fn receive_packets(
                 }
                 Some(bundle) if bundle.len() >= MAX_BUNDLE_PACKETS => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("Too many packets in a bundle".into()),
                     );
@@ -509,7 +495,7 @@ fn receive_packets(
                 Some(bundle) => bundle.push((trigger, packet.payload)),
                 None => {
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, packet.payload);
+                        trigger.raise(commands.reborrow(), entity, packet.payload);
                     }
                 }
             }
@@ -528,7 +514,7 @@ fn raise_bundle(
 ) {
     for (trigger, data) in bundle {
         if let Some(trigger) = trigger {
-            trigger.raise(&mut commands, entity, data);
+            trigger.raise(commands.reborrow(), entity, data);
         }
     }
 }
@@ -554,7 +540,7 @@ fn flush(mut connections: Populated<(Entity, &mut ClientConnection)>, mut comman
         }
         if connection.raw.disconnected() {
             close_connection_later(
-                &mut commands,
+                commands.reborrow(),
                 entity,
                 ConnectionEnd::Lost("the connection to the server failed".into()),
             );
@@ -598,7 +584,7 @@ fn on_configuration_packet<R: Row>(
             configuration,
         }),
         Err(error) => close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ConnectionEnd::Lost(format!("{error:#}")),
         ),
@@ -610,7 +596,7 @@ fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Comma
         return;
     };
     close_connection_later(
-        &mut commands,
+        commands.reborrow(),
         event.entity,
         ConnectionEnd::Kicked(disconnect.reason),
     );
@@ -824,7 +810,7 @@ mod tests {
         mut commands: Commands,
     ) {
         handed.configurations.push(event.configuration.clone());
-        finish_configuration(&mut commands, event.entity);
+        finish_configuration(commands.reborrow(), event.entity);
     }
 
     fn record_keep_alive(

@@ -251,7 +251,7 @@ mod tests {
 
         frame(&mut app, 0, 12);
         let world = app.world_mut();
-        finish_configuration(&mut world.commands(), connection);
+        finish_configuration(world.commands().reborrow(), connection);
         world.flush();
         app.update();
         assert_eq!(

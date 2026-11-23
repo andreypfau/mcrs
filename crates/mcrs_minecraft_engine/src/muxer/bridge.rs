@@ -678,7 +678,7 @@ pub fn bridge_inbound_to_channel(
             continue;
         };
         if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
-            trigger.raise(&mut commands, connection.entity(), msg.data.clone());
+            trigger.raise(commands.reborrow(), connection.entity(), msg.data.clone());
         }
         if !route_serverbound(placement, &mut pending, &mut dim_inputs, msg)
             && let Some(connection) = connection
@@ -847,7 +847,7 @@ pub fn bridge_inbound(
                     }
                     if let Some(trigger) = trigger {
                         trigger.raise_arrived(
-                            &mut commands,
+                            commands.reborrow(),
                             entity,
                             pkt.payload.clone(),
                             pkt.timestamp,

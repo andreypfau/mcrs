@@ -1259,7 +1259,7 @@ fn settle_columns(
                 Some(Err(error)) => {
                     if let Some((entity, _)) = &connection {
                         close_connection_later(
-                            &mut commands,
+                            commands.reborrow(),
                             *entity,
                             ConnectionEnd::Lost(format!("Internal Exception: {error:#}")),
                         );

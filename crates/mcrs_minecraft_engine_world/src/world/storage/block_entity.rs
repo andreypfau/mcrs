@@ -21,15 +21,8 @@ pub struct BlockEntityPos(pub BlockPos);
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct BlockEntity(pub GeneratedBlockEntity);
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::borrowed_reborrowable,
-        reason = "callers in other crates pass `&mut Commands`, so the signature changes together with them"
-    )
-)]
 pub fn spawn_block_entities(
-    commands: &mut Commands,
+    mut commands: Commands,
     dim: InDimension,
     entries: Vec<GeneratedBlockEntity>,
 ) {

@@ -232,7 +232,7 @@ fn load_server_registries(
         },
         Err(error) => {
             close_connection_later(
-                &mut commands,
+                commands.reborrow(),
                 event.entity,
                 ConnectionEnd::Lost(format!("the server's registries cannot be read: {error:#}")),
             );
@@ -248,10 +248,10 @@ fn load_server_registries(
                 commands.reborrow(),
             );
             commands.entity(event.entity).insert(configuration);
-            finish_configuration(&mut commands, event.entity);
+            finish_configuration(commands.reborrow(), event.entity);
         }
         Err(error) => close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ConnectionEnd::Lost(format!("the server's registries cannot be used:\n{error}")),
         ),
@@ -272,7 +272,7 @@ fn replace_server_tags(
     };
     let Ok(mut last) = connections.get_mut(event.entity) else {
         close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ConnectionEnd::Lost("the server sent tags before its registries".to_owned()),
         );
@@ -287,7 +287,7 @@ fn replace_server_tags(
             commands.reborrow(),
         ),
         Err(error) => close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ConnectionEnd::Lost(format!("the server's tags cannot be used:\n{error}")),
         ),
