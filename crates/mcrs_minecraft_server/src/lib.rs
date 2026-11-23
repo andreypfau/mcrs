@@ -29,6 +29,7 @@ use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlug
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
+use mcrs_minecraft_vanilla_player_attack::PlayerAttackPlugin;
 use mcrs_minecraft_vanilla_respawn::RespawnPlugin;
 
 pub use falling_blocks::VanillaFallingBlockPlugin;
@@ -100,6 +101,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaItemPlugin)
             .add(VanillaBlockPlacePlugin)
             .add(VanillaSwingPlugin)
+            .add(VanillaPlayerAttackPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
@@ -183,6 +185,14 @@ pub struct VanillaBlockPlacePlugin;
 impl Plugin for VanillaBlockPlacePlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(BlockPlacePlugin);
+    }
+}
+
+pub struct VanillaPlayerAttackPlugin;
+
+impl Plugin for VanillaPlayerAttackPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(PlayerAttackPlugin);
     }
 }
 

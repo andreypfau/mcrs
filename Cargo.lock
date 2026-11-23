@@ -7027,6 +7027,7 @@ dependencies = [
  "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
+ "mcrs_minecraft_vanilla_player_attack",
  "mcrs_minecraft_vanilla_respawn",
  "mcrs_minecraft_vanilla_swing",
  "mcrs_minecraft_vanilla_worldgen",

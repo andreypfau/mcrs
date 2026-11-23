@@ -60,6 +60,7 @@ mod op_level;
 mod own_attributes;
 mod persistence;
 mod play_state_delivery;
+mod player_attack;
 mod player_file;
 mod player_pose;
 mod probe_bans;

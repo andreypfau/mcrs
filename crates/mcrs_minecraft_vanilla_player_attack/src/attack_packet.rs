@@ -4,6 +4,7 @@ use bevy_ecs::change_detection::Ref;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
+use bevy_ecs::query::AnyOf;
 use bevy_ecs::query::Has;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
@@ -25,6 +26,7 @@ use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_engine_entity_motion_replication::MotionId;
+use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
@@ -91,7 +93,7 @@ type OtherTargets<'w, 's> = Query<
     (
         Entity,
         &'static MotionId,
-        &'static Appearance,
+        AnyOf<(&'static Appearance, &'static Mob)>,
         &'static MotionState,
         &'static MotionKind,
         Option<&'static Vitals>,
@@ -148,16 +150,21 @@ fn find_target(id: i32, players: &PlayerTargets, others: &OtherTargets) -> Optio
         others
             .iter()
             .find(|(_, motion, ..)| wire_id(motion.0).0 == id)
-            .map(
-                |(entity, _, appearance, MotionState(state), MotionKind(row), vitals)| Target {
-                    entity,
-                    kind: appearance.kind.entity_type,
-                    alive: is_alive(vitals),
-                    bounds: Aabb::of_body(
-                        state.body.position,
-                        row.dimensions.width,
-                        row.dimensions.height,
-                    ),
+            .and_then(
+                |(entity, _, (appearance, mob), MotionState(state), MotionKind(row), vitals)| {
+                    let kind = mob
+                        .map(|mob| mob.kind)
+                        .or(appearance.map(|appearance| appearance.kind))?;
+                    Some(Target {
+                        entity,
+                        kind: kind.entity_type,
+                        alive: is_alive(vitals),
+                        bounds: Aabb::of_body(
+                            state.body.position,
+                            row.dimensions.width,
+                            row.dimensions.height,
+                        ),
+                    })
                 },
             )
     })
