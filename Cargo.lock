@@ -6279,6 +6279,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_mcp"
+version = "0.5.8"
+dependencies = [
+ "base64 0.22.1",
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_menu_geometry"
 version = "0.5.8"
 dependencies = [

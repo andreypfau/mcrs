@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_mcp"
+description = "An MCP server and command line that builds, starts, waits on and stops the mcrs server and client for agents"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+base64.workspace = true
+libc.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
