@@ -1368,3 +1368,18 @@ and `flock` attempts of E2 ran by hand with a script, and the fixture does not h
   enters near the centre of the border, not near `spawn.pos`.
 - **Bug reference:** `none`.
 - **Test:** a differential test does not compare a join with `spawn.pos` outside the world border.
+
+### SAVE-DEV-007: A join waits for the spawn columns in the play phase
+
+- **Rule:** SAVE-PLAYER-001, paragraph "Default position".
+- **Reference:** the join loads or generates the columns of the spawn placement before the play
+  phase. The tick of the server waits for these columns.
+- **Reason:** the tick of mcrs never waits. The server ends the configuration phase first. The
+  dimension then keeps the join until the columns of the spawn placement are loaded. A dimension
+  with no world generator does not keep the join. It uses the bottom centre of `S`.
+- **Visible to the client:** yes. The client is in the play phase and receives no `login` packet
+  until the spawn placement ends. The first position that it receives is the result. In a
+  dimension with no world generator, a new player enters at the bottom centre of `S`.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not compare the time from the end of the configuration
+  phase to the `login` packet.
