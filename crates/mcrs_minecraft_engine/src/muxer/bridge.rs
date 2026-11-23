@@ -52,7 +52,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, Malformed, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
-    Answer, ConnectionState, Instant, PingLimits, PlayPings, RawConnection, ServerSideConnection,
+    ConnectionState, Instant, PingLimits, PlayPings, RawConnection, ServerSideConnection,
     SharedAppend, SharedFrames, WriterWakes,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
@@ -74,7 +74,7 @@ use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
-use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Serverbound, Verdict};
+use mcrs_minecraft_move_validate::{Acknowledged, Action, MoveGuard, Report, Serverbound, Verdict};
 use std::time::Duration;
 
 pub fn attach_outbound_queue(
@@ -890,20 +890,19 @@ fn check_play(
         (Some(Verdict::Pass(checked)), Some(probes)) => (checked, probes),
         _ => return Action::Forward,
     };
-    let answer = match checked.packet {
-        Serverbound::Pong(id) => probes.pings.answer(id),
-        _ => Answer::Unknown,
-    };
-    if answer == Answer::Unknown {
-        let now = probes.since_origin(arrival);
-        return probes.guard.serverbound(&checked, now, reports);
+    if let Serverbound::Pong(id) = checked.packet
+        && probes.pings.answer(id)
+    {
+        return Action::Drop;
     }
-    trace!(?answer, "a play ping is answered");
-    probes.guard.acknowledge(
-        probes.pings.acknowledged_tick(),
-        probes.pings.acknowledged_sent_at(),
-    );
-    Action::Drop
+    let now = probes.since_origin(arrival);
+    let acknowledged = Acknowledged {
+        tick: probes.pings.acknowledged_tick(),
+        sent_at: probes.pings.acknowledged_sent_at(),
+    };
+    probes
+        .guard
+        .serverbound(&checked, now, acknowledged, reports)
 }
 
 #[cfg(test)]

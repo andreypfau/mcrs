@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use crate::{Answer, PingLimits};
+use crate::PingLimits;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct SentPing {
@@ -54,22 +54,18 @@ impl PlayPings {
         closing
     }
 
-    pub fn answer(&mut self, id: i32) -> Answer {
+    pub fn answer(&mut self, id: i32) -> bool {
         let Some(index) = self
             .unanswered
             .iter()
             .position(|sent| ping_id(sent.tick) == id)
         else {
-            return Answer::Unknown;
+            return false;
         };
         if let Some(newest) = self.unanswered.drain(..=index).next_back() {
             self.acknowledged = newest;
         }
-        if index == 0 {
-            Answer::Oldest
-        } else {
-            Answer::Skipped
-        }
+        true
     }
 
     #[must_use]
@@ -124,16 +120,15 @@ mod tests {
 
     #[test]
     fn answers_advance_the_acknowledged_tick() {
-        use Answer::{Oldest, Skipped, Unknown};
-        let cases: [(&[i32], &[Answer], u64); 4] = [
-            (&[1, 2], &[Oldest, Oldest], 2),
-            (&[3, 1], &[Skipped, Unknown], 3),
-            (&[99, 1], &[Unknown, Oldest], 1),
-            (&[2, 2, 3], &[Skipped, Unknown, Oldest], 3),
+        let cases: [(&[i32], &[bool], u64); 4] = [
+            (&[1, 2], &[true, true], 2),
+            (&[3, 1], &[true, false], 3),
+            (&[99, 1], &[false, true], 1),
+            (&[2, 2, 3], &[true, false, true], 3),
         ];
         for (ids, expected, acknowledged) in cases {
             let mut pings = pinged(PingLimits::default(), 3);
-            let answers: Vec<Answer> = ids.iter().map(|&id| pings.answer(id)).collect();
+            let answers: Vec<bool> = ids.iter().map(|&id| pings.answer(id)).collect();
             assert_eq!(answers, expected, "{ids:?}");
             assert_eq!(pings.acknowledged_tick(), acknowledged, "{ids:?}");
             assert_eq!(
@@ -155,7 +150,7 @@ mod tests {
         assert!(pings.overdue(seconds(12)));
         assert_eq!(pings.ping(seconds(3)), Some(3));
         assert!(pings.overdue(seconds(3)));
-        assert_eq!(pings.answer(2), Answer::Skipped);
+        assert!(pings.answer(2), "the second ping waits for an answer");
         assert!(!pings.overdue(seconds(12)));
     }
 }

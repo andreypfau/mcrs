@@ -3,7 +3,7 @@ use std::hint::black_box;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use mcrs_minecraft_move_validate::{Checked, MoveGuard, Verdict, check_serverbound};
+use mcrs_minecraft_move_validate::{Acknowledged, Checked, MoveGuard, Verdict, check_serverbound};
 use mcrs_minecraft_protocol::packets::table::game_serverbound::NAMES;
 use mcrs_minecraft_protocol::packets::table::row_of;
 use std::time::Duration;
@@ -56,9 +56,9 @@ fn layer_1(c: &mut Criterion) {
             tick += 1;
             guard.change(tick);
             guard.end_server_tick(now);
-            guard.acknowledge(tick, now);
+            let acknowledged = Acknowledged { tick, sent_at: now };
             for packet in &packets {
-                black_box(guard.serverbound(black_box(packet), now, &mut reports));
+                black_box(guard.serverbound(black_box(packet), now, acknowledged, &mut reports));
             }
             reports.clear();
         });

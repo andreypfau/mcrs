@@ -1,4 +1,3 @@
-mod answer;
 #[cfg(target_family = "wasm")]
 pub mod browser;
 #[cfg(feature = "bevy")]
@@ -38,7 +37,6 @@ pub use std::time::Instant;
 #[cfg(target_family = "wasm")]
 pub use web_time::Instant;
 
-pub use crate::answer::Answer;
 pub use crate::forwarding_secret::{
     EmptyForwardingSecret, FORWARDING_CHANNEL, ForwardedPlayer, ForwardingRefusal,
     ForwardingSecret, forwarding_query,

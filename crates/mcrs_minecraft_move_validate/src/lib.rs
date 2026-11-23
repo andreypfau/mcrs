@@ -1,4 +1,5 @@
 mod accept;
+mod acknowledged;
 mod action;
 mod change_state;
 mod check_serverbound;
@@ -15,6 +16,7 @@ mod vehicle_move;
 mod verdict;
 
 pub use accept::Accept;
+pub use acknowledged::Acknowledged;
 pub use action::Action;
 pub use change_state::{ChangeState, ChangeView};
 pub use check_serverbound::check_serverbound;

@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use glam::DVec3;
 use mcrs_minecraft_move_validate::{
-    Accept, Action, ChangeState, Checked, Finding, Look, Move, MoveGuard, Report, Reports,
-    Serverbound,
+    Accept, Acknowledged, Action, ChangeState, Checked, Finding, Look, Move, MoveGuard, Report,
+    Reports, Serverbound,
 };
 use proptest::prelude::*;
 
@@ -131,6 +131,7 @@ fn simulate(link: Link) -> Log {
     let mut applied_by_tick: Vec<u64> = vec![0];
     let mut last_state: HashMap<u64, ChangeState> = HashMap::new();
     let mut level: u64 = 0;
+    let mut acknowledged = Acknowledged::default();
     let end = ms(SERVER_TICKS * SERVER_TICK_MS + 2_000);
 
     while let Some((now, event)) = queue.pop() {
@@ -201,12 +202,15 @@ fn simulate(link: Link) -> Log {
             }
             Event::Arrive(Serverbound::Pong(id)) => {
                 let tick = id as u64;
-                guard.acknowledge(tick, ms((tick - 1) * SERVER_TICK_MS));
+                acknowledged = Acknowledged {
+                    tick,
+                    sent_at: ms((tick - 1) * SERVER_TICK_MS),
+                };
                 log.actions.push(Action::Drop);
             }
             Event::Arrive(packet) => {
                 let mut reports = Vec::new();
-                let action = guard.serverbound(&checked(packet), now, &mut reports);
+                let action = guard.serverbound(&checked(packet), now, acknowledged, &mut reports);
                 match (packet, action) {
                     (Serverbound::ClientTickEnd, Action::EndTick(tick)) => {
                         log.ticks_sent += 1;
@@ -331,7 +335,7 @@ proptest! {
                     Serverbound::ClientTickEnd
                 }
             };
-            let action = guard.serverbound(&checked(packet), ms(index as u64), &mut reports);
+            let action = guard.serverbound(&checked(packet), ms(index as u64), Acknowledged::default(), &mut reports);
             prop_assert!(!matches!(action, Action::Disconnect(_)), "{packet:?}");
         }
     }
@@ -341,8 +345,14 @@ proptest! {
 fn a_second_move_in_one_client_tick_is_dropped_and_a_second_position_disconnects() {
     let mut guard = MoveGuard::new();
     let mut reports = Vec::new();
-    let mut take =
-        |guard: &mut MoveGuard, packet| guard.serverbound(&checked(packet), ms(0), &mut reports);
+    let mut take = |guard: &mut MoveGuard, packet| {
+        guard.serverbound(
+            &checked(packet),
+            ms(0),
+            Acknowledged::default(),
+            &mut reports,
+        )
+    };
     let rotation = Serverbound::Move(Move {
         look: Some(Look::default()),
         ..Move::default()
@@ -371,12 +381,22 @@ fn the_twentieth_silent_tick_is_reported_and_exempt_ticks_do_not_count() {
     let mut guard = MoveGuard::new();
     let mut reports = Vec::new();
     let tick = |guard: &mut MoveGuard, reports: &mut Vec<Report>| {
-        guard.serverbound(&checked(Serverbound::ClientTickEnd), ms(0), reports)
+        guard.serverbound(
+            &checked(Serverbound::ClientTickEnd),
+            ms(0),
+            Acknowledged::default(),
+            reports,
+        )
     };
     for _ in 0..30 {
         tick(&mut guard, &mut reports);
     }
-    guard.serverbound(&checked(Serverbound::PlayerLoaded), ms(0), &mut reports);
+    guard.serverbound(
+        &checked(Serverbound::PlayerLoaded),
+        ms(0),
+        Acknowledged::default(),
+        &mut reports,
+    );
     guard.teleport_sent(7);
     for _ in 0..30 {
         tick(&mut guard, &mut reports);
@@ -385,7 +405,12 @@ fn the_twentieth_silent_tick_is_reported_and_exempt_ticks_do_not_count() {
         teleport_id: 7,
         ..Accept::default()
     });
-    guard.serverbound(&checked(accept), ms(0), &mut reports);
+    guard.serverbound(
+        &checked(accept),
+        ms(0),
+        Acknowledged::default(),
+        &mut reports,
+    );
     for _ in 0..19 {
         tick(&mut guard, &mut reports);
     }
@@ -405,10 +430,18 @@ fn player_input_is_dropped_until_the_client_has_loaded() {
     let mut guard = MoveGuard::new();
     let mut reports = Vec::new();
     let input = checked(Serverbound::PlayerInput);
-    assert_eq!(guard.serverbound(&input, ms(0), &mut reports), Action::Drop);
-    guard.serverbound(&checked(Serverbound::PlayerLoaded), ms(0), &mut reports);
     assert_eq!(
-        guard.serverbound(&input, ms(0), &mut reports),
+        guard.serverbound(&input, ms(0), Acknowledged::default(), &mut reports),
+        Action::Drop
+    );
+    guard.serverbound(
+        &checked(Serverbound::PlayerLoaded),
+        ms(0),
+        Acknowledged::default(),
+        &mut reports,
+    );
+    assert_eq!(
+        guard.serverbound(&input, ms(0), Acknowledged::default(), &mut reports),
         Action::Forward
     );
 }

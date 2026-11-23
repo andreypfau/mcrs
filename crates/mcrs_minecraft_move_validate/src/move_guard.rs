@@ -1,7 +1,11 @@
+use core::cmp::Ordering;
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use crate::{Action, ChangeState, ChangeView, Checked, Disconnect, Finding, Report, Serverbound};
+use crate::{
+    Acknowledged, Action, ChangeState, ChangeView, Checked, Disconnect, Finding, Report,
+    Serverbound,
+};
 
 const TICK_DRIFT: Duration = Duration::from_millis(500);
 const CLIENT_TICK: Duration = Duration::from_millis(50);
@@ -12,8 +16,6 @@ const LOAD_TICKS: u32 = 60;
 pub struct MoveGuard {
     change_ticks: VecDeque<u64>,
     first_change: u64,
-    acknowledged_tick: u64,
-    acknowledged_sent_at: Option<Duration>,
     acknowledged_at_client_tick: u64,
     client_tick: u64,
     moved: bool,
@@ -33,11 +35,6 @@ impl MoveGuard {
 
     pub fn change(&mut self, sent_tick: u64) {
         self.change_ticks.push_back(sent_tick);
-    }
-
-    pub fn acknowledge(&mut self, tick: u64, sent_at: Duration) {
-        self.acknowledged_tick = tick;
-        self.acknowledged_sent_at = Some(sent_at);
     }
 
     pub fn end_server_tick(&mut self, now: Duration) {
@@ -72,6 +69,7 @@ impl MoveGuard {
         &mut self,
         checked: &Checked,
         now: Duration,
+        acknowledged: Acknowledged,
         reports: &mut Vec<Report>,
     ) -> Action {
         let client_tick = self.client_tick.saturating_add(1);
@@ -106,7 +104,7 @@ impl MoveGuard {
             Serverbound::PlayerLoaded => self.loaded = true,
             Serverbound::Pong(_) => report(Finding::UnknownAnswer),
             Serverbound::ClientTickEnd => {
-                if self.end_client_tick(now) {
+                if self.end_client_tick(now, acknowledged) {
                     report(Finding::TickRate);
                 }
                 if self.silent_ticks >= SILENT_LIMIT {
@@ -120,10 +118,10 @@ impl MoveGuard {
     }
 
     fn state(&self, sent_tick: u64) -> ChangeState {
-        ChangeState::of_change_sent_in(sent_tick, self.acknowledged_at_client_tick)
+        change_state(sent_tick, self.acknowledged_at_client_tick)
     }
 
-    fn end_client_tick(&mut self, now: Duration) -> bool {
+    fn end_client_tick(&mut self, now: Duration, acknowledged: Acknowledged) -> bool {
         self.client_tick = self.client_tick.saturating_add(1);
         let counted = self.loaded && self.pending_teleport.is_none();
         if self.positioned {
@@ -140,7 +138,7 @@ impl MoveGuard {
             self.change_ticks.pop_front();
             self.first_change = self.first_change.saturating_add(1);
         }
-        self.acknowledged_at_client_tick = self.acknowledged_tick;
+        self.acknowledged_at_client_tick = acknowledged.tick;
 
         let Some(balance) = self.balance.as_mut() else {
             return false;
@@ -150,9 +148,15 @@ impl MoveGuard {
         if too_fast {
             *balance = balance.saturating_sub(CLIENT_TICK);
         }
-        if let Some(answered) = self.acknowledged_sent_at {
-            *balance = (*balance).max(answered.saturating_sub(TICK_DRIFT));
-        }
+        *balance = (*balance).max(acknowledged.sent_at.saturating_sub(TICK_DRIFT));
         too_fast
+    }
+}
+
+fn change_state(sent_tick: u64, acknowledged_tick: u64) -> ChangeState {
+    match acknowledged_tick.cmp(&sent_tick) {
+        Ordering::Greater => ChangeState::Applied,
+        Ordering::Equal => ChangeState::Window,
+        Ordering::Less => ChangeState::NotApplied,
     }
 }
