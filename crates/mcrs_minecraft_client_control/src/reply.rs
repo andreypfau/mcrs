@@ -30,7 +30,6 @@ pub struct Ready {
     pub placed: bool,
     pub terrain: bool,
     pub meshing: Meshing,
-    pub world_ready: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

@@ -137,7 +137,6 @@ impl ControlledClient<'_, '_> {
             placed,
             terrain,
             meshing,
-            world_ready: terrain && meshing != reply::Meshing::Pending,
         }
     }
 

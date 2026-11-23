@@ -63,7 +63,7 @@ a screen is open or the cursor is free.
 
 | Request | Reply |
 | - | - |
-| `ready` | `{"ready":{...}}`: `joined`, `placed` (the player is loaded), `terrain` (the 5 x 5 columns around the player are held), `meshing` (`not_rendered`, `pending` or `done`), `world_ready` |
+| `ready` | `{"ready":{...}}`: `joined`, `placed` (the player is loaded), `terrain` (the 5 x 5 columns around the player are held), `meshing` (`not_rendered`, `pending` or `done`) |
 | `player` | `{"player":{...}}`: position, `yaw`, `pitch`, `health`, `food`, `game_mode`, `on_ground`, `slot`; `null` for a value the client did not receive yet |
 | `target` | `{"target":{...}}`: `kind` `entity`, `block` or `none`, the pick of the crosshair now |
 | `entities [RADIUS]` | `{"entities":[...]}`: at most 32 entities, nearest first: `id` (network id), `type`, position, `distance`; radius 16 by default |

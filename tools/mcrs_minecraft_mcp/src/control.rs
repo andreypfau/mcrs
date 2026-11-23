@@ -5,6 +5,7 @@ use std::os::unix::net::UnixStream;
 use std::time::Duration;
 use std::time::Instant;
 
+use mcrs_minecraft_client_control::Meshing;
 use mcrs_minecraft_client_control::Reply;
 use mcrs_minecraft_client_control::Request;
 
@@ -92,7 +93,7 @@ pub fn wait_until(
 }
 
 pub fn world_ready(reply: &Reply) -> bool {
-    matches!(reply, Reply::Ready(ready) if ready.world_ready)
+    matches!(reply, Reply::Ready(ready) if ready.terrain && ready.meshing != Meshing::Pending)
 }
 
 pub fn on_ground(reply: &Reply) -> bool {
