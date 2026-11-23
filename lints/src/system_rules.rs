@@ -2,7 +2,6 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diag;
-use rustc_errors::DiagDecorator;
 use rustc_errors::MultiSpan;
 use rustc_hir::HirId;
 use rustc_hir::def_id::DefId;
@@ -10,11 +9,11 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_lint::Lint;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
-use rustc_middle::ty::TyKind;
 use rustc_span::Span;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
+use crate::anchors::type_arg_of;
 use crate::body_scan::BodyFacts;
 use crate::body_scan::BodyMap;
 use crate::callbacks::TICK_SCHEDULES_ENV;
@@ -128,6 +127,9 @@ fn check_system<'tcx>(
     };
     let schedule = example.schedule.as_deref().unwrap_or_default().to_owned();
 
+    let direct = def
+        .as_local()
+        .map(|local| reach(cx.bodies, local, Follow::Closures));
     let ungated = tick
         .iter()
         .find(|system_use| !cx.graph.gates(&system_use.placement))
@@ -141,7 +143,15 @@ fn check_system<'tcx>(
             ));
             diag.help("gate it with `run_if`, a gated set, or a `Single`/`Populated` parameter");
         });
-        written(cx, def)
+        let written = match &direct {
+            Some(direct) => writes_of(cx.tcx, direct),
+            None => cx
+                .dep_writes
+                .get(&key(cx.tcx, def))
+                .cloned()
+                .unwrap_or_default(),
+        };
+        written
             .into_iter()
             .map(|component| AlwaysChanged {
                 component,
@@ -158,10 +168,9 @@ fn check_system<'tcx>(
             .iter()
             .all(|system_use| cx.graph.runs_on_event(&system_use.placement));
 
-    let Some(local) = def.as_local() else {
+    let (Some(local), Some(direct)) = (def.as_local(), direct) else {
         return always_changed;
     };
-    let direct = reach(cx.bodies, local, Follow::Closures);
     let deep = reach(cx.bodies, local, Follow::Calls);
 
     if let Some((span, callee)) = deep.iter().flat_map(|facts| &facts.blocking).next() {
@@ -227,19 +236,12 @@ fn check_system<'tcx>(
     always_changed
 }
 
-fn written(cx: &Context<'_, '_>, def: DefId) -> Vec<String> {
-    match def.as_local() {
-        Some(local) => local_writes(cx.tcx, cx.bodies, local),
-        None => cx
-            .dep_writes
-            .get(&key(cx.tcx, def))
-            .cloned()
-            .unwrap_or_default(),
-    }
+pub fn local_writes(tcx: TyCtxt<'_>, bodies: &BodyMap, local: LocalDefId) -> Vec<String> {
+    writes_of(tcx, &reach(bodies, local, Follow::Closures))
 }
 
-pub fn local_writes(tcx: TyCtxt<'_>, bodies: &BodyMap, local: LocalDefId) -> Vec<String> {
-    let mut components: Vec<String> = reach(bodies, local, Follow::Closures)
+fn writes_of(tcx: TyCtxt<'_>, reached: &[&BodyFacts]) -> Vec<String> {
+    let mut components: Vec<String> = reached
         .iter()
         .flat_map(|facts| facts.writes.iter().map(|component| key(tcx, *component)))
         .collect();
@@ -273,19 +275,7 @@ fn check_clock(cx: &Context<'_, '_>, target: &Target, inputs: &[Ty<'_>], schedul
 }
 
 fn clock_of(anchors: &Anchors, time: DefId, ty: Ty<'_>) -> Option<DefId> {
-    let TyKind::Adt(res, args) = ty.kind() else {
-        return None;
-    };
-    if res.did() != anchors.res {
-        return None;
-    }
-    let TyKind::Adt(time_adt, time_args) = args.types().next()?.kind() else {
-        return None;
-    };
-    if time_adt.did() != time {
-        return None;
-    }
-    adt_of(time_args.types().next()?)
+    adt_of(type_arg_of(type_arg_of(ty, anchors.res)?, time)?)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -352,7 +342,7 @@ fn emit(
     if span != target.span {
         spans.push_span_label(target.span, "the system");
     }
-    tcx.emit_node_span_lint(lint, target.hir_id, spans, DiagDecorator(decorate));
+    crate::lints::emit(tcx, lint, target.hir_id, spans, decorate);
 }
 
 #[expect(

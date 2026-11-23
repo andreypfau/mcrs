@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{
     Added, Changed, Component, Has, Local, On, Or, Populated, Query, Resource, Single, With,
     Without, on_message,
 };
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use bytes::Bytes;
@@ -80,7 +80,11 @@ impl Plugin for ColumnStreamPlugin {
                     .chain()
                     .before(ChunkSpawnSet),
                 project_ready_columns
-                    .run_if(column_readiness_may_change)
+                    .run_if(
+                        on_message::<SectionStageChanged>
+                            .or_eager(on_message::<SectionRelit>)
+                            .or_eager(columns_awaited),
+                    )
                     .after(raise_wanted_columns)
                     .before(ColumnLightGate),
                 (
@@ -205,15 +209,8 @@ fn columns_ready(dims: Query<&ColumnStreams>) -> bool {
     dims.iter().any(|streams| !streams.ready.is_empty())
 }
 
-fn column_readiness_may_change(
-    dims: Query<&ColumnStreams>,
-    mut changes: MessageReader<SectionStageChanged>,
-    mut relit: MessageReader<SectionRelit>,
-) -> bool {
-    let changed = !changes.is_empty() || !relit.is_empty();
-    changes.clear();
-    relit.clear();
-    changed || dims.iter().any(|streams| !streams.awaited.is_empty())
+fn columns_awaited(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.awaited.is_empty())
 }
 
 fn take_column_requests(

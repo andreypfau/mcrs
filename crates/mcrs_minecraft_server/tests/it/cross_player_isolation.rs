@@ -1,6 +1,7 @@
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
@@ -15,16 +16,9 @@ use mock_connection::{
 };
 
 #[test]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::insert_message_resource,
-        reason = "the test drives a bare `World`, which has no `App::add_message`"
-    )
-)]
 fn cross_player_isolation() {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
 
@@ -69,16 +63,9 @@ fn cross_player_isolation() {
 }
 
 #[test]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::insert_message_resource,
-        reason = "the test drives a bare `World`, which has no `App::add_message`"
-    )
-)]
 fn stale_despawn_does_not_kill_fresh_player() {
     let mut world = World::new();
-    world.init_resource::<Messages<InboundPlayerDespawn>>();
+    MessageRegistry::register_message::<InboundPlayerDespawn>(&mut world);
     world.init_resource::<DimPlayerIndex>();
 
     let entity_b = world.spawn((Player, Owner(PlayerSession(2)))).id();

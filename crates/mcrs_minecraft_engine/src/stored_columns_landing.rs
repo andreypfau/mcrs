@@ -300,7 +300,7 @@ mod tests {
 
     use mcrs_minecraft_resource::ResourceLocationBuf;
 
-    use bevy_ecs::message::Messages;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_engine_store::VersionedChunk;
@@ -339,14 +339,7 @@ mod tests {
         const ROWS: i32 = 3;
         let column = ColumnPos::new(1, 2);
         let mut world = World::new();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<SectionStageChanged>>();
+        MessageRegistry::register_message::<SectionStageChanged>(&mut world);
         world.init_resource::<PendingColumnHeightmaps>();
         world.init_resource::<PendingColumnFacts>();
         let mut index = SectionIndex::new();

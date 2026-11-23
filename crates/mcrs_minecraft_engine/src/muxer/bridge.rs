@@ -884,6 +884,7 @@ pub fn bridge_inbound(
 mod tests {
     use super::*;
     use bevy_ecs::entity::Entity;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
 
@@ -907,22 +908,8 @@ mod tests {
 
     fn world() -> World {
         let mut world = World::new();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<OutboundPlayerAttached>>();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<InboundPlayerPacket>>();
+        MessageRegistry::register_message::<OutboundPlayerAttached>(&mut world);
+        MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
         world.init_resource::<DimInputs>();
         world.init_resource::<SessionAnchors>();
         world

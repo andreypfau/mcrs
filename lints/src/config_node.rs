@@ -7,9 +7,7 @@ pub enum ConfigNode<L> {
     Tuple(Vec<ConfigNode<L>>),
     Configured {
         inner: Box<ConfigNode<L>>,
-        run_if: bool,
-        on_event: bool,
-        sets: Vec<String>,
+        placement: Placement,
     },
 }
 
@@ -49,18 +47,8 @@ impl<L: Clone> ConfigNode<L> {
                     child.place(outer, out);
                 }
             }
-            ConfigNode::Configured {
-                inner,
-                run_if,
-                on_event,
-                sets,
-            } => {
-                let own = Placement {
-                    run_if: *run_if,
-                    on_event: *on_event,
-                    sets: sets.clone(),
-                };
-                inner.place(&own.within(outer), out);
+            ConfigNode::Configured { inner, placement } => {
+                inner.place(&placement.within(outer), out);
             }
         }
     }

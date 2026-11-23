@@ -120,7 +120,7 @@ mod tests {
     use crate::palette::air_section;
     use crate::world::dimension::DimensionTypeConfig;
     use crate::world::storage::section::SectionIndex;
-    use bevy_ecs::message::Messages;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::system::SystemState;
     use bevy_ecs::world::World;
     use mcrs_minecraft_volume::BlockVolume;
@@ -137,14 +137,7 @@ mod tests {
     #[test]
     fn a_halo_change_to_a_landing_section_applies_once_the_section_lands() {
         let mut world = World::new();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test runs the system on a bare `World`, which has no `App` to register the message"
-            )
-        )]
-        world.init_resource::<Messages<BlockPlaced>>();
+        MessageRegistry::register_message::<BlockPlaced>(&mut world);
         let landing = world.spawn_empty().id();
         let mut index = SectionIndex::new();
         index.insert(SectionPos::new(0, 0, 0), landing);

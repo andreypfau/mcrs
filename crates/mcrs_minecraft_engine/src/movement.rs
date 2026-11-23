@@ -256,6 +256,7 @@ fn handle_accept_teleportation(
 mod tests {
     use super::*;
     use crate::bus::PacketTarget;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
@@ -264,14 +265,7 @@ mod tests {
     #[test]
     fn server_move_sends_one_position_with_the_next_teleport_id() {
         let mut world = World::new();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
         world.init_resource::<GameTime>();
         let moved_session = PlayerSession(1);
         let moved = world
@@ -326,22 +320,8 @@ mod tests {
 
     fn movement_world() -> World {
         let mut world = World::new();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<PlayerMovement>>();
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::insert_message_resource,
-                reason = "the test drives a bare World, which has no App to register the message"
-            )
-        )]
-        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        MessageRegistry::register_message::<PlayerMovement>(&mut world);
+        MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
         world.init_resource::<GameTime>();
         world
     }

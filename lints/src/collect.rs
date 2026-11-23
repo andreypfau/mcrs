@@ -19,6 +19,8 @@ use rustc_middle::ty::TyKind;
 use rustc_middle::ty::TypeckResults;
 use rustc_middle::ty::TypingEnv;
 use rustc_span::Span;
+use rustc_span::Symbol;
+use rustc_span::sym;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
@@ -196,11 +198,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                 _ => {}
             }
         }
-        if matches!(name.as_str(), "add_observer" | "observe")
-            && self
-                .anchors
-                .method_host(self.tcx, call.callee)
-                .is_some_and(|host| self.anchors.observer_hosts.contains(&host))
+        if self.anchors.is_observer_call(self.tcx, call.callee)
             && let Some(observer) = call.args.last()
         {
             let leaf = self.leaf(observer);
@@ -299,9 +297,11 @@ impl<'tcx> Collector<'_, 'tcx> {
                 let run_if = name.starts_with("run_if") || name == "distributive_run_if";
                 ConfigNode::Configured {
                     inner: Box::new(self.config_node(receiver, leaf)),
-                    run_if,
-                    on_event: run_if && args.first().is_some_and(|cond| self.on_event(cond)),
-                    sets,
+                    placement: Placement {
+                        run_if,
+                        on_event: run_if && args.first().is_some_and(|cond| self.on_event(cond)),
+                        sets,
+                    },
                 }
             }
             _ => ConfigNode::Leaf(leaf(self, expr)),
@@ -317,34 +317,28 @@ impl<'tcx> Collector<'_, 'tcx> {
                     _ => false,
                 }
             }
-            ExprKind::Call(callee, [inner]) if self.condition_name(callee) == Some("not") => {
+            ExprKind::Call(callee, [inner]) if self.condition_name(callee) == Some(sym::not) => {
                 matches!(inner.kind, ExprKind::Path(..))
-                    && self.condition_name(inner) == Some("resource_exists")
+                    && self.condition_name(inner) == Some(Symbol::intern("resource_exists"))
             }
-            ExprKind::Call(callee, _) => self
-                .condition_name(callee)
-                .is_some_and(|name| EVENT_CONDITIONS.contains(&name)),
-            ExprKind::Path(..) => self
-                .condition_name(condition)
-                .is_some_and(|name| EVENT_CONDITIONS.contains(&name)),
+            ExprKind::Call(callee, _) => self.is_event_condition(callee),
+            ExprKind::Path(..) => self.is_event_condition(condition),
             _ => false,
         }
     }
 
-    fn condition_name(&self, expr: &'tcx Expr<'tcx>) -> Option<&'static str> {
+    fn is_event_condition(&self, expr: &'tcx Expr<'tcx>) -> bool {
+        self.condition_name(expr)
+            .is_some_and(|name| EVENT_CONDITIONS.contains(&name.as_str()))
+    }
+
+    fn condition_name(&self, expr: &'tcx Expr<'tcx>) -> Option<Symbol> {
         let TyKind::FnDef(def, _) = *self.typeck.expr_ty(expr).kind() else {
             return None;
         };
-        let krate = self.tcx.crate_name(def.krate);
-        if !CONDITION_CRATES.contains(&krate.as_str()) {
-            return None;
-        }
-        let name = self.tcx.item_name(def);
-        EVENT_CONDITIONS
-            .iter()
-            .chain(&["not", "resource_exists"])
-            .find(|known| name.as_str() == **known)
-            .copied()
+        CONDITION_CRATES
+            .contains(&self.tcx.crate_name(def.krate).as_str())
+            .then(|| self.tcx.item_name(def))
     }
 
     fn leaf(&self, expr: &'tcx Expr<'tcx>) -> Leaf<'tcx> {

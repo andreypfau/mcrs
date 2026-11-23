@@ -326,7 +326,9 @@ fn clear_derived_tables(
     commands.remove_resource::<ItemTable>();
     commands.remove_resource::<ClockTimeMarkers>();
     commands.remove_resource::<ClientPhysicsTables>();
-    clocks.set_if_neq(WorldClocks::default());
+    if !clocks.is_empty() {
+        *clocks = WorldClocks::default();
+    }
     for connection in &dimensions {
         commands.entity(connection).remove::<CurrentDimension>();
     }

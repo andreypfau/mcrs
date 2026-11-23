@@ -62,6 +62,7 @@ pub fn resolve<'tcx>(
         seen: queue.iter().cloned().collect(),
         queue,
         local_helpers: Vec::new(),
+        debug: debug_enabled(),
     };
     for registration in &collected.registrations {
         for (leaf, placement) in registration.node.placements() {
@@ -95,6 +96,7 @@ struct State<'tcx> {
     seen: HashSet<Helper>,
     queue: VecDeque<Helper>,
     local_helpers: Vec<Helper>,
+    debug: bool,
 }
 
 impl<'tcx> State<'tcx> {
@@ -121,12 +123,7 @@ impl<'tcx> State<'tcx> {
                 }
             }
             LeafKind::Unknown => {
-                #[expect(
-                    clippy::disallowed_methods,
-                    reason = "cargo passes the lint configuration from `[env]` to the driver"
-                )]
-                let debug = std::env::var_os(DEBUG_ENV).is_some();
-                if debug {
+                if self.debug {
                     self.tcx.dcx().span_note(
                         leaf.span,
                         "mcrs_lint: this system configuration is not modelled",
@@ -135,4 +132,12 @@ impl<'tcx> State<'tcx> {
             }
         }
     }
+}
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cargo passes the lint configuration from `[env]` to the driver"
+)]
+fn debug_enabled() -> bool {
+    std::env::var_os(DEBUG_ENV).is_some()
 }

@@ -15,7 +15,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::schedule::common_conditions::on_message;
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::block_keys::Block;
@@ -99,19 +99,9 @@ impl Plugin for BlockBreakPlugin {
             FixedPostUpdate,
             send_acks
                 .after(VoxelUpdateSet::NetworkSync)
-                .run_if(any_sequenced_request),
+                .run_if(on_message::<BlockActionRequest>.or_eager(on_message::<UseItemOnRequest>)),
         );
     }
-}
-
-fn any_sequenced_request(
-    mut requests: MessageReader<BlockActionRequest>,
-    mut uses: MessageReader<UseItemOnRequest>,
-) -> bool {
-    let pending = !requests.is_empty() || !uses.is_empty();
-    requests.clear();
-    uses.clear();
-    pending
 }
 
 fn send_acks(

@@ -1,4 +1,5 @@
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
@@ -15,16 +16,9 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_voxel::BlockPos;
 use tokio::sync::mpsc;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::insert_message_resource,
-        reason = "the test drives a bare `World`, which has no `App::add_message`"
-    )
-)]
 pub fn build_bridge_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();

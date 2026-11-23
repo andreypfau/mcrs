@@ -3,7 +3,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::{Bytes, BytesMut};
@@ -23,16 +23,9 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelChunkWithLight;
 use mcrs_voxel::ColumnPos;
 use std::borrow::Cow;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::insert_message_resource,
-        reason = "the test drives a bare `World`, which has no `App::add_message`"
-    )
-)]
 fn build_dispatch_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world

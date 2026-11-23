@@ -1,7 +1,11 @@
 use bevy_app::{App, FixedPostUpdate, Plugin, Update};
 use bevy_ecs::message::signal_message_update_system;
-use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SingleThreadedExecutor};
-use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, SessionAnchors};
+use bevy_ecs::query::Changed;
+use bevy_ecs::schedule::common_conditions::{any_component_removed, any_match_filter};
+use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SingleThreadedExecutor, SystemCondition};
+use mcrs_minecraft_engine_world::session::{
+    PlayerSessionCounter, SessionAnchors, SessionPlacement,
+};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
@@ -60,7 +64,10 @@ impl Plugin for MuxerPlugin {
                 bridge::bridge_player_attach
                     .run_if(bridge::messages_pending::<OutboundPlayerAttached>),
                 bridge::forward_pending_inbound.run_if(bridge::inbound_held),
-                online_count::send_online_count.run_if(online_count::placements_changed),
+                online_count::send_online_count.run_if(
+                    any_match_filter::<Changed<SessionPlacement>>
+                        .or_eager(any_component_removed::<SessionPlacement>),
+                ),
                 latency::forward_latency,
             )
                 .chain(),

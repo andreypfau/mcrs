@@ -2,7 +2,7 @@ use crate::mock_connection;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
@@ -43,17 +43,10 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::insert_message_resource,
-        reason = "the test drives a bare `World`, which has no `App::add_message`"
-    )
-)]
 fn build_inbound_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<Messages<InboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
+    MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();

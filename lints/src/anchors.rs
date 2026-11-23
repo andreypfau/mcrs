@@ -1,10 +1,14 @@
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::LocalDefId;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::ty::TyKind;
+use rustc_middle::ty::TypingEnv;
 use rustc_span::Symbol;
 use rustc_span::def_id::CrateNum;
+use rustc_trait_selection::infer::InferCtxtExt;
 
 pub struct Anchors {
     pub world: DefId,
@@ -236,6 +240,13 @@ impl Anchors {
             .is_some_and(|did| self.blocking_types.contains(&did))
     }
 
+    pub fn is_observer_call(&self, tcx: TyCtxt<'_>, callee: DefId) -> bool {
+        matches!(tcx.item_name(callee).as_str(), "add_observer" | "observe")
+            && self
+                .method_host(tcx, callee)
+                .is_some_and(|host| self.observer_hosts.contains(&host))
+    }
+
     pub fn method_host(&self, tcx: TyCtxt<'_>, callee: DefId) -> Option<DefId> {
         tcx.inherent_impl_of_assoc(callee)
             .and_then(|imp| adt_of(tcx.type_of(imp).instantiate_identity().skip_normalization()))
@@ -251,6 +262,38 @@ pub fn adt_of(ty: Ty<'_>) -> Option<DefId> {
         TyKind::Adt(adt, _) => Some(adt.did()),
         _ => None,
     }
+}
+
+pub fn type_arg_of<'tcx>(ty: Ty<'tcx>, adt: DefId) -> Option<Ty<'tcx>> {
+    match ty.kind() {
+        TyKind::Adt(def, args) if def.did() == adt => args.types().next(),
+        _ => None,
+    }
+}
+
+pub fn implements<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    owner: LocalDefId,
+    trait_def: DefId,
+    args: impl IntoIterator<Item = Ty<'tcx>>,
+) -> bool {
+    let env = TypingEnv::post_analysis(tcx, owner);
+    let (infcx, param_env) = tcx.infer_ctxt().build_with_typing_env(env);
+    infcx
+        .type_implements_trait(trait_def, args, param_env)
+        .must_apply_modulo_regions()
+}
+
+pub fn is_source_fn(tcx: TyCtxt<'_>, def: DefId) -> bool {
+    matches!(tcx.def_kind(def), DefKind::Fn | DefKind::AssocFn)
+        && !tcx.def_span(def).from_expansion()
+}
+
+pub fn in_trait_impl(tcx: TyCtxt<'_>, def: DefId) -> bool {
+    matches!(
+        tcx.def_kind(tcx.parent(def)),
+        DefKind::Impl { of_trait: true }
+    )
 }
 
 fn find_crate(tcx: TyCtxt<'_>, name: &str) -> Option<CrateNum> {

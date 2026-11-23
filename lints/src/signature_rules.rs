@@ -1,7 +1,4 @@
 use rustc_data_structures::fx::FxHashMap;
-use rustc_errors::Diag;
-use rustc_errors::DiagDecorator;
-use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
@@ -10,25 +7,23 @@ use rustc_span::kw;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
+use crate::anchors::in_trait_impl;
+use crate::anchors::is_source_fn;
+use crate::anchors::type_arg_of;
 use crate::body_scan::markers;
 use crate::collect::key;
 use crate::lints::ALWAYS_CHANGED_FILTER;
 use crate::lints::BORROWED_REBORROWABLE;
 use crate::lints::ZST_QUERY;
+use crate::lints::emit;
 
 pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<String, String>) {
     for owner in tcx.hir_body_owners() {
         let def = owner.to_def_id();
-        if !matches!(tcx.def_kind(def), DefKind::Fn | DefKind::AssocFn) {
+        if !is_source_fn(tcx, def) {
             continue;
         }
-        if tcx.def_span(def).from_expansion() {
-            continue;
-        }
-        let in_trait_impl = matches!(
-            tcx.def_kind(tcx.parent(def)),
-            DefKind::Impl { of_trait: true }
-        );
+        let in_trait_impl = in_trait_impl(tcx, def);
         let sig = tcx
             .fn_sig(def)
             .instantiate_identity()
@@ -46,33 +41,21 @@ pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<Stri
                     continue;
                 };
                 let name = tcx.def_path_str(component);
-                tcx.emit_node_span_lint(
-                    ALWAYS_CHANGED_FILTER,
-                    hir_id,
-                    param.span,
-                    DiagDecorator(|diag: &mut Diag<'_, ()>| {
-                        diag.primary_message(format!(
-                            "`Changed<{name}>` matches every entity: system `{writer}` writes `{name}` on each tick"
-                        ));
-                        diag.help("the filter still visits every candidate; let the writer send the changed entities in a `Message`, or drop the filter");
-                    }),
-                );
+                emit(tcx, ALWAYS_CHANGED_FILTER, hir_id, param.span, |diag| {
+                    diag.primary_message(format!(
+                        "`Changed<{name}>` matches every entity: system `{writer}` writes `{name}` on each tick"
+                    ));
+                    diag.help("the filter still visits every candidate; let the writer send the changed entities in a `Message`, or drop the filter");
+                });
             }
             for marker in zst_fetches(anchors, *input) {
                 let name = tcx.def_path_str(marker);
-                tcx.emit_node_span_lint(
-                    ZST_QUERY,
-                    hir_id,
-                    param.span,
-                    DiagDecorator(|diag: &mut Diag<'_, ()>| {
-                        diag.primary_message(format!(
-                            "the query fetches the marker `{name}` as data"
-                        ));
-                        diag.help(format!(
-                            "filter with `With<{name}>`, or read presence with `Has<{name}>`"
-                        ));
-                    }),
-                );
+                emit(tcx, ZST_QUERY, hir_id, param.span, |diag| {
+                    diag.primary_message(format!("the query fetches the marker `{name}` as data"));
+                    diag.help(format!(
+                        "filter with `With<{name}>`, or read presence with `Has<{name}>`"
+                    ));
+                });
             }
             let is_self = names
                 .get(index)
@@ -92,15 +75,10 @@ pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<Stri
                     .any(|arg| arg.as_region() == Some(*region))
             {
                 let name = tcx.def_path_str(reborrowable);
-                tcx.emit_node_span_lint(
-                    BORROWED_REBORROWABLE,
-                    hir_id,
-                    param.span,
-                    DiagDecorator(|diag: &mut Diag<'_, ()>| {
-                        diag.primary_message(format!("the parameter takes `&mut {name}`"));
-                        diag.help("take it by value; the caller passes `value.reborrow()`");
-                    }),
-                );
+                emit(tcx, BORROWED_REBORROWABLE, hir_id, param.span, |diag| {
+                    diag.primary_message(format!("the parameter takes `&mut {name}`"));
+                    diag.help("take it by value; the caller passes `value.reborrow()`");
+                });
             }
         }
     }
@@ -112,26 +90,12 @@ fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
     }
     ty.walk()
         .filter_map(|arg| arg.as_type())
-        .filter_map(|ty| match ty.kind() {
-            TyKind::Adt(adt, args) if adt.did() == anchors.changed => {
-                args.types().next().and_then(adt_of)
-            }
-            _ => None,
-        })
+        .filter_map(|ty| type_arg_of(ty, anchors.changed).and_then(adt_of))
         .collect()
 }
 
 fn zst_fetches(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
-    let TyKind::Adt(adt, args) = ty.kind() else {
-        return Vec::new();
-    };
-    if adt.did() != anchors.query {
-        return Vec::new();
-    }
-    let Some(data) = args.types().next() else {
-        return Vec::new();
-    };
-    fetched(data)
+    type_arg_of(ty, anchors.query).map_or_else(Vec::new, fetched)
 }
 
 fn fetched(ty: Ty<'_>) -> Vec<DefId> {

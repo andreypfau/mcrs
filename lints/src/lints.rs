@@ -1,5 +1,10 @@
+use rustc_errors::Diag;
+use rustc_errors::DiagDecorator;
+use rustc_errors::MultiSpan;
+use rustc_hir::HirId;
 use rustc_lint::Level;
 use rustc_lint::Lint;
+use rustc_middle::ty::TyCtxt;
 
 const fn lint(name: &'static str, desc: &'static str) -> Lint {
     Lint {
@@ -88,3 +93,13 @@ pub static LINTS: [&Lint; 15] = [
     UNIT_IN_BUNDLE,
     ALWAYS_CHANGED_FILTER,
 ];
+
+pub fn emit(
+    tcx: TyCtxt<'_>,
+    lint: &'static Lint,
+    hir_id: HirId,
+    span: impl Into<MultiSpan>,
+    decorate: impl FnOnce(&mut Diag<'_, ()>),
+) {
+    tcx.emit_node_span_lint(lint, hir_id, span, DiagDecorator(decorate));
+}

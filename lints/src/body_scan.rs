@@ -1,6 +1,4 @@
 use rustc_data_structures::fx::FxHashMap;
-use rustc_errors::Diag;
-use rustc_errors::DiagDecorator;
 use rustc_hir::BinOpKind;
 use rustc_hir::Block;
 use rustc_hir::BodyId;
@@ -16,26 +14,26 @@ use rustc_hir::def_id::DefId;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::Visitor;
 use rustc_hir::intravisit::walk_expr;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::GenericArgsRef;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_middle::ty::TyKind;
 use rustc_middle::ty::TypeckResults;
-use rustc_middle::ty::TypingEnv;
 use rustc_middle::ty::adjustment::Adjust;
 use rustc_middle::ty::adjustment::DerefAdjustKind;
 use rustc_span::Span;
-use rustc_trait_selection::infer::InferCtxtExt;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
+use crate::anchors::implements;
+use crate::anchors::type_arg_of;
 use crate::collect::Call;
 use crate::collect::call;
 use crate::lints::INSERT_MESSAGE_RESOURCE;
 use crate::lints::MISSED_SET_IF_NEQ;
 use crate::lints::UNIT_IN_BUNDLE;
+use crate::lints::emit;
 
 #[derive(Default)]
 pub struct BodyFacts {
@@ -174,8 +172,11 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 }
                 walk_expr(self, expr);
             }
-            ExprKind::MethodCall(segment, ..)
-                if matches!(segment.ident.name.as_str(), "observe" | "add_observer") =>
+            ExprKind::MethodCall(..)
+                if self
+                    .typeck
+                    .type_dependent_def_id(expr.hir_id)
+                    .is_some_and(|callee| self.anchors.is_observer_call(self.tcx, callee)) =>
             {
                 self.inspect_call(expr);
                 self.detached += 1;
@@ -224,12 +225,7 @@ impl<'tcx> Scanner<'_, 'tcx> {
     }
 
     fn mut_component(&self, ty: Ty<'tcx>) -> Option<DefId> {
-        match ty.peel_refs().kind() {
-            TyKind::Adt(adt, args) if adt.did() == self.anchors.mut_ref => {
-                args.types().next().and_then(adt_of)
-            }
-            _ => None,
-        }
+        type_arg_of(ty.peel_refs(), self.anchors.mut_ref).and_then(adt_of)
     }
 
     fn check_unit_in_bundle(
@@ -259,17 +255,12 @@ impl<'tcx> Scanner<'_, 'tcx> {
                     .is_some_and(contains_unit)
             });
         if bundled {
-            self.tcx.emit_node_span_lint(
-                UNIT_IN_BUNDLE,
-                expr.hir_id,
-                expr.span,
-                DiagDecorator(|diag: &mut Diag<'_, ()>| {
-                    diag.primary_message("the bundle contains `()`, which inserts nothing");
-                    diag.help(
-                        "remove the `()`; spawn an entity with no components with `spawn_empty()`",
-                    );
-                }),
-            );
+            emit(self.tcx, UNIT_IN_BUNDLE, expr.hir_id, expr.span, |diag| {
+                diag.primary_message("the bundle contains `()`, which inserts nothing");
+                diag.help(
+                    "remove the `()`; spawn an entity with no components with `spawn_empty()`",
+                );
+            });
         }
     }
 
@@ -311,14 +302,15 @@ impl<'tcx> Scanner<'_, 'tcx> {
                     .chain(args.get(1).map(|arg| self.typeck.expr_ty(arg)))
                     .any(|ty| adt_of(ty) == Some(anchors.messages));
                 if resource {
-                    tcx.emit_node_span_lint(
+                    emit(
+                        tcx,
                         INSERT_MESSAGE_RESOURCE,
                         expr.hir_id,
                         expr.span,
-                        DiagDecorator(|diag: &mut Diag<'_, ()>| {
+                        |diag| {
                             diag.primary_message("`Messages<T>` is inserted as a plain resource");
                             diag.help("use `add_message::<T>()`, which also clears old messages");
-                        }),
+                        },
                     );
                 }
                 if name.as_str() == "insert_resource" && self.conditional == 0 {
@@ -366,14 +358,17 @@ impl<'tcx> Scanner<'_, 'tcx> {
         if !self.is_partial_eq(ty) {
             return;
         }
-        self.tcx.emit_node_span_lint(
+        emit(
+            self.tcx,
             MISSED_SET_IF_NEQ,
             expr.hir_id,
             expr.span,
-            DiagDecorator(|diag: &mut Diag<'_, ()>| {
-                diag.primary_message("a write through `DerefMut` marks the value changed even when it is equal");
+            |diag| {
+                diag.primary_message(
+                    "a write through `DerefMut` marks the value changed even when it is equal",
+                );
                 diag.help("use `set_if_neq`, or `map_unchanged(|v| &mut v.field).set_if_neq(..)` for one field");
-            }),
+            },
         );
     }
 
@@ -395,14 +390,9 @@ impl<'tcx> Scanner<'_, 'tcx> {
     }
 
     fn is_partial_eq(&self, ty: Ty<'tcx>) -> bool {
-        let Some(partial_eq) = self.anchors.partial_eq else {
-            return false;
-        };
-        let env = TypingEnv::post_analysis(self.tcx, self.root);
-        let (infcx, param_env) = self.tcx.infer_ctxt().build_with_typing_env(env);
-        infcx
-            .type_implements_trait(partial_eq, [ty, ty], param_env)
-            .must_apply_modulo_regions()
+        self.anchors
+            .partial_eq
+            .is_some_and(|partial_eq| implements(self.tcx, self.root, partial_eq, [ty, ty]))
     }
 }
 

@@ -342,89 +342,47 @@ pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
         reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
     )
 )]
-pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
-    cpu.lap(FRAME_START, MAIN_END, MAIN);
-}
+mod phases {
+    use super::*;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn extracted(cpu: Res<CpuTimings>) {
-    cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
-}
+    pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
+        cpu.lap(FRAME_START, MAIN_END, MAIN);
+    }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn prepared(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
-}
+    pub(crate) fn extracted(cpu: Res<CpuTimings>) {
+        cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
+    }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
-    cpu.mark(ACQUIRE_START, Some(Instant::now()));
-}
+    pub(crate) fn prepared(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
+    }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn acquired(cpu: Res<CpuTimings>) {
-    cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
-}
+    pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
+        cpu.mark(ACQUIRE_START, Some(Instant::now()));
+    }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn rendered(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
-}
+    pub(crate) fn acquired(cpu: Res<CpuTimings>) {
+        cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
+    }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::blocking_in_system,
-        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
-    )
-)]
-pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
-    if let Ok(mut samples) = cpu.0.samples.lock() {
-        let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
-            .iter()
-            .map(|&slot| samples.last(slot))
-            .sum::<f32>()
-            - samples.last(ACQUIRE);
-        samples.push(ENGINE, engine);
+    pub(crate) fn rendered(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
+    }
+
+    pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
+        if let Ok(mut samples) = cpu.0.samples.lock() {
+            let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
+                .iter()
+                .map(|&slot| samples.last(slot))
+                .sum::<f32>()
+                - samples.last(ACQUIRE);
+            samples.push(ENGINE, engine);
+        }
     }
 }
+
+pub(crate) use phases::{acquired, acquiring, cleaned, extracted, main_ended, prepared, rendered};
 
 pub(crate) fn log_system_counts(schedules: Res<Schedules>) {
     let mut counts: Vec<(String, usize)> = schedules

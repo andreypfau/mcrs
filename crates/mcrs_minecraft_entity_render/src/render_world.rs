@@ -247,7 +247,7 @@ pub(crate) fn draw_entities(
     let clock = state.clock;
     let mut threshold = state.threshold;
     let Some(gpu) = state.gpu.as_mut() else {
-        if !state.unfit && state.pending != pending {
+        if !state.unfit {
             state.pending = pending;
         }
         return;
