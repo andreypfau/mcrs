@@ -32,6 +32,7 @@ use crate::coordinator::ops::{EditOps, OpList};
 use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
+use crate::held_joins::HeldJoins;
 use crate::hot_ticket::RemoteTicket;
 use crate::persistence;
 use crate::persistence::PlayerSaveQueue;
@@ -158,6 +159,9 @@ fn is_idle(world: &mut World) -> bool {
         && world
             .get_resource::<PlayerSaveQueue>()
             .is_none_or(PlayerSaveQueue::is_idle)
+        && world
+            .get_resource::<HeldJoins>()
+            .is_none_or(|held| held.0.is_empty())
 }
 
 fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {

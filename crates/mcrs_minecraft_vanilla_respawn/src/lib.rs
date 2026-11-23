@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+mod hold_unplaced_joins;
 mod pending_spawn_search;
 mod request_respawns;
 mod respawn_command;

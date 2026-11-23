@@ -395,6 +395,37 @@ pub fn admit_with_file(
     arrival: &Arrival<'_>,
     file: &PersistedSnapshot,
 ) -> Entity {
+    let mut snapshot = file.clone();
+    for (key, tag) in joining_snapshot(arrival).iter() {
+        snapshot.insert(key, tag.clone());
+    }
+    admit_snapshot(app, dim, arrival, snapshot)
+}
+
+pub fn admit_unplaced(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
+    let mut snapshot = joining_snapshot(arrival);
+    snapshot.remove("Pos");
+    admit_snapshot(app, dim, arrival, snapshot)
+}
+
+fn joining_snapshot(arrival: &Arrival<'_>) -> PersistedSnapshot {
+    PersistedSnapshot::joining_player(
+        arrival.uuid,
+        arrival.name.into(),
+        arrival.position,
+        Vec2::ZERO,
+        Some(crate::support::client_info_with_view_distance(
+            arrival.view_distance,
+        )),
+    )
+}
+
+fn admit_snapshot(
+    app: &mut App,
+    dim: Entity,
+    arrival: &Arrival<'_>,
+    snapshot: PersistedSnapshot,
+) -> Entity {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -411,19 +442,6 @@ pub fn admit_with_file(
         ))
         .id();
     app.world_mut().spawn(HostAnchorRef(anchor));
-    let joining = PersistedSnapshot::joining_player(
-        arrival.uuid,
-        arrival.name.into(),
-        arrival.position,
-        Vec2::ZERO,
-        Some(crate::support::client_info_with_view_distance(
-            arrival.view_distance,
-        )),
-    );
-    let mut snapshot = file.clone();
-    for (key, tag) in joining.iter() {
-        snapshot.insert(key, tag.clone());
-    }
     submit_to(
         app,
         dim,

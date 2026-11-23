@@ -3,6 +3,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_game_rule::GameRule;
@@ -16,7 +17,7 @@ use mcrs_minecraft_server::{
 };
 
 use crate::commands::load_stone_column;
-use crate::host_app::{self, PlayServer, sent_to};
+use crate::host_app::{self, Arrival, PlayServer, sent_to};
 
 const PLAYER: Uuid = Uuid::from_u128(1);
 
@@ -182,4 +183,52 @@ fn the_login_shows_the_death_screen_unless_immediate_respawn_is_on() {
             "the death screen flag of the login is the negation of immediate_respawn={immediate_respawn}"
         );
     }
+}
+
+#[test]
+fn a_player_without_a_saved_position_waits_for_the_spawn_columns_and_enters_on_the_surface() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins((
+        VanillaEntityPhysicsPlugin,
+        VanillaEntityAttributesPlugin,
+        VanillaRespawnPlugin,
+    ));
+    let mut server = PlayServer::start(app, &[], 0);
+    let dim = server.dim;
+    server
+        .world()
+        .resource_mut::<GameRules>()
+        .set(GameRule::RespawnRadius, 0);
+    server
+        .world()
+        .resource_mut::<ColumnStoreLink>()
+        .generate_through_world();
+    let arrival = Arrival {
+        uuid: PLAYER,
+        name: "player",
+        position: DVec3::ZERO,
+        view_distance: 2,
+    };
+    let anchor = host_app::admit_unplaced(&mut server.app, dim, &arrival);
+    let session = server.session_of(anchor).unwrap();
+    let mut sent = server.ticks_all(3);
+    let before_columns = server.player_in(dim, anchor);
+
+    load_stone_column(&mut server);
+    sent.extend(server.ticks_all(3));
+
+    let player = server.player_in(dim, anchor);
+    let at = player.map(|player| server.world().get::<Transform>(player).unwrap().translation);
+    let first_told = sent_to(session, sent)
+        .into_iter()
+        .find_map(|packet| match packet {
+            PacketPayload::PlayerPosition(position) => Some(position.position),
+            _ => None,
+        });
+    let spawn = DVec3::new(0.5, 64.0, 0.5);
+    assert_eq!(
+        (before_columns.is_some(), at, first_told),
+        (false, Some(spawn), Some(spawn)),
+        "SAVE-PLAYER-001: the join waits for the spawn columns, then enters on the stone at the bottom centre and sends no earlier position"
+    );
 }

@@ -41,6 +41,18 @@ pub(crate) enum ArrivedSpawn {
     At(Transform),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SpawnColumns {
+    pub(crate) centre: ColumnPos,
+    pub(crate) radius: i32,
+}
+
+impl SpawnColumns {
+    pub(crate) fn columns(self) -> impl Iterator<Item = ColumnPos> {
+        self.centre.square(self.radius)
+    }
+}
+
 #[derive(SystemParam)]
 pub(crate) struct SpawnSite<'w, 's> {
     saved: Option<Res<'w, SavedSpawn>>,
@@ -105,6 +117,33 @@ impl SpawnSite<'_, '_> {
         })
     }
 
+    pub(crate) fn join_columns(&self) -> SpawnColumns {
+        let spawn = spawn_block(self.saved.as_deref());
+        let centre = ColumnPos::from(spawn);
+        let radius = i32::try_from(self.search_radius()).unwrap_or(0);
+        let low = ColumnPos::from(BlockPos::new(
+            spawn.x.saturating_sub(radius),
+            0,
+            spawn.z.saturating_sub(radius),
+        ));
+        let high = ColumnPos::from(BlockPos::new(
+            spawn.x.saturating_add(radius),
+            0,
+            spawn.z.saturating_add(radius),
+        ));
+        SpawnColumns {
+            centre,
+            radius: centre
+                .chebyshev_distance(low)
+                .max(centre.chebyshev_distance(high)),
+        }
+    }
+
+    pub(crate) fn join_position(&self) -> Option<DVec3> {
+        let spawn = spawn_block(self.saved.as_deref());
+        self.is_loaded(spawn).then(|| self.adjusted(spawn))
+    }
+
     fn is_own(&self, dimension: &RunningDimension) -> bool {
         self.own.as_deref().map(|own| own.0) == Some(dimension.label)
     }
@@ -135,12 +174,19 @@ impl SpawnSite<'_, '_> {
         wanted.or_else(|| running.iter().find(|found| found.key == OVERWORLD))
     }
 
+    pub(crate) fn join_reads_columns(&self) -> bool {
+        self.default_mode() != GameMode::Spectator
+    }
+
+    fn default_mode(&self) -> GameMode {
+        self.default_mode
+            .as_deref()
+            .map_or(GameMode::default(), |mode| mode.0)
+    }
+
     fn adjusted(&self, spawn: BlockPos) -> DVec3 {
         let centre = lower_face_centre(spawn);
-        let mode = self
-            .default_mode
-            .as_deref()
-            .map_or(GameMode::default(), |mode| mode.0);
+        let mode = self.default_mode();
         if mode == GameMode::Spectator {
             return centre;
         }

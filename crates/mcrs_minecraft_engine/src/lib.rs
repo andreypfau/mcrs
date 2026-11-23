@@ -59,6 +59,7 @@ pub mod foreign_views;
 mod game_mode;
 pub mod game_profile;
 pub mod heightmap;
+mod held_joins;
 mod held_light;
 mod hot_ticket;
 mod json_list;
@@ -120,6 +121,8 @@ impl Plugin for EnginePlugin {
 }
 
 pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
+pub use consume_inbound_player_spawn::InboundPlayerSpawnSet;
+pub use held_joins::HeldJoins;
 pub use max_health::max_health;
 pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,

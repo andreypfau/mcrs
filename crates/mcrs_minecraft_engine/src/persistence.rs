@@ -697,6 +697,16 @@ impl PersistedSnapshot {
         self.put_logged(POSE_KEYS, &Pose::from_value(&transform));
     }
 
+    pub fn insert_rotation(&mut self, rotation: Rotation) {
+        self.put_logged(
+            POSE_KEYS,
+            &Pose {
+                pos: None,
+                rotation: Some([rotation.yaw(), rotation.pitch()]),
+            },
+        );
+    }
+
     pub fn profile(&self) -> Option<GameProfile> {
         self.get_logged(PROFILE_KEYS)
     }

@@ -5,7 +5,7 @@ use crate::client_info::ClientInfoPlugin;
 use crate::client_view_distance::on_client_view_distance;
 use crate::cold_columns::SaveRequest;
 use crate::column_streams::ColumnStreamPlugin;
-use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
+use crate::consume_inbound_player_spawn::{InboundPlayerSpawnSet, consume_inbound_player_spawn};
 use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::OpList;
 use crate::departure::PlayerTransfer;
@@ -13,6 +13,7 @@ use crate::despawn_inbound_player::despawn_inbound_player;
 use crate::dim_tick::DimInboxDrain;
 use crate::dim_tick::drain_dim_inbox;
 use crate::game_mode::{self, GameModePlugin};
+use crate::held_joins::HeldJoins;
 use crate::loaded_client::LoadedClientPlugin;
 use crate::movement::MovementPlugin;
 use crate::op_level::{refresh_op_levels, send_op_level};
@@ -45,6 +46,7 @@ impl Plugin for DimPlayerPlugin {
             app.add_plugins(persistence::PlayerPersistencePlugin);
         }
         app.init_resource::<persistence::PlayerSaveQueue>();
+        app.init_resource::<HeldJoins>();
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_message::<ChangeDimensionRequest>();
         app.add_message::<PlayerTransfer>();
@@ -108,7 +110,9 @@ impl Plugin for DimPlayerPlugin {
             (
                 (
                     (
-                        consume_inbound_player_spawn.run_if(on_message::<InboundPlayerSpawn>),
+                        consume_inbound_player_spawn
+                            .run_if(on_message::<InboundPlayerSpawn>)
+                            .in_set(InboundPlayerSpawnSet),
                         refresh_op_levels.run_if(resource_exists_and_changed::<OpList>),
                         send_op_level,
                     )
