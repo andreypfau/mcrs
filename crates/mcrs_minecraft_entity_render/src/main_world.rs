@@ -56,13 +56,6 @@ pub(crate) fn server_ticks(ticking: Option<Res<ServerTicking>>) -> bool {
     ticking.is_none_or(|ticking| ticking.runs())
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::missed_set_if_neq,
-        reason = "the tick counter changes on every run, so a comparison never skips the write"
-    )
-)]
 pub(crate) fn advance_clock(mut clock: ResMut<EntityClock>) {
     clock.tick = clock.tick.wrapping_add(1);
 }

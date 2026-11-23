@@ -109,13 +109,6 @@ mod tests {
         log.0.push(0);
     }
 
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::ungated_system,
-            reason = "the test counts every fixed tick of the sub-app"
-        )
-    )]
     fn fixed(mut log: ResMut<Log>) {
         if let Some(last) = log.0.last_mut() {
             *last += 1;

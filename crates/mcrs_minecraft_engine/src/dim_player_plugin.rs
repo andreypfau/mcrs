@@ -151,13 +151,6 @@ mod tests {
     fn a_despawn_is_handled_after_a_spawn_drained_in_the_same_tick() {
         let mut app = App::new();
         app.add_plugins(DimPlayerPlugin);
-        #[cfg_attr(
-            mcrs_lint,
-            expect(
-                mcrs::ungated_system,
-                reason = "an ordering probe in a schedule that the test builds but never runs"
-            )
-        )]
         app.add_systems(
             Update,
             (|| {})

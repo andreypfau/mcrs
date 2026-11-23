@@ -316,15 +316,6 @@ mod tests {
     #[derive(Resource, Default)]
     struct Dirty(Vec<Entity>);
 
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::ungated_system,
-            mcrs::alloc_in_tick,
-            mcrs::missed_set_if_neq,
-            reason = "a test probe that copies the dirty sections out on each update of the test app"
-        )
-    )]
     fn collect_dirty(
         columns: Query<&ColumnSections>,
         marks: Query<SectionMarks>,

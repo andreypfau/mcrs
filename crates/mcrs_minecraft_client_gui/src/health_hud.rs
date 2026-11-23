@@ -71,7 +71,6 @@ const HARDCORE_HEARTS: HeartSprites = HeartSprites {
     mcrs_lint,
     expect(
         mcrs::ungated_system,
-        mcrs::missed_set_if_neq,
         reason = "the heart shake animation counts every fixed tick, so each run writes a new value"
     )
 )]

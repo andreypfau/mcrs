@@ -1710,13 +1710,6 @@ mod tests {
         }
     }
 
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::ungated_system,
-            reason = "the test system records the column changes of every frame"
-        )
-    )]
     fn read_into<const READER: usize>(
         mut changes: bevy::ecs::message::MessageReader<ColumnChange>,
         mut seen: ResMut<Seen<READER>>,
