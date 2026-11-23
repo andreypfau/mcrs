@@ -23,6 +23,7 @@ mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
 mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_entity_motion_replication.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
@@ -88,7 +89,6 @@ libc.workspace = true
 tracing-subscriber.workspace = true
 mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_probe.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }

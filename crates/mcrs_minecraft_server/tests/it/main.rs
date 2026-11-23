@@ -75,6 +75,7 @@ mod support;
 mod swing;
 mod teleport_confirmation;
 mod tick_determinism;
+mod tick_freeze;
 mod view_distance;
 mod whitelist;
 mod world_cells;

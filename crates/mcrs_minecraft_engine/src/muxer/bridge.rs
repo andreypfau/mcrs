@@ -642,6 +642,8 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
         PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
+        PacketPayload::TickingState(p) => sink.write_packet_fallible(&p),
+        PacketPayload::TickingStep(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetHealth(p) => sink.write_packet_fallible(&p),
         PacketPayload::HurtAnimation(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerCombatKill(p) => sink.write_packet_fallible(&p),
