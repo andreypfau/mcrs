@@ -24,6 +24,9 @@ use crate::hold_unseen::hold_unseen;
 use crate::mob_news::MobNews;
 use crate::mob_news::has_mob_spawns;
 use crate::mob_news::take_mob_news;
+use crate::network_ids::NetworkIds;
+use crate::network_ids::forget_network_id;
+use crate::network_ids::remember_network_id;
 use crate::publish_mob_attributes::publish_mob_attributes;
 use crate::publish_motion::has_motion_work;
 use crate::publish_motion::publish_motion;
@@ -39,12 +42,15 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.init_resource::<Assigned>();
         app.init_resource::<Departures>();
         app.init_resource::<MobNews>();
+        app.init_resource::<NetworkIds>();
         app.init_resource::<MobChanges>();
         app.init_resource::<TileEvents>();
         app.add_message::<AttributeChanged>();
         app.add_message::<Damaged>();
         app.add_observer(hold_unseen);
         app.add_observer(depart);
+        app.add_observer(remember_network_id);
+        app.add_observer(forget_network_id);
         app.configure_sets(
             FixedUpdate,
             MotionPublish.in_set(TickSet::Project).after(MobPublish),

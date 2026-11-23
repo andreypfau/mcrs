@@ -27,6 +27,7 @@ mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_replication.workspace = true
+rustc-hash.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 

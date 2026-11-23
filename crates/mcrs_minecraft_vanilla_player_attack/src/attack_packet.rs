@@ -6,6 +6,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::query::AnyOf;
 use bevy_ecs::query::Has;
+use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -18,14 +19,13 @@ use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::eye_position;
 use mcrs_minecraft_engine::loaded_client::UnloadedClient;
-use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_damage::DamageRequest;
 use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
-use mcrs_minecraft_engine_entity_motion_replication::MotionId;
+use mcrs_minecraft_engine_entity_motion_replication::NetworkIds;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -46,7 +46,6 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundAttack;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_replication::wire_id;
 use mcrs_minecraft_text::Text;
 
 use crate::AttackCounter;
@@ -75,24 +74,13 @@ type Attackers<'w, 's> = Query<
     ),
 >;
 
-type PlayerTargets<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static Owner,
-        &'static Transform,
-        PlayerBody,
-        Option<&'static Vitals>,
-    ),
->;
+type PlayerTargets<'w, 's> =
+    Query<'w, 's, (&'static Transform, PlayerBody, Option<&'static Vitals>), With<Owner>>;
 
 type OtherTargets<'w, 's> = Query<
     'w,
     's,
     (
-        Entity,
-        &'static MotionId,
         AnyOf<(&'static Appearance, &'static Mob)>,
         &'static MotionState,
         &'static MotionKind,
@@ -133,40 +121,36 @@ fn is_alive(vitals: Option<&Vitals>) -> bool {
     vitals.is_none_or(Vitals::is_alive)
 }
 
-fn find_target(id: i32, players: &PlayerTargets, others: &OtherTargets) -> Option<Target> {
-    let player = players
-        .iter()
-        .find(|(_, owner, ..)| player_network_id(owner.0) == id)
-        .map(|(entity, _, transform, body, vitals)| {
-            let dimensions = body.dimensions();
-            Target {
-                entity,
-                kind: EntityType::Player,
-                alive: is_alive(vitals),
-                bounds: Aabb::of_body(transform.translation, dimensions.width, dimensions.height),
-            }
+fn find_target(
+    id: i32,
+    ids: &NetworkIds,
+    players: &PlayerTargets,
+    others: &OtherTargets,
+) -> Option<Target> {
+    let entity = ids.get(id)?;
+    if let Ok((transform, body, vitals)) = players.get(entity) {
+        let dimensions = body.dimensions();
+        return Some(Target {
+            entity,
+            kind: EntityType::Player,
+            alive: is_alive(vitals),
+            bounds: Aabb::of_body(transform.translation, dimensions.width, dimensions.height),
         });
-    player.or_else(|| {
-        others
-            .iter()
-            .find(|(_, motion, ..)| wire_id(motion.0).0 == id)
-            .and_then(
-                |(entity, _, (appearance, mob), MotionState(state), MotionKind(row), vitals)| {
-                    let kind = mob
-                        .map(|mob| mob.kind)
-                        .or(appearance.map(|appearance| appearance.kind))?;
-                    Some(Target {
-                        entity,
-                        kind: kind.entity_type,
-                        alive: is_alive(vitals),
-                        bounds: Aabb::of_body(
-                            state.body.position,
-                            row.dimensions.width,
-                            row.dimensions.height,
-                        ),
-                    })
-                },
-            )
+    }
+    let ((appearance, mob), MotionState(state), MotionKind(row), vitals) =
+        others.get(entity).ok()?;
+    let kind = mob
+        .map(|mob| mob.kind)
+        .or(appearance.map(|appearance| appearance.kind))?;
+    Some(Target {
+        entity,
+        kind: kind.entity_type,
+        alive: is_alive(vitals),
+        bounds: Aabb::of_body(
+            state.body.position,
+            row.dimensions.width,
+            row.dimensions.height,
+        ),
     })
 }
 
@@ -179,6 +163,7 @@ pub(crate) fn on_attack(
     mut attackers: Attackers,
     players: PlayerTargets,
     others: OtherTargets,
+    ids: Option<Res<NetworkIds>>,
     rules: Option<Res<GameRules>>,
     registries: Option<Res<CurrentRegistries>>,
     clock: Option<Res<BirthClock>>,
@@ -198,7 +183,10 @@ pub(crate) fn on_attack(
     if unloaded || mode.0 == GameMode::Spectator || !is_alive(vitals) {
         return;
     }
-    let Some(target) = find_target(packet.entity_id.0, &players, &others) else {
+    let Some(target) = ids
+        .as_deref()
+        .and_then(|ids| find_target(packet.entity_id.0, ids, &players, &others))
+    else {
         return;
     };
     let Ok((.., body, _)) = players.get(attacker) else {
