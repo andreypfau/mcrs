@@ -41,6 +41,7 @@ pub struct InboundPlayerPacket {
     pub id: i32,
     pub data: Bytes,
     pub trigger: Option<Trigger>,
+    pub acknowledged_tick: u64,
 }
 
 #[derive(Message, Clone, Debug)]

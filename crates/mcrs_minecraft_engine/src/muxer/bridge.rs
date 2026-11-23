@@ -52,8 +52,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, Malformed, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
-    ConnectionState, Instant, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
-    WriterWakes,
+    Answer, ConnectionState, Instant, PingLimits, PlayPings, RawConnection, ServerSideConnection,
+    SharedAppend, SharedFrames, WriterWakes,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
@@ -74,13 +74,19 @@ use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
-use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Verdict};
+use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Serverbound, Verdict};
 use std::time::Duration;
 
-pub fn attach_outbound_queue(add: On<Add<ServerSideConnection>>, mut commands: Commands) {
+pub fn attach_outbound_queue(
+    add: On<Add<ServerSideConnection>>,
+    limits: Option<Res<PingLimits>>,
+    mut commands: Commands,
+) {
+    let mut probes = Probes::default();
+    probes.pings = PlayPings::new(limits.as_deref().copied().unwrap_or_default());
     commands
         .entity(add.entity)
-        .insert((OutboundQueue::default(), Probes::default()));
+        .insert((OutboundQueue::default(), probes));
 }
 
 #[derive(Default)]
@@ -376,11 +382,12 @@ fn dispatch_listed(
                 LayerOne {
                     now: probes.since_origin(Instant::now()),
                     guard: &mut probes.guard,
+                    pings: &mut probes.pings,
                     flush,
                 }
             });
         if let Some(layer_one) = &layer_one
-            && layer_one.guard.overdue(layer_one.now)
+            && layer_one.pings.overdue(layer_one.now)
         {
             let reason = Text::translate("disconnect.timeout", []);
             conn.disconnect(ConnectionState::Game, reason).ok();
@@ -452,6 +459,7 @@ fn ready_to_write(
 
 struct LayerOne<'a> {
     guard: &'a mut MoveGuard,
+    pings: &'a mut PlayPings,
     now: Duration,
     flush: Flush,
 }
@@ -464,19 +472,21 @@ fn write_queue(
     frames: &mut SharedFrames,
     mut layer_one: Option<LayerOne<'_>>,
 ) {
-    let last_change = layer_one
-        .as_ref()
-        .and_then(|_| queue.iter().rposition(|queued| queued.changes_prediction()));
-    for (index, queued) in queue.drain().enumerate() {
+    if let Some(LayerOne { pings, now, .. }) = layer_one.as_mut()
+        && queue.total_len() > 0
+    {
+        write_ping(raw, pings.ping(*now));
+    }
+    for queued in queue.drain() {
         trace!(
             target: "mcrs_minecraft_engine::bridge",
             conn = ?entity,
             kind = ?queued.kind(),
             "dispatch_encode"
         );
-        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut() {
+        if let Some(LayerOne { guard, pings, .. }) = layer_one.as_mut() {
             if queued.changes_prediction() {
-                write_probe(raw, guard.change(*now));
+                guard.change(pings.tick());
             } else {
                 match &queued {
                     QueuedPacket::Payload(PacketPayload::PlayerPosition(teleport)) => {
@@ -485,7 +495,6 @@ fn write_queue(
                     QueuedPacket::Payload(PacketPayload::Respawn(_)) => guard.respawned(),
                     _ => {}
                 }
-                guard.wrote();
             }
         }
         {
@@ -528,24 +537,25 @@ fn write_queue(
                 }
             }
         }
-        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut()
-            && last_change == Some(index)
-        {
-            write_probe(raw, guard.close_changes(*now));
-        }
     }
-    if let Some(LayerOne { guard, now, flush }) = layer_one
+    if let Some(LayerOne {
+        guard,
+        pings,
+        now,
+        flush,
+    }) = layer_one
         && flush == Flush::EndOfTick
     {
-        write_probe(raw, guard.end_server_tick(now));
+        guard.end_server_tick(now);
+        write_ping(raw, pings.end_tick(now));
     }
 }
 
-fn write_probe(raw: &mut RawConnection, probe: Option<i32>) {
-    if let Some(id) = probe
+fn write_ping(raw: &mut RawConnection, ping: Option<i32>) {
+    if let Some(id) = ping
         && let Err(error) = raw.append(&ClientboundPing { id })
     {
-        warn!("a probe did not encode: {error:#}");
+        warn!("a ping did not encode: {error:#}");
     }
 }
 
@@ -792,14 +802,12 @@ pub fn bridge_inbound(
                                 break;
                             }
                         };
-                    let action = match (pkt.verdict, probes.as_deref_mut()) {
-                        (Some(Verdict::Disconnect(refused)), _) => Action::Disconnect(refused),
-                        (Some(Verdict::Pass(checked)), Some(probes)) => {
-                            let now = probes.since_origin(pkt.timestamp);
-                            probes.guard.serverbound(&checked, now, &mut reports)
-                        }
-                        _ => Action::Forward,
-                    };
+                    let action = check_play(
+                        pkt.verdict,
+                        probes.as_deref_mut(),
+                        pkt.timestamp,
+                        &mut reports,
+                    );
                     for report in reports.drain(..) {
                         trace!(conn = ?entity, ?report, "a movement check reports");
                     }
@@ -846,6 +854,9 @@ pub fn bridge_inbound(
                                 id: pkt.id,
                                 data: pkt.payload,
                                 trigger,
+                                acknowledged_tick: probes
+                                    .as_deref()
+                                    .map_or(0, |probes| probes.pings.acknowledged_tick()),
                             },
                         )
                     {
@@ -864,6 +875,33 @@ pub fn bridge_inbound(
             }
         }
     }
+}
+
+fn check_play(
+    verdict: Option<Verdict>,
+    probes: Option<&mut Probes>,
+    arrival: Instant,
+    reports: &mut Vec<Report>,
+) -> Action {
+    let (checked, probes) = match (verdict, probes) {
+        (Some(Verdict::Disconnect(refused)), _) => return Action::Disconnect(refused),
+        (Some(Verdict::Pass(checked)), Some(probes)) => (checked, probes),
+        _ => return Action::Forward,
+    };
+    let answer = match checked.packet {
+        Serverbound::Pong(id) => probes.pings.answer(id),
+        _ => Answer::Unknown,
+    };
+    if answer == Answer::Unknown {
+        let now = probes.since_origin(arrival);
+        return probes.guard.serverbound(&checked, now, reports);
+    }
+    trace!(?answer, "a play ping is answered");
+    probes.guard.acknowledge(
+        probes.pings.acknowledged_tick(),
+        probes.pings.acknowledged_sent_at(),
+    );
+    Action::Drop
 }
 
 #[cfg(test)]
@@ -907,6 +945,7 @@ mod tests {
             id,
             data: Bytes::new(),
             trigger: None,
+            acknowledged_tick: 0,
         }
     }
 

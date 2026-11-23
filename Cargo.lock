@@ -7000,6 +7000,7 @@ dependencies = [
  "mcrs_minecraft_loot",
  "mcrs_minecraft_loot_condition",
  "mcrs_minecraft_loot_table",
+ "mcrs_minecraft_move_validate",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_nbt_path",
  "mcrs_minecraft_network",

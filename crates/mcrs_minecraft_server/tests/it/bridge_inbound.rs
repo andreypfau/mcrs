@@ -639,3 +639,60 @@ fn a_packet_past_the_nbt_budget_of_the_plugin_disconnects_and_is_not_delivered()
         );
     }
 }
+
+#[test]
+fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_only_our_pongs_are_taken() {
+    use mcrs_minecraft_engine::muxer::probes::Probes;
+    use mcrs_minecraft_engine::muxer::session::PendingInbound;
+
+    let mut world = build_inbound_world();
+    let dim = Entity::from_raw_u32(10).expect("nonzero");
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    let player = register_player(&mut world, dim, None);
+    attach_anchor(&mut world, socket, player);
+    let mut probes = Probes::default();
+    for _ in 0..3 {
+        probes.pings.ping(Duration::ZERO);
+        probes.pings.end_tick(Duration::ZERO);
+    }
+    world.entity_mut(socket).insert(probes);
+
+    let pong_row = row_of(game_serverbound::NAMES, "pong").unwrap();
+    let pong = |id: i32| {
+        let mut packet = frame(pong_row, &id.to_be_bytes());
+        packet.verdict = Some(mcrs_minecraft_move_validate::check_serverbound(
+            pong_row,
+            &id.to_be_bytes(),
+        ));
+        packet
+    };
+    for packet in [
+        make_received_packet(0),
+        pong(1),
+        make_received_packet(1),
+        pong(7),
+        pong(2),
+        make_received_packet(2),
+    ] {
+        tx.try_send(packet).unwrap();
+    }
+    run_inbound(&mut world);
+
+    let delivered: Vec<(i32, u64)> = world
+        .get::<PendingInbound>(player)
+        .unwrap()
+        .0
+        .iter()
+        .map(|packet| (packet.id, packet.acknowledged_tick))
+        .collect();
+    let keep_alive = keep_alive_row();
+    assert_eq!(
+        delivered,
+        [
+            (keep_alive, 0),
+            (keep_alive, 1),
+            (pong_row, 1),
+            (keep_alive, 2)
+        ]
+    );
+}

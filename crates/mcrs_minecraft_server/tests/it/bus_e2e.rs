@@ -157,6 +157,7 @@ fn inbound_latency_is_zero_host_ticks() {
             id: 0xCAFE,
             data: Bytes::new(),
             trigger: None,
+            acknowledged_tick: 0,
         });
 
     app.update();
@@ -228,6 +229,7 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                             id,
                             data: Bytes::new(),
                             trigger: None,
+                            acknowledged_tick: 0,
                         },
                     )
                     .is_ok()

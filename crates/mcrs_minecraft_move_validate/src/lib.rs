@@ -8,7 +8,6 @@ mod look;
 mod move_guard;
 mod packet_id;
 mod player_move;
-mod probes;
 mod report;
 mod reports;
 mod serverbound;

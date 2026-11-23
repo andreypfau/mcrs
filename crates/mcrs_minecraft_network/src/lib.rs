@@ -1,3 +1,4 @@
+mod answer;
 #[cfg(target_family = "wasm")]
 pub mod browser;
 #[cfg(feature = "bevy")]
@@ -21,6 +22,8 @@ pub mod lan;
 pub mod metrics;
 mod outbound;
 pub mod packet_io;
+mod ping_limits;
+mod play_pings;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod proxy_header;
 mod shared_frames;
@@ -35,6 +38,7 @@ pub use std::time::Instant;
 #[cfg(target_family = "wasm")]
 pub use web_time::Instant;
 
+pub use crate::answer::Answer;
 pub use crate::forwarding_secret::{
     EmptyForwardingSecret, FORWARDING_CHANNEL, ForwardedPlayer, ForwardingRefusal,
     ForwardingSecret, forwarding_query,
@@ -42,6 +46,8 @@ pub use crate::forwarding_secret::{
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{Inbound, MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
+pub use crate::ping_limits::PingLimits;
+pub use crate::play_pings::PlayPings;
 pub use crate::shared_frames::{SharedAppend, SharedFrames};
 #[cfg(not(target_family = "wasm"))]
 pub use crate::writer_wakes::WriterWakes;

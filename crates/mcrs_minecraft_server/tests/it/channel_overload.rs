@@ -81,6 +81,7 @@ fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
         id,
         data: Bytes::new(),
         trigger: None,
+        acknowledged_tick: 0,
     }
 }
 

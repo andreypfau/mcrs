@@ -320,6 +320,7 @@ impl PlayServer {
                     id: P::ID,
                     trigger,
                     data,
+                    acknowledged_tick: 0,
                 },
             );
         assert!(sent.is_ok(), "the dimension takes the packet");

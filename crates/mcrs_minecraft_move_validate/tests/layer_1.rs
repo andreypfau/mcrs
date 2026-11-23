@@ -51,7 +51,7 @@ enum Clientbound {
 
 #[derive(Clone, Copy, Debug)]
 enum Event {
-    ServerTick,
+    ServerTick(u64),
     Deliver(Clientbound),
     Frame,
     Arrive(Serverbound),
@@ -120,7 +120,7 @@ fn simulate(link: Link) -> Log {
     };
 
     for tick in 0..SERVER_TICKS {
-        queue.push(ms(tick * SERVER_TICK_MS), Event::ServerTick);
+        queue.push(ms(tick * SERVER_TICK_MS), Event::ServerTick(tick + 1));
     }
     let mut next_change = 0;
     let mut client_start: Option<Duration> = None;
@@ -135,26 +135,17 @@ fn simulate(link: Link) -> Log {
 
     while let Some((now, event)) = queue.pop() {
         match event {
-            Event::ServerTick => {
-                let mut wire = vec![Clientbound::Other];
-                guard.wrote();
+            Event::ServerTick(tick) => {
+                let mut wire = vec![Clientbound::Ping(tick as i32), Clientbound::Other];
                 for _ in 0..draws.below(4).saturating_sub(1) {
-                    if let Some(id) = guard.change(now) {
-                        wire.push(Clientbound::Ping(id));
-                    }
+                    guard.change(tick);
                     wire.push(Clientbound::Change(next_change));
                     next_change += 1;
                     if draws.below(2) == 0 {
-                        guard.wrote();
                         wire.push(Clientbound::Other);
                     }
                 }
-                if let Some(id) = guard.close_changes(now) {
-                    wire.push(Clientbound::Ping(id));
-                }
-                if let Some(id) = guard.end_server_tick(now) {
-                    wire.push(Clientbound::Ping(id));
-                }
+                guard.end_server_tick(now);
                 for packet in wire {
                     let at = delay(&mut draws, &mut last_down, now, link.down_ms);
                     queue.push(at, Event::Deliver(packet));
@@ -208,15 +199,15 @@ fn simulate(link: Link) -> Log {
                     queue.push(now + ms(link.frame_ms), Event::Frame);
                 }
             }
+            Event::Arrive(Serverbound::Pong(id)) => {
+                let tick = id as u64;
+                guard.acknowledge(tick, ms((tick - 1) * SERVER_TICK_MS));
+                log.actions.push(Action::Drop);
+            }
             Event::Arrive(packet) => {
                 let mut reports = Vec::new();
                 let action = guard.serverbound(&checked(packet), now, &mut reports);
-                assert!(
-                    !guard.overdue(now),
-                    "MVC-LAT-012: an answered probe never waits"
-                );
                 match (packet, action) {
-                    (Serverbound::Pong(_), Action::Drop) => {}
                     (Serverbound::ClientTickEnd, Action::EndTick(tick)) => {
                         log.ticks_sent += 1;
                         assert_eq!(tick, log.ticks_sent, "MVC-INV-006");

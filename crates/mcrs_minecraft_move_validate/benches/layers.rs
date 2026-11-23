@@ -46,23 +46,17 @@ fn layer_1(c: &mut Criterion) {
         .iter()
         .filter_map(|(id, body)| checked(*id, body))
         .collect();
-    let pong = id("pong");
     let mut guard = MoveGuard::new();
     let mut reports = Vec::new();
     let mut now = Duration::ZERO;
+    let mut tick = 0;
     c.bench_function("layer 1, three writes and five packets of one tick", |b| {
         b.iter(|| {
             now += Duration::from_millis(50);
-            let probes = [
-                guard.change(now),
-                guard.close_changes(now),
-                guard.end_server_tick(now),
-            ];
-            for probe in probes.into_iter().flatten() {
-                if let Some(answer) = checked(pong, &probe.to_be_bytes()) {
-                    black_box(guard.serverbound(&answer, now, &mut reports));
-                }
-            }
+            tick += 1;
+            guard.change(tick);
+            guard.end_server_tick(now);
+            guard.acknowledge(tick, now);
             for packet in &packets {
                 black_box(guard.serverbound(black_box(packet), now, &mut reports));
             }
