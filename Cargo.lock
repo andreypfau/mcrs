@@ -4380,6 +4380,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client",
+ "mcrs_minecraft_client_control",
  "mcrs_minecraft_client_entity",
  "mcrs_minecraft_client_gui",
  "mcrs_minecraft_client_jar",
@@ -4451,6 +4452,30 @@ dependencies = [
  "uuid",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "mcrs_minecraft_client_control"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_math",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_chat",
+ "mcrs_minecraft_chat_client",
+ "mcrs_minecraft_client_world",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_entity_visual",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

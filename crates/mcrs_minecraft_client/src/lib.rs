@@ -25,6 +25,8 @@ pub mod camera;
 pub mod cave;
 mod client_terrain_plugin;
 pub mod config;
+#[cfg(all(feature = "control", not(target_family = "wasm")))]
+pub mod control;
 #[cfg(feature = "dev")]
 pub mod dev;
 pub mod entities;
@@ -33,6 +35,8 @@ pub mod frozen_clocks;
 pub mod game_directory;
 mod glyph_page;
 pub mod hand_keys_plugin;
+#[cfg(not(target_family = "wasm"))]
+pub mod headless;
 pub mod input;
 pub mod light_volume;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]

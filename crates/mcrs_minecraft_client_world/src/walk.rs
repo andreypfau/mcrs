@@ -16,6 +16,7 @@ use crate::local_motion::LocalMotion;
 use crate::local_player::Sprint;
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::scripted_input::ScriptedInput;
 
 #[derive(Default)]
 pub(crate) struct WalkBuffers {
@@ -25,6 +26,7 @@ pub(crate) struct WalkBuffers {
 
 pub(crate) fn walk(
     input: Res<MovementInput>,
+    scripted: Res<ScriptedInput>,
     columns: Res<ColumnStore>,
     tables: Res<ClientPhysicsTables>,
     mut buffers: Local<WalkBuffers>,
@@ -45,7 +47,7 @@ pub(crate) fn walk(
     let tables = tables.tables();
     let world = ClientBlocks::new(&*columns, tables);
     let player_input = PlayerInput {
-        keys: keys(*input),
+        keys: keys(input.or(scripted.movement)),
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
             spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),

@@ -30,6 +30,7 @@ use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_motion::{self, LocalMotion};
 use crate::local_player::LocalPlayerTick;
 use crate::player::{Player, look_direction};
+use crate::scripted_input::ScriptedInput;
 
 const BREAK_DELAY: u8 = 5;
 const MISS_COOLDOWN: u32 = 10;
@@ -51,6 +52,7 @@ impl Plugin for BlockBreakingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AttackInput>()
             .init_resource::<Attack>()
+            .init_resource::<ScriptedInput>()
             .add_systems(
                 FixedUpdate,
                 attack.after(SendSelectedSlot).before(LocalPlayerTick),
@@ -185,7 +187,7 @@ fn is_operator_block(blocks: &BlockDefinitions, state: BlockStateId) -> bool {
     })
 }
 
-type Targets = (
+pub type Targets = (
     Entity,
     &'static ClientEntity,
     &'static Motion,
@@ -254,6 +256,44 @@ impl BreakWorld for ClientWorld<'_, '_, '_> {
     }
 }
 
+#[must_use]
+pub fn pick(
+    transform: &PhysicsTransform,
+    motion: Option<&LocalMotion>,
+    reach: Reach,
+    blocks: &BlockDefinitions,
+    store: &ColumnStore,
+    targets: &Query<Targets, Without<Player>>,
+) -> Option<Target> {
+    let eye = transform.translation + DVec3::Y * f64::from(local_motion::eye_height(motion));
+    let rotation = transform.rotation;
+    let direction = look_direction(rotation.yaw(), rotation.pitch())
+        .as_dvec3()
+        .normalize();
+    let boxes = targets.iter().filter_map(|(entity, client, motion, data)| {
+        if matches!(client.kind, EntityType::Item | EntityType::ExperienceOrb) || data.is_dying() {
+            return None;
+        }
+        let size = dimensions(client, data)?;
+        let aabb = Aabb::of_body(motion.current.position, size.width, size.height);
+        Some(EntityBox {
+            entity,
+            min: aabb.min,
+            max: aabb.max,
+        })
+    });
+    target(
+        eye,
+        direction,
+        reach,
+        |pos| {
+            let state = store.block(pos).unwrap_or(AIR);
+            blocks.shape(blocks.state(state).selection_shape)
+        },
+        boxes,
+    )
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter"
@@ -261,6 +301,7 @@ impl BreakWorld for ClientWorld<'_, '_, '_> {
 fn attack(
     mut input: ResMut<AttackInput>,
     mut attack: ResMut<Attack>,
+    scripted: Res<ScriptedInput>,
     player: Single<
         (
             &PhysicsTransform,
@@ -277,7 +318,7 @@ fn attack(
     predictions: Option<ResMut<BlockPredictions>>,
     targets: Query<Targets, Without<Player>>,
 ) {
-    let input = input.take();
+    let input = input.take().with(scripted.attack);
     let (transform, motion, instances, mode, permission) = player.into_inner();
     let (
         Some(reach),
@@ -301,33 +342,13 @@ fn attack(
     if *state != ConnectionState::Game {
         return;
     }
-    let eye =
-        transform.translation + DVec3::Y * f64::from(local_motion::eye_height(motion.as_deref()));
-    let rotation = transform.rotation;
-    let direction = look_direction(rotation.yaw(), rotation.pitch())
-        .as_dvec3()
-        .normalize();
-    let boxes = targets.iter().filter_map(|(entity, client, motion, data)| {
-        if matches!(client.kind, EntityType::Item | EntityType::ExperienceOrb) || data.is_dying() {
-            return None;
-        }
-        let size = dimensions(client, data)?;
-        let aabb = Aabb::of_body(motion.current.position, size.width, size.height);
-        Some(EntityBox {
-            entity,
-            min: aabb.min,
-            max: aabb.max,
-        })
-    });
-    let target = target(
-        eye,
-        direction,
+    let target = pick(
+        transform,
+        motion.as_deref(),
         reach,
-        |pos| {
-            let state = store.block(pos).unwrap_or(AIR);
-            blocks.shape(blocks.state(state).selection_shape)
-        },
-        boxes,
+        &blocks,
+        &store,
+        &targets,
     );
     let attack_knockback = instances
         .and_then(|instances| instances.value(Attribute::AttackKnockback))

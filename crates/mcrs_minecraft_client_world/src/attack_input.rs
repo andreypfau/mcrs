@@ -13,4 +13,16 @@ impl AttackInput {
         self.presses = 0;
         taken
     }
+
+    #[must_use]
+    pub fn with(self, scripted: AttackInput) -> AttackInput {
+        if self.screen_open {
+            return self;
+        }
+        AttackInput {
+            presses: self.presses.saturating_add(scripted.presses),
+            down: self.down || scripted.down,
+            screen_open: false,
+        }
+    }
 }

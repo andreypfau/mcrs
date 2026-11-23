@@ -27,6 +27,8 @@ use mcrs_minecraft_resource::Id;
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
+use mcrs_minecraft_client::headless;
+use mcrs_minecraft_client::headless::HeadlessClientPlugin;
 #[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
@@ -93,7 +95,8 @@ pub fn run() -> AppExit {
     });
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
-    let world = world_folder();
+    let arguments = Arguments::read();
+    let world = arguments.world;
     let game_directory = game_directory();
     let knobs = knobs(game_directory.as_ref());
     let frozen_at = knobs.frozen_time();
@@ -113,6 +116,9 @@ pub fn run() -> AppExit {
         }
     };
 
+    if arguments.headless {
+        return run_headless(&knobs, arguments.control, assets, data_pack);
+    }
     let wgpu = WgpuSettings {
         features: WgpuFeatures::TIMESTAMP_QUERY,
         ..default()
@@ -285,13 +291,7 @@ pub fn run() -> AppExit {
             profile_id: None,
             view_distance,
         };
-        app.add_systems(
-            Update,
-            (move |mut requests: MessageWriter<JoinRequest>| {
-                requests.write(join.clone());
-            })
-            .run_if(resource_added::<mcrs_minecraft_block::definition::Blocks>),
-        );
+        headless::join_when_loaded(&mut app, join);
     }
     app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
@@ -347,8 +347,94 @@ pub fn run() -> AppExit {
     }
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app);
+    if !add_control(&mut app, arguments.control.as_deref()) {
+        return AppExit::error();
+    }
+    #[cfg(feature = "control")]
+    app.add_plugins(mcrs_minecraft_client::control::MeshedPlugin);
 
     app.run()
+}
+
+fn run_headless(
+    knobs: &Knobs,
+    control: Option<String>,
+    assets: String,
+    data_pack: PathBuf,
+) -> AppExit {
+    let Some(server) = server_address(knobs) else {
+        eprintln!("--headless needs MCRS_SERVER=<host>:<port>");
+        return AppExit::error();
+    };
+    let mut app = App::new();
+    app.add_plugins(HeadlessClientPlugin {
+        packs: PackRoots {
+            assets,
+            vanilla: data_pack,
+        },
+        join: JoinRequest {
+            server,
+            username: knobs.username(),
+            profile_id: None,
+            view_distance: knobs.view_distance(),
+        },
+    });
+    if !add_control(&mut app, control.as_deref()) {
+        return AppExit::error();
+    }
+    app.run()
+}
+
+fn add_control(app: &mut App, address: Option<&str>) -> bool {
+    let Some(address) = address else {
+        return true;
+    };
+    #[cfg(feature = "control")]
+    match mcrs_minecraft_client_control::ControlPlugin::bind(address) {
+        Ok(plugin) => {
+            app.add_plugins(plugin);
+            true
+        }
+        Err(error) => {
+            eprintln!("--control {address}: {error}");
+            false
+        }
+    }
+    #[cfg(not(feature = "control"))]
+    {
+        let _ = app;
+        eprintln!("--control {address}: this client is built without the feature control");
+        false
+    }
+}
+
+#[derive(Default)]
+struct Arguments {
+    world: Option<PathBuf>,
+    control: Option<String>,
+    headless: bool,
+}
+
+impl Arguments {
+    fn read() -> Self {
+        let mut arguments = Self::default();
+        let mut words = std::env::args_os().skip(1);
+        while let Some(word) = words.next() {
+            match word.to_str() {
+                Some("--headless") => arguments.headless = true,
+                Some("--control") => {
+                    let Some(address) = words.next().and_then(|word| word.into_string().ok())
+                    else {
+                        eprintln!("--control needs a socket path");
+                        std::process::exit(1);
+                    };
+                    arguments.control = Some(address);
+                }
+                _ => arguments.world = Some(world_folder(PathBuf::from(word))),
+            }
+        }
+        arguments
+    }
 }
 
 fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
@@ -432,13 +518,12 @@ fn preselected_world(world: &Path, game_directory: Option<&GameDirectory>) -> Op
         .map(|name| name.to_string_lossy().into_owned())
 }
 
-fn world_folder() -> Option<PathBuf> {
-    let path = std::env::args_os().nth(1).map(PathBuf::from)?;
+fn world_folder(path: PathBuf) -> PathBuf {
     if !path.is_dir() {
         eprintln!("not a world folder: {}", path.display());
         std::process::exit(1);
     }
-    Some(path)
+    path
 }
 
 fn log_registry_counts(registries: Res<CurrentRegistries>) {
