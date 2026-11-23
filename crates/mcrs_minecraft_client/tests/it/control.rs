@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
+use std::time::Duration;
 
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -17,6 +18,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnPos;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::ClientEntity;
+use mcrs_minecraft_entity_visual::SyncedData;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
@@ -29,6 +31,7 @@ struct Controller {
 }
 
 const MAX_TICKS: usize = 2000;
+const MAX_AIMS: usize = 20;
 
 impl Controller {
     fn connect(address: &str) -> Self {
@@ -89,6 +92,41 @@ fn fly(world: &mut World) {
     }
 }
 
+fn health(app: &App, entity: Entity) -> Option<f32> {
+    app.world()
+        .get::<SyncedData>(entity)
+        .map(|data| data.health)
+}
+
+fn wait_for_hit(app: &mut App, pig: Entity) {
+    for _ in 0..MAX_TICKS {
+        let damaged = app.world().resource::<Damaged>().0.contains(&pig);
+        if damaged && health(app, pig) != Some(10.0) {
+            return;
+        }
+        fly(app.world_mut());
+        std::thread::sleep(Duration::from_millis(5));
+        app.update();
+    }
+}
+
+fn aim(control: &mut Controller, app: &mut App, network_id: i32) -> bool {
+    for _ in 0..MAX_AIMS {
+        fly(app.world_mut());
+        assert_eq!(
+            control.ask(app, &format!("look_entity {network_id}")),
+            Reply::Done
+        );
+        let Reply::Target(aimed) = control.ask(app, "target") else {
+            panic!("target answers with the pick");
+        };
+        if matches!(aimed, Target::Entity(entity) if entity.id == network_id) {
+            return true;
+        }
+    }
+    false
+}
+
 #[test]
 fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
     let address = std::env::temp_dir().join(format!("mcrs-control-{}.sock", std::process::id()));
@@ -127,6 +165,10 @@ fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
             .holds(ColumnPos::from(DVec3::ZERO));
         target.is_some() && column_held
     });
+    test_support::connection(world.app.world_mut()).write_packet(&ServerboundChatCommand {
+        command: Bounded("fill -1 -1 -1 1 1 3 minecraft:air"),
+    });
+    test_support::round_trip(&mut world.app);
     let (pig, network_id) = target.unwrap();
     let Reply::Entities(nearby) = control.ask(&mut world.app, "entities 8") else {
         panic!("entities answers with the list");
@@ -146,27 +188,28 @@ fn a_look_and_an_attack_through_the_control_socket_hit_the_pig_on_the_server() {
     );
     let is_pig =
         |target: &Target| matches!(target, Target::Entity(entity) if entity.id == network_id);
-    for _ in 0..100 {
-        fly(world.app.world_mut());
-        assert_eq!(
-            control.ask(&mut world.app, &format!("look_entity {network_id}")),
-            Reply::Done
-        );
-        let Reply::Target(aimed) = control.ask(&mut world.app, "target") else {
-            panic!("target answers with the pick");
-        };
-        let Reply::Attacked(attacked) = control.ask(&mut world.app, "attack") else {
-            panic!("attack answers with what it attacked");
-        };
-        assert_eq!(is_pig(&aimed), is_pig(&attacked), "{aimed:?} {attacked:?}");
-        if world.app.world().resource::<Damaged>().0.contains(&pig) {
-            assert!(is_pig(&attacked), "{attacked:?}");
-            break;
-        }
-    }
+    assert!(
+        aim(&mut control, &mut world.app, network_id),
+        "the settled player picks the pig within {MAX_AIMS} aims"
+    );
+    assert_eq!(
+        health(&world.app, pig),
+        Some(10.0),
+        "the pig starts at full health"
+    );
+    let Reply::Attacked(attacked) = control.ask(&mut world.app, "attack") else {
+        panic!("attack answers with what it attacked");
+    };
+    assert!(is_pig(&attacked), "{attacked:?}");
+    wait_for_hit(&mut world.app, pig);
+    assert_eq!(
+        health(&world.app, pig),
+        Some(9.0),
+        "the first attack at full strength takes the attack damage of 1.0"
+    );
     assert!(
         world.app.world().resource::<Damaged>().0.contains(&pig),
-        "the pig takes damage within 100 attacks"
+        "the server reports the hit on the pig"
     );
     drop(control);
     world.leave();
