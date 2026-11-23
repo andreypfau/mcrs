@@ -113,3 +113,33 @@ fn attribute_sets_reads_and_resets_the_base_of_a_mob() {
         );
     }
 }
+
+#[test]
+fn attribute_sets_and_resets_the_base_of_a_player() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    server.ticks(operator, 2);
+    let cases = [
+        (
+            "base set 40",
+            "commands.attribute.base_value.set.success",
+            40.0,
+        ),
+        ("get", "commands.attribute.value.get.success", 40.0),
+        (
+            "base reset",
+            "commands.attribute.base_value.reset.success",
+            20.0,
+        ),
+        ("get", "commands.attribute.value.get.success", 20.0),
+    ];
+    for (form, key, number) in cases {
+        let line = format!("attribute @p minecraft:max_health {form}");
+        assert_eq!(
+            answer(&mut server, operator, &line),
+            (key.to_owned(), Some(number)),
+            "{line}"
+        );
+    }
+}
