@@ -21,7 +21,16 @@ use crate::handle::Supervisor;
 use crate::tools::Output;
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args = std::env::args().skip(1).peekable();
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the session of a command-line call comes from the shell of the agent"
+    )]
+    let session = args
+        .next_if_eq("--session")
+        .and_then(|_| args.next())
+        .or_else(|| std::env::var("MCRS_MCP_SESSION").ok());
+    let args: Vec<String> = args.collect();
     let workdir = std::env::current_dir().unwrap_or_default();
     let Some(tool) = args.first() else {
         let mut supervisor = match Supervisor::serving(workdir) {
@@ -53,7 +62,11 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match tools::call(&mut Supervisor::command_line(workdir), tool, &arguments) {
+    match tools::call(
+        &mut Supervisor::command_line(workdir, session),
+        tool,
+        &arguments,
+    ) {
         Ok(Output::Text(text)) => println!("{text}"),
         Ok(Output::Image { path, .. }) => println!("{}", path.display()),
         Err(error) => {

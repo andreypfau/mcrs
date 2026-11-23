@@ -39,7 +39,10 @@ pub struct Handle {
     pub kind: Kind,
     pub pid: u32,
     pub port: Option<u16>,
-    pub owner: Option<u32>,
+    #[serde(default)]
+    pub session: String,
+    #[serde(default)]
+    pub workdir: PathBuf,
     #[serde(default)]
     pub control: Option<PathBuf>,
 }
@@ -52,6 +55,7 @@ pub struct RunDir {
 pub struct Launch<'a> {
     pub kind: Kind,
     pub program: PathBuf,
+    pub workdir: &'a Path,
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
     pub port: Option<u16>,
@@ -109,6 +113,17 @@ impl Handle {
         entries
             .filter_map(|entry| Self::load(&entry.ok()?.file_name().into_string().ok()?).ok())
             .collect()
+    }
+
+    pub fn age_s(&self) -> Option<u64> {
+        let modified = std::fs::metadata(self.dir().join("handle.json"))
+            .ok()?
+            .modified();
+        Some(modified.ok()?.elapsed().ok()?.as_secs())
+    }
+
+    pub fn forget(&self) {
+        std::fs::remove_file(self.dir().join("handle.json")).ok();
     }
 
     pub fn alive(&self) -> bool {
@@ -172,7 +187,7 @@ fn signal_group(pid: u32, number: i32) {
 
 pub struct Supervisor {
     pub workdir: PathBuf,
-    owner: Option<u32>,
+    session: String,
     watchdog: Option<std::process::ChildStdin>,
 }
 
@@ -180,10 +195,10 @@ const WATCHDOG: &str = "trap '' INT TERM HUP; while read group; do set -- \"$@\"
 for group; do kill -TERM -\"$group\"; done 2>/dev/null; sleep 5; for group; do kill -KILL -\"$group\"; done 2>/dev/null";
 
 impl Supervisor {
-    pub fn command_line(workdir: PathBuf) -> Self {
+    pub fn command_line(workdir: PathBuf, session: Option<String>) -> Self {
         Self {
+            session: session.unwrap_or_else(|| workdir.display().to_string()),
             workdir,
-            owner: None,
             watchdog: None,
         }
     }
@@ -199,13 +214,13 @@ impl Supervisor {
             .map_err(|error| format!("the watchdog did not start: {error}"))?;
         Ok(Self {
             workdir,
-            owner: Some(std::process::id()),
+            session: format!("mcp-{}", std::process::id()),
             watchdog: watchdog.stdin,
         })
     }
 
     pub fn owns(&self, handle: &Handle) -> bool {
-        handle.owner == self.owner
+        handle.session == self.session
     }
 
     pub fn spawn(&mut self, launch: Launch<'_>) -> Result<Handle, String> {
@@ -240,7 +255,8 @@ impl Supervisor {
             kind: launch.kind,
             pid: child.id(),
             port: launch.port,
-            owner: self.owner,
+            session: self.session.clone(),
+            workdir: launch.workdir.to_owned(),
             control: launch.control,
         };
         if let Some(watchdog) = &mut self.watchdog {

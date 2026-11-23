@@ -7,4 +7,5 @@
 
 mod lifecycle;
 mod orphans;
+mod sessions;
 mod support;

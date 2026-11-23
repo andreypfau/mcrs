@@ -86,6 +86,7 @@ pub fn server(
     supervisor.spawn(Launch {
         kind: Kind::Server,
         program: workdir.join("target/release/mcrs"),
+        workdir,
         args: options.world.map(str::to_owned).into_iter().collect(),
         env,
         port: Some(port),
@@ -127,6 +128,7 @@ enforce-secure-profile=false\nenable-rcon=false\nenable-query=false\n",
     supervisor.spawn(Launch {
         kind: Kind::Vanilla,
         program: PathBuf::from("java"),
+        workdir,
         args: ["-Xmx2G", "-jar", &jar, "nogui"]
             .map(str::to_owned)
             .to_vec(),
@@ -171,6 +173,7 @@ pub fn client(
     supervisor.spawn(Launch {
         kind: Kind::Client,
         program: workdir.join("target/release/mcrs_minecraft_client"),
+        workdir,
         args,
         env,
         port: None,

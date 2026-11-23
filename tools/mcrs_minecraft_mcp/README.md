@@ -1,5 +1,7 @@
 # mcrs_minecraft_mcp
 
+Your `stop all` stops only your handles. Pass `--session` if you work in more than one worktree.
+
 An MCP server (stdio) and a command line that build, start, wait on and stop the mcrs
 server, the pinned vanilla server and the mcrs client. An agent waits for a log line,
 never for a time.
@@ -11,6 +13,12 @@ never for a time.
   `claude mcp add mcrs --scope user -- <path>/target/debug/mcrs_minecraft_mcp`, then start a new session.
 - Command line: `mcrs_minecraft_mcp <tool> '<json arguments>'`; `mcrs_minecraft_mcp help` lists the tools.
   The result goes to stdout; an error goes to stderr with exit code 1.
+
+Each handle belongs to a session. A command-line call takes its session from
+`mcrs_minecraft_mcp --session <name> <tool> '<json>'`, else from `MCRS_MCP_SESSION`, else it
+uses the current directory. The working directory of an agent is its worktree, and it does not
+change between two Bash calls. An MCP server is one session. `stop` refuses a handle of another
+session unless `"force":true`.
 
 Every tool that touches a checkout takes `workdir`, the absolute path of the worktree.
 The default is the directory where the binary started.
@@ -28,11 +36,13 @@ The default is the directory where the binary started.
 | `command` | `{"id":"s1","commands":["summon minecraft:pig 0 100 0","data get entity @e[type=pig,limit=1] Pos"]}` | the reply lines of each command |
 | `logs` | `{"id":"c1","level":"error"}`, or `"grep":"<regex>"`, `"limit":50` | at most `limit` (max 200) last lines |
 | `screenshot` | `{"id":"c1","max_px":1024}`; it waits for `world_ready` unless `"wait":false` | the image and its file path |
-| `stop` | `{"id":"s1"}` or `{"id":"all"}` | one line for each handle |
+| `stop` | `{"id":"s1"}` or `{"id":"all"}` (the handles of this session); `"force":true` for a handle of another session | one line for each handle |
+| `list` | `{}`, or `{"everyone":true}` for all sessions | one JSON line for each running handle: `id`, `kind`, `port`, `age_s`, `workdir`, `session` |
 
 Both start tools take `env`, extra `MCRS_*` variables, for example `{"MCRS_VIEW":"8"}`.
 Each handle gets a free port and its own run directory under `$TMPDIR/mcrs_minecraft_mcp/<id>`.
 The client gets its own game directory there, so two runs do not share options or a port.
+`list` drops a handle whose process is gone; its log stays in its run directory.
 
 Typical run: `build`, `server_start`, `wait server_ready`, `client_start`, `wait world_ready`,
 `wait on_ground`, set up with `command`, act with `client_input`, read with `client_state` and `command`,

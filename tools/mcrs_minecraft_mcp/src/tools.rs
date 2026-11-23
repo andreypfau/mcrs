@@ -82,9 +82,15 @@ pub fn list() -> Value {
         ),
         tool(
             "stop",
-            "stop one handle, or all handles of this process with id=all",
-            json!({ "id": id }),
+            "stop one handle of this session, or all its handles with id=all; force=true stops a handle of another session",
+            json!({ "id": id, "force": { "type": "boolean" } }),
             &["id"]
+        ),
+        tool(
+            "list",
+            "the running handles of this session, or of every session with everyone=true; drops the handles whose process is gone",
+            json!({ "everyone": { "type": "boolean" } }),
+            &[]
         ),
         tool(
             "logs",
@@ -165,7 +171,16 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
                     .into_iter()
                     .filter(|handle| supervisor.owns(handle) && handle.alive())
                     .collect(),
-                _ => vec![handle()?],
+                _ => {
+                    let handle = handle()?;
+                    if !supervisor.owns(&handle) && args["force"] != true {
+                        return Err(format!(
+                            "{} belongs to the session {:?}; pass \"force\": true to stop it",
+                            handle.id, handle.session
+                        ));
+                    }
+                    vec![handle]
+                }
             };
             let report: Vec<String> = handles
                 .iter()
@@ -173,6 +188,7 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
                 .collect();
             Ok(Output::Text(report.join("\n")))
         }
+        "list" => Ok(listed(supervisor, args["everyone"] == true)),
         "logs" => {
             let handle = handle()?;
             let pattern = match (text("level"), text("grep")) {
@@ -209,6 +225,23 @@ pub fn call(supervisor: &mut Supervisor, name: &str, args: &Value) -> Result<Out
         "client_input" => run_actions(&handle()?, &args["actions"]),
         other => Err(format!("unknown tool {other}")),
     }
+}
+
+fn listed(supervisor: &Supervisor, everyone: bool) -> Output {
+    let mut rows = Vec::new();
+    for handle in Handle::all() {
+        if !everyone && !supervisor.owns(&handle) {
+            continue;
+        }
+        if !handle.alive() {
+            handle.forget();
+            continue;
+        }
+        let row = json!({ "id": handle.id, "kind": handle.kind, "port": handle.port, "age_s": handle.age_s(),
+                          "workdir": handle.workdir, "session": handle.session });
+        rows.push(row.to_string());
+    }
+    Output::Text(rows.join("\n"))
 }
 
 fn wait(handle: &Handle, until: &str, timeout: Duration) -> Result<Output, String> {
