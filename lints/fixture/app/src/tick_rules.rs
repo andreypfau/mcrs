@@ -47,6 +47,8 @@ fn reuses(mut buffer: Local<Vec<u8>>, scores: Query<&Score>) {
     buffer.extend(scores.iter().map(|score| score.0));
     let taken = std::mem::take(&mut *buffer);
     *buffer = taken;
+    drop(Vec::<u8>::new());
+    drop(async { load() });
 }
 
 #[cfg_attr(mcrs_lint, expect(mcrs::per_frame_insert_resource, reason = "fixture"))]
@@ -91,6 +93,13 @@ fn writes_on_change(mut scores: Query<&mut Score>) {
             score.0 = 2;
         }
         score.set_if_neq(Score(3));
+        if score.0 > 4 {
+            score.0 = 4;
+        }
+        if score.0 == 5 {
+            continue;
+        }
+        score.0 = 5;
     }
 }
 

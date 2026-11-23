@@ -2,10 +2,13 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_errors::Diag;
 use rustc_errors::DiagDecorator;
 use rustc_hir::BinOpKind;
+use rustc_hir::Block;
 use rustc_hir::BodyId;
 use rustc_hir::Expr;
 use rustc_hir::ExprKind;
 use rustc_hir::MatchSource;
+use rustc_hir::Stmt;
+use rustc_hir::StmtKind;
 use rustc_hir::UnOp;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
@@ -45,7 +48,7 @@ pub struct BodyFacts {
 
 pub type BodyMap = FxHashMap<LocalDefId, BodyFacts>;
 
-pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors) -> BodyMap {
+pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors, test: bool) -> BodyMap {
     let mut bodies = BodyMap::default();
     for owner in tcx.hir_body_owners() {
         if tcx.is_typeck_child(owner.to_def_id()) {
@@ -59,6 +62,7 @@ pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors) -> BodyMap {
             conditional: 0,
             guarded: 0,
             compared: 0,
+            test,
             anchors,
             bodies: &mut bodies,
         };
@@ -75,6 +79,7 @@ struct Scanner<'a, 'tcx> {
     conditional: usize,
     guarded: usize,
     compared: usize,
+    test: bool,
     anchors: &'a Anchors,
     bodies: &'a mut BodyMap,
 }
@@ -91,12 +96,29 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         if !self.tcx.is_typeck_child(owner.to_def_id()) {
             return;
         }
-        if self.tcx.is_closure_like(owner.to_def_id()) {
+        if self.tcx.is_closure_like(owner.to_def_id())
+            && self.tcx.coroutine_kind(owner.to_def_id()).is_none()
+        {
             self.facts().closures.push(owner);
         }
         self.owners.push(owner);
         self.visit_body(self.tcx.hir_body(id));
         self.owners.pop();
+    }
+
+    fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
+        let mut guards = 0;
+        for stmt in block.stmts {
+            self.visit_stmt(stmt);
+            if exits_unless_changed(stmt) {
+                guards += 1;
+                self.compared += 1;
+            }
+        }
+        if let Some(expr) = block.expr {
+            self.visit_expr(expr);
+        }
+        self.compared -= guards;
     }
 
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
@@ -255,7 +277,9 @@ impl<'tcx> Scanner<'_, 'tcx> {
         {
             self.facts().calls.push(local);
         }
-        if !anchors.moves.contains(&callee) && anchors.is_heap(self.typeck.expr_ty(expr)) {
+        let empty = args.is_empty() && matches!(tcx.item_name(callee).as_str(), "new" | "default");
+        if !empty && !anchors.moves.contains(&callee) && anchors.is_heap(self.typeck.expr_ty(expr))
+        {
             self.facts().allocs.push(expr.span);
         }
         let Some(host) = anchors.method_host(tcx, callee) else {
@@ -306,7 +330,7 @@ impl<'tcx> Scanner<'_, 'tcx> {
     }
 
     fn check_assign(&mut self, expr: &'tcx Expr<'tcx>, place: &'tcx Expr<'tcx>) {
-        if self.compared > 0 || !self.through_change_tracked(place) {
+        if self.test || self.compared > 0 || !self.through_change_tracked(place) {
             return;
         }
         let ty = self.typeck.expr_ty(place);
@@ -356,12 +380,50 @@ impl<'tcx> Scanner<'_, 'tcx> {
 fn compares(expr: &Expr<'_>) -> bool {
     match expr.kind {
         ExprKind::Binary(op, left, right) => {
-            matches!(op.node, BinOpKind::Eq | BinOpKind::Ne) || compares(left) || compares(right)
+            matches!(
+                op.node,
+                BinOpKind::Eq
+                    | BinOpKind::Ne
+                    | BinOpKind::Lt
+                    | BinOpKind::Le
+                    | BinOpKind::Gt
+                    | BinOpKind::Ge
+            ) || compares(left)
+                || compares(right)
         }
+        ExprKind::Unary(UnOp::Not, _) => true,
         ExprKind::Unary(_, inner) | ExprKind::DropTemps(inner) => compares(inner),
-        ExprKind::MethodCall(segment, ..) => matches!(segment.ident.name.as_str(), "eq" | "ne"),
+        ExprKind::MethodCall(segment, ..) => matches!(
+            segment.ident.name.as_str(),
+            "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "is_none" | "is_some" | "set_if_neq"
+        ),
         _ => false,
     }
+}
+
+fn exits_unless_changed(stmt: &Stmt<'_>) -> bool {
+    let (StmtKind::Expr(expr) | StmtKind::Semi(expr)) = stmt.kind else {
+        return false;
+    };
+    let ExprKind::If(condition, then, None) = expr.kind else {
+        return false;
+    };
+    let ExprKind::Block(block, _) = then.kind else {
+        return false;
+    };
+    let last = block.expr.or_else(|| {
+        block.stmts.last().and_then(|stmt| match stmt.kind {
+            StmtKind::Expr(expr) | StmtKind::Semi(expr) => Some(expr),
+            _ => None,
+        })
+    });
+    compares(condition)
+        && last.is_some_and(|last| {
+            matches!(
+                last.kind,
+                ExprKind::Ret(_) | ExprKind::Continue(_) | ExprKind::Break(..)
+            )
+        })
 }
 
 fn contains_unit(ty: Ty<'_>) -> bool {

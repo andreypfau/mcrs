@@ -62,7 +62,8 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .map(|writes| (writes.system.clone(), writes.components.clone()))
             .collect();
         let mut resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
-        let bodies = body_scan::scan(tcx, &anchors);
+        let test = is_test_target();
+        let bodies = body_scan::scan(tcx, &anchors, test);
         let tick_schedules = system_rules::tick_schedules();
         let context = system_rules::Context {
             tcx,
@@ -72,7 +73,11 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             tick_schedules: &tick_schedules,
             dep_writes: &dep_writes,
         };
-        let local_always = system_rules::check(&context, &resolved.uses, &resolved.observers);
+        let local_always = if test {
+            Vec::new()
+        } else {
+            system_rules::check(&context, &resolved.uses, &resolved.observers)
+        };
         let always_changed: FxHashMap<String, String> = deps
             .iter()
             .flat_map(|facts| &facts.always_changed)
@@ -115,4 +120,12 @@ fn facts_path(tcx: TyCtxt<'_>, krate: CrateNum) -> Option<PathBuf> {
         source.rmeta.clone().or_else(|| source.rlib.clone())?
     };
     Some(metadata.with_extension("mcrs-lint.json"))
+}
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "cargo sets `CARGO_TARGET_TMPDIR` only for integration tests and benchmarks"
+)]
+fn is_test_target() -> bool {
+    std::env::var_os("CARGO_TARGET_TMPDIR").is_some()
 }

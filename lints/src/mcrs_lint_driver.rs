@@ -24,6 +24,8 @@ mod resolve;
 mod signature_rules;
 mod system_rules;
 
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::ExitCode;
 
@@ -49,18 +51,30 @@ fn main() -> ExitCode {
     rustc_driver::init_rustc_env_logger(&early);
     rustc_driver::install_ice_hook("https://github.com/andreypfau/mcrs/issues", |_| ());
     rustc_driver::catch_with_exit_code(move || {
-        let args: Vec<String> = rustc_driver::args::raw_args(&early)
-            .into_iter()
-            .skip(1)
-            .collect();
+        let mut args = rustc_driver::args::raw_args(&early);
+        if is_wrapper_call(&args) {
+            args.remove(0);
+        }
         rustc_driver::run_compiler(&args, &mut LintCallbacks);
     })
 }
 
+fn is_wrapper_call(args: &[String]) -> bool {
+    args.get(1)
+        .and_then(|first| Path::new(first).file_stem())
+        .is_some_and(|stem| stem == "rustc")
+}
+
 fn run_rustc() -> ExitCode {
-    let mut args = std::env::args().skip(1);
-    let Some(rustc) = args.next() else {
-        return ExitCode::FAILURE;
+    let all: Vec<String> = std::env::args().collect();
+    let mut args = all.iter().skip(1);
+    let rustc = if is_wrapper_call(&all) {
+        match args.next() {
+            Some(rustc) => PathBuf::from(rustc),
+            None => return ExitCode::FAILURE,
+        }
+    } else {
+        PathBuf::from("rustc")
     };
     match Command::new(rustc).args(args).status() {
         Ok(status) if status.success() => ExitCode::SUCCESS,

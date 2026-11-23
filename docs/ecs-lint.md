@@ -12,7 +12,7 @@ these rules: the rules need the types of system parameters and the schedule of e
 | Existing linters | not used. `bevy_lint` pins another nightly and has no model of the schedule | §1 |
 | Unit of analysis | one model of registrations per crate, built once; each rule reads the model | §3 |
 | Facts across crates | each crate writes a facts file; a crate reads the facts files of its dependencies | §4 |
-| Diagnostics | real rustc lints in the tool namespace `mcrs`; `#[expect]` with a reason suppresses one | §5 |
+| Diagnostics | real rustc lints in the tool namespace `mcrs`, at level `deny`; `#[expect]` with a reason suppresses one | §5 |
 | Matching of Bevy items | definition paths, checked at start: a missing anchor is an error | §6 |
 
 ## 1. Why a new linter
@@ -107,8 +107,11 @@ case needs an `#[expect]` with a reason, or a later workspace pass.
 
 ## 5. Rules
 
-Each rule is a lint with the name `mcrs::<rule>`. A lint is emitted at the `HirId` of the item
-or of the registration, so `#[expect]` on that item applies.
+Each rule is a lint with the name `mcrs::<rule>` and the level `deny`. A lint is emitted at the
+`HirId` of the item or of the registration, so `#[expect]` on that item applies. Fix the code
+when the fix keeps the behaviour. Otherwise, add an `#[expect]` with a reason that states why the
+code is correct. Rust does not accept an attribute on an expression statement, so put the
+`#[expect]` of an expression lint on a `let` statement or on the enclosing function.
 
 ```rust
 #[cfg_attr(mcrs_lint, expect(mcrs::exclusive_system, reason = "drives the dimension sub-apps"))]
@@ -116,7 +119,8 @@ fn tick_dimensions(world: &mut World) { /* ... */ }
 ```
 
 Rules on systems. A "tick system" is a system in a tick schedule. "Reach" is the body of the
-system, its closures, and the local functions that it calls, at any depth.
+system, its closures, and the local functions that it calls, at any depth. An `async` block is
+not in the reach, because a task pool runs it outside the system.
 
 | Lint | Rule | Check |
 |------|------|-------|
@@ -124,7 +128,7 @@ system, its closures, and the local functions that it calls, at any depth.
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
 | `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated` or `If` parameter |
 | `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` or a `block_on` |
-| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace` and `mem::swap` do not count |
+| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count |
 | `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
@@ -134,7 +138,7 @@ Rules on any function:
 
 | Lint | Rule | Check |
 |------|------|-------|
-| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside an `if` that compares with `==` or `!=` |
+| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside a guard. A guard is an `if` with a comparison, a `!`, `is_none` or `is_some` in its condition, or such an `if` that ends with `return`, `continue` or `break` before the assignment |
 | `borrowed_reborrowable` | Pass a reborrow, not `&mut` | a parameter `&mut` of `Commands`, `EntityCommands`, `Query`, `DeferredWorld`, `EntityMut`, `Mut`, `ResMut` or `NonSendMut`, if the return type does not use its lifetime; `self` and trait methods are not checked |
 | `zst_query` | Filter on a marker | `Query` data that fetches `&T` of a unit component |
 | `insert_message_resource` | Register messages with `add_message` | `init_resource` or `insert_resource` of `Messages<T>` |
@@ -149,6 +153,12 @@ system runs on demand, are not checked.
 `Time<Fixed>` in a frame schedule is not a mismatch: interpolation reads the overstep of the
 fixed clock there.
 
+Integration tests and benchmarks are not checked for the rules on systems and for
+`missed_set_if_neq`: their schedules do not run in the game tick. Cargo sets
+`CARGO_TARGET_TMPDIR` only for these targets, and the driver reads it. The other rules apply to
+all targets. Unit tests in `#[cfg(test)]` modules compile with their library, so all rules apply
+to them.
+
 ## 6. Matching of Bevy items
 
 The pass compares the definition path of a `DefId` (for example
@@ -156,12 +166,20 @@ The pass compares the definition path of a `DefId` (for example
 depends on `bevy_ecs`, the pass resolves every anchor. An anchor that does not resolve is an
 error, so a Bevy upgrade cannot make a rule stop without a message.
 
-## 7. Migration path
+## 7. CI
 
-1. The driver, the model, `exclusive_system` and `ungated_system`. The existing violations get
-   an `#[expect]` with a reason or a fix.
-2. CI builds the driver before `cargo check`, so that a missing driver cannot skip the lints.
-3. Each next rule comes with its fixes or expectations, one rule per pull request.
+The `lint` job runs the check `ecs-lint` of `xtask`:
+
+1. It installs the toolchain of `lints/rust-toolchain.toml` and builds the driver.
+2. It runs `cargo check` in `lints/fixture`.
+3. It runs `cargo check --workspace --all-targets` with `RUSTC_WORKSPACE_WRAPPER` set to the
+   driver.
+
+Steps 2 and 3 use `build.warnings = "deny"`, so an unfulfilled expectation also fails. Step 3
+does not use `scripts/rustc-wrapper`: a different wrapper path changes the fingerprint of the
+workspace crates. Thus cargo checks the crates again, also when the build cache has results
+from a compilation without the driver. A new rule comes with its fixes or expectations in the
+same pull request.
 
 ## 8. Use
 
@@ -175,7 +193,7 @@ MCRS_LINT_DEBUG=1 cargo check -p <crate>                 # shows each configurat
   The driver records this variable and `MCRS_LINT_DEBUG` in the dependency information, so a
   new value checks the crates again.
 - `lints/fixture` is the test of the linter. Each expected lint has an `#[expect]`, so
-  `RUSTFLAGS="-D warnings" cargo check` in `lints/fixture` fails on a missing lint and on an
+  `cargo check --config 'build.warnings="deny"'` in `lints/fixture` fails on a missing lint and on an
   extra lint. The fixture has two crates, so it also tests the facts files.
 
 ## 9. Cost
@@ -209,11 +227,15 @@ so the model does not resolve them.
   to observers.
 - The reach of a system does not include functions of other crates, trait methods or calls
   through a function pointer.
-- `missed_set_if_neq` accepts a write inside any `if` that compares, also when the comparison
+- `missed_set_if_neq` accepts a write after any guard that compares, also when the comparison
   is about another value.
+- `alloc_in_tick` and `per_frame_insert_resource` do not read run conditions. A system that a
+  condition runs only on a change needs an `#[expect]` that names the condition.
 - `always_changed_filter` sees a writer only in the crate that registers it or in a
   dependency of the crate of the filter. A loop is not a guard; an `if` or a `match` is.
 - Without the driver, `cfg_attr(mcrs_lint, expect(mcrs::too_many_arguments, ..))` is not
   compiled and nothing checks the number of parameters.
+- After the first build of the driver, cargo does not check again a crate that it checked
+  without the driver. Touch the crate, or run `cargo clean -p <crate>`, to see its lints.
 - The set graph does not separate schedules: a run condition on a set in one schedule gates
   the set in all schedules.

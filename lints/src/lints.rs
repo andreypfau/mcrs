@@ -4,7 +4,7 @@ use rustc_lint::Lint;
 const fn lint(name: &'static str, desc: &'static str) -> Lint {
     Lint {
         name,
-        default_level: Level::Warn,
+        default_level: Level::Deny,
         desc,
         is_externally_loaded: true,
         eval_always: true,

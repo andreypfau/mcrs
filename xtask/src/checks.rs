@@ -348,16 +348,34 @@ impl Context {
     }
 
     fn exec(&self, program: &str, args: &[&str]) -> Result<bool, String> {
-        let shown = format!("{program} {}", args.join(" "));
-        println!("$ {}", shown.trim_end());
-        let resolved = if program.contains('/') {
+        self.exec_in(
+            &self.root,
+            Command::new(self.resolve(program)),
+            program,
+            args,
+        )
+    }
+
+    fn resolve(&self, program: &str) -> PathBuf {
+        if program.contains('/') {
             self.root.join(program)
         } else {
             PathBuf::from(program)
-        };
-        Command::new(&resolved)
+        }
+    }
+
+    fn exec_in(
+        &self,
+        dir: &Path,
+        mut command: Command,
+        program: &str,
+        args: &[&str],
+    ) -> Result<bool, String> {
+        let shown = format!("{program} {}", args.join(" "));
+        println!("$ {}", shown.trim_end());
+        command
             .args(args)
-            .current_dir(&self.root)
+            .current_dir(dir)
             .status()
             .map(|status| status.success())
             .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
@@ -384,6 +402,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             || ctx.exec("cargo", &keys::GENERATE),
         ),
         Check::Clippy => clippy(ctx),
+        Check::EcsLint => ecs_lint(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
@@ -703,6 +722,50 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )
+}
+
+const DENY_WARNINGS: [&str; 2] = ["--config", "build.warnings=\"deny\""];
+
+fn ecs_lint(ctx: &Context) -> Outcome {
+    let lints = ctx.root.join("lints");
+    let mut install = Command::new("rustup");
+    install.env_remove("RUSTUP_TOOLCHAIN");
+    let built = ctx.exec_in(&lints, install, "rustup", &["toolchain", "install"])?
+        && ctx.exec_in(
+            &lints,
+            Command::new("cargo"),
+            "cargo",
+            &["build", "--release", "--locked"],
+        )?;
+    verdict(
+        built,
+        "the ECS lint driver does not build",
+        "fix the errors above in lints/",
+    )?;
+    let mut fixture = vec!["check", "--locked"];
+    fixture.extend(DENY_WARNINGS);
+    verdict(
+        ctx.exec_in(
+            &lints.join("fixture"),
+            Command::new("cargo"),
+            "cargo",
+            &fixture,
+        )?,
+        "lints/fixture has a missing or an extra ECS lint",
+        "make the lints of the driver match the expectations of the fixture",
+    )?;
+    let mut check = Command::new("cargo");
+    check.env(
+        "RUSTC_WORKSPACE_WRAPPER",
+        lints.join("target/release/mcrs-lint-driver"),
+    );
+    let mut args = vec!["check", "--workspace", "--all-targets", "--locked"];
+    args.extend(DENY_WARNINGS);
+    verdict(
+        ctx.exec_in(&ctx.root, check, "cargo", &args)?,
+        "the ECS lints or rustc reported diagnostics",
+        "fix the code, or add an expectation with a reason as docs/ecs-lint.md describes",
     )
 }
 
