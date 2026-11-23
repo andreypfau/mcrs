@@ -445,3 +445,23 @@ fn player_input_is_dropped_until_the_client_has_loaded() {
         Action::Forward
     );
 }
+
+#[test]
+fn an_answer_that_reaches_the_guard_is_reported_and_dropped() {
+    let mut guard = MoveGuard::new();
+    let mut reports = Vec::new();
+    let action = guard.serverbound(
+        &checked(Serverbound::Pong(7)),
+        ms(0),
+        Acknowledged::default(),
+        &mut reports,
+    );
+    assert_eq!(action, Action::Drop, "MVC-LAT-011");
+    assert_eq!(
+        reports
+            .iter()
+            .map(|report| report.finding)
+            .collect::<Vec<_>>(),
+        [Finding::UnknownAnswer]
+    );
+}

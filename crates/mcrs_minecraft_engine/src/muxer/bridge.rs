@@ -82,8 +82,7 @@ pub fn attach_outbound_queue(
     limits: Option<Res<PingLimits>>,
     mut commands: Commands,
 ) {
-    let mut probes = Probes::default();
-    probes.pings = PlayPings::new(limits.as_deref().copied().unwrap_or_default());
+    let probes = Probes::new(limits.as_deref().copied().unwrap_or_default());
     commands
         .entity(add.entity)
         .insert((OutboundQueue::default(), probes));

@@ -641,7 +641,7 @@ fn a_packet_past_the_nbt_budget_of_the_plugin_disconnects_and_is_not_delivered()
 }
 
 #[test]
-fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_only_our_pongs_are_taken() {
+fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_no_pong_reaches_the_game() {
     use mcrs_minecraft_engine::muxer::probes::Probes;
     use mcrs_minecraft_engine::muxer::session::PendingInbound;
 
@@ -688,11 +688,6 @@ fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_only_our_pongs_are_
     let keep_alive = keep_alive_row();
     assert_eq!(
         delivered,
-        [
-            (keep_alive, 0),
-            (keep_alive, 1),
-            (pong_row, 1),
-            (keep_alive, 2)
-        ]
+        [(keep_alive, 0), (keep_alive, 1), (keep_alive, 2)]
     );
 }

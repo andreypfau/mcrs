@@ -102,7 +102,10 @@ impl MoveGuard {
             }
             Serverbound::PlayerInput if !self.loaded => return Action::Drop,
             Serverbound::PlayerLoaded => self.loaded = true,
-            Serverbound::Pong(_) => report(Finding::UnknownAnswer),
+            Serverbound::Pong(_) => {
+                report(Finding::UnknownAnswer);
+                return Action::Drop;
+            }
             Serverbound::ClientTickEnd => {
                 if self.end_client_tick(now, acknowledged) {
                     report(Finding::TickRate);
