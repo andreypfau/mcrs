@@ -1,3 +1,4 @@
+use crate::flat::{FlatLayer, FlatLayers};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::BlockDefinitions;
@@ -5,7 +6,6 @@ use mcrs_minecraft_game_registries::worldgen::chunk_generator::FlatChunkGenerato
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocation, rl};
-use mcrs_minecraft_worldgen_generator::flat::{FlatLayer, FlatLayers};
 use tracing::warn;
 
 const DEFAULT_LAYERS: [(&str, u32); 3] = [
