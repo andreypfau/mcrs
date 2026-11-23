@@ -100,7 +100,8 @@ pub fn check_attack(input: &ReachInput<'_>, tolerances: &Tolerances) -> ReachVer
 3. Dimension, `TickSet::ClientInput`: `KnowledgeSet::Ingest` pushes `KnowledgeHistory` at
    `client_tick_end`, trims the logs and writes `KnowledgeMismatch` for a skipped teleport
    (CK-TP-002). Then the movement reader of #94 runs, and then `ActionSet::Intake`, `Check` and
-   `Filter`, chained. `Check` reads the position that the movement reader accepted (RCH-EYE-001).
+   `Filter`, chained. After a position packet, `Check` reads the position that the movement reader
+   accepted. After a silent tick, it reads the ball of CK-SIL-001 (RCH-EYE-001).
 4. Dimension, `TickSet::WorldWrite`: consumers drain `CheckedActions`. The attack plugin reads it
    in `DamageSet::Collect`. Dig and place write `BlockActionRequest` and `UseItemOnRequest`.
 5. Dimension, `TickSet::Output`: each system that queues a tracked packet pushes its record with

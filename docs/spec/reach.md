@@ -282,18 +282,38 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 ### RCH-EYE-001: The base position
 
 The base position is the position of the player at the pick of the action tick `k`. RCH-TCK-001
-step 2 states it. The server takes it from the first source of this list that applies:
+step 2 states it. The client takes the eye of the pick from its own position at the end of client
+tick `k − 1`, and not from a position that it reported. The server takes the base position from the
+first source of this list that applies:
 
-1. The movement reader runs. The base position is the position that it accepted for the end of
-   client tick `k − 1` (MVC-PRED-012 of `movement-checks.md`).
-2. Client tick `k − 1` has a position packet. The base position is the position of that packet
-   (CK-SIL-003 of `client-knowledge.md`).
+1. Client tick `k − 1` has a position packet, and the movement reader runs. The base position is
+   the position that the movement reader accepted for the end of that client tick (MVC-PRED-009 and
+   MVC-PRED-012 of `movement-checks.md`).
+2. Client tick `k − 1` has a position packet, and the movement reader does not run. The base
+   position is the position of that packet (CK-SIL-003 of `client-knowledge.md`).
 3. Client tick `k − 1` is a silent tick. The base position is each point at most 2.0E-4 blocks
-   from the reference position (CK-SIL-001, CK-SIL-002).
+   from the reference position (CK-SIL-001, CK-SIL-002). This source applies also when the movement
+   reader runs.
+
+In source 3, the check does not use the first candidate of MVC-PRED-012. MVC-PRED-010 keeps a
+candidate up to `2.0E-4 + offset_threshold` from the reference position. The position of the client
+is at most 2.0E-4 from it. Thus the first candidate can be 1.2E-3 from the position of the client,
+which is more than `box_tolerance`.
 
 A teleport can come after client tick `k − 1` and before the action. When the client accepts it,
 the base position is the position that the teleport gives (`teleport-confirmation.md`). The move
 packet of client tick `k` comes after the action. Its position is not the base position.
+
+Example: the reference position is `(0, 64, 0)`. In the silent tick `k − 1`, the client moves to
+`(0, 64, 1.5E-4)`. The first candidate of the movement reader is `(0, 64, −1.1E-3)`, and
+MVC-PRED-010 keeps it. The player stands, looks along `+z` and attacks a zombie whose box starts at
+`z = 3.0`. `R_e` is 3.0. The client measures 2.99985 to the box, which is less than `R_e`, so it
+sends `attack` (CBK-TGT-010). In RCH-CMP-001, the region `B` starts at `z = 2.9995`.
+
+| Eye set | Smallest entry distance into `B` | Bound `R_e + distance_tolerance` | Result |
+|---------|----------------------------------|----------------------------------|--------|
+| the first candidate only | 3.0006 | 3.0005 | refused, `out_of_range` |
+| source 3 | 2.9993 | 3.0005 | passes |
 
 Provenance: `design`, third-party. Kind: semantic. Confidence: medium. Experiment: R1.
 
