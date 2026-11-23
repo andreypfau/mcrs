@@ -139,7 +139,10 @@ fn check_system<'tcx>(
         .map(|local| reach(cx.bodies, local, Follow::Closures));
     let ungated = tick
         .iter()
-        .find(|system_use| !cx.graph.gates(&system_use.placement))
+        .find(|system_use| {
+            !cx.graph
+                .gates(&system_use.placement, system_use.schedule.as_deref())
+        })
         .filter(|_| !inputs.iter().any(|ty| cx.anchors.is_gate_param(*ty)));
     let always_changed: Vec<AlwaysChanged> = if let Some(ungated) = ungated {
         let schedule = ungated.schedule.as_deref().unwrap_or_default();
@@ -171,9 +174,10 @@ fn check_system<'tcx>(
 
     check_clock(cx, &target, inputs, &schedule);
     let on_event = inputs.iter().any(|ty| cx.anchors.filters_change(*ty))
-        || tick
-            .iter()
-            .all(|system_use| cx.graph.runs_on_event(&system_use.placement));
+        || tick.iter().all(|system_use| {
+            cx.graph
+                .runs_on_event(&system_use.placement, system_use.schedule.as_deref())
+        });
 
     let (Some(local), Some(direct)) = (def.as_local(), direct) else {
         return always_changed;

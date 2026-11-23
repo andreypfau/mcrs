@@ -20,7 +20,6 @@ pub struct Anchors {
     pub registrars: Vec<DefId>,
     pub observer_hosts: Vec<DefId>,
     pub gate_params: Vec<DefId>,
-    pub query: DefId,
     pub res: DefId,
     pub messages: DefId,
     pub resource_hosts: Vec<DefId>,
@@ -38,6 +37,7 @@ pub struct Anchors {
     pub changed: DefId,
     pub added: DefId,
     pub event_sources: Vec<DefId>,
+    pub queries: Vec<DefId>,
     pub mut_ref: DefId,
 }
 
@@ -76,6 +76,11 @@ const REBORROWABLE: [&str; 8] = [
     "bevy_ecs::change_detection::Mut",
     "bevy_ecs::change_detection::ResMut",
     "bevy_ecs::change_detection::NonSendMut",
+];
+const QUERIES: [&str; 3] = [
+    "bevy_ecs::system::Query",
+    "bevy_ecs::system::Single",
+    "bevy_ecs::system::Populated",
 ];
 const EVENT_SOURCES: [&str; 8] = [
     "bevy_ecs::message::Messages",
@@ -133,7 +138,6 @@ impl Anchors {
         };
         let world = get("bevy_ecs::world::World");
         let into_schedule_configs = get("bevy_ecs::schedule::IntoScheduleConfigs");
-        let query = get("bevy_ecs::system::Query");
         let res = get("bevy_ecs::change_detection::Res");
         let messages = get("bevy_ecs::message::Messages");
         let commands = get("bevy_ecs::system::Commands");
@@ -155,6 +159,7 @@ impl Anchors {
         let change_tracked = get_all(&CHANGE_TRACKED);
         let reborrowable = get_all(&REBORROWABLE);
         let event_sources = get_all(&EVENT_SOURCES);
+        let queries = get_all(&QUERIES);
         let time = if find_crate(tcx, "bevy_time").is_some() {
             match (
                 get("bevy_time::Time"),
@@ -196,7 +201,6 @@ impl Anchors {
             registrars,
             observer_hosts,
             gate_params,
-            query: query?,
             res: res?,
             messages: messages?,
             resource_hosts,
@@ -214,6 +218,7 @@ impl Anchors {
             changed: changed?,
             added: added?,
             event_sources,
+            queries,
             mut_ref: mut_ref?,
         })
     }
@@ -234,6 +239,13 @@ impl Anchors {
                     .and_then(adt_of)
                     .is_some_and(|did| did == self.changed || did == self.added)
             })
+    }
+
+    pub fn query_data<'tcx>(&self, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {
+        match ty.kind() {
+            TyKind::Adt(def, args) if self.queries.contains(&def.did()) => args.types().next(),
+            _ => None,
+        }
     }
 
     pub fn is_heap(&self, ty: Ty<'_>) -> bool {

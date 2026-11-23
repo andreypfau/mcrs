@@ -45,7 +45,11 @@ pub fn resolve<'tcx>(
     let local_sets: Vec<SetFact> = collected
         .sets
         .into_iter()
-        .map(|(set, placement)| SetFact { set, placement })
+        .map(|(schedule, set, placement)| SetFact {
+            schedule,
+            set,
+            placement,
+        })
         .collect();
     let mut graph = SetGraph::default();
     for fact in deps.iter().flat_map(|facts| &facts.sets).chain(&local_sets) {

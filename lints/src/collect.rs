@@ -69,7 +69,7 @@ pub struct Site<'tcx> {
 #[derive(Default)]
 pub struct Collected<'tcx> {
     pub registrations: Vec<Registration<'tcx>>,
-    pub sets: Vec<(String, Placement)>,
+    pub sets: Vec<(Option<String>, String, Placement)>,
     pub sites: Vec<Site<'tcx>>,
     pub observers: Vec<Leaf<'tcx>>,
 }
@@ -190,9 +190,14 @@ impl<'tcx> Collector<'_, 'tcx> {
                     });
                     return;
                 }
-                ("configure_sets", [_, _, config]) => {
+                ("configure_sets", [_, schedule, config]) => {
                     let node = self.config_node(config, &|this: &Self, leaf| this.set_key(leaf));
-                    self.out.sets.extend(node.placements());
+                    let schedule = self.schedule_name(schedule);
+                    self.out.sets.extend(
+                        node.placements()
+                            .into_iter()
+                            .map(|(set, placement)| (schedule.clone(), set, placement)),
+                    );
                     return;
                 }
                 _ => {}

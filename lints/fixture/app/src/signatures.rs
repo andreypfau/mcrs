@@ -17,6 +17,12 @@ pub fn fetches_marker(_: Query<(&Marker, Entity)>) {}
 #[cfg_attr(mcrs_lint, expect(mcrs::always_changed_filter, reason = "fixture"))]
 pub fn reacts_to_age(_: Query<&Score, Changed<Age>>) {}
 
+#[cfg_attr(mcrs_lint, expect(mcrs::always_changed_filter, reason = "fixture"))]
+pub fn reacts_to_age_when_populated(_: Populated<&Score, Changed<Age>>) {}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::zst_query, reason = "fixture"))]
+pub fn fetches_single_marker(_: Single<&Marker>) {}
+
 pub fn reacts_to_score(_: Query<&Score, Or<(Changed<Score>, Added<Score>)>>) {}
 
 #[cfg_attr(mcrs_lint, expect(mcrs::too_many_arguments, reason = "fixture"))]

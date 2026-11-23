@@ -720,9 +720,31 @@ fn clippy(ctx: &Context) -> Outcome {
 
 fn ecs_lint(ctx: &Context) -> Outcome {
     let lints = ctx.root.join("lints");
-    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], |command| {
+    let channel = |dir: &Path| {
+        std::fs::read_to_string(dir.join("rust-toolchain.toml"))
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find_map(|line| line.trim().strip_prefix("channel = ").map(str::to_owned))
+            })
+    };
+    verdict(
+        channel(&ctx.root).is_some() && channel(&ctx.root) == channel(&lints),
+        "rust-toolchain.toml and lints/rust-toolchain.toml name different channels, so the driver would fall back to plain rustc",
+        "set the same channel in both files",
+    )?;
+    let target = lints.join("target");
+    let target = target.to_string_lossy();
+    let own_toolchain = |command: &mut Command| {
         command.env_remove("RUSTUP_TOOLCHAIN");
-    })? && ctx.exec_in(&lints, "cargo", &["build", "--release", "--locked"], |_| {})?;
+    };
+    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], own_toolchain)?
+        && ctx.exec_in(
+            &lints,
+            "cargo",
+            &["build", "--release", "--locked", "--target-dir", &target],
+            own_toolchain,
+        )?;
     verdict(
         built,
         "the ECS lint driver does not build",
@@ -739,7 +761,7 @@ fn ecs_lint(ctx: &Context) -> Outcome {
                 "--config",
                 "build.warnings=\"deny\"",
             ],
-            |_| {},
+            own_toolchain,
         )?,
         "lints/fixture has a missing or an extra ECS lint",
         "make the lints of the driver match the expectations of the fixture",

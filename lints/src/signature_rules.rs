@@ -85,7 +85,7 @@ pub fn check(tcx: TyCtxt<'_>, anchors: &Anchors, always_changed: &FxHashMap<Stri
 }
 
 fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
-    if adt_of(ty) != Some(anchors.query) {
+    if anchors.query_data(ty).is_none() {
         return Vec::new();
     }
     ty.walk()
@@ -95,7 +95,7 @@ fn changed_filters(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
 }
 
 fn zst_fetches(anchors: &Anchors, ty: Ty<'_>) -> Vec<DefId> {
-    type_arg_of(ty, anchors.query).map_or_else(Vec::new, fetched)
+    anchors.query_data(ty).map_or_else(Vec::new, fetched)
 }
 
 fn fetched(ty: Ty<'_>) -> Vec<DefId> {

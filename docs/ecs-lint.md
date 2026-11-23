@@ -72,7 +72,8 @@ The pass walks every body of the crate once. It records these facts:
   a registration. The helper records the parameter index and the schedule. A call of the
   helper is a registration of its argument.
 - **Set configuration.** A call to `configure_sets`. It records which set types get a run
-  condition and which set types are children of other sets.
+  condition and which set types are children of other sets, in which schedule. A run
+  condition on a set gates the set only in that schedule.
 
 From these facts, each leaf gets a resolved state:
 
@@ -112,8 +113,8 @@ case needs an `#[expect]` with a reason, or a later workspace pass.
 Each rule is a lint with the name `mcrs::<rule>` and the level `deny`. A lint is emitted at the
 `HirId` of the item or of the registration, so `#[expect]` on that item applies. Fix the code
 when the fix keeps the behaviour. Otherwise, add an `#[expect]` with a reason that states why the
-code is correct. Rust does not accept an attribute on an expression statement, so put the
-`#[expect]` of an expression lint on a `let` statement or on the enclosing function.
+code is correct. Rust does not accept an attribute on an expression statement. Put the `#[expect]` of an
+expression lint on a `let` statement or on the enclosing function.
 
 ```rust
 #[cfg_attr(mcrs_lint, expect(mcrs::exclusive_system, reason = "drives the dimension sub-apps"))]
@@ -121,9 +122,8 @@ fn tick_dimensions(world: &mut World) { /* ... */ }
 ```
 
 Rules on systems. A "tick system" is a system in a tick schedule. "Reach" is the body of the
-system, its closures, and the local functions that it calls, at any depth. An `async` block and
-a closure in `observe` or `add_observer` are not in the reach: a task pool or an event runs them
-outside the system.
+system, its closures, and the local functions that it calls, at any depth. An `async` block and a closure in `observe` or `add_observer` are not in the reach. A task
+pool or an event runs them outside the system.
 
 | Lint | Rule | Check |
 |------|------|-------|
@@ -160,9 +160,8 @@ Integration tests and benchmarks are not checked for the rules on systems and fo
 `missed_set_if_neq`: their schedules do not run in the game tick. Cargo sets
 `CARGO_TARGET_TMPDIR` only for these targets, and the driver reads it. The other rules apply to
 all targets. The same holds for code under `#[cfg(test)]`: rustc keeps a trace of the `cfg` in
-the HIR, and the driver reads it. A registration under `#[cfg(test)]` does not count as a use of
-the system, so a test app that runs a system without its run condition does not make the system
-ungated.
+the HIR, and the driver reads it. A registration under `#[cfg(test)]` does not count as a use of the system. Thus a test app
+that runs a system without its run condition does not make the system ungated.
 
 ## 6. Matching of Bevy items
 
@@ -190,7 +189,7 @@ same pull request.
 ## 8. Use
 
 ```sh
-cargo build --release --manifest-path lints/Cargo.toml   # once, and after each change of lints/
+cargo build --release --manifest-path lints/Cargo.toml --target-dir lints/target   # once, and after each change of lints/
 cargo check --workspace                                  # the lints run as part of the check
 MCRS_LINT_DEBUG=1 cargo check -p <crate>                 # shows each configuration that the model does not resolve
 ```
@@ -205,8 +204,8 @@ MCRS_LINT_DEBUG=1 cargo check -p <crate>                 # shows each configurat
 ## 9. Cost
 
 Measured on the workspace (207 crates, Apple M-series). The pass takes 0.9 s of CPU time for
-all crates together: 0.5 s for the model of registrations, 0.1 s for the scan of bodies,
-0.2 s for the rules on systems, 0.1 s for the rules on signatures. A cold check of the
+all crates together. The parts are 0.5 s for the model of registrations, 0.1 s for the scan of
+bodies, 0.2 s for the rules on systems, 0.1 s for the rules on signatures. A cold check of the
 workspace crates takes 15 to 18 s with and without the driver.
 
 | Case | Without the driver | With the driver |
@@ -223,8 +222,8 @@ so the model does not resolve them.
 - A configuration that is not a function, a closure, a generic parameter or an `impl Trait`
   return is not resolved. Examples: a `ScheduleConfigs` value from a function, a system in a
   local variable of type `ScheduleConfigs`.
-- A helper in a trait whose impl is in another crate than the trait is not found, because the
-  pass selects calls by the crate of the callee.
+- The pass does not find a helper in a trait when the impl is in another crate than the trait.
+The pass selects calls by the crate of the callee.
 - A helper argument with its own configuration, for example `helper(app, f.run_if(c))`, is
   not resolved.
 - A run condition that a crate outside the dependencies of the registration adds to a set is
@@ -248,5 +247,7 @@ so the model does not resolve them.
   compiled and nothing checks the number of parameters.
 - After the first build of the driver, cargo does not check again a crate that it checked
   without the driver. Touch the crate, or run `cargo clean -p <crate>`, to see its lints.
-- The set graph does not separate schedules: a run condition on a set in one schedule gates
-  the set in all schedules.
+- `.cargo/config.toml` names `scripts/rustc-wrapper`, a shell script. Cargo cannot run it on
+  Windows. The project builds on Unix hosts only.
+- `scripts/rustc-wrapper` looks for the driver in `lints/target`. Build the driver with
+  `--target-dir lints/target`, also when `CARGO_TARGET_DIR` is set.

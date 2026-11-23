@@ -38,6 +38,7 @@ pub struct Helper {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFact {
+    pub schedule: Option<String>,
     pub set: String,
     #[serde(flatten)]
     pub placement: Placement,
