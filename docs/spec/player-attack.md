@@ -115,8 +115,8 @@ effect:
 1. The network id names an entity in the dimension of the attacker. The id of a part of a
    multi-part entity names that part.
 2. The block position of that entity is inside the world border.
-3. The entity is in the attack reach of the attacker. Issue #95 states the reach check and its
-   tolerance.
+3. The entity is in the attack reach of the attacker. `reach.md` states the reach check and its
+   tolerances (RCH-CMP-001, RCH-CMP-002), and its baseline (RCH-VAN-001).
 4. The item in the main hand allows the attack. Items are out of scope (section 11). An empty hand
    allows the attack.
 
@@ -173,9 +173,10 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 the dying state. Its default is false. The preset `java` sets it to true.
 
 - When the rule is false, an entity in the dying state is not a target. The server casts its own
-  ray from the attacker. The ray leaves out each entity in the dying state. The target is the
+  ray from the attacker, with the eye, the look and the entity regions of `reach.md`, sections 4
+  to 6. The ray leaves out each entity in the dying state. The target is the
   first entity on that ray within the attack reach and inside the world border (ATK-PKT-003 step
-  2). When the ray has no such entity, the attack has no effect.
+  2). RCH-CMP-007 of `reach.md` states the first entity. When the ray has no such entity, the attack has no effect.
 - When the rule is true, the entity in the dying state is the target. Its hit is rejected
   (DMG-HIT-001 step 6), so the attack gives the result of ATK-DMG-005.
 
@@ -571,7 +572,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
 | effects: `blindness`, `strength`, `weakness`, and the effects that act on a hit | issues #107 and #113 | ATK-DMG-003, ATK-DMG-002 |
 | shields and the component `blocks_attacks` | issue #121 | `entity-damage.md`, DMG-HIT-005 |
 | projectiles, and the deflection of a projectile of `#minecraft:redirectable_projectile` by an attack | issue #111, `projectiles.md` | ATK-PKT-004 |
-| the reach check | issue #95 | ATK-PKT-003 step 3, ATK-TGT-006 |
+| the reach check | `reach.md` | ATK-PKT-003 step 3, ATK-TGT-006 |
 | the delivery of a velocity to a player | issue #93 | ATK-KB-004 |
 | the entity types with an own attack procedure | a later document | ATK-TGT-003 |
 | teams and the ally relation of teams | a hook, as in `mob-combat-goals.md` | ATK-TGT-004, ATK-SWP-002 |
@@ -624,9 +625,6 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
 
 ## 13. Unresolved
 
-- **U1.** The ray of ATK-TGT-006: its origin, its direction, its range and the time of the
-  positions that it uses. Issue #95 states the reach. The owner must decide whether the ray uses the
-  positions that the client saw.
 - **U2.** The Bedrock values of ATK-EDN-001 come from the public documentation of the game. No
   Bedrock artefact confirms them. The conditions of a critical attack in the Bedrock edition are
   not known, for example whether a sprint attack can be critical.

@@ -304,8 +304,9 @@ in `pose_e2_7_riptide`, and index 14 in `pose_e2_6_leave_button`.
 
 **POSE-NET-003** (`source_suggested`, wire, confidence: high). The server sends a changed entry of
 POSE-NET-002 in `set_entity_data` to each viewer, and to the own player (TRK-DATA-005,
-MVC-PKT-031). A viewer that starts to track the player receives the current value of each entry
-that is not at its default value (TRK-SPN-001).
+MVC-PKT-031). CK-SET-003 of `client-knowledge.md` overrides this for index 6 of the own player. A
+viewer that starts to track the player receives the current value of each entry that is not at its
+default value (TRK-SPN-001).
 
 **POSE-NET-004** (`source_suggested`, unspecified, confidence: medium). A pose that the selection
 gives in a tick reaches the viewers in the tracker update of the next server tick. A shift key
@@ -528,7 +529,8 @@ client limits what each player sees:
 
 ## 7. Intentional deviations
 
-None. No rule of this document is a deviation from the reference.
+POSE-NET-003 sends no index 6 to the own player. CK-DEV-006 of `client-knowledge.md` records this
+difference. No other rule of this document is a deviation from the reference.
 
 ## 8. Known vanilla quirks
 

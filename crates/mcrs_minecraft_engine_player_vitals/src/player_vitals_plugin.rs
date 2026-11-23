@@ -62,9 +62,16 @@ impl Plugin for PlayerVitalsPlugin {
             send_kill
                 .run_if(on_message::<Died>.or_else(on_message::<DeathMessage>))
                 .in_set(TickSet::Project)
+                .in_set(PlayerDeathSet::Notify)
                 .after(PlayerDeathSet::Describe)
                 .after(DamageSet::Report)
-                .after(send_health)
+                .after(send_health),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            (PlayerDeathSet::Notify, PlayerDeathSet::Announce)
+                .chain()
+                .in_set(TickSet::Project)
                 .before(signal_player_hits),
         );
         app.add_systems(

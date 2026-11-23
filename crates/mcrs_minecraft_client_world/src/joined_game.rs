@@ -14,10 +14,13 @@ use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::hardcore_mode::HardcoreMode;
+use crate::health_packets::{NEW_PLAYER_FOOD, NEW_PLAYER_VITALS};
 use crate::local_motion::LocalMotion;
 use crate::local_player::LastSentInput;
 use crate::player::{Player, player_at};
 use crate::player_load::{LoadProgress, PlayerLoad};
+use crate::respawn_screen::RespawnScreen;
 use crate::session::InSession;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::SyncedData;
@@ -75,12 +78,14 @@ fn in_session(registries: Option<&Registries>, spawn: &PlayerSpawnInfo) -> anyho
 fn on_login(
     event: On<Received<ClientboundLogin>>,
     registries: Option<Res<CurrentRegistries>>,
-    players: Query<(), With<Player>>,
+    players: Query<Entity, With<Player>>,
     mut commands: Commands,
 ) {
     let Some(login) = event.packet() else {
         return;
     };
+    let respawn_screen = RespawnScreen::from_login(&login);
+    let hardcore_mode = HardcoreMode::from_login(&login);
     let session = registries.as_deref().map(|registries| &**registries);
     match in_session(session, &login.player_spawn_info) {
         Ok(()) => {
@@ -91,7 +96,11 @@ fn on_login(
                 },
                 CurrentDimension::of(&login.player_spawn_info),
             ));
-            if players.is_empty() {
+            if let Ok(player) = players.single() {
+                commands
+                    .entity(player)
+                    .insert((respawn_screen, hardcore_mode));
+            } else if players.is_empty() {
                 let mode = login.player_spawn_info.game_mode;
                 let mut player = commands.spawn((
                     player_at(DVec3::ZERO, 0.0, 0.0),
@@ -101,6 +110,10 @@ fn on_login(
                     LastSentInput::default(),
                     LocalGameMode::spawned(&login.player_spawn_info),
                     PermissionLevel::default(),
+                    respawn_screen,
+                    hardcore_mode,
+                    NEW_PLAYER_VITALS,
+                    NEW_PLAYER_FOOD,
                     InSession(event.entity),
                     PlayerLoad::Loading(LoadProgress::default()),
                 ));

@@ -4,6 +4,7 @@ use mcrs_minecraft_block::block_tag_keys;
 use mcrs_minecraft_registries::{Diagnostic, Diagnostics, Registries, Registry, Resolver, Tags};
 use mcrs_minecraft_resource::{Id, Registered, RegistryValue, ResourceKey, TagId};
 
+#[derive(Clone)]
 pub struct FillIds {
     pub end: EndBiomes,
     pub uncarvable: Option<TagId<Block>>,

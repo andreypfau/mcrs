@@ -1,0 +1,36 @@
+[package]
+name = "mcrs_minecraft_vanilla_death"
+description = "Vanilla consequences of the death of a player: the drop of its inventory and of the stacks it holds, and the death message"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_enchantment.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_player_vitals.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_rule.workspace = true
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_player_holders.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_vanilla_item_entity.workspace = true

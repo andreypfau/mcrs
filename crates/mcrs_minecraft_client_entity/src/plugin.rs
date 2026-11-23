@@ -15,6 +15,7 @@ use mcrs_minecraft_network::client::ConnectionEnded;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::client_tables::{ClientTables, build_client_tables, clear_client_tables};
+use crate::entity_damaged::EntityDamaged;
 use crate::entity_light::write_entity_light;
 use crate::fuse::burn_fuses;
 use crate::motion_tick::{MotionTick, advance_motion_tick};
@@ -40,6 +41,7 @@ impl Plugin for ClientEntityPlugin {
             .init_resource::<NetworkEntities>()
             .init_resource::<MotionTick>()
             .add_message::<ColumnChange>()
+            .add_message::<EntityDamaged>()
             .add_plugins(EntityTickPlugin::<ColumnStore>::default())
             .configure_sets(FixedUpdate, MotionPass.after(ClientEntityTick))
             .add_systems(

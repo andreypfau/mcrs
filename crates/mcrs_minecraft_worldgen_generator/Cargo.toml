@@ -33,7 +33,7 @@ mcrs_minecraft_random.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_game_registries = { workspace = true, optional = true }
+mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
@@ -70,7 +70,7 @@ serde_json.workspace = true
 
 [features]
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_heightmap/bevy"]
-test-support = ["bevy", "dep:bevy_app", "dep:bevy_asset", "mcrs_minecraft_block/bevy", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support", "dep:mcrs_minecraft_game_registries", "mcrs_minecraft_game_registries/test-support"]
+test-support = ["bevy", "dep:bevy_app", "dep:bevy_asset", "mcrs_minecraft_block/bevy", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support", "mcrs_minecraft_game_registries/test-support"]
 telemetry-tracy = []
 
 [[bench]]

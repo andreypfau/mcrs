@@ -1272,7 +1272,12 @@ fn beta_surface_blocks(
 }
 
 pub mod block_state;
+pub mod dimension_plan;
 mod end_biome_grid;
+mod flat_world;
+pub mod plan_error;
+pub mod world_tables;
+pub mod world_tables_error;
 use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
 pub mod task;

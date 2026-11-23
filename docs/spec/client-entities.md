@@ -405,7 +405,7 @@ simulated entity does not use this section: section 16 states its movement.
   `N` ticks, whatever the weight that remains. Note that `Z` keeps its value when the path
   becomes empty. Item 6 compares with that old value.
 
-The interpolation length `N` is the update interval of the entity type for a pig and a frog.
+CENTS-INTERP-005 gives the interpolation length `N` of each entity type.
 `T` and `W` are `f32` values. The value `aᵢ = 1` for `S` = 0 is a `design` choice: the
 reference divides 0 by 0 there. No vanilla server sends such a path.
 
@@ -474,6 +474,29 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: dur
 interpolation of a pig, send a teleport of the same pig by 1 block up. The pig ends the
 interpolation 1 block higher than the target of the earlier packet.
  CENTS-DEV-001 applies to the collision test.
+
+### CENTS-INTERP-005: The interpolation length of each type
+
+- **Inputs:** the type of a client entity; for a display, its entity data.
+- **Behavior:** the interpolation length `N` of CENTS-INTERP-001 is:
+
+  | Types | `N` |
+  |-------|-----|
+  | each living entity type except `player` and `shulker`, for example a mob and `armor_stand` | the update interval of the type |
+  | `player` | 3 |
+  | `shulker` | 0 |
+  | each boat type and each raft type | 3 |
+  | each minecart type, while the experimental movement of minecarts is off | 3 |
+  | `fishing_bobber` | 3 |
+  | `block_display`, `item_display` and `text_display` | the value of the entity data entry of the teleport duration; 0 until the client receives a value |
+
+  A type that the table does not give has no interpolation, except a minecart while the
+  experimental movement of minecarts is on and `experience_orb`. A position packet of a type with
+  no interpolation moves the entity at once, as a snap (CENTS-INTERP-003). This document does not
+  state `N` for the two excepted types (CENTS-SIM-004).
+- **Postconditions:** for a player, `N` is 3, although its update interval is 2.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CENTS-E8.
 
 ---
 
@@ -1192,3 +1215,11 @@ result: the item falls in the chunk that is not loaded, and the next update corr
 Steps: connect a second client. Give the second player a knockback. Record the velocity of that
 player on the first client in each tick. Expected result: the velocity reaches the value of the
 packet in 3 ticks (CENTS-VEL-003).
+
+### CENTS-E8: Interpolation length of each type
+
+Steps: summon a `zombie`, an `armor_stand`, a `shulker`, an `oak_boat`, a `minecart`, a
+`block_display` with `teleport_duration:10` and a second player, each with `NoGravity:1b` where the
+type has it. Move each one by 2 blocks on X with `/tp`, and the second player with a walk. Record
+the rows. Expected result: each entity reaches the new position after the `N` ticks of
+CENTS-INTERP-005. The `shulker` reaches it in the first update.
