@@ -4805,6 +4805,7 @@ dependencies = [
  "mcrs_minecraft_command_tree",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_nbt_path",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_resource",

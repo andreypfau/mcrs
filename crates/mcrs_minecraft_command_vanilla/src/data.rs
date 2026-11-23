@@ -6,11 +6,11 @@ use crate::scale_text::scale_text;
 use crate::select::{SelectionBuffers, select};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
-use mcrs_command::{ArgumentHandle, BuildError, DoubleArgument, NodeId, StringArgument};
+use mcrs_command::{ArgumentHandle, BuildError, DoubleArgument, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::{BlockPosArgument, block_floor};
 use mcrs_minecraft_command_argument_entity::EntityArgument;
-use mcrs_minecraft_command_argument_vanilla::VanillaArgument;
+use mcrs_minecraft_command_argument_vanilla::{NbtPathArgument, NbtPathValue, VanillaArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback, Invocation,
 };
@@ -18,14 +18,9 @@ use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::save_player;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_nbt_path::Number;
 use mcrs_minecraft_snbt::text_form;
 use mcrs_minecraft_text::{IntoText, Text};
-
-const INVENTORY: &str = "Inventory";
-const SELECTED_ITEM_SLOT: &str = "SelectedItemSlot";
-const SELECTED_ITEM: &str = "SelectedItem";
-const SLOT: &str = "Slot";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Form {
@@ -36,7 +31,7 @@ pub(crate) enum Form {
 #[derive(Clone, Copy)]
 pub(crate) struct Arguments<T> {
     target: ArgumentHandle<T>,
-    path: ArgumentHandle<StringArgument>,
+    path: ArgumentHandle<NbtPathArgument>,
     scale: ArgumentHandle<DoubleArgument>,
 }
 
@@ -51,10 +46,10 @@ pub(crate) enum Holder {
     Block([i32; 3]),
 }
 
-pub(crate) struct Query {
+pub(crate) struct DataQuery {
     invocation: Invocation,
     holder: Holder,
-    path: Option<String>,
+    path: Option<NbtPathValue>,
     scale: Option<f64>,
 }
 
@@ -64,12 +59,12 @@ pub(crate) enum Subject {
 }
 
 pub(crate) struct Found {
-    query: Query,
+    query: DataQuery,
     subject: Subject,
 }
 
 pub(crate) struct Read {
-    query: Query,
+    query: DataQuery,
     data: NbtTag,
 }
 
@@ -96,7 +91,7 @@ fn arguments<T: Copy + Into<VanillaArgument>>(
 ) -> Result<Arguments<T>, BuildError> {
     let target = registrar.arg(parent, "target", argument).runs(form).id()?;
     let path = registrar
-        .arg(target, "path", StringArgument::Word)
+        .arg(target, "path", NbtPathArgument)
         .runs(form)
         .id()?;
     let scale = registrar
@@ -122,19 +117,16 @@ pub(crate) fn find(
     }
 }
 
-fn query<T>(
+fn data_query<T>(
     call: &Call<Form, DataCommand>,
     context: &VanillaContext,
     arguments: Arguments<T>,
     holder: Holder,
-) -> Result<Query, CommandFailure> {
-    let path: Option<String> = context
-        .opt(&call.invocation, arguments.path)?
-        .map(|path| path.chars().collect());
-    Ok(Query {
+) -> Result<DataQuery, CommandFailure> {
+    Ok(DataQuery {
         invocation: call.invocation.clone(),
         holder,
-        path,
+        path: context.opt(&call.invocation, arguments.path)?,
         scale: context.opt(&call.invocation, arguments.scale)?,
     })
 }
@@ -156,7 +148,7 @@ fn find_entity(
             }
             EntityView::Mob { view, .. } => Subject::Saved(mob_data(view)),
         };
-        let query = query(
+        let query = data_query(
             call,
             context,
             arguments,
@@ -186,7 +178,7 @@ fn find_block(
         tracing::error!("the data of a block entity was not captured: {error}");
         CommandFailure::failed()
     })?;
-    let query = query(call, context, arguments, Holder::Block(pos))?;
+    let query = data_query(call, context, arguments, Holder::Block(pos))?;
     Ok(Found {
         query,
         subject: Subject::Saved(data),
@@ -213,7 +205,7 @@ pub(crate) fn reply(
     mut output: CommandOutput,
 ) -> CommandResult {
     let Read { query, data } = read?;
-    let Query {
+    let DataQuery {
         invocation,
         holder,
         path,
@@ -228,13 +220,13 @@ pub(crate) fn reply(
         output.success(&invocation, holder.query(&value), Feedback::Source);
         return Ok(result_of(&value));
     };
-    let number = number_of(&value).ok_or_else(|| {
-        CommandFailure::translate("commands.data.get.invalid", vec![path.clone().into()])
+    let number = Number::of(&value).ok_or_else(|| {
+        CommandFailure::translate("commands.data.get.invalid", vec![path.text.clone().into()])
     })?;
-    let result = floor_to_int(number * scale);
+    let result = floor_to_int(number.to_f64() * scale);
     output.success(
         &invocation,
-        holder.get(path, scale_text(scale), result),
+        holder.get(path.text, scale_text(scale), result),
         Feedback::Source,
     );
     Ok(result)
@@ -281,23 +273,23 @@ fn player_data(world: &mut World, player: Entity) -> Result<NbtCompound, Command
         })?
         .root;
     if let Some(item) = selected_item(&data) {
-        data.put_component(SELECTED_ITEM, item);
+        data.put_component("SelectedItem", item);
     }
     Ok(data)
 }
 
 fn selected_item(data: &NbtCompound) -> Option<NbtCompound> {
-    let slot = data.get_int(SELECTED_ITEM_SLOT)?;
+    let slot = data.get_int("SelectedItemSlot")?;
     let mut item = data
-        .get_list(INVENTORY)?
+        .get_list("Inventory")?
         .iter()
         .find_map(|entry| match entry {
-            NbtTag::Compound(entry) if entry.get_byte(SLOT).map(i32::from) == Some(slot) => {
+            NbtTag::Compound(entry) if entry.get_byte("Slot").map(i32::from) == Some(slot) => {
                 Some(entry.clone())
             }
             _ => None,
         })?;
-    item.child_tags.retain(|(key, _)| key != SLOT);
+    item.child_tags.retain(|(key, _)| key != "Slot");
     Some(item)
 }
 
@@ -323,39 +315,30 @@ fn mob_data(view: MobView<'_>) -> NbtCompound {
     data
 }
 
-fn single_value(data: &NbtTag, path_text: &str) -> Result<NbtTag, CommandFailure> {
-    let path: NbtPath = path_text.parse().map_err(|_| CommandFailure::failed())?;
+fn single_value(data: &NbtTag, path: &NbtPathValue) -> Result<NbtTag, CommandFailure> {
     let mut selected = Vec::new();
-    path.select(data, &mut selected);
+    path.path
+        .try_select(data, &mut selected)
+        .map_err(|nothing| {
+            let text = path.text.get(..nothing.end).unwrap_or(&path.text);
+            CommandFailure::translate(
+                "arguments.nbtpath.nothing_found",
+                vec![text.to_owned().into()],
+            )
+        })?;
     let mut selected = selected.into_iter();
     match (selected.next(), selected.next()) {
         (Some(value), None) => Ok(value.into_owned()),
-        (None, _) => Err(CommandFailure::translate(
-            "arguments.nbtpath.nothing_found",
-            vec![path_text.to_owned().into()],
-        )),
-        (Some(_), Some(_)) => Err(CommandFailure::translate(
+        _ => Err(CommandFailure::translate(
             "commands.data.get.multiple",
             vec![],
         )),
     }
 }
 
-fn number_of(tag: &NbtTag) -> Option<f64> {
-    match *tag {
-        NbtTag::Byte(value) => Some(f64::from(value)),
-        NbtTag::Short(value) => Some(f64::from(value)),
-        NbtTag::Int(value) => Some(f64::from(value)),
-        NbtTag::Long(value) => Some(value as f64),
-        NbtTag::Float(value) => Some(f64::from(value)),
-        NbtTag::Double(value) => Some(value),
-        _ => None,
-    }
-}
-
 fn result_of(value: &NbtTag) -> i32 {
-    if let Some(number) = number_of(value) {
-        return floor_to_int(number);
+    if let Some(number) = Number::of(value) {
+        return floor_to_int(number.to_f64());
     }
     let count = match value {
         NbtTag::ByteArray(elements) => elements.len(),
