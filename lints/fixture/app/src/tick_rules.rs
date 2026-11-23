@@ -2,6 +2,7 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Update;
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::SystemCondition;
 use bevy_time::Fixed;
 use bevy_time::Real;
 use bevy_time::Time;
@@ -113,6 +114,15 @@ fn messages(app: &mut App) {
     app.init_resource::<Messages<Note>>();
 }
 
+fn allocates_on_message(mut notes: MessageReader<Note>) {
+    let count: Vec<usize> = notes.read().map(|_| 1).collect();
+    drop(count);
+}
+
+fn inserts_until_present(mut commands: Commands) {
+    commands.insert_resource(Counter(0));
+}
+
 pub fn build_tick_rules(app: &mut App) {
     let gate = resource_exists::<Enabled>;
     app.add_systems(
@@ -133,6 +143,13 @@ pub fn build_tick_rules(app: &mut App) {
             .run_if(gate),
     )
     .add_systems(Update, (fixed_clock_in_update, schedule_clock).run_if(gate))
+    .add_systems(
+        Update,
+        (
+            allocates_on_message.run_if(on_message::<Note>.and_then(gate)),
+            inserts_until_present.run_if(not(resource_exists::<Counter>)),
+        ),
+    )
     .add_observer(exclusive_observer)
     .add_observer(observer);
     messages(app);

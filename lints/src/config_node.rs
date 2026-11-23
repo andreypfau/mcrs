@@ -5,6 +5,7 @@ pub enum ConfigNode<L> {
     Configured {
         inner: Box<ConfigNode<L>>,
         run_if: bool,
+        on_event: bool,
         sets: Vec<String>,
     },
 }
@@ -12,6 +13,7 @@ pub enum ConfigNode<L> {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Placement {
     pub run_if: bool,
+    pub on_event: bool,
     pub sets: Vec<String>,
 }
 
@@ -22,6 +24,7 @@ impl Placement {
         sets.extend(self.sets.iter().cloned());
         Placement {
             run_if: self.run_if || outer.run_if,
+            on_event: self.on_event || outer.on_event,
             sets,
         }
     }
@@ -46,10 +49,12 @@ impl<L: Clone> ConfigNode<L> {
             ConfigNode::Configured {
                 inner,
                 run_if,
+                on_event,
                 sets,
             } => {
                 let own = Placement {
                     run_if: *run_if,
+                    on_event: *on_event,
                     sets: sets.clone(),
                 };
                 inner.place(&own.within(outer), out);

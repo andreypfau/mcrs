@@ -154,6 +154,9 @@ fn check_system<'tcx>(
     }
 
     check_clock(cx, &target, inputs, &schedule);
+    let on_event = tick
+        .iter()
+        .all(|system_use| cx.graph.runs_on_event(&system_use.placement));
 
     let Some(local) = def.as_local() else {
         return always_changed;
@@ -176,7 +179,7 @@ fn check_system<'tcx>(
         .iter()
         .flat_map(|facts| facts.allocs.iter().copied())
         .collect();
-    if let Some(span) = allocs.first() {
+    if let Some(span) = allocs.first().filter(|_| !on_event) {
         let count = allocs.len();
         emit(tcx, ALLOC_IN_TICK, &target, *span, |diag| {
             diag.primary_message(format!(
@@ -192,6 +195,7 @@ fn check_system<'tcx>(
         .iter()
         .flat_map(|facts| &facts.resource_inserts)
         .next()
+        .filter(|_| !on_event)
     {
         emit(tcx, PER_FRAME_INSERT_RESOURCE, &target, *span, |diag| {
             diag.primary_message(format!(

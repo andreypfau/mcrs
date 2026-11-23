@@ -67,13 +67,6 @@ fn clock_update(clock: Id<WorldClock>, state: &ClockTime, advance_time: bool) ->
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only when the time advance flag changes, and the clock updates move into the outbound packet"
-    )
-)]
 fn send_every_clock(
     clocks: Res<WorldClocks>,
     advance_time: Res<AdvanceTime>,

@@ -128,8 +128,8 @@ not in the reach, because a task pool runs it outside the system.
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
 | `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated` or `If` parameter |
 | `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` or a `block_on` |
-| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count |
-| `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop |
+| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked |
+| `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop, and no run condition of the system fires on an event (§10) |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
 | `always_changed_filter` | "`Changed<T>` still visits every candidate" | a `Changed<T>` in a query, when a tick system with no run condition dereferences `Mut<T>` mutably outside an `if` or a `match`; the facts files carry the written components to the dependent crates |
@@ -229,8 +229,11 @@ so the model does not resolve them.
   through a function pointer.
 - `missed_set_if_neq` accepts a write after any guard that compares, also when the comparison
   is about another value.
-- `alloc_in_tick` and `per_frame_insert_resource` do not read run conditions. A system that a
-  condition runs only on a change needs an `#[expect]` that names the condition.
+- `alloc_in_tick` and `per_frame_insert_resource` know only the Bevy run conditions that fire on
+  an event: `on_message`, `resource_changed`, `resource_added`, `resource_removed`,
+  `resource_exists_and_changed`, `resource_changed_or_removed`, `run_once`,
+  `any_component_removed`, `state_changed`, `input_just_pressed`, `input_just_released` and
+  `not(resource_exists)`. A project condition needs an `#[expect]` that names the condition.
 - `always_changed_filter` sees a writer only in the crate that registers it or in a
   dependency of the crate of the filter. A loop is not a guard; an `if` or a `match` is.
 - Without the driver, `cfg_attr(mcrs_lint, expect(mcrs::too_many_arguments, ..))` is not

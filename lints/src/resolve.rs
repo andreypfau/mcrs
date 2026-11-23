@@ -44,6 +44,7 @@ pub fn resolve<'tcx>(
         .map(|(set, placement)| SetFact {
             set,
             run_if: placement.run_if,
+            on_event: placement.on_event,
             parents: placement.sets,
         })
         .collect();
@@ -73,6 +74,7 @@ pub fn resolve<'tcx>(
     while let Some(helper) = state.queue.pop_front() {
         let placement = Placement {
             run_if: helper.run_if,
+            on_event: helper.on_event,
             sets: helper.sets.clone(),
         };
         for site in &collected.sites {
@@ -123,6 +125,7 @@ impl<'tcx> State<'tcx> {
                     index,
                     schedule: schedule.cloned(),
                     run_if: placement.run_if,
+                    on_event: placement.on_event,
                     sets: placement.sets.clone(),
                 };
                 if self.seen.insert(helper.clone()) {

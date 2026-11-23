@@ -31,13 +31,6 @@ impl Plugin for StatusPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only when the online players change, and the new list moves into the status publisher"
-    )
-)]
 fn publish_status_players(players: Res<OnlinePlayers>, mut publisher: ResMut<StatusPublisher>) {
     let mut vec = Vec::new();
     for (_, uuid, name) in &players.players {

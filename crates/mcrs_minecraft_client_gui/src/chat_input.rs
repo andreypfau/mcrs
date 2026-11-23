@@ -52,13 +52,6 @@ impl Plugin for ChatScreenPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "wraps only new chat messages, and rewraps the whole log only when the language or the GUI atlas changes"
-    )
-)]
 fn project_lines(
     chat: Res<Chat>,
     screen: Res<Screen>,

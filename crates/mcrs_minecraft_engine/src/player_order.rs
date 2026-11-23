@@ -144,13 +144,6 @@ pub fn set_game_mode(
         reason = "an order goes through the world-level player API, which a command and a plugin also call"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the drained messages are collected to release the borrow of the world, and the run condition skips the ticks without a message"
-    )
-)]
 pub(crate) fn obey_orders(world: &mut World) {
     let Some(mut written) = world.get_resource_mut::<Messages<OrderedPlayer>>() else {
         return;

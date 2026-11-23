@@ -108,13 +108,6 @@ impl Reader for Counted {
 #[derive(Resource)]
 pub(super) struct ArgsReadback(Buffer);
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the run condition stops the system once the readback buffer exists, so the insert happens once"
-    )
-)]
 pub(super) fn init_args_readback(
     mut commands: Commands,
     terrain: Option<Res<Terrain>>,

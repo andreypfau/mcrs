@@ -25,6 +25,21 @@ use crate::anchors::adt_of;
 use mcrs_lint::ConfigNode;
 use mcrs_lint::Placement;
 
+const CONDITION_CRATES: [&str; 3] = ["bevy_ecs", "bevy_input", "bevy_state"];
+const EVENT_CONDITIONS: [&str; 11] = [
+    "on_message",
+    "resource_changed",
+    "resource_exists_and_changed",
+    "resource_added",
+    "resource_removed",
+    "resource_changed_or_removed",
+    "run_once",
+    "any_component_removed",
+    "state_changed",
+    "input_just_pressed",
+    "input_just_released",
+];
+
 #[derive(Debug, Clone)]
 pub enum LeafKind<'tcx> {
     System { def: DefId, inputs: Vec<Ty<'tcx>> },
@@ -294,14 +309,55 @@ impl<'tcx> Collector<'_, 'tcx> {
                     ("in_set", [set]) => vec![self.set_key(set)],
                     _ => Vec::new(),
                 };
+                let run_if = name.starts_with("run_if") || name == "distributive_run_if";
                 ConfigNode::Configured {
                     inner: Box::new(self.config_node(receiver, leaf)),
-                    run_if: name.starts_with("run_if") || name == "distributive_run_if",
+                    run_if,
+                    on_event: run_if && args.first().is_some_and(|cond| self.on_event(cond)),
                     sets,
                 }
             }
             _ => ConfigNode::Leaf(leaf(self, expr)),
         }
+    }
+
+    fn on_event(&self, condition: &'tcx Expr<'tcx>) -> bool {
+        match condition.kind {
+            ExprKind::MethodCall(segment, receiver, [other], _) => {
+                match segment.ident.name.as_str() {
+                    "and_then" | "and_eager" => self.on_event(receiver) || self.on_event(other),
+                    "or_else" | "or_eager" => self.on_event(receiver) && self.on_event(other),
+                    _ => false,
+                }
+            }
+            ExprKind::Call(callee, [inner]) if self.condition_name(callee) == Some("not") => {
+                matches!(inner.kind, ExprKind::Path(..))
+                    && self.condition_name(inner) == Some("resource_exists")
+            }
+            ExprKind::Call(callee, _) => self
+                .condition_name(callee)
+                .is_some_and(|name| EVENT_CONDITIONS.contains(&name)),
+            ExprKind::Path(..) => self
+                .condition_name(condition)
+                .is_some_and(|name| EVENT_CONDITIONS.contains(&name)),
+            _ => false,
+        }
+    }
+
+    fn condition_name(&self, expr: &'tcx Expr<'tcx>) -> Option<&'static str> {
+        let TyKind::FnDef(def, _) = *self.typeck.expr_ty(expr).kind() else {
+            return None;
+        };
+        let krate = self.tcx.crate_name(def.krate);
+        if !CONDITION_CRATES.contains(&krate.as_str()) {
+            return None;
+        }
+        let name = self.tcx.item_name(def);
+        EVENT_CONDITIONS
+            .iter()
+            .chain(&["not", "resource_exists"])
+            .find(|known| name.as_str() == **known)
+            .copied()
     }
 
     fn leaf(&self, expr: &'tcx Expr<'tcx>) -> Leaf<'tcx> {

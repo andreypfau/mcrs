@@ -332,13 +332,6 @@ fn clear_derived_tables(
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the system runs only when the registries change, and the new markers replace the old ones"
-    )
-)]
 fn derive_clock_markers(registries: Res<CurrentRegistries>, mut commands: Commands) {
     let Some(timelines) = registries.registry::<Timeline>() else {
         error!("the session registries hold no timelines to read time markers from");

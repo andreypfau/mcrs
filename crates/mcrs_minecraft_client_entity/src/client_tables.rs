@@ -8,13 +8,6 @@ use mcrs_minecraft_registries::CurrentRegistries;
 #[derive(Resource)]
 pub(crate) struct ClientTables(pub(crate) Tables);
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the system runs only when the registries change, and the new tables replace the old ones"
-    )
-)]
 pub(crate) fn build_client_tables(
     mut commands: Commands,
     blocks: Res<Blocks>,

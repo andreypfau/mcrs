@@ -7,6 +7,7 @@ use crate::facts::SetFact;
 #[derive(Debug, Default)]
 pub struct SetGraph {
     gated: HashSet<String>,
+    on_event: HashSet<String>,
     parents: HashMap<String, Vec<String>>,
 }
 
@@ -14,6 +15,9 @@ impl SetGraph {
     pub fn add(&mut self, fact: &SetFact) {
         if fact.run_if {
             self.gated.insert(fact.set.clone());
+        }
+        if fact.on_event {
+            self.on_event.insert(fact.set.clone());
         }
         self.parents
             .entry(fact.set.clone())
@@ -23,17 +27,30 @@ impl SetGraph {
 
     #[must_use]
     pub fn gates(&self, placement: &Placement) -> bool {
-        placement.run_if || placement.sets.iter().any(|set| self.is_gated(set))
+        placement.run_if
+            || placement
+                .sets
+                .iter()
+                .any(|set| self.reaches(set, &self.gated))
     }
 
-    fn is_gated(&self, set: &str) -> bool {
+    #[must_use]
+    pub fn runs_on_event(&self, placement: &Placement) -> bool {
+        placement.on_event
+            || placement
+                .sets
+                .iter()
+                .any(|set| self.reaches(set, &self.on_event))
+    }
+
+    fn reaches(&self, set: &str, marked: &HashSet<String>) -> bool {
         let mut seen = HashSet::new();
         let mut stack = vec![set];
         while let Some(current) = stack.pop() {
             if !seen.insert(current) {
                 continue;
             }
-            if self.gated.contains(current) {
+            if marked.contains(current) {
                 return true;
             }
             if let Some(parents) = self.parents.get(current) {

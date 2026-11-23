@@ -18,13 +18,6 @@ pub(super) struct Heat {
 #[derive(Resource)]
 pub(super) struct HeatWorkgroups(pub u32);
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the run condition stops the system once the heat pipeline exists, so the insert happens once"
-    )
-)]
 pub(super) fn init_heat(
     mut commands: Commands,
     workgroups: Res<HeatWorkgroups>,

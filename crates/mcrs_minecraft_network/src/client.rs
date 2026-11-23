@@ -276,13 +276,6 @@ fn cancel_joins(pending: Query<Entity, With<PendingJoin>>, mut commands: Command
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the system runs only on a join request, which the player sends by hand"
-    )
-)]
 fn start_joins(
     mut requests: MessageReader<JoinRequest>,
     holds_vanilla: Option<Res<HoldsVanillaPack>>,

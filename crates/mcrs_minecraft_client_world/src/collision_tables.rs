@@ -16,13 +16,6 @@ impl ClientPhysicsTables {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the system runs only when the registries change, and the new tables replace the old ones"
-    )
-)]
 pub(crate) fn build_collision_tables(
     blocks: Res<Blocks>,
     registries: Res<CurrentRegistries>,

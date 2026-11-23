@@ -508,13 +508,6 @@ fn project_ready_columns(
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "builds the light data only for a column whose light changes in this tick, and the data moves into the light update message"
-    )
-)]
 fn take_lit_columns(
     mut settled: MessageReader<ColumnLightSettled>,
     dims: Option<

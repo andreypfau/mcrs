@@ -31,6 +31,8 @@ pub struct Helper {
     pub index: usize,
     pub schedule: Option<String>,
     pub run_if: bool,
+    #[serde(default)]
+    pub on_event: bool,
     pub sets: Vec<String>,
 }
 
@@ -38,6 +40,8 @@ pub struct Helper {
 pub struct SetFact {
     pub set: String,
     pub run_if: bool,
+    #[serde(default)]
+    pub on_event: bool,
     pub parents: Vec<String>,
 }
 

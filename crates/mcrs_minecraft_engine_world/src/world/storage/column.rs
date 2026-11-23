@@ -131,13 +131,6 @@ impl ColumnBundle {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnLifecycleSet;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "an empty `FxHashMap` does not allocate, and the sections are built only when a column spawns"
-    )
-)]
 pub fn reconcile_columns(
     mut changes: MessageReader<SectionStageChanged>,
     stages: Query<&SectionStage>,
