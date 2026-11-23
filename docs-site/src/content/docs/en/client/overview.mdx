@@ -1,6 +1,6 @@
 ---
 title: The client today
-description: What the mcrs client does and does not do, which platforms were tried, what a 96-column view costs, and how to start it.
+description: What the mcrs client does, its current limits, which platforms were tried, and how to start it.
 sidebar:
   order: 1
 kind: reference
@@ -47,17 +47,57 @@ sources:
   - pr:1024
   - pr:1046
   - pr:1030
+  - crates/mcrs_minecraft_client/src/name_tag.rs
+  - crates/mcrs_minecraft_client/src/web.rs
+  - crates/mcrs_minecraft_client_world/src/registries.rs
+  - crates/mcrs_minecraft_client_world/src/health_packets.rs
+  - crates/mcrs_minecraft_client_world/src/player_killed.rs
+  - crates/mcrs_minecraft_client_world/src/request_respawn.rs
+  - crates/mcrs_minecraft_client_world/src/respawn_screen.rs
+  - crates/mcrs_minecraft_client_entity/src/entity_damaged.rs
+  - crates/mcrs_minecraft_client_entity/src/receive.rs
+  - crates/mcrs_minecraft_client_gui/src/health_hud.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen.rs
+  - crates/mcrs_minecraft_vanilla_respawn/src/spawn_site.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/respawn_players.rs
+  - docs/spec/client-menu.md
+  - docs/entity-render-budget.md
+  - crates/mcrs_minecraft_client/src/world_list.rs
+  - crates/mcrs_minecraft_client/src/lib.rs
+  - assets/mcrs/entity/entity/pig.entity.json
+  - assets/mcrs/entity/entity/frog.entity.json
+  - assets/mcrs/entity/entity/player.entity.json
+  - .github/workflows/checks.yml
+  - xtask/src/checks.rs
+  - pr:1057
+  - pr:1062
+  - pr:1082
+  - pr:1085
+  - issue:129
+  - issue:130
+  - issue:131
+  - issue:137
+  - issue:1032
+  - issue:1043
+  - issue:1041
+  - issue:1031
+  - issue:1033
+  - issue:1036
+  - issue:1021
+  - issue:1022
+  - issue:1023
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 import StatusRows from '~/components/StatusRows.astro';
 
-mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a world with it and look at the terrain, the sky and the mobs, but you cannot play survival with it yet. This page is for a player or an observer who wants to know what the client does today, what it does not do, and what its long view costs in frame time and memory.
+mcrs has its own client, written in Rust on Bevy and wgpu. You can explore worlds, use inventory screens and chat, and see health and death in the native client. This page lists its current features and limits, the platforms that have been tried and the settings for its view distance.
 
 <StatusRows areas="client" />
 
@@ -68,6 +108,7 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Terrain with the block models and light of the game | Works, and the light includes coloured block light |
 | Sky, clouds and the fog of the environment | Works |
 | Mobs | Works for pigs, frogs and players, the types that have a model in the entity pack of the repository. The client does not draw the other mob types of the server yet. The native client draws a player with the skin of its profile. The client draws far mobs as flat images, which [How the client renders](/docs/en/client/rendering/) explains |
+| Name tags | Players show their names, and named mobs show a tag when their name-visible flag is set. Tags face the camera and remain faintly visible through blocks, except when crouching. [Name tags and sign text](/docs/en/client/rendering/#name-tags-and-sign-text) gives the limits |
 | F3 overlay with frame and stage times | Works |
 | Chat with command suggestions | Works |
 | Breaking blocks in creative mode, and showing the block you aim at | Works |
@@ -77,6 +118,8 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Creative inventory | <Status issue={131} />. E opens the creative screen in creative mode. It has tabs, a scrollable item grid, text and tag search, the hotbar row, a survival inventory tab and a destroy slot. Clicks take, place, clone, destroy and drop stacks |
 | Game mode switcher | F3+F4 shows the four game modes with their item icons |
 | Hotbar | Works. The mouse wheel and the keys 1 to 9 select a slot, and spectator mode shows no hotbar |
+| Health and food HUD | The native client draws hearts and a food bar in survival and adventure modes. The hearts follow health and maximum health received from the server |
+| Death screen | The native client shows the server's death message and buttons to request respawn or leave for the title screen. Both buttons wait 20 ticks before they become active |
 | Pause menu and option screens | Works in the native client. Escape opens the pause menu. The video settings change the render distance, the frame limit, vsync and fullscreen while the client runs, and the client keeps the options in `options.json` in the game directory |
 | Joining the mcrs server or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
 
@@ -87,24 +130,34 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 | Sound | <Status issue={136} />. The client is silent |
 | Particles | <Status issue={137} /> |
 | Weather (rain, snow, lightning) | <Status issue={341} />. Today rain only dims the sun and the moon |
+| Combat | Attacking the entity under the crosshair, knockback of the local player and camera tilt on a hit are missing. Health and the death screen cover only part of this work[^1085] |
 | Creative inventory details | Saved hotbars have no content (<Status issue={1032} />), and the survival inventory tab has no player figure (<Status issue={1043} />). A drag or a double click in the creative hotbar can gather from the whole inventory (<Status issue={1041} />) |
 | Creative session settings | The client assumes only the `minecraft:vanilla` feature flag (<Status issue={1031} />). The operator tab option has no button in Controls (<Status issue={1033} />); [Client variables](/docs/en/client/env-vars/) describes the file setting |
 | Item icons | Special models such as chests and shields draw no icon. Dynamic icons such as clocks and compasses do not refresh while their slot stays unchanged (<Status issue={1036} />) |
 | Item tooltips | Enchantment lines are missing (<Status issue={1021} />), renamed items and lore have no italics (<Status issue={1022} />), and the advanced component count can be low (<Status issue={1023} />). Disabled-item warnings and map summaries are not filled in yet, and creative stew tooltips do not list effects |
 | A web build | <Status issue={344} />. Chrome draws the world over WebGPU and over WebGL2. On WebGL2 the browser draws no mobs, and the CPU and GPU times of the web build are not measured yet |
-| Binary downloads | None yet. Releases are planned, and at this date no issue tracks them |
 
-## The author checks one platform
+## Platforms that have been tried
 
-The author checks the client on one platform, an Apple M4 Max with macOS and Metal. On Linux the client builds with both Wayland and X11, and a contributor ran it under Wayland when that support was added.[^826] Windows is not confirmed. CI on Ubuntu does not run the crates that need wgpu, so a green CI tells you nothing about those crates on Linux.
+The author checks the client on an Apple M4 Max with macOS and Metal. On Linux the client builds with both Wayland and X11, and a contributor ran it under Wayland when that support was added.[^826] Contributors also ran the native client on Windows while checking name tags and startup.[^1062][^1057] The hosted Ubuntu test job excludes crates that depend on wgpu, so a green result from that job does not confirm the renderer on Linux.
+
+## Health, death and headless clients
+
+The native HUD draws normal or hardcore hearts, including half hearts, extra rows for higher maximum health and a shake at low health. It does not yet draw absorption, poisoned, withered or frozen hearts, damage blinking or the regeneration wave. The food bar has no hunger-effect appearance or shake, and it stays visible on a living vehicle. The death screen has no score line.[^1085]
+
+On death, Respawn asks the server to revive the player; Title Screen leaves the world. In hardcore mode the first button is labeled Spectate and sends the same request. The screen closes when the player is alive again. If the server asks for immediate respawn, the client sends the request without opening the screen. The mcrs server currently returns the player to the world spawn; beds and respawn anchors are treated as missing, and hardcore rules, the full reset and packet resend after death are unfinished.[^1082]
+
+A bot can use the same state without a GUI. `mcrs_minecraft_client_world` keeps `Vitals` and `FoodLevel` on the local `Player`, emits `PlayerKilled` with the death message and `RespawnScreen`, and accepts the `RequestRespawn` message. Each request sends `ServerboundClientCommand` with `ClientCommandAction::PerformRespawn` when a connection exists. `mcrs_minecraft_client_entity` also emits `EntityDamaged` for damage to the local player or a tracked entity. The native client adds the removable `HealthHudPlugin` and `DeathScreenPlugin` from `mcrs_minecraft_client_gui`; the browser entry point adds neither yet.[^1085]
 
 ## A 96-column view
 
-The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The GPU limits the frame at this distance. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower Render Distance in the video settings, or start the client with a smaller `MCRS_VIEW`, the number of columns it asks for.
+The client asks for 96 columns of view by default, where a column is a stack of 16x16x16 sections. That is three times the vanilla maximum of 32. The memory at 96 columns is not bounded yet.[^337] If your GPU or RAM is small, lower Render Distance in the video settings, or start the client with a smaller `MCRS_VIEW`, the number of columns it asks for.
 
 ## Build it from source to run it
 
-There is no binary download, so build the client from source by following the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client starts on the title screen and runs its own server for the world you pick there. The game directory holds the worlds in `saves`, the options and the command history. It is `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows, and `MCRS_GAME_DIR` sets another folder. The other variables and options the client reads are on [Client variables](/docs/en/client/env-vars/). A world folder given as the argument is selected in the world list when it lies in `saves`. The client reads textures and models from the official game jar, because the repository ships no Mojang art.
+Build the client from source by following the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client starts on the title screen and runs its own server for the world you pick there. The game directory holds the worlds in `saves`, the options and the command history. It is `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows, and `MCRS_GAME_DIR` sets another folder. The other variables and options the client reads are on [Client variables](/docs/en/client/env-vars/). A world folder given as the argument is selected in the world list when it lies in `saves`. The client reads textures and models from the official game jar, because the repository ships no Mojang art.
+
+The native client opens its window while block definitions load on a background task. Packet delivery and terrain streaming wait for the definitions. Preparing the data pack still happens before the window opens. The browser build loads definitions synchronously.[^1057]
 
 <Aside type="caution" title="WIP">
 A detailed guide for players will come before the alpha. Until then, this page gives no steps that were not run on a clean machine.
@@ -114,3 +167,7 @@ The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/
 
 [^826]: <Status pr={826} state="works" /> Turns on the Wayland backend of the client next to X11.
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
+[^1057]: <Status pr={1057} state="works" /> Defers native block definitions until after the window opens.
+[^1062]: <Status pr={1062} state="works" /> Adds name tags and records native Windows and WebGL2 checks.
+[^1082]: <Status pr={1082} state="works" /> Adds player health, death and world-spawn respawn, with reset and spawn-point limits.
+[^1085]: <Status pr={1085} state="works" /> Adds the health HUD, death screen and headless respawn messages, with the remaining display and combat limits.

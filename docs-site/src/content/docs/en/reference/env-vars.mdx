@@ -13,10 +13,33 @@ sources:
   - docs/spec/proxy-protocol.md
   - crates/mcrs_minecraft_client/src/dev/knobs.rs
   - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client_jar/src/native.rs
+  - crates/mcrs_minecraft_client_world/src/registries.rs
+  - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
+  - crates/mcrs_minecraft_engine/src/whitelist.rs
+  - crates/mcrs_minecraft_engine/src/banlist.rs
+  - crates/mcrs_minecraft_mesh/src/pack.rs
+  - crates/mcrs_minecraft_render/src/shader_layout_emit.rs
+  - crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_entity_animation/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_entity_render/tests/it/gpu/impostor_flip.rs
+  - crates/mcrs_minecraft_client/tests/scene_frames/main.rs
+  - crates/mcrs_minecraft_client/tests/scene_frames/run.rs
+  - crates/mcrs_minecraft_client/tests/scene_frames/client.rs
+  - crates/mcrs_molang/tests/it/corpus.rs
+  - crates/mcrs_molang_wgsl/tests/it/corpus.rs
+  - crates/mcrs_molang_wgsl/tests/it/gpu_fuzz.rs
+  - crates/mcrs_minecraft_server/benches/random_ticks_save.rs
+  - tools/mob-bench/run.sh
+  - tools/vanilla-server/run.sh
+  - crates/mcrs_minecraft_entity_render/examples/stress_field.rs
+  - crates/mcrs_minecraft_network/src/identity.rs
+  - tests/it/vanilla_server.rs
+  - issue:82
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 79dd5940a
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import Status from '~/components/Status.astro';
 
@@ -24,9 +47,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 This page lists the `MCRS_*` environment variables that the server, the tests, the benchmarks and the build read, with their defaults. The server reads 14 of them. The variables of the client are on [Client variables](/docs/en/client/env-vars/), including the `dev` settings `MCRS_MENU` for a sample container and `MCRS_PLAY` to start the world given as the argument.
 
-<Aside type="caution" title="WIP">
-The tables on this page are written by hand for now. They will be generated from `ServerSettings` so that they cannot drift from the code.
-</Aside>
+Public client plugin fields, including `ClientRegistriesPlugin.defer_definitions`, are described under [Library configuration](/docs/en/client/env-vars/#library-configuration).
 
 ## Server
 
@@ -55,17 +76,18 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
 </Aside>
 
-The server also reads `ops.json`, `whitelist` and ban files from the working directory. Those are files, so this table does not list them.
+The server also reads `ops.json`, `whitelist.json` and ban files from the working directory. Those are files, so this table does not list them.
 
 ## Tests, benchmarks and build
 
 | Variable | Used by | What it does |
 |---|---|---|
-| `MCRS_BLESS` | tests of mesh, render shader layouts, entity model and entity animation | When it is set to `1`, a test rewrites a stale expected file. Without it the test fails and says so. |
+| `MCRS_BLESS` | tests of mesh, render shader layouts, entity model and entity animation | `1` rewrites the generated or expected files. Model and animation tests accept any set value; mesh and shader-layout tests require exactly `1`. Without it, stale files fail the check. |
+| `MCRS_JAR_WORKERS` | online download test of the client jar crate | Number of download workers, default 4. This does not set the workers of the client binary. |
 | `MCRS_CLIENT_JAR` | entity render test | Path to the client jar. |
 | `MCRS_VANILLA_SERVER_JAR`, `MCRS_SCENE_CLIENT`, `MCRS_SCENE_ENTITIES` | `scene_frames` test of the client | Server jar, another client binary, and where scene entities come from: `summon`, `record` or `skip` (the default). |
 | `MCRS_MOLANG_CORPUS`, `MCRS_GPU_FUZZ_PROGRAMS` | Molang tests | Path to the corpus file, and the number of fuzz programs (default 10000). |
-| `MCRS_BENCH_WORLD`, `MCRS_BENCH_AREA` | `random_ticks_save` bench | A saved world directory, and `<dimension> <x> <z> <radius>` to load only that area. |
+| `MCRS_BENCH_WORLD`, `MCRS_BENCH_AREA` | `random_ticks_save` bench | A saved world directory, and `<dimension> <x> <z> <radius>` to load only that area. The center coordinates are blocks; the radius is columns. Without a world directory the bench skips the run. |
 | `MCRS_BIN` | [`mob-bench/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/mob-bench/run.sh) | Path to the `mcrs` binary. The bench sets the server variables itself. |
 | `MCRS_VANILLA_SERVER` | [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) | Address of a vanilla server that the script gives to the `mcrs` join test. |
 | `MCRS_DRAW_ONLY`, `MCRS_GPU_HOT`, `MCRS_SPLIT_DRAW` | `stress_field` example of entity render | Draw only `full_rigs` or `impostors`, GPU hold workgroups (default 16384), and split the draw in two passes. |

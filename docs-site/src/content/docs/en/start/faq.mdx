@@ -14,12 +14,21 @@ sources:
   - examples/README.md
   - examples/inventory_bot_click/README.md
   - src/main.rs
+  - crates/mcrs_minecraft_network/src/server.rs
+  - .github/workflows/checks.yml
+  - .config/nextest.toml
   - issue:437
   - issue:321
+  - issue:82
+  - issue:388
+  - issue:412
+  - issue:537
+  - issue:287
+  - pr:1057
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -44,7 +53,7 @@ The server here is an application on top of a set of crates. The project differs
 
 ## Does it run on Linux and Windows?
 
-The author measured and ran everything on macOS, on an Apple M4 Max with Metal. CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. For Windows the code has a jar path, and nobody has checked it.
+The native client has also been checked on Windows in a release build with a GTX 1080: the startup window appeared and joins to a local server loaded the world.[^1057] CI runs checks on Ubuntu 24.04, and its default test profile skips GPU tests.
 
 ## Which game version?
 
@@ -57,10 +66,6 @@ Specifications are written by someone who may look at the game. Code is written 
 ## Is it safe to run?
 
 Only on your own machine or on a trusted local network. The server has no authentication, so anyone can join under any name, and it listens on all network interfaces. Do not open the port to the internet.
-
-## Are there binaries?
-
-Not yet. They will exist, but there is no issue for them. Until then you build from source, as [Install the tools](/docs/en/start/install/) describes.
 
 ## Can I publish my own plugin as a crate, or use mcrs crates?
 
@@ -76,3 +81,4 @@ Watch issues on GitHub, follow the tags feed or join [Discord](https://discord.g
 [^537]: <Status issue={537} /> The decision that the network edge translates client protocols down to 1.21.6.
 [^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates ready to publish.
 [^287]: <Status issue={287} /> Tracks the minimal server, lobby and arena examples.
+[^1057]: <Status pr={1057} state="works" /> Records the native startup and local-server join checks on Windows.

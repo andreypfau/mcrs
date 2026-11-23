@@ -9,16 +9,22 @@ stability: changing
 tracking: [367, 272]
 sources:
   - docs/spec/README.md
+  - docs/spec/registry.md
+  - docs/spec/client-knowledge.md
+  - docs/spec/reach.md
+  - docs/lag-compensation.md
   - docs/minecraft-bevy-sharding-architecture.md
   - docs/clean-room.md
   - tools/vanilla-oracle/README.md
   - tools/fixtures.json
   - issue:367
   - issue:272
+  - issue:190
+  - pr:1086
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -68,6 +74,9 @@ The third is the provenance labels. Each rule carries a label that says where it
 
 Specification authors may read the game's code and implementers may not, and one person does not hold both roles for one behaviour. A person who read the code for a behaviour can still deliver its implementation by giving the implementer role to an AI agent that has no access to the game's code. [Clean-room in practice](/docs/en/contributing/clean-room/) has the full rule. The artefacts the game produces are allowed evidence: the data pack, the reports, the oracle dumps and captured packets. [Specs and parity tests](/docs/en/contributing/specs-and-parity/) shows how to add a rule or a parity test.
 
+The owner also allows GrimAC as a source for authors of the client knowledge and reach specifications, under the same clean-room split. Rules from that source carry the provenance label `design`: they are mcrs choices and do not establish vanilla parity. These specifications describe planned lag compensation. Their experiments have not run, and the new design is not implemented.[^1086]
+
 [^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
 [^272]: <Status issue={272} /> Tracks recording vanilla outcomes as fixtures.
 [^190]: <Status issue={190} /> Tracks redstone circuits that behave as in vanilla.
+[^1086]: <Status pr={1086} state="works" /> Adds the client knowledge and reach specifications and their design note.
