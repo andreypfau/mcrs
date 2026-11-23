@@ -1,15 +1,15 @@
 - id: worldgen
   title: { en: World generation, ru: Генерация мира }
   works:
-    en: "Noise, surface, aquifers, carvers, features and structures. The output is compared element by element with dumps of the real game (about 14 of the {fixtures} entries in tools/fixtures.json belong to world generation). Presets normal and flat."
-    ru: "Шум, поверхность, аквиферы, карверы, фичи и структуры. Результат сравнивается поэлементно с дампами настоящей игры (около 14 из {fixtures} записей tools/fixtures.json относятся к генерации мира). Пресеты normal и flat."
+    en: "Noise, surface, aquifers, carvers, features and structures. The output is compared element by element with dumps of the game; 13 of the {fixtures} entries in tools/fixtures.json write fixtures into world generation crates. Presets normal and flat. A server benchmark measures generation from load tickets to loaded sections."
+    ru: "Шум, поверхность, аквиферы, карверы, фичи и структуры. Результат сравнивается поэлементно с дампами игры; 13 из {fixtures} записей tools/fixtures.json записывают фикстуры в крейты генерации мира. Пресеты normal и flat. Серверный бенчмарк измеряет генерацию от тикетов загрузки до загруженных секций."
   missing:
     en: "Parity is checked on reference seeds and chunks, not on every seed. Entities from generated structures are not done."
     ru: "Совпадение проверено на эталонных сидах и чанках, а не на любом сиде. Сущности из сгенерированных структур не сделаны."
   state: works
-  issues: [170, 523]
-  evidence: "cargo nextest run -p mcrs_minecraft_worldgen_generator -p mcrs_minecraft_worldgen_density (needs the client jar)"
-  verified: 2026-11-17
+  issues: [170, 523, 173, 1009]
+  evidence: "crates/mcrs_minecraft_worldgen_generator/src/tests/biome_parity.rs; crates/mcrs_minecraft_server/benches/worldgen_throughput.rs; tools/fixtures.json"
+  verified: 2026-11-23
 
 - id: lighting
   title: { en: Lighting, ru: Свет }
@@ -27,28 +27,28 @@
 - id: client
   title: { en: Client and rendering, ru: Клиент и рендер }
   works:
-    en: "Terrain, sky, clouds, fog, light, mobs, players with skins and poses, sign text, the F3 overlay, chat, the title screen with the list of local worlds, the pause menu and the options screens, the inventory and eight generic container screens with mouse and key clicks, drag previews, double clicks and item tooltips, the creative inventory with tabs, scrolling and search, the hotbar, block breaking in creative. Render distance 96 columns by default, and the video settings change it."
-    ru: "Рельеф, небо, облака, туман, свет, мобы, игроки со скинами и позами, текст табличек, оверлей F3, чат, титульный экран со списком локальных миров, меню паузы и экраны настроек, экран инвентаря и восемь типовых экранов контейнеров с кликами мышью и клавишами, предпросмотром перетаскивания, двойными кликами и подсказками предметов, творческий инвентарь со вкладками, прокруткой и поиском, хотбар, ломание блоков в креативе. Дальность по умолчанию 96 колонок, ее меняют настройки графики."
+    en: "Terrain, sky, clouds, fog, light, mobs, players with skins and poses, player and mob name tags, sign text, the F3 overlay, chat, the title screen with local worlds, pause and options screens, the inventory and eight generic container screens with mouse and key clicks, drag previews, double clicks and tooltips, creative tabs, scrolling and search, the hotbar and creative block breaking. The native client has health and food bars and a death screen with respawn. Render distance is 96 columns by default and changes in video settings."
+    ru: "Рельеф, небо, облака, туман, свет, мобы, игроки со скинами и позами, подписи игроков и мобов, текст табличек, оверлей F3, чат, титульный экран с локальными мирами, меню паузы и настройки, инвентарь и восемь типовых экранов контейнеров с кликами мышью и клавишами, предпросмотром перетаскивания, двойными кликами и подсказками, творческие вкладки, прокрутка и поиск, хотбар и ломание блоков в креативе. В нативном клиенте есть полосы здоровья и еды и экран смерти с возрождением. Дальность по умолчанию 96 колонок, ее меняют настройки графики."
   missing:
-    en: "The web build loads a world on WebGPU and WebGL2, but it does not reach a steady frame yet. No sound, particles or weather. Creative saved hotbars and the player figure in the creative survival tab are missing. Special item models draw no icon. Item tooltips lack enchantment lines and italics, and can undercount components."
-    ru: "Веб-сборка загружает мир на WebGPU и WebGL2, но стабильного кадра пока не держит. Нет звука, частиц и погоды. Нет сохраненных творческих хотбаров и фигурки игрока во вкладке инвентаря выживания творческого экрана. Особые модели предметов не рисуют значок. В подсказках предметов нет строк зачарований и курсива, а число компонентов может быть занижено."
+    en: "Web CPU/GPU frame times are not measured; WebGL2 draws no mobs, and the browser entry point adds no GUI, health HUD or death screen. No sound, particles or weather. Absorption and special heart forms, blinking and the regeneration wave are missing. Name tags do not yet receive crosshair, hidden-HUD or passenger inputs. Creative saved hotbars and the player figure in the creative survival tab are missing. Special item models draw no icon. Tooltips lack enchantment lines and italics and can undercount components."
+    ru: "Время кадра на CPU и GPU в веб-сборке не измерено; WebGL2 не рисует мобов, а браузерная точка входа не добавляет GUI, индикаторы здоровья и экран смерти. Нет звука, частиц и погоды. Нет поглощения, особых видов сердец, мигания и волны регенерации. Подписи пока не получают данные о цели под прицелом, скрытом HUD и пассажирах. Нет сохраненных творческих хотбаров и фигурки игрока во вкладке инвентаря выживания творческого экрана. Особые модели предметов не рисуют значок. В подсказках нет строк зачарований и курсива, а число компонентов может быть занижено."
   state: partial
-  issues: [337, 344, 130, 131, 1032, 1043, 1021, 1022, 1023]
-  evidence: "crates/mcrs_minecraft_client/tests/it/screen_clicks.rs; crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs; crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs"
-  verified: 2026-11-18
+  issues: [337, 344, 130, 131, 1032, 1043, 1021, 1022, 1023, 1060, 1061, 106, 1083]
+  evidence: "crates/mcrs_minecraft_client/tests/it/screen_clicks.rs; crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs; crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs; crates/mcrs_minecraft_client_gui/src/health_hud.rs; crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs; crates/mcrs_minecraft_client/src/name_tag.rs; crates/mcrs_minecraft_client/src/web.rs"
+  verified: 2026-11-23
 
 - id: protocol
   title: { en: Protocol, ru: Протокол }
   works:
-    en: "Handshake, status, login, configuration and play. 72 of 144 clientbound and 52 of 69 serverbound play packets are typed."
-    ru: "Handshake, status, login, configuration и play. Типизировано 72 из 144 clientbound и 52 из 69 serverbound play-пакетов."
+    en: "Handshake, status, login, configuration and play. 76 of 144 clientbound and 52 of 69 serverbound play packets are typed."
+    ru: "Handshake, status, login, configuration и play. Типизировано 76 из 144 clientbound и 52 из 69 serverbound play-пакетов."
   missing:
     en: "The other play packets travel as raw bytes. Only one game version at a time; translation for older clients is planned."
     ru: "Остальные play-пакеты идут сырыми байтами. Одна версия игры за раз, трансляция для старых клиентов только запланирована."
   state: partial
   issues: [295, 537]
-  evidence: "crates/mcrs_minecraft_protocol/src/packets/table.rs"
-  verified: 2026-11-17
+  evidence: "crates/mcrs_minecraft_protocol/src/packets/table.rs; crates/mcrs_minecraft_protocol_game/src/table.rs; crates/mcrs_minecraft_protocol_game/tests/it/packet_tables.rs"
+  verified: 2026-11-23
 
 - id: network
   title: { en: Network, ru: Сеть }
@@ -79,41 +79,41 @@
 - id: gameplay
   title: { en: Gameplay, ru: Геймплей }
   works:
-    en: "Join, chat with a cancellable event before broadcast, game modes, block placing, block breaking in creative and by hand in survival, block drops from loot tables, item entities and their pickup, the player inventory with armour slots, menus that a plugin opens as data, creative clicks from the client, the pose of players, falling blocks, removal of blocks that lose their support, random ticks and block events."
-    ru: "Вход, чат с отменяемым событием до рассылки, режимы игры, установка блоков, ломание блоков в креативе и рукой в выживании, дроп блоков по таблицам лута, предметы на земле и их подбор, инвентарь игрока со слотами брони, меню, которые плагин открывает как данные, творческие клики клиента, поза игроков, падающие блоки, разрушение блоков без опоры, случайные тики и блочные события."
+    en: "Join, cancellable chat, game modes, block placement, creative and bare-hand survival breaking, loot-table drops, item entities and pickup, the player inventory with armour slots, menus opened as data, creative clicks, player poses, falling blocks, loss of block support, random ticks and block events. Player health, command damage, death and world-spawn respawn work, with inventory drops and death messages. Observers receive player arm swings."
+    ru: "Вход, отменяемый чат, режимы игры, установка блоков, ломание в креативе и рукой в выживании, дроп по таблицам лута, предметы на земле и подбор, инвентарь игрока со слотами брони, меню как данные, творческие клики, позы игроков, падающие блоки, потеря опоры блоками, случайные тики и блочные события. Работают здоровье игрока, урон от команд, смерть и возрождение в точке спавна мира, дроп инвентаря и сообщения о смерти. Наблюдатели получают взмахи рук игроков."
   missing:
-    en: "Crafting, combat, redstone, fluids, plant growth, trading, bosses. A tool digs no faster than an empty hand. No survival loop yet."
-    ru: "Крафт, бой, редстоун, жидкости, рост растений, торговля, боссы. Инструмент копает не быстрее пустой руки. Цикла выживания пока нет."
+    en: "Player melee attacks, own-player knockback and camera hurt tilt, crafting, redstone, fluids, plant growth, trading and bosses. Respawn has incomplete resets and resends and does not use beds or anchors. A tool digs no faster than an empty hand. No complete survival loop yet."
+    ru: "Ближние атаки игрока, отбрасывание своего игрока и наклон камеры при уроне, крафт, редстоун, жидкости, рост растений, торговля и боссы. При возрождении сброс состояния и повторная отправка данных неполны, кровати и якоря не используются. Инструмент копает не быстрее пустой руки. Полного цикла выживания пока нет."
   state: partial
-  issues: [182, 190]
-  evidence: "crates/mcrs_minecraft_server/tests/it/chat.rs; crates/mcrs_minecraft_client/tests/it/creative_actions.rs"
-  verified: 2026-11-18
+  issues: [182, 190, 103, 106, 116, 906, 1083]
+  evidence: "crates/mcrs_minecraft_server/tests/it/chat.rs; crates/mcrs_minecraft_client/tests/it/creative_actions.rs; crates/mcrs_minecraft_server/tests/it/mob_replication.rs; crates/mcrs_minecraft_server/tests/it/death_drops.rs; crates/mcrs_minecraft_server/tests/it/death_messages.rs; crates/mcrs_minecraft_vanilla_swing/tests/it/main.rs"
+  verified: 2026-11-23
 
 - id: commands
   title: { en: Commands, ru: Команды }
   works:
-    en: "Command parser and tree, the commands packet and tab hints. {root_commands} vanilla commands, among them execute, gamemode, tp, summon, kill, data, time, fill, whitelist and ban."
-    ru: "Парсер и дерево команд, пакет commands и подсказки по Tab. {root_commands} команд ванили, среди них execute, gamemode, tp, summon, kill, data, time, fill, whitelist и ban."
+    en: "Command parser, a permission-filtered Java command tree, the commands packet and tab hints. {root_commands} vanilla commands, among them execute, gamemode, tp, summon, kill, data, time, fill, whitelist and ban."
+    ru: "Парсер команд, дерево команд Java с учетом прав, пакет commands и подсказки по Tab. {root_commands} команд ванили, среди них execute, gamemode, tp, summon, kill, data, time, fill, whitelist и ban."
   missing:
-    en: "A command tree with permission levels is still open."
-    ru: "Дерево команд с уровнями прав пока открыто."
+    en: "The Bedrock command dialect is not implemented. The swing command has a specification but is not registered."
+    ru: "Диалект команд Bedrock не реализован. У команды swing есть спецификация, но она не зарегистрирована."
   state: partial
-  issues: [285]
-  evidence: "crates/mcrs_minecraft_server/tests/it/commands.rs"
-  verified: 2026-11-17
+  issues: [285, 667]
+  evidence: "crates/mcrs_minecraft_server/tests/it/commands.rs; crates/mcrs_minecraft_server/tests/it/op_level.rs; crates/mcrs_minecraft_command_engine/src/command_tree.rs"
+  verified: 2026-11-23
 
 - id: entities
   title: { en: Entities and mobs, ru: Сущности и мобы }
   works:
-    en: "Entity rows by tile, 5 mob types with data (pig, cow, sheep, chicken, zombified piglin), AI for pigs, cows, sheep and chickens (panic, stroll, look at a player), item entities, falling blocks, attributes with modifiers, replication to clients."
-    ru: "Строки сущностей по тайлам, 5 типов мобов с данными (свинья, корова, овца, курица, зомби-свинолюд), ИИ свиней, коров, овец и куриц (паника, прогулка, взгляд на игрока), предметы на земле, падающие блоки, атрибуты с модификаторами, репликация клиентам."
+    en: "Mobs are ECS entities with motion and attributes, plus a brain component where supported. Five mob types have data (pig, cow, sheep, chicken, zombified piglin); pigs, cows, sheep and chickens have panic, stroll and look-at-player AI. Item entities, falling blocks, attributes with modifiers and client replication work. A sorted hit queue applies health changes, armour and damage immunities."
+    ru: "Мобы - ECS-сущности с компонентами движения и атрибутов, а при поддержке ИИ и с компонентом мозга. Есть данные пяти типов мобов (свинья, корова, овца, курица, зомби-свинолюд); у свиней, коров, овец и куриц есть ИИ паники, прогулки и взгляда на игрока. Работают предметы на земле, падающие блоки, атрибуты с модификаторами и репликация клиентам. Отсортированная очередь ударов применяет изменения здоровья, броню и иммунитеты к урону."
   missing:
     en: "Most other mobs and their AI. The 50,000-pig benchmark is marked provisional by its author, so we publish no numbers from it."
     ru: "Большинство остальных мобов и их ИИ. Бенчмарк на 50 000 свиней автор сам пометил как предварительный, поэтому его цифр мы не публикуем."
   state: partial
-  issues: [102, 224]
-  evidence: "crates/mcrs_minecraft_server/tests/it/mob_ai.rs"
-  verified: 2026-11-17
+  issues: [102, 224, 103, 1067, 1074, 1076]
+  evidence: "crates/mcrs_minecraft_server/tests/it/mob_ai.rs; crates/mcrs_minecraft_server/tests/it/mob_replication.rs; crates/mcrs_minecraft_engine_damage/tests/it/hit_order.rs"
+  verified: 2026-11-23
 
 - id: physics
   title: { en: Physics and movement, ru: Физика и движение }
@@ -160,22 +160,22 @@
     en: "One command moves the project to a new game snapshot. Also the vanilla oracle, mob bench, server bench, client recorder, Molang corpus, the xtask checks, and a probe that drives a server with scripted clients and compares mcrs with a vanilla trace."
     ru: "Одна команда переводит проект на новый снапшот игры. Еще oracle ванили, mob bench, server bench, client recorder, корпус Molang, проверки xtask и probe, который гоняет сервер скриптовыми клиентами и сравнивает mcrs с трассой ванили."
   missing:
-    en: "Some tools need Java 21 or newer, and the mob bench needs Java 25."
-    ru: "Часть инструментов требует Java 21 или новее, а mob bench требует Java 25."
+    en: "Tools that launch vanilla need the Java version pinned in assets/minecraft/version.json; the oracle and client input agent compile for that version too."
+    ru: "Инструментам, которые запускают ванильную игру, нужна версия Java из assets/minecraft/version.json; oracle и агент ввода клиента компилируются под ту же версию."
   state: works
   issues: [507]
-  evidence: "tools/mcrs_minecraft_update/README.md"
-  verified: 2026-11-17
+  evidence: "tools/mcrs_minecraft_update/README.md; tools/vanilla-oracle/build.gradle; tools/vanilla-client/README.md; assets/minecraft/version.json"
+  verified: 2026-11-23
 
 - id: library
   title: { en: Crates as a library, ru: Крейты как библиотека }
   works:
     en: "{crates} crates. CI checks that {crates_no_bevy} packages build without Bevy, {crates_no_std} without std and {crates_wasm32} for wasm32. Six library examples in examples/, each with a check of its dependency tree, among them a status ping and a player file viewer without Bevy and an inventory bot without a window."
-    ru: "{crates} крейта. CI проверяет, что {crates_no_bevy} пакета собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32. Шесть примеров библиотеки в examples/, у каждого проверяется дерево зависимостей, среди них status ping и просмотр файла игрока без Bevy и бот инвентаря без окна."
+    ru: "{crates} крейтов. CI проверяет, что {crates_no_bevy} пакета собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32. Шесть примеров библиотеки в examples/, у каждого проверяется дерево зависимостей, среди них status ping и просмотр файла игрока без Bevy и бот инвентаря без окна."
   missing:
     en: "Nothing is published on crates.io, the server, lobby and arena examples are not written, and the API is not stable."
     ru: "На crates.io ничего не опубликовано, примеров сервера, лобби и арены нет, API не стабилен."
   state: partial
   issues: [180, 287, 321]
   evidence: "xtask/src/checks.rs (portability job in CI)"
-  verified: 2026-11-18
+  verified: 2026-11-23

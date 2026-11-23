@@ -63,10 +63,48 @@ sources:
   - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
   - crates/mcrs_minecraft_client/tests/it/local_world.rs
   - crates/mcrs_minecraft_inventory_click/tests/it/drag.rs
+  - pr:1012
+  - pr:1056
+  - pr:1057
+  - pr:1062
+  - pr:1063
+  - pr:1064
+  - pr:1065
+  - pr:1068
+  - pr:1069
+  - pr:1070
+  - pr:1071
+  - pr:1073
+  - pr:1075
+  - pr:1077
+  - pr:1078
+  - pr:1082
+  - pr:1084
+  - pr:1085
+  - pr:1086
+  - crates/mcrs_minecraft_server/tests/it/mob_replication.rs
+  - crates/mcrs_minecraft_server/tests/it/death_drops.rs
+  - crates/mcrs_minecraft_server/tests/it/death_messages.rs
+  - crates/mcrs_minecraft_engine_damage/tests/it/hit_order.rs
+  - crates/mcrs_minecraft_server/benches/worldgen_throughput.rs
+  - crates/mcrs_minecraft_worldgen_generator/benches/overworld_pipeline.rs
+  - crates/mcrs_minecraft_command_vanilla/src/plugin.rs
+  - crates/mcrs_minecraft_command_world/src/plugin.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client/src/web.rs
+  - crates/mcrs_minecraft_client/src/name_tag.rs
+  - crates/mcrs_minecraft_client_world/src/registries.rs
+  - crates/mcrs_minecraft_client_gui/src/health_hud.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs
+  - CONTRIBUTING.md
+  - .github/pull_request_template.md
+  - docs/spec/client-knowledge.md
+  - docs/spec/reach.md
+  - issue:106
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -76,10 +114,20 @@ This page is the change log of mcrs. Each entry says what was merged, what chang
 
 ## Since v0.5.8 (no tag yet)
 
-This entry covers 2026-10-14 to 2026-11-19. In that time 14 authors made 1115 commits and merged 366 pull requests. 264 of the pull requests are from andreypfau, and 102 are from 13 other people.
+This entry covers 2026-10-14 to 2026-11-23. In that time 385 pull requests from 14 authors were merged, 277 from andreypfau and 108 from 13 other people. The main history since v0.5.8 contains 1134 commits.
 
 ### Merged
 
+- Mobs now run as ECS entities with motion and attributes, plus a brain component where supported; the old mob row path is removed (<Status pr={1069} state="works" />, <Status pr={1073} state="works" />, <Status pr={1075} state="works" />, <Status pr={1077} state="works" />).
+- A sorted hit queue applies mob damage after the motion pass, with armour, damage immunities and health updates for resting mobs (<Status pr={1078} state="works" />).
+- Players have health, can take command damage, die and respawn at the world spawn. Death drops inventory items and sends a chat message according to the game rules; cursor and crafting-grid stacks drop separately when the dead player is removed or respawns (<Status pr={1082} state="works" />, <Status pr={1084} state="works" />).
+- The native client shows health and food bars and a death screen. The Respawn and Title Screen buttons wait 20 ticks; the browser entry point does not add these GUI plugins (<Status pr={1085} state="works" />).
+- The client draws name tags above players and named mobs, and sign text no longer shows mirrored from behind its plane (<Status pr={1062} state="works" />, <Status pr={1056} state="works" />).
+- Observers receive player arm swings for punches, piercing-weapon stabs, accepted block placement and hand drops. A pure swing kernel and typed item animation components supply the cooldown and animation data. The `/swing` specification exists, but the command is not registered (<Status pr={1012} state="works" />, <Status pr={1063} state="works" />, <Status pr={1064} state="works" />).
+- The native window opens while block definitions load in the background. Data-pack preparation still happens before the window opens (<Status pr={1057} state="works" />).
+- World generation reuses climate searches and density work. Block and biome hashes stayed identical at the three benchmark locations, and new benchmarks measure per-stage CPU time and generation from load tickets to loaded sections (<Status pr={1065} state="works" />).
+- Client knowledge and reach now have specifications and a lag compensation design note. Their experiments have not run, and the proposed system is not implemented (<Status pr={1086} state="works" />).
+- Outside contributions follow the issue, scope and evidence rules in `CONTRIBUTING.md`. The PR body lists every model used and what it did (<Status pr={1070} state="works" />, <Status pr={1071} state="works" />).
 - Worlds tick as parallel cells behind a muxer thread and a shared data layer (<Status pr={646} state="works" />).
 - The server has mobs with a parallel AI stage, the client renders mobs (<Status pr={651} state="works" />).
 - Entity physics, movement checks and block simulation work (<Status pr={648} state="works" />), and so do the block tick and block event queues (<Status pr={477} state="works" />).
@@ -128,6 +176,8 @@ This entry covers 2026-10-14 to 2026-11-19. In that time 14 authors made 1115 co
 
 A plugin here is Rust code that is compiled into the server.
 
+- `EntityKey` becomes `EntityUuid` over `uuid::Uuid`, with the same numeric ordering. The separate engine-world UUID component is removed (<Status pr={1068} state="works" />).
+- `mcrs_minecraft_entity_rows` and `mcrs_minecraft_engine_mob_replication` are removed. Query mob components and use the moving-entity replication path. Player health fields leave `PlayerFileState` and are saved as `Vitals` through the persisted registry (<Status pr={1077} state="works" />, <Status pr={1082} state="works" />).
 - `MinecraftServerPlugin` became the plugin group `MinecraftServerPlugins`, with members such as `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` and `ServerNetworkPlugin`. You can disable or replace any member (<Status pr={551} state="works" />). The engine members then moved to the new crate `mcrs_minecraft_engine_server`, and `mcrs_minecraft_server` keeps the vanilla group (<Status pr={592} state="works" />).
 - No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource (<Status pr={548} state="works" />). The details are in [Environment variables](/docs/en/reference/env-vars/).
 - `Text::to_legacy_lossy` is removed. Use `plain_text` or `legacy_text` from `mcrs_minecraft_text_flatten`, which also take a `Language` (<Status pr={680} state="works" />).
@@ -135,7 +185,7 @@ A plugin here is Rust code that is compiled into the server.
 - The workspace moved from Bevy 0.19.1 to 0.20.1, so a plugin moves too. An observer writes `On<Remove<X>>` in place of `On<Remove, X>`, and the same goes for `Add`, `Insert` and `Discard` (<Status pr={709} state="works" />).
 - The loot table and context registries moved to `mcrs_minecraft_loot`, the damage type and mob effect registries to `mcrs_minecraft_entity`, the recipe registries to the new crate `mcrs_minecraft_recipe`, and the menu registry to the new crate `mcrs_minecraft_menu`. The names stay, and only the paths change (<Status pr={703} state="works" />).
 - `PlayerDat` of `mcrs_minecraft_save` holds the NBT root of the player file and has the methods `pos`, `rotation` and `dimension` in place of typed fields (<Status pr={744} state="works" />).
-- `PlayerHolders`, the slot policy of the player holders and the restore systems moved to the new crate `mcrs_minecraft_player_holders`, and `PlayerItemFilePlugin` moved to `mcrs_minecraft_vanilla_inventory` (<Status pr={983} state="works" />). `Click`, `ClickKind` and `Clicked` moved to the new crate `mcrs_minecraft_container_click`, and `ServerboundContainerClick` carries them in one `click` field (<Status pr={985} state="works" />). `PlayerGameMode` moved to `mcrs_minecraft_game_mode` (<Status pr={988} state="works" />).
+- `PlayerHolders`, the slot policy for player holders and the restore systems moved to the new crate `mcrs_minecraft_player_holders`, and `PlayerItemFilePlugin` moved to `mcrs_minecraft_vanilla_inventory` (<Status pr={983} state="works" />). `Click`, `ClickKind` and `Clicked` moved to the new crate `mcrs_minecraft_container_click`, and `ServerboundContainerClick` carries them in one `click` field (<Status pr={985} state="works" />). `PlayerGameMode` moved to `mcrs_minecraft_game_mode` (<Status pr={988} state="works" />).
 - The plain value `MenuLayout` replaces `InventoryMenu` and `MenuSlot`, and `close_menu` of `MenuCommandsExt` replaces the one of `PlayerInventoryCommandsExt` (<Status pr={977} state="works" />). `PlayerItemsRestored` is removed (<Status pr={986} state="works" />).
 - `RequestSource` has a private field, so a plugin gets one only from `allocate_request_source`, and `RequestId` is `{ source, serial }` (<Status pr={988} state="works" />).
 - `MenuType` and the menu registry key moved from `mcrs_minecraft_inventory_menu` to `mcrs_minecraft_menu_key`. `RequestPurpose` and its `serial()` replace the five `*_REQUEST` constants of `mcrs_minecraft_vanilla_inventory`. The play-state packet crate no longer links the inventory layout or rules (<Status pr={1037} state="works" />).
@@ -146,6 +196,8 @@ A plugin here is Rust code that is compiled into the server.
 
 ### New for plugin authors
 
+- `DamagePlugin` exposes the `DamageSet` phases, `PendingHits`, `DamageRequest`, `Damaged` and `Died`. `PlayerVitalsPlugin` adds the player side, while a host supplies `RespawnRequest`; removable vanilla plugins handle respawn, death drops and death messages (<Status pr={1078} state="works" />, <Status pr={1082} state="works" />, <Status pr={1084} state="works" />).
+- A headless client reads `Vitals`, `FoodLevel`, `PlayerKilled` and `EntityDamaged`, and writes `RequestRespawn`. `HealthHudPlugin` and `DeathScreenPlugin` add the GUI separately. `ClientRegistriesPlugin.defer_definitions` selects background block-definition loading and has no environment variable (<Status pr={1085} state="works" />, <Status pr={1057} state="works" />).
 - A plugin can add plugins to every dimension world with `add_dimension_plugin`, or to one dimension world with `add_dimension_plugin_to` (<Status pr={552} state="works" />).
 - The chat event is cancellable. An observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} />). Join, leave, movement and block events are not done.
 - A plugin saves a component in the player file with `register_persisted` of `PersistedAppExt`, for the host and every dimension world in one call (<Status pr={744} state="works" />).
@@ -162,6 +214,7 @@ A plugin here is Rust code that is compiled into the server.
 
 ### Not there yet
 
+- Player melee attacks, own-player knockback and camera hurt tilt are missing. Respawn resets and resends remain incomplete, and beds and anchors are not used (<Status issue={106} />).
 - There is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
 - The creative screen has no saved hotbars (<Status issue={1032} />) and no player figure in the survival inventory tab (<Status issue={1043} />). [The client today](/docs/en/client/overview/#what-is-missing) lists the other screen, icon and tooltip limits.

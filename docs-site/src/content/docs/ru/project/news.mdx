@@ -3,7 +3,7 @@ title: Новости
 description: Что вошло в код, что изменилось для авторов плагинов и чего еще нет, по последнему тегу и по работе после последнего тега.
 sidebar:
   order: 4
-translated_from: 485b34f36
+translated_from: 9eac02a81
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -13,10 +13,20 @@ import Status from '~/components/Status.astro';
 
 ## После v0.5.8 (тега пока нет)
 
-Запись охватывает период с 2026-10-14 по 2026-11-19. За это время 14 авторов сделали 1115 коммитов и влили 366 PR. 264 PR прислал andreypfau, еще 102 - 13 других людей.
+Запись охватывает период с 2026-10-14 по 2026-11-23. За это время влили 385 PR от 14 авторов: 277 от andreypfau и 108 от 13 других людей. В истории main после v0.5.8 содержится 1134 коммита.
 
 ### Что влито
 
+- Мобы теперь работают как ECS-сущности с компонентами движения и атрибутов, а при поддержке ИИ и с компонентом мозга; старый путь со строками мобов удален (<Status pr={1069} state="works" />, <Status pr={1073} state="works" />, <Status pr={1075} state="works" />, <Status pr={1077} state="works" />).
+- Отсортированная очередь ударов применяет урон мобам после прохода движения, учитывает броню и иммунитеты к урону и обновляет здоровье неподвижных мобов (<Status pr={1078} state="works" />).
+- У игроков есть здоровье, они получают урон от команд, умирают и возрождаются в точке спавна мира. При смерти предметы инвентаря выпадают, а сообщение уходит в чат с учетом правил игры; стеки курсора и сетки крафта выпадают отдельно при удалении умершего игрока или возрождении (<Status pr={1082} state="works" />, <Status pr={1084} state="works" />).
+- Нативный клиент рисует полосы здоровья и еды и экран смерти. Кнопки Respawn и Title Screen ждут 20 тиков; браузерная точка входа не добавляет эти GUI-плагины (<Status pr={1085} state="works" />).
+- Клиент рисует подписи над игроками и именованными мобами, а текст табличек больше не виден зеркально с обратной стороны своей плоскости (<Status pr={1062} state="works" />, <Status pr={1056} state="works" />).
+- Наблюдатели получают взмахи рук игроков при ударах кулаком, колющих ударах оружием, принятой установке блока и выбрасывании из руки. Чистое ядро взмахов и типизированные компоненты анимации предметов задают задержку и данные анимации. Спецификация `/swing` есть, но команда не зарегистрирована (<Status pr={1012} state="works" />, <Status pr={1063} state="works" />, <Status pr={1064} state="works" />).
+- Нативное окно открывается, пока определения блоков загружаются в фоне. Подготовка датапака по-прежнему идет до открытия окна (<Status pr={1057} state="works" />).
+- Генерация мира повторно использует поиск климата и вычисления плотности. Хеши блоков и биомов не изменились в трех местах бенчмарка, а новые бенчмарки измеряют процессорное время стадий и генерацию от тикетов загрузки до загруженных секций (<Status pr={1065} state="works" />).
+- Для знания клиента о мире и проверки досягаемости появились спецификации и проект лаг-компенсации. Эксперименты еще не запускались, предложенная система не реализована (<Status pr={1086} state="works" />).
+- Внешние участники следуют правилам `CONTRIBUTING.md` об issue, объеме изменений и подтверждении результатов. В тексте PR перечисляются все использованные модели и их работа (<Status pr={1070} state="works" />, <Status pr={1071} state="works" />).
 - Миры тикают параллельными ячейками за потоком-мультиплексором (muxer) и общим слоем данных (<Status pr={646} state="works" />).
 - На сервере появились мобы с параллельной стадией ИИ, клиент рисует мобов (<Status pr={651} state="works" />).
 - Работают физика сущностей, проверки движения и симуляция блоков (<Status pr={648} state="works" />), а также очереди тиков блоков и событий блоков (<Status pr={477} state="works" />).
@@ -65,6 +75,8 @@ import Status from '~/components/Status.astro';
 
 Плагин здесь - это код на Rust, который компилируется в сервер.
 
+- `EntityKey` стал `EntityUuid` поверх `uuid::Uuid`, числовой порядок не изменился. Отдельный UUID-компонент из engine-world удален (<Status pr={1068} state="works" />).
+- `mcrs_minecraft_entity_rows` и `mcrs_minecraft_engine_mob_replication` удалены. Мобы доступны через запросы компонентов, а репликация идет по общему пути движущихся сущностей. Поля здоровья игрока убраны из `PlayerFileState` и сохраняются как `Vitals` через реестр сохраняемых компонентов (<Status pr={1077} state="works" />, <Status pr={1082} state="works" />).
 - `MinecraftServerPlugin` стал группой плагинов `MinecraftServerPlugins`, в которую входят, например, `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` и `ServerNetworkPlugin`. Любой из них можно отключить или заменить (<Status pr={551} state="works" />). Затем плагины движка переехали в новый крейт `mcrs_minecraft_engine_server`, а `mcrs_minecraft_server` хранит группу для ванили (<Status pr={592} state="works" />).
 - Ни один крейт библиотеки больше не читает окружение или рабочий каталог ради настроек. Операторы теперь задаются полем `ops` плагина, а настройки клиента - ресурсом `Knobs` (<Status pr={548} state="works" />). Подробности есть в [Переменных окружения](/docs/ru/reference/env-vars/).
 - `Text::to_legacy_lossy` удален. Берите вместо него `plain_text` или `legacy_text` из `mcrs_minecraft_text_flatten`, которые принимают еще и `Language` (<Status pr={680} state="works" />).
@@ -72,7 +84,7 @@ import Status from '~/components/Status.astro';
 - Workspace перешел с Bevy 0.19.1 на 0.20.1, так что плагину тоже придется перейти. Наблюдатель теперь пишется как `On<Remove<X>>` вместо `On<Remove, X>`, и так же для `Add`, `Insert` и `Discard` (<Status pr={709} state="works" />).
 - Реестры таблиц лута и контекста переехали в `mcrs_minecraft_loot`, реестры типов урона и эффектов мобов - в `mcrs_minecraft_entity`, реестры рецептов - в новый крейт `mcrs_minecraft_recipe`, а реестр меню - в новый крейт `mcrs_minecraft_menu`. Имена прежние, меняются только пути (<Status pr={703} state="works" />).
 - `PlayerDat` из `mcrs_minecraft_save` хранит корень NBT файла игрока, а вместо типизированных полей у него методы `pos`, `rotation` и `dimension` (<Status pr={744} state="works" />).
-- `PlayerHolders`, политика слотов держателей игрока и системы восстановления переехали в новый крейт `mcrs_minecraft_player_holders`, а `PlayerItemFilePlugin` - в `mcrs_minecraft_vanilla_inventory` (<Status pr={983} state="works" />). `Click`, `ClickKind` и `Clicked` переехали в новый крейт `mcrs_minecraft_container_click`, а `ServerboundContainerClick` несет их в одном поле `click` (<Status pr={985} state="works" />). `PlayerGameMode` переехал в `mcrs_minecraft_game_mode` (<Status pr={988} state="works" />).
+- `PlayerHolders`, политика слотов для держателей игрока и системы восстановления переехали в новый крейт `mcrs_minecraft_player_holders`, а `PlayerItemFilePlugin` - в `mcrs_minecraft_vanilla_inventory` (<Status pr={983} state="works" />). `Click`, `ClickKind` и `Clicked` переехали в новый крейт `mcrs_minecraft_container_click`, а `ServerboundContainerClick` несет их в одном поле `click` (<Status pr={985} state="works" />). `PlayerGameMode` переехал в `mcrs_minecraft_game_mode` (<Status pr={988} state="works" />).
 - Простое значение `MenuLayout` заменило `InventoryMenu` и `MenuSlot`, а `close_menu` из `MenuCommandsExt` заменил одноименный метод `PlayerInventoryCommandsExt` (<Status pr={977} state="works" />). `PlayerItemsRestored` удален (<Status pr={986} state="works" />).
 - У `RequestSource` теперь приватное поле, поэтому плагин получает источник только через `allocate_request_source`, а `RequestId` стал `{ source, serial }` (<Status pr={988} state="works" />).
 - `MenuType` и ключ реестра меню переехали из `mcrs_minecraft_inventory_menu` в `mcrs_minecraft_menu_key`. `RequestPurpose` и его `serial()` заменяют пять констант `*_REQUEST` из `mcrs_minecraft_vanilla_inventory`. Крейт play-пакетов больше не линкует раскладку и правила инвентаря (<Status pr={1037} state="works" />).
@@ -83,6 +95,8 @@ import Status from '~/components/Status.astro';
 
 ### Новое для авторов плагинов
 
+- `DamagePlugin` открывает фазы `DamageSet`, `PendingHits`, `DamageRequest`, `Damaged` и `Died`. `PlayerVitalsPlugin` добавляет часть для игроков, хост отправляет `RespawnRequest`; съемные ванильные плагины обрабатывают возрождение, дроп при смерти и сообщения о смерти (<Status pr={1078} state="works" />, <Status pr={1082} state="works" />, <Status pr={1084} state="works" />).
+- Клиент без окна читает `Vitals`, `FoodLevel`, `PlayerKilled` и `EntityDamaged` и отправляет `RequestRespawn`. `HealthHudPlugin` и `DeathScreenPlugin` отдельно добавляют GUI. `ClientRegistriesPlugin.defer_definitions` включает фоновую загрузку определений блоков, переменной окружения для него нет (<Status pr={1085} state="works" />, <Status pr={1057} state="works" />).
 - Плагин может добавлять плагины в мир каждого измерения через `add_dimension_plugin` или в мир одного измерения через `add_dimension_plugin_to` (<Status pr={552} state="works" />).
 - Событие чата можно отменить. Наблюдатель может остановить строку или заменить ее текст до рассылки (<Status pr={636} state="works" />, часть <Status issue={283} />). События входа, выхода, движения и блоков не готовы.
 - Плагин сохраняет компонент в файле игрока через `register_persisted` из `PersistedAppExt`, одним вызовом для хоста и мира каждого измерения (<Status pr={744} state="works" />).
@@ -99,6 +113,7 @@ import Status from '~/components/Status.astro';
 
 ### Чего еще нет
 
+- Нет ближних атак игрока, отбрасывания своего игрока и наклона камеры при уроне. При возрождении сброс состояния и повторная отправка данных неполны, кровати и якоря не используются (<Status issue={106} />).
 - Нет онлайн-режима (<Status issue={82} />).
 - Нет загрузчика плагинов вне сборки сервера, и решения по нему тоже нет.
 - На творческом экране нет сохраненных хотбаров (<Status issue={1032} />) и фигурки игрока во вкладке инвентаря выживания (<Status issue={1043} />). Остальные ограничения экранов, значков и подсказок перечислены на странице [Клиент сегодня](/docs/ru/client/overview/#чего-не-хватает).
