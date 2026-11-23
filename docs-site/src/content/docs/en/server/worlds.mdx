@@ -73,7 +73,7 @@ cargo run --release -- "<path to a world folder>"
 
 The folder must exist, or the server prints "not a world folder" and exits. When the folder holds a world, the server takes the seed and the list of dimensions from the world generation settings of the save, and a seed in `MCRS_WORLD_SEED` or a preset in `MCRS_WORLD_PRESET` does not override them. The game mode of a new player then comes from `level.dat`. If `level.dat` is missing and only its backup `level.dat_old` is left, the server opens the world from the backup. The chunks come from the region files of the save, which Java Edition stores in the Anvil format.
 
-A folder without `level.dat`, such as an empty one, becomes a new world. The server writes `level.dat` and the world generation settings into it from `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` and `MCRS_DEFAULT_GAMEMODE`, so the next start opens the same world with the same seed.[^969]
+A folder with neither `level.dat` nor saved world generation settings, such as an empty one, becomes a new world. The server writes `level.dat` and the world generation settings into it from `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` and `MCRS_DEFAULT_GAMEMODE`, so the next start opens the same world with the same seed.[^969]
 
 While the server runs, it holds a lock on `session.lock` in the world folder, as the game does. When another process holds that lock, the server writes nothing to the folder and does not start.[^969]
 

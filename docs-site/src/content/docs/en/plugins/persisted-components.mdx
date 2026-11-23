@@ -51,7 +51,7 @@ Register the component in the `build` of your plugin with `register_persisted`, 
 
 `add_persistence_plugin(plugin)` adds the plugin to the main app and builds a clone of it in every dimension world, so the plugin must be `Clone`. The dimension worlds need the registration to capture and apply the component. The main app needs it because it reads the player file when a player joins, and a key of the file that no registered component claims makes the whole file unreadable. The player then joins empty, and the server never writes over that file.
 
-A second registration over the same keys replaces the first. A registration that shares only some of its keys with an earlier one is refused, and the server logs an error. If the player has no such component when the server captures the snapshot, nothing is stored for it. Applying a snapshot inserts the component and replaces the one the player had.
+A second registration over the same keys in the same order replaces the first. A registration that shares only some of its keys with an earlier one is refused, and the server logs an error. If the player has no such component when the server captures the snapshot, nothing is stored for it. Applying a snapshot inserts the component and replaces the one the player had.
 
 ## Choose whether the component reaches the player file
 
