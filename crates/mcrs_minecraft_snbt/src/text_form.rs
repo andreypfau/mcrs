@@ -30,12 +30,7 @@ fn write_tag(tag: &NbtTag, level: usize, out: &mut String) {
         NbtTag::Double(v) => _ = write_java_number(out, *v).and_then(|()| out.write_char('d')),
         NbtTag::String(v) => quote_and_escape(v, out),
         NbtTag::ByteArray(v) => {
-            write_array(
-                'B',
-                v.iter().map(|byte| i8::from_ne_bytes([*byte])),
-                "b",
-                out,
-            );
+            write_array('B', v.iter().map(|byte| *byte as i8), "b", out);
         }
         NbtTag::IntArray(v) => write_array('I', v.iter(), "", out),
         NbtTag::LongArray(v) => write_array('L', v.iter(), "L", out),

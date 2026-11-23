@@ -15,11 +15,15 @@ use crate::server_change::ServerChange;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Branch {
     Query,
+    Change(ChangeBranch),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ChangeBranch {
     Rate,
     Freeze,
     Unfreeze,
     Step,
-    StepOne,
     StepStop,
     Sprint,
     SprintStop,
@@ -54,43 +58,43 @@ pub(crate) fn build(
                 max: 10000.0,
             },
         )
-        .runs(Branch::Rate)
+        .runs(Branch::Change(ChangeBranch::Rate))
         .in_any_world()
         .id()?;
     let step = registrar
         .literal(tick, "step")
-        .runs(Branch::StepOne)
+        .runs(Branch::Change(ChangeBranch::Step))
         .in_any_world()
         .id()?;
     let _ = registrar
         .literal(step, "stop")
-        .runs(Branch::StepStop)
+        .runs(Branch::Change(ChangeBranch::StepStop))
         .in_any_world()
         .id()?;
     let step = registrar
         .arg(step, "time", TimeArgument { min: 1 })
-        .runs(Branch::Step)
+        .runs(Branch::Change(ChangeBranch::Step))
         .in_any_world()
         .id()?;
     let sprint = registrar.literal(tick, "sprint").id()?;
     let _ = registrar
         .literal(sprint, "stop")
-        .runs(Branch::SprintStop)
+        .runs(Branch::Change(ChangeBranch::SprintStop))
         .in_any_world()
         .id()?;
     let sprint = registrar
         .arg(sprint, "time", TimeArgument { min: 1 })
-        .runs(Branch::Sprint)
+        .runs(Branch::Change(ChangeBranch::Sprint))
         .in_any_world()
         .id()?;
     let _ = registrar
         .literal(tick, "unfreeze")
-        .runs(Branch::Unfreeze)
+        .runs(Branch::Change(ChangeBranch::Unfreeze))
         .in_any_world()
         .id()?;
     let _ = registrar
         .literal(tick, "freeze")
-        .runs(Branch::Freeze)
+        .runs(Branch::Change(ChangeBranch::Freeze))
         .in_any_world()
         .id()?;
     Ok(TickCommand { rate, step, sprint })
@@ -179,6 +183,7 @@ impl Change {
 
 fn change(
     call: &Call<Branch, TickCommand>,
+    branch: ChangeBranch,
     context: &VanillaContext,
     pace: &TickPace,
 ) -> Result<Change, CommandFailure> {
@@ -190,9 +195,8 @@ fn change(
         message: Text::translate_args("commands.tick.step.success", vec![ticks.into()]),
         result: 1,
     };
-    match call.branch {
-        Branch::Query => Err(CommandFailure::failed()),
-        Branch::Rate => {
+    match branch {
+        ChangeBranch::Rate => {
             let rate = context.arg(&call.invocation, call.command.rate)?;
             Ok(Change {
                 edit: ServerEdit::TickRate { rate },
@@ -203,26 +207,29 @@ fn change(
                 result: rate as i32,
             })
         }
-        Branch::Freeze => Ok(Change::new(
+        ChangeBranch::Freeze => Ok(Change::new(
             ServerEdit::Freeze,
             "commands.tick.status.frozen",
             1,
         )),
-        Branch::Unfreeze => Ok(Change::new(
+        ChangeBranch::Unfreeze => Ok(Change::new(
             ServerEdit::Unfreeze,
             "commands.tick.status.running",
             0,
         )),
-        Branch::Step | Branch::StepOne if !pace.is_frozen() => fail("commands.tick.step.fail"),
-        Branch::Step => Ok(step(context.arg(&call.invocation, call.command.step)?)),
-        Branch::StepOne => Ok(step(1)),
-        Branch::StepStop if pace.steps() == 0 => fail("commands.tick.step.stop.fail"),
-        Branch::StepStop => Ok(Change::new(
+        ChangeBranch::Step if !pace.is_frozen() => fail("commands.tick.step.fail"),
+        ChangeBranch::Step => Ok(step(
+            context
+                .opt(&call.invocation, call.command.step)?
+                .unwrap_or(1),
+        )),
+        ChangeBranch::StepStop if pace.steps() == 0 => fail("commands.tick.step.stop.fail"),
+        ChangeBranch::StepStop => Ok(Change::new(
             ServerEdit::StopStep,
             "commands.tick.step.stop.success",
             1,
         )),
-        Branch::Sprint => {
+        ChangeBranch::Sprint => {
             let ticks = context.arg(&call.invocation, call.command.sprint)?;
             Ok(Change::new(
                 ServerEdit::StartSprint {
@@ -232,8 +239,8 @@ fn change(
                 1,
             ))
         }
-        Branch::SprintStop if !pace.is_sprinting() => fail("commands.tick.sprint.stop.fail"),
-        Branch::SprintStop => Ok(Change::new(
+        ChangeBranch::SprintStop if !pace.is_sprinting() => fail("commands.tick.sprint.stop.fail"),
+        ChangeBranch::SprintStop => Ok(Change::new(
             ServerEdit::StopSprint,
             "commands.tick.sprint.stop.success",
             1,
@@ -251,14 +258,14 @@ pub(crate) fn run(
     let Some(pace) = pace else {
         return Err(CommandFailure::failed());
     };
-    if call.branch == Branch::Query {
+    let Branch::Change(branch) = call.branch else {
         for message in query_messages(&pace) {
             output.success(&call.invocation, message, Feedback::Source);
         }
         return Ok(pace.rate() as i32);
-    }
-    let change = change(&call, &context, &pace)?;
-    if call.branch == Branch::Sprint && pace.is_sprinting() {
+    };
+    let change = change(&call, branch, &context, &pace)?;
+    if branch == ChangeBranch::Sprint && pace.is_sprinting() {
         output.success(
             &call.invocation,
             Text::translate("commands.tick.sprint.stop.success", vec![]),

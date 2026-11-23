@@ -64,19 +64,17 @@ fn name_list(players: &[PlayerEntry], branch: Branch) -> Text {
         Branch::Names => name,
         Branch::Uuids => name_and_uuid,
     };
-    match players {
-        [] => Text::text(""),
-        [player] => entry(player),
-        [first, rest @ ..] => {
-            let mut text = Text::text("").add_child(entry(first));
-            for player in rest {
-                text = text
-                    .add_child(", ".color(Color::GRAY))
-                    .add_child(entry(player));
-            }
-            text
-        }
+    if let [player] = players {
+        return entry(player);
     }
+    let mut text = Text::text("");
+    for (index, player) in players.iter().enumerate() {
+        if index > 0 {
+            text = text.add_child(", ".color(Color::GRAY));
+        }
+        text = text.add_child(entry(player));
+    }
+    text
 }
 
 pub(crate) fn run(
