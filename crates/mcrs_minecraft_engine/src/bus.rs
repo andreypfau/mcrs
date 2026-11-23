@@ -78,7 +78,7 @@ pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
     to_target(PacketTarget::SinglePlayer(session), data)
 }
 
-pub(crate) fn send_own_entity_state(
+pub fn send_own_entity_state(
     writer: &mut MessageWriter<OutboundPlayerPacket>,
     session: PlayerSession,
     packet: &(impl Packet + Encode),

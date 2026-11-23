@@ -1,4 +1,6 @@
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::change_detection::Ref;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
@@ -14,11 +16,13 @@ use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine::loaded_client::UnloadedClient;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_damage::DamageRequest;
 use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_entity::damage_type_keys::PLAYER_ATTACK;
@@ -39,8 +43,13 @@ use mcrs_minecraft_replication::wire_id;
 use mcrs_minecraft_text::Text;
 
 use crate::AttackCounter;
+use crate::AttackKnockback;
+use crate::AttackKnockbacks;
 use crate::attack_amount;
 use crate::attack_strength;
+
+const FULL_STRENGTH: f32 = 0.9;
+const SPRINT_KNOCKBACK: f32 = 0.5;
 
 type Attackers<'w, 's> = Query<
     'w,
@@ -51,6 +60,8 @@ type Attackers<'w, 's> = Query<
         &'static PlayerGameMode,
         &'static AttributeInstances,
         &'static mut AttackCounter,
+        &'static Transform,
+        Ref<'static, PlayerSprinting>,
         Option<&'static Vitals>,
         Has<UnloadedClient>,
     ),
@@ -135,13 +146,14 @@ pub(crate) fn on_attack(
     registries: Option<Res<CurrentRegistries>>,
     clock: Option<Res<BirthClock>>,
     mut pending: ResMut<PendingHits>,
+    mut knockbacks: ResMut<AttackKnockbacks>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Some(packet) = received.packet() else {
         return;
     };
     let attacker = received.entity;
-    let Ok((uuid, owner, mode, attributes, mut counter, vitals, unloaded)) =
+    let Ok((uuid, owner, mode, attributes, mut counter, transform, sprinting, vitals, unloaded)) =
         attackers.get_mut(attacker)
     else {
         return;
@@ -175,11 +187,14 @@ pub(crate) fn on_attack(
     if target.kind == EntityType::Player && !pvp {
         return;
     }
-    let Some(amount) = attributes
+    let Some((speed, damage)) = attributes
         .value(Attribute::AttackSpeed)
         .zip(attributes.value(Attribute::AttackDamage))
-        .and_then(|(speed, damage)| attack_amount(damage, attack_strength(ticks, speed)))
     else {
+        return;
+    };
+    let strength = attack_strength(ticks, speed);
+    let Some(amount) = attack_amount(damage, strength) else {
         return;
     };
     let Some(damage_type) = registries
@@ -202,4 +217,16 @@ pub(crate) fn on_attack(
         now,
         sequence,
     ));
+    let mut knockback = attributes.value(Attribute::AttackKnockback).unwrap_or(0.0) as f32 / 2.0;
+    if sprinting.0 && strength > FULL_STRENGTH {
+        knockback += SPRINT_KNOCKBACK;
+    }
+    knockbacks.0.push(AttackKnockback {
+        attacker,
+        target: target.entity,
+        strength: knockback,
+        yaw: transform.rotation.yaw(),
+        position: transform.translation,
+        sprint_changed: sprinting.last_changed(),
+    });
 }
